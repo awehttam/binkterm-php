@@ -155,6 +155,12 @@
                             </select>
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.outgoing_charset_help', {}, locale, ['common']) }}</small>
                         </div>
+                        <hr>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsAiAssistantEnabled">
+                            <label class="form-check-label" for="bbsAiAssistantEnabled">{{ t('ui.admin.bbs_settings.features.enable_ai_assistant', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.ai_assistant_help', {}, locale, ['common']) }}</small></div>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">{{ t('ui.admin.bbs_settings.features.save', {}, locale, ['common']) }}</button>
                     </form>
                 </div>
@@ -239,6 +245,11 @@
                                 <label class="form-label" for="bbsCreditsFileDownloadReward">{{ t('ui.admin.bbs_settings.credits.file_download_reward', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsFileDownloadReward" min="0" step="1">
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_download_reward_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsAiPerMilliUsd">{{ t('ui.admin.bbs_settings.credits.ai_credits_per_milli_usd', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsAiPerMilliUsd" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.ai_credits_per_milli_usd_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label" for="bbsCreditsTransferFee">{{ t('ui.admin.bbs_settings.credits.transfer_fee_percentage', {}, locale, ['common']) }}</label>
@@ -331,6 +342,7 @@ function loadBbsSettings() {
             const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
+            document.getElementById('bbsAiAssistantEnabled').checked = data.config?.ai_assistant?.enabled === true;
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
             document.getElementById('bbsCreditsSymbol').value = (credits.symbol ?? '$');
             const dailyAmountValue = parseInt(credits.daily_amount, 10);
@@ -344,6 +356,7 @@ function loadBbsSettings() {
             const fileUploadRewardValue = parseInt(credits.file_upload_reward, 10);
             const fileDownloadCostValue = parseInt(credits.file_download_cost, 10);
             const fileDownloadRewardValue = parseInt(credits.file_download_reward, 10);
+            const aiPerMilliUsdValue = parseInt(credits.ai_credits_per_milli_usd, 10);
             const new14DaysValue = parseInt(credits.return_14days, 10);
             const transferFeeValue = parseFloat(credits.transfer_fee_percent);
             document.getElementById('bbsCreditsDailyAmount').value = Number.isNaN(dailyAmountValue) ? 25 : dailyAmountValue;
@@ -357,6 +370,7 @@ function loadBbsSettings() {
             document.getElementById('bbsCreditsFileUploadReward').value = Number.isNaN(fileUploadRewardValue) ? 0 : fileUploadRewardValue;
             document.getElementById('bbsCreditsFileDownloadCost').value = Number.isNaN(fileDownloadCostValue) ? 0 : fileDownloadCostValue;
             document.getElementById('bbsCreditsFileDownloadReward').value = Number.isNaN(fileDownloadRewardValue) ? 0 : fileDownloadRewardValue;
+            document.getElementById('bbsCreditsAiPerMilliUsd').value = Number.isNaN(aiPerMilliUsdValue) ? 0 : aiPerMilliUsdValue;
             document.getElementById('bbsCreditsNew14Days').value = Number.isNaN(new14DaysValue) ? 50 : new14DaysValue;
             document.getElementById('bbsCreditsTransferFee').value = Number.isNaN(transferFeeValue) ? 0.05 : transferFeeValue;
 
@@ -422,7 +436,10 @@ function saveBbsSettings() {
                 echomail_moderation_threshold: echomailModerationThreshold,
                 dashboard_ad_rotate_interval_seconds: dashboardAdRotateInterval,
                 default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value,
-                outgoing_charset: document.getElementById('bbsOutgoingCharset').value
+                outgoing_charset: document.getElementById('bbsOutgoingCharset').value,
+                ai_assistant: {
+                    enabled: document.getElementById('bbsAiAssistantEnabled').checked
+                }
             };
 
             return fetch('/admin/api/bbs-settings', {
@@ -570,6 +587,12 @@ function saveBbsCredits() {
         return;
     }
 
+    const aiPerMilliUsd = parseInt(document.getElementById('bbsCreditsAiPerMilliUsd').value, 10);
+    if (Number.isNaN(aiPerMilliUsd) || aiPerMilliUsd < 0) {
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.ai_credits_per_milli_usd_non_negative', 'AI credits per $0.001 must be a non-negative integer.'), 'danger');
+        return;
+    }
+
     const new14Days = parseInt(document.getElementById('bbsCreditsNew14Days').value, 10);
     if (Number.isNaN(new14Days) || new14Days < 0) {
         showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.return_14_days_non_negative', '14-day return bonus must be a non-negative integer.'), 'danger');
@@ -610,6 +633,7 @@ function saveBbsCredits() {
                     file_upload_reward: fileUploadReward,
                     file_download_cost: fileDownloadCost,
                     file_download_reward: fileDownloadReward,
+                    ai_credits_per_milli_usd: aiPerMilliUsd,
                     return_14days: new14Days,
                     transfer_fee_percent: transferFee,
                     referral_enabled: document.getElementById('bbsCreditsReferralEnabled').checked,

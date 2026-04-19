@@ -51,6 +51,7 @@ if (!headers_sent()) {
 if (rand(1, 100) <= 5) { // 5% chance
     $auth = new Auth();
     $auth->cleanExpiredSessions();
+    (new \BinktermPHP\DoorSessionManager())->cleanExpiredSessions();
 }
 
 require_once __DIR__."/../src/functions.php";

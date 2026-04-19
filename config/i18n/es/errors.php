@@ -320,6 +320,10 @@ return [
     'errors.admin.users.reminder_not_allowed' => 'El usuario no es elegible para recordatorio',
     'errors.admin.users.reminder_send_failed' => 'No se pudo enviar el recordatorio',
     'errors.admin.users.need_reminders_failed' => 'No se pudieron cargar los candidatos a recordatorio',
+    'errors.admin.users.credits_disabled' => 'El sistema de créditos está deshabilitado',
+    'errors.admin.users.invalid_credit_amount' => 'La cantidad de créditos debe ser un entero positivo',
+    'errors.admin.users.credit_note_required' => 'Se requiere una nota para las asignaciones manuales de créditos',
+    'errors.admin.users.credit_grant_failed' => 'No se pudieron otorgar los créditos',
 
     // Admin Debug
     'errors.admin.debug_failed' => 'No se pudo cargar la informacion de depuracion de administrador',
@@ -346,6 +350,11 @@ return [
     'errors.admin.appearance.term_server.upload.failed' => 'No se pudo subir la pantalla del servidor terminal',
     'errors.admin.appearance.term_server.upload.file_too_large' => 'El archivo de pantalla del servidor terminal supera el limite de tamano',
     'errors.admin.appearance.term_server.delete.failed' => 'No se pudo eliminar la pantalla del servidor terminal',
+    'errors.admin.appearance.sixel.list_failed' => 'Error al cargar las pantallas sixel',
+    'errors.admin.appearance.sixel.upload.no_file' => 'No se subio ningun archivo sixel',
+    'errors.admin.appearance.sixel.upload.failed' => 'Error al subir la pantalla sixel',
+    'errors.admin.appearance.sixel.upload.file_too_large' => 'El archivo sixel supera el limite de tamano (5MB)',
+    'errors.admin.appearance.sixel.delete.failed' => 'Error al eliminar la pantalla sixel',
     'errors.admin.appearance.message_reader.save_failed' => 'No se pudo guardar la configuracion del lector de mensajes',
     'errors.admin.appearance.dashboard.save_failed' => 'No se pudo guardar el diseno del panel',
     'errors.admin.appearance.markdown_preview.failed' => 'No se pudo renderizar la vista previa de markdown',
@@ -378,6 +387,17 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'No se pudo cargar la configuracion de webdoors',
     'errors.admin.webdoors_config.save_failed' => 'No se pudo guardar la configuracion de webdoors',
     'errors.admin.webdoors_config.activate_failed' => 'No se pudo activar la configuracion de webdoors',
+    'errors.admin.jsdosdoors_config.load_failed' => 'No se pudo cargar la configuracion de puertas JS-DOS',
+    'errors.admin.jsdosdoors_config.save_failed' => 'No se pudo guardar la configuracion de puertas JS-DOS',
+    'errors.admin.jsdosdoors_config.activate_failed' => 'No se pudo activar la configuracion de puertas JS-DOS',
+
+    // JS-DOS door session errors
+    'errors.jsdosdoor.game_not_found' => 'Juego no encontrado',
+    'errors.jsdosdoor.session_create_failed' => 'No se pudo crear la sesion de juego',
+    'errors.jsdosdoor.session_end_failed' => 'No se pudo terminar la sesion de juego',
+    'errors.jsdosdoor.asset_load_failed' => 'No se pudieron cargar los archivos del juego',
+    'errors.jsdosdoor.file_sync_failed' => 'No se pudieron sincronizar los archivos de JS-DOS',
+
     'errors.admin.filearea_rules.load_failed' => 'No se pudieron cargar las reglas del area de archivos',
     'errors.admin.filearea_rules.save_failed' => 'No se pudieron guardar las reglas del area de archivos',
     'errors.admin.ads.list_failed' => 'No se pudieron cargar los anuncios',
@@ -645,4 +665,11 @@ return [
     // URL preview (unfurl)
     'errors.url_preview.invalid_url'   => 'URL no válida.',
     'errors.url_preview.fetch_failed'  => 'No se pudo obtener una vista previa de esa URL.',
+
+    // AI Assistant
+    'errors.ai_assistant.disabled'             => 'El asistente IA no esta habilitado en este sistema.',
+    'errors.ai_assistant.not_configured'       => 'El asistente IA no esta configurado.',
+    'errors.ai_assistant.prompt_too_long'      => 'La consulta supera el limite de 500 caracteres.',
+    'errors.ai_assistant.insufficient_credits' => 'Creditos insuficientes para el asistente IA.',
+    'errors.ai_assistant.failed'               => 'La solicitud IA fallo. Por favor, intentelo de nuevo.',
 ];

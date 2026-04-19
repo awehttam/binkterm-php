@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v771';
+const CACHE_NAME = 'binkcache-v783';
 
 // Static assets to precache
 const staticAssets = [
@@ -36,6 +36,7 @@ const staticAssets = [
     '/vendor/fontawesome-6.4.0/webfonts/fa-regular-400.woff2',
     '/vendor/riptermjs/BGI.js',
     '/vendor/riptermjs/ripterm.js',
+    '/vendor/marked.min.js',
     // Notification sounds
     '/sounds/notify1.mp3',
     '/sounds/notify2.mp3',

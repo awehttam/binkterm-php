@@ -1,0 +1,60 @@
+<!-- AI Assistant Modal -->
+<div class="modal fade" id="aiAssistantModal" tabindex="-1" aria-labelledby="aiAssistantModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiAssistantModalLabel">
+                    <i class="fas fa-robot me-2"></i>{{ t('ui.ai_assistant.modal_title', {}, locale, ['common']) }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Context indicator -->
+                <div id="aiContextInfo" class="mb-3"></div>
+
+                <!-- Quick Prompts -->
+                <div class="mb-3">
+                    <label class="form-label small text-muted fw-semibold">{{ t('ui.ai_assistant.quick_prompts', {}, locale, ['common']) }}</label>
+                    <div id="aiQuickPrompts" class="d-flex flex-wrap gap-2"></div>
+                </div>
+
+                <!-- Prompt textarea -->
+                <div class="mb-2">
+                    <label for="aiPromptText" class="form-label">{{ t('ui.ai_assistant.prompt_label', {}, locale, ['common']) }}</label>
+                    <textarea
+                        id="aiPromptText"
+                        class="form-control"
+                        rows="5"
+                        maxlength="500"
+                        placeholder="{{ t('ui.ai_assistant.prompt_placeholder', {}, locale, ['common']) }}"
+                    ></textarea>
+                </div>
+                <div class="alert alert-warning small mb-3" role="alert">
+                    <i class="fas fa-triangle-exclamation me-2"></i>{{ t('ui.ai_assistant.usage_warning', {}, locale, ['common']) }}
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <small id="aiCharCount" class="text-muted">500 {{ t('ui.ai_assistant.chars_remaining', {remaining: 500}, locale, ['common']) }}</small>
+                    <small class="text-muted fst-italic">{{ t('ui.ai_assistant.credits_notice', {}, locale, ['common']) }}</small>
+                </div>
+
+                <!-- Response section (hidden until first response) -->
+                <div id="aiResponseSection" class="d-none">
+                    <hr>
+                    <label class="form-label small text-muted fw-semibold">{{ t('ui.ai_assistant.response_label', {}, locale, ['common']) }}</label>
+                    <div id="aiResponseText" class="p-3 bg-light rounded small ai-response-text" style="max-height: 350px; overflow-y: auto;"></div>
+                    <div class="mt-2 d-flex justify-content-end">
+                        <span id="aiCreditsUsed" class="badge bg-secondary"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" id="aiExecuteBtn" onclick="executeAiAssistant()">
+                    <span id="aiExecuteSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status" aria-hidden="true"></span>
+                    <i id="aiExecuteIcon" class="fas fa-bolt me-1"></i>
+                    {{ t('ui.ai_assistant.execute', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

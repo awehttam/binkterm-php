@@ -233,6 +233,10 @@ return [
     'errors.admin.users.reminder_not_allowed' => 'L\'utilisateur n\'est pas éligible au rappel',
     'errors.admin.users.reminder_send_failed' => 'Échec de l\'envoi du rappel',
     'errors.admin.users.need_reminders_failed' => 'Échec du chargement des candidats aux rappels',
+    'errors.admin.users.credits_disabled' => 'Le système de crédits est désactivé',
+    'errors.admin.users.invalid_credit_amount' => 'Le montant des crédits doit être un entier positif',
+    'errors.admin.users.credit_note_required' => 'Une note est requise pour les attributions manuelles de crédits',
+    'errors.admin.users.credit_grant_failed' => 'Échec de l’attribution des crédits',
     'errors.admin.debug_failed' => 'Échec du chargement des informations de débogage administrateur',
     'errors.admin.bbs_settings.load_failed' => 'Échec du chargement des paramètres BBS',
     'errors.admin.bbs_settings.invalid_payload' => 'Charge utile de configuration invalide',
@@ -277,6 +281,17 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'Échec du chargement de la configuration des portes web',
     'errors.admin.webdoors_config.save_failed' => 'Échec de l\'enregistrement de la configuration des portes web',
     'errors.admin.webdoors_config.activate_failed' => 'Échec de l\'activation de la configuration des portes web',
+    'errors.admin.jsdosdoors_config.load_failed' => 'Échec du chargement de la configuration des portes JS-DOS',
+    'errors.admin.jsdosdoors_config.save_failed' => 'Échec de l\'enregistrement de la configuration des portes JS-DOS',
+    'errors.admin.jsdosdoors_config.activate_failed' => 'Échec de l\'activation de la configuration des portes JS-DOS',
+
+    // JS-DOS door session errors
+    'errors.jsdosdoor.game_not_found' => 'Jeu introuvable',
+    'errors.jsdosdoor.session_create_failed' => 'Impossible de créer la session de jeu',
+    'errors.jsdosdoor.session_end_failed' => 'Impossible de terminer la session de jeu',
+    'errors.jsdosdoor.asset_load_failed' => 'Impossible de charger les fichiers du jeu',
+    'errors.jsdosdoor.file_sync_failed' => 'Impossible de synchroniser les fichiers JS-DOS',
+
     'errors.admin.filearea_rules.load_failed' => 'Échec du chargement des règles de zone de fichiers',
     'errors.admin.filearea_rules.save_failed' => 'Échec de l\'enregistrement des règles de zone de fichiers',
     'errors.admin.ads.list_failed' => 'Échec du chargement des publicités',
@@ -571,6 +586,11 @@ return [
     'errors.admin.appearance.term_server.upload.failed' => 'Impossible de téléverser l\'écran du serveur terminal',
     'errors.admin.appearance.term_server.upload.file_too_large' => 'Le fichier d\'écran du serveur terminal dépasse la limite de taille',
     'errors.admin.appearance.term_server.delete.failed' => 'Impossible de supprimer l\'écran du serveur terminal',
+    'errors.admin.appearance.sixel.list_failed' => 'Échec du chargement des écrans sixel',
+    'errors.admin.appearance.sixel.upload.no_file' => 'Aucun fichier sixel téléversé',
+    'errors.admin.appearance.sixel.upload.failed' => 'Échec du téléversement de l\'écran sixel',
+    'errors.admin.appearance.sixel.upload.file_too_large' => 'Le fichier sixel dépasse la limite de taille (5 Mo)',
+    'errors.admin.appearance.sixel.delete.failed' => 'Impossible de supprimer l\'écran sixel',
 
     // Markdown image upload
     'errors.markdown_images.upload_failed' => 'Echec du telechargement de l\'image. Veuillez reessayer.',
@@ -602,6 +622,13 @@ return [
     // URL preview (unfurl)
     'errors.url_preview.invalid_url'   => 'URL invalide.',
     'errors.url_preview.fetch_failed'  => 'Impossible d\'obtenir un aperçu de cette URL.',
+
+    // AI Assistant
+    'errors.ai_assistant.disabled'             => 'L\'assistant IA n\'est pas active sur ce systeme.',
+    'errors.ai_assistant.not_configured'       => 'L\'assistant IA n\'est pas configure.',
+    'errors.ai_assistant.prompt_too_long'      => 'La demande depasse la limite de 500 caracteres.',
+    'errors.ai_assistant.insufficient_credits' => 'Credits insuffisants pour l\'assistant IA.',
+    'errors.ai_assistant.failed'               => 'La requete IA a echoue. Veuillez reessayer.',
 ];
 
 

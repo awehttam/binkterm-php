@@ -253,15 +253,44 @@ class LocalChatActivityHandler implements BotActivityHandler
     }
 
     /**
-     * Insert a chat message from the bot into chat_messages.
-     * The INSERT trigger fires pg_notify('binkstream', ...) automatically.
+     * Insert a chat message from the bot into chat_messages and pre-render
+     * markup_html into the sse_events row the INSERT trigger creates.
+     *
+     * Both operations are wrapped in an explicit transaction.  The INSERT
+     * trigger calls pg_notify, but PostgreSQL only delivers NOTIFY to
+     * listeners after the transaction commits — so wrapping INSERT + UPDATE
+     * together guarantees the markup_html is present in sse_events before
+     * any SSE client is woken up.  Without the transaction, there is a race
+     * window between INSERT commit and the subsequent UPDATE where a client
+     * could read the unenriched row and render raw markdown.
      */
     private function postBotMessage(int $botUserId, ?int $roomId, ?int $toUserId, string $body): void
     {
-        $stmt = $this->db->prepare("
-            INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
-            VALUES (?, ?, ?, ?)
-        ");
-        $stmt->execute([$roomId, $botUserId, $toUserId, $body]);
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare("
+                INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
+                VALUES (?, ?, ?, ?)
+                RETURNING id
+            ");
+            $stmt->execute([$roomId, $botUserId, $toUserId, $body]);
+            $chatId = (int)$stmt->fetchColumn();
+
+            // Enrich the sse_events row the trigger just created with pre-rendered HTML.
+            // This must happen before COMMIT so the payload is ready when pg_notify fires.
+            $markupHtml = \BinktermPHP\MarkdownRenderer::toHtml($body);
+            $enrichStmt = $this->db->prepare("
+                UPDATE sse_events
+                SET payload = payload || jsonb_build_object('markup_html', ?::text)
+                WHERE event_type = 'chat_message'
+                  AND (payload->>'id')::bigint = ?
+            ");
+            $enrichStmt->execute([$markupHtml, $chatId]);
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 }

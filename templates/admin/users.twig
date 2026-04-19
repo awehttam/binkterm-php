@@ -322,10 +322,33 @@ function viewUser(userId) {
                     </div>
                     <div class="col-md-6">
                         <h6>${uiT('ui.admin.users.statistics', 'Statistics')}</h6>
+                        <p><strong>${uiT('ui.admin.users.credit_balance', 'Credit Balance')}:</strong> ${typeof user.credit_balance === 'number' ? user.credit_balance : (user.credit_balance || 0)}</p>
                         <p><strong>${uiT('ui.admin.users.netmail_received', 'Netmail Received')}:</strong> ${stats.netmail_received}</p>
                         <p><strong>${uiT('ui.admin.users.netmail_sent', 'Netmail Sent')}:</strong> ${stats.netmail_sent}</p>
                         <p><strong>${uiT('ui.admin.users.echomail_posted', 'Echomail Posted')}:</strong> ${stats.echomail_posted}</p>
                         <p><strong>${uiT('ui.admin.users.active_sessions', 'Active Sessions')}:</strong> ${stats.active_sessions}</p>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-12">
+                        <h6>${uiT('ui.admin.users.grant_credits_heading', 'Grant Credits')}</h6>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label for="grantCreditsAmount" class="form-label">${uiT('ui.admin.users.grant_credits_amount', 'Amount')}</label>
+                                <input type="number" class="form-control" id="grantCreditsAmount" min="1" step="1" placeholder="100">
+                            </div>
+                            <div class="col-md-7">
+                                <label for="grantCreditsNote" class="form-label">${uiT('ui.admin.users.grant_credits_note', 'Reason / Note')}</label>
+                                <input type="text" class="form-control" id="grantCreditsNote" maxlength="255" placeholder="${uiT('ui.admin.users.grant_credits_note_placeholder', 'Manual adjustment, contest prize, support issue, etc.')}">
+                            </div>
+                            <div class="col-md-2 d-grid">
+                                <button type="button" class="btn btn-success" onclick="grantCredits(${user.id})">
+                                    <i class="fas fa-coins me-1"></i>${uiT('ui.admin.users.grant_credits_action', 'Add Credits')}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-text">${uiT('ui.admin.users.grant_credits_help', 'Creates an admin-adjustment credit transaction with your note in the ledger.')}</div>
                     </div>
                 </div>
             `;
@@ -336,6 +359,51 @@ function viewUser(userId) {
             console.error(uiT('ui.admin.users.load_details_failed', 'Error loading user details') + ':', error);
             showAlert(uiT('ui.admin.users.load_details_failed', 'Error loading user details'), 'danger');
         });
+}
+
+function grantCredits(userId) {
+    const amountField = document.getElementById('grantCreditsAmount');
+    const noteField = document.getElementById('grantCreditsNote');
+    const amount = parseInt(amountField.value, 10);
+    const note = (noteField.value || '').trim();
+
+    if (Number.isNaN(amount) || amount <= 0) {
+        showAlert(uiT('ui.admin.users.grant_credits_amount_invalid', 'Enter a positive credit amount.'), 'danger');
+        return;
+    }
+
+    if (!note) {
+        showAlert(uiT('ui.admin.users.grant_credits_note_missing', 'Enter a note for this credit grant.'), 'danger');
+        return;
+    }
+
+    fetch(`/admin/api/users/${userId}/credits`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            amount: amount,
+            note: note
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.users.credit_grant_success', 'Credits added successfully'))
+                : uiT('ui.admin.users.credit_grant_success', 'Credits added successfully');
+            showAlert(successMessage, 'success');
+            viewUser(userId);
+            loadUsers(currentPage);
+        } else {
+            showAlert(apiError(data, uiT('ui.admin.users.credit_grant_failed', 'Failed to add credits')), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error(uiT('ui.admin.users.credit_grant_failed', 'Failed to add credits') + ':', error);
+        showAlert(uiT('ui.admin.users.credit_grant_failed', 'Failed to add credits'), 'danger');
+    });
 }
 
 function saveUser() {

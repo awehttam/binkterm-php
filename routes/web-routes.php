@@ -420,10 +420,14 @@ SimpleRouter::get('/netmail', function() {
         $crashmailEnabled = false;
     }
 
+    $bbsConfig = BbsConfig::getConfig();
+    $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
+
     $template = new Template();
     $template->renderResponse('netmail.twig', [
         'system_address'   => $systemAddress,
         'crashmail_enabled' => $crashmailEnabled,
+        'ai_assistant_enabled' => $aiAssistantEnabled,
     ]);
 });
 
@@ -452,6 +456,8 @@ SimpleRouter::get('/echomail', function() {
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
     $isAdmin = !empty($user['is_admin']);
     $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+    $bbsConfig = BbsConfig::getConfig();
+    $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
 
     $hasInterests = false;
     if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
@@ -477,6 +483,7 @@ SimpleRouter::get('/echomail', function() {
         'domain' => $domainParam,
         'echomail_date_field' => $echoDateOrder,
         'has_interests' => $hasInterests,
+        'ai_assistant_enabled' => $aiAssistantEnabled,
     ]);
 });
 
@@ -493,6 +500,8 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
     $isAdmin = !empty($user['is_admin']);
     $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+    $bbsConfig = BbsConfig::getConfig();
+    $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
 
     $hasInterests = false;
     if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
@@ -505,6 +514,7 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
         'echoarea' => $echoarea,
         'echomail_date_field' => $echoDateOrder,
         'has_interests' => $hasInterests,
+        'ai_assistant_enabled' => $aiAssistantEnabled,
     ]);
 })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 

@@ -955,14 +955,32 @@ function updateNetmailGuidelinesPostingName(policy) {
  * @returns {string}
  */
 function sanitizeTuiMarkdown(md) {
-    return md
+    const placeholderPrefix = '%%TUIESC';
+    const protectedSegments = [];
+
+    // Protect code fences, inline code, and markdown links/images before
+    // undoing TUI's over-eager punctuation escaping in normal prose.
+    md = md.replace(/```[\s\S]*?```|`[^`\n]+`|!?\[[^\]]*\]\([^)]+\)/g, function(segment) {
+        const token = placeholderPrefix + protectedSegments.length + '%%';
+        protectedSegments.push(segment);
+        return token;
+    });
+
+    md = md
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<[^>]+>/g, '')
         // TUI's WYSIWYG serializer escapes heading markers (e.g. ## -> \#\#) inside
         // blockquotes. Undo that so quoted markdown headings round-trip correctly.
         .replace(/^(>+[ ]*)((?:\\#)+)( )/gm, (m, prefix, hashes, sp) =>
             prefix + hashes.replace(/\\#/g, '#') + sp
-        );
+        )
+        // TUI also escapes harmless punctuation in plain text paragraphs,
+        // which mutates signatures, email addresses, domains, and separators.
+        .replace(/\\([.~|])/g, '$1');
+
+    return md.replace(/%%TUIESC(\d+)%%/g, function(match, index) {
+        return protectedSegments[parseInt(index, 10)] || match;
+    });
 }
 
 /**
@@ -1575,8 +1593,12 @@ function insertUnfurledPreview() {
         richMd += '\n> ' + desc.substring(0, 200);
     }
 
-    // Try to swap the bare URL; fall back to appending if not found as plain text
-    const replaced = currentMd.replace(url, richMd);
+    // Try to swap the bare URL; also handle TUI WYSIWYG auto-linking [url](url);
+    // fall back to appending if neither form is found.
+    let replaced = currentMd.replace(url, richMd);
+    if (replaced === currentMd) {
+        replaced = currentMd.replace('[' + url + '](' + url + ')', richMd);
+    }
     tuiEditor.setMarkdown(replaced !== currentMd ? replaced : currentMd + '\n\n' + richMd, false);
 
     unfurlHandled = true;

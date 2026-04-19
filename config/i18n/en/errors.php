@@ -320,6 +320,10 @@ return [
     'errors.admin.users.reminder_not_allowed' => 'User is not eligible for reminder',
     'errors.admin.users.reminder_send_failed' => 'Failed to send reminder',
     'errors.admin.users.need_reminders_failed' => 'Failed to load reminder candidates',
+    'errors.admin.users.credits_disabled' => 'The credits system is disabled',
+    'errors.admin.users.invalid_credit_amount' => 'Credit amount must be a positive integer',
+    'errors.admin.users.credit_note_required' => 'A note is required for manual credit grants',
+    'errors.admin.users.credit_grant_failed' => 'Failed to grant credits',
 
     // Admin Debug
     'errors.admin.debug_failed' => 'Failed to load admin debug information',
@@ -346,6 +350,11 @@ return [
     'errors.admin.appearance.term_server.upload.failed' => 'Failed to upload terminal screen',
     'errors.admin.appearance.term_server.upload.file_too_large' => 'Terminal screen file exceeds size limit',
     'errors.admin.appearance.term_server.delete.failed' => 'Failed to delete terminal screen',
+    'errors.admin.appearance.sixel.list_failed' => 'Failed to load sixel screens',
+    'errors.admin.appearance.sixel.upload.no_file' => 'No sixel file uploaded',
+    'errors.admin.appearance.sixel.upload.failed' => 'Failed to upload sixel screen',
+    'errors.admin.appearance.sixel.upload.file_too_large' => 'Sixel file exceeds size limit (5MB)',
+    'errors.admin.appearance.sixel.delete.failed' => 'Failed to delete sixel screen',
     'errors.admin.appearance.message_reader.save_failed' => 'Failed to save message reader settings',
     'errors.admin.appearance.dashboard.save_failed' => 'Failed to save dashboard layout',
     'errors.admin.appearance.markdown_preview.failed' => 'Failed to render markdown preview',
@@ -378,6 +387,17 @@ return [
     'errors.admin.webdoors_config.load_failed' => 'Failed to load webdoors configuration',
     'errors.admin.webdoors_config.save_failed' => 'Failed to save webdoors configuration',
     'errors.admin.webdoors_config.activate_failed' => 'Failed to activate webdoors configuration',
+    'errors.admin.jsdosdoors_config.load_failed' => 'Failed to load JS-DOS doors configuration',
+    'errors.admin.jsdosdoors_config.save_failed' => 'Failed to save JS-DOS doors configuration',
+    'errors.admin.jsdosdoors_config.activate_failed' => 'Failed to activate JS-DOS doors configuration',
+
+    // JS-DOS door session errors
+    'errors.jsdosdoor.game_not_found' => 'Game not found',
+    'errors.jsdosdoor.session_create_failed' => 'Failed to create game session',
+    'errors.jsdosdoor.session_end_failed' => 'Failed to end game session',
+    'errors.jsdosdoor.asset_load_failed' => 'Failed to load game assets',
+    'errors.jsdosdoor.file_sync_failed' => 'Failed to sync JS-DOS files',
+
     'errors.admin.filearea_rules.load_failed' => 'Failed to load file area rules',
     'errors.admin.filearea_rules.save_failed' => 'Failed to save file area rules',
     'errors.admin.ads.list_failed' => 'Failed to load advertisements',
@@ -645,4 +665,11 @@ return [
     // URL preview (unfurl)
     'errors.url_preview.invalid_url'   => 'Invalid URL.',
     'errors.url_preview.fetch_failed'  => 'Could not fetch a preview for that URL.',
+
+    // AI Assistant
+    'errors.ai_assistant.disabled'             => 'AI assistant is not enabled on this system.',
+    'errors.ai_assistant.not_configured'       => 'AI assistant is not configured.',
+    'errors.ai_assistant.prompt_too_long'      => 'Prompt exceeds the 500 character limit.',
+    'errors.ai_assistant.insufficient_credits' => 'Insufficient credits for AI assistant.',
+    'errors.ai_assistant.failed'               => 'AI request failed. Please try again.',
 ];

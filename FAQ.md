@@ -673,8 +673,10 @@ See the "Troubleshooting" section in **[docs/LovlyNet.md](docs/LovlyNet.md)** fo
 ### Q: How do I set up polling for LovlyNet?
 **A:** For passive nodes, set up a cron job:
 ```bash
-# Poll every 15 minutes
-*/15 * * * * cd /path/to/binkterm-php && php scripts/binkp_poll.php >> data/logs/poll.log 2>&1
+# Poll once per hour — replace 23 with any minute 1–59 of your choosing.
+# Picking a non-zero minute spreads load across the hub instead of
+# every node polling at the top of the hour simultaneously.
+23 * * * * cd /path/to/binkterm-php && php scripts/binkp_poll.php >> data/logs/poll.log 2>&1
 ```
 
 Public nodes can also poll as a fallback, though the hub will deliver mail directly via inbound connections.

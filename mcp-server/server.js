@@ -326,7 +326,13 @@ async function queryTextSafe(sql, params = []) {
 // ---------------------------------------------------------------------------
 
 /**
- * @typedef {{ userId: number, isAdmin: boolean }} UserCtx
+ * @typedef {{
+ *   userId: number,
+ *   username: string,
+ *   realName: string|null,
+ *   isAdmin: boolean,
+ *   clientIp: string
+ * }} UserCtx
  */
 
 /**
@@ -356,7 +362,7 @@ async function resolveUser(req, res) {
     let result;
     try {
         result = await pool.query(
-            `SELECT um.user_id, u.is_admin
+            `SELECT um.user_id, u.username, u.real_name, u.is_admin
                FROM users_meta um
                JOIN users u ON u.id = um.user_id
               WHERE um.keyname = 'mcp_serverkey'
@@ -376,7 +382,13 @@ async function resolveUser(req, res) {
     }
 
     const row = result.rows[0];
-    return { userId: Number(row.user_id), isAdmin: !!row.is_admin };
+    return {
+        userId:   Number(row.user_id),
+        username: String(row.username ?? ''),
+        realName: row.real_name ? String(row.real_name) : null,
+        isAdmin:  !!row.is_admin,
+        clientIp: clientIp(req),
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -395,12 +407,35 @@ function createServer(userCtx) {
         version: '1.0.0',
     });
 
+    /**
+     * Register a tool and log who invoked it.
+     *
+     * @param {string} name
+     * @param {string} description
+     * @param {Record<string, import('zod').ZodTypeAny>} schema
+     * @param {(args: any) => Promise<any>} handler
+     */
+    function registerTool(name, description, schema, handler) {
+        server.tool(name, description, schema, async (args) => {
+            const displayName = userCtx.realName && userCtx.realName.trim() !== ''
+                ? `${userCtx.username} (${userCtx.realName})`
+                : userCtx.username;
+
+            logger.info(
+                `MCP tool invoked: user_id=${userCtx.userId} user="${displayName}" ` +
+                `tool=${name} ip=${userCtx.clientIp}`
+            );
+
+            return await handler(args);
+        });
+    }
+
     // Sysop-only clause fragment — empty string for admin users
     const sysopClause       = userCtx.isAdmin ? '' : 'AND ea.is_sysop_only = FALSE';
 
     // --- list_echoareas -------------------------------------------------------
 
-    server.tool(
+    registerTool(
         'list_echoareas',
         'List active echomail areas with their tags, descriptions, domains, and message counts.',
         {
@@ -431,7 +466,7 @@ function createServer(userCtx) {
 
     // --- get_echoarea ---------------------------------------------------------
 
-    server.tool(
+    registerTool(
         'get_echoarea',
         'Get details about a specific echomail area by tag.',
         {
@@ -465,7 +500,7 @@ function createServer(userCtx) {
 
     // --- get_messages ---------------------------------------------------------
 
-    server.tool(
+    registerTool(
         'get_echomail_messages',
         'Get recent echomail messages from an echo area, with optional filters and pagination.',
         {
@@ -525,7 +560,7 @@ function createServer(userCtx) {
 
     // --- get_message ----------------------------------------------------------
 
-    server.tool(
+    registerTool(
         'get_echomail_message',
         'Get the full text of a single echomail message by its ID.',
         {
@@ -561,7 +596,7 @@ function createServer(userCtx) {
 
     // --- search_echomail ------------------------------------------------------
 
-    server.tool(
+    registerTool(
         'search_echomail',
         'Full-text search across all echomail messages. Searches subject, body, sender, and recipient.',
         {
@@ -623,7 +658,7 @@ function createServer(userCtx) {
 
     // --- get_thread -----------------------------------------------------------
 
-    server.tool(
+    registerTool(
         'get_echomail_thread',
         'Get an echomail message and all its replies, forming a complete conversation thread.',
         {
@@ -692,7 +727,7 @@ function createServer(userCtx) {
 
     // --- get_echomail_stats ---------------------------------------------------
 
-    server.tool(
+    registerTool(
         'get_echomail_stats',
         'Return aggregated echomail statistics. Supported stat types: ' +
         '"top_posters_by_replies" (who gets the most replies), ' +

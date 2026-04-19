@@ -111,6 +111,10 @@
                         <label class="form-check-label" for="securityInsecureReceiveOnly">{{ t('ui.admin.binkp_config.security.insecure_receive_only', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="securityInsecureAllowFreq">
+                        <label class="form-check-label" for="securityInsecureAllowFreq">{{ t('ui.admin.binkp_config.security.insecure_allow_freq', {}, locale, ['common']) }}</label>
+                    </div>
+                    <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="securityRequireAllowlist">
                         <label class="form-check-label" for="securityRequireAllowlist">{{ t('ui.admin.binkp_config.security.require_allowlist_for_insecure', {}, locale, ['common']) }}</label>
                     </div>
@@ -417,6 +421,7 @@ function populateForm() {
     const security = binkpConfig.security || {};
     document.getElementById('securityAllowInsecureInbound').checked = !!security.allow_insecure_inbound;
     document.getElementById('securityInsecureReceiveOnly').checked = !!security.insecure_inbound_receive_only;
+    document.getElementById('securityInsecureAllowFreq').checked = !!security.insecure_allow_freq;
     document.getElementById('securityRequireAllowlist').checked = !!security.require_allowlist_for_insecure;
     document.getElementById('securityMaxInsecureSessions').value = security.max_insecure_sessions_per_hour ?? '';
     document.getElementById('securityAllowPlaintextFallback').checked = !!security.allow_plaintext_fallback;
@@ -456,6 +461,7 @@ function gatherConfig() {
         security: {
             allow_insecure_inbound: document.getElementById('securityAllowInsecureInbound').checked,
             insecure_inbound_receive_only: document.getElementById('securityInsecureReceiveOnly').checked,
+            insecure_allow_freq: document.getElementById('securityInsecureAllowFreq').checked,
             require_allowlist_for_insecure: document.getElementById('securityRequireAllowlist').checked,
             max_insecure_sessions_per_hour: parseInt(document.getElementById('securityMaxInsecureSessions').value, 10),
             allow_plaintext_fallback: document.getElementById('securityAllowPlaintextFallback').checked

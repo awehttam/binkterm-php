@@ -44,6 +44,7 @@ return [
     'ui.terminalserver.server.registration.realname'       => 'Nombre real: ',
     'ui.terminalserver.server.registration.email'          => 'Correo electrónico (opcional): ',
     'ui.terminalserver.server.registration.location'       => 'Ubicación (opcional): ',
+    'ui.terminalserver.server.registration.reason'         => 'Motivo para unirse (opcional): ',
     'ui.terminalserver.server.registration.submitting'     => 'Enviando registro...',
     'ui.terminalserver.server.registration.success'        => '¡Registro exitoso!',
     'ui.terminalserver.server.registration.pending'        => 'Su cuenta ha sido creada y está pendiente de aprobación.',

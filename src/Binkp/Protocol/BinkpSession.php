@@ -50,6 +50,8 @@ class BinkpSession
     private array $freqOutboundSent = [];
     /** @var array<int,array{filename:string,password:?string}> In-memory outbound FREQ request queue */
     private array $pendingFreqRequests = [];
+    /** @var bool Whether M_GET frames have already been sent this session (prevents double-send) */
+    private bool $freqRequestsSent = false;
     /** @var string[] Extra files to transmit this session (e.g. .req files), bypassing outbound directory filtering */
     private array $extraOutboundFiles = [];
     /** @var array<string,string> basename => full path for extra outbound files, used for M_GOT cleanup */
@@ -62,6 +64,7 @@ class BinkpSession
     // Insecure session support
     private $isInsecureSession = false;
     private $insecureReceiveOnly = true;
+    private bool $insecureAllowFreq = false;
     private $sessionType = 'secure';  // 'secure', 'insecure', 'crash_outbound'
     private $sessionLogger = null;
 
@@ -229,7 +232,8 @@ class BinkpSession
         $this->sendNul("SYS {$systemName}");
         $this->sendNul("ZYZ {$sysopName}");
         $this->sendNul("LOC {$location}");
-        $this->sendNul("VER BinktermPHP/".Version::getVersion()." binkp/1.0");
+        $this->sendNul("VER BinktermPHP/".Version::getVersion()." binkp/1.1");
+        $this->sendNul("OPT EXTCMD");
         $this->sendNul("TIME " . gmdate('D, d M Y H:i:s') . " UTC");
     }
 
@@ -304,9 +308,16 @@ class BinkpSession
 
             $pendingFiles = []; // Tracks sent files awaiting M_GOT; used for deferred cleanup
 
-            // In insecure receive-only mode, suppress all outbound file sending.
-            if ($this->isInsecureSession && $this->insecureReceiveOnly) {
-                $this->log("Insecure receive-only session — skipping all outbound file delivery", 'INFO');
+            // In insecure receive-only mode, suppress mail/hold delivery but optionally allow FREQs.
+            $suppressAll = $this->isInsecureSession && $this->insecureReceiveOnly;
+            if ($suppressAll) {
+                if ($this->insecureAllowFreq) {
+                    // Serve pre-queued FREQ responses but withhold mail packets and hold files.
+                    $this->log("Insecure receive-only session — delivering FREQ files only", 'INFO');
+                    $this->sendFreqFiles();
+                } else {
+                    $this->log("Insecure receive-only session — skipping all outbound file delivery", 'INFO');
+                }
             } else {
                 // Send any FREQ files queued for this node (runs for both originator and answerer)
                 $this->sendFreqFiles();
@@ -490,29 +501,36 @@ class BinkpSession
                 // and there will be no response.
                 if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
                     $sentNothing = empty($this->filesSent) && empty($this->pendingFreqRequests);
-                    // FREQ M_GET mode: sent FREQ requests, no normal files.
+                    // FREQ M_GET mode: sent M_GET requests, no files yet.
+                    // Allow up to 10 seconds after remote EOB — some remotes process
+                    // M_GET after sending M_EOB and immediately follow with M_FILE.
                     $freqOnlyDone = empty($this->filesSent)
                         && !empty($this->pendingFreqRequests)
-                        && $inactivity >= 3;
-                    // FREQ .req file mode: we sent a .req file this session and received
-                    // files back. Both EOBs are exchanged and no transfer is active —
-                    // terminate now rather than waiting the full inactivity timeout.
+                        && $inactivity >= 10;
+                    // FREQ .req file mode: detect whether a .req file was sent this session.
                     $sentReqFile = array_reduce(
                         array_keys($this->extraOutboundFilesByName),
                         fn($carry, $name) => $carry || str_ends_with(strtolower($name), '.req'),
                         false
                     );
+                    // Got files back after a .req — done.
                     $gotFreqResponse = $sentReqFile && !empty($this->filesReceived);
-                    // Once the remote has sent M_EOB it will never start a new transfer.
-                    // Response files (e.g. areafix replies) always arrive in a subsequent
-                    // session, not the current one, so there is nothing to wait for once
-                    // both sides have exchanged EOB and no transfer is active.
-                    $bothEobDone = true;
+                    // Sent a .req but no files yet — wait up to 10 seconds in case the
+                    // remote processes the .req inline and sends M_FILE after its EOB.
+                    $reqFilePending = $sentReqFile && empty($this->filesReceived)
+                        && $inactivity < 10;
+                    // Sent M_GET but no files yet and still within the wait window.
+                    $mgetPending = $this->freqRequestsSent && empty($this->filesReceived)
+                        && $inactivity < 10;
+                    // Safe to terminate only when no FREQ response is still pending.
+                    $bothEobDone = !$reqFilePending && !$mgetPending;
                     if ($sentNothing || $freqOnlyDone || $gotFreqResponse || $bothEobDone) {
-                        $reason = $sentNothing ? 'nothing sent'
-                            : ($freqOnlyDone    ? 'FREQ-only session complete'
-                            : ($gotFreqResponse ? 'FREQ response received, both EOBs done'
-                            : 'both EOBs exchanged, no active transfer'));
+                        $reason = $sentNothing    ? 'nothing sent'
+                            : ($freqOnlyDone      ? 'FREQ-only (M_GET) session complete'
+                            : ($gotFreqResponse   ? 'FREQ .req response received, both EOBs done'
+                            : ($reqFilePending    ? 'still waiting for .req response'
+                            : ($mgetPending       ? 'still waiting for M_GET response'
+                            : 'both EOBs exchanged, no active transfer'))));
                         $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                         break;
@@ -855,6 +873,17 @@ class BinkpSession
         }
 
         $frame->writeToSocket($this->socket);
+
+        // As originator, send any queued M_GET frames immediately after M_PWD so the
+        // remote receives them during its own handshake processing — before it starts
+        // building its outbound file queue.  binkd (and most modern mailers) enter the
+        // file transfer phase right after sending M_OK; by the time we reach
+        // processSession() it has already sent M_EOB if it has nothing queued.
+        // Sending M_GET here gives the remote the requests in the same TCP write burst
+        // as M_PWD, ensuring it sees them before it evaluates its outbound queue.
+        if ($this->isOriginator) {
+            $this->sendFreqRequests();
+        }
     }
 
     private function sendOK($message = '')
@@ -939,9 +968,11 @@ class BinkpSession
      */
     private function sendFreqRequests(): void
     {
-        if (empty($this->pendingFreqRequests)) {
+        if (empty($this->pendingFreqRequests) || $this->freqRequestsSent) {
             return;
         }
+
+        $this->freqRequestsSent = true;
 
         foreach ($this->pendingFreqRequests as $req) {
             $filename = $req['filename'];
@@ -1270,7 +1301,9 @@ class BinkpSession
         $timestamp = filemtime($filePath);
 
         // Get packet destination for logging (only for .pkt files, not TIC or data files)
-        $uplinkAddr = $this->currentUplink['address'] ?? 'unknown';
+        // Use the actual remote address (authenticated peer), not the routed-uplink address,
+        // so that direct FREQ sessions to non-uplink nodes log the correct destination.
+        $remoteAddr = $this->remoteAddress ?? $this->currentUplink['address'] ?? 'unknown';
         $destAddr = null;
 
         // Only try to parse packet destination for actual FidoNet packet files
@@ -1288,9 +1321,9 @@ class BinkpSession
         $frame->writeToSocket($this->socket);
 
         if ($destAddr) {
-            $this->log("Sending packet {$wireName} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
+            $this->log("Sending packet {$wireName} ({$fileSize} bytes) to {$remoteAddr}, packet dest: {$destAddr}", 'INFO');
         } else {
-            $this->log("Sending file {$wireName} ({$fileSize} bytes) to uplink {$uplinkAddr}", 'INFO');
+            $this->log("Sending file {$wireName} ({$fileSize} bytes) to {$remoteAddr}", 'INFO');
         }
 
         $handle = fopen($filePath, 'rb');
@@ -1317,7 +1350,7 @@ class BinkpSession
                 $this->sessionLogger->incrementStat('files_sent', 1);
                 $this->sessionLogger->incrementStat('bytes_sent', $bytesSent);
             }
-            $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
+            $this->log("Delivered packet {$wireName} ({$bytesSent} bytes) to {$remoteAddr}", 'INFO');
         } else {
             $this->log("Packet send incomplete: {$wireName} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
         }
@@ -1695,7 +1728,7 @@ class BinkpSession
     {
         $this->log("Remote FREQ request: {$data}", 'DEBUG');
 
-        if ($this->isInsecureSession && $this->insecureReceiveOnly) {
+        if ($this->isInsecureSession && $this->insecureReceiveOnly && !$this->insecureAllowFreq) {
             $this->log("FREQ request ignored — insecure receive-only session", 'INFO');
             return;
         }
@@ -1869,6 +1902,7 @@ class BinkpSession
 
         $this->isInsecureSession = true;
         $this->insecureReceiveOnly = $this->config->getInsecureReceiveOnly();
+        $this->insecureAllowFreq = $this->config->getInsecureAllowFreq();
         $this->sessionType = 'insecure';
         if ($this->sessionLogger) {
             $this->sessionLogger->setSessionType($this->sessionType);

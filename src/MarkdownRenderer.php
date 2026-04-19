@@ -10,6 +10,14 @@ namespace BinktermPHP;
 class MarkdownRenderer
 {
     private const MAX_BLOCKQUOTE_DEPTH = 8;
+    private const ALLOWED_DATA_IMAGE_TYPES = [
+        'png',
+        'jpeg',
+        'jpg',
+        'gif',
+        'webp',
+        'bmp',
+    ];
 
     /**
      * Convert a Markdown string to an HTML string.
@@ -243,30 +251,55 @@ class MarkdownRenderer
 
         // Protect markdown links and images before emphasis parsing so underscores
         // in URLs are not interpreted as italics.
-        // Image syntax ![alt](url) is matched by the optional leading `!`.
         $links = [];
+
+        // Images support normal URLs plus a restricted set of raster data:image
+        // payloads so pasted inline images can render in message bodies.
         $text = preg_replace_callback(
-            '/(!?)\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^\)]+)\)/',
+            '/!\[([^\]]*)\]\(((?:(?:https?:\/\/|\/|#)[^\)]+)|(?:data:image\/(?:png|jpeg|jpg|gif|webp|bmp);base64,[A-Za-z0-9+\/=]+))\)/i',
             function ($m) use (&$links, &$codeSpans) {
-                $isImage = $m[1] === '!';
-                // Restore any inline-code tokens that appear inside the label
-                // (e.g. [The `foo` Table](#anchor)) so they render as <code> not %%CODE0%%.
-                $label = !empty($codeSpans) ? strtr($m[2], $codeSpans) : $m[2];
-                $url   = $m[3];
+                $label = !empty($codeSpans) ? strtr($m[1], $codeSpans) : $m[1];
+                $url   = $m[2];
                 $token = '%%LINK' . count($links) . '%%';
 
-                if ($isImage) {
-                    // Render as a click-to-load placeholder. The user's browser will
-                    // not auto-fetch the remote image; clicking reveals it inline.
-                    $links[$token] = '<span class="md-image-placeholder" data-src="' . $url . '" data-alt="' . $label . '">'
-                        . '<a href="' . $url . '" class="md-image-load" target="_blank" rel="noopener noreferrer">'
-                        . '<i class="fas fa-image"></i> ' . $label
-                        . '</a></span>';
-                } else {
-                    $isExternal = str_starts_with($url, 'http');
-                    $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
-                    $links[$token] = '<a href="' . $url . '"' . $extra . '>' . $label . '</a>';
+                $isDataImage = stripos($url, 'data:image/') === 0;
+                if ($isDataImage && !self::isAllowedDataImageUrl($url)) {
+                    return htmlspecialchars($m[0], ENT_QUOTES, 'UTF-8');
                 }
+                $linkAttrs = $isDataImage ? '' : ' target="_blank" rel="noopener noreferrer"';
+
+                // Render as a click-to-load placeholder. For remote images this avoids
+                // auto-fetching third-party content; for data URIs it keeps behavior
+                // consistent while still allowing pasted inline images to display.
+                $links[$token] = '<span class="md-image-placeholder" data-src="' . $url . '" data-alt="' . $label . '">'
+                    . '<a href="' . $url . '" class="md-image-load"' . $linkAttrs . '>'
+                    . '<i class="fas fa-image"></i> ' . $label
+                    . '</a></span>';
+
+                return $token;
+            },
+            $text
+        );
+
+        // Standard markdown links remain limited to http(s), site-relative, and anchors.
+        $text = preg_replace_callback(
+            '/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^\)]+)\)/',
+            function ($m) use (&$links, &$codeSpans) {
+                // Restore any inline-code tokens that appear inside the label
+                // (e.g. [The `foo` Table](#anchor)) so they render as <code> not %%CODE0%%.
+                $label = !empty($codeSpans) ? strtr($m[1], $codeSpans) : $m[1];
+                // Resolve any image tokens already in the label so that linked images
+                // ([![alt](imgUrl)](href)) produce proper nested HTML rather than a
+                // literal %%LINK0%% token — strtr won't re-process substituted text.
+                if (!empty($links)) {
+                    $label = strtr($label, $links);
+                }
+                $url   = $m[2];
+                $token = '%%LINK' . count($links) . '%%';
+
+                $isExternal = str_starts_with($url, 'http');
+                $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
+                $links[$token] = '<a href="' . $url . '"' . $extra . '>' . $label . '</a>';
 
                 return $token;
             },
@@ -477,6 +510,23 @@ class MarkdownRenderer
         }
 
         return '<ul>' . implode('', $items) . '</ul>';
+    }
+
+    /**
+     * Restrict inline data-image payloads to safe-ish raster formats and a bounded size.
+     */
+    private static function isAllowedDataImageUrl(string $url): bool
+    {
+        if (!preg_match('/^data:image\/([a-z0-9.+-]+);base64,([A-Za-z0-9+\/=]+)$/i', $url, $matches)) {
+            return false;
+        }
+
+        $type = strtolower($matches[1]);
+        if (!in_array($type, self::ALLOWED_DATA_IMAGE_TYPES, true)) {
+            return false;
+        }
+
+        return true;
     }
 }
 

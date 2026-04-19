@@ -221,7 +221,7 @@ SimpleRouter::post('/api/door/launch', function() {
             $stmt = $db->prepare("
                 SELECT COUNT(*) as count
                 FROM door_sessions
-                WHERE door_id = ? AND ended_at IS NULL
+                WHERE door_id = ? AND ended_at IS NULL AND expires_at > NOW()
             ");
             $stmt->execute([$doorName]);
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -326,7 +326,7 @@ SimpleRouter::post('/api/door/guest/launch', function() {
         $guestMax = \BinktermPHP\NativeDoorConfig::getGuestMaxSessions($doorName);
         $stmt = $db->prepare("
             SELECT COUNT(*) as count FROM door_sessions
-            WHERE door_id = ? AND user_id = ? AND ended_at IS NULL
+            WHERE door_id = ? AND user_id = ? AND ended_at IS NULL AND expires_at > NOW()
         ");
         $stmt->execute([$doorName, $guestUserId]);
         if ((int)$stmt->fetch(\PDO::FETCH_ASSOC)['count'] >= $guestMax) {
@@ -342,7 +342,7 @@ SimpleRouter::post('/api/door/guest/launch', function() {
         // Check overall door max_nodes
         $maxNodes = (int)($nativeDoor['max_nodes'] ?? 10);
         $stmt = $db->prepare("
-            SELECT COUNT(*) as count FROM door_sessions WHERE door_id = ? AND ended_at IS NULL
+            SELECT COUNT(*) as count FROM door_sessions WHERE door_id = ? AND ended_at IS NULL AND expires_at > NOW()
         ");
         $stmt->execute([$doorName]);
         if ((int)$stmt->fetch(\PDO::FETCH_ASSOC)['count'] >= $maxNodes) {

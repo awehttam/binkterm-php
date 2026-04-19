@@ -471,10 +471,10 @@ function loadUnassignedEchoareas() {
             unassignedData = data;
             const badge = document.getElementById('unassignedCount');
             if (badge) badge.textContent = data.count ?? 0;
-            // If the panel was opened before data arrived, render now
-            if (document.getElementById('unassignedPanel').classList.contains('show')) {
-                renderUnassignedPanel();
-            }
+            // Always render — the panel may still be animating open (Bootstrap uses
+            // 'collapsing' during transition, only adding 'show' when done), so
+            // checking for 'show' misses fast responses and leaves the spinner stuck.
+            renderUnassignedPanel();
         })
         .catch(() => {
             document.getElementById('unassignedLoading').innerHTML = '<span class="text-danger">Failed to load.</span>';

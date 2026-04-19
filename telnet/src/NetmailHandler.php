@@ -314,6 +314,9 @@ class NetmailHandler
             $attachments  = $detail['data']['attachments'] ?? [];
             $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
             $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
+            $imageRefs    = $markupFormat !== null
+                ? TerminalMarkupRenderer::extractImageRefs($markupFormat, $body)
+                : [];
             if (!is_array($attachments)) {
                 $attachments = [];
             }
@@ -322,7 +325,7 @@ class NetmailHandler
 
             // Closure that rebuilds all layout-dependent view components from current $state.
             // Called once on open and again whenever the terminal is resized.
-            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments): array {
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs): array {
                 $cols    = $s['cols'] ?? 80;
                 $width   = max(10, $cols - 2);
                 $charset = $s['terminal_charset'] ?? 'ascii';
@@ -345,6 +348,11 @@ class NetmailHandler
                     $segments[] = ['text' => 'Z',           'color' => TelnetUtils::ANSI_RED];
                     $segments[] = ['text' => ' Download  ', 'color' => TelnetUtils::ANSI_BLUE];
                 }
+                if (!empty($imageRefs)) {
+                    $imageHint  = count($imageRefs) === 1 ? ' Image  ' : ' Images  ';
+                    $segments[] = ['text' => 'I',        'color' => TelnetUtils::ANSI_RED];
+                    $segments[] = ['text' => $imageHint, 'color' => TelnetUtils::ANSI_BLUE];
+                }
                 $segments[] = ['text' => 'H',        'color' => TelnetUtils::ANSI_RED];
                 $segments[] = ['text' => ' Headers  ','color' => TelnetUtils::ANSI_BLUE];
                 $segments[] = ['text' => 'Q',        'color' => TelnetUtils::ANSI_RED];
@@ -363,6 +371,14 @@ class NetmailHandler
                 ];
             };
 
+            $apiBase = $this->apiBase;
+            $server  = $this->server;
+            $imageFn = !empty($imageRefs)
+                ? static function(int $idx) use ($conn, &$state, $server, $imageRefs, $apiBase): void {
+                    TelnetUtils::showSixelImageViewer($conn, $state, $server, $imageRefs[$idx], count($imageRefs), $apiBase);
+                }
+                : null;
+
             $view = $buildView($state);
 
             $result = TelnetUtils::runMessageViewer(
@@ -376,7 +392,9 @@ class NetmailHandler
                 0,
                 true,
                 $kludgeLines,
-                $buildView
+                $buildView,
+                $imageRefs,
+                $imageFn
             );
 
             switch ($result['action']) {
