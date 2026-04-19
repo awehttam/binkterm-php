@@ -5,10 +5,16 @@ $autoload = __DIR__ . '/../vendor/autoload.php';
 $composerJson = __DIR__ . '/../composer.json';
 $composerLock = __DIR__ . '/../composer.lock';
 
-if (!file_exists($autoload)
-    || (file_exists($composerJson) && filemtime($composerJson) > filemtime($autoload))
-    || (file_exists($composerLock) && filemtime($composerLock) > filemtime($autoload))
-) {
+$lockExists = file_exists($composerLock);
+$lockStale = $lockExists && file_exists($composerJson) && filemtime($composerJson) > filemtime($composerLock);
+$vendorStale = !file_exists($autoload) || ($lockExists && filemtime($composerLock) > filemtime($autoload)) || (!$lockExists && file_exists($composerJson));
+
+if ($lockStale) {
+    echo "✗ composer.json is newer than composer.lock. Run `composer update` to update the lock file, then re-run setup.php\n";
+    exit(1);
+}
+
+if ($vendorStale) {
     $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
     $composerBin = $isWindows
         ? trim(shell_exec('where composer 2>nul') ?? '')
