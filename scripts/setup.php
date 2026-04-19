@@ -1,7 +1,32 @@
 #!/usr/bin/env php
 <?php
 
-require_once __DIR__ . '/../vendor/autoload.php';
+$autoload = __DIR__ . '/../vendor/autoload.php';
+$composerJson = __DIR__ . '/../composer.json';
+$composerLock = __DIR__ . '/../composer.lock';
+
+if (!file_exists($autoload)
+    || (file_exists($composerJson) && filemtime($composerJson) > filemtime($autoload))
+    || (file_exists($composerLock) && filemtime($composerLock) > filemtime($autoload))
+) {
+    $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+    $composerBin = $isWindows
+        ? trim(shell_exec('where composer 2>nul') ?? '')
+        : trim(shell_exec('which composer 2>/dev/null') ?? '');
+    if (empty($composerBin)) {
+        echo "✗ Automatic run of composer install failed, not found in path. You need to run composer install prior to running setup.php\n";
+        exit(1);
+    }
+    echo "Running composer install...\n";
+    passthru('composer install --no-interaction', $exitCode);
+    if ($exitCode !== 0) {
+        echo "✗ Automatic run of composer install failed, not found in path. You need to run composer install prior to running setup.php\n";
+        exit(1);
+    }
+    echo "\n";
+}
+
+require_once $autoload;
 
 use BinktermPHP\Database;
 
