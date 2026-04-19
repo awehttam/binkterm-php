@@ -443,6 +443,7 @@ No database migration is required.
 ```bash
 git pull
 composer install
+php scripts/setup.php
 ```
 
 No database migration is required for this release.
