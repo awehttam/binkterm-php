@@ -4447,6 +4447,8 @@ return [
     'ui.interests.already_subscribed' => 'Ya suscrito',
     'ui.interests.areas_modal_confirm_subscribe' => 'Suscribirse a {count} área(s)',
     'ui.interests.areas_modal_confirm_unsubscribe' => 'Cancelar suscripción a {count} área(s)',
+    'ui.interests.areas_modal_manage_title' => 'Gestionar áreas — {name}',
+    'ui.interests.areas_modal_save_btn' => 'Guardar {count} área(s)',
     'ui.interests.subscriber_count' => '{count} suscriptor(es)',
     'ui.interests.browse_areas' => 'Explorar Áreas',
     'ui.interests.browse_page_title' => 'Buscar Áreas de Eco',

@@ -394,6 +394,63 @@ class InterestManager
     }
 
     /**
+     * Apply a desired set of echo area subscriptions for a user within an interest.
+     *
+     * Computes the diff between the current subscriptions and the wanted set, then
+     * subscribes to newly added areas and unsubscribes from removed ones.  Passing
+     * an empty array is equivalent to a full interest unsubscribe.
+     *
+     * Unlike subscribeUserToSelectedEchoareas(), this method force-activates areas
+     * that were previously explicitly unsubscribed, because the user is making an
+     * explicit selection in the management UI.
+     *
+     * @param int[] $wantedEchoareaIds
+     */
+    public function manageUserEchoareas(int $userId, int $interestId, array $wantedEchoareaIds): bool
+    {
+        if (empty($wantedEchoareaIds)) {
+            return $this->unsubscribeUser($userId, $interestId);
+        }
+
+        // Ensure the interest-level subscription exists.
+        $stmt = $this->db->prepare("
+            INSERT INTO user_interest_subscriptions (user_id, interest_id)
+            VALUES (?, ?)
+            ON CONFLICT (user_id, interest_id) DO NOTHING
+        ");
+        $stmt->execute([$userId, $interestId]);
+
+        $currentIds    = $this->getUserSubscribedInterestEchoareaIds($userId, $interestId);
+        $toSubscribe   = array_values(array_diff($wantedEchoareaIds, $currentIds));
+        $toUnsubscribe = array_values(array_diff($currentIds, $wantedEchoareaIds));
+
+        // Force-subscribe to newly selected areas, overriding any previous explicit unsubscribe.
+        foreach ($toSubscribe as $echoareaId) {
+            $stmt = $this->db->prepare("
+                INSERT INTO user_echoarea_subscriptions
+                    (user_id, echoarea_id, is_active, subscription_type, interest_id)
+                VALUES (?, ?, 'true', 'interest', ?)
+                ON CONFLICT (user_id, echoarea_id)
+                DO UPDATE SET is_active = TRUE, subscription_type = 'interest', interest_id = EXCLUDED.interest_id
+            ");
+            $stmt->execute([$userId, (int)$echoareaId, $interestId]);
+
+            $stmt = $this->db->prepare("
+                INSERT INTO user_echoarea_interest_sources (user_id, echoarea_id, interest_id)
+                VALUES (?, ?, ?)
+                ON CONFLICT DO NOTHING
+            ");
+            $stmt->execute([$userId, (int)$echoareaId, $interestId]);
+        }
+
+        if (!empty($toUnsubscribe)) {
+            $this->unsubscribeUserFromSelectedEchoareas($userId, $interestId, $toUnsubscribe);
+        }
+
+        return true;
+    }
+
+    /**
      * Unsubscribe a user from a specific subset of echo areas within an interest.
      * Removes the interest-level subscription if no sourced areas remain.
      *

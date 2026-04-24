@@ -4345,6 +4345,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.interests.already_subscribed' => 'Déjà abonné',
     'ui.interests.areas_modal_confirm_subscribe' => 'S\'abonner à {count} zone(s)',
     'ui.interests.areas_modal_confirm_unsubscribe' => 'Se désabonner de {count} zone(s)',
+    'ui.interests.areas_modal_manage_title' => 'Gérer les zones — {name}',
+    'ui.interests.areas_modal_save_btn' => 'Enregistrer {count} zone(s)',
     'ui.interests.subscriber_count' => '{count} abonné(s)',
     'ui.interests.browse_areas' => 'Parcourir les zones',
     'ui.interests.browse_page_title' => 'Trouver des zones d\'écho',

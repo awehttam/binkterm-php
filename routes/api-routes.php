@@ -11422,6 +11422,41 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
     })->where(['id' => '[0-9]+']);
 
     /**
+     * POST /api/interests/{id}/manage-areas
+     * Replace the user's subscribed echo area set within an interest.
+     * Body: { wanted_echoarea_ids: int[] }
+     * Passing an empty array fully unsubscribes from the interest.
+     */
+    SimpleRouter::post('/{id}/manage-areas', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') !== 'true') {
+            http_response_code(404);
+            echo json_encode(['error' => 'Not found']);
+            return;
+        }
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\InterestManager();
+
+        $interest = $manager->getInterest((int)$id);
+        if (!$interest) {
+            http_response_code(404);
+            apiError('errors.interests.not_found', 'Interest not found.');
+            return;
+        }
+
+        $body            = json_decode(file_get_contents('php://input'), true) ?: [];
+        $wantedIds       = isset($body['wanted_echoarea_ids']) && is_array($body['wanted_echoarea_ids'])
+            ? array_map('intval', $body['wanted_echoarea_ids'])
+            : [];
+
+        $manager->manageUserEchoareas($userId, (int)$id, $wantedIds);
+        $stillSubscribed = $manager->isUserSubscribed($userId, (int)$id);
+        echo json_encode(['success' => true, 'subscribed' => $stillSubscribed]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
      * GET /api/interests/{id}/echoareas
      * Returns the echo areas belonging to an interest (tag, domain, description).
      * Public (no auth required) — respects feature flag.
