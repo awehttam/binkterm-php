@@ -420,7 +420,7 @@ class InterestManager
         ");
         $stmt->execute([$userId, $interestId]);
 
-        $currentIds    = $this->getUserSubscribedInterestEchoareaIds($userId, $interestId);
+        $currentIds    = $this->getUserSubscribedInterestEchoareaIds($interestId, $userId);
         $toSubscribe   = array_values(array_diff($wantedEchoareaIds, $currentIds));
         $toUnsubscribe = array_values(array_diff($currentIds, $wantedEchoareaIds));
 
