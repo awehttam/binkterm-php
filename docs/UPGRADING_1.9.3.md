@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Interest Area Management](#interest-area-management)
+- [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -22,6 +23,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - Saving with one or more areas checked updates the subscription set. Saving with all areas deselected unsubscribes from the interest entirely.
 - A new API endpoint, `POST /api/interests/{id}/manage-areas`, accepts the complete desired set of echo area IDs and handles the subscribe/unsubscribe diff server-side. Explicitly re-selecting an area the user had previously unsubscribed from through the subscription manager will re-activate that area.
 
+### Bug Fixes
+
+- `scripts/echomail_maintenance.php`: Fixed a PostgreSQL foreign key violation that caused the maintenance script to abort when deleting messages that other messages referenced via `reply_to_id`. The script now NULLs those references before deleting the parent messages.
+
 ## Interest Area Management
 
 The interests feature groups related echo areas under a topic label. Users subscribe to an interest to automatically follow its member areas. Before this release, the subscription widget offered two states: **Subscribe** (for interests not yet followed) and **Subscribed** (for interests already followed). Clicking the **Subscribed** button opened a dialog that only allowed unsubscribing from individual areas — there was no way to add areas from within the interest widget.
@@ -33,6 +38,14 @@ Starting in 1.9.3, clicking the button on an already-subscribed interest opens a
 - Selecting an area that was previously explicitly unsubscribed through the subscription manager page will re-activate that subscription — the management dialog is treated as an explicit user choice and overrides earlier opt-outs for the selected areas.
 
 No database migrations are required for this release. The change is limited to the interest picker JavaScript widget, a new API endpoint, and an update to `InterestManager` in `src/InterestManager.php`.
+
+## Bug Fixes
+
+### Echomail Maintenance Foreign Key Violation
+
+`scripts/echomail_maintenance.php` would abort with a PostgreSQL foreign key violation (`echomail_reply_to_id_fkey`) when attempting to delete messages that other messages referenced as a reply parent via the `reply_to_id` column. The deletion failed because the referenced parent row could not be removed while child rows still pointed to it.
+
+The script now NULLs out any `reply_to_id` references to the messages being deleted before issuing the `DELETE`. This severs the self-referential FK on thread replies without destroying threading information for messages that are not being deleted.
 
 ## Upgrade Instructions
 
