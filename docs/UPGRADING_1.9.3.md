@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Interest Area Management](#interest-area-management)
+- [Localization](#localization)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -22,6 +23,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - Clicking the button on a subscribed interest now opens a **Manage Areas** dialog showing all echo areas in the interest with checkboxes. Areas the user currently follows are pre-checked. Any area can be checked or unchecked freely.
 - Saving with one or more areas checked updates the subscription set. Saving with all areas deselected unsubscribes from the interest entirely.
 - A new API endpoint, `POST /api/interests/{id}/manage-areas`, accepts the complete desired set of echo area IDs and handles the subscribe/unsubscribe diff server-side. Explicitly re-selecting an area the user had previously unsubscribed from through the subscription manager will re-activate that area.
+
+### Localization
+
+- Italian translation updated with new interest area management strings. Thanks to Freddy Krueger for providing the Italian translation.
 
 ### Bug Fixes
 
@@ -38,6 +43,10 @@ Starting in 1.9.3, clicking the button on an already-subscribed interest opens a
 - Selecting an area that was previously explicitly unsubscribed through the subscription manager page will re-activate that subscription — the management dialog is treated as an explicit user choice and overrides earlier opt-outs for the selected areas.
 
 No database migrations are required for this release. The change is limited to the interest picker JavaScript widget, a new API endpoint, and an update to `InterestManager` in `src/InterestManager.php`.
+
+## Localization
+
+The Italian translation catalog (`config/i18n/it/`) has been updated with strings for the new interest area management feature. Thanks to Freddy Krueger for providing the Italian translation.
 
 ## Bug Fixes
 

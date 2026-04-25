@@ -10,13 +10,11 @@ declare(strict_types=1);
  * and reports any keys that are missing.
  *
  * Usage:
- *   php scripts/check_i18n_missing_keys.php               # summary only
- *   php scripts/check_i18n_missing_keys.php --list-keys   # also print each missing key
+ *   php scripts/check_i18n_missing_keys.php               # list all missing keys
  *   php scripts/check_i18n_missing_keys.php --locale=es   # check a specific locale only
  *   php scripts/check_i18n_missing_keys.php --ns=common   # check a specific namespace only
  */
 
-$listKeys  = in_array('--list-keys', $argv, true);
 $locale    = null;
 $namespace = null;
 
@@ -111,11 +109,9 @@ foreach ($namespaces as $ns) {
         } else {
             echo "[MISSING] {$loc}/{$ns}: {$count} missing / " . count($enKeys) . " total\n";
             $exitCode = 1;
-            if ($listKeys) {
-                sort($missing);
-                foreach ($missing as $key) {
-                    echo "          - {$key}\n";
-                }
+            sort($missing);
+            foreach ($missing as $key) {
+                echo "          - {$key}\n";
             }
         }
     }
