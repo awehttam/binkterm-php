@@ -531,6 +531,14 @@ function deleteRelatedRecords($pdo, $messageIds) {
             AND message_id IN ($placeholders)
         ");
         $stmt->execute($chunk);
+
+        // Clear reply_to_id references pointing to messages being deleted
+        $stmt = $pdo->prepare("
+            UPDATE echomail
+            SET reply_to_id = NULL
+            WHERE reply_to_id IN ($placeholders)
+        ");
+        $stmt->execute($chunk);
     }
 }
 

@@ -310,7 +310,8 @@ class InterestPicker {
         const name         = interest ? interest.name : '';
         const isSubscribed = interest ? this._selectedIds.has(interestId) : false;
         const isSubMode    = this._mode === 'subscribe';
-        const operation    = isSubscribed ? 'unsubscribe' : 'subscribe';
+        // When already subscribed use 'manage' mode so the user can adjust individual areas.
+        const operation    = (isSubMode && isSubscribed) ? 'manage' : 'subscribe';
 
         // Create modal shell once, reuse it.
         let modalEl = document.getElementById('interestAreasModal');
@@ -339,8 +340,14 @@ class InterestPicker {
 
         // Set title based on mode and operation.
         if (isSubMode) {
-            const key      = operation === 'subscribe' ? 'ui.interests.areas_modal_subscribe_title' : 'ui.interests.areas_modal_unsubscribe_title';
-            const fallback = operation === 'subscribe' ? `Subscribe to ${name}` : `Unsubscribe from ${name}`;
+            let key, fallback;
+            if (operation === 'manage') {
+                key      = 'ui.interests.areas_modal_manage_title';
+                fallback = `Manage Areas — ${name}`;
+            } else {
+                key      = 'ui.interests.areas_modal_subscribe_title';
+                fallback = `Subscribe to ${name}`;
+            }
             titleEl.textContent = window.t ? window.t(key, { name }, fallback) : fallback;
         } else {
             const fallback = `Echo Areas — ${name}`;
@@ -409,7 +416,7 @@ class InterestPicker {
                         <th>${InterestPicker._escHtml(thDesc)}</th>
                     </tr></thead>
                     <tbody>${areas.map(a => {
-                        const checked = operation === 'unsubscribe'
+                        const checked = operation === 'manage'
                             ? (a.subscribed ? 'checked' : '')
                             : 'checked';
                         return `<tr>
@@ -425,17 +432,32 @@ class InterestPicker {
             const cancelLabel = window.t ? window.t('ui.cancel', {}, 'Cancel') : 'Cancel';
             footerEl.innerHTML =
                 `<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">${InterestPicker._escHtml(cancelLabel)}</button>
-                 <button type="button" class="btn ${operation === 'subscribe' ? 'btn-primary' : 'btn-danger'}" id="interestAreasConfirmBtn" disabled></button>`;
+                 <button type="button" class="btn btn-primary" id="interestAreasConfirmBtn" disabled></button>`;
             footerEl.classList.remove('d-none');
 
             const confirmBtn = document.getElementById('interestAreasConfirmBtn');
 
             const updateBtn = () => {
-                const count    = bodyEl.querySelectorAll('.interest-area-check:checked').length;
-                const key      = operation === 'subscribe' ? 'ui.interests.areas_modal_confirm_subscribe' : 'ui.interests.areas_modal_confirm_unsubscribe';
-                const fallback = operation === 'subscribe' ? `Subscribe to ${count} area(s)` : `Unsubscribe from ${count} area(s)`;
-                confirmBtn.textContent = window.t ? window.t(key, { count }, fallback) : fallback;
-                confirmBtn.disabled    = count === 0;
+                const count = bodyEl.querySelectorAll('.interest-area-check:checked').length;
+                if (operation === 'manage') {
+                    if (count === 0) {
+                        const label = window.t ? window.t('ui.interests.unsubscribe', {}, 'Unsubscribe') : 'Unsubscribe';
+                        confirmBtn.textContent = label;
+                        confirmBtn.className   = 'btn btn-danger';
+                    } else {
+                        const key      = 'ui.interests.areas_modal_save_btn';
+                        const fallback = `Save ${count} area(s)`;
+                        confirmBtn.textContent = window.t ? window.t(key, { count }, fallback) : fallback;
+                        confirmBtn.className   = 'btn btn-primary';
+                    }
+                    confirmBtn.disabled = false;
+                } else {
+                    const key      = 'ui.interests.areas_modal_confirm_subscribe';
+                    const fallback = `Subscribe to ${count} area(s)`;
+                    confirmBtn.textContent = window.t ? window.t(key, { count }, fallback) : fallback;
+                    confirmBtn.className   = 'btn btn-primary';
+                    confirmBtn.disabled    = count === 0;
+                }
             };
 
             bodyEl.querySelectorAll('.interest-area-check').forEach(cb => cb.addEventListener('change', updateBtn));
@@ -453,17 +475,25 @@ class InterestPicker {
 
             confirmBtn.addEventListener('click', async () => {
                 const ids = [...bodyEl.querySelectorAll('.interest-area-check:checked')].map(cb => parseInt(cb.value));
-                if (!ids.length) return;
+
+                if (operation !== 'manage' && !ids.length) return;
 
                 confirmBtn.disabled   = true;
                 confirmBtn.innerHTML  = '<i class="fas fa-spinner fa-spin"></i>';
 
                 try {
-                    const apiPath = operation === 'subscribe' ? 'subscribe' : 'unsubscribe';
-                    const resp    = await fetch(`/api/interests/${interestId}/${apiPath}`, {
+                    let apiPath, bodyPayload;
+                    if (operation === 'manage') {
+                        apiPath      = 'manage-areas';
+                        bodyPayload  = JSON.stringify({ wanted_echoarea_ids: ids });
+                    } else {
+                        apiPath      = 'subscribe';
+                        bodyPayload  = JSON.stringify({ echoarea_ids: ids });
+                    }
+                    const resp = await fetch(`/api/interests/${interestId}/${apiPath}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ echoarea_ids: ids }),
+                        body: bodyPayload,
                     });
                     if (!resp.ok) throw new Error('HTTP ' + resp.status);
                     const result = await resp.json();

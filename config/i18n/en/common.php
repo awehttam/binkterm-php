@@ -4445,6 +4445,8 @@ return [
     'ui.interests.already_subscribed' => 'Already subscribed',
     'ui.interests.areas_modal_confirm_subscribe' => 'Subscribe to {count} area(s)',
     'ui.interests.areas_modal_confirm_unsubscribe' => 'Unsubscribe from {count} area(s)',
+    'ui.interests.areas_modal_manage_title' => 'Manage Areas — {name}',
+    'ui.interests.areas_modal_save_btn' => 'Save {count} area(s)',
     'ui.interests.subscriber_count' => '{count} subscriber(s)',
     'ui.interests.browse_areas' => 'Browse Areas',
     'ui.interests.browse_page_title' => 'Find Echo Areas',
