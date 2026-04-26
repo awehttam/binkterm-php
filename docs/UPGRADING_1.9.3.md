@@ -18,11 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Interest Area Management
 
-- The interest subscription widget now lets users choose which individual echo areas within an interest they want to follow, both when first subscribing and after they are already subscribed.
-- Previously, clicking the button on an already-subscribed interest card opened an unsubscribe-only dialog. Users had no way to add areas they had skipped or remove individual areas without unsubscribing from the entire interest.
-- Clicking the button on a subscribed interest now opens a **Manage Areas** dialog showing all echo areas in the interest with checkboxes. Areas the user currently follows are pre-checked. Any area can be checked or unchecked freely.
-- Saving with one or more areas checked updates the subscription set. Saving with all areas deselected unsubscribes from the interest entirely.
-- A new API endpoint, `POST /api/interests/{id}/manage-areas`, accepts the complete desired set of echo area IDs and handles the subscribe/unsubscribe diff server-side. Explicitly re-selecting an area the user had previously unsubscribed from through the subscription manager will re-activate that area.
+- The interest subscription widget now lets users manage individual echo areas within an interest via a new **Manage Areas** dialog, replacing the previous unsubscribe-only flow.
 
 ### Localization
 
