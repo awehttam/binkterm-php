@@ -1646,9 +1646,10 @@ function showError(message) {
         </div>
     `;
     
-    // Insert at top of main content
-    $('main .container').prepend(alertHtml);
-    
+    // Insert at top of main content. The base template uses <main class="container">
+    // so we select main directly (not a descendant .container).
+    $('main').prepend(alertHtml);
+
     // Auto-remove after 5 seconds
     setTimeout(function() {
         $('.alert').fadeOut();
@@ -1662,8 +1663,8 @@ function showSuccess(message) {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
-    
-    $('main .container').prepend(alertHtml);
+
+    $('main').prepend(alertHtml);
     
     setTimeout(function() {
         $('.alert').fadeOut();

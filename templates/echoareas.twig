@@ -837,6 +837,7 @@ function deleteEchoarea() {
             loadStats();
         },
         error: function(xhr) {
+            $('#deleteModal').modal('hide');
             const error = apiError(xhr.responseJSON, uiT('errors.echoareas.delete_failed', 'Failed to delete echo area'));
             showError(error);
         }
