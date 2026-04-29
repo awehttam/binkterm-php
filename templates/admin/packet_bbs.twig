@@ -351,7 +351,7 @@ function regenerateKey() {
     fetch(`/admin/api/packet-bbs/nodes/${keyModalNodeId}/regenerate-key`, { method: 'POST' })
         .then(r => r.json())
         .then(data => {
-            if (!data.success) { alert('Failed to generate key.'); return; }
+            if (!data.success) { alert(window.t('errors.admin.packet_bbs.key_generate_failed', {}, 'Failed to generate key.')); return; }
             document.getElementById('keyModalStatus').innerHTML =
                 '<span class="text-success"><i class="fas fa-check-circle me-1"></i>API key is configured</span>';
             document.getElementById('keyModalRegenBtn').textContent = 'Regenerate Key';
@@ -359,7 +359,7 @@ function regenerateKey() {
             document.getElementById('keyModalResult').classList.remove('d-none');
             loadNodes();
         })
-        .catch(() => alert('Request failed.'));
+        .catch(() => alert(window.t('errors.admin.packet_bbs.request_failed', {}, 'Request failed.')));
 }
 
 function copyKey() {
