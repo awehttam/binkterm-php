@@ -431,6 +431,11 @@ return [
     'errors.admin.shoutbox.hide_failed' => 'Failed to hide shout',
     'errors.admin.shoutbox.unhide_failed' => 'Failed to unhide shout',
     'errors.admin.shoutbox.delete_failed' => 'Failed to delete shout',
+    'errors.admin.packet_bbs.node_id_required' => 'Node ID is required',
+    'errors.admin.packet_bbs.node_exists' => 'A node with that ID already exists',
+    'errors.admin.packet_bbs.node_not_found' => 'Node not found',
+    'errors.admin.packet_bbs.key_generate_failed' => 'Failed to generate key.',
+    'errors.admin.packet_bbs.request_failed' => 'Request failed.',
     'errors.admin.insecure_nodes.create_failed' => 'Failed to add insecure node',
     'errors.admin.insecure_nodes.update_failed' => 'Failed to update insecure node',
     'errors.admin.insecure_nodes.delete_failed' => 'Failed to delete insecure node',
@@ -672,4 +677,11 @@ return [
     'errors.ai_assistant.prompt_too_long'      => 'Prompt exceeds the 500 character limit.',
     'errors.ai_assistant.insufficient_credits' => 'Insufficient credits for AI assistant.',
     'errors.ai_assistant.failed'               => 'AI request failed. Please try again.',
+
+    // PacketBBS TOTP
+    'errors.packetbbs_totp.invalid_code'      => 'Invalid code. Check your authenticator app and try again.',
+    'errors.packetbbs_totp.no_pending_secret' => 'No enrollment in progress. Please start setup again.',
+    'errors.packetbbs_totp.not_enabled'       => 'PacketBBS authenticator is not enabled.',
+    'errors.packetbbs_totp.setup_failed'      => 'Failed to set up authenticator. Please try again.',
+    'errors.packetbbs_totp.disable_failed'    => 'Failed to disable authenticator. Please try again.',
 ];

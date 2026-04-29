@@ -311,6 +311,11 @@ return [
     'errors.admin.shoutbox.hide_failed' => 'Échec du masquage du message',
     'errors.admin.shoutbox.unhide_failed' => 'Échec de l\'affichage du message',
     'errors.admin.shoutbox.delete_failed' => 'Échec de la suppression du message',
+    'errors.admin.packet_bbs.node_id_required' => 'L\'identifiant du nœud est obligatoire',
+    'errors.admin.packet_bbs.node_exists' => 'Un nœud avec cet identifiant existe déjà',
+    'errors.admin.packet_bbs.node_not_found' => 'Nœud introuvable',
+    'errors.admin.packet_bbs.key_generate_failed' => 'Échec de la génération de la clé.',
+    'errors.admin.packet_bbs.request_failed' => 'Échec de la requête.',
     'errors.admin.insecure_nodes.create_failed' => 'Échec de l\'ajout du nœud non sécurisé',
     'errors.admin.insecure_nodes.update_failed' => 'Échec de la mise à jour du nœud non sécurisé',
     'errors.admin.insecure_nodes.delete_failed' => 'Échec de la suppression du nœud non sécurisé',
@@ -629,6 +634,13 @@ return [
     'errors.ai_assistant.prompt_too_long'      => 'La demande depasse la limite de 500 caracteres.',
     'errors.ai_assistant.insufficient_credits' => 'Credits insuffisants pour l\'assistant IA.',
     'errors.ai_assistant.failed'               => 'La requete IA a echoue. Veuillez reessayer.',
+
+    // PacketBBS TOTP
+    'errors.packetbbs_totp.invalid_code'      => 'Code invalide. Verifiez votre application d\'authentification et reessayez.',
+    'errors.packetbbs_totp.no_pending_secret' => 'Aucune inscription en cours. Veuillez recommencer la configuration.',
+    'errors.packetbbs_totp.not_enabled'       => 'L\'authentificateur PacketBBS n\'est pas active.',
+    'errors.packetbbs_totp.setup_failed'      => 'Echec de la configuration de l\'authentificateur. Veuillez reessayer.',
+    'errors.packetbbs_totp.disable_failed'    => 'Echec de la desactivation de l\'authentificateur. Veuillez reessayer.',
 ];
 
 

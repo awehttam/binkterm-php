@@ -45,6 +45,7 @@ class AdminDaemonServer
         'ai_bot_daemon.log',
         'crashmail.log',
         'dosdoor.log',
+        'packetbbs.log',
     ];
 
     private string $socketTarget;
