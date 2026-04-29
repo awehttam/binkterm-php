@@ -4062,6 +4062,168 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         // ========================================
 
         // List insecure nodes
+        // ---- Packet BBS node management ----
+
+        SimpleRouter::get('/packet-bbs/nodes', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->query(
+                "SELECT n.id, n.node_id, n.handle, n.interface_type, n.user_id,
+                        n.last_seen_at, n.created_at,
+                        u.username,
+                        (n.api_key_hash IS NOT NULL) AS has_api_key
+                 FROM packet_bbs_nodes n
+                 LEFT JOIN users u ON u.id = n.user_id
+                 ORDER BY n.created_at DESC"
+            );
+            echo json_encode(['nodes' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+        });
+
+        SimpleRouter::post('/packet-bbs/nodes', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $nodeId    = trim($input['node_id'] ?? '');
+            $handle    = trim($input['handle'] ?? '');
+            $ifaceType = trim($input['interface_type'] ?? 'meshcore');
+            if ($nodeId === '') {
+                http_response_code(400);
+                apiError('errors.admin.packet_bbs.node_id_required', 'node_id is required');
+                return;
+            }
+            try {
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $stmt = $db->prepare(
+                    'INSERT INTO packet_bbs_nodes (node_id, handle, interface_type)
+                     VALUES (?, ?, ?) RETURNING id'
+                );
+                $stmt->execute([$nodeId, $handle ?: null, $ifaceType]);
+                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                echo json_encode(['success' => true, 'id' => (int)$row['id']]);
+            } catch (\Exception $e) {
+                http_response_code(409);
+                apiError('errors.admin.packet_bbs.node_exists', 'Node already exists or database error');
+            }
+        });
+
+        SimpleRouter::put('/packet-bbs/nodes/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $input     = json_decode(file_get_contents('php://input'), true) ?? [];
+            $handle    = trim($input['handle'] ?? '');
+            $ifaceType = trim($input['interface_type'] ?? 'meshcore');
+            $userId    = !empty($input['user_id']) ? (int)$input['user_id'] : null;
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare(
+                'UPDATE packet_bbs_nodes
+                 SET handle = ?, interface_type = ?, user_id = ?
+                 WHERE id = ?'
+            );
+            $stmt->execute([$handle ?: null, $ifaceType, $userId, (int)$id]);
+            echo json_encode(['success' => $stmt->rowCount() > 0]);
+        });
+
+        SimpleRouter::delete('/packet-bbs/nodes/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            // Cascades to packet_bbs_sessions via FK
+            $stmt = $db->prepare('DELETE FROM packet_bbs_nodes WHERE id = ?');
+            $stmt->execute([(int)$id]);
+            echo json_encode(['success' => $stmt->rowCount() > 0]);
+        });
+
+        SimpleRouter::get('/packet-bbs/sessions', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->query(
+                "SELECT s.*, u.username
+                 FROM packet_bbs_sessions s
+                 LEFT JOIN users u ON u.id = s.user_id
+                 ORDER BY s.last_activity_at DESC"
+            );
+            echo json_encode(['sessions' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+        });
+
+        SimpleRouter::delete('/packet-bbs/sessions/{nodeId}', function($nodeId) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare('DELETE FROM packet_bbs_sessions WHERE node_id = ?');
+            $stmt->execute([$nodeId]);
+            echo json_encode(['success' => true]);
+        });
+
+        SimpleRouter::get('/packet-bbs/queue', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->query(
+                "SELECT * FROM packet_bbs_outbound_queue
+                 WHERE sent_at IS NULL
+                 ORDER BY created_at DESC
+                 LIMIT 100"
+            );
+            echo json_encode(['queue' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+        });
+
+        SimpleRouter::delete('/packet-bbs/queue', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            \BinktermPHP\Database::getInstance()->getPdo()
+                ->exec('DELETE FROM packet_bbs_outbound_queue WHERE sent_at IS NULL');
+            echo json_encode(['success' => true]);
+        });
+
+        SimpleRouter::post('/packet-bbs/nodes/{id}/regenerate-key', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare('SELECT id FROM packet_bbs_nodes WHERE id = ?');
+            $stmt->execute([(int)$id]);
+            if (!$stmt->fetch()) {
+                http_response_code(404);
+                apiError('errors.admin.packet_bbs.node_not_found', 'Node not found');
+                return;
+            }
+            $token = bin2hex(random_bytes(32));
+            $hash  = hash('sha256', $token);
+            $db->prepare('UPDATE packet_bbs_nodes SET api_key_hash = ? WHERE id = ?')
+               ->execute([$hash, (int)$id]);
+            echo json_encode(['success' => true, 'key' => $token]);
+        });
+
+        // ---- end Packet BBS ----
+
         SimpleRouter::get('/insecure-nodes', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
@@ -5378,6 +5540,18 @@ SimpleRouter::get('/admin/crashmail', function() {
 
     $template = new Template();
     $template->renderResponse('admin/crashmail_queue.twig');
+});
+
+// Packet BBS nodes management page
+SimpleRouter::get('/admin/packet-bbs', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    $template = new Template();
+    $template->renderResponse('admin/packet_bbs.twig');
 });
 
 // Insecure Nodes page

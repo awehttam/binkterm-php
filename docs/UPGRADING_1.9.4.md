@@ -5,6 +5,8 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [Account Security](#account-security)
+- [PacketBBS Gateway](#packetbbs-gateway)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -16,6 +18,69 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Echo area management**: When deleting an echo area that still has messages, the API correctly rejected the request but the error message was never displayed to the user. The delete confirmation modal also stayed open after the failure. Both issues are now resolved — the modal closes and the error is shown.
 - **Error and success alert display**: A long-standing bug caused all `showError` and `showSuccess` alerts throughout the application to be silently discarded rather than inserted into the page. Alerts now appear correctly at the top of the page content.
+
+### Account Security
+
+- **PacketBBS authenticator enrollment**: The Settings -> Account page now displays a QR code during PacketBBS authenticator setup. Users can scan the QR code with a TOTP authenticator app instead of copying the otpauth URI manually.
+
+### PacketBBS Gateway
+
+- **Mesh/radio text gateway**: PacketBBS provides a compact text command interface for MeshCore-style radio bridges. The gateway supports login, online-user lookup, netmail reading/replying/sending, echomail area browsing, echomail reading/replying/posting, paging, and quitting.
+- **Compact radio UX**: PacketBBS responses are optimized for short radio text exchanges rather than full-screen BBS terminal use. Help is brief by default, message lists are compact, message reads use short headers, and compose mode accepts `/SEND` and `/CANCEL`.
+- **Admin-managed nodes**: Sysops can manage registered PacketBBS bridge nodes from the admin Packet BBS page, generate per-node API keys, view active sessions, and inspect the outbound queue.
+
+## Account Security
+
+### PacketBBS Authenticator QR Code
+
+PacketBBS authenticator setup now generates a QR code for the TOTP enrollment URI using `chillerlan/php-qrcode`. The QR code is displayed directly on Settings -> Account during enrollment, while the manual secret and otpauth URI remain available as fallback options.
+
+This adds a new Composer dependency. Upgraders must run `composer install` before `php scripts/setup.php` so the QR code library is available when the web routes are loaded.
+
+## PacketBBS Gateway
+
+### Bridge API and Admin Management
+
+PacketBBS adds server-side routes under `/api/packetbbs/` for radio bridge software. Bridge requests authenticate with a per-node bearer token generated in the admin Packet BBS page. The bridge protocol remains plain HTTP with text responses for commands and JSON responses for queued outbound messages.
+
+Sysops must register each bridge node before it can use the gateway. The node record controls the allowed bridge identity, interface type, and API key. Unknown bridge nodes are rejected before any BBS command is processed.
+
+### User Authentication
+
+PacketBBS user login uses the PacketBBS authenticator configured from Settings -> Account. Users enroll a TOTP authenticator in the web UI, then log in over radio with:
+
+```text
+LOGIN <username> <6-digit-code>
+```
+
+The login flow does not use the normal web password over radio.
+
+### Compact Command Interface
+
+The gateway is intentionally terse for mesh/radio use. The primary commands are:
+
+```text
+HELP
+LOGIN <user> <code>
+WHO
+MAIL
+R <id>
+RP <id>
+SEND <user> <subject>
+AREAS
+AREA <tag>
+POST <tag> <subject>
+M
+Q
+```
+
+Legacy aliases remain available where useful, including `N`, `NR`, `NRP`, `NS`, `E`, `ER`, `EM`, `EMR`, `EP`, `MORE`, and `QUIT`.
+
+Compose mode accepts one body line per radio message. Send `/SEND` or `.` to finish, and `/CANCEL` or `CANCEL` to abort.
+
+### Echoarea Domains
+
+Networked echoareas may be shown as `TAG@domain`, for example `LVLY_TEST@lovlynet`. PacketBBS preserves that domain when listing, paging, replying, and posting so messages are posted to the correct networked area.
 
 ## Bug Fixes
 
@@ -40,12 +105,13 @@ This fix benefits every page that calls `showError` or `showSuccess`, not only t
 
 ## Upgrade Instructions
 
-No database migrations are required for this release.
+Run `php scripts/setup.php` after upgrading so PacketBBS database migrations, admin routing, and configuration defaults are applied.
 
 ### From Git
 
 ```bash
 git pull
+composer install
 php scripts/setup.php
 ```
 
@@ -54,5 +120,6 @@ php scripts/setup.php
 Replace your files with the new release archive, then run:
 
 ```bash
+composer install
 php scripts/setup.php
 ```

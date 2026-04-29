@@ -9407,6 +9407,153 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // -------------------------------------------------------------------------
+    // PacketBBS TOTP enrollment
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /api/user/packetbbs-totp/status
+     *
+     * Returns the current PacketBBS TOTP enrollment state for the authenticated user.
+     *
+     * Response: { "success": true, "enabled": bool }
+     */
+    SimpleRouter::get('/user/packetbbs-totp/status', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        $meta    = new \BinktermPHP\UserMeta();
+        $enabled = $meta->getValue($userId, 'packet_bbs_totp_enabled') === '1';
+        echo json_encode(['success' => true, 'enabled' => $enabled]);
+    });
+
+    /**
+     * POST /api/user/packetbbs-totp/setup
+     *
+     * Generate a new pending TOTP secret for enrollment. The secret is stored
+     * as packet_bbs_totp_pending_secret in users_meta and is not activated until
+     * the user successfully verifies a code via /verify-enrollment.
+     *
+     * Response: { "success": true, "secret": "BASE32...", "uri": "otpauth://...", "qr_code": "data:image/svg+xml;base64,..." }
+     */
+    SimpleRouter::post('/user/packetbbs-totp/setup', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        try {
+            $secret   = \BinktermPHP\PacketBbs\PacketBbsTotp::generateSecret();
+            $username = (string)($user['username'] ?? ('user' . $userId));
+            $meta     = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'packet_bbs_totp_pending_secret', $secret);
+            try {
+                $systemName = trim((string)\BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getSystemName());
+            } catch (\Exception $e) {
+                $systemName = '';
+            }
+            $issuer = ($systemName !== '' ? $systemName . ' - ' : '') . 'PacketBBS';
+            $uri    = \BinktermPHP\PacketBbs\PacketBbsTotp::getOtpauthUri($secret, $username, $issuer);
+            $qrCode = \BinktermPHP\PacketBbs\PacketBbsTotp::getQrCodeDataUri($uri);
+            echo json_encode(['success' => true, 'secret' => $secret, 'uri' => $uri, 'qr_code' => $qrCode]);
+        } catch (\Exception $e) {
+            apiError(
+                'errors.packetbbs_totp.setup_failed',
+                apiLocalizedText('errors.packetbbs_totp.setup_failed', 'Failed to set up authenticator. Please try again.', $user),
+                500
+            );
+        }
+    });
+
+    /**
+     * POST /api/user/packetbbs-totp/verify-enrollment
+     *
+     * Verify a code against the pending secret. On success the secret is promoted
+     * to the active secret, enrollment state is set to enabled, and the pending
+     * secret is removed.
+     *
+     * Request body: { "code": "123456" }
+     * Response:     { "success": true }
+     */
+    SimpleRouter::post('/user/packetbbs-totp/verify-enrollment', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $code  = trim((string)($input['code'] ?? ''));
+
+        if (!preg_match('/^\d{6}$/', $code)) {
+            apiError(
+                'errors.packetbbs_totp.invalid_code',
+                apiLocalizedText('errors.packetbbs_totp.invalid_code', 'Invalid code. Check your authenticator app and try again.', $user),
+                400
+            );
+            return;
+        }
+
+        $meta          = new \BinktermPHP\UserMeta();
+        $pendingSecret = $meta->getValue($userId, 'packet_bbs_totp_pending_secret');
+
+        if (!$pendingSecret) {
+            apiError(
+                'errors.packetbbs_totp.no_pending_secret',
+                apiLocalizedText('errors.packetbbs_totp.no_pending_secret', 'No enrollment in progress. Please start setup again.', $user),
+                400
+            );
+            return;
+        }
+
+        if (!\BinktermPHP\PacketBbs\PacketBbsTotp::verifyCode($pendingSecret, $code)) {
+            apiError(
+                'errors.packetbbs_totp.invalid_code',
+                apiLocalizedText('errors.packetbbs_totp.invalid_code', 'Invalid code. Check your authenticator app and try again.', $user),
+                400
+            );
+            return;
+        }
+
+        try {
+            $meta->setValue($userId, 'packet_bbs_totp_secret', $pendingSecret);
+            $meta->setValue($userId, 'packet_bbs_totp_enabled', '1');
+            $meta->setValue($userId, 'packet_bbs_totp_pending_secret', null);
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            apiError(
+                'errors.packetbbs_totp.setup_failed',
+                apiLocalizedText('errors.packetbbs_totp.setup_failed', 'Failed to set up authenticator. Please try again.', $user),
+                500
+            );
+        }
+    });
+
+    /**
+     * POST /api/user/packetbbs-totp/disable
+     *
+     * Disable and clear the PacketBBS TOTP secret for the authenticated user.
+     *
+     * Response: { "success": true }
+     */
+    SimpleRouter::post('/user/packetbbs-totp/disable', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        try {
+            $meta = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'packet_bbs_totp_secret', null);
+            $meta->setValue($userId, 'packet_bbs_totp_enabled', null);
+            $meta->setValue($userId, 'packet_bbs_totp_pending_secret', null);
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            apiError(
+                'errors.packetbbs_totp.disable_failed',
+                apiLocalizedText('errors.packetbbs_totp.disable_failed', 'Failed to disable authenticator. Please try again.', $user),
+                500
+            );
+        }
+    });
+
     // AI assistant endpoint (echomail + netmail readers)
     SimpleRouter::post('/messages/ai-assist', function() {
         $user   = RouteHelper::requireAuth();

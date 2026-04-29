@@ -431,6 +431,8 @@ return [
     'errors.admin.shoutbox.hide_failed' => 'No se pudo ocultar el shout',
     'errors.admin.shoutbox.unhide_failed' => 'No se pudo volver a mostrar el shout',
     'errors.admin.shoutbox.delete_failed' => 'No se pudo eliminar el shout',
+    'errors.admin.packet_bbs.node_id_required' => 'El ID del nodo es obligatorio',
+    'errors.admin.packet_bbs.node_exists' => 'Ya existe un nodo con ese ID',
     'errors.admin.insecure_nodes.create_failed' => 'No se pudo agregar el nodo inseguro',
     'errors.admin.insecure_nodes.update_failed' => 'No se pudo actualizar el nodo inseguro',
     'errors.admin.insecure_nodes.delete_failed' => 'No se pudo eliminar el nodo inseguro',
@@ -672,4 +674,11 @@ return [
     'errors.ai_assistant.prompt_too_long'      => 'La consulta supera el limite de 500 caracteres.',
     'errors.ai_assistant.insufficient_credits' => 'Creditos insuficientes para el asistente IA.',
     'errors.ai_assistant.failed'               => 'La solicitud IA fallo. Por favor, intentelo de nuevo.',
+
+    // PacketBBS TOTP
+    'errors.packetbbs_totp.invalid_code'      => 'Codigo invalido. Comprueba tu app de autenticacion e intentalo de nuevo.',
+    'errors.packetbbs_totp.no_pending_secret' => 'No hay inscripcion en curso. Por favor, inicia la configuracion de nuevo.',
+    'errors.packetbbs_totp.not_enabled'       => 'El autenticador PacketBBS no esta activado.',
+    'errors.packetbbs_totp.setup_failed'      => 'No se pudo configurar el autenticador. Por favor, intentalo de nuevo.',
+    'errors.packetbbs_totp.disable_failed'    => 'No se pudo desactivar el autenticador. Por favor, intentalo de nuevo.',
 ];
