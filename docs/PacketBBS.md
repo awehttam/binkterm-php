@@ -50,27 +50,14 @@ Sessions are keyed by `node_id`, so multiple radio users behind one bridge can h
 
 ## Sysop Setup
 
-### 1. Run Setup
+### 1. Configure PacketBBS Defaults
 
-After upgrading, run:
-
-```bash
-composer install
-php scripts/setup.php
-```
-
-`setup.php` applies the PacketBBS database migrations and configuration defaults.
-
-### 2. Configure PacketBBS Defaults
-
-PacketBBS defaults live under `packet_bbs` in `config/bbs.json` and `config/bbs.json.example`:
+PacketBBS defaults live under `packet_bbs` in `config/bbs.json` and are configurable from the **Admin → BBS Settings → Packet BBS Settings** card:
 
 ```json
 {
   "packet_bbs": {
-    "enabled": false,
     "session_timeout_minutes": 15,
-    "max_commands_per_hour": 60,
     "allow_guest_who": true
   }
 }
@@ -85,7 +72,7 @@ Options:
 
 Login failures are rate-limited per sender node: 5 failed attempts in 10 minutes blocks further attempts briefly. Successful login clears prior failures.
 
-### 3. Register a Bridge Node
+### 2. Register a Bridge Node
 
 Go to:
 
@@ -104,68 +91,20 @@ Add a node:
 
 After creating the node, click the key button and generate an API key. Copy it immediately; it will not be shown again.
 
-Use that key in the bridge as:
+### 3. Configure the Bridge
 
-```text
-Authorization: Bearer <generated-key>
-```
+> **Bridge developers:** this section is aimed at you. Sysops only need to supply the BBS URL and the API key generated in step 2.
 
-### 4. Configure the Bridge
-
-The bridge should send commands to:
-
-```text
-POST https://your-bbs.example/api/packetbbs/command
-```
-
-JSON body:
+Start with the bridge's configuration file. At minimum it needs the BBS URL and the API key for the registered node:
 
 ```json
 {
-  "node_id": "!sender123",
-  "bridge_node_id": "!bridge999",
-  "interface": "meshcore",
-  "command": "HELP"
+  "bbs_url": "https://your-bbs.example",
+  "api_key": "paste-the-key-generated-in-step-2-here"
 }
 ```
 
-Fields:
-
-| Field | Required | Meaning |
-|---|---|---|
-| `node_id` | yes | Sender/session ID for the radio user. |
-| `bridge_node_id` | no | Registered bridge node ID for API-key auth. Use this when one bridge relays multiple senders. |
-| `interface` | no | Output profile: `meshcore`, `meshtastic`, or `tnc`. Defaults to `meshcore`. |
-| `command` | yes | Raw user command text. |
-
-Example response:
-
-```text
-HELP: LOGIN, WHO, MAIL, AREAS
-R <id>, RP <id>, M, Q
-More: HELP MAIL, HELP AREAS
-```
-
-The bridge may also poll:
-
-```text
-GET https://your-bbs.example/api/packetbbs/pending?node_id=!sender123&bridge_node_id=!bridge999
-```
-
-This returns queued outbound messages for the sender node:
-
-```json
-{
-  "messages": [
-    {
-      "id": 42,
-      "payload": "..."
-    }
-  ]
-}
-```
-
-Returned queue items are marked sent.
+The bridge uses these to authenticate its requests to BinktermPHP. Refer to the bridge's own documentation for the full list of configuration options.
 
 ## User Enrollment
 
