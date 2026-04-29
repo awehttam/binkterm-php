@@ -1855,6 +1855,15 @@ return [
     'ui.admin.bbs_settings.validation.return_14_days_non_negative' => '14-day return bonus must be a non-negative integer.',
     'ui.admin.bbs_settings.validation.transfer_fee_range' => 'Transfer fee must be between 0 and 1 (0% to 100%).',
     'ui.admin.bbs_settings.validation.referral_bonus_non_negative' => 'Referral bonus must be a non-negative integer.',
+    'ui.admin.bbs_settings.validation.session_timeout_positive' => 'Session timeout must be a positive integer.',
+    'ui.admin.bbs_settings.packet_bbs.title' => 'Packet BBS Settings',
+    'ui.admin.bbs_settings.packet_bbs.session_timeout_minutes' => 'Session Timeout (minutes)',
+    'ui.admin.bbs_settings.packet_bbs.session_timeout_help' => 'Inactive authenticated sessions expire after this many minutes.',
+    'ui.admin.bbs_settings.packet_bbs.allow_guest_who' => 'Allow Guest WHO',
+    'ui.admin.bbs_settings.packet_bbs.allow_guest_who_help' => 'Allow unauthenticated users to run the WHO command.',
+    'ui.admin.bbs_settings.packet_bbs.save' => 'Save Packet BBS Settings',
+    'ui.admin.bbs_settings.packet_bbs.save_failed' => 'Failed to save Packet BBS settings.',
+    'ui.admin.bbs_settings.packet_bbs.saved_success' => 'Packet BBS settings saved successfully.',
 
     // Admin MRC Settings
     'ui.admin.mrc_settings.page_title' => 'MRC Settings',

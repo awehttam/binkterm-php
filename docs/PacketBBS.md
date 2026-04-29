@@ -80,9 +80,7 @@ Options:
 
 | Option | Default | Meaning |
 |---|---:|---|
-| `enabled` | `false` | Feature availability flag for PacketBBS deployments. Node/API-key authentication is still required for bridge access. |
 | `session_timeout_minutes` | `15` | Inactive authenticated sessions are cleared after this many minutes. The next command returns `Session expired. LOGIN again.` |
-| `max_commands_per_hour` | `60` | Reserved command-rate setting in the PacketBBS configuration. Login attempt rate limiting is enforced separately. |
 | `allow_guest_who` | `true` | Allows unauthenticated users to run `WHO`. If false, `WHO` requires login. |
 
 Login failures are rate-limited per sender node: 5 failed attempts in 10 minutes blocks further attempts briefly. Successful login clears prior failures.

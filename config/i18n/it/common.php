@@ -1855,6 +1855,15 @@ return [
     'ui.admin.bbs_settings.validation.return_14_days_non_negative' => 'Il bonus ritorno a 14 giorni deve essere un intero non negativo.',
     'ui.admin.bbs_settings.validation.transfer_fee_range' => 'La commissione di trasferimento deve essere tra 0 e 1 (0% - 100%).',
     'ui.admin.bbs_settings.validation.referral_bonus_non_negative' => 'Il bonus referral deve essere un intero non negativo.',
+    'ui.admin.bbs_settings.validation.session_timeout_positive' => 'Il timeout di sessione deve essere un intero positivo.',
+    'ui.admin.bbs_settings.packet_bbs.title' => 'Impostazioni Packet BBS',
+    'ui.admin.bbs_settings.packet_bbs.session_timeout_minutes' => 'Timeout sessione (minuti)',
+    'ui.admin.bbs_settings.packet_bbs.session_timeout_help' => 'Le sessioni autenticate inattive scadono dopo questo numero di minuti.',
+    'ui.admin.bbs_settings.packet_bbs.allow_guest_who' => 'Consenti WHO agli ospiti',
+    'ui.admin.bbs_settings.packet_bbs.allow_guest_who_help' => 'Consente agli utenti non autenticati di eseguire il comando WHO.',
+    'ui.admin.bbs_settings.packet_bbs.save' => 'Salva impostazioni Packet BBS',
+    'ui.admin.bbs_settings.packet_bbs.save_failed' => 'Salvataggio impostazioni Packet BBS non riuscito.',
+    'ui.admin.bbs_settings.packet_bbs.saved_success' => 'Impostazioni Packet BBS salvate con successo.',
 
     // Admin MRC Settings
     'ui.admin.mrc_settings.page_title' => 'Impostazioni MRC',

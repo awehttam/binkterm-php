@@ -1661,6 +1661,21 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ];
                 }
 
+                if (array_key_exists('packet_bbs', $config)) {
+                    $pbbs = $config['packet_bbs'];
+                    if (!is_array($pbbs)) {
+                        throw new Exception('Invalid packet_bbs configuration');
+                    }
+                    $sessionTimeout = (int)($pbbs['session_timeout_minutes'] ?? 15);
+                    if ($sessionTimeout < 1) {
+                        throw new Exception('Session timeout must be a positive integer');
+                    }
+                    $config['packet_bbs'] = [
+                        'session_timeout_minutes' => $sessionTimeout,
+                        'allow_guest_who'         => !empty($pbbs['allow_guest_who']),
+                    ];
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {

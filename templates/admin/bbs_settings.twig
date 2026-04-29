@@ -273,6 +273,29 @@
                 </div>
             </div>
         </div>
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.packet_bbs.title', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body">
+                    <div id="bbsPacketBbsAlert"></div>
+                    <form id="bbsPacketBbsForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsPacketBbsSessionTimeout">{{ t('ui.admin.bbs_settings.packet_bbs.session_timeout_minutes', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsPacketBbsSessionTimeout" min="1" step="1" value="15">
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.packet_bbs.session_timeout_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsPacketBbsAllowGuestWho">
+                            <label class="form-check-label" for="bbsPacketBbsAllowGuestWho">{{ t('ui.admin.bbs_settings.packet_bbs.allow_guest_who', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.packet_bbs.allow_guest_who_help', {}, locale, ['common']) }}</small></div>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsPacketBbs()">{{ t('ui.admin.bbs_settings.packet_bbs.save', {}, locale, ['common']) }}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header">
@@ -343,6 +366,10 @@ function loadBbsSettings() {
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
             document.getElementById('bbsAiAssistantEnabled').checked = data.config?.ai_assistant?.enabled === true;
+            const packetBbs = data.config?.packet_bbs || {};
+            const sessionTimeout = parseInt(packetBbs.session_timeout_minutes, 10);
+            document.getElementById('bbsPacketBbsSessionTimeout').value = Number.isNaN(sessionTimeout) ? 15 : sessionTimeout;
+            document.getElementById('bbsPacketBbsAllowGuestWho').checked = packetBbs.allow_guest_who !== false;
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
             document.getElementById('bbsCreditsSymbol').value = (credits.symbol ?? '$');
             const dailyAmountValue = parseInt(credits.daily_amount, 10);
@@ -460,6 +487,44 @@ function saveBbsSettings() {
         })
         .catch(error => {
             showBbsSettingsAlert(error.message || uiT('ui.admin.bbs_settings.save_failed', 'Failed to save settings'), 'danger');
+        });
+}
+
+function saveBbsPacketBbs() {
+    const sessionTimeout = parseInt(document.getElementById('bbsPacketBbsSessionTimeout').value, 10);
+    if (Number.isNaN(sessionTimeout) || sessionTimeout < 1) {
+        showBbsPacketBbsAlert(uiT('ui.admin.bbs_settings.validation.session_timeout_positive', 'Session timeout must be a positive integer.'), 'danger');
+        return;
+    }
+
+    fetch('/admin/api/bbs-settings')
+        .then(response => response.json())
+        .then(currentData => {
+            const config = Object.assign({}, currentData.config || {}, {
+                packet_bbs: {
+                    session_timeout_minutes: sessionTimeout,
+                    allow_guest_who: document.getElementById('bbsPacketBbsAllowGuestWho').checked
+                }
+            });
+
+            return fetch('/admin/api/bbs-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config })
+            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.packet_bbs.save_failed', 'Failed to save Packet BBS settings.')));
+            }
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.packet_bbs.saved_success', 'Packet BBS settings saved successfully.'))
+                : uiT('ui.admin.bbs_settings.packet_bbs.saved_success', 'Packet BBS settings saved successfully.');
+            showBbsPacketBbsAlert(successMessage, 'success');
+        })
+        .catch(error => {
+            showBbsPacketBbsAlert(error.message || uiT('ui.admin.bbs_settings.packet_bbs.save_failed', 'Failed to save Packet BBS settings.'), 'danger');
         });
 }
 
@@ -700,6 +765,16 @@ function saveBbsTaglines() {
 
 function showBbsSettingsAlert(message, type) {
     const container = document.getElementById('bbsSettingsAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showBbsPacketBbsAlert(message, type) {
+    const container = document.getElementById('bbsPacketBbsAlert');
     container.innerHTML = `
         <div class="alert alert-${type} alert-dismissible fade show" role="alert">
             ${message}

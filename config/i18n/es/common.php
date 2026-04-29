@@ -1912,6 +1912,15 @@ return [
     'ui.admin.bbs_settings.validation.return_14_days_non_negative' => 'El bono de retorno de 14 dias debe ser un entero no negativo.',
     'ui.admin.bbs_settings.validation.transfer_fee_range' => 'La tarifa de transferencia debe estar entre 0 y 1 (0% a 100%).',
     'ui.admin.bbs_settings.validation.referral_bonus_non_negative' => 'El bono de referido debe ser un entero no negativo.',
+    'ui.admin.bbs_settings.validation.session_timeout_positive' => 'El tiempo de espera de sesion debe ser un entero positivo.',
+    'ui.admin.bbs_settings.packet_bbs.title' => 'Configuracion de Packet BBS',
+    'ui.admin.bbs_settings.packet_bbs.session_timeout_minutes' => 'Tiempo de espera de sesion (minutos)',
+    'ui.admin.bbs_settings.packet_bbs.session_timeout_help' => 'Las sesiones autenticadas inactivas expiran despues de este numero de minutos.',
+    'ui.admin.bbs_settings.packet_bbs.allow_guest_who' => 'Permitir WHO de invitado',
+    'ui.admin.bbs_settings.packet_bbs.allow_guest_who_help' => 'Permite a usuarios no autenticados ejecutar el comando WHO.',
+    'ui.admin.bbs_settings.packet_bbs.save' => 'Guardar configuracion de Packet BBS',
+    'ui.admin.bbs_settings.packet_bbs.save_failed' => 'Error al guardar la configuracion de Packet BBS.',
+    'ui.admin.bbs_settings.packet_bbs.saved_success' => 'Configuracion de Packet BBS guardada correctamente.',
 
     // Admin MRC Settings
     'ui.admin.mrc_settings.page_title' => 'Configuracion MRC',

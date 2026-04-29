@@ -41,9 +41,6 @@ class PacketBbsGateway
     /** Inactivity before a session is considered expired (minutes). */
     private int $sessionTimeout;
 
-    /** Max commands per node per hour (rate limiting). */
-    private int $maxCommandsPerHour;
-
     public function __construct()
     {
         $this->db             = Database::getInstance()->getPdo();
@@ -52,8 +49,7 @@ class PacketBbsGateway
         $this->messageHandler = new MessageHandler();
 
         $cfg = BbsConfig::getConfig()['packet_bbs'] ?? [];
-        $this->sessionTimeout     = (int)($cfg['session_timeout_minutes'] ?? 15);
-        $this->maxCommandsPerHour = (int)($cfg['max_commands_per_hour'] ?? 60);
+        $this->sessionTimeout = (int)($cfg['session_timeout_minutes'] ?? 15);
     }
 
     // -------------------------------------------------------------------------
