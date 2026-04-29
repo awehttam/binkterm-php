@@ -189,6 +189,10 @@ class PacketBbsGateway
             case 'MORE':
                 return $this->handleMore($session, $nodeId, $renderer);
 
+            case 'WEB':
+            case 'WEBSITE':
+                return $this->handleWebsite();
+
             default:
                 return 'Unknown. Send HELP.';
         }
@@ -426,6 +430,11 @@ class PacketBbsGateway
             // fall through
         }
         return 'BinktermPHP BBS';
+    }
+
+    private function handleWebsite(): string
+    {
+        return sprintf('Website: %s', Config::getSiteUrl());
     }
 
     private function handleWho(array $session, PacketBbsTextRenderer $renderer): string

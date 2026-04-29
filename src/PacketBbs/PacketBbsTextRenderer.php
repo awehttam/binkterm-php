@@ -89,7 +89,7 @@ class PacketBbsTextRenderer
             $intro,
             'LOGIN, WHO, MAIL, AREAS',
             'R <id>, RP <id>, M, Q',
-            'More: HELP MAIL, HELP AREAS',
+            'WEB, More: HELP MAIL, HELP AREAS',
         ]);
     }
 
