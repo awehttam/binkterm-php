@@ -7,7 +7,7 @@ The gateway is designed for low-bandwidth radio links:
 - short ASCII responses
 - compact message lists
 - one-line commands
-- paged output with `M` / `MORE`
+- paged output with `M` / `MORE` and `P` / `PREV`
 - compose mode that accepts one body line per packet
 
 PacketBBS is not a web frontend and is not an ANSI terminal shell. A separate radio bridge sends HTTP requests to BinktermPHP and relays the plain-text response back to the radio network.
@@ -202,7 +202,7 @@ Typical response:
 
 ```text
 HELP: LOGIN, WHO, MAIL, AREAS
-R <id>, RP <id>, M, Q
+R <id>, RP <id>, M, P, Q
 More: HELP MAIL, HELP AREAS
 ```
 
@@ -415,13 +415,29 @@ Old-style `CANCEL` also cancels.
 
 ### Paging
 
-If a list has more pages, PacketBBS shows:
+Paging applies to two things: message lists and long message bodies.
+
+#### Lists
+
+If a list has more pages, the footer shows:
 
 ```text
 R <id>, M
 ```
 
-Send:
+#### Long messages
+
+If a message body exceeds 120 characters, it is split into pages. The first page shows a progress footer:
+
+```text
+1/3 M:more
+```
+
+Subsequent pages show the same until the last page, which shows the normal reply prompt.
+
+#### Navigation
+
+Move forward one page:
 
 ```text
 M
@@ -433,7 +449,25 @@ Alias:
 MORE
 ```
 
-When there are no more pages, PacketBBS returns:
+Move back one page:
+
+```text
+P
+```
+
+Alias:
+
+```text
+PREV
+```
+
+`P` on the first page returns:
+
+```text
+Already at first page.
+```
+
+`M` past the last page of a list returns:
 
 ```text
 End.
@@ -457,11 +491,11 @@ This clears the PacketBBS session.
 
 The `interface` request field controls line width and page size:
 
-| Interface | Page size | Width | Intended use |
-|---|---:|---:|---|
-| `meshcore` | 5 | 42 | Default compact radio text. |
-| `meshtastic` | 4 | 34 | Smaller packets and narrower displays. |
-| `tnc` | 8 | 64 | Larger text frames. |
+| Interface | List page size | Msg page size | Width | Intended use |
+|---|---:|---:|---:|---|
+| `meshcore` | 5 | 4 | 42 | Default compact radio text. |
+| `meshtastic` | 4 | 3 | 34 | Smaller packets and narrower displays. |
+| `tnc` | 8 | 8 | 64 | Larger text frames. |
 
 Unknown interface values fall back to the MeshCore profile.
 

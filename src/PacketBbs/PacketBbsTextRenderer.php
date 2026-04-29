@@ -26,6 +26,16 @@ class PacketBbsTextRenderer
         'tnc'        => 8,
     ];
 
+    /** Body lines per page when paginating long messages. */
+    private const MSG_PAGE_SIZES = [
+        'meshcore'   => 4,
+        'meshtastic' => 3,
+        'tnc'        => 8,
+    ];
+
+    /** Raw character threshold above which a message body is paginated. */
+    private const MSG_BODY_THRESHOLD = 120;
+
     private const LINE_WIDTHS = [
         'meshcore'   => 42,
         'meshtastic' => 34,
@@ -34,18 +44,33 @@ class PacketBbsTextRenderer
 
     private string $interface;
     private int $pageSize;
+    private int $msgPageSize;
     private int $lineWidth;
 
     public function __construct(string $interface = 'meshcore')
     {
-        $this->interface = $interface;
-        $this->pageSize  = self::PAGE_SIZES[$interface] ?? self::PAGE_SIZES['meshcore'];
-        $this->lineWidth = self::LINE_WIDTHS[$interface] ?? self::LINE_WIDTHS['meshcore'];
+        $this->interface   = $interface;
+        $this->pageSize    = self::PAGE_SIZES[$interface] ?? self::PAGE_SIZES['meshcore'];
+        $this->msgPageSize = self::MSG_PAGE_SIZES[$interface] ?? self::MSG_PAGE_SIZES['meshcore'];
+        $this->lineWidth   = self::LINE_WIDTHS[$interface] ?? self::LINE_WIDTHS['meshcore'];
     }
 
     public function getPageSize(): int
     {
         return $this->pageSize;
+    }
+
+    /**
+     * Count body pages for a message, applying the configured lines-per-page.
+     * Returns 1 when the raw body text is within the pagination threshold.
+     */
+    public function countBodyPages(string $text): int
+    {
+        if (strlen($text) <= self::MSG_BODY_THRESHOLD) {
+            return 1;
+        }
+        $lines = $this->wrapBody($text);
+        return (int)ceil(max(1, count($lines)) / $this->msgPageSize);
     }
 
     public function renderHelp(string $topic = '', string $bbsName = ''): string
@@ -58,7 +83,7 @@ class PacketBbsTextRenderer
                 'R <id>: read',
                 'RP <id>: reply',
                 'SEND <user> <subj>: new netmail',
-                'M: more',
+                'M: more  P: prev',
             ]);
         }
 
@@ -69,7 +94,7 @@ class PacketBbsTextRenderer
                 'R <id>: read',
                 'RP <id>: reply',
                 'POST <tag> <subj>: new post',
-                'M: more',
+                'M: more  P: prev',
             ]);
         }
 
@@ -88,7 +113,7 @@ class PacketBbsTextRenderer
         return implode("\n", [
             $intro,
             'LOGIN, WHO, MAIL, AREAS',
-            'R <id>, RP <id>, M, Q',
+            'R <id>, RP <id>, M, P, Q',
             'WEB, More: HELP MAIL, HELP AREAS',
         ]);
     }
@@ -138,17 +163,33 @@ class PacketBbsTextRenderer
         return implode("\n", $lines);
     }
 
-    public function renderNetmailMessage(array $m): string
+    /**
+     * @param int $page 0 = render full body; 1+ = render that body page only.
+     */
+    public function renderNetmailMessage(array $m, int $page = 0): string
     {
-        $date = $this->messageDate($m['date_received'] ?? $m['date_written'] ?? '');
-        $lines = [
+        $date      = $this->messageDate($m['date_received'] ?? $m['date_written'] ?? '');
+        $bodyLines = $this->wrapBody($m['message_text'] ?? '');
+        $lines     = [
             sprintf('#%d %s %s', (int)$m['id'], $this->truncate($m['from_name'] ?? '?', 18), $date),
             $this->truncate($m['subject'] ?? '(no subject)', $this->lineWidth),
         ];
-        foreach ($this->wrapBody($m['message_text'] ?? '') as $line) {
-            $lines[] = $line;
+
+        if ($page > 0) {
+            $totalPages = (int)ceil(max(1, count($bodyLines)) / $this->msgPageSize);
+            foreach (array_slice($bodyLines, ($page - 1) * $this->msgPageSize, $this->msgPageSize) as $line) {
+                $lines[] = $line;
+            }
+            $lines[] = $page < $totalPages
+                ? sprintf('%d/%d M:more', $page, $totalPages)
+                : 'RP ' . (int)$m['id'];
+        } else {
+            foreach ($bodyLines as $line) {
+                $lines[] = $line;
+            }
+            $lines[] = 'RP ' . (int)$m['id'];
         }
-        $lines[] = 'RP ' . (int)$m['id'];
+
         return implode("\n", $lines);
     }
 
@@ -255,18 +296,34 @@ class PacketBbsTextRenderer
         return $domain !== '' ? $tag . '@' . $domain : $tag;
     }
 
-    public function renderEchomailMessage(array $m): string
+    /**
+     * @param int $page 0 = render full body; 1+ = render that body page only.
+     */
+    public function renderEchomailMessage(array $m, int $page = 0): string
     {
-        $date = $this->messageDate($m['date_received'] ?? $m['date_written'] ?? '');
-        $tag  = strtoupper($m['tag'] ?? $m['echoarea_tag'] ?? '?');
-        $lines = [
+        $date      = $this->messageDate($m['date_received'] ?? $m['date_written'] ?? '');
+        $tag       = strtoupper($m['tag'] ?? $m['echoarea_tag'] ?? '?');
+        $bodyLines = $this->wrapBody($m['message_text'] ?? '');
+        $lines     = [
             sprintf('#%d %s %s %s', (int)$m['id'], $tag, $this->truncate($m['from_name'] ?? '?', 12), $date),
             $this->truncate($m['subject'] ?? '(no subject)', $this->lineWidth),
         ];
-        foreach ($this->wrapBody($m['message_text'] ?? '') as $line) {
-            $lines[] = $line;
+
+        if ($page > 0) {
+            $totalPages = (int)ceil(max(1, count($bodyLines)) / $this->msgPageSize);
+            foreach (array_slice($bodyLines, ($page - 1) * $this->msgPageSize, $this->msgPageSize) as $line) {
+                $lines[] = $line;
+            }
+            $lines[] = $page < $totalPages
+                ? sprintf('%d/%d M:more', $page, $totalPages)
+                : 'RP ' . (int)$m['id'];
+        } else {
+            foreach ($bodyLines as $line) {
+                $lines[] = $line;
+            }
+            $lines[] = 'RP ' . (int)$m['id'];
         }
-        $lines[] = 'RP ' . (int)$m['id'];
+
         return implode("\n", $lines);
     }
 

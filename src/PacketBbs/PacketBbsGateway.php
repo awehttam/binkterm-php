@@ -149,7 +149,7 @@ class PacketBbsGateway
                 return $this->handleNetmailList($session, $nodeId, 1, $renderer);
 
             case 'NR':
-                return $this->handleNetmailRead($session, (int)$args, $renderer);
+                return $this->handleNetmailRead($session, $nodeId, (int)$args, $renderer);
 
             case 'NRP':
                 return $this->handleNetmailReply($session, $nodeId, (int)$args, $renderer);
@@ -168,7 +168,7 @@ class PacketBbsGateway
                 return $this->handleEchomailList($session, $nodeId, trim($args), 1, $renderer);
 
             case 'EM':
-                return $this->handleEchomailRead($session, (int)$args, $renderer);
+                return $this->handleEchomailRead($session, $nodeId, (int)$args, $renderer);
 
             case 'EMR':
                 return $this->handleEchomailReply($session, $nodeId, (int)$args, $renderer);
@@ -179,7 +179,7 @@ class PacketBbsGateway
 
             case 'R':
             case 'READ':
-                return $this->handleReadAny($session, (int)$args, $renderer);
+                return $this->handleReadAny($session, $nodeId, (int)$args, $renderer);
 
             case 'RP':
             case 'REPLY':
@@ -188,6 +188,10 @@ class PacketBbsGateway
             case 'M':
             case 'MORE':
                 return $this->handleMore($session, $nodeId, $renderer);
+
+            case 'P':
+            case 'PREV':
+                return $this->handlePrev($session, $nodeId, $renderer);
 
             case 'WEB':
             case 'WEBSITE':
@@ -484,7 +488,7 @@ class PacketBbsGateway
         return null;
     }
 
-    private function handleNetmailRead(array $session, int $id, PacketBbsTextRenderer $renderer): string
+    private function handleNetmailRead(array $session, string $nodeId, int $id, PacketBbsTextRenderer $renderer): string
     {
         if ($err = $this->requireLogin($session)) {
             return $err;
@@ -498,7 +502,7 @@ class PacketBbsGateway
             return sprintf('No message %d.', $id);
         }
 
-        return $renderer->renderNetmailMessage($msg);
+        return $this->renderMessageWithPagination($msg, 'netmail', $id, $nodeId, $renderer);
     }
 
     private function handleNetmailReply(array $session, string $nodeId, int $replyToId, PacketBbsTextRenderer $renderer): string
@@ -708,7 +712,7 @@ class PacketBbsGateway
         return $row ?: null;
     }
 
-    private function handleEchomailRead(array $session, int $id, PacketBbsTextRenderer $renderer): string
+    private function handleEchomailRead(array $session, string $nodeId, int $id, PacketBbsTextRenderer $renderer): string
     {
         if ($err = $this->requireLogin($session)) {
             return $err;
@@ -722,7 +726,7 @@ class PacketBbsGateway
             return sprintf('No message %d.', $id);
         }
 
-        return $renderer->renderEchomailMessage($msg);
+        return $this->renderMessageWithPagination($msg, 'echomail', $id, $nodeId, $renderer);
     }
 
     private function handleEchomailReply(array $session, string $nodeId, int $replyToId, PacketBbsTextRenderer $renderer): string
@@ -787,7 +791,7 @@ class PacketBbsGateway
         return $renderer->renderComposePrompt('echomail', $this->formatAreaIdentifier($tag, $domain), $subject);
     }
 
-    private function handleReadAny(array $session, int $id, PacketBbsTextRenderer $renderer): string
+    private function handleReadAny(array $session, string $nodeId, int $id, PacketBbsTextRenderer $renderer): string
     {
         if ($err = $this->requireLogin($session)) {
             return $err;
@@ -798,15 +802,37 @@ class PacketBbsGateway
 
         $msg = $this->messageHandler->getMessage($id, 'netmail', $session['user_id']);
         if ($msg) {
-            return $renderer->renderNetmailMessage($msg);
+            return $this->renderMessageWithPagination($msg, 'netmail', $id, $nodeId, $renderer);
         }
 
         $msg = $this->messageHandler->getMessage($id, 'echomail', $session['user_id']);
         if ($msg) {
-            return $renderer->renderEchomailMessage($msg);
+            return $this->renderMessageWithPagination($msg, 'echomail', $id, $nodeId, $renderer);
         }
 
         return sprintf('No message %d.', $id);
+    }
+
+    /**
+     * Render a message, setting up body pagination context if the body exceeds the threshold.
+     */
+    private function renderMessageWithPagination(array $msg, string $type, int $id, string $nodeId, PacketBbsTextRenderer $renderer): string
+    {
+        $totalPages = $renderer->countBodyPages($msg['message_text'] ?? '');
+
+        if ($totalPages > 1) {
+            $this->sessionRepo->update($nodeId, [
+                'pagination_cursor'  => 1,
+                'pagination_context' => json_encode(['type' => 'message', 'msg_type' => $type, 'id' => $id]),
+            ]);
+            return $type === 'netmail'
+                ? $renderer->renderNetmailMessage($msg, 1)
+                : $renderer->renderEchomailMessage($msg, 1);
+        }
+
+        return $type === 'netmail'
+            ? $renderer->renderNetmailMessage($msg)
+            : $renderer->renderEchomailMessage($msg);
     }
 
     private function handleReplyAny(array $session, string $nodeId, int $id, PacketBbsTextRenderer $renderer): string
@@ -848,7 +874,77 @@ class PacketBbsGateway
             return $this->handleEchomailList($session, $nodeId, $ctx['area'], $page, $renderer);
         }
 
+        if (($ctx['type'] ?? '') === 'message') {
+            $msgId   = (int)($ctx['id'] ?? 0);
+            $msgType = $ctx['msg_type'] ?? 'netmail';
+
+            if ($msgId <= 0) {
+                return 'No more.';
+            }
+
+            $msg = $this->messageHandler->getMessage($msgId, $msgType, $session['user_id']);
+            if (!$msg) {
+                return 'Message not found.';
+            }
+
+            $totalPages = $renderer->countBodyPages($msg['message_text'] ?? '');
+            if ($page > $totalPages) {
+                $this->sessionRepo->update($nodeId, ['pagination_context' => null]);
+                return 'End.';
+            }
+
+            $this->sessionRepo->update($nodeId, ['pagination_cursor' => $page]);
+
+            return $msgType === 'netmail'
+                ? $renderer->renderNetmailMessage($msg, $page)
+                : $renderer->renderEchomailMessage($msg, $page);
+        }
+
         return 'No more.';
+    }
+
+    private function handlePrev(array $session, string $nodeId, PacketBbsTextRenderer $renderer): string
+    {
+        if (!$session['pagination_context']) {
+            return 'No context. Try MAIL or AREA <tag>.';
+        }
+
+        $ctx  = json_decode($session['pagination_context'], true);
+        $page = (int)($session['pagination_cursor'] ?? 1) - 1;
+
+        if ($page < 1) {
+            return 'Already at first page.';
+        }
+
+        if (($ctx['type'] ?? '') === 'netmail') {
+            return $this->handleNetmailList($session, $nodeId, $page, $renderer);
+        }
+
+        if (($ctx['type'] ?? '') === 'echomail' && !empty($ctx['area'])) {
+            return $this->handleEchomailList($session, $nodeId, $ctx['area'], $page, $renderer);
+        }
+
+        if (($ctx['type'] ?? '') === 'message') {
+            $msgId   = (int)($ctx['id'] ?? 0);
+            $msgType = $ctx['msg_type'] ?? 'netmail';
+
+            if ($msgId <= 0) {
+                return 'No context.';
+            }
+
+            $msg = $this->messageHandler->getMessage($msgId, $msgType, $session['user_id']);
+            if (!$msg) {
+                return 'Message not found.';
+            }
+
+            $this->sessionRepo->update($nodeId, ['pagination_cursor' => $page]);
+
+            return $msgType === 'netmail'
+                ? $renderer->renderNetmailMessage($msg, $page)
+                : $renderer->renderEchomailMessage($msg, $page);
+        }
+
+        return 'No context.';
     }
 
     /**
