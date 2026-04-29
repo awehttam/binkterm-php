@@ -5,7 +5,6 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
-- [Account Security](#account-security)
 - [PacketBBS Gateway](#packetbbs-gateway)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -19,23 +18,12 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Echo area management**: When deleting an echo area that still has messages, the API correctly rejected the request but the error message was never displayed to the user. The delete confirmation modal also stayed open after the failure. Both issues are now resolved — the modal closes and the error is shown.
 - **Error and success alert display**: A long-standing bug caused all `showError` and `showSuccess` alerts throughout the application to be silently discarded rather than inserted into the page. Alerts now appear correctly at the top of the page content.
 
-### Account Security
-
-- **PacketBBS authenticator enrollment**: The Settings -> Account page now displays a QR code during PacketBBS authenticator setup. Users can scan the QR code with a TOTP authenticator app instead of copying the otpauth URI manually.
-
 ### PacketBBS Gateway
 
 - **Mesh/radio text gateway**: PacketBBS provides a compact text command interface for MeshCore-style radio bridges. The gateway supports login, online-user lookup, netmail reading/replying/sending, echomail area browsing, echomail reading/replying/posting, paging, and quitting.
 - **Compact radio UX**: PacketBBS responses are optimized for short radio text exchanges rather than full-screen BBS terminal use. Help is brief by default, message lists are compact, message reads use short headers, and compose mode accepts `/SEND` and `/CANCEL`.
 - **Admin-managed nodes**: Sysops can manage registered PacketBBS bridge nodes from the admin Packet BBS page, generate per-node API keys, view active sessions, and inspect the outbound queue.
-
-## Account Security
-
-### PacketBBS Authenticator QR Code
-
-PacketBBS authenticator setup now generates a QR code for the TOTP enrollment URI using `chillerlan/php-qrcode`. The QR code is displayed directly on Settings -> Account during enrollment, while the manual secret and otpauth URI remain available as fallback options.
-
-This adds a new Composer dependency. Upgraders must run `composer install` before `php scripts/setup.php` so the QR code library is available when the web routes are loaded.
+- **TOTP authentication**: PacketBBS radio login uses a TOTP authenticator code rather than the user's web password. Users must enroll under Settings -> Account by scanning the PacketBBS QR code into an authenticator app.
 
 ## PacketBBS Gateway
 
@@ -54,6 +42,8 @@ LOGIN <username> <6-digit-code>
 ```
 
 The login flow does not use the normal web password over radio.
+
+Enrollment displays a QR code generated with `chillerlan/php-qrcode`. Users scan that QR code into an authenticator app from Settings -> Account, then verify a 6-digit code to enable PacketBBS login. This adds a new Composer dependency, so upgraders must run `composer install` before `php scripts/setup.php`.
 
 ### Compact Command Interface
 

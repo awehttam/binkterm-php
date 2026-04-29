@@ -48,7 +48,7 @@ class PacketBbsTextRenderer
         return $this->pageSize;
     }
 
-    public function renderHelp(string $topic = ''): string
+    public function renderHelp(string $topic = '', string $bbsName = ''): string
     {
         $topic = strtoupper(trim($topic));
 
@@ -81,8 +81,13 @@ class PacketBbsTextRenderer
             ]);
         }
 
+        $intro = trim($bbsName) !== ''
+            ? sprintf("Hi, I'm %s. Here's help:", trim($bbsName))
+            : "Hi, I'm PacketBBS. Here's help:";
+
         return implode("\n", [
-            'HELP: LOGIN, WHO, MAIL, AREAS',
+            $intro,
+            'LOGIN, WHO, MAIL, AREAS',
             'R <id>, RP <id>, M, Q',
             'More: HELP MAIL, HELP AREAS',
         ]);

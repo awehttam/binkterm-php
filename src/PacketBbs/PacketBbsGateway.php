@@ -130,7 +130,7 @@ class PacketBbsGateway
         switch ($verb) {
             case 'HELP':
             case '?':
-                return $renderer->renderHelp($args);
+                return $renderer->renderHelp($args, $this->getBbsName());
 
             case 'LOGIN':
                 return $this->handleLogin($session, $nodeId, $args, $interface);
