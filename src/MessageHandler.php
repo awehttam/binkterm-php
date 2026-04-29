@@ -1876,7 +1876,11 @@ class MessageHandler
                     }
                 }
             }
-            $this->incrementEchoareaCount($echoarea['id']);
+            $this->incrementEchoareaCount(
+                $echoarea['id'],
+                $needsModeration ? null : $subject,
+                $needsModeration ? null : $fromName
+            );
 
             if ($needsModeration) {
                 $this->logger->info("[ECHOMAIL] Message #{$messageId} held for moderation (user {$fromUserId}, area {$echoareaTag})");
@@ -1916,6 +1920,25 @@ class MessageHandler
             UPDATE echomail SET moderation_status = 'approved' WHERE id = ?
         ");
         $updateStmt->execute([$messageId]);
+
+        // Update the cached last-post info now that this message is visible.
+        // Only overwrite if this message is newer than whatever is currently cached.
+        $dateReceived = $message['date_received'] ?? date('Y-m-d H:i:s');
+        $lpStmt = $this->db->prepare("
+            UPDATE echoareas
+            SET last_post_subject = ?,
+                last_post_author  = ?,
+                last_post_date    = ?
+            WHERE id = ?
+              AND (last_post_date IS NULL OR last_post_date <= ?)
+        ");
+        $lpStmt->execute([
+            mb_substr($message['subject'] ?? '', 0, 255),
+            mb_substr($message['from_name'] ?? '', 0, 100),
+            $dateReceived,
+            $message['echoarea_id'],
+            $dateReceived,
+        ]);
 
         $echoareaTag = $message['echoarea_tag'];
         $domain      = $message['echoarea_domain'] ?? '';
@@ -2641,10 +2664,30 @@ class MessageHandler
         }
     }
 
-    private function incrementEchoareaCount($echoareaId)
+    /**
+     * @param string|null $subject  When non-null, also updates last_post_* columns.
+     * @param string|null $fromName When non-null, also updates last_post_* columns.
+     */
+    private function incrementEchoareaCount(int $echoareaId, ?string $subject = null, ?string $fromName = null): void
     {
-        $stmt = $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?");
-        $stmt->execute([$echoareaId]);
+        if ($subject !== null && $fromName !== null) {
+            $stmt = $this->db->prepare("
+                UPDATE echoareas
+                SET message_count     = message_count + 1,
+                    last_post_subject = ?,
+                    last_post_author  = ?,
+                    last_post_date    = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                mb_substr($subject, 0, 255),
+                mb_substr($fromName, 0, 100),
+                $echoareaId,
+            ]);
+        } else {
+            $stmt = $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?");
+            $stmt->execute([$echoareaId]);
+        }
     }
 
     private function spoolOutboundNetmail($messageId)

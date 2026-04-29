@@ -1885,7 +1885,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $messageHandler = new MessageHandler();
         $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
 
-        // Query with separate subqueries for total and unread counts, plus last post info
+        // Query with cached message count / last-post columns and one live subquery for unread count.
+        // total_counts (was: COUNT(*) GROUP BY) is replaced by e.message_count — maintained incrementally.
+        // last_posts (was: DISTINCT ON full scan + external sort) is replaced by e.last_post_* columns.
         $sql = "SELECT
                     e.id,
                     e.tag,
@@ -1899,12 +1901,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.domain,
                     e.is_local,
                     e.is_sysop_only,
-                    COALESCE(total_counts.message_count, 0) as message_count,
+                    e.message_count,
                     COALESCE(unread_counts.unread_count, 0) as unread_count,
                     COALESCE(sub_counts.subscriber_count, 0) as subscriber_count,
-                    last_posts.last_subject,
-                    last_posts.last_author,
-                    last_posts.last_date
+                    e.last_post_subject as last_subject,
+                    e.last_post_author  as last_author,
+                    e.last_post_date    as last_date
                 FROM echoareas e";
 
         // Add subscription filtering if requested
@@ -1916,13 +1918,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $sql .= " LEFT JOIN (
-                    SELECT em.echoarea_id, COUNT(*) as message_count
-                    FROM echomail em
-                    WHERE 1=1
-                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
-                    GROUP BY em.echoarea_id
-                ) total_counts ON e.id = total_counts.echoarea_id
-                LEFT JOIN (
                     SELECT
                         em.echoarea_id,
                         COUNT(*) as unread_count
@@ -1933,29 +1928,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     GROUP BY em.echoarea_id
                 ) unread_counts ON e.id = unread_counts.echoarea_id
                 LEFT JOIN (
-                    SELECT DISTINCT ON (em.echoarea_id)
-                        em.echoarea_id,
-                        em.subject as last_subject,
-                        em.from_name as last_author,
-                        em.date_received as last_date
-                    FROM echomail em
-                    WHERE 1=1{$ignoreFilter['sql']}
-                    ORDER BY em.echoarea_id, em.date_received DESC
-                ) last_posts ON e.id = last_posts.echoarea_id
-                LEFT JOIN (
                     SELECT echoarea_id, COUNT(*) as subscriber_count
                     FROM user_echoarea_subscriptions
                     WHERE is_active = TRUE
                     GROUP BY echoarea_id
                 ) sub_counts ON e.id = sub_counts.echoarea_id";
 
-        foreach ($ignoreFilter['params'] as $param) {
-            $params[] = $param;
-        }
         $params[] = $userId;
-        foreach ($ignoreFilter['params'] as $param) {
-            $params[] = $param;
-        }
         foreach ($ignoreFilter['params'] as $param) {
             $params[] = $param;
         }
