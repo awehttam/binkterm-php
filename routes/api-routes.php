@@ -5687,6 +5687,27 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $marked++;
             }
 
+            // Advance last_read_id watermarks — find the highest message ID per
+            // echoarea in this batch and move the watermark forward if needed.
+            $intIds = array_map('intval', $messageIds);
+            $placeholders = implode(',', array_fill(0, count($intIds), '?'));
+            $wmStmt = $db->prepare("
+                WITH area_maxes AS (
+                    SELECT echoarea_id, MAX(id) AS max_id
+                    FROM echomail
+                    WHERE id IN ($placeholders)
+                    GROUP BY echoarea_id
+                )
+                UPDATE user_echoarea_subscriptions ues
+                SET last_read_id = am.max_id
+                FROM area_maxes am
+                WHERE ues.user_id = ?
+                  AND ues.echoarea_id = am.echoarea_id
+                  AND ues.is_active = TRUE
+                  AND (ues.last_read_id IS NULL OR ues.last_read_id < am.max_id)
+            ");
+            $wmStmt->execute(array_merge($intIds, [$userId]));
+
             $db->commit();
         } catch (\Throwable $e) {
             if ($db->inTransaction()) {

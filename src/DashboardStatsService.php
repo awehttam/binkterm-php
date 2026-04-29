@@ -59,16 +59,22 @@ class DashboardStatsService
         }
         $unreadNetmail = (int)($unreadStmt->fetch()['count'] ?? 0);
 
+        // Use the last_read_id high-watermark for O(subscribed_areas) counting
+        // instead of scanning every echomail row. The watermark is advanced whenever
+        // a user reads a message (see MessageHandler::markEchomailAsRead and the
+        // bulk-read endpoint). Per-message bold/unread state is still tracked in
+        // message_read_status; only this badge counter uses the watermark.
         $sysopUnreadFilter = $isAdmin ? "" : " AND COALESCE(e.is_sysop_only, FALSE) = FALSE";
         $unreadEchomailStmt = $this->db->prepare("
-            SELECT COUNT(*) as count
-            FROM echomail em
-            INNER JOIN echoareas e ON em.echoarea_id = e.id
-            INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND ues.is_active = TRUE{$sysopUnreadFilter}
+            SELECT COUNT(*) AS count
+            FROM user_echoarea_subscriptions ues
+            JOIN echomail em ON em.echoarea_id = ues.echoarea_id
+                AND em.id > COALESCE(ues.last_read_id, 0)
+                AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+            JOIN echoareas e ON e.id = ues.echoarea_id AND e.is_active = TRUE{$sysopUnreadFilter}
+            WHERE ues.user_id = ? AND ues.is_active = TRUE
         ");
-        $unreadEchomailStmt->execute([$userId, $userId]);
+        $unreadEchomailStmt->execute([$userId]);
         $unreadEchomail = (int)($unreadEchomailStmt->fetch()['count'] ?? 0);
 
         if ($lastChatMaxId === null) {

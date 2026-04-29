@@ -2652,7 +2652,7 @@ class MessageHandler
             $user = $auth->getCurrentUser();
             $userId = $user['user_id'] ?? $user['id'] ?? null;
         }
-        
+
         if ($userId) {
             $stmt = $this->db->prepare("
                 INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
@@ -2661,6 +2661,16 @@ class MessageHandler
                     read_at = NOW()
             ");
             $stmt->execute([$userId, $messageId]);
+
+            // Advance the dashboard badge watermark (only moves forward, never back).
+            $this->db->prepare("
+                UPDATE user_echoarea_subscriptions ues
+                SET last_read_id = ?
+                WHERE ues.user_id = ?
+                  AND ues.echoarea_id = (SELECT echoarea_id FROM echomail WHERE id = ?)
+                  AND ues.is_active = TRUE
+                  AND (ues.last_read_id IS NULL OR ues.last_read_id < ?)
+            ")->execute([$messageId, $userId, $messageId, $messageId]);
         }
     }
 

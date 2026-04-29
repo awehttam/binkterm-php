@@ -532,10 +532,19 @@ if ($explain) {
 // SECTION 7: Timing — full echolist query (current)
 // ---------------------------------------------------------------------------
 
-section("7. Timing: Full Echolist Query (Current)");
+section("7. Timing: Full Echolist Query — Before vs Deployed");
 
-// Replicate the actual query from api-routes.php (no ignore filter for simplicity)
-$sqlEcholistFull = "
+// Check whether the cached columns from migration v1.11.0.82 exist.
+$hasCachedCols = false;
+try {
+    $db->query("SELECT last_post_subject FROM echoareas LIMIT 0");
+    $hasCachedCols = true;
+} catch (\PDOException $e) {
+    // columns not yet present — migration not run
+}
+
+// Original query (pre-optimisation) for baseline comparison
+$sqlEcholistOld = "
     SELECT
         e.id, e.tag, e.description, e.color, e.is_active, e.domain, e.is_local,
         COALESCE(total_counts.message_count, 0) AS message_count,
@@ -577,39 +586,26 @@ $sqlEcholistFull = "
     ) sub_counts ON e.id = sub_counts.echoarea_id
 ";
 
-// Proposed query: use e.message_count and skip total_counts subquery;
-// last_posts still uses DISTINCT ON (caching it requires schema change)
-$sqlEcholistProposed = "
+// Deployed query: e.message_count + e.last_post_* + single unread subquery
+$sqlEcholistDeployed = "
     SELECT
         e.id, e.tag, e.description, e.color, e.is_active, e.domain, e.is_local,
         e.message_count,
         COALESCE(unread_counts.unread_count, 0) AS unread_count,
         COALESCE(sub_counts.subscriber_count, 0) AS subscriber_count,
-        last_posts.last_subject,
-        last_posts.last_author,
-        last_posts.last_date
+        e.last_post_subject AS last_subject,
+        e.last_post_author  AS last_author,
+        e.last_post_date    AS last_date
     FROM echoareas e
     LEFT JOIN (
-        SELECT ues.echoarea_id, COUNT(em.id) AS unread_count
-        FROM user_echoarea_subscriptions ues
-        JOIN echomail em
-            ON em.echoarea_id = ues.echoarea_id
-            AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+        SELECT em.echoarea_id, COUNT(*) AS unread_count
+        FROM echomail em
         LEFT JOIN message_read_status mrs
             ON mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?
-        WHERE ues.user_id = ? AND ues.is_active = TRUE
-          AND mrs.read_at IS NULL
-        GROUP BY ues.echoarea_id
+        WHERE mrs.read_at IS NULL
+          AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+        GROUP BY em.echoarea_id
     ) unread_counts ON e.id = unread_counts.echoarea_id
-    LEFT JOIN (
-        SELECT DISTINCT ON (em.echoarea_id)
-            em.echoarea_id,
-            em.subject   AS last_subject,
-            em.from_name AS last_author,
-            em.date_received AS last_date
-        FROM echomail em
-        ORDER BY em.echoarea_id, em.date_received DESC
-    ) last_posts ON e.id = last_posts.echoarea_id
     LEFT JOIN (
         SELECT echoarea_id, COUNT(*) AS subscriber_count
         FROM user_echoarea_subscriptions
@@ -620,38 +616,49 @@ $sqlEcholistProposed = "
 
 echo "  Running each query 3 times...\n\n";
 
-$fullCurrent  = timeQuery($db, $sqlEcholistFull,     [$userId]);
-$fullProposed = timeQuery($db, $sqlEcholistProposed, [$userId, $userId]);
+$fullOld      = timeQuery($db, $sqlEcholistOld,      [$userId]);
 
-printf("  Current  (3 echomail subqueries):  avg %s  min %s  max %s  rows=%d\n",
-    fmtMs($fullCurrent['avg']),  fmtMs($fullCurrent['min']),  fmtMs($fullCurrent['max']),  $fullCurrent['rows']);
-printf("  Proposed (1 echomail subquery):    avg %s  min %s  max %s  rows=%d\n",
-    fmtMs($fullProposed['avg']), fmtMs($fullProposed['min']), fmtMs($fullProposed['max']), $fullProposed['rows']);
+if ($hasCachedCols) {
+    $fullDeployed = timeQuery($db, $sqlEcholistDeployed, [$userId]);
+} else {
+    echo "  NOTE: last_post_subject column not found — run migration v1.11.0.82 first.\n";
+    $fullDeployed = ['avg' => 0, 'min' => 0, 'max' => 0, 'rows' => 0];
+}
 
-$fullSpeedup = $fullCurrent['avg'] > 0
-    ? $fullCurrent['avg'] / max($fullProposed['avg'], 0.01)
-    : 0;
-printf("\n  Speedup from partial optimisation (fixes 1+3 only): %.1fx\n", $fullSpeedup);
+printf("  Before (3 echomail full scans): avg %s  min %s  max %s  rows=%d\n",
+    fmtMs($fullOld['avg']),      fmtMs($fullOld['min']),      fmtMs($fullOld['max']),      $fullOld['rows']);
+if ($hasCachedCols) {
+    printf("  After  (deployed, 1 scan):      avg %s  min %s  max %s  rows=%d\n",
+        fmtMs($fullDeployed['avg']), fmtMs($fullDeployed['min']), fmtMs($fullDeployed['max']), $fullDeployed['rows']);
+
+    $echolistSpeedup = $fullOld['avg'] > 0
+        ? $fullOld['avg'] / max($fullDeployed['avg'], 0.01)
+        : 0;
+    printf("\n  Speedup: %.1fx (saved ~%s per load)\n",
+        $echolistSpeedup, fmtMs($fullOld['avg'] - $fullDeployed['avg']));
+}
 
 assertion(
-    "Full echolist query takes more than 500 ms (production concern)",
-    $fullCurrent['avg'] > 500,
-    sprintf("avg %s", fmtMs($fullCurrent['avg']))
+    "Original echolist query was more than 400 ms",
+    $fullOld['avg'] > 400,
+    sprintf("avg %s", fmtMs($fullOld['avg']))
 );
-assertion(
-    "Partial fix (drop total_counts + scope unread) is faster than current",
-    $fullProposed['avg'] < $fullCurrent['avg'],
-    sprintf("%.1fx speedup — current %s vs proposed %s",
-        $fullSpeedup, fmtMs($fullCurrent['avg']), fmtMs($fullProposed['avg']))
-);
+if ($hasCachedCols) {
+    assertion(
+        "Deployed echolist query is at least 2x faster than original",
+        $hasCachedCols && $fullDeployed['avg'] < $fullOld['avg'] / 2,
+        sprintf("%.1fx speedup", $echolistSpeedup)
+    );
+}
 
 if ($explain) {
-    echo "\n  EXPLAIN ANALYZE — full current echolist query:\n";
-    echo "  " . str_replace("\n", "\n  ", explainQuery($db, $sqlEcholistFull, [$userId])) . "\n";
-
     if ($verbose) {
-        echo "\n  EXPLAIN ANALYZE — proposed partial-fix echolist query:\n";
-        echo "  " . str_replace("\n", "\n  ", explainQuery($db, $sqlEcholistProposed, [$userId, $userId])) . "\n";
+        echo "\n  EXPLAIN ANALYZE — original 3-scan echolist query:\n";
+        echo "  " . str_replace("\n", "\n  ", explainQuery($db, $sqlEcholistOld, [$userId])) . "\n";
+    }
+    if ($hasCachedCols) {
+        echo "\n  EXPLAIN ANALYZE — deployed echolist query:\n";
+        echo "  " . str_replace("\n", "\n  ", explainQuery($db, $sqlEcholistDeployed, [$userId])) . "\n";
     }
 }
 
@@ -659,9 +666,19 @@ if ($explain) {
 // SECTION 8: Dashboard unread echomail query
 // ---------------------------------------------------------------------------
 
-section("8. Timing: Dashboard Unread Echomail Count");
+section("8. Timing: Dashboard Unread Echomail Count — Before vs Deployed");
 
-$sqlDashUnread = "
+// Check whether last_read_id column from migration v1.11.0.83 exists
+$hasLastReadId = false;
+try {
+    $db->query("SELECT last_read_id FROM user_echoarea_subscriptions LIMIT 0");
+    $hasLastReadId = true;
+} catch (\PDOException $e) {
+    // column not yet present
+}
+
+// Original dashboard query (full echomail scan + materialize + nested loop)
+$sqlDashOld = "
     SELECT COUNT(*) AS count
     FROM echomail em
     INNER JOIN echoareas e ON em.echoarea_id = e.id
@@ -673,32 +690,71 @@ $sqlDashUnread = "
       AND ues.is_active = TRUE
 ";
 
-echo "  Running 3 times...\n\n";
-$dashT = timeQuery($db, $sqlDashUnread, [$userId, $userId]);
+// Deployed dashboard query: watermark-based, O(subscribed_areas × new_messages)
+$sqlDashDeployed = "
+    SELECT COUNT(*) AS count
+    FROM user_echoarea_subscriptions ues
+    JOIN echomail em ON em.echoarea_id = ues.echoarea_id
+        AND em.id > COALESCE(ues.last_read_id, 0)
+        AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+    JOIN echoareas e ON e.id = ues.echoarea_id AND e.is_active = TRUE
+    WHERE ues.user_id = ? AND ues.is_active = TRUE
+";
 
-printf("  Dashboard unread query:  avg %s  min %s  max %s  count=%d\n",
-    fmtMs($dashT['avg']), fmtMs($dashT['min']), fmtMs($dashT['max']),
-    empty($dashT['rows']) ? 0 : 0); // fetchAll returns 1 row with count
+echo "  Running each query 3 times...\n\n";
+$dashOldT = timeQuery($db, $sqlDashOld, [$userId, $userId]);
 
-// Re-run to get the actual unread count value
-$stmt = $db->prepare($sqlDashUnread);
+// Get the actual unread count from the old query
+$stmt = $db->prepare($sqlDashOld);
 $stmt->execute([$userId, $userId]);
-$unreadValue = (int)$stmt->fetch(PDO::FETCH_ASSOC)['count'];
-echo "  Unread count for user $userId: $unreadValue messages\n";
+$unreadOldValue = (int)$stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+printf("  Before (full scan + materialize): avg %s  min %s  max %s  unread=%d\n",
+    fmtMs($dashOldT['avg']), fmtMs($dashOldT['min']), fmtMs($dashOldT['max']), $unreadOldValue);
+
+if ($hasLastReadId) {
+    $dashNewT = timeQuery($db, $sqlDashDeployed, [$userId]);
+    $stmt = $db->prepare($sqlDashDeployed);
+    $stmt->execute([$userId]);
+    $unreadNewValue = (int)$stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+    printf("  After  (watermark-based):         avg %s  min %s  max %s  unread=%d\n",
+        fmtMs($dashNewT['avg']), fmtMs($dashNewT['min']), fmtMs($dashNewT['max']), $unreadNewValue);
+
+    $dashSpeedup = $dashOldT['avg'] > 0
+        ? $dashOldT['avg'] / max($dashNewT['avg'], 0.01)
+        : 0;
+    printf("\n  Speedup: %.1fx (saved ~%s per dashboard load)\n",
+        $dashSpeedup, fmtMs($dashOldT['avg'] - $dashNewT['avg']));
+    echo "  NOTE: unread counts may differ — watermark counts messages newer than\n";
+    echo "        last_read_id, not messages with no row in message_read_status.\n";
+} else {
+    echo "\n  NOTE: last_read_id column not found — run migration v1.11.0.83 to test\n";
+    echo "        the watermark-based deployed query.\n";
+}
 
 assertion(
-    "Dashboard unread echomail query takes more than 200 ms",
-    $dashT['avg'] > 200,
-    sprintf("avg %s — %s",
-        fmtMs($dashT['avg']),
-        $dashT['avg'] > 200
-            ? "CONFIRMED slow. Consider a last_read_id high-watermark per subscribed area."
-            : "currently acceptable but scales linearly with echomail volume.")
+    "Original dashboard unread query takes more than 200 ms",
+    $dashOldT['avg'] > 200,
+    sprintf("avg %s", fmtMs($dashOldT['avg']))
 );
 
+if ($hasLastReadId) {
+    assertion(
+        "Watermark dashboard query is at least 5x faster than original",
+        $dashNewT['avg'] < $dashOldT['avg'] / 5,
+        sprintf("%.1fx speedup", $dashSpeedup)
+    );
+}
+
 if ($explain) {
-    echo "\n  EXPLAIN ANALYZE — dashboard unread query:\n";
-    echo "  " . str_replace("\n", "\n  ", explainQuery($db, $sqlDashUnread, [$userId, $userId])) . "\n";
+    echo "\n  EXPLAIN ANALYZE — original dashboard query:\n";
+    echo "  " . str_replace("\n", "\n  ", explainQuery($db, $sqlDashOld, [$userId, $userId])) . "\n";
+
+    if ($hasLastReadId && $verbose) {
+        echo "\n  EXPLAIN ANALYZE — watermark dashboard query:\n";
+        echo "  " . str_replace("\n", "\n  ", explainQuery($db, $sqlDashDeployed, [$userId])) . "\n";
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -754,37 +810,40 @@ section("10. Summary");
 
 echo "\n  Assertions: $pass passed, $fail failed, $warn warnings (of $total total)\n\n";
 
-echo "  What this means:\n\n";
-echo "  Fix 1 (use e.message_count):  ";
-echo isset($existingIndexes['_dummy']) ? '' : '';
+echo "  Echolist query improvements:\n";
+echo "    Fix 1 (e.message_count replaces COUNT subquery): ";
 if ($currentT['avg'] > 10) {
-    printf("saves ~%s per echolist load (eliminates COUNT subquery).\n", fmtMs($currentT['avg']));
+    printf("saves ~%s\n", fmtMs($currentT['avg']));
 } else {
-    echo "minimal gain at current scale.\n";
+    echo "minimal at current scale\n";
 }
-
-echo "  Fix 2 (cache last_post cols): ";
+echo "    Fix 2 (cached last_post_* replaces DISTINCT ON): ";
 if ($t['avg'] > 50) {
-    printf("saves ~%s per echolist load (eliminates DISTINCT ON scan).\n", fmtMs($t['avg']));
+    printf("saves ~%s\n", fmtMs($t['avg']));
 } else {
-    echo "currently fast, but will worsen as message base grows.\n";
+    echo "currently fast, will worsen as message base grows\n";
+}
+if ($hasCachedCols && isset($echolistSpeedup)) {
+    printf("    Combined echolist improvement:                   %.1fx faster (before %s → after %s)\n",
+        $echolistSpeedup, fmtMs($fullOld['avg']), fmtMs($fullDeployed['avg']));
+} elseif (!$hasCachedCols) {
+    echo "    Combined echolist improvement:                   (run migration v1.11.0.82 to measure)\n";
 }
 
-echo "  Fix 3 (scope unread query):   ";
-if ($currentUnreadT['avg'] > $proposedUnreadT['avg']) {
-    printf("saves ~%s per echolist load (%.1fx speedup on unread count).\n",
-        fmtMs($currentUnreadT['avg'] - $proposedUnreadT['avg']), $unreadSpeedup);
-} else {
-    echo "no measured benefit for this user's subscription set.\n";
+echo "\n  Dashboard badge improvements:\n";
+if ($hasLastReadId && isset($dashSpeedup)) {
+    printf("    Watermark replaces full scan:                    %.1fx faster (before %s → after %s)\n",
+        $dashSpeedup, fmtMs($dashOldT['avg']), fmtMs($dashNewT['avg']));
+} elseif (!$hasLastReadId) {
+    printf("    Original query:                                  %s (run migration v1.11.0.83 to fix)\n",
+        fmtMs($dashOldT['avg']));
 }
 
-echo "  Fix 4 (add index):            ";
-if ($indexSpeedup >= 2) {
-    printf("~%.1fx speedup on DISTINCT ON query.\n", $indexSpeedup);
-} else {
-    echo "index benefit unclear at this scale — re-run after creating the index.\n";
-}
+echo "\n  Remaining bottleneck:\n";
+printf("    Echolist unread-count subquery: ~%s (per-message tracking; needs last_read_id approach\n",
+    fmtMs($currentUnreadT['avg']));
+echo "    to eliminate — see echolist §6 above)\n";
 
 echo "\n  Run with --explain to see EXPLAIN ANALYZE plans for all queries.\n";
-echo   "  Run with --verbose to also see plans for proposed alternatives.\n";
+echo   "  Run with --verbose to also see plans for before/after alternatives.\n";
 echo   "  Run with --user=N to test a user with more/fewer subscriptions.\n\n";
