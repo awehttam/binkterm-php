@@ -5,6 +5,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [Echomail Performance Improvements](#echomail-performance-improvements)
 - [PacketBBS Gateway](#packetbbs-gateway)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -12,6 +13,12 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+### Echomail Performance Improvements
+
+- **Echolist page**: Loading the echo area list on systems with large message bases (80K+ messages) previously required two full-table scans of the `echomail` table per request to compute total message counts and last-post metadata. The query now reads cached values from new columns on the `echoareas` table, eliminating those scans. Two database migrations apply the schema change and backfill the cache from existing data.
+- **Dashboard unread badge**: The dashboard unread echomail count previously scanned every echomail message and joined against every per-message read record to count unread items. On large installs this query took 2–6 seconds. The badge now counts messages that arrived after a per-area high-watermark stored on each subscription, reducing the query to a fast index range scan per subscribed area.
+- **Unread echomail semantics**: The dashboard echomail badge now reflects "messages posted since you last read" rather than "messages you have not individually opened." The label on the dashboard card has been updated from "Unread Echomail" to "New Echomail" accordingly. Per-message bold/unread state inside the message list is unchanged.
 
 ### Bug Fixes
 
@@ -24,6 +31,34 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Compact radio UX**: PacketBBS responses are optimized for short radio text exchanges rather than full-screen BBS terminal use. Help is brief by default, message lists are compact, message reads use short headers, and compose mode accepts `/SEND` and `/CANCEL`.
 - **Admin-managed nodes**: Sysops can manage registered PacketBBS bridge nodes from the admin Packet BBS page, generate per-node API keys, view active sessions, and inspect the outbound queue.
 - **TOTP authentication**: PacketBBS radio login uses a TOTP authenticator code rather than the user's web password. Users must enroll under Settings -> Account by scanning the PacketBBS QR code into an authenticator app.
+
+## Echomail Performance Improvements
+
+### Echolist Cached Columns (migration v1.11.0.82)
+
+Loading the echo area list (`/echolist`) on systems with large message bases required two aggregate subqueries against the full `echomail` table on every page load: one to count total messages per area, and one to retrieve the subject, author, and date of the most recent post per area. On a database with 80,000+ messages, each subquery performed a full sequential scan, making the page take several seconds to load.
+
+Three columns have been added to the `echoareas` table to cache this information:
+
+- `last_post_subject VARCHAR(255)`
+- `last_post_author VARCHAR(100)`
+- `last_post_date TIMESTAMP`
+
+These columns are updated in-place whenever a new message is stored — either inbound via the binkp processor or posted via the web or terminal interface. Moderated messages that are pending approval do not update `last_post_*` until they are approved.
+
+Migration `v1.11.0.82` adds the new columns, backfills them from existing `echomail` rows, and recalibrates all `message_count` values to match the actual row count. The echolist query no longer contains subqueries against `echomail`.
+
+### Dashboard Unread Badge High-Watermark (migration v1.11.0.83)
+
+The dashboard previously counted unread echomail by joining `user_echoarea_subscriptions`, `echomail`, and `message_read_status` and counting every message that had no matching read record for the current user. On a database with 80,000+ messages and a user subscribed to hundreds of areas, this query materialized tens of millions of row comparisons and regularly took 2–6 seconds.
+
+A `last_read_id` column has been added to `user_echoarea_subscriptions`. It stores the highest `echomail.id` the user has read in each area. The dashboard badge query is now a fast index range scan per subscribed area using a new composite index `(echoarea_id, id)` on the `echomail` table.
+
+The watermark is advanced whenever a user reads a message (individually or in bulk). Migration `v1.11.0.83` backfills the watermark from the existing `message_read_status` table so users do not see a large backlog of "new" messages after upgrading.
+
+#### Changed behavior
+
+The dashboard echomail badge now shows the number of messages posted to subscribed areas since the user last read in each area. Once you read any message in an area, all earlier messages in that area are considered seen for badge-counting purposes, even if you did not open each one individually. The dashboard card label has been updated from "Unread Echomail" to "New Echomail" to reflect this. Detailed bold/unread state inside the message list continues to use per-message read tracking and is not affected by this change.
 
 ## PacketBBS Gateway
 
@@ -43,7 +78,7 @@ LOGIN <username> <6-digit-code>
 
 The login flow does not use the normal web password over radio.
 
-Enrollment displays a QR code generated with `chillerlan/php-qrcode`. Users scan that QR code into an authenticator app from Settings -> Account, then verify a 6-digit code to enable PacketBBS login. This adds a new Composer dependency, so upgraders must run `composer install` before `php scripts/setup.php`.
+Enrollment displays a QR code generated with `chillerlan/php-qrcode`. Users scan that QR code into an authenticator app from Settings -> Account, then verify a 6-digit code to enable PacketBBS login. This adds a new Composer dependency, so upgraders must run `composer update` before `php scripts/setup.php`.
 
 ### Compact Command Interface
 
@@ -101,7 +136,7 @@ Run `php scripts/setup.php` after upgrading so PacketBBS database migrations, ad
 
 ```bash
 git pull
-composer install
+composer update
 php scripts/setup.php
 ```
 
@@ -110,6 +145,6 @@ php scripts/setup.php
 Replace your files with the new release archive, then run:
 
 ```bash
-composer install
+composer update
 php scripts/setup.php
 ```

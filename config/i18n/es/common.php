@@ -3391,7 +3391,7 @@ return [
     // Dashboard
     'ui.dashboard.title' => 'Panel',
     'ui.dashboard.unread_netmail' => 'Netmail sin leer',
-    'ui.dashboard.unread_echomail' => 'Echomail sin leer',
+    'ui.dashboard.unread_echomail' => 'Echomail nuevo',
     'ui.dashboard.system_news' => 'Noticias del sistema',
     'ui.dashboard.advertisement' => 'Anuncio',
     'ui.dashboard.advertisement_controls' => 'Controles del anuncio',
