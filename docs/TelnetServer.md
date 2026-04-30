@@ -18,6 +18,9 @@ troubleshooting.
 - **Optional ANSI login screen** — place an ANSI art file at
   `telnet/screens/login.ans` to display it instead of the default login banner
   (sent as raw ANSI with CRLF normalization)
+- **Connection rate limiting** — rejects repeated rapid connections from a single
+  IP before forking a child process, preventing flood attacks from exhausting
+  process table slots
 
 ## Requirements
 
@@ -166,6 +169,27 @@ SyncTERM provides the best experience with full ANSI color support:
 - Consider firewall rules to restrict access by IP
 - Monitor logs for suspicious login activity
 
+### Connection Rate Limiting
+
+The daemon tracks the number of TCP connections accepted from each remote IP
+within a rolling fixed window. If an IP exceeds the limit, the connection is
+accepted at the socket level (to avoid a half-open backlog), a short error
+message is written to the client, and the socket is closed — no child process
+is forked. Rejections are logged to `data/logs/telnetd.log`.
+
+The window is **fixed per IP**: the first connection from an IP starts the
+clock; the counter resets only after `TELNET_RATE_LIMIT_WINDOW` seconds have
+elapsed since that first connection, not since the most recent one.
+
+| `.env` variable | Default | Description |
+|---|---|---|
+| `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP per window. Set to `0` to disable rate limiting entirely. |
+| `TELNET_RATE_LIMIT_WINDOW` | `60` | Window duration in seconds. |
+
+The defaults allow 5 connections per minute per IP, which is sufficient for
+any legitimate user. Adjust `TELNET_RATE_LIMIT_MAX` downward if you are seeing
+active floods, or set it to `0` on private/LAN-only installs.
+
 ### Fail2ban
 
 The telnet daemon writes to `data/logs/telnetd.log`. Example fail2ban
@@ -234,6 +258,16 @@ The provided filter matches log lines like:
 3. Check telnet client configuration
 4. Use SyncTERM for best compatibility
 
+### Connection Rate Limiting
+
+**Problem**: Legitimate users receive "Too many connections from your IP. Please try again later."
+
+**Solutions**:
+1. Wait for the current window to expire (default: 60 seconds from the first connection in the window) then reconnect
+2. Check `data/logs/telnetd.log` for lines containing "Rate limit exceeded" to confirm which IP is being blocked
+3. Raise `TELNET_RATE_LIMIT_MAX` in `.env` if the default of 5 connections per minute is too restrictive for your users
+4. Set `TELNET_RATE_LIMIT_MAX=0` in `.env` and restart the daemon to disable rate limiting entirely on private/LAN installs
+
 ### Login Rate Limiting
 
 **Problem**: "Too many failed login attempts"
@@ -265,15 +299,16 @@ request/response details.
 ### Connection Flow
 
 1. Client connects to daemon socket
-2. Daemon forks child process (Linux/macOS) or handles directly (Windows)
-3. Child performs telnet negotiation (NAWS, echo control)
-4. Child displays ANSI login screen (`telnet/screens/login.ans`) or default banner
-5. Pre-login ESC anti-bot challenge is presented
-6. User authenticates via API
-7. Main menu displayed with message counts
-8. User navigates menus and performs actions
-9. Connection closed and child exits
-10. Parent reaps zombie process via SIGCHLD
+2. Parent checks per-IP connection rate limit — closes socket immediately if exceeded
+3. Daemon forks child process (Linux/macOS) or handles directly (Windows)
+4. Child performs telnet negotiation (NAWS, echo control)
+5. Child displays ANSI login screen (`telnet/screens/login.ans`) or default banner
+6. Pre-login ESC anti-bot challenge is presented
+7. User authenticates via API
+8. Main menu displayed with message counts
+9. User navigates menus and performs actions
+10. Connection closed and child exits
+11. Parent reaps zombie process via SIGCHLD
 
 ### Code Structure
 
