@@ -92,6 +92,9 @@ if (!empty($args['help'])) {
     echo "  --daemon          Run as background daemon\n";
     echo "  --pid-file=FILE   Write process ID to file (default: data/run/telnetd.pid)\n";
     echo "  --insecure        Disable SSL certificate verification\n";
+    echo "\nRate limiting (.env only):\n";
+    echo "  TELNET_RATE_LIMIT_MAX     Max connections per IP per window (default: 5, 0=disabled)\n";
+    echo "  TELNET_RATE_LIMIT_WINDOW  Window size in seconds (default: 60)\n";
     exit(0);
 }
 

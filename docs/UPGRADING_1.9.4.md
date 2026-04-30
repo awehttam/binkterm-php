@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [Echomail Performance Improvements](#echomail-performance-improvements)
 - [PacketBBS Gateway](#packetbbs-gateway)
+- [Telnet Daemon](#telnet-daemon)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -19,6 +20,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Echolist page**: Loading the echo area list on systems with large message bases (80K+ messages) previously required two full-table scans of the `echomail` table per request to compute total message counts and last-post metadata. The query now reads cached values from new columns on the `echoareas` table, eliminating those scans. Two database migrations apply the schema change and backfill the cache from existing data.
 - **Dashboard unread badge**: The dashboard unread echomail count previously scanned every echomail message and joined against every per-message read record to count unread items. On large installs this query took 2–6 seconds. The badge now counts messages that arrived after a per-area high-watermark stored on each subscription, reducing the query to a fast index range scan per subscribed area.
 - **Unread echomail semantics**: The dashboard echomail badge now reflects "messages posted since you last read" rather than "messages you have not individually opened." The label on the dashboard card has been updated from "Unread Echomail" to "New Echomail" accordingly. Per-message bold/unread state inside the message list is unchanged.
+
+### Telnet Daemon
+
+- **Connection rate limiting**: The telnet daemon now rejects repeated rapid connections from the same IP address before forking a new process for each one. The limit is configurable via two `.env` variables (`TELNET_RATE_LIMIT_MAX`, `TELNET_RATE_LIMIT_WINDOW`) and is enabled by default. Set `TELNET_RATE_LIMIT_MAX=0` to disable it.
 
 ### Bug Fixes
 
@@ -106,6 +111,25 @@ Compose mode accepts one body line per radio message. Send `/SEND` or `.` to fin
 ### Echoarea Domains
 
 Networked echoareas may be shown as `TAG@domain`, for example `LVLY_TEST@lovlynet`. PacketBBS preserves that domain when listing, paging, replying, and posting so messages are posted to the correct networked area.
+
+## Telnet Daemon
+
+### Connection Rate Limiting
+
+Systems that expose the telnet or TLS telnet port publicly can receive floods of rapid connection attempts from a single IP — either from automated scanners or deliberate denial-of-service attempts. Each accepted connection previously triggered a `pcntl_fork()` call with no guard on how many times a single IP could do so in a short period, meaning a single host could exhaust process table slots or file descriptors.
+
+The main accept loop in the telnet daemon now checks a per-IP connection counter before forking. If a remote IP exceeds the configured limit within the configured time window, the connection is refused with a short text message and the socket is closed — no child process is created. The check happens in the parent process so the cost of a rejected connection is limited to accepting the TCP socket and writing one line of text.
+
+Two `.env` variables control the behavior:
+
+| Variable | Default | Description |
+|---|---|---|
+| `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP within the window. Set to `0` to disable rate limiting entirely. |
+| `TELNET_RATE_LIMIT_WINDOW` | `60` | Rolling window size in seconds. The counter for an IP resets after this many seconds have elapsed since the first connection in the current window. |
+
+The defaults allow 5 connections per minute per IP, which is sufficient for any legitimate user — including those who connect, disconnect, and reconnect quickly. Rejections are logged to `telnetd.log` with the offending IP address.
+
+No database migration or `composer update` is required for this change. The feature activates automatically on daemon restart.
 
 ## Bug Fixes
 
