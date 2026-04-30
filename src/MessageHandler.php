@@ -2131,6 +2131,30 @@ class MessageHandler
     }
 
     /**
+     * Parse a tag@domain echoarea identifier and append the matching SQL conditions.
+     * Accepts either "tag@domain" or plain "tag" (domain defaults to 'fidonet').
+     *
+     * @param string $echoarea Tag-only or "tag@domain" string
+     * @param string &$sql     SQL string to append conditions to
+     * @param array  &$params  Bind-parameter array to append values to
+     */
+    private function appendEchoareaCondition(string $echoarea, string &$sql, array &$params): void
+    {
+        if (str_contains($echoarea, '@')) {
+            [$tag, $domain] = explode('@', $echoarea, 2);
+        } else {
+            $tag = $echoarea;
+            $domain = null;
+        }
+        $sql .= " AND ea.tag = ?";
+        $params[] = $tag;
+        if ($domain !== null) {
+            $sql .= " AND ea.domain = ?";
+            $params[] = $domain;
+        }
+    }
+
+    /**
      * Build a SQL WHERE fragment for text-based message searches.
      * Returns [null, []] when no text search terms are present (date-only searches).
      *
@@ -2281,8 +2305,7 @@ class MessageHandler
             }
 
             if ($echoarea) {
-                $sql .= " AND ea.tag = ?";
-                $params[] = $echoarea;
+                $this->appendEchoareaCondition($echoarea, $sql, $params);
             }
 
             $sql .= " ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC LIMIT 200";
@@ -2351,8 +2374,7 @@ class MessageHandler
         }
 
         if ($echoarea) {
-            $sql .= " AND ea.tag = ?";
-            $params[] = $echoarea;
+            $this->appendEchoareaCondition($echoarea, $sql, $params);
         }
 
         $stmt = $this->db->prepare($sql);
@@ -2421,8 +2443,7 @@ class MessageHandler
         }
 
         if ($echoarea) {
-            $sql .= " AND ea.tag = ?";
-            $params[] = $echoarea;
+            $this->appendEchoareaCondition($echoarea, $sql, $params);
         }
 
         $sql .= " GROUP BY ea.id, ea.tag, ea.domain ORDER BY ea.tag";
