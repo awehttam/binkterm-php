@@ -262,6 +262,9 @@ return [
     'ui.terminalserver.settings.messaging.digest_none'      => 'None',
     'ui.terminalserver.settings.messaging.digest_daily'     => 'Daily',
     'ui.terminalserver.settings.messaging.digest_weekly'    => 'Weekly',
+    'ui.terminalserver.settings.messaging.echomail_badge_mode'       => 'New Echomail Badge',
+    'ui.terminalserver.settings.messaging.badge_mode_new'    => 'New since last visit',
+    'ui.terminalserver.settings.messaging.badge_mode_unread' => 'Total unread',
 
     // Account tab actions
     'ui.terminalserver.settings.account.change_password'        => 'Change Password',

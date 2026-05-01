@@ -3386,6 +3386,7 @@ class MessageHandler
             'default_tagline' => 'TAGLINE',
             'forward_netmail_email' => 'BOOLEAN',
             'echomail_digest' => 'DIGEST_FREQUENCY',
+            'echomail_badge_mode' => 'BADGE_MODE',
             'dashboard_layout' => 'DASHBOARD_LAYOUT',
         ];
 
@@ -3441,6 +3442,10 @@ class MessageHandler
                 case 'DIGEST_FREQUENCY':
                     $freq = trim((string)$value);
                     $params[] = in_array($freq, ['none', 'daily', 'weekly'], true) ? $freq : 'none';
+                    break;
+                case 'BADGE_MODE':
+                    $mode = trim((string)$value);
+                    $params[] = in_array($mode, ['new', 'unread'], true) ? $mode : 'new';
                     break;
                 case 'DASHBOARD_LAYOUT':
                     if ($value === null) {

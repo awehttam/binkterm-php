@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Echomail Performance Improvements](#echomail-performance-improvements)
+- [Configurable Echomail Badge Mode](#configurable-echomail-badge-mode)
 - [PacketBBS Gateway](#packetbbs-gateway)
 - [Telnet Daemon](#telnet-daemon)
 - [Shoutbox](#shoutbox)
@@ -19,8 +20,8 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Echomail Performance Improvements
 
 - **Echolist page**: Loading the echo area list on systems with large message bases (80K+ messages) previously required two full-table scans of the `echomail` table per request to compute total message counts and last-post metadata. The query now reads cached values from new columns on the `echoareas` table, eliminating those scans. Two database migrations apply the schema change and backfill the cache from existing data.
-- **Dashboard unread badge**: The dashboard unread echomail count previously scanned every echomail message and joined against every per-message read record to count unread items. On large installs this query took 2–6 seconds. The badge now counts messages that arrived after a per-area high-watermark stored on each subscription, reducing the query to a fast index range scan per subscribed area.
-- **Unread echomail semantics**: The dashboard echomail badge now reflects "messages posted since you last read" rather than "messages you have not individually opened." The label on the dashboard card has been updated from "Unread Echomail" to "New Echomail" accordingly. Per-message bold/unread state inside the message list is unchanged.
+- **Dashboard unread badge**: The dashboard unread echomail count previously scanned every echomail message and joined against every per-message read record to count unread items. On large installs this query took 2–6 seconds. The badge now counts messages using an indexed watermark, reducing the query to a fast range scan.
+- **Configurable echomail badge mode**: The dashboard echomail badge behavior is now a user setting under Settings → Messaging. The default mode counts messages that arrived since your last visit to an echomail page; an alternative mode counts total messages above the per-area read watermark. The dashboard card label has been updated from "Unread Echomail" to "New Echomail." Per-message bold/unread state inside the message list is unchanged.
 
 ### Shoutbox
 
@@ -68,7 +69,22 @@ The watermark is advanced whenever a user reads a message (individually or in bu
 
 #### Changed behavior
 
-The dashboard echomail badge now shows the number of messages posted to subscribed areas since the user last read in each area. Once you read any message in an area, all earlier messages in that area are considered seen for badge-counting purposes, even if you did not open each one individually. The dashboard card label has been updated from "Unread Echomail" to "New Echomail" to reflect this. Detailed bold/unread state inside the message list continues to use per-message read tracking and is not affected by this change.
+The `last_read_id` watermark is used by the "Total unread" badge mode (see [Configurable Echomail Badge Mode](#configurable-echomail-badge-mode) below). The dashboard card label has been updated from "Unread Echomail" to "New Echomail." Detailed bold/unread state inside the message list continues to use per-message read tracking and is not affected by this change.
+
+## Configurable Echomail Badge Mode
+
+### New User Setting (migration v1.11.0.86)
+
+The dashboard echomail badge can now be set to one of two counting modes under **Settings → Messaging → New Echomail Badge**. The same setting is available in the terminal server settings under the Messaging tab.
+
+| Mode | Behavior |
+|---|---|
+| **New since last visit** (default) | Counts messages that arrived in your subscribed areas after the last time you opened `/echomail` or `/echolist`. The count resets to zero each time you visit an echomail page, regardless of whether you opened any individual messages. |
+| **Total unread** | Counts messages above the per-area read watermark introduced in migration v1.11.0.83. The count decreases as you open messages and increases as new messages arrive in subscribed areas. |
+
+The default is "New since last visit." Existing users receive this default automatically when the migration runs — no manual configuration is required.
+
+Migration `v1.11.0.86` adds an `echomail_badge_mode` column to the `user_settings` table with a default value of `new`.
 
 ## PacketBBS Gateway
 
@@ -169,7 +185,7 @@ This fix benefits every page that calls `showError` or `showSuccess`, not only t
 
 ## Upgrade Instructions
 
-Run `php scripts/setup.php` after upgrading so PacketBBS database migrations, admin routing, and configuration defaults are applied.
+Run `php scripts/setup.php` after upgrading so PacketBBS database migrations, admin routing, and configuration defaults are applied. Restart all daemons afterward so the new code takes effect.
 
 ### From Git
 
@@ -177,6 +193,7 @@ Run `php scripts/setup.php` after upgrading so PacketBBS database migrations, ad
 git pull
 composer update
 php scripts/setup.php
+scripts/restart_daemons.sh
 ```
 
 ### Using the Installer
@@ -186,4 +203,5 @@ Replace your files with the new release archive, then run:
 ```bash
 composer update
 php scripts/setup.php
+scripts/restart_daemons.sh
 ```

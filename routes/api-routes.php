@@ -681,13 +681,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $meta = new UserMeta();
         $currentCount = (int)($input['current_count'] ?? 0);
 
-        // Chat uses max message ID for efficient incremental polling; others use counts
+        // Chat/files/echomail use max row IDs; netmail uses a count
         if ($target === 'chat') {
             $meta->setValue((int)$userId, 'last_chat_max_id', (string)$currentCount);
         } elseif ($target === 'files') {
             $meta->setValue((int)$userId, 'last_files_max_id', (string)$currentCount);
         } elseif ($target === 'file-approvals') {
             $meta->setValue((int)$userId, 'last_pending_files_max_id', (string)$currentCount);
+        } elseif ($target === 'echomail') {
+            $meta->setValue((int)$userId, 'last_visit_echomail_max_id', (string)$currentCount);
         } else {
             $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
         }

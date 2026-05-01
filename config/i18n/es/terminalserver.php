@@ -258,6 +258,9 @@ return [
     'ui.terminalserver.settings.messaging.digest_none'      => 'Ninguno',
     'ui.terminalserver.settings.messaging.digest_daily'     => 'Diario',
     'ui.terminalserver.settings.messaging.digest_weekly'    => 'Semanal',
+    'ui.terminalserver.settings.messaging.echomail_badge_mode'       => 'Indicador de Echomail Nuevo',
+    'ui.terminalserver.settings.messaging.badge_mode_new'    => 'Nuevos desde la ultima visita',
+    'ui.terminalserver.settings.messaging.badge_mode_unread' => 'Total no leidos',
 
     // Pestaña Cuenta
     'ui.terminalserver.settings.account.change_password'        => 'Cambiar contraseña',
