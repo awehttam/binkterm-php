@@ -251,11 +251,38 @@ Alias:
 E
 ```
 
-Networked areas may appear as `TAG@domain`, for example:
+Example response:
 
 ```text
+AREAS 1/3
+FIDONET General Fidonet discussion
+LVLY_CHAT@lovlynet Chat
 LVLY_TEST@lovlynet Test echo area
+AREA <tag>, M
 ```
+
+The header shows the current page and total pages. If there are more pages, the footer shows `AREA <tag>, M`. Use `M` and `P` to navigate pages.
+
+Networked areas appear as `TAG@domain`. Use `M` to page through all subscribed areas.
+
+#### Area Search
+
+To search for areas matching a keyword across name, description, and domain:
+
+```text
+AREAS linux
+```
+
+Example response:
+
+```text
+AREAS "linux" 1/1
+LINUX General Linux discussion
+LVLY_LINUX@lovlynet Linux users
+AREA <tag>
+```
+
+The search term is preserved across `M` / `P` pages. To return to the full list, send `AREAS` without arguments.
 
 List messages in an area:
 
@@ -352,7 +379,7 @@ Old-style `CANCEL` also cancels.
 
 ### Paging
 
-Paging applies to two things: message lists and long message bodies.
+Paging applies to three things: the area list, message lists, and long message bodies.
 
 #### Lists
 
