@@ -122,12 +122,22 @@ class PacketBbsTotp
      * Verify a 6-digit TOTP code against a Base32-encoded secret.
      *
      * Returns true if the code matches any step in [current - DRIFT, current + DRIFT].
+     *
+     * When $db and $userId are supplied, single-use enforcement is applied: the
+     * matched step counter is recorded in totp_used_codes and any second attempt
+     * with the same code is rejected, preventing replay within the acceptance
+     * window. Pass these whenever verifying a live login; omit them for
+     * enrollment flows where the user is already authenticated by other means.
+     *
+     * Fails closed: if the DB insert cannot be performed the code is rejected.
      * The submitted code is never logged by this method.
      *
-     * @param string $secret Base32-encoded TOTP secret.
-     * @param string $code   6-digit code entered by the user.
+     * @param string   $secret Base32-encoded TOTP secret.
+     * @param string   $code   6-digit code entered by the user.
+     * @param \PDO|null $db    Database connection for single-use enforcement.
+     * @param int      $userId User ID paired with $db for single-use enforcement.
      */
-    public static function verifyCode(string $secret, string $code): bool
+    public static function verifyCode(string $secret, string $code, ?\PDO $db = null, int $userId = 0): bool
     {
         if (!preg_match('/^\d{6}$/', $code)) {
             return false;
@@ -139,15 +149,41 @@ class PacketBbsTotp
             return false;
         }
 
-        $step = (int)floor(time() / self::PERIOD);
+        $currentStep = (int)floor(time() / self::PERIOD);
+        $matchedStep = null;
 
         for ($offset = -self::DRIFT; $offset <= self::DRIFT; $offset++) {
-            if (hash_equals(self::computeHotp($rawSecret, $step + $offset), $code)) {
-                return true;
+            if (hash_equals(self::computeHotp($rawSecret, $currentStep + $offset), $code)) {
+                $matchedStep = $currentStep + $offset;
+                break;
             }
         }
 
-        return false;
+        if ($matchedStep === null) {
+            return false;
+        }
+
+        if ($db !== null && $userId > 0) {
+            try {
+                // Purge records outside the acceptance window before inserting.
+                $db->exec("DELETE FROM totp_used_codes WHERE used_at < NOW() - INTERVAL '3 minutes'");
+
+                // ON CONFLICT DO NOTHING returns 0 rows on a duplicate — that is a replay.
+                $stmt = $db->prepare(
+                    'INSERT INTO totp_used_codes (user_id, step) VALUES (?, ?) ON CONFLICT DO NOTHING'
+                );
+                $stmt->execute([$userId, $matchedStep]);
+
+                if ($stmt->rowCount() === 0) {
+                    return false;
+                }
+            } catch (\Exception) {
+                // Fail closed: any DB error is treated as a rejection.
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

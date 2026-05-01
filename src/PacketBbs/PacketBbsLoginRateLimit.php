@@ -41,8 +41,12 @@ class PacketBbsLoginRateLimit
 
     /**
      * Return true if the node is allowed to attempt a login, false if blocked.
+     *
+     * Blocks when either the source node or the target username has accumulated
+     * MAX_FAILURES failed attempts within WINDOW_MINUTES, preventing brute-force
+     * across multiple nodes targeting the same account.
      */
-    public function check(string $nodeId): bool
+    public function check(string $nodeId, string $username = ''): bool
     {
         $stmt = $this->db->prepare(
             "SELECT COUNT(*) FROM packet_bbs_login_attempts
@@ -50,30 +54,51 @@ class PacketBbsLoginRateLimit
                AND attempted_at > NOW() - INTERVAL '1 minute' * ?"
         );
         $stmt->execute([$nodeId, self::WINDOW_MINUTES]);
-        return (int)$stmt->fetchColumn() < self::MAX_FAILURES;
+        if ((int)$stmt->fetchColumn() >= self::MAX_FAILURES) {
+            return false;
+        }
+
+        if ($username !== '') {
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) FROM packet_bbs_login_attempts
+                 WHERE username = ? AND success = FALSE
+                   AND attempted_at > NOW() - INTERVAL '1 minute' * ?"
+            );
+            $stmt->execute([$username, self::WINDOW_MINUTES]);
+            if ((int)$stmt->fetchColumn() >= self::MAX_FAILURES) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
-     * Record a failed login attempt for the node.
+     * Record a failed login attempt for the node and username.
      */
-    public function recordFailure(string $nodeId): void
+    public function recordFailure(string $nodeId, string $username = ''): void
     {
         $this->db->prepare(
-            "INSERT INTO packet_bbs_login_attempts (node_id, success) VALUES (?, FALSE)"
-        )->execute([$nodeId]);
+            "INSERT INTO packet_bbs_login_attempts (node_id, username, success) VALUES (?, ?, FALSE)"
+        )->execute([$nodeId, $username !== '' ? $username : null]);
     }
 
     /**
-     * Record a successful login and clear prior failure rows for the node.
+     * Record a successful login and clear prior failure rows for the node and username.
      */
-    public function recordSuccess(string $nodeId): void
+    public function recordSuccess(string $nodeId, string $username = ''): void
     {
         $this->db->prepare(
-            "INSERT INTO packet_bbs_login_attempts (node_id, success) VALUES (?, TRUE)"
-        )->execute([$nodeId]);
+            "INSERT INTO packet_bbs_login_attempts (node_id, username, success) VALUES (?, ?, TRUE)"
+        )->execute([$nodeId, $username !== '' ? $username : null]);
         $this->db->prepare(
             "DELETE FROM packet_bbs_login_attempts WHERE node_id = ? AND success = FALSE"
         )->execute([$nodeId]);
+        if ($username !== '') {
+            $this->db->prepare(
+                "DELETE FROM packet_bbs_login_attempts WHERE username = ? AND success = FALSE"
+            )->execute([$username]);
+        }
     }
 
     /**

@@ -29,6 +29,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Compose: sidebar panel can now be collapsed sideways to give the editor more width, with state persisted across page loads
 - Echo list: areas can now be opened in a new tab via right-click
 - Netmail list now shows a paperclip icon next to the subject for messages that have file attachments
+- Echomail search: filtering by a specific echo area now returns results correctly instead of always returning empty
 
 ## Upgrade Instructions
 

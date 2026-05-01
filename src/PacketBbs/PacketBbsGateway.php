@@ -356,9 +356,9 @@ class PacketBbsGateway
         $username = $parts[0];
         $code     = $parts[1];
 
-        // Rate limit check before any database lookup.
+        // Rate limit check before any database lookup — blocks by both node and username.
         $rateLimit = new PacketBbsLoginRateLimit();
-        if (!$rateLimit->check($nodeId)) {
+        if (!$rateLimit->check($nodeId, $username)) {
             $this->logger->warning(sprintf('login rate limited node=%s user=%s', $nodeId, $username));
             return 'Too many tries. Wait a bit.';
         }
@@ -371,7 +371,7 @@ class PacketBbsGateway
         $user = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if (!$user) {
-            $rateLimit->recordFailure($nodeId);
+            $rateLimit->recordFailure($nodeId, $username);
             $this->logger->warning(sprintf('login failed (user not found) node=%s user=%s', $nodeId, $username));
             return 'Login failed.';
         }
@@ -381,23 +381,23 @@ class PacketBbsGateway
         $totpSecret   = $meta->getValue((int)$user['id'], 'packet_bbs_totp_secret');
 
         if ($totpEnabled !== '1' || !$totpSecret) {
-            // Deliberate: do not expose which users have TOTP enrolled.
+            $rateLimit->recordFailure($nodeId, $username);
             $this->logger->warning(sprintf(
                 'login failed (totp not enrolled) node=%s user=%s',
                 $nodeId,
                 $username
             ));
-            return 'No PacketBBS auth. Enable in web settings.';
+            return 'Login failed.';
         }
 
         // Verify the submitted code — never log the code itself.
-        if (!PacketBbsTotp::verifyCode($totpSecret, $code)) {
-            $rateLimit->recordFailure($nodeId);
+        if (!PacketBbsTotp::verifyCode($totpSecret, $code, $this->db, (int)$user['id'])) {
+            $rateLimit->recordFailure($nodeId, $username);
             $this->logger->warning(sprintf('login failed (invalid code) node=%s user=%s', $nodeId, $username));
             return 'Login failed.';
         }
 
-        $rateLimit->recordSuccess($nodeId);
+        $rateLimit->recordSuccess($nodeId, $username);
 
         $this->sessionRepo->update($nodeId, [
             'user_id'            => $user['id'],
@@ -580,7 +580,7 @@ class PacketBbsGateway
     {
         $stmt = $this->db->prepare(
             'SELECT fidonet_address FROM users
-             WHERE LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?)
+             WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?))
              AND is_active = TRUE
              LIMIT 1'
         );
@@ -1018,7 +1018,7 @@ class PacketBbsGateway
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         if (!empty($rows)) {
-            $ids = implode(',', array_column($rows, 'id'));
+            $ids = implode(',', array_map('intval', array_column($rows, 'id')));
             $this->db->exec("UPDATE packet_bbs_outbound_queue SET sent_at = NOW() WHERE id IN ($ids)");
         }
 
