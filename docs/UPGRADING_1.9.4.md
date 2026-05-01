@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Echomail Performance Improvements](#echomail-performance-improvements)
 - [PacketBBS Gateway](#packetbbs-gateway)
 - [Telnet Daemon](#telnet-daemon)
+- [Shoutbox](#shoutbox)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -20,6 +21,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Echolist page**: Loading the echo area list on systems with large message bases (80K+ messages) previously required two full-table scans of the `echomail` table per request to compute total message counts and last-post metadata. The query now reads cached values from new columns on the `echoareas` table, eliminating those scans. Two database migrations apply the schema change and backfill the cache from existing data.
 - **Dashboard unread badge**: The dashboard unread echomail count previously scanned every echomail message and joined against every per-message read record to count unread items. On large installs this query took 2–6 seconds. The badge now counts messages that arrived after a per-area high-watermark stored on each subscription, reducing the query to a fast index range scan per subscribed area.
 - **Unread echomail semantics**: The dashboard echomail badge now reflects "messages posted since you last read" rather than "messages you have not individually opened." The label on the dashboard card has been updated from "Unread Echomail" to "New Echomail" accordingly. Per-message bold/unread state inside the message list is unchanged.
+
+### Shoutbox
+
+- **ANSI and URL rendering**: Shoutbox messages now render ANSI color codes and clickable URLs using the same rendering pipeline as echomail messages. Previously, message text was displayed as plain escaped text.
 
 ### Telnet Daemon
 
@@ -111,6 +116,16 @@ Compose mode accepts one body line per radio message. Send `/SEND` or `.` to fin
 ### Echoarea Domains
 
 Networked echoareas may be shown as `TAG@domain`, for example `LVLY_TEST@lovlynet`. PacketBBS preserves that domain when listing, paging, replying, and posting so messages are posted to the correct networked area.
+
+## Shoutbox
+
+### ANSI and URL Rendering
+
+Shoutbox messages on both the dashboard card and the dedicated shoutbox page (`/shoutbox`) were previously rendered as plain escaped text. Any ANSI color sequences or URLs in a message appeared as literal characters rather than rendered output.
+
+Shoutbox message bodies are now passed through the same `formatMessageText` rendering pipeline used by echomail and netmail. ANSI color codes and pipe codes are interpreted and displayed with color, and any `http://`, `https://`, or `ftp://` URLs in the message text are converted to clickable links that open in a new tab.
+
+No database migration or configuration change is required.
 
 ## Telnet Daemon
 

@@ -666,7 +666,7 @@ function loadShoutbox() {
                     <div class="mb-2">
                         <strong><a href="/profile/${encodeURIComponent(msg.username)}">${escapeHtml(msg.username)}</a></strong>
                         <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        <div>${escapeHtml(msg.message)}</div>
+                        <div>${formatMessageText(msg.message)}</div>
                     </div>
                 `;
             });
@@ -698,7 +698,7 @@ function loadMoreShouts() {
                     <div class="mb-2">
                         <strong><a href="/profile/${encodeURIComponent(msg.username)}">${escapeHtml(msg.username)}</a></strong>
                         <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        <div>${escapeHtml(msg.message)}</div>
+                        <div>${formatMessageText(msg.message)}</div>
                     </div>
                 `;
             });
