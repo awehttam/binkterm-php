@@ -192,6 +192,7 @@ SimpleRouter::get('/', function() {
         'todays_callers' => $todaysCallers,
         'dashboard_layout' => $dashboardLayout,
         'dashboard_available_cards' => $availableCards,
+        'echomail_badge_mode' => $userSettings['echomail_badge_mode'] ?? 'new',
     ]);
 });
 

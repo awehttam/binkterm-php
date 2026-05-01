@@ -88,9 +88,9 @@
                             <div class="card bg-info text-white">
                                 <div class="card-body">
                                     <h4 id="echomailCount"><i class="fas fa-spinner fa-spin"></i></h4>
-                                    <p class="mb-0">
+                                    <p class="mb-0" title="{{ echomail_badge_mode == 'unread' ? t('ui.dashboard.echomail_tooltip_unread', {}, locale, ['common']) : t('ui.dashboard.echomail_tooltip_new', {}, locale, ['common']) }}">
                                         <i class="fas fa-comments"></i>
-                                        {{ t('ui.dashboard.unread_echomail', {}, locale, ['common']) }}
+                                        {{ echomail_badge_mode == 'unread' ? t('ui.dashboard.total_unread_echomail', {}, locale, ['common']) : t('ui.dashboard.unread_echomail', {}, locale, ['common']) }}
                                     </p>
                                 </div>
                             </div>
