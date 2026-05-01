@@ -80,7 +80,7 @@ The dashboard echomail badge can now be set to one of two counting modes under *
 | Mode | Behavior |
 |---|---|
 | **New since last visit** (default) | Counts messages that arrived in your subscribed areas after the last time you opened `/echomail` or `/echolist`. The count resets to zero each time you visit an echomail page, regardless of whether you opened any individual messages. |
-| **Total unread** | Counts messages above the per-area read watermark introduced in migration v1.11.0.83. The count decreases as you open messages and increases as new messages arrive in subscribed areas. |
+| **Total unread** | Counts every message in your subscribed areas that you have never opened. This is an exact count but requires a full scan of the echomail table on each dashboard refresh — on systems with large message bases it may take several seconds. |
 
 The default is "New since last visit." Existing users receive this default automatically when the migration runs — no manual configuration is required.
 

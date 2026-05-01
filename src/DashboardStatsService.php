@@ -69,18 +69,22 @@ class DashboardStatsService
         $sysopUnreadFilter = $isAdmin ? "" : " AND COALESCE(e.is_sysop_only, FALSE) = FALSE";
 
         if ($echomailBadgeMode === 'unread') {
-            // Total unread: messages above each area's per-user last_read_id watermark.
-            // Watermark advances when individual messages are opened or bulk-read.
+            // True unread: messages in subscribed areas that the user has never opened.
+            // Uses message_read_status for accuracy. This is an expensive query on large
+            // installs (full echomail scan) — users who enable this mode accept the cost.
             $unreadEchomailStmt = $this->db->prepare("
                 SELECT COUNT(*) AS count
                 FROM user_echoarea_subscriptions ues
                 JOIN echomail em ON em.echoarea_id = ues.echoarea_id
-                    AND em.id > COALESCE(ues.last_read_id, 0)
                     AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+                LEFT JOIN message_read_status mrs ON mrs.message_id = em.id
+                    AND mrs.message_type = 'echomail'
+                    AND mrs.user_id = ?
                 JOIN echoareas e ON e.id = ues.echoarea_id AND e.is_active = TRUE{$sysopUnreadFilter}
                 WHERE ues.user_id = ? AND ues.is_active = TRUE
+                  AND mrs.read_at IS NULL
             ");
-            $unreadEchomailStmt->execute([$userId]);
+            $unreadEchomailStmt->execute([$userId, $userId]);
             $unreadEchomail = (int)($unreadEchomailStmt->fetch()['count'] ?? 0);
         } else {
             // New since last visit: messages that arrived after the user last visited an echomail page.
