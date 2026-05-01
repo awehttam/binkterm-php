@@ -157,7 +157,7 @@ class PacketBbsGateway
 
             case 'E':
             case 'AREAS':
-                return $this->handleEchoareaList($session, $renderer);
+                return $this->handleEchoareaList($session, $nodeId, $args, 1, $renderer);
 
             case 'ER':
             case 'AREA':
@@ -603,23 +603,73 @@ class PacketBbsGateway
     // Compose submission
     // -------------------------------------------------------------------------
 
-    private function handleEchoareaList(array $session, PacketBbsTextRenderer $renderer): string
+    private function handleEchoareaList(array $session, string $nodeId, string $search, int $page, PacketBbsTextRenderer $renderer): string
     {
         if ($err = $this->requireLogin($session)) {
             return $err;
         }
 
-        $stmt = $this->db->prepare(
-            'SELECT e.tag, e.domain, e.description
-             FROM echoareas e
-             JOIN user_echoarea_subscriptions s ON s.echoarea_id = e.id
-             WHERE s.user_id = ? AND s.is_active = TRUE AND e.is_active = TRUE
-             ORDER BY e.tag ASC'
-        );
-        $stmt->execute([$session['user_id']]);
-        $areas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $search = trim($search);
+        $limit  = $renderer->getPageSize();
+        $offset = ($page - 1) * $limit;
 
-        return $renderer->renderEchoareaList($areas);
+        if ($search !== '') {
+            $like = '%' . $search . '%';
+            $countStmt = $this->db->prepare(
+                'SELECT COUNT(*) FROM echoareas e
+                 JOIN user_echoarea_subscriptions s ON s.echoarea_id = e.id
+                 WHERE s.user_id = ? AND s.is_active = TRUE AND e.is_active = TRUE
+                   AND (LOWER(e.tag) LIKE LOWER(?) OR LOWER(e.description) LIKE LOWER(?) OR LOWER(COALESCE(e.domain,\'\')) LIKE LOWER(?))'
+            );
+            $countStmt->execute([$session['user_id'], $like, $like, $like]);
+            $total = (int)$countStmt->fetchColumn();
+
+            $stmt = $this->db->prepare(
+                'SELECT e.tag, e.domain, e.description
+                 FROM echoareas e
+                 JOIN user_echoarea_subscriptions s ON s.echoarea_id = e.id
+                 WHERE s.user_id = ? AND s.is_active = TRUE AND e.is_active = TRUE
+                   AND (LOWER(e.tag) LIKE LOWER(?) OR LOWER(e.description) LIKE LOWER(?) OR LOWER(COALESCE(e.domain,\'\')) LIKE LOWER(?))
+                 ORDER BY e.tag ASC
+                 LIMIT ? OFFSET ?'
+            );
+            $stmt->execute([$session['user_id'], $like, $like, $like, $limit, $offset]);
+        } else {
+            $countStmt = $this->db->prepare(
+                'SELECT COUNT(*) FROM echoareas e
+                 JOIN user_echoarea_subscriptions s ON s.echoarea_id = e.id
+                 WHERE s.user_id = ? AND s.is_active = TRUE AND e.is_active = TRUE'
+            );
+            $countStmt->execute([$session['user_id']]);
+            $total = (int)$countStmt->fetchColumn();
+
+            $stmt = $this->db->prepare(
+                'SELECT e.tag, e.domain, e.description
+                 FROM echoareas e
+                 JOIN user_echoarea_subscriptions s ON s.echoarea_id = e.id
+                 WHERE s.user_id = ? AND s.is_active = TRUE AND e.is_active = TRUE
+                 ORDER BY e.tag ASC
+                 LIMIT ? OFFSET ?'
+            );
+            $stmt->execute([$session['user_id'], $limit, $offset]);
+        }
+
+        $areas      = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $totalPages = max(1, (int)ceil($total / $limit));
+
+        if ($page > $totalPages) {
+            return 'End.';
+        }
+
+        $this->sessionRepo->update($nodeId, [
+            'pagination_cursor'  => $page,
+            'pagination_context' => json_encode([
+                'type'   => 'areas',
+                'search' => $search !== '' ? $search : null,
+            ]),
+        ]);
+
+        return $renderer->renderEchoareaList($areas, $search !== '' ? $search : null, $page, $totalPages);
     }
 
     // -------------------------------------------------------------------------
@@ -862,6 +912,10 @@ class PacketBbsGateway
         $ctx  = json_decode($session['pagination_context'], true);
         $page = (int)($session['pagination_cursor'] ?? 1) + 1;
 
+        if (($ctx['type'] ?? '') === 'areas') {
+            return $this->handleEchoareaList($session, $nodeId, (string)($ctx['search'] ?? ''), $page, $renderer);
+        }
+
         if (($ctx['type'] ?? '') === 'netmail') {
             return $this->handleNetmailList($session, $nodeId, $page, $renderer);
         }
@@ -910,6 +964,10 @@ class PacketBbsGateway
 
         if ($page < 1) {
             return 'Already at first page.';
+        }
+
+        if (($ctx['type'] ?? '') === 'areas') {
+            return $this->handleEchoareaList($session, $nodeId, (string)($ctx['search'] ?? ''), $page, $renderer);
         }
 
         if (($ctx['type'] ?? '') === 'netmail') {

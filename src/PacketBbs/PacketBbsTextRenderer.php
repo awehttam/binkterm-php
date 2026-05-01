@@ -243,12 +243,17 @@ class PacketBbsTextRenderer
         return $output;
     }
 
-    public function renderEchoareaList(array $areas): string
+    public function renderEchoareaList(array $areas, ?string $search, int $page, int $totalPages): string
     {
         if (empty($areas)) {
-            return 'No areas. Ask sysop.';
+            return $search !== null
+                ? sprintf('No areas match "%s".', $this->truncate($search, 20))
+                : 'No areas. Ask sysop.';
         }
-        $lines = ['AREAS'];
+        $header = $search !== null
+            ? sprintf('AREAS "%s" %d/%d', $this->truncate($search, 12), $page, $totalPages)
+            : sprintf('AREAS %d/%d', $page, $totalPages);
+        $lines = [$header];
         foreach ($areas as $a) {
             $tag  = strtoupper($a['tag'] ?? '?');
             $domain = strtolower(trim((string)($a['domain'] ?? '')));
@@ -259,7 +264,7 @@ class PacketBbsTextRenderer
             $desc = $this->truncate($a['description'] ?? '', max(8, $this->lineWidth - mb_strlen($tag) - 1));
             $lines[] = trim($tag . ' ' . $desc);
         }
-        $lines[] = 'AREA <tag>';
+        $lines[] = $page < $totalPages ? 'AREA <tag>, M' : 'AREA <tag>';
         return implode("\n", $lines);
     }
 
