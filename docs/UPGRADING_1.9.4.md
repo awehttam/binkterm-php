@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Echomail Performance Improvements](#echomail-performance-improvements)
 - [Configurable Echomail Badge Mode](#configurable-echomail-badge-mode)
 - [PacketBBS Gateway](#packetbbs-gateway)
+- [CWN MeshCore Node Mapping](#cwn-meshcore-node-mapping)
 - [Telnet Daemon](#telnet-daemon)
 - [Shoutbox](#shoutbox)
 - [Bug Fixes](#bug-fixes)
@@ -42,6 +43,12 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Compact radio UX**: PacketBBS responses are optimized for short radio text exchanges rather than full-screen BBS terminal use. Help is brief by default, message lists are compact, message reads use short headers, and compose mode accepts `/SEND` and `/CANCEL`.
 - **Admin-managed nodes**: Sysops can manage registered PacketBBS bridge nodes from the admin Packet BBS page, generate per-node API keys, view active sessions, and inspect the outbound queue.
 - **TOTP authentication**: PacketBBS radio login uses a TOTP authenticator code rather than the user's web password. Users must enroll under Settings -> Account by scanning the PacketBBS QR code into an authenticator app.
+
+### CWN MeshCore Node Mapping
+
+- **Automatic repeater mapping**: The Community Wireless Node List WebDoor can now receive MeshCore repeater advertisements from the binkterm-php MeshCore bridge and display them on the CWN map without manual user submission.
+- **2-day rolling visibility**: MeshCore-sourced CWN entries remain in the database but are hidden from map and search results when they have not been heard for more than 2 days.
+- **Bridge update required**: Sites using `binktermphp-meshcorebridge` must update that separate bridge repository so it forwards `new_advert` packets and startup contact-list records to the new BBS endpoint.
 
 ## Echomail Performance Improvements
 
@@ -133,6 +140,48 @@ Compose mode accepts one body line per radio message. Send `/SEND` or `.` to fin
 
 Networked echoareas may be shown as `TAG@domain`, for example `LVLY_TEST@lovlynet`. PacketBBS preserves that domain when listing, paging, replying, and posting so messages are posted to the correct networked area.
 
+## CWN MeshCore Node Mapping
+
+### MeshCore Advert Ingest (migration v1.11.0.87)
+
+The Community Wireless Node List WebDoor now supports machine-ingested MeshCore repeater nodes. A MeshCore bridge can post heard repeater advertisements to:
+
+```text
+POST /api/meshcore/advert
+Authorization: Bearer <packet-bbs-node-api-key>
+```
+
+The endpoint uses the same PacketBBS bridge-node bearer-token authentication as `/api/packetbbs/command`. The request identifies the bridge with `bridge_node_id`, and the server validates the advertised node public key and coordinates before writing anything to the CWN table.
+
+Migration `v1.11.0.87` updates `cwn_networks` for MeshCore ingest:
+
+- `submitted_by`, `submitted_by_username`, and `description` are now nullable so machine-ingested rows do not need a human submitter or human-written description.
+- `public_key` stores the full 32-byte MeshCore public key as 64 lowercase hex characters.
+- `source_type` distinguishes manual rows from MeshCore rows.
+- `last_seen_at` records when the bridge most recently reported the node.
+- `hop_count` stores the bridge-reported outbound path length.
+- A partial unique index on `public_key` keeps one CWN row per MeshCore node while still allowing manual rows with no public key.
+
+Manual CWN submissions are unchanged. They still require the existing user fields and continue to award credits through the WebDoor submission flow.
+
+### Map and Search Visibility
+
+MeshCore-sourced rows use a 2-day rolling visibility window. The rows are not deleted, but CWN list and search queries hide MeshCore entries when:
+
+```sql
+last_seen_at <= NOW() - INTERVAL '2 days'
+```
+
+When a bridge reports the same MeshCore public key again, the existing row is updated with the latest name, coordinates, hop count, network type, and `last_seen_at` value.
+
+The CWN WebDoor now marks MeshCore entries with a `mesh` badge, uses a different map icon, and shows MeshCore-specific details such as public key, hop count, and last-seen time.
+
+### MeshCore Bridge Deployment
+
+This BBS release adds the receiving endpoint, but the transmitting code lives in the separate `binktermphp-meshcorebridge` repository. If you run that bridge, update it alongside the BBS release and restart the bridge process.
+
+The updated bridge forwards only repeater advertisements. Chat nodes, room servers, sensors, nodes without valid coordinates, and nodes reporting `0,0` coordinates are skipped before any HTTP request is sent.
+
 ## Shoutbox
 
 ### ANSI and URL Rendering
@@ -185,7 +234,7 @@ This fix benefits every page that calls `showError` or `showSuccess`, not only t
 
 ## Upgrade Instructions
 
-Run `php scripts/setup.php` after upgrading so PacketBBS database migrations, admin routing, and configuration defaults are applied. Restart all daemons afterward so the new code takes effect.
+Run `php scripts/setup.php` after upgrading so PacketBBS and CWN database migrations, admin routing, and configuration defaults are applied. Restart all daemons afterward so the new code takes effect. If you run `binktermphp-meshcorebridge`, update and restart that separate bridge process after updating the BBS.
 
 ### From Git
 

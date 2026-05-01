@@ -147,17 +147,24 @@ function displayNetworksOnMap(networks) {
     markers.clearLayers();
 
     networks.forEach(function(network) {
-        const marker = L.marker([network.latitude, network.longitude]);
+        const marker = L.marker([network.latitude, network.longitude], {
+            icon: markerIconFor(network)
+        });
+        const description = networkDescription(network);
+        const sourceLine = network.source_type === 'meshcore'
+            ? `<i class="fas fa-satellite-dish"></i> MeshCore repeater<br>`
+            : `<i class="fas fa-user"></i> ${escapeHtml(network.submitted_by_username)}@${escapeHtml(network.bbs_name)}<br>`;
 
         // Create popup content
         const popupContent = `
             <div>
                 <h6>${escapeHtml(network.ssid)}</h6>
                 <span class="badge network-type-${network.network_type}">${network.network_type}</span>
-                <p class="mt-2 mb-2">${escapeHtml(network.description).substring(0, 100)}...</p>
+                ${sourceBadge(network)}
+                <p class="mt-2 mb-2">${escapeHtml(description).substring(0, 100)}${description.length > 100 ? '...' : ''}</p>
                 <small class="text-muted">
-                    <i class="fas fa-user"></i> ${escapeHtml(network.submitted_by_username)}@${escapeHtml(network.bbs_name)}<br>
-                    <i class="fas fa-calendar"></i> ${formatDate(network.date_added)}
+                    ${sourceLine}
+                    <i class="fas fa-calendar"></i> ${formatDate(network.source_type === 'meshcore' ? network.last_seen_at : network.date_added)}
                 </small>
                 <hr class="my-2">
                 <button class="btn btn-sm btn-primary w-100" onclick="viewNetwork(${network.id})">
@@ -187,19 +194,25 @@ function displayNetworksList(networks) {
     let html = '<div class="list-group">';
 
     networks.slice(0, 10).forEach(function(network) {
+        const description = networkDescription(network);
+        const sourceMeta = network.source_type === 'meshcore'
+            ? `<i class="fas fa-satellite-dish"></i> MeshCore &nbsp;`
+            : `<i class="fas fa-user"></i> ${escapeHtml(network.submitted_by_username)} &nbsp;`;
+
         html += `
             <div class="list-group-item list-group-item-action network-card" onclick="viewNetwork(${network.id})" style="cursor: pointer;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <h6 class="mb-1">
-                            <i class="fas fa-wifi"></i> ${escapeHtml(network.ssid)}
+                            <i class="fas ${network.source_type === 'meshcore' ? 'fa-broadcast-tower' : 'fa-wifi'}"></i> ${escapeHtml(network.ssid)}
                             <span class="badge network-type-${network.network_type} ms-2">${network.network_type}</span>
+                            ${sourceBadge(network)}
                         </h6>
-                        <p class="mb-1">${escapeHtml(network.description).substring(0, 150)}${network.description.length > 150 ? '...' : ''}</p>
+                        <p class="mb-1">${escapeHtml(description).substring(0, 150)}${description.length > 150 ? '...' : ''}</p>
                         <div class="network-meta">
                             <i class="fas fa-map-marker-alt"></i> ${network.latitude}, ${network.longitude} &nbsp;
-                            <i class="fas fa-user"></i> ${escapeHtml(network.submitted_by_username)} &nbsp;
-                            <i class="fas fa-calendar"></i> ${formatDate(network.date_added)}
+                            ${sourceMeta}
+                            <i class="fas fa-calendar"></i> ${formatDate(network.source_type === 'meshcore' ? network.last_seen_at : network.date_added)}
                         </div>
                     </div>
                 </div>
@@ -380,11 +393,45 @@ function viewNetwork(id) {
  * Display network details in modal
  */
 function displayNetworkDetails(network) {
-    $('#detailsTitle').html(`<i class="fas fa-wifi"></i> ${escapeHtml(network.ssid)}`);
+    const isMesh = network.source_type === 'meshcore';
+    $('#detailsTitle').html(`<i class="fas ${isMesh ? 'fa-broadcast-tower' : 'fa-wifi'}"></i> ${escapeHtml(network.ssid)}`);
 
     const passwordDisplay = network.wifi_password
         ? `<span class="password-field">${escapeHtml(network.wifi_password)}</span>`
         : '<em class="text-muted">Open network (no password)</em>';
+    const description = networkDescription(network);
+    const publicKey = network.public_key || '';
+    const publicKeyRow = isMesh && publicKey
+        ? `
+            <dt class="col-sm-4">Public Key</dt>
+            <dd class="col-sm-8">
+                <code title="${escapeHtml(publicKey)}">${escapeHtml(publicKey.substring(0, 12))}...</code>
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="copyText('${escapeHtml(publicKey)}')">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </dd>
+        `
+        : '';
+    const meshRows = isMesh
+        ? `
+            ${publicKeyRow}
+
+            <dt class="col-sm-4">Hop Count</dt>
+            <dd class="col-sm-8">${network.hop_count ?? 'Unknown'}</dd>
+
+            <dt class="col-sm-4">Last Seen</dt>
+            <dd class="col-sm-8">${formatDate(network.last_seen_at)}</dd>
+        `
+        : `
+            <dt class="col-sm-4">Submitted By</dt>
+            <dd class="col-sm-8">${escapeHtml(network.submitted_by_username)}@${escapeHtml(network.bbs_name)}</dd>
+
+            <dt class="col-sm-4">Date Added</dt>
+            <dd class="col-sm-8">${formatDate(network.date_added)}</dd>
+
+            <dt class="col-sm-4">Last Verified</dt>
+            <dd class="col-sm-8">${formatDate(network.date_verified)}</dd>
+        `;
 
     const html = `
         <dl class="network-details row">
@@ -392,7 +439,10 @@ function displayNetworkDetails(network) {
             <dd class="col-sm-8">${escapeHtml(network.ssid)}</dd>
 
             <dt class="col-sm-4">Type</dt>
-            <dd class="col-sm-8"><span class="badge network-type-${network.network_type}">${network.network_type}</span></dd>
+            <dd class="col-sm-8">
+                <span class="badge network-type-${network.network_type}">${network.network_type}</span>
+                ${sourceBadge(network)}
+            </dd>
 
             <dt class="col-sm-4">Location</dt>
             <dd class="col-sm-8">
@@ -404,26 +454,19 @@ function displayNetworkDetails(network) {
             </dd>
 
             <dt class="col-sm-4">Description</dt>
-            <dd class="col-sm-8">${escapeHtml(network.description)}</dd>
+            <dd class="col-sm-8">${escapeHtml(description)}</dd>
 
             <dt class="col-sm-4">WiFi Password</dt>
             <dd class="col-sm-8">${passwordDisplay}</dd>
 
-            <dt class="col-sm-4">Submitted By</dt>
-            <dd class="col-sm-8">${escapeHtml(network.submitted_by_username)}@${escapeHtml(network.bbs_name)}</dd>
-
-            <dt class="col-sm-4">Date Added</dt>
-            <dd class="col-sm-8">${formatDate(network.date_added)}</dd>
-
-            <dt class="col-sm-4">Last Verified</dt>
-            <dd class="col-sm-8">${formatDate(network.date_verified)}</dd>
+            ${meshRows}
         </dl>
     `;
 
     $('#detailsBody').html(html);
 
     // Add edit/delete buttons if user owns this network
-    if (currentUser && network.submitted_by == currentUser.id) {
+    if (!isMesh && currentUser && network.submitted_by == currentUser.id) {
         $('#detailsActions').html(`
             <button class="btn btn-warning" onclick="editNetwork(${network.id})">
                 <i class="fas fa-edit"></i> Edit
@@ -639,8 +682,40 @@ function escapeHtml(text) {
 }
 
 function formatDate(dateStr) {
+    if (!dateStr) return 'Unknown';
     const date = new Date(dateStr);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+}
+
+function networkDescription(network) {
+    return network.description || (network.source_type === 'meshcore' ? 'MeshCore repeater advertisement' : '');
+}
+
+function sourceBadge(network) {
+    if (network.source_type !== 'meshcore') {
+        return '';
+    }
+
+    return '<span class="badge bg-info text-dark ms-2">mesh</span>';
+}
+
+function markerIconFor(network) {
+    const isMesh = network.source_type === 'meshcore';
+    return L.divIcon({
+        className: '',
+        html: `<i class="fas ${isMesh ? 'fa-broadcast-tower' : 'fa-wifi'}"
+                  style="font-size:20px;color:${isMesh ? '#0dcaf0' : '#0d6efd'}"></i>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+    });
+}
+
+function copyText(text) {
+    if (!navigator.clipboard) {
+        return;
+    }
+
+    navigator.clipboard.writeText(text);
 }
 
 function showSuccess(message) {
