@@ -216,8 +216,11 @@ window.t('ui.my_feature.some_label', {}, 'My Label')
 5. **Run the validation scripts** before committing:
 
 ```bash
+php scripts/check_i18n_syntax.php
 php scripts/check_i18n_hardcoded_strings.php
 php scripts/check_i18n_error_keys.php
+php scripts/check_i18n_missing_keys.php
+php scripts/check_i18n_extra_keys.php
 ```
 
 ---
@@ -387,11 +390,14 @@ Set your browser's preferred language to the target locale (or use the language 
 ### 6. Run the Validation Scripts
 
 ```bash
+php scripts/check_i18n_syntax.php --locale=<your-locale>
 php scripts/check_i18n_hardcoded_strings.php
 php scripts/check_i18n_error_keys.php
+php scripts/check_i18n_missing_keys.php --locale=<your-locale>
+php scripts/check_i18n_extra_keys.php --locale=<your-locale>
 ```
 
-Both must pass before submitting. They do not check translation quality but do catch missing `errors.*` keys and newly introduced hardcoded English strings.
+All four must pass before submitting. They do not check translation quality but do catch missing `errors.*` keys, newly introduced hardcoded English strings, keys missing from your locale, and orphaned keys that no longer exist in English.
 
 ### 7. Submit
 
@@ -435,7 +441,7 @@ When `Translator` loads a catalog it checks for a corresponding override file af
 
 - Override files are written through the **admin daemon** — the web process never writes them directly.
 - Keys in override files that do not exist in the base catalog are silently ignored at runtime but are still saved in the file.
-- Override files are not tracked by the i18n validation scripts (`check_i18n_hardcoded_strings.php`, `check_i18n_error_keys.php`) and do not need to be committed to version control for a production installation.
+- Override files are not tracked by the i18n validation scripts and do not need to be committed to version control for a production installation.
 
 ---
 
@@ -452,17 +458,44 @@ When `Translator` loads a catalog it checks for a corresponding override file af
 
 ## Validation Scripts
 
-Two scripts keep the catalogs consistent:
+Five scripts keep the catalogs consistent. All exit non-zero on failure.
+
+### `scripts/check_i18n_syntax.php`
+
+Runs `php -l` on every catalog file under `config/i18n/` and reports parse errors. A broken catalog causes a fatal HTTP 500 whenever that locale is active, so this should be the first check run — the key-comparison scripts silently skip files they cannot load.
+
+```bash
+php scripts/check_i18n_syntax.php               # all locales
+php scripts/check_i18n_syntax.php --locale=it   # one locale
+```
 
 ### `scripts/check_i18n_hardcoded_strings.php`
 
-Scans templates and JavaScript files for user-visible English strings that should be translation keys. Strings in `config/i18n/hardcoded_allowlist.php` are exempt (e.g. API fallback strings, internal values).
+Scans templates and JavaScript files for user-visible English strings that should be translation keys. Strings in `config/i18n/hardcoded_allowlist.php` are exempt (e.g. API fallback strings, internal values). Run in CI via `.github/workflows/i18n-error-keys.yml`.
 
 ### `scripts/check_i18n_error_keys.php`
 
-Verifies that every `error_code` used in `apiError()` calls throughout routes and controllers exists in `config/i18n/en/errors.php`.
+Verifies that every `error_code` used in `apiError()` calls throughout routes and controllers exists in `config/i18n/en/errors.php`. Run in CI via `.github/workflows/i18n-error-keys.yml`.
 
-Both scripts exit non-zero on failure and are run in CI via `.github/workflows/i18n-error-keys.yml`.
+### `scripts/check_i18n_missing_keys.php`
+
+Compares every non-English locale catalog against the English baseline and reports keys that are present in `en` but absent from the locale. Use this after adding new keys to `en` to find which locales need updating.
+
+```bash
+php scripts/check_i18n_missing_keys.php               # all locales, all namespaces
+php scripts/check_i18n_missing_keys.php --locale=fr   # one locale
+php scripts/check_i18n_missing_keys.php --ns=errors   # one namespace
+```
+
+### `scripts/check_i18n_extra_keys.php`
+
+Compares every non-English locale catalog against the English baseline and reports keys that exist in the locale but **not** in `en` (orphaned keys). These arise when a key is renamed or removed from English and the corresponding locale entries are not cleaned up. Run this after removing or renaming keys in `en`.
+
+```bash
+php scripts/check_i18n_extra_keys.php               # all locales, all namespaces
+php scripts/check_i18n_extra_keys.php --locale=es   # one locale
+php scripts/check_i18n_extra_keys.php --ns=common   # one namespace
+```
 
 ---
 

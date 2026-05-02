@@ -23,6 +23,10 @@
     "ai_assistant": {
         "enabled": false
     },
+    "packet_bbs": {
+        "session_timeout_minutes": 15,
+        "allow_guest_who": true
+    },
     "credits": {
         "enabled": true,
         "symbol": "CR",

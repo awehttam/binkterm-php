@@ -351,7 +351,7 @@
             await markSeen('netmail', stats.total_netmail);
             await refreshMailState('netmail', true);
         } else if (isPathMatch('/echomail') || isPathMatch('/echolist')) {
-            await markSeen('echomail', stats.total_echomail);
+            await markSeen('echomail', stats.echomail_max_id ?? 0);
             await refreshMailState('echomail', true);
         } else if (isPathMatch('/files')) {
             await markSeen('files', stats.files_max_id ?? 0);

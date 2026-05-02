@@ -301,6 +301,15 @@
                         </div>
                         {% endif %}
 
+                        <div class="mb-2">
+                            <label class="form-label" for="echomailBadgeMode">{{ t('ui.settings.echomail_badge_mode', {}, locale, ['common']) }}</label>
+                            <select class="form-select form-select-sm w-auto" id="echomailBadgeMode">
+                                <option value="new">{{ t('ui.settings.echomail_badge_mode_new', {}, locale, ['common']) }}</option>
+                                <option value="unread">{{ t('ui.settings.echomail_badge_mode_unread', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.echomail_badge_mode_help', {}, locale, ['common']) }}</div>
+                        </div>
+
                         <hr class="mt-4 mb-3">
 
                         <div class="mb-0">
@@ -404,6 +413,91 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                {# PacketBBS TOTP Authenticator #}
+                <div class="card mt-4" id="packetBbsTotpCard">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-mobile-alt me-2"></i>{{ t('ui.settings.packetbbs_totp.title', {}, locale, ['common']) }}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">{{ t('ui.settings.packetbbs_totp.help', {}, locale, ['common']) }}</p>
+
+                        <div id="totpLoading" class="text-muted fst-italic">{{ t('ui.common.loading', {}, locale, ['common']) }}</div>
+
+                        {# Enrolled state #}
+                        <div id="totpEnabled" style="display:none;">
+                            <div class="alert alert-success d-flex align-items-center gap-2 mb-3">
+                                <i class="fas fa-check-circle"></i>
+                                <span>{{ t('ui.settings.packetbbs_totp.status_enabled', {}, locale, ['common']) }}</span>
+                            </div>
+                            <p class="font-monospace small text-muted mb-3">{{ t('ui.settings.packetbbs_totp.login_hint', {}, locale, ['common']) }}</p>
+                            <button type="button" class="btn btn-outline-danger" onclick="disablePacketBbsTotp()">
+                                <i class="fas fa-times me-1"></i>{{ t('ui.settings.packetbbs_totp.disable_btn', {}, locale, ['common']) }}
+                            </button>
+                            <div id="totpDisableStatus" class="mt-2"></div>
+                        </div>
+
+                        {# Not enrolled state #}
+                        <div id="totpDisabled" style="display:none;">
+                            <div class="alert alert-secondary d-flex align-items-center gap-2 mb-3">
+                                <i class="fas fa-mobile-alt"></i>
+                                <span>{{ t('ui.settings.packetbbs_totp.status_disabled', {}, locale, ['common']) }}</span>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" onclick="setupPacketBbsTotp()">
+                                <i class="fas fa-key me-1"></i>{{ t('ui.settings.packetbbs_totp.enable_btn', {}, locale, ['common']) }}
+                            </button>
+                        </div>
+
+                        {# Enrollment in progress #}
+                        <div id="totpSetup" style="display:none;">
+                            <p>{{ t('ui.settings.packetbbs_totp.setup_step1', {}, locale, ['common']) }}</p>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">{{ t('ui.settings.packetbbs_totp.setup_qr_label', {}, locale, ['common']) }}</label>
+                                <div class="border rounded bg-light p-3 d-inline-block">
+                                    <img id="totpQrCode" src="" alt="{{ t('ui.settings.packetbbs_totp.setup_qr_alt', {}, locale, ['common']) }}" width="220" height="220">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">{{ t('ui.settings.packetbbs_totp.setup_uri_label', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control font-monospace small" id="totpUri" readonly>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            onclick="navigator.clipboard.writeText(document.getElementById('totpUri').value)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">{{ t('ui.settings.packetbbs_totp.setup_secret_label', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control font-monospace" id="totpSecret" readonly>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            onclick="navigator.clipboard.writeText(document.getElementById('totpSecret').value)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ t('ui.settings.packetbbs_totp.verify_label', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="totpVerifyCode" maxlength="6"
+                                       placeholder="{{ t('ui.settings.packetbbs_totp.verify_placeholder', {}, locale, ['common']) }}"
+                                       inputmode="numeric" autocomplete="one-time-code" style="max-width: 160px;">
+                            </div>
+                            <div id="totpEnrollError" class="alert alert-danger" style="display:none;"></div>
+                            <button type="button" class="btn btn-primary" onclick="verifyPacketBbsTotpEnrollment()">
+                                <i class="fas fa-check me-1"></i>{{ t('ui.settings.packetbbs_totp.verify_btn', {}, locale, ['common']) }}
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary ms-2" onclick="cancelPacketBbsTotpSetup()">
+                                {{ t('ui.common.cancel', {}, locale, ['common']) }}
+                            </button>
+                        </div>
+
+                        <div id="totpLoadError" class="alert alert-danger mt-2" style="display:none;"></div>
+                        <div id="totpSuccessMsg" class="alert alert-success mt-2" style="display:none;"></div>
                     </div>
                 </div>
 
@@ -591,6 +685,14 @@ $(document).ready(function() {
         $('#saveButtonRow').hide();
     }
 
+    // Load TOTP status when the Account tab is shown.
+    document.getElementById('tab-account-btn')?.addEventListener('shown.bs.tab', function() {
+        loadPacketBbsTotpStatus();
+    });
+    if (savedTab === '#tab-account') {
+        loadPacketBbsTotpStatus();
+    }
+
     // Load MCP key status when the AI tab is shown
     document.getElementById('tab-ai-btn')?.addEventListener('shown.bs.tab', function() {
         loadMcpKeyStatus();
@@ -673,6 +775,7 @@ function loadSettings() {
             $('#fileNotificationSound').val(data.file_notification_sound || 'disabled');
             $('#forwardNetmailEmail').prop('checked', data.forward_netmail_email === true);
             $('#echomailDigest').val(data.echomail_digest || 'none');
+            $('#echomailBadgeMode').val(data.echomail_badge_mode || 'new');
 
             // Commented out settings (not yet implemented)
             $('#showOrigin').prop('checked', data.show_origin !== false);
@@ -790,6 +893,7 @@ function saveSettings() {
         file_notification_sound: $('#fileNotificationSound').val() || 'disabled',
         forward_netmail_email: $('#forwardNetmailEmail').is(':checked'),
         echomail_digest: $('#echomailDigest').val() || 'none',
+        echomail_badge_mode: $('#echomailBadgeMode').val() || 'new',
         show_origin: $('#showOrigin').is(':checked'),
         show_tearline: $('#showTearline').is(':checked'),
         auto_refresh: $('#autoRefresh').is(':checked')
@@ -1016,6 +1120,101 @@ function openMcpHelpModal() {
         })
         .fail(function() {
             $('#mcpHelpBody').html('<div class="alert alert-danger">Failed to load help content.</div>');
+        });
+}
+
+// --- PacketBBS TOTP ---
+
+function loadPacketBbsTotpStatus() {
+    $('#totpLoading').show();
+    $('#totpEnabled, #totpDisabled, #totpSetup, #totpLoadError, #totpSuccessMsg').hide();
+    $.get('/api/user/packetbbs-totp/status')
+        .done(function(data) {
+            $('#totpLoading').hide();
+            if (data.enabled) {
+                $('#totpEnabled').show();
+            } else {
+                $('#totpDisabled').show();
+            }
+        })
+        .fail(function() {
+            $('#totpLoading').hide();
+            $('#totpLoadError').show().text(uiT('ui.settings.packetbbs_totp.load_failed', 'Failed to load authenticator status.'));
+        });
+}
+
+function setupPacketBbsTotp() {
+    $('#totpDisabled, #totpEnabled, #totpSuccessMsg, #totpLoadError').hide();
+    $('#totpLoading').show();
+    $.post('/api/user/packetbbs-totp/setup')
+        .done(function(data) {
+            $('#totpLoading').hide();
+            if (data.success) {
+                $('#totpUri').val(data.uri);
+                $('#totpSecret').val(data.secret);
+                $('#totpQrCode').attr('src', data.qr_code || '');
+                $('#totpVerifyCode').val('');
+                $('#totpEnrollError').hide();
+                $('#totpSetup').show();
+            }
+        })
+        .fail(function(xhr) {
+            $('#totpLoading').hide();
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.packetbbs_totp.setup_failed', 'Failed to set up authenticator. Please try again.'))
+                : uiT('errors.packetbbs_totp.setup_failed', 'Failed to set up authenticator. Please try again.');
+            $('#totpLoadError').show().text(error);
+            $('#totpDisabled').show();
+        });
+}
+
+function cancelPacketBbsTotpSetup() {
+    $('#totpSetup, #totpEnrollError').hide();
+    $('#totpQrCode').attr('src', '');
+    $('#totpDisabled').show();
+}
+
+function verifyPacketBbsTotpEnrollment() {
+    const code = $('#totpVerifyCode').val().trim();
+    $('#totpEnrollError').hide();
+    $.ajax({
+        url: '/api/user/packetbbs-totp/verify-enrollment',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ code: code })
+    })
+    .done(function(data) {
+        if (data.success) {
+            $('#totpSetup').hide();
+            $('#totpQrCode').attr('src', '');
+            $('#totpSuccessMsg').show().text(uiT('ui.settings.packetbbs_totp.verify_success', 'Authenticator enrolled. Log in via radio with: LOGIN <username> <6-digit-code>'));
+            $('#totpEnabled').show();
+        }
+    })
+    .fail(function(xhr) {
+        const error = window.getApiErrorMessage
+            ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.packetbbs_totp.invalid_code', 'Invalid code. Check your authenticator app and try again.'))
+            : uiT('errors.packetbbs_totp.invalid_code', 'Invalid code. Check your authenticator app and try again.');
+        $('#totpEnrollError').show().text(error);
+    });
+}
+
+function disablePacketBbsTotp() {
+    if (!confirm(uiT('ui.settings.packetbbs_totp.disable_confirm', 'Disable PacketBBS authenticator? You will no longer be able to log in from radio devices.'))) return;
+    $('#totpDisableStatus').html('');
+    $.post('/api/user/packetbbs-totp/disable')
+        .done(function(data) {
+            if (data.success) {
+                $('#totpEnabled').hide();
+                $('#totpSuccessMsg').show().text(uiT('ui.settings.packetbbs_totp.disable_success', 'PacketBBS authenticator disabled.'));
+                $('#totpDisabled').show();
+            }
+        })
+        .fail(function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.packetbbs_totp.disable_failed', 'Failed to disable authenticator. Please try again.'))
+                : uiT('errors.packetbbs_totp.disable_failed', 'Failed to disable authenticator. Please try again.');
+            $('#totpDisableStatus').html('<div class="alert alert-danger mt-2">' + escapeHtml(error) + '</div>');
         });
 }
 

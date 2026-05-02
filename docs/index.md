@@ -27,6 +27,7 @@ This index lists documents in operational priority order — essentials first, a
 
 ## Access Methods (Terminal & SSH)
 
+- [PacketBBS Gateway](PacketBBS.md) — Packet radio / MeshCore text gateway setup, node configuration, and user commands
 - [Terminal Server](TerminalServer.md) — Telnet/TCP terminal server setup and configuration
 - [Telnet Daemon](TelnetServer.md) — Telnet daemon setup, configuration, and troubleshooting
 - [SSH Server](SSHServer.md) — SSH server setup for secure terminal access
@@ -111,6 +112,7 @@ This index lists documents in operational priority order — essentials first, a
 
 Release-specific upgrade notes, listed newest-first.
 
+- [Upgrading to 1.9.4](UPGRADING_1.9.4.md)
 - [Upgrading to 1.9.3](UPGRADING_1.9.3.md)
 - [Upgrading to 1.9.2](UPGRADING_1.9.2.md)
 - [Upgrading to 1.9.1](UPGRADING_1.9.1.md)

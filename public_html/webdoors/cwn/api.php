@@ -110,6 +110,8 @@ function handleListNetworks($db)
         $sql .= " AND is_active = TRUE";
     }
 
+    $sql .= cwnMeshcoreExpiryClause();
+
     // Bounding box filter
     if (!empty($params['bbox'])) {
         $bbox = explode(',', $params['bbox']);
@@ -132,6 +134,7 @@ function handleListNetworks($db)
     if ($activeOnly) {
         $countSql .= " AND is_active = TRUE";
     }
+    $countSql .= cwnMeshcoreExpiryClause();
     $total = $db->query($countSql)->fetchColumn();
 
     echo json_encode([
@@ -423,6 +426,7 @@ function searchByRadius($db, float $lat, float $lon, float $radiusKm, array $fil
                 )) AS distance_km
             FROM cwn_networks
             WHERE is_active = TRUE
+            " . cwnMeshcoreExpiryClause() . "
         ) AS networks_with_distance
         WHERE distance_km <= ?
         ORDER BY distance_km
@@ -442,6 +446,7 @@ function searchByKeyword($db, string $keyword, array $filters): array
     $sql = "
         SELECT * FROM cwn_networks
         WHERE is_active = TRUE
+        " . cwnMeshcoreExpiryClause() . "
         AND (
             ssid ILIKE ? OR
             description ILIKE ?
@@ -508,6 +513,14 @@ function validateNetworkData(array $data, bool $requireAll = true): void
     if (isset($data['wifi_password']) && strlen($data['wifi_password']) > 100) {
         throw new Exception('WiFi password too long (max 100 characters)');
     }
+}
+
+/**
+ * Hide MeshCore-sourced CWN rows that have not been heard recently.
+ */
+function cwnMeshcoreExpiryClause(): string
+{
+    return " AND (source_type != 'meshcore' OR last_seen_at > NOW() - INTERVAL '2 days')";
 }
 
 /**

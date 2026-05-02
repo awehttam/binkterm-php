@@ -74,7 +74,7 @@
                         <a href="/netmail" class="text-decoration-none">
                             <div class="card bg-primary text-white">
                                 <div class="card-body">
-                                    <h4 id="netmailCount"><i class="fas fa-spinner fa-spin"></i></h4>
+                                    <h4 id="netmailCount" title="Total Unread Netmail"><i class="fas fa-spinner fa-spin"></i></h4>
                                     <p class="mb-0">
                                         <i class="fas fa-envelope"></i>
                                         {{ t('ui.dashboard.unread_netmail', {}, locale, ['common']) }}
@@ -88,9 +88,9 @@
                             <div class="card bg-info text-white">
                                 <div class="card-body">
                                     <h4 id="echomailCount"><i class="fas fa-spinner fa-spin"></i></h4>
-                                    <p class="mb-0">
+                                    <p class="mb-0" title="{{ echomail_badge_mode == 'unread' ? t('ui.dashboard.echomail_tooltip_unread', {}, locale, ['common']) : t('ui.dashboard.echomail_tooltip_new', {}, locale, ['common']) }}">
                                         <i class="fas fa-comments"></i>
-                                        {{ t('ui.dashboard.unread_echomail', {}, locale, ['common']) }}
+                                        {{ echomail_badge_mode == 'unread' ? t('ui.dashboard.total_unread_echomail', {}, locale, ['common']) : t('ui.dashboard.unread_echomail', {}, locale, ['common']) }}
                                     </p>
                                 </div>
                             </div>
@@ -471,7 +471,7 @@ function loadDashboardData() {
     $.get('/api/dashboard/stats')
         .done(function(data) {
             $('#netmailCount').text(data.total_netmail || 0);
-            $('#echomailCount').text(data.total_echomail || 0);
+            $('#echomailCount').text(data.new_echomail || 0);
         });
 }
 
@@ -666,7 +666,7 @@ function loadShoutbox() {
                     <div class="mb-2">
                         <strong><a href="/profile/${encodeURIComponent(msg.username)}">${escapeHtml(msg.username)}</a></strong>
                         <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        <div>${escapeHtml(msg.message)}</div>
+                        <div>${formatMessageText(msg.message)}</div>
                     </div>
                 `;
             });
@@ -698,7 +698,7 @@ function loadMoreShouts() {
                     <div class="mb-2">
                         <strong><a href="/profile/${encodeURIComponent(msg.username)}">${escapeHtml(msg.username)}</a></strong>
                         <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        <div>${escapeHtml(msg.message)}</div>
+                        <div>${formatMessageText(msg.message)}</div>
                     </div>
                 `;
             });

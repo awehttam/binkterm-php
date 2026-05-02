@@ -21,7 +21,7 @@ class DashboardStatsService
         $meta = new UserMeta();
 
         $lastNetmailCount = (int)($meta->getValue($userId, 'last_netmail_count') ?? 0);
-        $lastEchomailCount = (int)($meta->getValue($userId, 'last_echomail_count') ?? 0);
+        $lastVisitEchomailMaxId = $meta->getValue($userId, 'last_visit_echomail_max_id');
         $lastChatMaxId = $meta->getValue($userId, 'last_chat_max_id');
         $lastFilesMaxId = $meta->getValue($userId, 'last_files_max_id');
 
@@ -59,17 +59,55 @@ class DashboardStatsService
         }
         $unreadNetmail = (int)($unreadStmt->fetch()['count'] ?? 0);
 
+        $badgeModeStmt = $this->db->prepare("SELECT echomail_badge_mode FROM user_settings WHERE user_id = ?");
+        $badgeModeStmt->execute([$userId]);
+        $echomailBadgeMode = (string)($badgeModeStmt->fetchColumn() ?: 'new');
+
+        $echomailMaxStmt = $this->db->query("SELECT COALESCE(MAX(id), 0) AS max_id FROM echomail");
+        $echomailMaxId = (int)($echomailMaxStmt->fetch()['max_id'] ?? 0);
+
         $sysopUnreadFilter = $isAdmin ? "" : " AND COALESCE(e.is_sysop_only, FALSE) = FALSE";
-        $unreadEchomailStmt = $this->db->prepare("
-            SELECT COUNT(*) as count
-            FROM echomail em
-            INNER JOIN echoareas e ON em.echoarea_id = e.id
-            INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND ues.is_active = TRUE{$sysopUnreadFilter}
-        ");
-        $unreadEchomailStmt->execute([$userId, $userId]);
-        $unreadEchomail = (int)($unreadEchomailStmt->fetch()['count'] ?? 0);
+
+        if ($echomailBadgeMode === 'unread') {
+            // True unread: messages in subscribed areas that the user has never opened.
+            // Uses message_read_status for accuracy. This is an expensive query on large
+            // installs (full echomail scan) — users who enable this mode accept the cost.
+            $unreadEchomailStmt = $this->db->prepare("
+                SELECT COUNT(*) AS count
+                FROM user_echoarea_subscriptions ues
+                JOIN echomail em ON em.echoarea_id = ues.echoarea_id
+                    AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+                LEFT JOIN message_read_status mrs ON mrs.message_id = em.id
+                    AND mrs.message_type = 'echomail'
+                    AND mrs.user_id = ?
+                JOIN echoareas e ON e.id = ues.echoarea_id AND e.is_active = TRUE{$sysopUnreadFilter}
+                WHERE ues.user_id = ? AND ues.is_active = TRUE
+                  AND mrs.read_at IS NULL
+            ");
+            $unreadEchomailStmt->execute([$userId, $userId]);
+            $unreadEchomail = (int)($unreadEchomailStmt->fetch()['count'] ?? 0);
+        } else {
+            // New since last visit: messages that arrived after the user last visited an echomail page.
+            // A global max-ID snapshot is stored at visit time and reset each time /echomail is opened.
+            if ($lastVisitEchomailMaxId === null) {
+                // First stats load — snapshot current max so no historical messages appear as new.
+                $meta->setValue($userId, 'last_visit_echomail_max_id', (string)$echomailMaxId);
+                $unreadEchomail = 0;
+            } else {
+                $lastVisitEchomailMaxId = (int)$lastVisitEchomailMaxId;
+                $unreadEchomailStmt = $this->db->prepare("
+                    SELECT COUNT(*) AS count
+                    FROM user_echoarea_subscriptions ues
+                    JOIN echomail em ON em.echoarea_id = ues.echoarea_id
+                        AND em.id > ?
+                        AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC'))
+                    JOIN echoareas e ON e.id = ues.echoarea_id AND e.is_active = TRUE{$sysopUnreadFilter}
+                    WHERE ues.user_id = ? AND ues.is_active = TRUE
+                ");
+                $unreadEchomailStmt->execute([$lastVisitEchomailMaxId, $userId]);
+                $unreadEchomail = (int)($unreadEchomailStmt->fetch()['count'] ?? 0);
+            }
+        }
 
         if ($lastChatMaxId === null) {
             $maxStmt = $this->db->query("SELECT COALESCE(MAX(id), 0) as max_id FROM chat_messages");
@@ -138,7 +176,7 @@ class DashboardStatsService
         }
 
         $netmailBadge = $unreadNetmail > $lastNetmailCount ? $unreadNetmail : 0;
-        $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
+        $echomailBadge = $unreadEchomail;
 
         $creditBalance = 0;
         if (UserCredit::isEnabled()) {
@@ -182,7 +220,7 @@ class DashboardStatsService
             'chat_total' => $chatBadge,
             'new_files' => $filesBadge,
             'total_netmail' => $unreadNetmail,
-            'total_echomail' => $unreadEchomail,
+            'echomail_max_id' => $echomailMaxId,
             'chat_max_id' => $chatMaxId,
             'files_max_id' => $filesMaxId,
             'total_files' => $totalFiles,

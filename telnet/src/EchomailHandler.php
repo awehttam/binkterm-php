@@ -50,6 +50,7 @@ class EchomailHandler
         $page            = $savedState['areas_page'];
         $perPage         = MailUtils::getMessagesPerPage($state);
         $showInterestKey = \BinktermPHP\Config::env('ENABLE_INTERESTS') === 'true';
+        $searchFilter    = null;
 
         while (true) {
             $response = TelnetUtils::apiRequest(
@@ -62,18 +63,28 @@ class EchomailHandler
                 return;
             }
 
+            $filteredAreas = $searchFilter !== null
+                ? $this->filterAreas($allAreas, $searchFilter)
+                : $allAreas;
+
             $result = $this->pickEchoarea(
-                $conn, $state, $allAreas, $page, $perPage,
+                $conn, $state, $filteredAreas, $page, $perPage,
                 $this->server->t('ui.terminalserver.echomail.areas_header', 'Echoareas (page {page}/{total}):', [], $state['locale']),
                 $showInterestKey,
                 function(int $newPage) use ($session, &$state) {
                     $this->saveEchoareasPage($session, $newPage, $state['csrf_token'] ?? null);
-                }
+                },
+                $searchFilter
             );
             $page = $result['page'];
 
             if ($result['action'] === 'quit') {
                 return;
+            }
+            if ($result['action'] === 'filter') {
+                $searchFilter = $result['filter'];
+                $page = 1;
+                continue;
             }
             if ($result['action'] === 'interests') {
                 $this->browseByInterest($conn, $state, $session);
@@ -90,6 +101,26 @@ class EchomailHandler
                 $this->showMessages($conn, $state, $session, $tag, $domain);
             }
         }
+    }
+
+    /**
+     * Filter echoareas by a case-insensitive search term matching tag, domain, or description.
+     *
+     * @param array $areas List of echoarea arrays
+     * @param string $term Search term
+     * @return array Filtered list (re-indexed)
+     */
+    private function filterAreas(array $areas, string $term): array
+    {
+        $term = mb_strtolower(trim($term));
+        if ($term === '') {
+            return $areas;
+        }
+        return array_values(array_filter($areas, function (array $area) use ($term): bool {
+            return str_contains(mb_strtolower((string)($area['tag'] ?? '')), $term)
+                || str_contains(mb_strtolower((string)($area['domain'] ?? '')), $term)
+                || str_contains(mb_strtolower((string)($area['description'] ?? '')), $term);
+        }));
     }
 
     /**
@@ -217,11 +248,13 @@ class EchomailHandler
      * Render a paginated echo area list and read one keypress/selection.
      *
      * Returns an array with:
-     *   'action' => 'quit' | 'select' | 'interests'
-     *   'area'   => array (only when action === 'select')
-     *   'page'   => int   (current page after the action)
+     *   'action' => 'quit' | 'select' | 'interests' | 'redraw' | 'filter'
+     *   'area'   => array   (only when action === 'select')
+     *   'filter' => ?string (only when action === 'filter'; null means clear)
+     *   'page'   => int     (current page after the action)
      *
      * @param callable|null $onPageChange Called with the new page number when page changes (for persistence)
+     * @param string|null   $searchFilter Active search filter string, or null if none
      */
     private function pickEchoarea(
         $conn,
@@ -231,7 +264,8 @@ class EchomailHandler
         int $perPage,
         string $title,
         bool $showInterestKey,
-        ?callable $onPageChange
+        ?callable $onPageChange,
+        ?string $searchFilter = null
     ): array {
         $locale     = $state['locale'];
         $totalPages = max(1, (int)ceil(count($allAreas) / $perPage));
@@ -245,6 +279,23 @@ class EchomailHandler
         $header = str_replace(['{page}', '{total}'], [$page, $totalPages], $title);
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($header, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
 
+        if ($searchFilter !== null) {
+            $filterLine = $this->server->t(
+                'ui.terminalserver.echomail.areas_filter',
+                'Filter: {term} ({count} results)',
+                ['term' => $searchFilter, 'count' => count($allAreas)],
+                $locale
+            );
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($filterLine, TelnetUtils::ANSI_YELLOW));
+        }
+
+        if (empty($areas) && $searchFilter !== null) {
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.echomail.areas_no_results', 'No areas match your search.', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+        }
+
         foreach ($areas as $idx => $area) {
             TelnetUtils::writeLine($conn, $this->renderEchoAreaSelectionLine(
                 $idx + 1,
@@ -255,9 +306,14 @@ class EchomailHandler
         }
 
         TelnetUtils::writeLine($conn, '');
-        $navKey = $showInterestKey
-            ? $this->server->t('ui.terminalserver.echomail.areas_nav_interests', 'Enter #, n/p (next/prev), i (by interest), q (quit)', [], $locale)
-            : $this->server->t('ui.terminalserver.echomail.areas_nav', 'Enter #, n/p (next/prev), q (quit)', [], $locale);
+        if ($showInterestKey) {
+            $navKey = $this->server->t('ui.terminalserver.echomail.areas_nav_interests', 'Enter #, n/p (next/prev), / (search), i (by interest), q (quit)', [], $locale);
+        } else {
+            $navKey = $this->server->t('ui.terminalserver.echomail.areas_nav', 'Enter #, n/p (next/prev), / (search), q (quit)', [], $locale);
+        }
+        if ($searchFilter !== null) {
+            $navKey .= ', ' . $this->server->t('ui.terminalserver.echomail.areas_nav_clear', 'c (clear filter)', [], $locale);
+        }
         TelnetUtils::writeLine($conn, $navKey);
 
         $buffer = '';
@@ -300,6 +356,19 @@ class EchomailHandler
                     }
                     return ['action' => 'redraw', 'page' => $page];
                 }
+                if ($char === '/') {
+                    TelnetUtils::writeLine($conn, '');
+                    TelnetUtils::safeWrite($conn, $this->server->t('ui.terminalserver.echomail.areas_search_prompt', 'Search: ', [], $locale));
+                    $term = $this->server->readLineWithIdleCheck($conn, $state);
+                    if ($term === null) {
+                        return ['action' => 'quit', 'page' => $page];
+                    }
+                    $term = trim($term);
+                    return ['action' => 'filter', 'filter' => ($term !== '' ? $term : null), 'page' => 1];
+                }
+                if ($lower === 'c' && $searchFilter !== null) {
+                    return ['action' => 'filter', 'filter' => null, 'page' => 1];
+                }
                 if (ctype_digit($char)) {
                     $buffer .= $char;
                     TelnetUtils::safeWrite($conn, $char);
@@ -329,6 +398,9 @@ class EchomailHandler
                     if ($onPageChange) { ($onPageChange)($page); }
                 }
                 return ['action' => 'redraw', 'page' => $page];
+            }
+            if ($input === 'c' && $searchFilter !== null) {
+                return ['action' => 'filter', 'filter' => null, 'page' => 1];
             }
             $choice = (int)$input;
             if ($choice > 0 && $choice <= count($areas)) {

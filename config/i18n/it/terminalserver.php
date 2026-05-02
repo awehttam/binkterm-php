@@ -131,8 +131,12 @@ return [
     // --- Echomail ---
     'ui.terminalserver.echomail.no_areas'              => 'Nessuna area echo disponibile.',
     'ui.terminalserver.echomail.areas_header'          => 'Aree echo (pagina {page}/{total}):',
-    'ui.terminalserver.echomail.areas_nav'             => 'Inserisci #, n/p (succ/prec), q (esci)',
-    'ui.terminalserver.echomail.areas_nav_interests'   => 'Inserisci #, n/p (succ/prec), i (per interesse), q (esci)',
+    'ui.terminalserver.echomail.areas_nav'             => 'Inserisci #, n/p (succ/prec), / (cerca), q (esci)',
+    'ui.terminalserver.echomail.areas_nav_interests'   => 'Inserisci #, n/p (succ/prec), / (cerca), i (per interesse), q (esci)',
+    'ui.terminalserver.echomail.areas_filter'          => 'Filtro: {term} ({count} risultati)',
+    'ui.terminalserver.echomail.areas_no_results'      => 'Nessuna area corrisponde alla ricerca.',
+    'ui.terminalserver.echomail.areas_search_prompt'   => 'Cerca: ',
+    'ui.terminalserver.echomail.areas_nav_clear'       => 'c (cancella filtro)',
     'ui.terminalserver.echomail.interests_title'       => 'Sfoglia per interesse',
     'ui.terminalserver.echomail.interests_none'        => 'Nessun interesse disponibile.',
     'ui.terminalserver.echomail.interests_prompt'      => 'Inserisci # per sfogliare, Q per tornare:',
@@ -258,6 +262,9 @@ return [
     'ui.terminalserver.settings.messaging.digest_none'      => 'Nessuno',
     'ui.terminalserver.settings.messaging.digest_daily'     => 'Giornaliero',
     'ui.terminalserver.settings.messaging.digest_weekly'    => 'Settimanale',
+    'ui.terminalserver.settings.messaging.echomail_badge_mode'       => 'Indicatore Nuovo Echomail',
+    'ui.terminalserver.settings.messaging.badge_mode_new'    => 'Nuovi dall\'ultima visita',
+    'ui.terminalserver.settings.messaging.badge_mode_unread' => 'Totale non letti',
 
     // Account tab actions
     'ui.terminalserver.settings.account.change_password'        => 'Cambia password',

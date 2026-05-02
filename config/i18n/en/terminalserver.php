@@ -131,8 +131,12 @@ return [
     // --- Echomail ---
     'ui.terminalserver.echomail.no_areas'              => 'No echoareas available.',
     'ui.terminalserver.echomail.areas_header'          => 'Echoareas (page {page}/{total}):',
-    'ui.terminalserver.echomail.areas_nav'             => 'Enter #, n/p (next/prev), q (quit)',
-    'ui.terminalserver.echomail.areas_nav_interests'   => 'Enter #, n/p (next/prev), i (by interest), q (quit)',
+    'ui.terminalserver.echomail.areas_nav'             => 'Enter #, n/p (next/prev), / (search), q (quit)',
+    'ui.terminalserver.echomail.areas_nav_interests'   => 'Enter #, n/p (next/prev), / (search), i (by interest), q (quit)',
+    'ui.terminalserver.echomail.areas_filter'          => 'Filter: {term} ({count} results)',
+    'ui.terminalserver.echomail.areas_no_results'      => 'No areas match your search.',
+    'ui.terminalserver.echomail.areas_search_prompt'   => 'Search: ',
+    'ui.terminalserver.echomail.areas_nav_clear'       => 'c (clear filter)',
     'ui.terminalserver.echomail.interests_title'       => 'Browse by Interest',
     'ui.terminalserver.echomail.interests_none'        => 'No interests available.',
     'ui.terminalserver.echomail.interests_prompt'      => 'Enter # to browse, Q to return:',
@@ -258,6 +262,9 @@ return [
     'ui.terminalserver.settings.messaging.digest_none'      => 'None',
     'ui.terminalserver.settings.messaging.digest_daily'     => 'Daily',
     'ui.terminalserver.settings.messaging.digest_weekly'    => 'Weekly',
+    'ui.terminalserver.settings.messaging.echomail_badge_mode'       => 'New Echomail Badge',
+    'ui.terminalserver.settings.messaging.badge_mode_new'    => 'New since last visit',
+    'ui.terminalserver.settings.messaging.badge_mode_unread' => 'Total unread',
 
     // Account tab actions
     'ui.terminalserver.settings.account.change_password'        => 'Change Password',

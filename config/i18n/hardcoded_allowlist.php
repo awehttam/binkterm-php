@@ -98,6 +98,7 @@ return [
     'ui_call_literal|templates/admin/crashmail_queue.twig|Failed to cancel:',
     'ui_call_literal|templates/admin/crashmail_queue.twig|Failed to retry:',
     'ui_call_literal|templates/admin/crashmail_queue.twig|Retry this crashmail delivery?',
+    'ui_call_literal|templates/admin/packet_bbs.twig|Flush all pending outbound messages?',
     'ui_call_literal|templates/admin/filearea_rules.twig|Replace current rules with the example file?',
     'ui_call_literal|templates/admin/insecure_nodes.twig|Error:',
     'ui_call_literal|templates/admin/mrc_settings.twig|close',

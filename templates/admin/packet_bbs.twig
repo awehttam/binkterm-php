@@ -1,0 +1,384 @@
+{% extends "base.twig" %}
+
+{% block title %}Packet BBS Nodes{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="fas fa-broadcast-tower me-2"></i>Packet BBS / MeshCore Nodes</h1>
+        <button class="btn btn-primary" onclick="showAddNodeModal()">
+            <i class="fas fa-plus me-2"></i>Add Node
+        </button>
+    </div>
+
+    <!-- Registered Nodes -->
+    <div class="card shadow mb-4">
+        <div class="card-header"><strong>Registered Nodes</strong></div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="nodesTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Node ID</th>
+                            <th>Handle</th>
+                            <th>Interface</th>
+                            <th>Linked Account</th>
+                            <th>Last Seen</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="nodesBody">
+                        <tr><td colspan="6" class="text-center text-muted py-3">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Sessions -->
+    <div class="card shadow mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Active Sessions</strong>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadSessions()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Node ID</th>
+                            <th>User</th>
+                            <th>State</th>
+                            <th>Last Activity</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessionsBody">
+                        <tr><td colspan="5" class="text-center text-muted py-3">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outbound Queue -->
+    <div class="card shadow mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Outbound Queue</strong>
+            <div>
+                <button class="btn btn-sm btn-outline-secondary me-2" onclick="loadQueue()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="flushQueue()">
+                    <i class="fas fa-trash"></i> Flush Queue
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Node ID</th>
+                            <th>Payload</th>
+                            <th>Queued At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="queueBody">
+                        <tr><td colspan="4" class="text-center text-muted py-3">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Node Modal -->
+<div class="modal fade" id="nodeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="nodeModalLabel">Add Node</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="nodeForm">
+                    <input type="hidden" id="nodeDbId">
+                    <div class="mb-3">
+                        <label class="form-label">Node ID <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="nodeId" placeholder="e.g. !a1b2c3d4 or W1ABC-1" required>
+                        <div class="form-text">The unique radio network address of the node.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Handle / Callsign</label>
+                        <input type="text" class="form-control" id="nodeHandle" placeholder="Optional display name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Interface Type</label>
+                        <select class="form-select" id="nodeInterface">
+                            <option value="meshcore">MeshCore</option>
+                            <option value="meshtastic" disabled>Meshtastic (coming soon)</option>
+                            <option value="tnc" disabled>TNC / AX.25 (coming soon)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Link to BBS Account (optional)</label>
+                        <input type="number" class="form-control" id="nodeUserId" placeholder="User ID (leave blank to unlink)">
+                        <div class="form-text">Links this node to a BBS user account. Leave blank to require LOGIN.</div>
+                    </div>
+                </form>
+                <div id="nodeModalError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveNode()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- API Key Modal -->
+<div class="modal fade" id="nodeKeyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">API Key — <code id="keyModalNodeId"></code></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="keyModalStatus"></p>
+                <div id="keyModalResult" class="d-none">
+                    <div class="alert alert-warning py-2">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        Copy this key now — it will not be shown again.
+                    </div>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="keyValue" readonly>
+                        <button class="btn btn-outline-secondary" id="keyCopyBtn" onclick="copyKey()" title="Copy">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                    <div class="form-text mt-1">
+                        Use as <code>Authorization: Bearer &lt;key&gt;</code> in bridge requests for this node.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="keyModalRegenBtn" onclick="regenerateKey()">Generate Key</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let nodeModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    nodeModal = new bootstrap.Modal(document.getElementById('nodeModal'));
+    loadNodes();
+    loadSessions();
+    loadQueue();
+});
+
+function loadNodes() {
+    fetch('/admin/api/packet-bbs/nodes')
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('nodesBody');
+            if (!data.nodes || data.nodes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No nodes registered. Add one to get started.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.nodes.map(n => `
+                <tr>
+                    <td><code>${escHtml(n.node_id)}</code></td>
+                    <td>${escHtml(n.handle || '—')}</td>
+                    <td><span class="badge bg-secondary">${escHtml(n.interface_type)}</span></td>
+                    <td>${n.username ? escHtml(n.username) : '<span class="text-muted">none</span>'}</td>
+                    <td>${n.last_seen_at ? new Date(n.last_seen_at).toLocaleString() : '<span class="text-muted">never</span>'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary me-1" onclick='editNode(${JSON.stringify(n)})'>
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm ${n.has_api_key ? 'btn-outline-success' : 'btn-outline-warning'} me-1"
+                                onclick="showKeyModal(${n.id}, '${escHtml(n.node_id)}', ${n.has_api_key ? 'true' : 'false'})"
+                                title="${n.has_api_key ? 'API key configured' : 'No API key set'}">
+                            <i class="fas fa-key"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteNode(${n.id}, '${escHtml(n.node_id)}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        });
+}
+
+function loadSessions() {
+    fetch('/admin/api/packet-bbs/sessions')
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('sessionsBody');
+            if (!data.sessions || data.sessions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No active sessions.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.sessions.map(s => `
+                <tr>
+                    <td><code>${escHtml(s.node_id)}</code></td>
+                    <td>${s.username ? escHtml(s.username) : '<span class="text-muted">not logged in</span>'}</td>
+                    <td><code>${escHtml(s.menu_state)}</code></td>
+                    <td>${new Date(s.last_activity_at).toLocaleString()}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" onclick="killSession('${escHtml(s.node_id)}')">
+                            <i class="fas fa-times"></i> Kill
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        });
+}
+
+function loadQueue() {
+    fetch('/admin/api/packet-bbs/queue')
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('queueBody');
+            if (!data.queue || data.queue.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Queue is empty.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.queue.map(q => `
+                <tr>
+                    <td>${q.id}</td>
+                    <td><code>${escHtml(q.node_id)}</code></td>
+                    <td><span class="text-truncate d-inline-block" style="max-width:300px" title="${escHtml(q.payload)}">${escHtml(q.payload)}</span></td>
+                    <td>${new Date(q.created_at).toLocaleString()}</td>
+                </tr>
+            `).join('');
+        });
+}
+
+function showAddNodeModal() {
+    document.getElementById('nodeModalLabel').textContent = 'Add Node';
+    document.getElementById('nodeDbId').value = '';
+    document.getElementById('nodeId').value = '';
+    document.getElementById('nodeId').disabled = false;
+    document.getElementById('nodeHandle').value = '';
+    document.getElementById('nodeInterface').value = 'meshcore';
+    document.getElementById('nodeUserId').value = '';
+    document.getElementById('nodeModalError').classList.add('d-none');
+    nodeModal.show();
+}
+
+function editNode(n) {
+    document.getElementById('nodeModalLabel').textContent = 'Edit Node';
+    document.getElementById('nodeDbId').value = n.id;
+    document.getElementById('nodeId').value = n.node_id;
+    document.getElementById('nodeId').disabled = true;
+    document.getElementById('nodeHandle').value = n.handle || '';
+    document.getElementById('nodeInterface').value = n.interface_type || 'meshcore';
+    document.getElementById('nodeUserId').value = n.user_id || '';
+    document.getElementById('nodeModalError').classList.add('d-none');
+    nodeModal.show();
+}
+
+function saveNode() {
+    const dbId    = document.getElementById('nodeDbId').value;
+    const isEdit  = dbId !== '';
+    const payload = {
+        node_id:        document.getElementById('nodeId').value.trim(),
+        handle:         document.getElementById('nodeHandle').value.trim(),
+        interface_type: document.getElementById('nodeInterface').value,
+        user_id:        document.getElementById('nodeUserId').value.trim() || null,
+    };
+
+    const url    = isEdit ? `/admin/api/packet-bbs/nodes/${dbId}` : '/admin/api/packet-bbs/nodes';
+    const method = isEdit ? 'PUT' : 'POST';
+
+    fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success || data.id) {
+                nodeModal.hide();
+                loadNodes();
+            } else {
+                showNodeError(data.error || 'Save failed.');
+            }
+        })
+        .catch(() => showNodeError('Request failed.'));
+}
+
+function deleteNode(id, nodeId) {
+    if (!confirm(`Delete node ${nodeId}? This will also end any active session.`)) return;
+    fetch(`/admin/api/packet-bbs/nodes/${id}`, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(() => loadNodes());
+}
+
+function killSession(nodeId) {
+    if (!confirm(`Kill session for ${nodeId}?`)) return;
+    fetch(`/admin/api/packet-bbs/sessions/${encodeURIComponent(nodeId)}`, { method: 'DELETE' })
+        .then(() => loadSessions());
+}
+
+function flushQueue() {
+    if (!confirm('Flush all pending outbound messages?')) return;
+    fetch('/admin/api/packet-bbs/queue', { method: 'DELETE' })
+        .then(() => loadQueue());
+}
+
+let keyModal;
+let keyModalNodeId = 0;
+
+function showKeyModal(nodeDbId, nodeId, hasKey) {
+    keyModalNodeId = nodeDbId;
+    document.getElementById('keyModalNodeId').textContent = nodeId;
+    document.getElementById('keyModalStatus').innerHTML = hasKey
+        ? '<span class="text-success"><i class="fas fa-check-circle me-1"></i>API key is configured</span>'
+        : '<span class="text-warning"><i class="fas fa-exclamation-circle me-1"></i>No API key set</span>';
+    document.getElementById('keyModalResult').classList.add('d-none');
+    document.getElementById('keyModalRegenBtn').textContent = hasKey ? 'Regenerate Key' : 'Generate Key';
+    if (!keyModal) keyModal = new bootstrap.Modal(document.getElementById('nodeKeyModal'));
+    keyModal.show();
+}
+
+function regenerateKey() {
+    fetch(`/admin/api/packet-bbs/nodes/${keyModalNodeId}/regenerate-key`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { alert(window.t('errors.admin.packet_bbs.key_generate_failed', {}, 'Failed to generate key.')); return; }
+            document.getElementById('keyModalStatus').innerHTML =
+                '<span class="text-success"><i class="fas fa-check-circle me-1"></i>API key is configured</span>';
+            document.getElementById('keyModalRegenBtn').textContent = 'Regenerate Key';
+            document.getElementById('keyValue').value = data.key;
+            document.getElementById('keyModalResult').classList.remove('d-none');
+            loadNodes();
+        })
+        .catch(() => alert(window.t('errors.admin.packet_bbs.request_failed', {}, 'Request failed.')));
+}
+
+function copyKey() {
+    const val = document.getElementById('keyValue').value;
+    navigator.clipboard.writeText(val).then(() => {
+        const btn = document.getElementById('keyCopyBtn');
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 1500);
+    });
+}
+
+function showNodeError(msg) {
+    const el = document.getElementById('nodeModalError');
+    el.textContent = msg;
+    el.classList.remove('d-none');
+}
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

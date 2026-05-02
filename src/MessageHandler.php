@@ -1876,7 +1876,11 @@ class MessageHandler
                     }
                 }
             }
-            $this->incrementEchoareaCount($echoarea['id']);
+            $this->incrementEchoareaCount(
+                $echoarea['id'],
+                $needsModeration ? null : $subject,
+                $needsModeration ? null : $fromName
+            );
 
             if ($needsModeration) {
                 $this->logger->info("[ECHOMAIL] Message #{$messageId} held for moderation (user {$fromUserId}, area {$echoareaTag})");
@@ -1916,6 +1920,25 @@ class MessageHandler
             UPDATE echomail SET moderation_status = 'approved' WHERE id = ?
         ");
         $updateStmt->execute([$messageId]);
+
+        // Update the cached last-post info now that this message is visible.
+        // Only overwrite if this message is newer than whatever is currently cached.
+        $dateReceived = $message['date_received'] ?? date('Y-m-d H:i:s');
+        $lpStmt = $this->db->prepare("
+            UPDATE echoareas
+            SET last_post_subject = ?,
+                last_post_author  = ?,
+                last_post_date    = ?
+            WHERE id = ?
+              AND (last_post_date IS NULL OR last_post_date <= ?)
+        ");
+        $lpStmt->execute([
+            mb_substr($message['subject'] ?? '', 0, 255),
+            mb_substr($message['from_name'] ?? '', 0, 100),
+            $dateReceived,
+            $message['echoarea_id'],
+            $dateReceived,
+        ]);
 
         $echoareaTag = $message['echoarea_tag'];
         $domain      = $message['echoarea_domain'] ?? '';
@@ -2108,6 +2131,30 @@ class MessageHandler
     }
 
     /**
+     * Parse a tag@domain echoarea identifier and append the matching SQL conditions.
+     * Accepts either "tag@domain" or plain "tag" (domain defaults to 'fidonet').
+     *
+     * @param string $echoarea Tag-only or "tag@domain" string
+     * @param string &$sql     SQL string to append conditions to
+     * @param array  &$params  Bind-parameter array to append values to
+     */
+    private function appendEchoareaCondition(string $echoarea, string &$sql, array &$params): void
+    {
+        if (str_contains($echoarea, '@')) {
+            [$tag, $domain] = explode('@', $echoarea, 2);
+        } else {
+            $tag = $echoarea;
+            $domain = null;
+        }
+        $sql .= " AND ea.tag = ?";
+        $params[] = $tag;
+        if ($domain !== null) {
+            $sql .= " AND ea.domain = ?";
+            $params[] = $domain;
+        }
+    }
+
+    /**
      * Build a SQL WHERE fragment for text-based message searches.
      * Returns [null, []] when no text search terms are present (date-only searches).
      *
@@ -2258,8 +2305,7 @@ class MessageHandler
             }
 
             if ($echoarea) {
-                $sql .= " AND ea.tag = ?";
-                $params[] = $echoarea;
+                $this->appendEchoareaCondition($echoarea, $sql, $params);
             }
 
             $sql .= " ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC LIMIT 200";
@@ -2328,8 +2374,7 @@ class MessageHandler
         }
 
         if ($echoarea) {
-            $sql .= " AND ea.tag = ?";
-            $params[] = $echoarea;
+            $this->appendEchoareaCondition($echoarea, $sql, $params);
         }
 
         $stmt = $this->db->prepare($sql);
@@ -2398,8 +2443,7 @@ class MessageHandler
         }
 
         if ($echoarea) {
-            $sql .= " AND ea.tag = ?";
-            $params[] = $echoarea;
+            $this->appendEchoareaCondition($echoarea, $sql, $params);
         }
 
         $sql .= " GROUP BY ea.id, ea.tag, ea.domain ORDER BY ea.tag";
@@ -2629,7 +2673,7 @@ class MessageHandler
             $user = $auth->getCurrentUser();
             $userId = $user['user_id'] ?? $user['id'] ?? null;
         }
-        
+
         if ($userId) {
             $stmt = $this->db->prepare("
                 INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
@@ -2638,13 +2682,43 @@ class MessageHandler
                     read_at = NOW()
             ");
             $stmt->execute([$userId, $messageId]);
+
+            // Advance the dashboard badge watermark (only moves forward, never back).
+            $this->db->prepare("
+                UPDATE user_echoarea_subscriptions ues
+                SET last_read_id = ?
+                WHERE ues.user_id = ?
+                  AND ues.echoarea_id = (SELECT echoarea_id FROM echomail WHERE id = ?)
+                  AND ues.is_active = TRUE
+                  AND (ues.last_read_id IS NULL OR ues.last_read_id < ?)
+            ")->execute([$messageId, $userId, $messageId, $messageId]);
         }
     }
 
-    private function incrementEchoareaCount($echoareaId)
+    /**
+     * @param string|null $subject  When non-null, also updates last_post_* columns.
+     * @param string|null $fromName When non-null, also updates last_post_* columns.
+     */
+    private function incrementEchoareaCount(int $echoareaId, ?string $subject = null, ?string $fromName = null): void
     {
-        $stmt = $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?");
-        $stmt->execute([$echoareaId]);
+        if ($subject !== null && $fromName !== null) {
+            $stmt = $this->db->prepare("
+                UPDATE echoareas
+                SET message_count     = message_count + 1,
+                    last_post_subject = ?,
+                    last_post_author  = ?,
+                    last_post_date    = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                mb_substr($subject, 0, 255),
+                mb_substr($fromName, 0, 100),
+                $echoareaId,
+            ]);
+        } else {
+            $stmt = $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?");
+            $stmt->execute([$echoareaId]);
+        }
     }
 
     private function spoolOutboundNetmail($messageId)
@@ -3312,6 +3386,7 @@ class MessageHandler
             'default_tagline' => 'TAGLINE',
             'forward_netmail_email' => 'BOOLEAN',
             'echomail_digest' => 'DIGEST_FREQUENCY',
+            'echomail_badge_mode' => 'BADGE_MODE',
             'dashboard_layout' => 'DASHBOARD_LAYOUT',
         ];
 
@@ -3367,6 +3442,10 @@ class MessageHandler
                 case 'DIGEST_FREQUENCY':
                     $freq = trim((string)$value);
                     $params[] = in_array($freq, ['none', 'daily', 'weekly'], true) ? $freq : 'none';
+                    break;
+                case 'BADGE_MODE':
+                    $mode = trim((string)$value);
+                    $params[] = in_array($mode, ['new', 'unread'], true) ? $mode : 'new';
                     break;
                 case 'DASHBOARD_LAYOUT':
                     if ($value === null) {

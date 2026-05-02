@@ -19,6 +19,7 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 - **Full admin interface** — manage users, echo areas, doors, credits, and system settings from the browser
 - **Themeable UI** — ships with multiple themes including ANSI-inspired and cyberpunk styles
 - **MCP server** — lets AI assistants (Claude Code, etc.) read echomail and echo areas directly via the Model Context Protocol; each user generates their own personal bearer key
+- **PacketBBS Gateway** — compact text interface for MeshCore mesh radio networks; users browse and send netmail and echomail over low-bandwidth radio links using short one-line commands (see [docs/PacketBBS.md](docs/PacketBBS.md))
 - **...and more**
 
 binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
@@ -84,6 +85,8 @@ awehttam operates a full instance of BinktermPHP over at https://claudes.lovelyb
   - [Gemini Support](#gemini-support)
     - [Gemini Browser](#gemini-browser)
     - [Gemini Capsule Hosting](#gemini-capsule-hosting)
+  - [MCP Server](#mcp-server)
+  - [PacketBBS Gateway](#packetbbs-gateway)
 - [Developer Guide](#developer-guide)
   - [Localization (i18n) for Contributors](#localization-i18n-for-contributors)
     - [Catalogs and Key Layout](#catalogs-and-key-layout)
@@ -170,7 +173,7 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
 - **BBS Directory** - Public directory of known BBS systems, automatically populated from echomail announcements and supplementable with manual or user-submitted entries reviewed by the sysop
 - **Echomail Robots** - Generic rule-based framework that watches echo areas for matching messages and dispatches them to configurable processors. Ships with a built-in processor for FSXNet `ibbslastcall-data` announcements that auto-populates the BBS Directory. Custom processors can be added in `src/Robots/Processors/`. See [docs/Robots.md](docs/Robots.md).
 - **Markup Support** - Echomail and netmail can be composed and rendered using Markdown or StyleCodes formatting on compatible networks
-- **Localization** - Full multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English, Spanish, and French out of the box.
+- **Localization** - Multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English, Spanish, French, and Italian out of the box.
 - **Email Notifications** - Registered feature: users can opt in to have incoming netmail forwarded to their email address (including FTN file attachments), and/or receive a periodic echomail digest summarising new activity in their subscribed areas (daily or weekly)
 - **QWK/QWKE Offline Mail** - Download QWK or QWKE offline mail packets containing new netmail and echomail for reading in offline readers (MultiMail, OLX, etc.), then upload REP reply packets to post replies
 - **Registration** - Optional registration unlocks premium features including custom login/registration splash pages, netmail email forwarding, echomail digest emails, economy viewer, and referral analytics. See [REGISTER.md](REGISTER.md) for details.
@@ -724,6 +727,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [1.9.4](docs/UPGRADING_1.9.4.md)       | Apr 2026    | Fix echo area delete error not displayed; fix site-wide showError/showSuccess alerts silently discarded |
 | [1.9.3](docs/UPGRADING_1.9.3.md)       | Apr 2026    | Interest area management: Manage Areas dialog replaces unsubscribe-only flow; Italian locale; echomail_maintenance FK fix |
 | [1.9.2](docs/UPGRADING_1.9.2.md)       | Apr 2026    | AI assistant; admin credit grants; JS-DOS doors; sixel login/menu screens; terminal registration handling; image rendering in terminal; door session expiry enforcement; insecure FREQ support; bug fixes |
 | [1.9.1](docs/UPGRADING_1.9.1.md)       | Apr 2026    | Markdown WYSIWYG compose editor; echomail moderation; polls; file area URL links with OG preview; dashboard layout customization; sysop default layout; AI bots; chat Markdown rendering; BBS list and nodelist browser for term server; redesigned terminal main menu; Blackjack WebDoor play chips |
@@ -1408,6 +1412,20 @@ See **[docs/GeminiCapsule.md](docs/GeminiCapsule.md)** for full setup instructio
 BinktermPHP includes an optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server (`mcp-server/`) that gives AI assistants read-only access to your echomail database. Each user generates a personal bearer key from **Settings → AI**; the server enforces the same access rules as the web interface. Requires a registered license.
 
 See **[docs/MCPServer.md](docs/MCPServer.md)** for setup, configuration, available tools, and instructions for wiring it into Claude Code.
+
+## PacketBBS Gateway
+
+PacketBBS is a compact text gateway that connects MeshCore bridge adapters to BinktermPHP's mail system. Authenticated users can read and send netmail and echomail using short one-line commands over low-bandwidth radio links.
+
+- Short ASCII responses sized for radio packet constraints
+- Paginated message lists and long message bodies — `M` to advance, `P` to go back
+- Compose mode that accepts one body line per radio packet
+- TOTP-based radio login (separate from the web password)
+- Bridge-node API key authentication — the sysop registers each bridge device in the admin panel
+
+A bridge adapter is required to relay commands between the radio network and the BinktermPHP HTTP API. The [MeshCore bridge](https://github.com/awehttam/binktermphp-meshcorebridge) is the supported adapter.
+
+See **[docs/PacketBBS.md](docs/PacketBBS.md)** for full setup, bridge configuration, user enrollment, command reference, and troubleshooting.
 
 ---
 

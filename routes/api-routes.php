@@ -681,13 +681,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $meta = new UserMeta();
         $currentCount = (int)($input['current_count'] ?? 0);
 
-        // Chat uses max message ID for efficient incremental polling; others use counts
+        // Chat/files/echomail use max row IDs; netmail uses a count
         if ($target === 'chat') {
             $meta->setValue((int)$userId, 'last_chat_max_id', (string)$currentCount);
         } elseif ($target === 'files') {
             $meta->setValue((int)$userId, 'last_files_max_id', (string)$currentCount);
         } elseif ($target === 'file-approvals') {
             $meta->setValue((int)$userId, 'last_pending_files_max_id', (string)$currentCount);
+        } elseif ($target === 'echomail') {
+            $meta->setValue((int)$userId, 'last_visit_echomail_max_id', (string)$currentCount);
         } else {
             $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
         }
@@ -1885,7 +1887,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $messageHandler = new MessageHandler();
         $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
 
-        // Query with separate subqueries for total and unread counts, plus last post info
+        // Query with cached message count / last-post columns and one live subquery for unread count.
+        // total_counts (was: COUNT(*) GROUP BY) is replaced by e.message_count — maintained incrementally.
+        // last_posts (was: DISTINCT ON full scan + external sort) is replaced by e.last_post_* columns.
         $sql = "SELECT
                     e.id,
                     e.tag,
@@ -1899,12 +1903,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.domain,
                     e.is_local,
                     e.is_sysop_only,
-                    COALESCE(total_counts.message_count, 0) as message_count,
+                    e.message_count,
                     COALESCE(unread_counts.unread_count, 0) as unread_count,
                     COALESCE(sub_counts.subscriber_count, 0) as subscriber_count,
-                    last_posts.last_subject,
-                    last_posts.last_author,
-                    last_posts.last_date
+                    e.last_post_subject as last_subject,
+                    e.last_post_author  as last_author,
+                    e.last_post_date    as last_date
                 FROM echoareas e";
 
         // Add subscription filtering if requested
@@ -1916,13 +1920,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $sql .= " LEFT JOIN (
-                    SELECT em.echoarea_id, COUNT(*) as message_count
-                    FROM echomail em
-                    WHERE 1=1
-                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
-                    GROUP BY em.echoarea_id
-                ) total_counts ON e.id = total_counts.echoarea_id
-                LEFT JOIN (
                     SELECT
                         em.echoarea_id,
                         COUNT(*) as unread_count
@@ -1933,29 +1930,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     GROUP BY em.echoarea_id
                 ) unread_counts ON e.id = unread_counts.echoarea_id
                 LEFT JOIN (
-                    SELECT DISTINCT ON (em.echoarea_id)
-                        em.echoarea_id,
-                        em.subject as last_subject,
-                        em.from_name as last_author,
-                        em.date_received as last_date
-                    FROM echomail em
-                    WHERE 1=1{$ignoreFilter['sql']}
-                    ORDER BY em.echoarea_id, em.date_received DESC
-                ) last_posts ON e.id = last_posts.echoarea_id
-                LEFT JOIN (
                     SELECT echoarea_id, COUNT(*) as subscriber_count
                     FROM user_echoarea_subscriptions
                     WHERE is_active = TRUE
                     GROUP BY echoarea_id
                 ) sub_counts ON e.id = sub_counts.echoarea_id";
 
-        foreach ($ignoreFilter['params'] as $param) {
-            $params[] = $param;
-        }
         $params[] = $userId;
-        foreach ($ignoreFilter['params'] as $param) {
-            $params[] = $param;
-        }
         foreach ($ignoreFilter['params'] as $param) {
             $params[] = $param;
         }
@@ -5708,6 +5689,27 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $marked++;
             }
 
+            // Advance last_read_id watermarks — find the highest message ID per
+            // echoarea in this batch and move the watermark forward if needed.
+            $intIds = array_map('intval', $messageIds);
+            $placeholders = implode(',', array_fill(0, count($intIds), '?'));
+            $wmStmt = $db->prepare("
+                WITH area_maxes AS (
+                    SELECT echoarea_id, MAX(id) AS max_id
+                    FROM echomail
+                    WHERE id IN ($placeholders)
+                    GROUP BY echoarea_id
+                )
+                UPDATE user_echoarea_subscriptions ues
+                SET last_read_id = am.max_id
+                FROM area_maxes am
+                WHERE ues.user_id = ?
+                  AND ues.echoarea_id = am.echoarea_id
+                  AND ues.is_active = TRUE
+                  AND (ues.last_read_id IS NULL OR ues.last_read_id < am.max_id)
+            ");
+            $wmStmt->execute(array_merge($intIds, [$userId]));
+
             $db->commit();
         } catch (\Throwable $e) {
             if ($db->inTransaction()) {
@@ -9404,6 +9406,153 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true]);
         } catch (Exception $e) {
             apiError('errors.mcp.revoke_failed', apiLocalizedText('errors.mcp.revoke_failed', 'Failed to revoke MCP key'), 500);
+        }
+    });
+
+    // -------------------------------------------------------------------------
+    // PacketBBS TOTP enrollment
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /api/user/packetbbs-totp/status
+     *
+     * Returns the current PacketBBS TOTP enrollment state for the authenticated user.
+     *
+     * Response: { "success": true, "enabled": bool }
+     */
+    SimpleRouter::get('/user/packetbbs-totp/status', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        $meta    = new \BinktermPHP\UserMeta();
+        $enabled = $meta->getValue($userId, 'packet_bbs_totp_enabled') === '1';
+        echo json_encode(['success' => true, 'enabled' => $enabled]);
+    });
+
+    /**
+     * POST /api/user/packetbbs-totp/setup
+     *
+     * Generate a new pending TOTP secret for enrollment. The secret is stored
+     * as packet_bbs_totp_pending_secret in users_meta and is not activated until
+     * the user successfully verifies a code via /verify-enrollment.
+     *
+     * Response: { "success": true, "secret": "BASE32...", "uri": "otpauth://...", "qr_code": "data:image/svg+xml;base64,..." }
+     */
+    SimpleRouter::post('/user/packetbbs-totp/setup', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        try {
+            $secret   = \BinktermPHP\PacketBbs\PacketBbsTotp::generateSecret();
+            $username = (string)($user['username'] ?? ('user' . $userId));
+            $meta     = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'packet_bbs_totp_pending_secret', $secret);
+            try {
+                $systemName = trim((string)\BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getSystemName());
+            } catch (\Exception $e) {
+                $systemName = '';
+            }
+            $issuer = ($systemName !== '' ? $systemName . ' - ' : '') . 'PacketBBS';
+            $uri    = \BinktermPHP\PacketBbs\PacketBbsTotp::getOtpauthUri($secret, $username, $issuer);
+            $qrCode = \BinktermPHP\PacketBbs\PacketBbsTotp::getQrCodeDataUri($uri);
+            echo json_encode(['success' => true, 'secret' => $secret, 'uri' => $uri, 'qr_code' => $qrCode]);
+        } catch (\Exception $e) {
+            apiError(
+                'errors.packetbbs_totp.setup_failed',
+                apiLocalizedText('errors.packetbbs_totp.setup_failed', 'Failed to set up authenticator. Please try again.', $user),
+                500
+            );
+        }
+    });
+
+    /**
+     * POST /api/user/packetbbs-totp/verify-enrollment
+     *
+     * Verify a code against the pending secret. On success the secret is promoted
+     * to the active secret, enrollment state is set to enabled, and the pending
+     * secret is removed.
+     *
+     * Request body: { "code": "123456" }
+     * Response:     { "success": true }
+     */
+    SimpleRouter::post('/user/packetbbs-totp/verify-enrollment', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $code  = trim((string)($input['code'] ?? ''));
+
+        if (!preg_match('/^\d{6}$/', $code)) {
+            apiError(
+                'errors.packetbbs_totp.invalid_code',
+                apiLocalizedText('errors.packetbbs_totp.invalid_code', 'Invalid code. Check your authenticator app and try again.', $user),
+                400
+            );
+            return;
+        }
+
+        $meta          = new \BinktermPHP\UserMeta();
+        $pendingSecret = $meta->getValue($userId, 'packet_bbs_totp_pending_secret');
+
+        if (!$pendingSecret) {
+            apiError(
+                'errors.packetbbs_totp.no_pending_secret',
+                apiLocalizedText('errors.packetbbs_totp.no_pending_secret', 'No enrollment in progress. Please start setup again.', $user),
+                400
+            );
+            return;
+        }
+
+        if (!\BinktermPHP\PacketBbs\PacketBbsTotp::verifyCode($pendingSecret, $code)) {
+            apiError(
+                'errors.packetbbs_totp.invalid_code',
+                apiLocalizedText('errors.packetbbs_totp.invalid_code', 'Invalid code. Check your authenticator app and try again.', $user),
+                400
+            );
+            return;
+        }
+
+        try {
+            $meta->setValue($userId, 'packet_bbs_totp_secret', $pendingSecret);
+            $meta->setValue($userId, 'packet_bbs_totp_enabled', '1');
+            $meta->setValue($userId, 'packet_bbs_totp_pending_secret', null);
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            apiError(
+                'errors.packetbbs_totp.setup_failed',
+                apiLocalizedText('errors.packetbbs_totp.setup_failed', 'Failed to set up authenticator. Please try again.', $user),
+                500
+            );
+        }
+    });
+
+    /**
+     * POST /api/user/packetbbs-totp/disable
+     *
+     * Disable and clear the PacketBBS TOTP secret for the authenticated user.
+     *
+     * Response: { "success": true }
+     */
+    SimpleRouter::post('/user/packetbbs-totp/disable', function() {
+        $user   = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+
+        try {
+            $meta = new \BinktermPHP\UserMeta();
+            $meta->setValue($userId, 'packet_bbs_totp_secret', null);
+            $meta->setValue($userId, 'packet_bbs_totp_enabled', null);
+            $meta->setValue($userId, 'packet_bbs_totp_pending_secret', null);
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            apiError(
+                'errors.packetbbs_totp.disable_failed',
+                apiLocalizedText('errors.packetbbs_totp.disable_failed', 'Failed to disable authenticator. Please try again.', $user),
+                500
+            );
         }
     });
 

@@ -29,6 +29,16 @@
 - **Authors:** Marcus Bointon, Jim Jagielski, Andy Prevost, Brent R. Matzelle
 - Email library used for password reset and notification emails.
 
+### chillerlan/php-qrcode
+- **License:** MIT
+- **Author:** Smiley
+- QR code generation library used for PacketBBS authenticator enrollment.
+
+### chillerlan/php-settings-container
+- **License:** MIT
+- **Author:** Smiley
+- Settings container library used by chillerlan/php-qrcode.
+
 ### phpunit/phpunit *(dev)*
 - **License:** BSD 3-Clause
 - **Author:** Sebastian Bergmann

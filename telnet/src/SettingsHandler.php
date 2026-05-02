@@ -204,6 +204,16 @@ class SettingsHandler
         );
         $digestField->setEnabled((bool)($settings['license_valid'] ?? false));
 
+        $badgeModeField = new AnsiSelectField(
+            'echomail_badge_mode',
+            $this->t('ui.terminalserver.settings.messaging.echomail_badge_mode', 'New Echomail Badge', $locale),
+            [
+                'new'    => $this->t('ui.terminalserver.settings.messaging.badge_mode_new',    'New since last visit', $locale),
+                'unread' => $this->t('ui.terminalserver.settings.messaging.badge_mode_unread', 'Total unread',         $locale),
+            ],
+            $settings['echomail_badge_mode'] ?? 'new'
+        );
+
         $messagingForm = new AnsiForm();
         $messagingForm->addField($signatureField)
                       ->addField($taglineField)
@@ -211,7 +221,8 @@ class SettingsHandler
                       ->addField($threadedNetField)
                       ->addField($quoteColorField)
                       ->addField($forwardNetmailField)
-                      ->addField($digestField);
+                      ->addField($digestField)
+                      ->addField($badgeModeField);
 
         // --- Profile tab ---
         $emailField = new AnsiTextField(

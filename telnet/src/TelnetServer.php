@@ -63,6 +63,9 @@ class TelnetServer
     private ?string $pidFile = null;
     private ?int $masterPid = null;
     private array $failedLoginAttempts = [];
+    private int $rateLimitMax;
+    private int $rateLimitWindow;
+    private array $connectionRateTable = [];
     private Translator $translator;
     private string $systemLocale;
     private bool $tlsEnabled = true;
@@ -107,6 +110,8 @@ class TelnetServer
         $this->insecure = $insecure;
         $this->translator = new Translator();
         $this->systemLocale = (string)Config::env('I18N_DEFAULT_LOCALE', 'en');
+        $this->rateLimitMax    = (int)Config::env('TELNET_RATE_LIMIT_MAX', '5');
+        $this->rateLimitWindow = (int)Config::env('TELNET_RATE_LIMIT_WINDOW', '60');
     }
 
     /**
@@ -312,10 +317,11 @@ class TelnetServer
             $changed = @stream_select($readSockets, $write, $except, 60);
 
             if ($changed === false || $changed === 0) {
-                // Timeout or interrupted — reap zombies and continue
+                // Timeout or interrupted — reap zombies and prune rate table
                 if (function_exists('pcntl_waitpid')) {
                     while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {}
                 }
+                $this->cleanRateTable();
                 continue;
             }
 
@@ -328,6 +334,17 @@ class TelnetServer
 
                 $connectionCount++;
                 [$peerName, $peerIp] = $this->parsePeerAddress($conn);
+
+                $rl = $peerIp !== null ? $this->isRateLimited($peerIp) : 0;
+                if ($rl > 0) {
+                    if ($rl === 1) {
+                        $this->log("Rate limit exceeded for {$peerIp} — connection rejected");
+                    }
+                    @fwrite($conn, "Too many connections from your IP. Please try again later.\r\n");
+                    fclose($conn);
+                    continue;
+                }
+
                 $this->log("Connection #{$connectionCount} from {$peerName}" . ($isTls ? ' (TLS)' : ''));
 
                 $forked = false;
@@ -382,6 +399,84 @@ class TelnetServer
     private function log(string $message): void
     {
         $this->logger?->info($message);
+    }
+
+    /**
+     * Check whether an IP has exceeded the connection rate limit and update the tracking table.
+     *
+     * The table uses a fixed window per IP: the first connection from an IP starts a window;
+     * all subsequent connections within that window are counted; once the window expires the
+     * counter resets.
+     *
+     * Returns 0 (allow), 1 (reject — caller should log), or 2 (reject — suppressed, caller
+     * should not log). The first rejection in a window returns 1; all further rejections in
+     * the same window return 2 and increment a suppression counter that is flushed by
+     * cleanRateTable() when the window expires.
+     *
+     * Setting TELNET_RATE_LIMIT_MAX to 0 disables rate limiting entirely.
+     *
+     * @param string $ip Remote IP address
+     * @return int 0 = allow, 1 = reject (log), 2 = reject (suppressed)
+     */
+    private function isRateLimited(string $ip): int
+    {
+        if ($this->rateLimitMax <= 0) {
+            return 0;
+        }
+
+        $now = time();
+
+        if (!isset($this->connectionRateTable[$ip])) {
+            $this->connectionRateTable[$ip] = ['count' => 1, 'window_start' => $now, 'logged' => false, 'suppressed' => 0];
+            return 0;
+        }
+
+        $entry = &$this->connectionRateTable[$ip];
+
+        if ($now - $entry['window_start'] >= $this->rateLimitWindow) {
+            // Window expired — flush any suppression count before resetting
+            if ($entry['suppressed'] > 0) {
+                $this->log("Rate limit: {$entry['suppressed']} additional rejection(s) from {$ip} suppressed");
+            }
+            $entry = ['count' => 1, 'window_start' => $now, 'logged' => false, 'suppressed' => 0];
+            return 0;
+        }
+
+        $entry['count']++;
+
+        if ($entry['count'] <= $this->rateLimitMax) {
+            return 0;
+        }
+
+        if (!$entry['logged']) {
+            $entry['logged'] = true;
+            return 1;
+        }
+
+        $entry['suppressed']++;
+        return 2;
+    }
+
+    /**
+     * Remove expired entries from the connection rate table.
+     * Called on each select() timeout to prevent unbounded memory growth.
+     * Flushes suppression counts before removing entries so no rejections are lost.
+     */
+    private function cleanRateTable(): void
+    {
+        if (empty($this->connectionRateTable)) {
+            return;
+        }
+
+        $now = time();
+        foreach ($this->connectionRateTable as $ip => $entry) {
+            if ($now - $entry['window_start'] >= $this->rateLimitWindow) {
+                if ($entry['suppressed'] > 0) {
+                    $this->log("Rate limit: {$entry['suppressed']} additional rejection(s) from {$ip} suppressed");
+                }
+                unset($this->connectionRateTable[$ip]);
+            }
+        }
     }
 
     // ===== TELNET PROTOCOL METHODS =====
