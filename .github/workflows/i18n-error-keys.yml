@@ -18,6 +18,9 @@ jobs:
         with:
           php-version: '8.2'
 
+      - name: i18n catalog syntax
+        run: php scripts/check_i18n_syntax.php
+
       - name: i18n error key coverage
         run: php scripts/check_i18n_error_keys.php
 
