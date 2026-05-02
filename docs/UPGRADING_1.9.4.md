@@ -37,6 +37,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Spanish and French orphaned keys**: Four translation keys that no longer exist in the English baseline were present in the Spanish (`es`) and French (`fr`) catalogs. These orphaned entries have been removed from both catalogs.
 - **New `check_i18n_extra_keys.php` script**: A new developer utility detects translation keys in non-English catalogs that are absent from the English baseline, complementing the existing `check_i18n_missing_keys.php` script.
+- **New `check_i18n_syntax.php` script**: A new developer utility runs `php -l` on every catalog file and reports parse errors before they can cause HTTP 500 errors in production.
 
 ### Bug Fixes
 
@@ -230,6 +231,12 @@ The four keys, all related to a message reader sender node display setting, have
 `scripts/check_i18n_extra_keys.php` is a new developer utility that identifies translation keys in non-English locale catalogs that are absent from the English baseline. Orphaned keys accumulate when a key is renamed or removed from English without corresponding cleanup in the other locales. The script accepts `--locale=` and `--ns=` filters and exits non-zero when any orphaned keys are found.
 
 This complements the existing `scripts/check_i18n_missing_keys.php`, which finds keys in English that are missing from other locales. No database migration or configuration change is required.
+
+### New `check_i18n_syntax.php` Script
+
+`scripts/check_i18n_syntax.php` runs `php -l` on every PHP catalog file under `config/i18n/` and reports any that fail to parse. A catalog with a syntax error — such as an unescaped apostrophe inside a single-quoted string — causes a fatal HTTP 500 on every request when that locale is active. The other key-comparison scripts silently skip files they cannot load, so this check should be run first to surface broken catalogs immediately.
+
+The script accepts a `--locale=` filter to check a single locale. It exits non-zero if any file fails. No database migration or configuration change is required.
 
 ## Bug Fixes
 
