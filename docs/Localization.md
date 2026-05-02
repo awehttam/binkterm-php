@@ -216,6 +216,7 @@ window.t('ui.my_feature.some_label', {}, 'My Label')
 5. **Run the validation scripts** before committing:
 
 ```bash
+php scripts/check_i18n_syntax.php
 php scripts/check_i18n_hardcoded_strings.php
 php scripts/check_i18n_error_keys.php
 php scripts/check_i18n_missing_keys.php
@@ -389,6 +390,7 @@ Set your browser's preferred language to the target locale (or use the language 
 ### 6. Run the Validation Scripts
 
 ```bash
+php scripts/check_i18n_syntax.php --locale=<your-locale>
 php scripts/check_i18n_hardcoded_strings.php
 php scripts/check_i18n_error_keys.php
 php scripts/check_i18n_missing_keys.php --locale=<your-locale>
@@ -456,7 +458,16 @@ When `Translator` loads a catalog it checks for a corresponding override file af
 
 ## Validation Scripts
 
-Four scripts keep the catalogs consistent. All exit non-zero on failure.
+Five scripts keep the catalogs consistent. All exit non-zero on failure.
+
+### `scripts/check_i18n_syntax.php`
+
+Runs `php -l` on every catalog file under `config/i18n/` and reports parse errors. A broken catalog causes a fatal HTTP 500 whenever that locale is active, so this should be the first check run — the key-comparison scripts silently skip files they cannot load.
+
+```bash
+php scripts/check_i18n_syntax.php               # all locales
+php scripts/check_i18n_syntax.php --locale=it   # one locale
+```
 
 ### `scripts/check_i18n_hardcoded_strings.php`
 
