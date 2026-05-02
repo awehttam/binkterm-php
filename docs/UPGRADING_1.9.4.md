@@ -11,6 +11,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [CWN MeshCore Node Mapping](#cwn-meshcore-node-mapping)
 - [Telnet Daemon](#telnet-daemon)
 - [Shoutbox](#shoutbox)
+- [Localization](#localization)
 - [Bug Fixes](#bug-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -31,6 +32,11 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Telnet Daemon
 
 - **Connection rate limiting**: The telnet daemon now rejects repeated rapid connections from the same IP address before forking a new process for each one. The limit is configurable via two `.env` variables (`TELNET_RATE_LIMIT_MAX`, `TELNET_RATE_LIMIT_WINDOW`) and is enabled by default. Set `TELNET_RATE_LIMIT_MAX=0` to disable it.
+
+### Localization
+
+- **Spanish and French orphaned keys**: Four translation keys that no longer exist in the English baseline were present in the Spanish (`es`) and French (`fr`) catalogs. These orphaned entries have been removed from both catalogs.
+- **New `check_i18n_extra_keys.php` script**: A new developer utility detects translation keys in non-English catalogs that are absent from the English baseline, complementing the existing `check_i18n_missing_keys.php` script.
 
 ### Bug Fixes
 
@@ -210,6 +216,20 @@ Two `.env` variables control the behavior:
 The defaults allow 5 connections per minute per IP, which is sufficient for any legitimate user — including those who connect, disconnect, and reconnect quickly. Rejections are logged to `telnetd.log` with the offending IP address.
 
 No database migration or `composer update` is required for this change. The feature activates automatically on daemon restart.
+
+## Localization
+
+### Spanish and French Orphaned Keys
+
+Four translation keys were present in `config/i18n/es/common.php` and `config/i18n/fr/common.php` that had no corresponding entry in the English baseline (`config/i18n/en/common.php`) and were not referenced anywhere in templates, routes, or JavaScript. Keys absent from the English catalog are never resolved at runtime, but they add noise to the catalogs and can cause confusion during maintenance.
+
+The four keys, all related to a message reader sender node display setting, have been removed from both the Spanish and French catalogs. No user-visible strings are affected.
+
+### New `check_i18n_extra_keys.php` Script
+
+`scripts/check_i18n_extra_keys.php` is a new developer utility that identifies translation keys in non-English locale catalogs that are absent from the English baseline. Orphaned keys accumulate when a key is renamed or removed from English without corresponding cleanup in the other locales. The script accepts `--locale=` and `--ns=` filters and exits non-zero when any orphaned keys are found.
+
+This complements the existing `scripts/check_i18n_missing_keys.php`, which finds keys in English that are missing from other locales. No database migration or configuration change is required.
 
 ## Bug Fixes
 
