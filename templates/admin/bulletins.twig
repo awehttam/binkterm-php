@@ -6,6 +6,10 @@
 <link rel="stylesheet" href="/vendor/toastui-editor-3.2.2/toastui-editor.css">
 <link rel="stylesheet" href="/vendor/toastui-editor-3.2.2/toastui-editor-dark.css">
 <style>
+#bulletinMarkdownEditorWrap .toastui-editor-defaultUI-toolbar,
+#bulletinMarkdownEditorWrap .toastui-editor-toolbar {
+    display: none !important;
+}
 #bulletinTuiEditorEl .toastui-editor-dark.toastui-editor-defaultUI,
 #bulletinTuiEditorEl .toastui-editor-dark .toastui-editor-ww-container,
 #bulletinTuiEditorEl .toastui-editor-dark .toastui-editor-md-container,
@@ -89,9 +93,34 @@
                     </div>
                     <div class="mb-3 mt-3">
                         <label class="form-label" for="bulletinBody">{{ t('ui.admin.bulletins.body', {}, locale, ['common']) }}</label>
-                        <textarea class="form-control font-monospace" id="bulletinBody" rows="10" oninput="previewBulletin()"></textarea>
-                        <div id="bulletinMarkdownEditorWrap" style="display:none;">
-                            <div id="bulletinTuiEditorEl"></div>
+                        <div class="md-editor-wrapper">
+                            <div class="md-editor-toolbar btn-toolbar mb-1" role="toolbar" aria-label="{{ t('ui.compose.markdown.toolbar_aria', {}, locale, ['common']) }}">
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('bold')" title="{{ t('ui.compose.markdown.bold_title', {}, locale, ['common']) }}"><strong>B</strong></button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('italic')" title="{{ t('ui.compose.markdown.italic_title', {}, locale, ['common']) }}"><em>I</em></button>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('h1')" title="{{ t('ui.compose.markdown.heading_1_title', {}, locale, ['common']) }}">H1</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('h2')" title="{{ t('ui.compose.markdown.heading_2_title', {}, locale, ['common']) }}">H2</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('h3')" title="{{ t('ui.compose.markdown.heading_3_title', {}, locale, ['common']) }}">H3</button>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('code')" title="{{ t('ui.compose.markdown.inline_code_title', {}, locale, ['common']) }}"><i class="fas fa-code"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('codeblock')" title="{{ t('ui.compose.markdown.code_block_title', {}, locale, ['common']) }}"><i class="fas fa-file-code"></i></button>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('ul')" title="{{ t('ui.compose.markdown.unordered_list_title', {}, locale, ['common']) }}"><i class="fas fa-list-ul"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('ol')" title="{{ t('ui.compose.markdown.ordered_list_title', {}, locale, ['common']) }}"><i class="fas fa-list-ol"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('quote')" title="{{ t('ui.compose.markdown.blockquote_title', {}, locale, ['common']) }}"><i class="fas fa-quote-left"></i></button>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('hr')" title="{{ t('ui.compose.markdown.horizontal_rule_title', {}, locale, ['common']) }}">&#8212;</button>
+                                </div>
+                            </div>
+                            <textarea class="form-control font-monospace" id="bulletinBody" rows="10" oninput="previewBulletin()"></textarea>
+                            <div id="bulletinMarkdownEditorWrap" style="display:none;">
+                                <div id="bulletinTuiEditorEl"></div>
+                            </div>
                         </div>
                     </div>
                     <div class="d-flex justify-content-end gap-2">
@@ -185,23 +214,29 @@ function syncBulletinMarkdownEditor() {
     }
 }
 
+function bulletinMdAction(action) {
+    if (bulletinMarkdownEditor) {
+        bulletinMarkdownEditor.exec(action);
+    }
+}
+
 function initBulletinMarkdownEditor() {
     if (bulletinMarkdownEditor) {
         return;
     }
 
-    bulletinMarkdownEditor = window.BinkMarkdownEditor.create({
+    bulletinMarkdownEditor = window.BinkMarkdownEditor.mount({
         textarea: '#bulletinBody',
         editorContainer: '#bulletinMarkdownEditorWrap',
         editorEl: '#bulletinTuiEditorEl',
         height: '320px',
-        initialEditType: 'markdown',
-        previewStyle: 'vertical',
+        initialEditType: 'wysiwyg',
+        previewStyle: 'tab',
+        toolbarItems: [],
         onChange: function() {
             previewBulletin();
         }
     });
-    bulletinMarkdownEditor.init();
 }
 
 function destroyBulletinMarkdownEditor(syncContent = true) {

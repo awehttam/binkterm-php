@@ -968,7 +968,7 @@ function initMarkdownEditor() {
     if (mdEditorActive) return;
 
     const editorHeight = ($('#messageText').outerHeight() || 300);
-    markdownEditorController = window.BinkMarkdownEditor.create({
+    markdownEditorController = window.BinkMarkdownEditor.mount({
         textarea: '#messageText',
         plainContainer: '#messageTextGroup',
         editorContainer: '#markdownEditorContainer',
@@ -985,7 +985,7 @@ function initMarkdownEditor() {
             setTimeout(function() { showUnfurlPrompt(); }, 100);
         }
     });
-    tuiEditor = markdownEditorController.init();
+    tuiEditor = markdownEditorController.getToastEditor();
     mdEditorActive = true;
 }
 

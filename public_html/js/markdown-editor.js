@@ -222,6 +222,11 @@
         sanitize: sanitizeTuiMarkdown,
         create: function(options) {
             return new MarkdownEditor(options);
+        },
+        mount: function(options) {
+            const controller = new MarkdownEditor(options);
+            controller.init();
+            return controller;
         }
     };
 })(window);
