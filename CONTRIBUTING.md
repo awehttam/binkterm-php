@@ -12,7 +12,6 @@ Thank you for your interest in contributing to BinktermPHP! This document provid
 - [Version Management](#version-management)
 - [Testing](#testing)
 - [Submitting Changes](#submitting-changes)
-- [Changelog Updates](#changelog-updates)
 
 ## Looking for Something to Work On?
 
@@ -38,25 +37,32 @@ BinktermPHP is a modern web interface and mailer tool for FidoNet message packet
 
 ### Initial Setup
 
-1. Clone the repository:
+1. **Fork the repository** on GitHub by clicking the "Fork" button on the [project page](https://github.com/awehttam/binkterm-php). This creates your own copy of the repo under your GitHub account.
+
+2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/awehttam/binkterm-php.git
+   git clone https://github.com/YOUR-USERNAME/binkterm-php.git
    cd binkterm-php
    ```
 
-2. Install dependencies:
+3. **Add the upstream remote** so you can pull in future changes:
+   ```bash
+   git remote add upstream https://github.com/awehttam/binkterm-php.git
+   ```
+
+4. Install dependencies:
    ```bash
    composer install
    ```
 
-3. Set up your database and configuration files
+5. Set up your database and configuration files.
 
-4. Create a feature branch:
+6. Create a feature branch:
    ```bash
    git checkout -b feature/your-feature-name
    ```
 
-**Important**: Never push directly to the `main` branch. All changes must go through pull requests for review.
+**Important**: Never push directly to `main` or `claudesbbs`. All changes must go through pull requests for review.
 
 ## Code Conventions
 
@@ -78,7 +84,7 @@ BinktermPHP is a modern web interface and mailer tool for FidoNet message packet
 - `public_html/` - Web site files and static assets
 - `tests/` - Test and debugging scripts
 - `config/` - Configuration files
-- `schema/` - Database migration scripts
+- `database/migrations/` - Database migration scripts
 - `vendor/` - Third-party libraries (managed by Composer, do not modify)
 
 ### Important Guidelines
@@ -124,7 +130,7 @@ Never:
 
 All database schema changes must be done through migration scripts:
 
-1. Create a new migration file in `schema/` following the naming convention:
+1. Create a new migration file in `database/migrations/` following the naming convention:
    ```
    v<VERSION>_<description>.sql
    ```
@@ -153,28 +159,7 @@ BinktermPHP uses semantic versioning (MAJOR.MINOR.PATCH):
 - **MINOR**: New features, backwards compatible
 - **PATCH**: Bug fixes, backwards compatible
 
-### Updating the Version
-
-When releasing a new version:
-
-1. Update `src/Version.php`:
-   ```php
-   private const VERSION = '1.4.3';
-   ```
-
-2. Update `composer.json`:
-   ```json
-   "version": "1.4.3"
-   ```
-
-3. Commit and tag:
-   ```bash
-   git add src/Version.php composer.json
-   git commit -m "Bump version to 1.4.3"
-   git tag -a v1.4.3 -m "Release version 1.4.3"
-   ```
-
-Note: Contributors typically don't need to worry about version bumps - maintainers handle this during release preparation.
+Note: Contributors typically don't need to worry about version bumps — maintainers handle this during release preparation.
 
 ## Testing
 
@@ -225,25 +210,29 @@ Format:
 
 ### Pull Request Process
 
-**Important**: All changes must be submitted via pull request. Do not push directly to the `main` branch.
+**Important**: All changes must be submitted via pull request targeting the `claudesbbs` branch. Do not push directly to `main` or `claudesbbs`.
 
-1. **Update your branch** with the latest main:
+The `claudesbbs` branch is a staging branch deployed to [Claude's BBS](https://claudes.lovelybits.org), where changes are tested in a live environment before being merged into `main` for release.
+
+1. **Sync your fork** with the latest upstream changes:
    ```bash
-   git checkout main
-   git pull
+   git fetch upstream
+   git checkout claudesbbs
+   git merge upstream/claudesbbs
    git checkout your-feature-branch
-   git rebase main
+   git rebase claudesbbs
    ```
 
-2. **Push your feature branch** to the repository:
+2. **Push your feature branch** to your fork:
    ```bash
    git push origin your-feature-branch
    ```
 
 3. **Submit a Pull Request** on GitHub:
-   - Navigate to the repository on GitHub
+   - Navigate to your fork on GitHub
    - Click "Pull requests" → "New pull request"
-   - Select your feature branch
+   - Set the **base repository** to `awehttam/binkterm-php` and **base branch** to `claudesbbs`
+   - Set the **head repository** to your fork and **compare branch** to your feature branch
    - Use a clear, descriptive title
    - Describe what changes you made and why
    - Reference any related issues (e.g., "Fixes #123")
@@ -257,7 +246,7 @@ Format:
    - Push updates to your feature branch (they'll appear in the PR automatically)
 
 5. **After approval**:
-   - Maintainers will merge your PR into main
+   - Maintainers will merge your PR into `claudesbbs`
    - You can then delete your feature branch
 
 ### PR Checklist
@@ -268,11 +257,8 @@ Before submitting, ensure:
 - [ ] Changes tested locally
 - [ ] Documentation updated if needed
 - [ ] Database migrations created if schema changed
-- [ ] Changelog updated for significant changes
 - [ ] No new security vulnerabilities introduced
 - [ ] Code is properly formatted and commented
-
-
 
 ## Questions or Need Help?
 
