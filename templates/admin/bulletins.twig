@@ -117,7 +117,7 @@
                                     <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('hr')" title="{{ t('ui.compose.markdown.horizontal_rule_title', {}, locale, ['common']) }}">&#8212;</button>
                                 </div>
                             </div>
-                            <textarea class="form-control font-monospace" id="bulletinBody" rows="10" oninput="previewBulletin()"></textarea>
+                            <textarea class="form-control font-monospace" id="bulletinBody" rows="10" wrap="off" oninput="previewBulletin()"></textarea>
                             <div id="bulletinMarkdownEditorWrap" style="display:none;">
                                 <div id="bulletinTuiEditorEl"></div>
                             </div>
