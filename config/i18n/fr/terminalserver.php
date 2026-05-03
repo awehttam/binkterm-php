@@ -299,4 +299,8 @@ return [
     'ui.terminalserver.netmail.attachment_download_prompt' => 'N° de la pièce jointe à télécharger (Entrée pour annuler) : ',
     'ui.terminalserver.netmail.attachments_header' => 'Pièces jointes :',
     'ui.terminalserver.netmail.attachments_none' => 'Aucune pièce jointe sur ce message.',
+    'ui.terminalserver.server.menu.bulletins' => 'U) Bulletins',
+    'ui.terminalserver.bulletins.title' => 'Bulletins',
+    'ui.terminalserver.bulletins.none' => 'Aucun bulletin disponible.',
+    'ui.terminalserver.bulletins.continue' => 'Bulletin {current} sur {total}. Entree pour continuer, S pour tout ignorer...',
 ];

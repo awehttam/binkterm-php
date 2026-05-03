@@ -340,4 +340,8 @@ return [
 
     'ui.terminalserver.message.headers_title'          => '=== Message Headers ===',
     'ui.terminalserver.message.no_headers'             => '(No message headers)',
+    'ui.terminalserver.server.menu.bulletins' => 'U) Bulletins',
+    'ui.terminalserver.bulletins.title' => 'Bulletins',
+    'ui.terminalserver.bulletins.none' => 'No bulletins are available.',
+    'ui.terminalserver.bulletins.continue' => 'Bulletin {current} of {total}. Press Enter for next, S to skip all...',
 ];

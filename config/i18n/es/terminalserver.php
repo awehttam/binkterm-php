@@ -336,5 +336,9 @@ return [
 
     'ui.terminalserver.message.headers_title'          => '=== Encabezados del mensaje ===',
     'ui.terminalserver.message.no_headers'             => '(Sin encabezados de mensaje)',
+    'ui.terminalserver.server.menu.bulletins' => 'U) Boletines',
+    'ui.terminalserver.bulletins.title' => 'Boletines',
+    'ui.terminalserver.bulletins.none' => 'No hay boletines disponibles.',
+    'ui.terminalserver.bulletins.continue' => 'Boletin {current} de {total}. Enter para seguir, S para omitir todos...',
 ];
 

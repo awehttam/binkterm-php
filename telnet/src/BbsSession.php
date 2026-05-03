@@ -459,7 +459,6 @@ class BbsSession
             if (($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("mainmenu.sixel", $this, $conn))
                 || TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Select option:', self::ANSI_DIM));
             } else {
                 $cols      = $state['cols'] ?? 80;
                 $menuWidth = min(76, $cols - 4);
@@ -610,7 +609,7 @@ class BbsSession
             $promptShown = false;
             while ($choice === '') {
                 if (!$promptShown) {
-                    $this->writeLine($conn, $this->colorize(
+                    $this->safeWrite($conn, $this->colorize(
                         $this->t('ui.terminalserver.server.menu.select_option', 'Select option:', [], $state['locale']),
                         self::ANSI_DIM
                     ));

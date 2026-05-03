@@ -340,4 +340,8 @@ return [
 
     'ui.terminalserver.message.headers_title'          => '=== Intestazioni messaggio ===',
     'ui.terminalserver.message.no_headers'             => '(Nessuna intestazione messaggio)',
+    'ui.terminalserver.server.menu.bulletins' => 'U) Bollettini',
+    'ui.terminalserver.bulletins.title' => 'Bollettini',
+    'ui.terminalserver.bulletins.none' => 'Nessun bollettino disponibile.',
+    'ui.terminalserver.bulletins.continue' => 'Bollettino {current} di {total}. Invio per avanti, S per saltare tutti...',
 ];
