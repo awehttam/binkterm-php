@@ -14,6 +14,7 @@ require_once __DIR__ . '/../telnet/src/MailUtils.php';
 require_once __DIR__ . '/../telnet/src/NetmailHandler.php';
 require_once __DIR__ . '/../telnet/src/EchomailHandler.php';
 require_once __DIR__ . '/../telnet/src/ShoutboxHandler.php';
+require_once __DIR__ . '/../telnet/src/BulletinsHandler.php';
 require_once __DIR__ . '/../telnet/src/PollsHandler.php';
 require_once __DIR__ . '/../telnet/src/DoorHandler.php';
 require_once __DIR__ . '/../telnet/src/ZmodemTransfer.php';

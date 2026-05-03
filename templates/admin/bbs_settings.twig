@@ -130,6 +130,14 @@
                             </select>
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.default_echo_help', {}, locale, ['common']) }}</small>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsBulletinDisplayMode">{{ t('ui.admin.bbs_settings.features.bulletin_display_mode', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="bbsBulletinDisplayMode">
+                                <option value="once">{{ t('ui.admin.bbs_settings.features.bulletin_display_once', {}, locale, ['common']) }}</option>
+                                <option value="always">{{ t('ui.admin.bbs_settings.features.bulletin_display_always', {}, locale, ['common']) }}</option>
+                            </select>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.bulletin_display_help', {}, locale, ['common']) }}</small>
+                        </div>
                         <hr>
                         <div class="mb-3">
                             <label class="form-label" for="bbsMaxCrossPost">{{ t('ui.admin.bbs_settings.features.max_cross_post_areas', {}, locale, ['common']) }}</label>
@@ -358,6 +366,7 @@ function loadBbsSettings() {
             const bbsPublicFilesIndexEl = document.getElementById('bbsPublicFilesIndex');
             if (bbsPublicFilesIndexEl) bbsPublicFilesIndexEl.checked = !!features.public_files_index;
             document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
+            document.getElementById('bbsBulletinDisplayMode').value = data.config?.bulletin_display_mode === 'always' ? 'always' : 'once';
             const maxCrossPost = parseInt(data.config?.max_cross_post_areas, 10);
             document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
             const echomailModerationThreshold = parseInt(data.config?.echomail_moderation_threshold, 10);
@@ -463,6 +472,7 @@ function saveBbsSettings() {
                 echomail_moderation_threshold: echomailModerationThreshold,
                 dashboard_ad_rotate_interval_seconds: dashboardAdRotateInterval,
                 default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value,
+                bulletin_display_mode: document.getElementById('bbsBulletinDisplayMode').value,
                 outgoing_charset: document.getElementById('bbsOutgoingCharset').value,
                 ai_assistant: {
                     enabled: document.getElementById('bbsAiAssistantEnabled').checked

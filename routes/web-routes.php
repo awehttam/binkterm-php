@@ -5,6 +5,7 @@ use BinktermPHP\AppearanceConfig;
 use BinktermPHP\Auth;
 use BinktermPHP\Advertising;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\BulletinManager;
 use BinktermPHP\Config;
 use BinktermPHP\I18n\LocaleResolver;
 use BinktermPHP\I18n\Translator;
@@ -115,7 +116,39 @@ SimpleRouter::get('/', function() {
         return SimpleRouter::response()->redirect('/login');
     }
 
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    if (!empty($_GET['skip_bulletins'])) {
+        unset($_SESSION['show_login_bulletins_for_session']);
+    }
+    if (empty($_GET['skip_bulletins'])) {
+        try {
+            $bulletinManager = new BulletinManager();
+            $bulletinCount = $bulletinManager->getUnreadCount($userId);
+            if (BbsConfig::shouldAlwaysDisplayBulletins()) {
+                $sessionId = (string)($_COOKIE['binktermphp_session'] ?? '');
+                $pendingSessionId = (string)($_SESSION['show_login_bulletins_for_session'] ?? '');
+                if ($sessionId !== '' && hash_equals($sessionId, $pendingSessionId)) {
+                    unset($_SESSION['show_login_bulletins_for_session']);
+                    $bulletinCount = count($bulletinManager->getActiveBulletins($userId));
+                } else {
+                    $bulletinCount = 0;
+                }
+            }
+            if ($bulletinCount > 0) {
+                return SimpleRouter::response()->redirect('/bulletins');
+            }
+        } catch (\Throwable $e) {
+            getServerLogger()->warning("Bulletin login redirect check failed: " . $e->getMessage());
+        }
+    }
+
     $template = new Template();
+    $bulletinUnreadCount = 0;
+    try {
+        $bulletinUnreadCount = (new BulletinManager())->getUnreadCount($userId);
+    } catch (\Throwable $e) {
+        getServerLogger()->warning("Dashboard bulletin count failed: " . $e->getMessage());
+    }
     $ads = new Advertising();
     $dashboardAds = $ads->getDashboardAds(5);
     $ad = $dashboardAds[0] ?? null;
@@ -150,7 +183,6 @@ SimpleRouter::get('/', function() {
     $activeTodayCount = $auth->getActiveTodayCount();
     $adminTimezone = 'UTC';
     $handler = new \BinktermPHP\MessageHandler();
-    $userId = (int)($user['user_id'] ?? $user['id']);
     $userSettings = $handler->getUserSettings($userId);
     if (!empty($user['is_admin'])) {
         $tz = $userSettings['timezone'] ?? '';
@@ -190,9 +222,25 @@ SimpleRouter::get('/', function() {
         'online_user_count' => $onlineCount,
         'active_today_count' => $activeTodayCount,
         'todays_callers' => $todaysCallers,
+        'bulletin_unread_count' => $bulletinUnreadCount,
         'dashboard_layout' => $dashboardLayout,
         'dashboard_available_cards' => $availableCards,
         'echomail_badge_mode' => $userSettings['echomail_badge_mode'] ?? 'new',
+    ]);
+});
+
+SimpleRouter::get('/bulletins', function() {
+    $user = RouteHelper::requireAuth();
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $manager = new BulletinManager();
+    unset($_SESSION['show_login_bulletins_for_session']);
+
+    $template = new Template();
+    $template->renderResponse('bulletins.twig', [
+        'bulletins' => $manager->getActiveBulletins($userId),
+        'unread_bulletins' => BbsConfig::shouldAlwaysDisplayBulletins()
+            ? $manager->getActiveBulletins($userId)
+            : $manager->getUnreadBulletins($userId),
     ]);
 });
 

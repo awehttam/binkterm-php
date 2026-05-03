@@ -189,6 +189,27 @@
     </div>
 
     <div class="col-lg-4" id="dashSidebarCards">
+        <div class="dash-card-wrapper" data-card-id="bulletins">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>{{ t('ui.bulletins.title', {}, locale, ['common']) }}</h6>
+            </div>
+            <div class="card-body">
+                {% if bulletin_unread_count > 0 %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="h4 mb-0">{{ bulletin_unread_count }}</div>
+                            <div class="text-muted small">{{ t('ui.dashboard.bulletins.unread', {'count': bulletin_unread_count}, locale, ['common']) }}</div>
+                        </div>
+                        <a class="btn btn-primary btn-sm" href="/bulletins">{{ t('ui.bulletins.title', {}, locale, ['common']) }}</a>
+                    </div>
+                {% else %}
+                    <div class="text-muted small">{{ t('ui.bulletins.no_new', {}, locale, ['common']) }}</div>
+                {% endif %}
+            </div>
+        </div>
+        </div>{# /dash-card-wrapper bulletins #}
+
         <div class="dash-card-wrapper" data-card-id="system_info">
         <div class="card">
             <div class="card-header">

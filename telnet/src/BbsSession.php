@@ -399,6 +399,7 @@ class BbsSession
         $netmailHandler       = new NetmailHandler($this, $this->apiBase);
         $echomailHandler      = new EchomailHandler($this, $this->apiBase);
         $shoutboxHandler      = new ShoutboxHandler($this, $this->apiBase);
+        $bulletinsHandler     = new BulletinsHandler($this, $this->apiBase);
         $pollsHandler         = new PollsHandler($this, $this->apiBase);
         $doorHandler          = new DoorHandler($this, $this->apiBase);
         $fileHandler          = new FileHandler($this, $this->apiBase, $this->isSsh);
@@ -437,6 +438,7 @@ class BbsSession
         }
 
         $this->showSystemNews($conn, $state);
+        $bulletinsHandler->showUnread($conn, $state, $session);
         $shoutboxHandler->show($conn, $state, $session, 5, false);
 
         if (Config::env('ENABLE_INTERESTS') === 'true') {
@@ -507,6 +509,7 @@ class BbsSession
 
                 // Option vars for the key handler below
                 $shoutboxOption   = $showShoutbox   ? 's' : null;
+                $bulletinsOption  = 'u';
                 $pollsOption      = $showPolls      ? 'p' : null;
                 $doorsOption      = $showDoors      ? 'd' : null;
                 $filesOption      = $showFiles      ? 'f' : null;
@@ -527,6 +530,7 @@ class BbsSession
                 $lblQwk        = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.qwk',        'K) QWK Offline Mail',             [],                                      $locale), 'K'), $state);
                 $lblWhosOnline = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.whos_online',"W) Who's Online",                 [],                                      $locale), 'W'), $state);
                 $lblShoutbox   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.shoutbox',   'S) Shoutbox',                     [],                                      $locale), 'S'), $state);
+                $lblBulletins  = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.bulletins',  'U) Bulletins',                    [],                                      $locale), 'U'), $state);
                 $lblPolls      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.polls',       'P) Polls',                        [],                                      $locale), 'P'), $state);
                 $lblDoors      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.doors',       'D) Door Games',                   [],                                      $locale), 'D'), $state);
                 $lblFiles      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.files',       'F) Files',                        [],                                      $locale), 'F'), $state);
@@ -545,7 +549,7 @@ class BbsSession
                     $this->menuItemCol('N', $lblNetmail,  $colWidth, $state),
                     $showQwk ? $this->menuItemCol('K', $lblQwk, $colWidth, $state) : $empty,
                 ];
-                $rows[] = [$this->menuItemCol('E', $lblEchomail, $colWidth, $state), $empty];
+                $rows[] = [$this->menuItemCol('E', $lblEchomail, $colWidth, $state), $this->menuItemCol('U', $lblBulletins, $colWidth, $state)];
                 $rows[] = [$empty, $empty];
 
                 // --- Community (left) + Explore (right) ---
@@ -627,7 +631,7 @@ class BbsSession
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if (in_array($char, ['n','e','q','s','p','w','d','f','t','i','k','b','l'], true) || ctype_digit($char)) {
+                    if (in_array($char, ['n','e','q','s','u','p','w','d','f','t','i','k','b','l'], true) || ctype_digit($char)) {
                         $choice = $char;
                     }
                 }
@@ -646,6 +650,9 @@ class BbsSession
             } elseif (!empty($shoutboxOption) && $choice === $shoutboxOption) {
                 $this->log("Menu: {$username} -> Shoutbox");
                 $shoutboxHandler->show($conn, $state, $session, 20);
+            } elseif (!empty($bulletinsOption) && $choice === $bulletinsOption) {
+                $this->log("Menu: {$username} -> Bulletins");
+                $bulletinsHandler->show($conn, $state, $session);
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $this->log("Menu: {$username} -> Polls");
                 $pollsHandler->show($conn, $state, $session);

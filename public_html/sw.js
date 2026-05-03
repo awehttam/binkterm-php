@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v792';
+const CACHE_NAME = 'binkcache-v796';
 
 // Static assets to precache
 const staticAssets = [
@@ -28,6 +28,7 @@ const staticAssets = [
     '/vendor/toastui-editor-3.2.2/toastui-editor-all.min.js',
     '/vendor/toastui-editor-3.2.2/toastui-editor.css',
     '/vendor/toastui-editor-3.2.2/toastui-editor-dark.css',
+    '/js/markdown-editor.js',
     '/vendor/bootstrap-5.3.0/css/bootstrap.min.css',
     '/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js',
     '/vendor/jquery-3.7.1/jquery-3.7.1.min.js',

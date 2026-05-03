@@ -1,0 +1,138 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.bulletins.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
+
+{% block head %}
+{{ parent() }}
+<style>
+    .bulletin-viewer {
+        max-width: 880px;
+        margin: 0 auto;
+    }
+    .bulletin-body {
+        min-height: 260px;
+    }
+    .bulletin-plain-body {
+        white-space: pre-wrap;
+        font-family: var(--bs-font-monospace);
+    }
+    .bulletin-ansi-container {
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+    .bulletin-ansi-container .bulletin-ansi-body {
+        white-space: pre;
+        overflow: visible;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bulletin-viewer">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>{{ t('ui.bulletins.title', {}, locale, ['common']) }}</h5>
+        <span class="text-muted small" id="bulletinPosition"></span>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h6 class="mb-0" id="bulletinTitle"></h6>
+        </div>
+        <div class="card-body bulletin-body" id="bulletinBody"></div>
+        <div class="card-footer d-flex justify-content-between align-items-center gap-2">
+            <button type="button" class="btn btn-outline-secondary" id="prevBulletinBtn">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-secondary" id="skipAllBtn">{{ t('ui.bulletins.skip_all', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" id="nextBulletinBtn">{{ t('ui.bulletins.next', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/js/ansisys.js"></script>
+<script>
+const bulletins = {{ unread_bulletins|json_encode|raw }};
+let bulletinIndex = 0;
+
+function uiT(key, fallback, params = {}) {
+    return window.t ? window.t(key, params, fallback) : fallback.replace(/\{([^}]+)\}/g, (_, k) => params[k] ?? '');
+}
+
+function markRead(ids) {
+    return fetch('/api/bulletins/read-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+    });
+}
+
+function renderBulletinBody(bulletin) {
+    if ((bulletin.format || 'plain') !== 'plain' || typeof renderAnsiTerminal !== 'function') {
+        return bulletin.body_html || '';
+    }
+
+    return `
+        <div class="ansi-art-container bulletin-ansi-container">
+            <pre class="ansi-art bulletin-ansi-body mb-0">${renderAnsiTerminal(bulletin.body || '', 80, 500)}</pre>
+        </div>`;
+}
+
+function showBulletin() {
+    if (!bulletins.length) {
+        document.querySelector('.bulletin-viewer').innerHTML = `
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <h5>${uiT('ui.bulletins.no_new', 'No new bulletins')}</h5>
+                    <a class="btn btn-primary mt-3" href="/?skip_bulletins=1">${uiT('ui.bulletins.done', 'Done')}</a>
+                </div>
+            </div>`;
+        return;
+    }
+
+    const current = bulletins[bulletinIndex];
+    document.getElementById('bulletinTitle').textContent = current.title || '';
+    document.getElementById('bulletinBody').innerHTML = renderBulletinBody(current);
+    document.getElementById('bulletinPosition').textContent = uiT('ui.bulletins.count', 'Bulletin {current} of {total}', {
+        current: bulletinIndex + 1,
+        total: bulletins.length
+    });
+    document.getElementById('prevBulletinBtn').disabled = bulletinIndex === 0;
+    document.getElementById('nextBulletinBtn').textContent = bulletinIndex === bulletins.length - 1
+        ? uiT('ui.bulletins.done', 'Done')
+        : uiT('ui.bulletins.next', 'Next');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('prevBulletinBtn').addEventListener('click', function() {
+        if (bulletinIndex > 0) {
+            bulletinIndex--;
+            showBulletin();
+        }
+    });
+
+    document.getElementById('nextBulletinBtn').addEventListener('click', function() {
+        const current = bulletins[bulletinIndex];
+        fetch(`/api/bulletins/${current.id}/read`, { method: 'POST' }).finally(function() {
+            if (bulletinIndex >= bulletins.length - 1) {
+                window.location.href = '/?skip_bulletins=1';
+                return;
+            }
+            bulletinIndex++;
+            showBulletin();
+        });
+    });
+
+    document.getElementById('skipAllBtn').addEventListener('click', function() {
+        markRead(bulletins.map(b => b.id)).finally(function() {
+            window.location.href = '/?skip_bulletins=1';
+        });
+    });
+
+    showBulletin();
+});
+</script>
+{% endblock %}

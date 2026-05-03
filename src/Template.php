@@ -415,6 +415,7 @@ class Template
         $defaultLabelKeys = [
             '/echomail' => 'ui.admin.appearance.default_menu.messages',
             '/netmail' => 'ui.admin.appearance.default_menu.netmail',
+            '/bulletins' => 'ui.bulletins.title',
             '/files' => 'ui.admin.appearance.default_menu.files',
             '/games' => 'ui.admin.appearance.default_menu.games_doors',
             '/settings' => 'ui.admin.appearance.default_menu.settings',
@@ -471,6 +472,14 @@ class Template
                 ['H', 'U', 'B', 'X']
             );
         }
+
+        $normalizedItems = $this->appendBbsMenuFeatureItem(
+            $normalizedItems,
+            '/bulletins',
+            $this->translator->translate('ui.bulletins.title', [], $locale ?: null),
+            'clipboard-list',
+            ['U', 'B']
+        );
 
         return $normalizedItems;
     }

@@ -12,6 +12,7 @@
         "qwk": true
     },
     "default_echo_interface": "echolist",
+    "bulletin_display_mode": "once",
     "dashboard_ad_rotate_interval_seconds": 20,
     "max_cross_post_areas": 5,
     "echomail_moderation_threshold": 0,

@@ -1,0 +1,351 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.bulletins.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/vendor/toastui-editor-3.2.2/toastui-editor.css">
+<link rel="stylesheet" href="/vendor/toastui-editor-3.2.2/toastui-editor-dark.css">
+<style>
+#bulletinTuiEditorEl .toastui-editor-dark.toastui-editor-defaultUI,
+#bulletinTuiEditorEl .toastui-editor-dark .toastui-editor-ww-container,
+#bulletinTuiEditorEl .toastui-editor-dark .toastui-editor-md-container,
+#bulletinTuiEditorEl .toastui-editor-dark .toastui-editor-mode-switch,
+#bulletinTuiEditorEl .toastui-editor-dark .toastui-editor-mode-switch .tab-item.active {
+    background-color: transparent !important;
+    background: transparent !important;
+}
+#bulletinTuiEditorEl .toastui-editor-dark.toastui-editor-defaultUI {
+    border-color: var(--bs-border-color) !important;
+}
+#bulletinTuiEditorEl .toastui-editor-contents code {
+    background-color: rgba(128,128,128,0.2) !important;
+}
+#bulletinPreview .bulletin-ansi-container {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+#bulletinPreview .bulletin-ansi-container .bulletin-ansi-body {
+    white-space: pre;
+    overflow: visible;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.bulletins.title', {}, locale, ['common']) }}</h1>
+        <button type="button" class="btn btn-primary" onclick="newBulletin()">
+            <i class="fas fa-plus me-1"></i>{{ t('ui.admin.bulletins.create', {}, locale, ['common']) }}
+        </button>
+    </div>
+
+    <div id="bulletinsAlert"></div>
+
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header">{{ t('ui.admin.bulletins.list', {}, locale, ['common']) }}</div>
+                <div class="list-group list-group-flush" id="bulletinsList"></div>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header" id="formTitle">{{ t('ui.admin.bulletins.create', {}, locale, ['common']) }}</div>
+                <div class="card-body">
+                    <input type="hidden" id="bulletinId">
+                    <div class="mb-3">
+                        <label class="form-label" for="bulletinTitle">{{ t('ui.common.title', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="bulletinTitle" maxlength="255">
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label" for="bulletinFormat">{{ t('ui.admin.bulletins.format', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="bulletinFormat" onchange="onBulletinFormatChange()">
+                                <option value="plain">{{ t('ui.admin.bulletins.format_plain', {}, locale, ['common']) }}</option>
+                                <option value="markdown">{{ t('ui.admin.bulletins.format_markdown', {}, locale, ['common']) }}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="bulletinSort">{{ t('ui.admin.bulletins.sort_order', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bulletinSort" value="0">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="bulletinActive" checked>
+                                <label class="form-check-label" for="bulletinActive">{{ t('ui.admin.bulletins.active', {}, locale, ['common']) }}</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-0">
+                        <div class="col-md-6">
+                            <label class="form-label" for="bulletinFrom">{{ t('ui.admin.bulletins.active_from', {}, locale, ['common']) }}</label>
+                            <input type="datetime-local" class="form-control" id="bulletinFrom">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="bulletinUntil">{{ t('ui.admin.bulletins.active_until', {}, locale, ['common']) }}</label>
+                            <input type="datetime-local" class="form-control" id="bulletinUntil">
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-label" for="bulletinBody">{{ t('ui.admin.bulletins.body', {}, locale, ['common']) }}</label>
+                        <textarea class="form-control font-monospace" id="bulletinBody" rows="10" oninput="previewBulletin()"></textarea>
+                        <div id="bulletinMarkdownEditorWrap" style="display:none;">
+                            <div id="bulletinTuiEditorEl"></div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" onclick="previewBulletin()">{{ t('ui.admin.bulletins.preview', {}, locale, ['common']) }}</button>
+                        <button type="button" class="btn btn-primary" onclick="saveBulletin()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">{{ t('ui.admin.bulletins.preview', {}, locale, ['common']) }}</div>
+                <div class="card-body" id="bulletinPreview"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/toastui-editor-3.2.2/toastui-editor-all.min.js"></script>
+<script src="/js/markdown-editor.js"></script>
+<script src="/js/ansisys.js"></script>
+<script>
+let bulletins = [];
+let bulletinMarkdownEditor = null;
+
+function uiT(key, fallback, params = {}) {
+    return window.t ? window.t(key, params, fallback) : fallback.replace(/\{([^}]+)\}/g, (_, k) => params[k] ?? '');
+}
+
+function escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+function showAlert(message, type) {
+    document.getElementById('bulletinsAlert').innerHTML = `<div class="alert alert-${type} alert-dismissible fade show">${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+}
+
+function apiMessage(payload, fallback) {
+    return window.getApiMessage ? window.getApiMessage(payload, fallback) : fallback;
+}
+
+function loadBulletins() {
+    fetch('/admin/api/bulletins')
+        .then(r => r.json())
+        .then(data => {
+            bulletins = data.bulletins || [];
+            renderBulletins();
+        })
+        .catch(() => showAlert(uiT('ui.admin.bulletins.load_failed', 'Failed to load bulletins.'), 'danger'));
+}
+
+function renderBulletins() {
+    const list = document.getElementById('bulletinsList');
+    if (!bulletins.length) {
+        list.innerHTML = `<div class="list-group-item text-muted">${uiT('ui.admin.bulletins.none', 'No bulletins yet.')}</div>`;
+        return;
+    }
+
+    list.innerHTML = bulletins.map((b, index) => `
+        <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                    <div class="fw-semibold">${escapeHtml(b.title)}</div>
+                    <div class="small text-muted">${escapeHtml(b.format)} · ${b.is_active ? uiT('ui.admin.bulletins.active', 'Active') : uiT('ui.admin.bulletins.inactive', 'Inactive')}</div>
+                </div>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" onclick="moveBulletin(${index}, -1)" title="${uiT('ui.common.previous', 'Previous')}"><i class="fas fa-chevron-up"></i></button>
+                    <button class="btn btn-outline-secondary" onclick="moveBulletin(${index}, 1)" title="${uiT('ui.common.next', 'Next')}"><i class="fas fa-chevron-down"></i></button>
+                    <button class="btn btn-outline-primary" onclick="editBulletin(${b.id})" title="${uiT('ui.admin.bulletins.edit', 'Edit')}"><i class="fas fa-pen"></i></button>
+                    <button class="btn btn-outline-danger" onclick="deleteBulletin(${b.id})" title="${uiT('ui.common.delete', 'Delete')}"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function toLocalInputValue(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function syncBulletinMarkdownEditor() {
+    if (bulletinMarkdownEditor) {
+        bulletinMarkdownEditor.sync();
+    }
+}
+
+function initBulletinMarkdownEditor() {
+    if (bulletinMarkdownEditor) {
+        return;
+    }
+
+    bulletinMarkdownEditor = window.BinkMarkdownEditor.create({
+        textarea: '#bulletinBody',
+        editorContainer: '#bulletinMarkdownEditorWrap',
+        editorEl: '#bulletinTuiEditorEl',
+        height: '320px',
+        initialEditType: 'markdown',
+        previewStyle: 'vertical',
+        onChange: function() {
+            previewBulletin();
+        }
+    });
+    bulletinMarkdownEditor.init();
+}
+
+function destroyBulletinMarkdownEditor(syncContent = true) {
+    if (bulletinMarkdownEditor) {
+        bulletinMarkdownEditor.destroy({ sync: syncContent });
+        bulletinMarkdownEditor = null;
+    }
+}
+
+function refreshBulletinEditorMode() {
+    if (document.getElementById('bulletinFormat').value === 'markdown') {
+        initBulletinMarkdownEditor();
+        if (bulletinMarkdownEditor) {
+            bulletinMarkdownEditor.setMarkdown(document.getElementById('bulletinBody').value || '', false);
+        }
+        return;
+    }
+
+    destroyBulletinMarkdownEditor();
+}
+
+function onBulletinFormatChange() {
+    refreshBulletinEditorMode();
+    previewBulletin();
+}
+
+function newBulletin() {
+    destroyBulletinMarkdownEditor(false);
+    document.getElementById('formTitle').textContent = uiT('ui.admin.bulletins.create', 'Create Bulletin');
+    document.getElementById('bulletinId').value = '';
+    document.getElementById('bulletinTitle').value = '';
+    document.getElementById('bulletinFormat').value = 'plain';
+    document.getElementById('bulletinSort').value = String((bulletins.length + 1) * 10);
+    document.getElementById('bulletinActive').checked = true;
+    document.getElementById('bulletinFrom').value = '';
+    document.getElementById('bulletinUntil').value = '';
+    document.getElementById('bulletinBody').value = '';
+    refreshBulletinEditorMode();
+    previewBulletin();
+}
+
+function editBulletin(id) {
+    const b = bulletins.find(item => item.id === id);
+    if (!b) return;
+    destroyBulletinMarkdownEditor(false);
+    document.getElementById('formTitle').textContent = uiT('ui.admin.bulletins.edit', 'Edit Bulletin');
+    document.getElementById('bulletinId').value = b.id;
+    document.getElementById('bulletinTitle').value = b.title || '';
+    document.getElementById('bulletinFormat').value = b.format || 'plain';
+    document.getElementById('bulletinSort').value = b.sort_order || 0;
+    document.getElementById('bulletinActive').checked = !!b.is_active;
+    document.getElementById('bulletinFrom').value = toLocalInputValue(b.active_from);
+    document.getElementById('bulletinUntil').value = toLocalInputValue(b.active_until);
+    document.getElementById('bulletinBody').value = b.body || '';
+    refreshBulletinEditorMode();
+    previewBulletin();
+}
+
+function collectPayload() {
+    syncBulletinMarkdownEditor();
+    return {
+        title: document.getElementById('bulletinTitle').value.trim(),
+        body: document.getElementById('bulletinBody').value,
+        format: document.getElementById('bulletinFormat').value,
+        sort_order: parseInt(document.getElementById('bulletinSort').value || '0', 10),
+        is_active: document.getElementById('bulletinActive').checked,
+        active_from: document.getElementById('bulletinFrom').value || null,
+        active_until: document.getElementById('bulletinUntil').value || null
+    };
+}
+
+function saveBulletin() {
+    const id = document.getElementById('bulletinId').value;
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/admin/api/bulletins/${id}` : '/admin/api/bulletins';
+    fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(collectPayload())
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                showAlert(data.error || uiT('ui.admin.bulletins.save_failed', 'Failed to save bulletin.'), 'danger');
+                return;
+            }
+            showAlert(apiMessage(data, uiT('ui.admin.bulletins.saved_success', 'Bulletin saved.')), 'success');
+            loadBulletins();
+            if (!id && data.id) {
+                document.getElementById('bulletinId').value = data.id;
+            }
+        })
+        .catch(() => showAlert(uiT('ui.admin.bulletins.save_failed', 'Failed to save bulletin.'), 'danger'));
+}
+
+function deleteBulletin(id) {
+    if (!confirm(uiT('ui.admin.bulletins.delete_confirm', 'Delete this bulletin?'))) return;
+    fetch(`/admin/api/bulletins/${id}`, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(apiMessage(data, uiT('ui.admin.bulletins.deleted_success', 'Bulletin deleted.')), 'success');
+                loadBulletins();
+                newBulletin();
+            }
+        });
+}
+
+function moveBulletin(index, delta) {
+    const target = index + delta;
+    if (target < 0 || target >= bulletins.length) return;
+    [bulletins[index], bulletins[target]] = [bulletins[target], bulletins[index]];
+    renderBulletins();
+    fetch('/admin/api/bulletins/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: bulletins.map(b => b.id) })
+    }).then(() => loadBulletins());
+}
+
+function previewBulletin() {
+    syncBulletinMarkdownEditor();
+    const payload = collectPayload();
+    const preview = document.getElementById('bulletinPreview');
+    if (payload.format === 'markdown' && window.marked) {
+        preview.innerHTML = marked.parse(payload.body || '');
+        return;
+    }
+    if (typeof renderAnsiTerminal === 'function') {
+        preview.innerHTML = `
+            <div class="ansi-art-container bulletin-ansi-container">
+                <pre class="ansi-art bulletin-ansi-body mb-0">${renderAnsiTerminal(payload.body || '', 80, 500)}</pre>
+            </div>`;
+        return;
+    }
+    const linked = escapeHtml(payload.body || '').replace(/\b(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    preview.innerHTML = `<pre class="mb-0 font-monospace" style="white-space: pre-wrap;">${linked}</pre>`;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadBulletins();
+        newBulletin();
+    });
+});
+</script>
+{% endblock %}

@@ -395,6 +395,7 @@
 
 {% block scripts %}
 <script src="/vendor/toastui-editor-3.2.2/toastui-editor-all.min.js"></script>
+<script src="/js/markdown-editor.js"></script>
 <script>
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -688,6 +689,7 @@ let markdownSupportTimer = null;
 let markdownPrefilled = false;
 let mdEditorActive = false;
 let tuiEditor = null;
+let markdownEditorController = null;
 let scToolbarActive = false;
 let hardWrapLimit = 79; // default; 0 = off
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
@@ -765,8 +767,9 @@ $('#insertFileInput').on('change', function() {
         ta.focus();
 
         // Keep the hidden textarea in sync if the markdown editor is active
-        if (mdEditorActive && tuiEditor) {
-            tuiEditor.setMarkdown(ta.value, false);
+        if (mdEditorActive && markdownEditorController) {
+            markdownEditorController.setMarkdown(ta.value, false);
+            tuiEditor = markdownEditorController.getToastEditor();
         }
     };
     reader.readAsArrayBuffer(file);
@@ -955,32 +958,7 @@ function updateNetmailGuidelinesPostingName(policy) {
  * @returns {string}
  */
 function sanitizeTuiMarkdown(md) {
-    const placeholderPrefix = '%%TUIESC';
-    const protectedSegments = [];
-
-    // Protect code fences, inline code, and markdown links/images before
-    // undoing TUI's over-eager punctuation escaping in normal prose.
-    md = md.replace(/```[\s\S]*?```|`[^`\n]+`|!?\[[^\]]*\]\([^)]+\)/g, function(segment) {
-        const token = placeholderPrefix + protectedSegments.length + '%%';
-        protectedSegments.push(segment);
-        return token;
-    });
-
-    md = md
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<[^>]+>/g, '')
-        // TUI's WYSIWYG serializer escapes heading markers (e.g. ## -> \#\#) inside
-        // blockquotes. Undo that so quoted markdown headings round-trip correctly.
-        .replace(/^(>+[ ]*)((?:\\#)+)( )/gm, (m, prefix, hashes, sp) =>
-            prefix + hashes.replace(/\\#/g, '#') + sp
-        )
-        // TUI also escapes harmless punctuation in plain text paragraphs,
-        // which mutates signatures, email addresses, domains, and separators.
-        .replace(/\\([.~|])/g, '$1');
-
-    return md.replace(/%%TUIESC(\d+)%%/g, function(match, index) {
-        return protectedSegments[parseInt(index, 10)] || match;
-    });
+    return window.BinkMarkdownEditor.sanitize(md);
 }
 
 /**
@@ -988,63 +966,27 @@ function sanitizeTuiMarkdown(md) {
  */
 function initMarkdownEditor() {
     if (mdEditorActive) return;
-    mdEditorActive = true;
 
     const editorHeight = ($('#messageText').outerHeight() || 300);
-
-    // Swap visibility first so TUI can measure the container
-    $('#messageTextGroup').hide();
-    $('#markdownEditorContainer').show();
-
-    tuiEditor = new toastui.Editor({
-        el: document.querySelector('#tuiEditorEl'),
+    markdownEditorController = window.BinkMarkdownEditor.create({
+        textarea: '#messageText',
+        plainContainer: '#messageTextGroup',
+        editorContainer: '#markdownEditorContainer',
+        editorEl: '#tuiEditorEl',
         height: editorHeight + 'px',
         initialEditType: 'wysiwyg',
         previewStyle: 'tab',
-        initialValue: $('#messageText').val(),
         toolbarItems: [],
-        events: {
-            change: function() {
-                if (!tuiEditor) return;
-                const raw     = tuiEditor.getMarkdown();
-                const cleaned = sanitizeTuiMarkdown(raw);
-                $('#messageText').val(cleaned);
-                // When in markdown source mode, push the cleaned content back into
-                // the editor so the user never sees raw TUI artefacts like <br>.
-                if (tuiEditor.isMarkdownMode() && cleaned !== raw) {
-                    tuiEditor.setMarkdown(cleaned, false);
-                }
-            }
-        }
-    });
-
-    // Ctrl+K for link (TUI editor handles Ctrl+B and Ctrl+I natively in WYSIWYG)
-    document.querySelector('#tuiEditorEl').addEventListener('keydown', function(e) {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-            e.preventDefault();
-            e.stopPropagation();
+        onCtrlK: function() {
             mdAction('link');
-        }
-    }, true);
-
-    // Intercept paste of bare URLs for unfurl prompt
-    document.querySelector('#tuiEditorEl').addEventListener('paste', function(e) {
-        const text = ((e.clipboardData || window.clipboardData) || {getData: function(){return '';}}).getData('text/plain').trim();
-        if (/^https?:\/\/\S+$/.test(text)) {
-            // Let TUI handle the paste (inserts text/link), then prompt to unfurl
-            pendingUnfurlUrl = text;
+        },
+        onBareUrlPaste: function(url) {
+            pendingUnfurlUrl = url;
             setTimeout(function() { showUnfurlPrompt(); }, 100);
         }
-    }, true);
-
-    // Apply TUI's own dark theme by adding its class — this gives proper light text
-    // color (#eee) via TUI's own CSS rather than fighting the cascade ourselves.
-    const editorUI = document.querySelector('#tuiEditorEl .toastui-editor-defaultUI');
-    if (editorUI) {
-        editorUI.classList.add('toastui-editor-dark');
-    }
-
-    tuiEditor.focus();
+    });
+    tuiEditor = markdownEditorController.init();
+    mdEditorActive = true;
 }
 
 /**
@@ -1053,15 +995,12 @@ function initMarkdownEditor() {
 function destroyMarkdownEditor() {
     if (!mdEditorActive) return;
 
-    if (tuiEditor) {
-        $('#messageText').val(sanitizeTuiMarkdown(tuiEditor.getMarkdown()));
-        tuiEditor.destroy();
-        tuiEditor = null;
+    if (markdownEditorController) {
+        markdownEditorController.destroy();
+        markdownEditorController = null;
     }
 
-    $('#markdownEditorContainer').hide();
-    $('#messageTextGroup').show();
-
+    tuiEditor = null;
     mdEditorActive = false;
 }
 
@@ -1129,8 +1068,8 @@ function scAction(action) {
  * Ensure the hidden #messageText textarea has the latest editor content.
  */
 function syncEditorToTextarea() {
-    if (mdEditorActive && tuiEditor) {
-        $('#messageText').val(sanitizeTuiMarkdown(tuiEditor.getMarkdown()));
+    if (mdEditorActive && markdownEditorController) {
+        markdownEditorController.sync();
     }
 }
 
@@ -1141,21 +1080,13 @@ function syncEditorToTextarea() {
 function mdAction(action) {
     if (!tuiEditor) return;
     switch (action) {
-        case 'bold':      tuiEditor.exec('bold'); break;
-        case 'italic':    tuiEditor.exec('italic'); break;
-        case 'code':      tuiEditor.exec('code'); break;
-        case 'codeblock': tuiEditor.exec('codeBlock'); break;
-        case 'h1':        tuiEditor.exec('heading', { level: 1 }); break;
-        case 'h2':        tuiEditor.exec('heading', { level: 2 }); break;
-        case 'h3':        tuiEditor.exec('heading', { level: 3 }); break;
-        case 'ul':        tuiEditor.exec('bulletList'); break;
-        case 'ol':        tuiEditor.exec('orderedList'); break;
-        case 'quote':     tuiEditor.exec('blockQuote'); break;
-        case 'hr':        tuiEditor.exec('hr'); break;
         case 'link':      showMdLinkModal(); return;
-        default:          return;
+        default:
+            if (markdownEditorController) {
+                markdownEditorController.exec(action);
+            }
+            return;
     }
-    tuiEditor.focus();
 }
 
 // Whether the picker has been loaded for this modal open
