@@ -4659,6 +4659,7 @@ return [
     'ui.bulletins.title' => 'Boletines',
     'ui.bulletins.count' => 'Boletin {current} de {total}',
     'ui.bulletins.no_new' => 'No hay boletines nuevos',
+    'ui.bulletins.none_available' => 'No hay boletines disponibles',
     'ui.bulletins.next' => 'Siguiente',
     'ui.bulletins.prev' => 'Anterior',
     'ui.bulletins.skip_all' => 'Omitir todos',

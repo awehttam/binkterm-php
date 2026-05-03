@@ -135,7 +135,7 @@ SimpleRouter::get('/', function() {
                 }
             }
             if ($bulletinCount > 0) {
-                return SimpleRouter::response()->redirect('/bulletins');
+                return SimpleRouter::response()->redirect('/bulletins?unread=1');
             }
         } catch (\Throwable $e) {
             getServerLogger()->warning("Bulletin login redirect check failed: " . $e->getMessage());
@@ -234,13 +234,17 @@ SimpleRouter::get('/bulletins', function() {
     $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
     $manager = new BulletinManager();
     unset($_SESSION['show_login_bulletins_for_session']);
+    $showUnreadOnly = !empty($_GET['unread']);
+    $activeBulletins = $manager->getActiveBulletins($userId);
+    $displayBulletins = $showUnreadOnly && !BbsConfig::shouldAlwaysDisplayBulletins()
+        ? $manager->getUnreadBulletins($userId)
+        : $activeBulletins;
 
     $template = new Template();
     $template->renderResponse('bulletins.twig', [
-        'bulletins' => $manager->getActiveBulletins($userId),
-        'unread_bulletins' => BbsConfig::shouldAlwaysDisplayBulletins()
-            ? $manager->getActiveBulletins($userId)
-            : $manager->getUnreadBulletins($userId),
+        'bulletins' => $activeBulletins,
+        'display_bulletins' => $displayBulletins,
+        'show_unread_only' => $showUnreadOnly,
     ]);
 });
 

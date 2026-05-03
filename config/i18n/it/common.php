@@ -4656,6 +4656,7 @@ return [
     'ui.bulletins.title' => 'Bollettini',
     'ui.bulletins.count' => 'Bollettino {current} di {total}',
     'ui.bulletins.no_new' => 'Nessun nuovo bollettino',
+    'ui.bulletins.none_available' => 'Nessun bollettino disponibile',
     'ui.bulletins.next' => 'Avanti',
     'ui.bulletins.prev' => 'Indietro',
     'ui.bulletins.skip_all' => 'Salta tutti',

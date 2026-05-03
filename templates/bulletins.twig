@@ -55,7 +55,8 @@
 {% block scripts %}
 <script src="/js/ansisys.js"></script>
 <script>
-const bulletins = {{ unread_bulletins|json_encode|raw }};
+const bulletins = {{ display_bulletins|json_encode|raw }};
+const showUnreadOnly = {{ show_unread_only ? 'true' : 'false' }};
 let bulletinIndex = 0;
 
 function uiT(key, fallback, params = {}) {
@@ -86,7 +87,7 @@ function showBulletin() {
         document.querySelector('.bulletin-viewer').innerHTML = `
             <div class="card">
                 <div class="card-body text-center py-5">
-                    <h5>${uiT('ui.bulletins.no_new', 'No new bulletins')}</h5>
+                    <h5>${showUnreadOnly ? uiT('ui.bulletins.no_new', 'No new bulletins') : uiT('ui.bulletins.none_available', 'No bulletins available')}</h5>
                     <a class="btn btn-primary mt-3" href="/?skip_bulletins=1">${uiT('ui.bulletins.done', 'Done')}</a>
                 </div>
             </div>`;

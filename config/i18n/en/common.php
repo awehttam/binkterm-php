@@ -4656,6 +4656,7 @@ return [
     'ui.bulletins.title' => 'Bulletins',
     'ui.bulletins.count' => 'Bulletin {current} of {total}',
     'ui.bulletins.no_new' => 'No new bulletins',
+    'ui.bulletins.none_available' => 'No bulletins available',
     'ui.bulletins.next' => 'Next',
     'ui.bulletins.prev' => 'Previous',
     'ui.bulletins.skip_all' => 'Skip All',

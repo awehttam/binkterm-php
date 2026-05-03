@@ -4565,6 +4565,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.bulletins.title' => 'Bulletins',
     'ui.bulletins.count' => 'Bulletin {current} sur {total}',
     'ui.bulletins.no_new' => 'Aucun nouveau bulletin',
+    'ui.bulletins.none_available' => 'Aucun bulletin disponible',
     'ui.bulletins.next' => 'Suivant',
     'ui.bulletins.prev' => 'Precedent',
     'ui.bulletins.skip_all' => 'Tout ignorer',
