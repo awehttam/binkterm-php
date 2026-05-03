@@ -94,7 +94,7 @@
                     <div class="mb-3 mt-3">
                         <label class="form-label" for="bulletinBody">{{ t('ui.admin.bulletins.body', {}, locale, ['common']) }}</label>
                         <div class="md-editor-wrapper">
-                            <div class="md-editor-toolbar btn-toolbar mb-1" role="toolbar" aria-label="{{ t('ui.compose.markdown.toolbar_aria', {}, locale, ['common']) }}">
+                            <div class="md-editor-toolbar btn-toolbar mb-1" id="bulletinMarkdownToolbar" role="toolbar" aria-label="{{ t('ui.compose.markdown.toolbar_aria', {}, locale, ['common']) }}" style="display:none;">
                                 <div class="btn-group btn-group-sm">
                                     <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('bold')" title="{{ t('ui.compose.markdown.bold_title', {}, locale, ['common']) }}"><strong>B</strong></button>
                                     <button type="button" class="btn btn-outline-secondary" onclick="bulletinMdAction('italic')" title="{{ t('ui.compose.markdown.italic_title', {}, locale, ['common']) }}"><em>I</em></button>
@@ -215,6 +215,9 @@ function syncBulletinMarkdownEditor() {
 }
 
 function bulletinMdAction(action) {
+    if (document.getElementById('bulletinFormat').value !== 'markdown') {
+        return;
+    }
     if (bulletinMarkdownEditor) {
         bulletinMarkdownEditor.exec(action);
     }
@@ -247,7 +250,11 @@ function destroyBulletinMarkdownEditor(syncContent = true) {
 }
 
 function refreshBulletinEditorMode() {
+    const toolbar = document.getElementById('bulletinMarkdownToolbar');
     if (document.getElementById('bulletinFormat').value === 'markdown') {
+        if (toolbar) {
+            toolbar.style.display = '';
+        }
         initBulletinMarkdownEditor();
         if (bulletinMarkdownEditor) {
             bulletinMarkdownEditor.setMarkdown(document.getElementById('bulletinBody').value || '', false);
@@ -255,6 +262,9 @@ function refreshBulletinEditorMode() {
         return;
     }
 
+    if (toolbar) {
+        toolbar.style.display = 'none';
+    }
     destroyBulletinMarkdownEditor();
 }
 
