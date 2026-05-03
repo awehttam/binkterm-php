@@ -641,6 +641,9 @@ return [
     'errors.packetbbs_totp.not_enabled'       => 'L\'authentificateur PacketBBS n\'est pas active.',
     'errors.packetbbs_totp.setup_failed'      => 'Echec de la configuration de l\'authentificateur. Veuillez reessayer.',
     'errors.packetbbs_totp.disable_failed'    => 'Echec de la desactivation de l\'authentificateur. Veuillez reessayer.',
+    'errors.bulletins.invalid_ids' => 'Liste de bulletins non valide.',
+    'errors.admin.bulletins.invalid_payload' => 'Donnees de bulletin non valides.',
+    'errors.admin.bulletins.save_failed' => 'Impossible d enregistrer le bulletin.',
 ];
 
 

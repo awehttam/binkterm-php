@@ -684,4 +684,7 @@ return [
     'errors.packetbbs_totp.not_enabled'       => 'PacketBBS authenticator is not enabled.',
     'errors.packetbbs_totp.setup_failed'      => 'Failed to set up authenticator. Please try again.',
     'errors.packetbbs_totp.disable_failed'    => 'Failed to disable authenticator. Please try again.',
+    'errors.bulletins.invalid_ids' => 'Invalid bulletin list.',
+    'errors.admin.bulletins.invalid_payload' => 'Invalid bulletin data.',
+    'errors.admin.bulletins.save_failed' => 'Failed to save bulletin.',
 ];
