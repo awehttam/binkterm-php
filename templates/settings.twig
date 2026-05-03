@@ -44,7 +44,7 @@
 
     {# Right content #}
     <div class="col-md-9 col-lg-10">
-        <form id="settingsForm">
+        <form id="settingsForm" class="settings-loading" aria-busy="true">
         <div class="tab-content">
 
             {# ------------------------------------------------------------------ #}
@@ -604,7 +604,7 @@
 
         {# Save button — not shown on Account tab which has its own actions #}
         <div class="d-flex justify-content-end mt-4" id="saveButtonRow">
-            <button type="button" class="btn btn-fidonet" onclick="saveSettings()">
+            <button type="button" class="btn btn-fidonet" id="settingsSaveButton" onclick="saveSettings()" disabled>
                 <i class="fas fa-save"></i>
                 {{ t('ui.settings.save_settings', {}, locale, ['common']) }}
             </button>
@@ -660,7 +660,11 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 
+let settingsLoaded = false;
+let initialSettingsSnapshot = {};
+
 $(document).ready(function() {
+    setSettingsLoading('#settingsForm', true);
     loadSettings();
     loadEchomailIgnoreRules();
 
@@ -781,9 +785,17 @@ function loadSettings() {
             $('#showOrigin').prop('checked', data.show_origin !== false);
             $('#showTearline').prop('checked', data.show_tearline !== false);
             $('#autoRefresh').prop('checked', data.auto_refresh === true);
+
+            initialSettingsSnapshot = collectCurrentSettings();
+            settingsLoaded = true;
+            $('#settingsSaveButton').prop('disabled', false);
+            $('#settingsForm').attr('aria-busy', 'false');
+            setSettingsLoading('#settingsForm', false);
         })
         .fail(function() {
             console.log(uiT('ui.settings.load_failed_console', 'Failed to load settings'));
+            $('#settingsForm').attr('aria-busy', 'false');
+            setSettingsLoading('#settingsForm', false);
         });
 }
 
@@ -868,15 +880,13 @@ function deleteEchomailIgnoreRule(ruleId) {
 }
 
 
-function saveSettings() {
-    // Collect all settings as an object
+function collectCurrentSettings() {
     const settings = {
         messages_per_page: parseInt($('#messagesPerPage').val()),
         timezone: $('#timezone').val(),
         locale: $('#locale').val(),
         date_format: $('#dateFormat').val(),
         theme: $('#theme').val(),
-        shell: $('#shellPreference').val() || undefined,
         default_echo_list: $('#defaultEchoList').val(),
         font_family: $('#fontFamily').val(),
         font_size: parseInt($('#fontSize').val()),
@@ -898,6 +908,58 @@ function saveSettings() {
         show_tearline: $('#showTearline').is(':checked'),
         auto_refresh: $('#autoRefresh').is(':checked')
     };
+
+    if ($('#shellPreference').length) {
+        settings.shell = $('#shellPreference').val();
+    }
+
+    return settings;
+}
+
+function normalizedSettingValue(value) {
+    if (value === undefined || value === null) {
+        return '';
+    }
+    if (typeof value === 'boolean') {
+        return value ? 'true' : 'false';
+    }
+    if (typeof value === 'number') {
+        return Number.isNaN(value) ? '' : String(value);
+    }
+    return String(value);
+}
+
+function getChangedSettings(currentSettings) {
+    const changed = {};
+    Object.keys(currentSettings).forEach(function(key) {
+        if (normalizedSettingValue(currentSettings[key]) !== normalizedSettingValue(initialSettingsSnapshot[key])) {
+            changed[key] = currentSettings[key];
+        }
+    });
+    return changed;
+}
+
+function saveSettings() {
+    if (!settingsLoaded) {
+        return;
+    }
+
+    const currentSettings = collectCurrentSettings();
+    const settings = getChangedSettings(currentSettings);
+
+    if (Object.keys(settings).length === 0) {
+        const successMessage = uiT('ui.settings.saved_successfully', 'Settings saved successfully!');
+        $('#settingsStatus').show().html(`
+            <div class="alert alert-success">
+                <i class="fas fa-check me-2"></i>
+                ${escapeHtml(successMessage)}
+            </div>
+        `);
+        setTimeout(function() {
+            $('#settingsStatus').fadeOut();
+        }, 3000);
+        return;
+    }
 
     $('#settingsStatus').show().html(`
         <div class="alert alert-info">
@@ -926,6 +988,7 @@ function saveSettings() {
             if (typeof window.userSettings !== 'undefined') {
                 Object.assign(window.userSettings, settings);
             }
+            initialSettingsSnapshot = currentSettings;
 
             setTimeout(function() {
                 $('#settingsStatus').fadeOut();
