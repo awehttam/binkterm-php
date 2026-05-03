@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Bulletin Manager](#bulletin-manager)
+- [Terminal Message Editor](#terminal-message-editor)
 - [Terminal Message Encoding](#terminal-message-encoding)
 - [User Settings](#user-settings)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -18,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Added a Bulletin Manager for sysop-authored BBS bulletins. Bulletins can be managed from the admin web interface and displayed to users in the web, telnet, and SSH BBS flows.
 - Added a BBS setting for bulletin display mode. Sysops can choose whether bulletins are shown once until read, or shown once at the start of each login session.
+- Fixed the terminal full-screen message editor so typed text is hard-wrapped to the detected terminal body width. Messages composed in telnet and SSH now display with the same line breaks when viewed in the terminal message reader.
 - Fixed terminal message display so UTF-8 message text, subjects, sender names, and kludge/header lines are converted to the user's active terminal character set before being written to telnet or SSH sessions.
 - Updated the terminal echomail empty-state text to tell users when they are not subscribed to any echo areas, instead of implying that no areas exist.
 - Fixed the web settings page so saving one changed preference no longer resubmits every setting from every tab. The page now shows a loading overlay until the user's saved settings are loaded, then saves only changed preferences so unrelated settings are not overwritten by stale or unloaded form values.
@@ -34,6 +36,12 @@ By default, bulletins use the existing read-tracking behavior: a user sees each 
 - **Always display** shows active bulletins once at the start of each new login session. It does not repeatedly interrupt users every time they return to the dashboard during the same session.
 
 The upgrade creates the bulletin storage tables and read-tracking table through `php scripts/setup.php`. No manual database changes are required.
+
+## Terminal Message Editor
+
+The telnet and SSH full-screen message editor now hard-wraps typed text to the detected terminal message body width. The editor uses the same width as the terminal message reader, so newly composed netmail and echomail keep consistent line breaks when the saved message is viewed in-terminal.
+
+Long words are still split only when they exceed the available terminal width. Existing manual line breaks are preserved. No database changes or message reprocessing are required.
 
 ## Terminal Message Encoding
 

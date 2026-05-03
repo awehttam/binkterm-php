@@ -2175,8 +2175,10 @@ class BbsSession
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
 
         $lines     = $initialText !== '' ? explode("\n", $initialText) ?: [''] : [''];
+        $editorWidth = max(10, $cols - 2);
         $cursorRow = 0;
         $cursorCol = 0;
+        [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
         $viewTop   = 0;
         $startRow  = $headerLines + 1;
         $maxRows   = max(10, $rows - $startRow - 2);
@@ -2247,6 +2249,7 @@ class BbsSession
                     array_splice($lines, $cursorRow, 1);
                     $cursorRow--;
                 }
+                [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
                 continue;
             }
             if ($char === self::KEY_DELETE) {
@@ -2256,11 +2259,13 @@ class BbsSession
                     $lines[$cursorRow] .= $lines[$cursorRow + 1];
                     array_splice($lines, $cursorRow + 1, 1);
                 }
+                [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
                 continue;
             }
             if ($ord >= 32 && $ord < 127) {
                 $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol) . $char . substr($lines[$cursorRow], $cursorCol);
                 $cursorCol++;
+                [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
             }
         }
 
@@ -2272,6 +2277,56 @@ class BbsSession
 
         while (count($lines) > 0 && trim($lines[count($lines) - 1]) === '') { array_pop($lines); }
         return implode("\n", $lines);
+    }
+
+    /**
+     * Hard-wrap editor buffer lines to the current terminal width.
+     *
+     * @param string[] $lines
+     * @return array{0: string[], 1: int, 2: int}
+     */
+    private function wrapEditorLines(array $lines, int $cursorRow, int $cursorCol, int $width): array
+    {
+        $width = max(10, $width);
+
+        for ($row = 0; $row < count($lines); $row++) {
+            while (strlen($lines[$row]) > $width) {
+                $breakAt = $this->findEditorWrapColumn($lines[$row], $width);
+                $removeSpace = ($breakAt < strlen($lines[$row]) && $lines[$row][$breakAt] === ' ');
+                $left = substr($lines[$row], 0, $breakAt);
+                $right = substr($lines[$row], $breakAt + ($removeSpace ? 1 : 0));
+
+                $lines[$row] = rtrim($left, ' ');
+                array_splice($lines, $row + 1, 0, [$right]);
+
+                if ($cursorRow > $row) {
+                    $cursorRow++;
+                } elseif ($cursorRow === $row && $cursorCol > $breakAt) {
+                    $cursorRow++;
+                    $cursorCol -= $breakAt + ($removeSpace ? 1 : 0);
+                }
+            }
+        }
+
+        $cursorRow = min(max(0, $cursorRow), count($lines) - 1);
+        $cursorCol = min(max(0, $cursorCol), strlen($lines[$cursorRow]));
+
+        return [$lines, $cursorRow, $cursorCol];
+    }
+
+    /**
+     * Choose a wrap point at or before width, preferring word boundaries.
+     */
+    private function findEditorWrapColumn(string $line, int $width): int
+    {
+        $candidate = substr($line, 0, $width + 1);
+        $spaceAt = strrpos($candidate, ' ');
+
+        if ($spaceAt !== false && $spaceAt > 0) {
+            return $spaceAt;
+        }
+
+        return $width;
     }
 
     /**
