@@ -102,6 +102,7 @@ BinktermPHP is a PHP/PostgreSQL BBS and FTN mail system that combines a modern w
 - Use `Config::env('VAR_NAME', 'default')` for environment variables instead of `getenv()` or `$_ENV`
 - Use `BinktermPHP\Binkp\Logger` or the shared logger helpers for application logging; do not add new `error_log()` calls
 - Use `UserStorage` in `public_html/js/user-storage.js` instead of direct `localStorage` access
+- Use the admin daemon when web code needs to save settings or write project files. The web server process does not always run with the same filesystem permissions as the BBS daemons, so routes and controllers should not assume they can write configuration or runtime files directly.
 - Write secure code - avoid SQL injection, XSS, command injection, and other OWASP Top 10 vulnerabilities
 
 ## Making Changes
@@ -151,24 +152,25 @@ Never:
 
 ### Creating Migrations
 
-All database schema changes must be done through migration scripts:
+All database schema changes must be done through migration scripts.
 
-1. Check the highest existing migration version before choosing a new filename:
+1. Create a timestamped migration file in `database/migrations/` following the naming convention:
+   ```
+   vYYYYMMDDHHMMSS_<description>.sql
+   ```
+   Example: `v20260503143000_add_user_preferences.sql`
+
+   Prefer the helper command so timestamps are generated consistently in UTC:
    ```bash
-   ls database/migrations/ | sort -V | tail -5
+   php scripts/migration.php create "add user preferences"
+   php scripts/migration.php create "backfill user data" php
    ```
 
-2. Create the next migration file in `database/migrations/` following the naming convention:
-   ```
-   v<VERSION>_<description>.sql
-   ```
-   Example: if the latest migration is `v1.11.0.13_drop_redundant_indexes.sql`, the next migration should use `v1.11.0.14_...`.
+2. Use SQL or PHP migrations as appropriate. See [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for PHP migration patterns.
 
-3. Use SQL or PHP migrations as appropriate. See [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for PHP migration patterns.
+3. Write idempotent migrations when possible (safe to run multiple times).
 
-4. Write idempotent migrations when possible (safe to run multiple times).
-
-5. Test migrations through the setup flow:
+4. Test migrations through the setup flow:
    ```bash
    php scripts/setup.php
    ```

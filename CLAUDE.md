@@ -112,7 +112,7 @@ If you introduce a new log file (e.g., `myfeature.log`):
  - Both usernames and Real Names are considered unique. Two users cannot have the same username or real name
  - The web interface should use ajax requests by api for queries
  - This is for FTN style networks and forums
- - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. Migration scripts follow the naming convention v<VERSION>_<description>.sql, eg: v1.7.5_description.sql
+ - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. New migration scripts use timestamp IDs in UTC and follow the naming convention `vYYYYMMDDHHMMSS_<description>.sql` or `.php`, e.g. `v20260503143000_add_user_preferences.sql`.
  - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
  - **User settings parity**: When adding a new setting to `user_settings`, try to keep parity between the web UI/API flow and the term server flow. Check both the web-side handlers (for example `src/MessageHandler.php`, `routes/api-routes.php`, `public_html/js/app.js`) and the term-side settings path (`telnet/src/SettingsHandler.php`) so the setting is available and persisted consistently where appropriate.
  - **Premium features**: When adding, changing, or removing any registered-only / premium feature gated by `License::isValid()` or `License::hasFeature()`, update the "Currently Implemented Premium Features" table in `docs/proposals/PremiumFeatures.md` and remove it from the future ideas list if it was listed there.
@@ -125,8 +125,8 @@ If you introduce a new log file (e.g., `myfeature.log`):
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
  - **Theme-safe background colors**: Never use Bootstrap 5.3+ utility classes like `bg-body-tertiary` or `bg-body-secondary` — they have no theme overrides and will render incorrectly on dark/amber/greenterm/cyberpunk themes. Use `bg-light` instead, which all themes override via `.bg-light { background-color: var(--theme-var) !important; }`.
  - Database migrations are handled through scripts/setup.php. setup.php will also call upgrade.php which handles other upgrade related tasks.
- - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php). See `docs/DEVELOPER_GUIDE.md` for PHP migration patterns (direct execution vs callable).
- - **Migration version numbers**: Before creating a new migration, always check the highest existing version in `database/migrations/` (e.g., `ls database/migrations/ | sort -V | tail -5`). The new migration must be one increment higher than the highest version found — do NOT guess or use a version from a different branch of the version tree. For example, if the latest is `v1.11.0.5_*`, the next is `v1.11.0.6_*`, not `v1.10.19_*`.
+ - Migrations can be SQL or PHP. Use `php scripts/migration.php create "description"` for new SQL migrations, or `php scripts/migration.php create "description" php` for PHP migrations. See `docs/DEVELOPER_GUIDE.md` for PHP migration patterns (direct execution vs callable).
+ - **Migration IDs**: New migrations must use timestamp IDs (`vYYYYMMDDHHMMSS_*`) rather than incrementing semantic versions. Legacy `vX.Y.Z_*` migrations are supported for existing files only. Do not create new sequential versioned migrations; timestamp IDs reduce collisions when multiple developers work in parallel.
  - **No duplicate indexes**: Do NOT create an explicit `CREATE INDEX` on a column that already has a `UNIQUE` constraint — PostgreSQL automatically creates a unique index for every `UNIQUE` constraint, which serves lookups identically to a plain index.
  - setup.php must be called when upgrading - this is to ensure certain things like file permissions are correct.
  - See FAQ.md for common questions and troubleshooting
@@ -278,7 +278,7 @@ WebDoors are HTML5/JavaScript games embedded in the BBS. See `docs/WebDoors.md` 
 
 ## Version Management
 
-Application version (`src/Version.php`) and database migration versions (`database/migrations/`) are independent. Database versions can be `1.2.3` or `1.2.3.4`; application versions use `1.2.3`.
+Application version (`src/Version.php`) and database migration IDs (`database/migrations/`) are independent. New database migration IDs are UTC timestamps such as `20260503143000`; application versions use semantic versions such as `1.2.3`.
 
 ### How to Update the Version
 

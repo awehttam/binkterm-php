@@ -638,13 +638,16 @@ php scripts/upgrade.php                    # Run migrations
 php scripts/upgrade.php status             # Show migration status
 
 # Create a new migration (for developers)
-php scripts/upgrade.php create 1.3.0 "add feature"
+php scripts/migration.php create "add feature"
+php scripts/migration.php create "backfill feature data" php
 ```
 
 ### Migration System
-Database changes are managed through versioned SQL migration files stored in `database/migrations/`:
+Database changes are managed through timestamped SQL or PHP migration files stored in `database/migrations/`:
 
-- **Filename format**: `vX.Y.Z_description.sql` (e.g., `v1.1.0_add_user_preferences.sql`)
+- **Filename format**: `vYYYYMMDDHHMMSS_description.sql` or `.php` (e.g., `v20260503143000_add_user_preferences.sql`)
+- **Creation utility**: Use `php scripts/migration.php create "description"` so new migration IDs are generated consistently in UTC
+- **Legacy support**: Existing `vX.Y.Z_description.sql` and `.php` migrations are still supported, but new migrations should use timestamp IDs
 - **Automatic tracking**: Migration status is recorded in `database_migrations` table
 - **Safe execution**: Each migration runs in a transaction with rollback on failure
 - **Comment support**: SQL comments are automatically stripped during execution
@@ -786,6 +789,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `generate_ad.php` | Generate ANSI ads from current system settings |
 | `logrotate.php` | Rotate and archive log files in data/logs |
 | `lovlynet_setup.php` | Automated LovlyNet network registration |
+| `migration.php` | Create timestamped SQL or PHP database migration files |
 | `move_messages.php` | Move messages between echo areas |
 | `post_ad.php` | Post an ANSI ad to an echomail area |
 | `post_message.php` | Post netmail or echomail from the command line |
