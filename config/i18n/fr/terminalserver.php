@@ -97,7 +97,7 @@ return [
     'ui.terminalserver.compose.tagline_default' => 'Signature n° [{default}] (Entrée pour la valeur par défaut) : ',
     'ui.terminalserver.compose.tagline_none' => 'Signature n° (Entrée pour aucune) : ',
     'ui.terminalserver.compose.message_cancelled' => 'Message annulé (vide).',
-    'ui.terminalserver.echomail.no_areas' => 'Aucune zone echo disponible.',
+    'ui.terminalserver.echomail.no_areas' => 'Vous n\'etes abonne a aucune zone.',
     'ui.terminalserver.echomail.areas_header' => 'Zones echo (page {page}/{total}) :',
     'ui.terminalserver.echomail.areas_nav' => 'Entrez un #, n/p (suivant/précédent), / (chercher), q (quitter)',
     'ui.terminalserver.echomail.areas_nav_interests'   => 'Entrez un #, n/p (suivant/précédent), / (chercher), i (par intérêt), q (quitter)',

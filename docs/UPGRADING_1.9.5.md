@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Bulletin Manager](#bulletin-manager)
+- [Terminal Message Encoding](#terminal-message-encoding)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -16,6 +17,8 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Added a Bulletin Manager for sysop-authored BBS bulletins. Bulletins can be managed from the admin web interface and displayed to users in the web, telnet, and SSH BBS flows.
 - Added a BBS setting for bulletin display mode. Sysops can choose whether bulletins are shown once until read, or shown once at the start of each login session.
+- Fixed terminal message display so UTF-8 message text, subjects, sender names, and kludge/header lines are converted to the user's active terminal character set before being written to telnet or SSH sessions.
+- Updated the terminal echomail empty-state text to tell users when they are not subscribed to any echo areas, instead of implying that no areas exist.
 
 ## Bulletin Manager
 
@@ -29,6 +32,16 @@ By default, bulletins use the existing read-tracking behavior: a user sees each 
 - **Always display** shows active bulletins once at the start of each new login session. It does not repeatedly interrupt users every time they return to the dashboard during the same session.
 
 The upgrade creates the bulletin storage tables and read-tracking table through `php scripts/setup.php`. No manual database changes are required.
+
+## Terminal Message Encoding
+
+Terminal message views now convert UTF-8 message content to the active terminal character set before writing it to the socket. This fixes mojibake when messages contain accented characters or other non-ASCII text, such as German umlauts, and the user is connected with a CP437 or ASCII terminal profile.
+
+The fix applies to echomail and netmail message bodies, message list rows, message header boxes, and the raw header/kludge viewer. Web message display continues to use UTF-8 directly.
+
+No database changes or manual reprocessing of existing messages are required.
+
+The terminal echomail browser also now distinguishes the subscription empty state more clearly. When a user has no subscribed echo areas, telnet and SSH show "You are not subscribed to any areas." rather than a generic "No echo areas available" message.
 
 ## Upgrade Instructions
 

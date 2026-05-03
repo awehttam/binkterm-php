@@ -129,7 +129,7 @@ return [
     'ui.terminalserver.compose.message_cancelled'      => 'Mensaje cancelado (vacío).',
 
     // --- Echomail ---
-    'ui.terminalserver.echomail.no_areas'              => 'No hay áreas de echomail disponibles.',
+    'ui.terminalserver.echomail.no_areas'              => 'No estás suscrito a ninguna área.',
     'ui.terminalserver.echomail.areas_header'          => 'Áreas de echomail (página {page}/{total}):',
     'ui.terminalserver.echomail.areas_nav'             => 'Ingrese #, n/p (siguiente/anterior), / (buscar), q (salir)',
     'ui.terminalserver.echomail.areas_nav_interests'   => 'Ingrese #, n/p (siguiente/anterior), / (buscar), i (por interés), q (salir)',
