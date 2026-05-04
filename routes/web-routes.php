@@ -108,6 +108,47 @@ if (!function_exists('requireBasicAuthUser')) {
     }
 }
 
+if (!function_exists('bbsDirectoryEntrySlug')) {
+    /**
+     * Build a URL-safe slug from a BBS directory entry name.
+     *
+     * @param string $name
+     * @return string
+     */
+    function bbsDirectoryEntrySlug(string $name): string
+    {
+        $slug = trim($name);
+        if (function_exists('iconv')) {
+            $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $slug);
+            if (is_string($converted) && $converted !== '') {
+                $slug = $converted;
+            }
+        }
+
+        $slug = strtolower($slug);
+        $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+        $slug = trim((string)$slug, '-');
+
+        return $slug !== '' ? substr($slug, 0, 120) : 'bbs';
+    }
+}
+
+if (!function_exists('bbsDirectoryEntryPath')) {
+    /**
+     * Build the public path for a BBS directory entry.
+     *
+     * @param array $entry
+     * @return string
+     */
+    function bbsDirectoryEntryPath(array $entry): string
+    {
+        $id = (int)($entry['id'] ?? 0);
+        $slug = bbsDirectoryEntrySlug((string)($entry['name'] ?? ''));
+
+        return '/bbs-directory/' . $id . '/' . $slug;
+    }
+}
+
 SimpleRouter::get('/', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -1641,13 +1682,17 @@ SimpleRouter::get('/bbs-directory', function() {
     $db        = \BinktermPHP\Database::getInstance()->getPdo();
     $directory = new \BinktermPHP\BbsDirectory($db);
     $entries   = $directory->getActiveEntries();
+    foreach ($entries as &$entry) {
+        $entry['public_path'] = bbsDirectoryEntryPath($entry);
+    }
+    unset($entry);
 
     $template = new Template();
     $template->renderResponse('bbs_directory.twig', ['entries' => $entries]);
 });
 
 // Individual BBS detail page
-SimpleRouter::get('/bbs-directory/{id}', function($id) {
+$renderBbsDirectoryEntry = function($id) {
     if (!\BinktermPHP\BbsConfig::isFeatureEnabled('bbs_directory')) {
         http_response_code(404);
         (new Template())->renderResponse('404.twig');
@@ -1671,9 +1716,19 @@ SimpleRouter::get('/bbs-directory/{id}', function($id) {
         return;
     }
 
+    $entry['public_path'] = bbsDirectoryEntryPath($entry);
+    $entry['public_url'] = \BinktermPHP\Config::getSiteUrl() . $entry['public_path'];
+
     $template = new Template();
     $template->renderResponse('bbs_directory_entry.twig', ['entry' => $entry]);
-});
+};
+
+SimpleRouter::get('/bbs-directory/{id}', $renderBbsDirectoryEntry)
+    ->where(['id' => '[0-9]+']);
+
+SimpleRouter::get('/bbs-directory/{id}/{slug}', function($id, $slug) use ($renderBbsDirectoryEntry) {
+    return $renderBbsDirectoryEntry($id);
+})->where(['id' => '[0-9]+', 'slug' => '[A-Za-z0-9._~-]+']);
 
 // Submit a BBS listing (authenticated users only — creates pending entry)
 SimpleRouter::post('/api/bbs-directory/submit', function() {
