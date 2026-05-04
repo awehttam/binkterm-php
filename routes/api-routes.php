@@ -4449,6 +4449,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $body             = json_decode(file_get_contents('php://input'), true) ?? [];
             $fileAreaId       = (int)($body['file_area_id'] ?? 0);
             $url              = trim($body['url'] ?? '');
+            $fileName         = trim($body['file_name'] ?? '');
             $shortDescription = trim($body['short_description'] ?? '');
             $longDescription  = trim($body['long_description'] ?? '');
 
@@ -4510,7 +4511,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $longDescription,
                 $uploadedBy,
                 $ownerId,
-                $initialStatus
+                $initialStatus,
+                $fileName
             );
 
             if ($uploadReward > 0 && $initialStatus === 'approved') {

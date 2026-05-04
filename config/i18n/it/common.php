@@ -2891,6 +2891,8 @@ return [
     'ui.files.upload_file_tab' => 'Carica file',
     'ui.files.link_url_required' => 'URL *',
     'ui.files.link_url_help' => 'Inserisci un URL completo (https://...) da collegare a una risorsa esterna.',
+    'ui.files.link_file_name' => 'Nome file *',
+    'ui.files.link_file_name_help' => 'Nome visualizzato per questo collegamento (es. video.mp4 o Il Mio Documento).',
     'ui.files.fetch_info' => 'Recupera info',
     'ui.files.fetching_info' => 'Recupero…',
     'ui.files.fetch_info_failed' => 'Impossibile recuperare i metadati URL',

@@ -2890,6 +2890,8 @@ return [
     'ui.files.upload_file_tab' => 'Upload File',
     'ui.files.link_url_required' => 'URL *',
     'ui.files.link_url_help' => 'Enter a full URL (https://...) to link to an external resource.',
+    'ui.files.link_file_name' => 'File Name *',
+    'ui.files.link_file_name_help' => 'Display name for this link (e.g., video.mp4 or My Document).',
     'ui.files.fetch_info' => 'Fetch Info',
     'ui.files.fetching_info' => 'Fetching…',
     'ui.files.fetch_info_failed' => 'Could not fetch URL metadata',

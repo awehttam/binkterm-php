@@ -1855,19 +1855,24 @@ class FileAreaManager
         string $longDescription = '',
         string $uploadedBy = '',
         ?int $ownerId = null,
-        string $initialStatus = 'approved'
+        string $initialStatus = 'approved',
+        string $fileName = ''
     ): int {
         $fileArea = $this->getFileAreaById($fileAreaId);
         if (!$fileArea || !$fileArea['is_active']) {
             throw new \Exception('File area not found or inactive');
         }
 
-        // Derive a display name from the URL path
-        $parsed   = parse_url($url);
-        $pathPart = $parsed['path'] ?? '';
-        $name     = basename(rtrim($pathPart, '/'));
-        if ($name === '' || $name === '.') {
-            $name = $parsed['host'] ?? parse_url($url, PHP_URL_HOST) ?? 'link';
+        if ($fileName !== '') {
+            $name = $fileName;
+        } else {
+            // Derive a display name from the URL path
+            $parsed   = parse_url($url);
+            $pathPart = $parsed['path'] ?? '';
+            $name     = basename(rtrim($pathPart, '/'));
+            if ($name === '' || $name === '.') {
+                $name = $parsed['host'] ?? parse_url($url, PHP_URL_HOST) ?? 'link';
+            }
         }
 
         $status = strtolower(trim($initialStatus)) === 'pending' ? 'pending' : 'approved';

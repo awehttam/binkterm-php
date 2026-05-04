@@ -124,6 +124,7 @@ return [
     'errors.files.upload.insufficient_credits' => 'Crédits insuffisants pour téléverser ce fichier',
     'errors.files.upload.failed' => 'Échec du téléversement du fichier',
     'errors.files.link.invalid_url' => 'Une URL valide est requise',
+    'errors.files.link.file_name_required' => 'Le nom de fichier est requis',
     'errors.files.link.add_failed' => 'Impossible d\'ajouter le lien',
     'errors.admin.file_approvals.load_failed' => 'Échec du chargement des approbations de fichiers en attente',
     'errors.admin.file_approvals.not_found' => 'Fichier en attente introuvable',

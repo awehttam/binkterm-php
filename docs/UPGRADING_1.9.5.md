@@ -11,6 +11,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Echomail Display](#terminal-echomail-display)
 - [User Settings](#user-settings)
 - [Community Wireless Node Map](#community-wireless-node-map)
+- [File Areas](#file-areas)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -28,6 +29,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - Updated the terminal echomail empty-state text to tell users when they are not subscribed to any echo areas, instead of implying that no areas exist.
 - Fixed terminal echomail area labels for local echo groups that have no domain. Telnet and SSH now show plain area names such as `LOCAL.TEST` instead of appending an empty `@` suffix.
 - Fixed the web settings page so saving one changed preference no longer resubmits every setting from every tab. The page now shows a loading overlay until the user's saved settings are loaded, then saves only changed preferences so unrelated settings are not overwritten by stale or unloaded form values.
+
+### File Areas
+
+- Added a File Name field to the Add Link form. When adding an external URL link to a file area, users can now set a specific display name for the link. The field is pre-populated from the URL path when a URL is entered, and updated to the page title when Fetch Info is used — both values can be freely edited before submitting.
 
 ## Bulletin Manager
 
@@ -77,6 +82,16 @@ The Community Wireless Node Map now separates the overall active network count f
 The CWN list API now returns `total_all` for the full active, non-expired map total. The frontend displays that value in the statistics panel while loading marker data only for the current Leaflet map bounds. Panning or zooming the map refreshes the visible markers for the new viewport. This keeps the displayed total accurate without forcing the browser to load every CWN row as the database grows.
 
 No manual configuration changes are required. Run `php scripts/setup.php` as part of the normal upgrade process so any pending CWN schema migrations from earlier 1.9.x changes are applied.
+
+## File Areas
+
+The Add Link form now includes a File Name field. Previously, when a user added an external URL link to a file area, the display name stored for that link was derived automatically from the URL path — which produced unhelpful results for URLs where the path is not meaningful, such as YouTube watch links (`/watch`).
+
+The File Name field appears between the URL and Short Description fields. When a URL is entered and the field loses focus, it is pre-populated with the last meaningful path segment if that segment includes a file extension, or with the hostname otherwise. When the user clicks Fetch Info, if the field has not been manually edited, it is updated to a sanitized version of the page title returned by the metadata fetch, which is generally more descriptive than the raw URL path.
+
+Users can edit the file name field freely before submitting. The field is required.
+
+No database changes or configuration updates are required.
 
 ## Upgrade Instructions
 

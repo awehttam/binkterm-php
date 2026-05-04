@@ -172,6 +172,7 @@ return [
     'errors.files.upload.insufficient_credits' => 'No tiene creditos suficientes para subir este archivo',
     'errors.files.upload.failed' => 'No se pudo subir el archivo',
     'errors.files.link.invalid_url' => 'Se requiere una URL válida',
+    'errors.files.link.file_name_required' => 'El nombre de archivo es obligatorio',
     'errors.files.link.add_failed' => 'No se pudo agregar el enlace',
     'errors.admin.file_approvals.load_failed' => 'No se pudieron cargar las aprobaciones de archivos pendientes',
     'errors.admin.file_approvals.not_found' => 'No se encontro el archivo pendiente',

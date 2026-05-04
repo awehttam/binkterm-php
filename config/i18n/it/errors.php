@@ -172,6 +172,7 @@ return [
     'errors.files.upload.insufficient_credits' => 'Crediti insufficienti per caricare questo file',
     'errors.files.upload.failed' => 'Impossibile caricare il file',
     'errors.files.link.invalid_url' => 'È richiesto un URL valido',
+    'errors.files.link.file_name_required' => 'Il nome file è obbligatorio',
     'errors.files.link.add_failed' => 'Impossibile aggiungere il link',
     'errors.admin.file_approvals.load_failed' => 'Impossibile caricare le approvazioni file in sospeso',
     'errors.admin.file_approvals.not_found' => 'File in sospeso non trovato',

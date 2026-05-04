@@ -4142,6 +4142,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.files.upload_file_tab' => 'Téléverser un fichier',
     'ui.files.link_url_required' => 'URL *',
     'ui.files.link_url_help' => 'Saisissez une URL complète (https://...) vers une ressource externe.',
+    'ui.files.link_file_name' => 'Nom de fichier *',
+    'ui.files.link_file_name_help' => 'Nom d\'affichage pour ce lien (ex. : video.mp4 ou Mon Document).',
     'ui.files.fetch_info' => 'Récupérer les infos',
     'ui.files.fetching_info' => 'Récupération…',
     'ui.files.fetch_info_failed' => 'Impossible de récupérer les métadonnées de l\'URL',

@@ -2892,6 +2892,8 @@ return [
     'ui.files.upload_file_tab' => 'Subir archivo',
     'ui.files.link_url_required' => 'URL *',
     'ui.files.link_url_help' => 'Ingresa una URL completa (https://...) hacia un recurso externo.',
+    'ui.files.link_file_name' => 'Nombre de archivo *',
+    'ui.files.link_file_name_help' => 'Nombre visible para este enlace (p. ej., video.mp4 o Mi Documento).',
     'ui.files.fetch_info' => 'Obtener info',
     'ui.files.fetching_info' => 'Obteniendo…',
     'ui.files.fetch_info_failed' => 'No se pudo obtener la información de la URL',

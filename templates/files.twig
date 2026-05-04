@@ -562,6 +562,11 @@
                             <div class="form-text">{{ t('ui.files.link_url_help', {}, 'common') }}</div>
                         </div>
                         <div class="mb-3">
+                            <label for="linkFileName" class="form-label">{{ t('ui.files.link_file_name', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="linkFileName" maxlength="255">
+                            <div class="form-text">{{ t('ui.files.link_file_name_help', {}, 'common') }}</div>
+                        </div>
+                        <div class="mb-3">
                             <label for="linkShortDescription" class="form-label">{{ t('ui.files.short_description_required', {}, 'common') }}</label>
                             <input type="text" class="form-control" id="linkShortDescription" maxlength="255">
                             <div class="form-text">{{ t('ui.files.short_description_help', {}, 'common') }}</div>
@@ -609,6 +614,7 @@ let currentFile = null;
 let currentShareId = null;
 let currentViewMode = 'recent';
 let myUploadsSummary = null;
+let linkFileNameAutoPopulated = false;
 const MY_UPLOADS_VIEW = '__my_uploads__';
 const currentUserId = window.currentUserId ?? null;
 const isAdmin = !!(window.currentUserIsAdmin);
@@ -655,6 +661,21 @@ $(document).ready(function() {
 
     $('#searchFiles').on('input', function() {
         filterFiles($(this).val());
+    });
+
+    // Auto-populate filename from URL when the URL field loses focus
+    $('#linkUrl').on('blur', function() {
+        const url = $(this).val().trim();
+        if (!url) return;
+        if (!$('#linkFileName').val().trim() || linkFileNameAutoPopulated) {
+            $('#linkFileName').val(deriveFilenameFromUrl(url));
+            linkFileNameAutoPopulated = true;
+        }
+    });
+
+    // Clear auto-populated flag when user manually edits the filename
+    $('#linkFileName').on('input', function() {
+        linkFileNameAutoPopulated = false;
     });
 
     // Keyboard navigation for file details modal
@@ -1938,9 +1959,11 @@ function showUploadModal() {
     $('#uploadErrorBox').addClass('d-none').text('');
     // Reset link tab
     $('#linkUrl').val('');
+    $('#linkFileName').val('');
     $('#linkShortDescription').val('');
     $('#linkLongDescription').val('');
     $('#linkAddError').addClass('d-none').text('');
+    linkFileNameAutoPopulated = false;
     // Always start on the Upload File tab
     const uploadTab = document.getElementById('uploadFileTab');
     if (uploadTab) { bootstrap.Tab.getOrCreateInstance(uploadTab).show(); }
@@ -1971,6 +1994,30 @@ function uploadModalSubmit() {
     }
 }
 
+/** Derive a display filename from a URL (uses path basename if it has an extension, else hostname). */
+function deriveFilenameFromUrl(url) {
+    try {
+        const parsed = new URL(url);
+        const segments = parsed.pathname.replace(/\/$/, '').split('/').filter(Boolean);
+        const last = segments.length ? decodeURIComponent(segments[segments.length - 1]) : '';
+        if (last && last.includes('.')) {
+            return last;
+        }
+        return parsed.hostname || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+/** Sanitize a page title into a usable display filename (removes path-unsafe chars, truncates). */
+function sanitizeFilename(str) {
+    return str
+        .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
+        .trim()
+        .substring(0, 100)
+        .trim();
+}
+
 /** Fetch URL metadata (title + og:description) and populate the link form fields. */
 function fetchUrlMeta() {
     const url = $('#linkUrl').val().trim();
@@ -1991,6 +2038,16 @@ function fetchUrlMeta() {
         if (data.long_description) {
             $('#linkLongDescription').val(data.long_description);
         }
+        // Update filename if still auto-populated or empty — use page title as a better suggestion
+        if (linkFileNameAutoPopulated || !$('#linkFileName').val().trim()) {
+            const suggested = data.short_description
+                ? sanitizeFilename(data.short_description)
+                : deriveFilenameFromUrl(url);
+            if (suggested) {
+                $('#linkFileName').val(suggested);
+                linkFileNameAutoPopulated = true;
+            }
+        }
     }).fail(function() {
         $('#linkAddError').removeClass('d-none').text(uiT('ui.files.fetch_info_failed', 'Could not fetch URL metadata'));
     }).always(function() {
@@ -2003,6 +2060,7 @@ function fetchUrlMeta() {
 /** Submit an external URL link to the current file area. */
 function submitAddLink() {
     const url       = $('#linkUrl').val().trim();
+    const fileName  = $('#linkFileName').val().trim();
     const shortDesc = $('#linkShortDescription').val().trim();
     const longDesc  = $('#linkLongDescription').val().trim();
 
@@ -2010,6 +2068,10 @@ function submitAddLink() {
 
     if (!url) {
         $('#linkAddError').removeClass('d-none').text(uiT('errors.files.link.invalid_url', 'A valid URL is required'));
+        return;
+    }
+    if (!fileName) {
+        $('#linkAddError').removeClass('d-none').text(uiT('errors.files.link.file_name_required', 'File name is required'));
         return;
     }
     if (!shortDesc) {
@@ -2027,6 +2089,7 @@ function submitAddLink() {
         data: JSON.stringify({
             file_area_id:      currentAreaId,
             url,
+            file_name:         fileName,
             short_description: shortDesc,
             long_description:  longDesc || null,
         }),
