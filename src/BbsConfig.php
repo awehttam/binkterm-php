@@ -145,6 +145,18 @@ class BbsConfig
         return $charset ?: 'CP437';
     }
 
+    public static function getBulletinDisplayMode(): string
+    {
+        self::load();
+        $mode = strtolower(trim((string)(self::$config['bulletin_display_mode'] ?? 'once')));
+        return in_array($mode, ['once', 'always'], true) ? $mode : 'once';
+    }
+
+    public static function shouldAlwaysDisplayBulletins(): bool
+    {
+        return self::getBulletinDisplayMode() === 'always';
+    }
+
     public static function isFeatureEnabled(string $feature): bool
     {
         self::load();

@@ -751,6 +751,13 @@ class TelnetUtils
         foreach ($messages as $idx => $msg) {
             $rows[] = self::formatMessageListEntry($msg, $idx + 1, false, $cols, $state);
         }
+        if (method_exists($server, 'encodeForTerminal')) {
+            $rows = array_map(
+                static fn(string $row): string => $server->encodeForTerminal($row),
+                $rows
+            );
+            $title = $server->encodeForTerminal($title);
+        }
 
         $statusBar = [
             ['text' => 'U/D',        'color' => self::ANSI_RED],
@@ -1235,7 +1242,10 @@ class TelnetUtils
         if (!self::$ansiColorEnabled) {
             $lines   = [$tl . $hFill . $tr];
             foreach ($fields as $field) {
-                $text    = ($field['label'] ?? '') . ($field['value'] ?? '');
+                $text    = self::encodeHeaderTextForCharset(
+                    ($field['label'] ?? '') . ($field['value'] ?? ''),
+                    $charset
+                );
                 $text    = str_pad(substr($text, 0, $innerWidth), $innerWidth);
                 $lines[] = $vt . ' ' . $text . ' ' . $vt;
             }
@@ -1251,7 +1261,10 @@ class TelnetUtils
         $lines   = [$frame . $tl . $hFill . $tr . $rst];
 
         foreach ($fields as $field) {
-            $text = ($field['label'] ?? '') . ($field['value'] ?? '');
+            $text = self::encodeHeaderTextForCharset(
+                ($field['label'] ?? '') . ($field['value'] ?? ''),
+                $charset
+            );
             $text = str_pad(substr($text, 0, $innerWidth), $innerWidth);
 
             $contentAnsi = match ($field['style'] ?? 'normal') {
@@ -1265,6 +1278,39 @@ class TelnetUtils
 
         $lines[] = $frame . $bl . $hFill . $br . $rst;
         return $lines;
+    }
+
+    /**
+     * Encode UTF-8 header field text to match the box charset.
+     *
+     * CP437 boxes are already emitted as raw OEM bytes, so only the text fields
+     * are converted here. ANSI escape sequences are added around the converted
+     * text later and are plain ASCII, so they do not need conversion.
+     */
+    private static function encodeHeaderTextForCharset(string $text, string $charset): string
+    {
+        if ($charset === 'utf8') {
+            return $text;
+        }
+
+        if ($charset === 'cp437') {
+            if (!preg_match('/[^\x20-\x7E\r\n\t]/', $text)) {
+                return $text;
+            }
+            if (function_exists('iconv')) {
+                $converted = @iconv('UTF-8', 'CP437//TRANSLIT//IGNORE', $text);
+                if (is_string($converted) && $converted !== '') {
+                    return $converted;
+                }
+            }
+        } elseif (function_exists('iconv')) {
+            $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+            if (is_string($ascii) && $ascii !== '') {
+                return $ascii;
+            }
+        }
+
+        return preg_replace('/[^\x20-\x7E\r\n\t]/', '', $text) ?? $text;
     }
 
     /**

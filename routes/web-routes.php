@@ -5,6 +5,7 @@ use BinktermPHP\AppearanceConfig;
 use BinktermPHP\Auth;
 use BinktermPHP\Advertising;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\BulletinManager;
 use BinktermPHP\Config;
 use BinktermPHP\I18n\LocaleResolver;
 use BinktermPHP\I18n\Translator;
@@ -107,6 +108,47 @@ if (!function_exists('requireBasicAuthUser')) {
     }
 }
 
+if (!function_exists('bbsDirectoryEntrySlug')) {
+    /**
+     * Build a URL-safe slug from a BBS directory entry name.
+     *
+     * @param string $name
+     * @return string
+     */
+    function bbsDirectoryEntrySlug(string $name): string
+    {
+        $slug = trim($name);
+        if (function_exists('iconv')) {
+            $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $slug);
+            if (is_string($converted) && $converted !== '') {
+                $slug = $converted;
+            }
+        }
+
+        $slug = strtolower($slug);
+        $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+        $slug = trim((string)$slug, '-');
+
+        return $slug !== '' ? substr($slug, 0, 120) : 'bbs';
+    }
+}
+
+if (!function_exists('bbsDirectoryEntryPath')) {
+    /**
+     * Build the public path for a BBS directory entry.
+     *
+     * @param array $entry
+     * @return string
+     */
+    function bbsDirectoryEntryPath(array $entry): string
+    {
+        $id = (int)($entry['id'] ?? 0);
+        $slug = bbsDirectoryEntrySlug((string)($entry['name'] ?? ''));
+
+        return '/bbs-directory/' . $id . '/' . $slug;
+    }
+}
+
 SimpleRouter::get('/', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -115,7 +157,39 @@ SimpleRouter::get('/', function() {
         return SimpleRouter::response()->redirect('/login');
     }
 
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    if (!empty($_GET['skip_bulletins'])) {
+        unset($_SESSION['show_login_bulletins_for_session']);
+    }
+    if (empty($_GET['skip_bulletins'])) {
+        try {
+            $bulletinManager = new BulletinManager();
+            $bulletinCount = $bulletinManager->getUnreadCount($userId);
+            if (BbsConfig::shouldAlwaysDisplayBulletins()) {
+                $sessionId = (string)($_COOKIE['binktermphp_session'] ?? '');
+                $pendingSessionId = (string)($_SESSION['show_login_bulletins_for_session'] ?? '');
+                if ($sessionId !== '' && hash_equals($sessionId, $pendingSessionId)) {
+                    unset($_SESSION['show_login_bulletins_for_session']);
+                    $bulletinCount = count($bulletinManager->getActiveBulletins($userId));
+                } else {
+                    $bulletinCount = 0;
+                }
+            }
+            if ($bulletinCount > 0) {
+                return SimpleRouter::response()->redirect('/bulletins?unread=1');
+            }
+        } catch (\Throwable $e) {
+            getServerLogger()->warning("Bulletin login redirect check failed: " . $e->getMessage());
+        }
+    }
+
     $template = new Template();
+    $bulletinUnreadCount = 0;
+    try {
+        $bulletinUnreadCount = (new BulletinManager())->getUnreadCount($userId);
+    } catch (\Throwable $e) {
+        getServerLogger()->warning("Dashboard bulletin count failed: " . $e->getMessage());
+    }
     $ads = new Advertising();
     $dashboardAds = $ads->getDashboardAds(5);
     $ad = $dashboardAds[0] ?? null;
@@ -150,7 +224,6 @@ SimpleRouter::get('/', function() {
     $activeTodayCount = $auth->getActiveTodayCount();
     $adminTimezone = 'UTC';
     $handler = new \BinktermPHP\MessageHandler();
-    $userId = (int)($user['user_id'] ?? $user['id']);
     $userSettings = $handler->getUserSettings($userId);
     if (!empty($user['is_admin'])) {
         $tz = $userSettings['timezone'] ?? '';
@@ -190,9 +263,29 @@ SimpleRouter::get('/', function() {
         'online_user_count' => $onlineCount,
         'active_today_count' => $activeTodayCount,
         'todays_callers' => $todaysCallers,
+        'bulletin_unread_count' => $bulletinUnreadCount,
         'dashboard_layout' => $dashboardLayout,
         'dashboard_available_cards' => $availableCards,
         'echomail_badge_mode' => $userSettings['echomail_badge_mode'] ?? 'new',
+    ]);
+});
+
+SimpleRouter::get('/bulletins', function() {
+    $user = RouteHelper::requireAuth();
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $manager = new BulletinManager();
+    unset($_SESSION['show_login_bulletins_for_session']);
+    $showUnreadOnly = !empty($_GET['unread']);
+    $activeBulletins = $manager->getActiveBulletins($userId);
+    $displayBulletins = $showUnreadOnly && !BbsConfig::shouldAlwaysDisplayBulletins()
+        ? $manager->getUnreadBulletins($userId)
+        : $activeBulletins;
+
+    $template = new Template();
+    $template->renderResponse('bulletins.twig', [
+        'bulletins' => $activeBulletins,
+        'display_bulletins' => $displayBulletins,
+        'show_unread_only' => $showUnreadOnly,
     ]);
 });
 
@@ -1589,13 +1682,17 @@ SimpleRouter::get('/bbs-directory', function() {
     $db        = \BinktermPHP\Database::getInstance()->getPdo();
     $directory = new \BinktermPHP\BbsDirectory($db);
     $entries   = $directory->getActiveEntries();
+    foreach ($entries as &$entry) {
+        $entry['public_path'] = bbsDirectoryEntryPath($entry);
+    }
+    unset($entry);
 
     $template = new Template();
     $template->renderResponse('bbs_directory.twig', ['entries' => $entries]);
 });
 
 // Individual BBS detail page
-SimpleRouter::get('/bbs-directory/{id}', function($id) {
+$renderBbsDirectoryEntry = function($id) {
     if (!\BinktermPHP\BbsConfig::isFeatureEnabled('bbs_directory')) {
         http_response_code(404);
         (new Template())->renderResponse('404.twig');
@@ -1619,9 +1716,19 @@ SimpleRouter::get('/bbs-directory/{id}', function($id) {
         return;
     }
 
+    $entry['public_path'] = bbsDirectoryEntryPath($entry);
+    $entry['public_url'] = \BinktermPHP\Config::getSiteUrl() . $entry['public_path'];
+
     $template = new Template();
     $template->renderResponse('bbs_directory_entry.twig', ['entry' => $entry]);
-});
+};
+
+SimpleRouter::get('/bbs-directory/{id}', $renderBbsDirectoryEntry)
+    ->where(['id' => '[0-9]+']);
+
+SimpleRouter::get('/bbs-directory/{id}/{slug}', function($id, $slug) use ($renderBbsDirectoryEntry) {
+    return $renderBbsDirectoryEntry($id);
+})->where(['id' => '[0-9]+', 'slug' => '[A-Za-z0-9._~-]+']);
 
 // Submit a BBS listing (authenticated users only — creates pending entry)
 SimpleRouter::post('/api/bbs-directory/submit', function() {

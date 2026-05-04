@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Configurable Echomail Badge Mode](#configurable-echomail-badge-mode)
 - [PacketBBS Gateway](#packetbbs-gateway)
 - [CWN MeshCore Node Mapping](#cwn-meshcore-node-mapping)
+- [BBS Directory](#bbs-directory)
 - [Telnet Daemon](#telnet-daemon)
 - [Shoutbox](#shoutbox)
 - [Localization](#localization)
@@ -28,6 +29,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Shoutbox
 
 - **ANSI and URL rendering**: Shoutbox messages now render ANSI color codes and clickable URLs using the same rendering pipeline as echomail messages. Previously, message text was displayed as plain escaped text.
+
+### BBS Directory
+
+- **Friendly listing URLs**: Public BBS directory listing links now include the BBS name as a URL slug, for example `/bbs-directory/831/the-bbs-name`. The numeric ID remains the authoritative lookup key, and older `/bbs-directory/831` links continue to work.
 
 ### Telnet Daemon
 
@@ -198,6 +203,20 @@ Shoutbox messages on both the dashboard card and the dedicated shoutbox page (`/
 Shoutbox message bodies are now passed through the same `formatMessageText` rendering pipeline used by echomail and netmail. ANSI color codes and pipe codes are interpreted and displayed with color, and any `http://`, `https://`, or `ftp://` URLs in the message text are converted to clickable links that open in a new tab.
 
 No database migration or configuration change is required.
+
+## BBS Directory
+
+### Friendly Listing URLs
+
+Public BBS directory detail pages now support and generate human-readable URLs that include both the database ID and a slug derived from the BBS name:
+
+```text
+/bbs-directory/831/the-bbs-name
+```
+
+The numeric ID remains the only value used to look up the listing. The slug is present for readability and sharing, so existing links such as `/bbs-directory/831` remain valid and continue to load the same listing.
+
+The public directory page, map popups, and Open Graph metadata now use the friendly URL form. No database migration or configuration change is required.
 
 ## Telnet Daemon
 

@@ -112,6 +112,7 @@ This index lists documents in operational priority order — essentials first, a
 
 Release-specific upgrade notes, listed newest-first.
 
+- [Upgrading to 1.9.5](UPGRADING_1.9.5.md)
 - [Upgrading to 1.9.4](UPGRADING_1.9.4.md)
 - [Upgrading to 1.9.3](UPGRADING_1.9.3.md)
 - [Upgrading to 1.9.2](UPGRADING_1.9.2.md)

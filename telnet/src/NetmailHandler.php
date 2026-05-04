@@ -314,6 +314,7 @@ class NetmailHandler
             $attachments  = $detail['data']['attachments'] ?? [];
             $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
             $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
+            $kludgeLines  = array_map(fn(string $line): string => $this->server->encodeForTerminal($line), $kludgeLines);
             $imageRefs    = $markupFormat !== null
                 ? TerminalMarkupRenderer::extractImageRefs($markupFormat, $body)
                 : [];
@@ -358,15 +359,18 @@ class NetmailHandler
                 $segments[] = ['text' => 'Q',        'color' => TelnetUtils::ANSI_RED];
                 $segments[] = ['text' => ' Quit',    'color' => TelnetUtils::ANSI_BLUE];
 
+                $wrappedLines = $markupFormat !== null
+                    ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
+                    : TelnetUtils::wrapTextLines($body, $width);
+                $wrappedLines = array_map(fn(string $line): string => $this->server->encodeForTerminal($line), $wrappedLines);
+
                 return [
                     'headerLines'  => TelnetUtils::buildMessageHeaderBox($width, [
                         ['label' => 'From: ', 'value' => $fromLine,                                                       'style' => 'normal'],
                         ['label' => 'Date: ', 'value' => TelnetUtils::formatUserDate($msg['date_written'] ?? '', $s),     'style' => 'dim'],
                         ['label' => 'Subj: ', 'value' => $msg['subject'] ?? 'Message',                                   'style' => 'bold'],
                     ], $charset),
-                    'wrappedLines' => $markupFormat !== null
-                        ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
-                        : TelnetUtils::wrapTextLines($body, $width),
+                    'wrappedLines' => $wrappedLines,
                     'statusLine'   => TelnetUtils::buildStatusBar($segments, $width),
                 ];
             };

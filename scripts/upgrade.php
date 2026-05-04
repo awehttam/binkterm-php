@@ -29,15 +29,13 @@ class DatabaseUpgrader
             // Create migrations table if it doesn't exist
             $this->createMigrationsTable();
             
-            // Get current database version
+            // Get current database migration
             $currentVersion = $this->getCurrentVersion();
-            echo "Current database version: $currentVersion\n";
+            echo "Current database migration: $currentVersion\n";
             
             // Get available migrations
             $migrations = $this->getAvailableMigrations();
-            $pendingMigrations = array_filter($migrations, function($migration) use ($currentVersion) {
-                return version_compare($migration['version'], $currentVersion, '>');
-            });
+            $pendingMigrations = $this->getPendingMigrations($migrations);
             
             if (empty($pendingMigrations)) {
                 echo "✓ Database is up to date. No migrations needed.\n";
@@ -54,7 +52,7 @@ class DatabaseUpgrader
             $this->applyMigrations($pendingMigrations);
             
             echo "\n✓ Database upgrade completed successfully!\n";
-            echo "New database version: " . $this->getCurrentVersion() . "\n";
+            echo "New database migration: " . $this->getCurrentVersion() . "\n";
             
             return true;
             
@@ -69,12 +67,14 @@ class DatabaseUpgrader
         $this->db->exec("
             CREATE TABLE IF NOT EXISTS database_migrations (
                 id SERIAL PRIMARY KEY,
-                version VARCHAR(20) NOT NULL UNIQUE,
+                version VARCHAR(32) NOT NULL UNIQUE,
                 description TEXT,
                 executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 checksum VARCHAR(64)
             )
         ");
+
+        $this->db->exec("ALTER TABLE database_migrations ALTER COLUMN version TYPE VARCHAR(32)");
         
         // Insert initial version if no migrations exist
         $stmt = $this->db->query("SELECT COUNT(*) as count FROM database_migrations");
@@ -90,8 +90,8 @@ class DatabaseUpgrader
     
     private function getCurrentVersion()
     {
-        // Order by ID (insertion order) instead of version string to avoid
-        // string comparison issues (e.g., "1.9.3.9" > "1.9.3.10" as strings)
+        // Order by ID (insertion order). Timestamped migrations are not semantic
+        // versions, so the last applied migration is the best status indicator.
         $stmt = $this->db->query("
             SELECT version FROM database_migrations
             ORDER BY id DESC
@@ -121,8 +121,10 @@ class DatabaseUpgrader
             $extension = pathinfo($file, PATHINFO_EXTENSION);
             $filename = basename($file, '.' . $extension);
             
-            // Expected format: v1.1.0_description_here.sql (supports 3+ part versions)
-            if (preg_match('/^v(\d+(?:\.\d+){2,})_(.+)$/', $filename, $matches)) {
+            // Expected formats:
+            // - legacy: v1.1.0_description_here.sql (supports 3+ part versions)
+            // - current: vYYYYMMDDHHMMSS_description_here.sql
+            if (preg_match('/^v((?:\d+(?:\.\d+){2,})|(?:\d{12}|\d{14}))_(.+)$/', $filename, $matches)) {
                 $version = $matches[1];
                 $description = str_replace('_', ' ', $matches[2]);
                 if (isset($versions[$version])) {
@@ -140,12 +142,50 @@ class DatabaseUpgrader
             }
         }
         
-        // Sort by version
+        // Sort legacy semantic migrations before timestamped migrations, then
+        // sort timestamped migrations chronologically.
         usort($migrations, function($a, $b) {
-            return version_compare($a['version'], $b['version']);
+            return $this->compareMigrationVersions($a['version'], $b['version']);
         });
         
         return $migrations;
+    }
+
+    private function getAppliedVersions(): array
+    {
+        $stmt = $this->db->query("SELECT version FROM database_migrations");
+        $versions = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+        return array_fill_keys($versions, true);
+    }
+
+    private function getPendingMigrations(array $migrations): array
+    {
+        $appliedVersions = $this->getAppliedVersions();
+
+        return array_values(array_filter($migrations, function($migration) use ($appliedVersions) {
+            return !isset($appliedVersions[$migration['version']]);
+        }));
+    }
+
+    private function isTimestampMigrationVersion(string $version): bool
+    {
+        return preg_match('/^\d{12}(\d{2})?$/', $version) === 1;
+    }
+
+    private function compareMigrationVersions(string $a, string $b): int
+    {
+        $aIsTimestamp = $this->isTimestampMigrationVersion($a);
+        $bIsTimestamp = $this->isTimestampMigrationVersion($b);
+
+        if ($aIsTimestamp && $bIsTimestamp) {
+            return strcmp($a, $b);
+        }
+
+        if ($aIsTimestamp !== $bIsTimestamp) {
+            return $aIsTimestamp ? 1 : -1;
+        }
+
+        return version_compare($a, $b);
     }
     
     private function applyMigrations($migrations)
@@ -239,40 +279,6 @@ class DatabaseUpgrader
         }
     }
     
-    public function createMigration($version, $description)
-    {
-        if (!preg_match('/^\d+(?:\.\d+){2,}$/', $version)) {
-            throw new Exception("Version must be in format X.Y.Z or X.Y.Z.W (e.g., 1.1.0 or 1.8.9.1)");
-        }
-        
-        $filename = 'v' . $version . '_' . str_replace(' ', '_', strtolower($description)) . '.sql';
-        $filepath = $this->migrationsPath . $filename;
-        
-        if (file_exists($filepath)) {
-            throw new Exception("Migration file already exists: $filename");
-        }
-        
-        // Create migrations directory if it doesn't exist
-        if (!is_dir($this->migrationsPath)) {
-            mkdir($this->migrationsPath, 0755, true);
-        }
-        
-        $template = "-- Migration: $version - $description\n";
-        $template .= "-- Created: " . date('Y-m-d H:i:s') . "\n\n";
-        $template .= "-- Add your SQL statements here\n";
-        $template .= "-- Each statement should end with semicolon followed by newline\n\n";
-        $template .= "-- Example:\n";
-        $template .= "-- ALTER TABLE users ADD COLUMN new_field VARCHAR(100);\n\n";
-        $template .= "-- CREATE INDEX idx_new_field ON users(new_field);\n\n";
-        
-        file_put_contents($filepath, $template);
-        
-        echo "Created migration file: $filename\n";
-        echo "Edit the file to add your SQL statements, then run upgrade.php\n";
-        
-        return $filepath;
-    }
-    
     public function rollback($targetVersion = null)
     {
         echo "BinktermPHP Database Rollback\n";
@@ -292,9 +298,15 @@ class DatabaseUpgrader
             if ($targetVersion === null) {
                 // Rollback last migration
                 $stmt = $this->db->query("
-                    SELECT version FROM database_migrations 
-                    WHERE version < '$currentVersion'
-                    ORDER BY version DESC 
+                    SELECT version
+                    FROM database_migrations
+                    WHERE id < (
+                        SELECT id
+                        FROM database_migrations
+                        ORDER BY id DESC
+                        LIMIT 1
+                    )
+                    ORDER BY id DESC
                     LIMIT 1
                 ");
                 $result = $stmt->fetch();
@@ -308,7 +320,7 @@ class DatabaseUpgrader
             echo "To rollback:\n";
             echo "1. Backup your database\n";
             echo "2. Manually reverse the changes from migrations newer than $targetVersion\n";
-            echo "3. Delete migration records: DELETE FROM database_migrations WHERE version > '$targetVersion'\n\n";
+            echo "3. Delete affected migration records from database_migrations after verifying the rollback point\n\n";
             
             return false;
             
@@ -327,14 +339,14 @@ class DatabaseUpgrader
             $this->db = Database::getInstance(true)->getPdo();
             $this->createMigrationsTable();
             
-            echo "Current version: " . $this->getCurrentVersion() . "\n\n";
+            echo "Current migration: " . $this->getCurrentVersion() . "\n\n";
             
             echo "Applied migrations:\n";
             echo "-------------------\n";
             $stmt = $this->db->query("
                 SELECT version, description, executed_at 
                 FROM database_migrations 
-                ORDER BY version
+                ORDER BY id
             ");
             
             while ($row = $stmt->fetch()) {
@@ -344,10 +356,7 @@ class DatabaseUpgrader
             echo "\nPending migrations:\n";
             echo "-------------------\n";
             $migrations = $this->getAvailableMigrations();
-            $currentVersion = $this->getCurrentVersion();
-            $pending = array_filter($migrations, function($m) use ($currentVersion) {
-                return version_compare($m['version'], $currentVersion, '>');
-            });
+            $pending = $this->getPendingMigrations($migrations);
             
             if (empty($pending)) {
                 echo "  None - database is up to date\n";
@@ -371,16 +380,12 @@ function showUsage()
     echo "Usage: php upgrade.php [command] [options]\n\n";
     echo "Commands:\n";
     echo "  upgrade              Apply pending database migrations (default)\n";
-    echo "  status               Show current database version and migration status\n";
-    echo "  create <version> <description>\n";
-    echo "                       Create a new migration file\n";
+    echo "  status               Show current database migration and migration status\n";
     echo "  rollback [version]   Rollback to specified version (manual process)\n";
     echo "  --help               Show this help message\n\n";
     echo "Examples:\n";
     echo "  php upgrade.php                              # Apply all pending migrations\n";
     echo "  php upgrade.php status                       # Show migration status\n";
-    echo "  php upgrade.php create 1.1.0 'add user roles'\n";
-    echo "  php upgrade.php create 1.8.9.1 'hotfix for bug'\n";
     echo "  php upgrade.php rollback 1.0.0               # Rollback to version 1.0.0\n\n";
 }
 
@@ -411,21 +416,6 @@ switch ($command) {
         
     case 'status':
         $success = $upgrader->status();
-        break;
-        
-    case 'create':
-        if (count($args) < 2) {
-            echo "Error: create command requires version and description\n";
-            echo "Usage: php upgrade.php create <version> <description>\n";
-            exit(1);
-        }
-        try {
-            $upgrader->createMigration($args[0], $args[1]);
-            $success = true;
-        } catch (Exception $e) {
-            echo "Error: " . $e->getMessage() . "\n";
-            $success = false;
-        }
         break;
         
     case 'rollback':

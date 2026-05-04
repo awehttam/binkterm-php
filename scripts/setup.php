@@ -240,7 +240,7 @@ class SetupManager
             // Extract just the migration info
             $inMigrations = false;
             foreach ($output as $line) {
-                if (strpos($line, 'Current version:') === 0) {
+                if (strpos($line, 'Current version:') === 0 || strpos($line, 'Current migration:') === 0) {
                     echo "✓ $line\n";
                 } elseif (strpos($line, 'Applied migrations:') === 0 || 
                          strpos($line, 'Pending migrations:') === 0) {

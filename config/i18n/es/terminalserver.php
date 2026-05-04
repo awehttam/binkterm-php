@@ -129,7 +129,7 @@ return [
     'ui.terminalserver.compose.message_cancelled'      => 'Mensaje cancelado (vacío).',
 
     // --- Echomail ---
-    'ui.terminalserver.echomail.no_areas'              => 'No hay áreas de echomail disponibles.',
+    'ui.terminalserver.echomail.no_areas'              => 'No estás suscrito a ninguna área.',
     'ui.terminalserver.echomail.areas_header'          => 'Áreas de echomail (página {page}/{total}):',
     'ui.terminalserver.echomail.areas_nav'             => 'Ingrese #, n/p (siguiente/anterior), / (buscar), q (salir)',
     'ui.terminalserver.echomail.areas_nav_interests'   => 'Ingrese #, n/p (siguiente/anterior), / (buscar), i (por interés), q (salir)',
@@ -336,5 +336,9 @@ return [
 
     'ui.terminalserver.message.headers_title'          => '=== Encabezados del mensaje ===',
     'ui.terminalserver.message.no_headers'             => '(Sin encabezados de mensaje)',
+    'ui.terminalserver.server.menu.bulletins' => 'U) Boletines',
+    'ui.terminalserver.bulletins.title' => 'Boletines',
+    'ui.terminalserver.bulletins.none' => 'No hay boletines disponibles.',
+    'ui.terminalserver.bulletins.continue' => 'Boletin {current} de {total}. Enter para seguir, S para omitir todos...',
 ];
 

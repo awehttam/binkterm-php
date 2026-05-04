@@ -684,4 +684,7 @@ return [
     'errors.packetbbs_totp.not_enabled'       => 'El autenticador PacketBBS no esta activado.',
     'errors.packetbbs_totp.setup_failed'      => 'No se pudo configurar el autenticador. Por favor, intentalo de nuevo.',
     'errors.packetbbs_totp.disable_failed'    => 'No se pudo desactivar el autenticador. Por favor, intentalo de nuevo.',
+    'errors.bulletins.invalid_ids' => 'Lista de boletines no valida.',
+    'errors.admin.bulletins.invalid_payload' => 'Datos de boletin no validos.',
+    'errors.admin.bulletins.save_failed' => 'No se pudo guardar el boletin.',
 ];

@@ -4,6 +4,7 @@ use BinktermPHP\ActivityTracker;
 use BinktermPHP\AddressBookController;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
+use BinktermPHP\BulletinManager;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\I18n\LocaleResolver;
@@ -136,6 +137,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'httponly' => true,
                 'samesite' => 'Lax',
             ]);
+            if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
+                $_SESSION['show_login_bulletins_for_session'] = $sessionId;
+            }
             // Track login event and retrieve CSRF token for the response
             $csrfToken = null;
             try {
@@ -740,6 +744,45 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $handler->updateUserSettings($userId, ['dashboard_layout' => $layout]);
 
+        echo json_encode(['success' => true]);
+    });
+
+    SimpleRouter::get('/bulletins', function() {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+        $manager = new BulletinManager();
+        echo json_encode([
+            'success' => true,
+            'bulletins' => $manager->getActiveBulletins($userId),
+            'unread_count' => $manager->getUnreadCount($userId),
+            'bulletin_display_mode' => \BinktermPHP\BbsConfig::getBulletinDisplayMode(),
+        ]);
+    });
+
+    SimpleRouter::post('/bulletins/{id}/read', function($id) {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+        (new BulletinManager())->markRead($userId, (int)$id);
+        echo json_encode(['success' => true]);
+    });
+
+    SimpleRouter::post('/bulletins/read-all', function() {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $ids = is_array($payload) ? ($payload['ids'] ?? []) : [];
+
+        header('Content-Type: application/json');
+        if (!is_array($ids)) {
+            apiError('errors.bulletins.invalid_ids', apiLocalizedText('errors.bulletins.invalid_ids', 'Invalid bulletin list.', $user), 400);
+            return;
+        }
+
+        (new BulletinManager())->markAllRead($userId, $ids);
         echo json_encode(['success' => true]);
     });
 

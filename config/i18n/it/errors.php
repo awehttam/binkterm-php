@@ -684,4 +684,7 @@ return [
     'errors.packetbbs_totp.not_enabled'       => 'L\'autenticatore PacketBBS non e\' abilitato.',
     'errors.packetbbs_totp.setup_failed'      => 'Configurazione autenticatore non riuscita. Riprova.',
     'errors.packetbbs_totp.disable_failed'    => 'Disabilitazione autenticatore non riuscita. Riprova.',
+    'errors.bulletins.invalid_ids' => 'Elenco bollettini non valido.',
+    'errors.admin.bulletins.invalid_payload' => 'Dati bollettino non validi.',
+    'errors.admin.bulletins.save_failed' => 'Impossibile salvare il bollettino.',
 ];

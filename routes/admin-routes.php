@@ -355,6 +355,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/polls.twig');
     });
 
+    // Bulletins management page
+    SimpleRouter::get('/bulletins', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/bulletins.twig');
+    });
+
     // Shoutbox moderation page
     SimpleRouter::get('/shoutbox', function() {
         $user = RouteHelper::requireAdmin();
@@ -1429,6 +1437,89 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        // Bulletins management
+        SimpleRouter::get('/bulletins', function() {
+            RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'bulletins' => (new \BinktermPHP\BulletinManager())->getAllBulletins(),
+            ]);
+        });
+
+        SimpleRouter::post('/bulletins', function() {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            $payload = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($payload)) {
+                apiError('errors.admin.bulletins.invalid_payload', apiLocalizedText('errors.admin.bulletins.invalid_payload', 'Invalid bulletin data.'), 400);
+                return;
+            }
+
+            try {
+                $id = (new \BinktermPHP\BulletinManager())->create($payload, (int)($user['user_id'] ?? $user['id'] ?? 0));
+                echo json_encode([
+                    'success' => true,
+                    'id' => $id,
+                    'message_code' => 'ui.admin.bulletins.saved_success',
+                ]);
+            } catch (\Throwable $e) {
+                apiError('errors.admin.bulletins.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::put('/bulletins/{id}', function($id) {
+            RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            $payload = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($payload)) {
+                apiError('errors.admin.bulletins.invalid_payload', apiLocalizedText('errors.admin.bulletins.invalid_payload', 'Invalid bulletin data.'), 400);
+                return;
+            }
+
+            try {
+                (new \BinktermPHP\BulletinManager())->update((int)$id, $payload);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.bulletins.saved_success',
+                ]);
+            } catch (\Throwable $e) {
+                apiError('errors.admin.bulletins.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::delete('/bulletins/{id}', function($id) {
+            RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            (new \BinktermPHP\BulletinManager())->delete((int)$id);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin.bulletins.deleted_success',
+            ]);
+        });
+
+        SimpleRouter::post('/bulletins/reorder', function() {
+            RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            $payload = json_decode(file_get_contents('php://input'), true);
+            $ids = is_array($payload) ? ($payload['ids'] ?? []) : [];
+            if (!is_array($ids)) {
+                apiError('errors.admin.bulletins.invalid_payload', apiLocalizedText('errors.admin.bulletins.invalid_payload', 'Invalid bulletin data.'), 400);
+                return;
+            }
+
+            (new \BinktermPHP\BulletinManager())->reorder($ids);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin.bulletins.reordered_success',
+            ]);
+        });
+
         // Shoutbox moderation
         SimpleRouter::get('/shoutbox', function() {
             $auth = new Auth();
@@ -1638,6 +1729,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         throw new Exception('Dashboard ad rotation interval must be between 5 and 300 seconds');
                     }
                     $config['dashboard_ad_rotate_interval_seconds'] = $dashboardAdRotateInterval;
+                }
+
+                if (array_key_exists('bulletin_display_mode', $config)) {
+                    $bulletinDisplayMode = strtolower(trim((string)$config['bulletin_display_mode']));
+                    if (!in_array($bulletinDisplayMode, ['once', 'always'], true)) {
+                        throw new Exception('Invalid bulletin display mode');
+                    }
+                    $config['bulletin_display_mode'] = $bulletinDisplayMode;
                 }
 
                 if (isset($config['qwk']['bbs_id'])) {

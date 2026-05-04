@@ -399,6 +399,7 @@ class BbsSession
         $netmailHandler       = new NetmailHandler($this, $this->apiBase);
         $echomailHandler      = new EchomailHandler($this, $this->apiBase);
         $shoutboxHandler      = new ShoutboxHandler($this, $this->apiBase);
+        $bulletinsHandler     = new BulletinsHandler($this, $this->apiBase);
         $pollsHandler         = new PollsHandler($this, $this->apiBase);
         $doorHandler          = new DoorHandler($this, $this->apiBase);
         $fileHandler          = new FileHandler($this, $this->apiBase, $this->isSsh);
@@ -437,6 +438,7 @@ class BbsSession
         }
 
         $this->showSystemNews($conn, $state);
+        $bulletinsHandler->showUnread($conn, $state, $session);
         $shoutboxHandler->show($conn, $state, $session, 5, false);
 
         if (Config::env('ENABLE_INTERESTS') === 'true') {
@@ -457,7 +459,6 @@ class BbsSession
             if (($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("mainmenu.sixel", $this, $conn))
                 || TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Select option:', self::ANSI_DIM));
             } else {
                 $cols      = $state['cols'] ?? 80;
                 $menuWidth = min(76, $cols - 4);
@@ -507,6 +508,7 @@ class BbsSession
 
                 // Option vars for the key handler below
                 $shoutboxOption   = $showShoutbox   ? 's' : null;
+                $bulletinsOption  = 'u';
                 $pollsOption      = $showPolls      ? 'p' : null;
                 $doorsOption      = $showDoors      ? 'd' : null;
                 $filesOption      = $showFiles      ? 'f' : null;
@@ -527,6 +529,7 @@ class BbsSession
                 $lblQwk        = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.qwk',        'K) QWK Offline Mail',             [],                                      $locale), 'K'), $state);
                 $lblWhosOnline = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.whos_online',"W) Who's Online",                 [],                                      $locale), 'W'), $state);
                 $lblShoutbox   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.shoutbox',   'S) Shoutbox',                     [],                                      $locale), 'S'), $state);
+                $lblBulletins  = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.bulletins',  'U) Bulletins',                    [],                                      $locale), 'U'), $state);
                 $lblPolls      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.polls',       'P) Polls',                        [],                                      $locale), 'P'), $state);
                 $lblDoors      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.doors',       'D) Door Games',                   [],                                      $locale), 'D'), $state);
                 $lblFiles      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.files',       'F) Files',                        [],                                      $locale), 'F'), $state);
@@ -545,7 +548,7 @@ class BbsSession
                     $this->menuItemCol('N', $lblNetmail,  $colWidth, $state),
                     $showQwk ? $this->menuItemCol('K', $lblQwk, $colWidth, $state) : $empty,
                 ];
-                $rows[] = [$this->menuItemCol('E', $lblEchomail, $colWidth, $state), $empty];
+                $rows[] = [$this->menuItemCol('E', $lblEchomail, $colWidth, $state), $this->menuItemCol('U', $lblBulletins, $colWidth, $state)];
                 $rows[] = [$empty, $empty];
 
                 // --- Community (left) + Explore (right) ---
@@ -606,7 +609,7 @@ class BbsSession
             $promptShown = false;
             while ($choice === '') {
                 if (!$promptShown) {
-                    $this->writeLine($conn, $this->colorize(
+                    $this->safeWrite($conn, $this->colorize(
                         $this->t('ui.terminalserver.server.menu.select_option', 'Select option:', [], $state['locale']),
                         self::ANSI_DIM
                     ));
@@ -627,7 +630,7 @@ class BbsSession
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if (in_array($char, ['n','e','q','s','p','w','d','f','t','i','k','b','l'], true) || ctype_digit($char)) {
+                    if (in_array($char, ['n','e','q','s','u','p','w','d','f','t','i','k','b','l'], true) || ctype_digit($char)) {
                         $choice = $char;
                     }
                 }
@@ -646,6 +649,9 @@ class BbsSession
             } elseif (!empty($shoutboxOption) && $choice === $shoutboxOption) {
                 $this->log("Menu: {$username} -> Shoutbox");
                 $shoutboxHandler->show($conn, $state, $session, 20);
+            } elseif (!empty($bulletinsOption) && $choice === $bulletinsOption) {
+                $this->log("Menu: {$username} -> Bulletins");
+                $bulletinsHandler->show($conn, $state, $session);
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $this->log("Menu: {$username} -> Polls");
                 $pollsHandler->show($conn, $state, $session);
@@ -2169,8 +2175,10 @@ class BbsSession
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
 
         $lines     = $initialText !== '' ? explode("\n", $initialText) ?: [''] : [''];
+        $editorWidth = max(10, $cols - 2);
         $cursorRow = 0;
         $cursorCol = 0;
+        [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
         $viewTop   = 0;
         $startRow  = $headerLines + 1;
         $maxRows   = max(10, $rows - $startRow - 2);
@@ -2241,6 +2249,7 @@ class BbsSession
                     array_splice($lines, $cursorRow, 1);
                     $cursorRow--;
                 }
+                [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
                 continue;
             }
             if ($char === self::KEY_DELETE) {
@@ -2250,11 +2259,13 @@ class BbsSession
                     $lines[$cursorRow] .= $lines[$cursorRow + 1];
                     array_splice($lines, $cursorRow + 1, 1);
                 }
+                [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
                 continue;
             }
             if ($ord >= 32 && $ord < 127) {
                 $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol) . $char . substr($lines[$cursorRow], $cursorCol);
                 $cursorCol++;
+                [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
             }
         }
 
@@ -2266,6 +2277,56 @@ class BbsSession
 
         while (count($lines) > 0 && trim($lines[count($lines) - 1]) === '') { array_pop($lines); }
         return implode("\n", $lines);
+    }
+
+    /**
+     * Hard-wrap editor buffer lines to the current terminal width.
+     *
+     * @param string[] $lines
+     * @return array{0: string[], 1: int, 2: int}
+     */
+    private function wrapEditorLines(array $lines, int $cursorRow, int $cursorCol, int $width): array
+    {
+        $width = max(10, $width);
+
+        for ($row = 0; $row < count($lines); $row++) {
+            while (strlen($lines[$row]) > $width) {
+                $breakAt = $this->findEditorWrapColumn($lines[$row], $width);
+                $removeSpace = ($breakAt < strlen($lines[$row]) && $lines[$row][$breakAt] === ' ');
+                $left = substr($lines[$row], 0, $breakAt);
+                $right = substr($lines[$row], $breakAt + ($removeSpace ? 1 : 0));
+
+                $lines[$row] = rtrim($left, ' ');
+                array_splice($lines, $row + 1, 0, [$right]);
+
+                if ($cursorRow > $row) {
+                    $cursorRow++;
+                } elseif ($cursorRow === $row && $cursorCol > $breakAt) {
+                    $cursorRow++;
+                    $cursorCol -= $breakAt + ($removeSpace ? 1 : 0);
+                }
+            }
+        }
+
+        $cursorRow = min(max(0, $cursorRow), count($lines) - 1);
+        $cursorCol = min(max(0, $cursorCol), strlen($lines[$cursorRow]));
+
+        return [$lines, $cursorRow, $cursorCol];
+    }
+
+    /**
+     * Choose a wrap point at or before width, preferring word boundaries.
+     */
+    private function findEditorWrapColumn(string $line, int $width): int
+    {
+        $candidate = substr($line, 0, $width + 1);
+        $spaceAt = strrpos($candidate, ' ');
+
+        if ($spaceAt !== false && $spaceAt > 0) {
+            return $spaceAt;
+        }
+
+        return $width;
     }
 
     /**

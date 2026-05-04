@@ -21,8 +21,10 @@ class TerminalBoxRenderer
      * @param array $state
      * @param string $title
      * @param string[] $lines
+     * @param string[] $stopKeys Optional key values that should stop paging early.
+     * @return string|null Key that stopped paging, or null.
      */
-    public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt, int $verticalMargin = 2): void
+    public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt, int $verticalMargin = 2, array $stopKeys = []): ?string
     {
         $cols = max(40, (int)($state['cols'] ?? 80));
         $rows = max(12, (int)($state['rows'] ?? 24));
@@ -72,8 +74,16 @@ class TerminalBoxRenderer
             $this->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($bottomBorder, TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD));
             $this->writeLine($conn, '');
             $this->writeLine($conn, $this->server->colorizeForTerminal($continuePrompt, TelnetUtils::ANSI_YELLOW));
-            $this->server->readKeyWithIdleCheck($conn, $state);
+            $key = $this->server->readKeyWithIdleCheck($conn, $state);
+            if ($key === null) {
+                return null;
+            }
+            if (!empty($stopKeys) && in_array($key, $stopKeys, true)) {
+                return $key;
+            }
         }
+
+        return null;
     }
 
     private function renderContentLine(string $line, int $contentWidth, array $chars): string
