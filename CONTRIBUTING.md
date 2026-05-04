@@ -19,7 +19,7 @@ If you're considering getting involved, check out **[HELP_WANTED.md](HELP_WANTED
 
 ## Getting Started
 
-BinktermPHP is a PHP/PostgreSQL BBS and FTN mail system that combines a modern web interface, terminal access, and a built-in binkp mailer. It lets users read and write netmail and echomail, exchange packets with FidoNet-style networks, and run BBS features such as file areas, doors, chat, and web-based games. Before contributing, please familiarize yourself with:
+BinktermPHP is a PHP/PostgreSQL BBS and FTN mail system that combines a modern web interface, terminal access, and a built-in binkp mailer. It lets users read and write netmail and echomail, exchange packets with FidoNet-style networks, and run BBS features such as file areas, doors, chat, and web-based games. We suggest familiarizing yourself with:
 
 - FidoNet Technology Network (FTN) basics
 - The binkp protocol
