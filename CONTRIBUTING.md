@@ -26,6 +26,8 @@ BinktermPHP is a PHP/PostgreSQL BBS and FTN mail system that combines a modern w
 - PHP development best practices
 - PostgreSQL database operations
 
+Also read [CLAUDE.md](CLAUDE.md) before starting development. It contains additional project-specific notes, conventions, and operational gotchas that contributors should follow.
+
 ## Development Setup
 
 ### Prerequisites
@@ -103,6 +105,7 @@ BinktermPHP is a PHP/PostgreSQL BBS and FTN mail system that combines a modern w
 - Use `BinktermPHP\Binkp\Logger` or the shared logger helpers for application logging; do not add new `error_log()` calls
 - Use `UserStorage` in `public_html/js/user-storage.js` instead of direct `localStorage` access
 - Use the admin daemon when web code needs to save settings or write project files. The web server process does not always run with the same filesystem permissions as the BBS daemons, so routes and controllers should not assume they can write configuration or runtime files directly.
+- Store database timestamps in UTC unless a schema or protocol field explicitly requires otherwise. For absolute event times, prefer PostgreSQL `TIMESTAMPTZ` columns with defaults such as `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`; PostgreSQL stores these as absolute instants independent of the server's local time zone. If you must write to an existing UTC `TIMESTAMP WITHOUT TIME ZONE` column, use expressions such as `NOW() AT TIME ZONE 'UTC'` so stored values do not depend on the database server's time zone. Use plain `TIMESTAMP WITHOUT TIME ZONE` only for intentional local wall-clock values. Convert timestamps to the user's time zone only when presenting them in the UI or terminal output.
 - Write secure code - avoid SQL injection, XSS, command injection, and other OWASP Top 10 vulnerabilities
 
 ## Making Changes
