@@ -97,7 +97,8 @@ class EchomailHandler
                 $area   = $result['area'];
                 $tag    = $area['tag'] ?? '';
                 $domain = $area['domain'] ?? '';
-                $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$tag}@{$domain}");
+                $areaLabel = $this->formatEchoareaIdentifier($tag, $domain);
+                $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$areaLabel}");
                 $this->showMessages($conn, $state, $session, $tag, $domain);
             }
         }
@@ -238,7 +239,8 @@ class EchomailHandler
                 $area   = $result['area'];
                 $tag    = $area['tag'] ?? '';
                 $domain = $area['domain'] ?? '';
-                $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$tag}@{$domain} via interest \"{$interestName}\"");
+                $areaLabel = $this->formatEchoareaIdentifier($tag, $domain);
+                $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$areaLabel} via interest \"{$interestName}\"");
                 $this->showMessages($conn, $state, $session, $tag, $domain);
             }
         }
@@ -430,7 +432,7 @@ class EchomailHandler
      */
     public function showMessages($conn, array &$state, string $session, string $tag, string $domain): void
     {
-        $area          = $tag . '@' . $domain;
+        $area          = $this->formatEchoareaIdentifier($tag, $domain);
         $this->server->logAction($state['username'] ?? 'unknown', "Echomail: read message list for {$area}");
         $savedState    = $this->loadSavedListState($session);
         $positions     = $savedState['positions'];
@@ -816,6 +818,16 @@ class EchomailHandler
             . TelnetUtils::colorize(sprintf('%2d', $num), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
             . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
             . $suffix;
+    }
+
+    /**
+     * Format an echoarea identifier for terminal display and API routes.
+     */
+    private function formatEchoareaIdentifier(string $tag, string $domain): string
+    {
+        $domain = trim($domain);
+
+        return $domain !== '' ? $tag . '@' . $domain : $tag;
     }
 
     /**

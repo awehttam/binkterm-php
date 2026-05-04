@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Bulletin Manager](#bulletin-manager)
 - [Terminal Message Editor](#terminal-message-editor)
 - [Terminal Message Encoding](#terminal-message-encoding)
+- [Terminal Echomail Display](#terminal-echomail-display)
 - [User Settings](#user-settings)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -23,6 +24,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Fixed the terminal full-screen message editor so typed text is hard-wrapped to the detected terminal body width. Messages composed in telnet and SSH now display with the same line breaks when viewed in the terminal message reader.
 - Fixed terminal message display so UTF-8 message text, subjects, sender names, and kludge/header lines are converted to the user's active terminal character set before being written to telnet or SSH sessions.
 - Updated the terminal echomail empty-state text to tell users when they are not subscribed to any echo areas, instead of implying that no areas exist.
+- Fixed terminal echomail area labels for local echo groups that have no domain. Telnet and SSH now show plain area names such as `LOCAL.TEST` instead of appending an empty `@` suffix.
 - Fixed the web settings page so saving one changed preference no longer resubmits every setting from every tab. The page now shows a loading overlay until the user's saved settings are loaded, then saves only changed preferences so unrelated settings are not overwritten by stale or unloaded form values.
 
 ## Bulletin Manager
@@ -53,6 +55,12 @@ The fix applies to echomail and netmail message bodies, message list rows, messa
 No database changes or manual reprocessing of existing messages are required.
 
 The terminal echomail browser also now distinguishes the subscription empty state more clearly. When a user has no subscribed echo areas, telnet and SSH show "You are not subscribed to any areas." rather than a generic "No echo areas available" message.
+
+## Terminal Echomail Display
+
+Terminal echomail area labels now omit the domain separator when an echo area has no domain. Local-only echo groups such as `LOCAL.TEST` are displayed as `LOCAL.TEST` in telnet and SSH message lists, message headers, compose screens, and related terminal logs. Networked echo areas with a domain continue to display as `TAG@domain`.
+
+No database changes or manual configuration updates are required.
 
 ## User Settings
 
