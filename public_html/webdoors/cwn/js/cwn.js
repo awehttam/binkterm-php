@@ -1,5 +1,5 @@
 /**
- * Community Wireless Node List - Main JavaScript
+ * Community Wireless Node Map - Main JavaScript
  */
 
 let map;

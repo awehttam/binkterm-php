@@ -19,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Added a Bulletin Manager for sysop-authored BBS bulletins. Bulletins can be managed from the admin web interface and displayed to users in the web, telnet, and SSH BBS flows.
 - Added a BBS setting for bulletin display mode. Sysops can choose whether bulletins are shown once until read, or shown once at the start of each login session.
+- Renamed the Community Wireless Node List WebDoor to Community Wireless Node Map.
 - Fixed the terminal full-screen message editor so typed text is hard-wrapped to the detected terminal body width. Messages composed in telnet and SSH now display with the same line breaks when viewed in the terminal message reader.
 - Fixed terminal message display so UTF-8 message text, subjects, sender names, and kludge/header lines are converted to the user's active terminal character set before being written to telnet or SSH sessions.
 - Updated the terminal echomail empty-state text to tell users when they are not subscribed to any echo areas, instead of implying that no areas exist.
