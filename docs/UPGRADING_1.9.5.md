@@ -10,6 +10,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Message Encoding](#terminal-message-encoding)
 - [Terminal Echomail Display](#terminal-echomail-display)
 - [User Settings](#user-settings)
+- [Community Wireless Node Map](#community-wireless-node-map)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -21,6 +22,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Added a Bulletin Manager for sysop-authored BBS bulletins. Bulletins can be managed from the admin web interface and displayed to users in the web, telnet, and SSH BBS flows.
 - Added a BBS setting for bulletin display mode. Sysops can choose whether bulletins are shown once until read, or shown once at the start of each login session.
 - Renamed the Community Wireless Node List WebDoor to Community Wireless Node Map.
+- Fixed the Community Wireless Node Map network count so it reports the full active map total instead of stopping at the first 500 returned rows. The map now loads markers for the current viewport instead of loading every CWN row on page load.
 - Fixed the terminal full-screen message editor so typed text is hard-wrapped to the detected terminal body width. Messages composed in telnet and SSH now display with the same line breaks when viewed in the terminal message reader.
 - Fixed terminal message display so UTF-8 message text, subjects, sender names, and kludge/header lines are converted to the user's active terminal character set before being written to telnet or SSH sessions.
 - Updated the terminal echomail empty-state text to tell users when they are not subscribed to any echo areas, instead of implying that no areas exist.
@@ -67,6 +69,14 @@ No database changes or manual configuration updates are required.
 The web settings page now shows a loading overlay while the user's current settings are being loaded. The Save button stays disabled until loading finishes, so users are not shown an interactive form containing temporary default values.
 
 After loading, the page records the initial values and only sends preferences that were changed in the current edit session. This prevents a change to one setting, such as language or theme, from overwriting unrelated settings that live on other tabs. No database changes are required.
+
+## Community Wireless Node Map
+
+The Community Wireless Node Map now separates the overall active network count from the marker query used to populate the current map view. Previously, the frontend requested a single `limit=500` result page and displayed the number of returned rows, which made the network count appear capped at 500 even when additional manual entries or MeshCore repeater adverts were present.
+
+The CWN list API now returns `total_all` for the full active, non-expired map total. The frontend displays that value in the statistics panel while loading marker data only for the current Leaflet map bounds. Panning or zooming the map refreshes the visible markers for the new viewport. This keeps the displayed total accurate without forcing the browser to load every CWN row as the database grows.
+
+No manual configuration changes are required. Run `php scripts/setup.php` as part of the normal upgrade process so any pending CWN schema migrations from earlier 1.9.x changes are applied.
 
 ## Upgrade Instructions
 
