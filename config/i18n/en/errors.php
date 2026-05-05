@@ -31,6 +31,8 @@ return [
     'errors.register.restricted_name' => 'This username or real name is not allowed',
     'errors.register.weak_password' => 'Password must be at least 8 characters long',
     'errors.register.user_exists' => 'A user with this username or name already exists. Please try logging in or contact the sysop for assistance.',
+    'errors.register.email_required' => 'Email address is required',
+    'errors.register.reason_required' => 'Reason for joining is required',
     'errors.register.failed' => 'Registration failed. Please try again later.',
 
     // Reminder

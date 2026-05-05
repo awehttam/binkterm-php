@@ -26,6 +26,8 @@ return [
     'errors.register.restricted_name' => 'Ce nom d\'utilisateur ou nom réel n\'est pas autorisé',
     'errors.register.weak_password' => 'Le mot de passe doit comporter au moins 8 caractères',
     'errors.register.user_exists' => 'Un utilisateur avec ce nom d\'utilisateur ou ce nom existe déjà. Veuillez vous connecter ou contacter le sysop pour obtenir de l\'aide.',
+    'errors.register.email_required' => 'L\'adresse e-mail est requise',
+    'errors.register.reason_required' => 'Le motif de l\'inscription est requis',
     'errors.register.failed' => 'Échec de l\'inscription. Veuillez réessayer plus tard.',
     'errors.reminder.username_required' => 'Le nom d\'utilisateur est requis',
     'errors.reminder.user_not_found_or_logged_in' => 'Utilisateur introuvable ou déjà connecté',

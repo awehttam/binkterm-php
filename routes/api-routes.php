@@ -407,6 +407,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if ($isTerminalRegistration) {
+            if (empty($email)) {
+                apiError('errors.register.email_required', apiLocalizedText('errors.register.email_required', 'Email address is required'), 400);
+                return;
+            }
+            if (empty($reason)) {
+                apiError('errors.register.reason_required', apiLocalizedText('errors.register.reason_required', 'Reason for joining is required'), 400);
+                return;
+            }
+        }
+
         // Normalize and validate username format. Spaces are allowed only when
         // USERNAMES_ALLOW_SPACES=true is set in .env (defaults to false).
         $username = \BinktermPHP\Config::normalizeUsername($username);
@@ -480,8 +491,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Insert pending user
             $insertStmt = $db->prepare("
-                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent, referral_code, referrer_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent, referral_code, referrer_id, registration_source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
             ");
 
@@ -495,7 +506,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $ipAddress,
                 $userAgent,
                 $referralCode,
-                $referrerId
+                $referrerId,
+                $registrationSource,
             ]);
 
             $pendingUserRow = $insertStmt->fetch(\PDO::FETCH_ASSOC);

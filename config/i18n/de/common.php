@@ -444,6 +444,7 @@ Du kannst einzelne Erinnerungen mit den „Erinnern“-Schaltflächen in der Ben
     'ui.admin_users.new_password_help' => 'Leer lassen, um das aktuelle Passwort beizubehalten. Bei Änderung mindestens 8 Zeichen.',
     'ui.admin_users.no_pending_registrations' => 'Keine ausstehenden Registrierungen',
     'ui.admin_users.requested' => 'Angefordert',
+    'ui.admin_users.source' => 'Quelle',
     'ui.admin_users.last_reminded' => 'Last Reminded',
     'ui.admin_users.not_provided' => 'Nicht angegeben',
     'ui.admin_users.view_profile' => 'Profil ansehen',

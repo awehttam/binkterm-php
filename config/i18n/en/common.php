@@ -441,6 +441,7 @@ return [
     'ui.admin_users.new_password_help' => 'Leave blank to keep current password. Minimum 8 characters if changing.',
     'ui.admin_users.no_pending_registrations' => 'No pending registrations',
     'ui.admin_users.requested' => 'Requested',
+    'ui.admin_users.source' => 'Source',
     'ui.admin_users.last_reminded' => 'Last Reminded',
     'ui.admin_users.not_provided' => 'Not provided',
     'ui.admin_users.view_profile' => 'View Profile',

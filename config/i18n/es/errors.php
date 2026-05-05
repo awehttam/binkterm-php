@@ -31,6 +31,8 @@ return [
     'errors.register.restricted_name' => 'Este nombre de usuario o nombre real no esta permitido',
     'errors.register.weak_password' => 'La contrasena debe tener al menos 8 caracteres',
     'errors.register.user_exists' => 'Ya existe un usuario con ese nombre de usuario o nombre. Intente iniciar sesion o contacte al sysop para obtener ayuda.',
+    'errors.register.email_required' => 'La dirección de correo electrónico es obligatoria',
+    'errors.register.reason_required' => 'El motivo para unirse es obligatorio',
     'errors.register.failed' => 'El registro fallo. Intentelo de nuevo mas tarde.',
 
     // Reminder

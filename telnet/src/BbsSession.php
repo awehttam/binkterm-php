@@ -1690,16 +1690,43 @@ class BbsSession
             return false;
         }
 
-        foreach ([
-            ['key' => 'ui.terminalserver.server.registration.realname', 'fallback' => 'Real Name: ',          'var' => 'realname'],
-            ['key' => 'ui.terminalserver.server.registration.email',    'fallback' => 'Email (optional): ',    'var' => 'email'],
-            ['key' => 'ui.terminalserver.server.registration.location', 'fallback' => 'Location (optional): ','var' => 'location'],
-            ['key' => 'ui.terminalserver.server.registration.reason',   'fallback' => 'Reason for joining (optional): ', 'var' => 'reason'],
-        ] as $f) {
-            $val = $this->prompt($conn, $state, $this->t($f['key'], $f['fallback'], [], $state['locale']), true);
+        // Real name (required)
+        $val = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.registration.realname', 'Real Name: ', [], $state['locale']), true);
+        if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
+        $data['realname'] = trim($val);
+
+        // Email (required)
+        do {
+            $val = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.registration.email', 'Email: ', [], $state['locale']), true);
             if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
-            $data[$f['var']] = trim($val);
-        }
+            $val = trim($val);
+            if (empty($val) || !filter_var($val, FILTER_VALIDATE_EMAIL)) {
+                $this->writeLine($conn, $this->colorize(
+                    $this->t('ui.terminalserver.server.registration.email_invalid', 'A valid email address is required.', [], $state['locale']),
+                    self::ANSI_RED
+                ));
+            }
+        } while (empty($val) || !filter_var($val, FILTER_VALIDATE_EMAIL));
+        $data['email'] = $val;
+
+        // Location (optional)
+        $val = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.registration.location', 'Location (optional): ', [], $state['locale']), true);
+        if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
+        $data['location'] = trim($val);
+
+        // Reason for joining (required)
+        do {
+            $val = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.registration.reason', 'Reason for joining: ', [], $state['locale']), true);
+            if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
+            $val = trim($val);
+            if (empty($val)) {
+                $this->writeLine($conn, $this->colorize(
+                    $this->t('ui.terminalserver.server.registration.reason_required', 'Please provide a reason for joining.', [], $state['locale']),
+                    self::ANSI_RED
+                ));
+            }
+        } while (empty($val));
+        $data['reason'] = $val;
 
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.submitting', 'Submitting registration...', [], $state['locale']));

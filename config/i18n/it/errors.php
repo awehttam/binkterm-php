@@ -31,6 +31,8 @@ return [
     'errors.register.restricted_name' => 'Questo nome utente o nome reale non è consentito',
     'errors.register.weak_password' => 'La password deve contenere almeno 8 caratteri',
     'errors.register.user_exists' => 'Esiste già un utente con questo nome utente o nome. Prova ad accedere o contatta il sysop per assistenza.',
+    'errors.register.email_required' => 'L\'indirizzo email è obbligatorio',
+    'errors.register.reason_required' => 'Il motivo dell\'iscrizione è obbligatorio',
     'errors.register.failed' => 'Registrazione non riuscita. Riprova più tardi.',
 
     // Reminder

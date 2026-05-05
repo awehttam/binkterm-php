@@ -378,6 +378,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin_users.new_password_help' => 'Laisser vide pour conserver le mot de passe actuel. Minimum 8 caractères si modification.',
     'ui.admin_users.no_pending_registrations' => 'Aucune inscription en attente',
     'ui.admin_users.requested' => 'Demandé',
+    'ui.admin_users.source' => 'Source',
     'ui.admin_users.last_reminded' => 'Dernier rappel',
     'ui.admin_users.not_provided' => 'Non fourni',
     'ui.admin_users.view_profile' => 'Voir le profil',

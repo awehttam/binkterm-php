@@ -441,6 +441,7 @@ return [
     'ui.admin_users.new_password_help' => 'Deje en blanco para mantener la contrasena actual. Minimo 8 caracteres si la cambia.',
     'ui.admin_users.no_pending_registrations' => 'No hay registros pendientes',
     'ui.admin_users.requested' => 'Solicitado',
+    'ui.admin_users.source' => 'Origen',
     'ui.admin_users.last_reminded' => 'Ultimo recordatorio',
     'ui.admin_users.not_provided' => 'No proporcionado',
     'ui.admin_users.view_profile' => 'Ver perfil',

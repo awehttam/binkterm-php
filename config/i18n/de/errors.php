@@ -31,6 +31,8 @@ return [
     'errors.register.restricted_name' => 'Dieser Benutzername oder echte Name ist nicht erlaubt',
     'errors.register.weak_password' => 'Das Passwort muss mindestens 8 Zeichen lang sein',
     'errors.register.user_exists' => 'Ein Benutzer mit diesem Benutzernamen oder Namen existiert bereits. Bitte melde Dich an oder kontaktiere den Sysop.',
+    'errors.register.email_required' => 'E-Mail-Adresse ist erforderlich',
+    'errors.register.reason_required' => 'Grund für die Registrierung ist erforderlich',
     'errors.register.failed' => 'Registrierung fehlgeschlagen. Bitte später erneut versuchen.',
 
     // Reminder

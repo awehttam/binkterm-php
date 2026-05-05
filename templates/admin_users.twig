@@ -419,6 +419,13 @@ function loadAllUsers(page = 1) {
     });
 }
 
+function renderSourceBadge(source) {
+    const s = (source || 'web').toLowerCase();
+    if (s === 'telnet') return '<span class="badge bg-info">telnet</span>';
+    if (s === 'ssh')    return '<span class="badge bg-secondary">ssh</span>';
+    return '<span class="badge bg-light text-dark">web</span>';
+}
+
 function renderPendingUsers(users) {
     const container = $('#pending-users-container');
     $('#pending-count').text(users.length);
@@ -440,6 +447,7 @@ function renderPendingUsers(users) {
                 <th>${uiT('ui.common.username', 'Username')}</th>
                 <th>${uiT('ui.common.real_name', 'Real Name')}</th>
                 <th>${uiT('ui.common.email', 'Email')}</th>
+                <th>${uiT('ui.admin_users.source', 'Source')}</th>
                 <th>${uiT('ui.admin_users.requested', 'Requested')}</th>
                 <th>${uiT('ui.common.ip_address', 'IP Address')}</th>
                 <th>${uiT('ui.common.actions', 'Actions')}</th>
@@ -455,6 +463,7 @@ function renderPendingUsers(users) {
                 <td><strong>${escapeHtml(user.username)}</strong></td>
                 <td>${escapeHtml(user.real_name || '')}</td>
                 <td>${escapeHtml(user.email || uiT('ui.admin_users.not_provided', 'Not provided'))}</td>
+                <td>${renderSourceBadge(user.registration_source)}</td>
                 <td>${requestedDate}</td>
                 <td><code>${escapeHtml(user.ip_address || '')}</code></td>
                 <td>
@@ -590,6 +599,7 @@ function viewUser(userId) {
                                 <tr><th>${uiT('ui.common.location', 'Location')}:</th><td>${escapeHtml(user.location || uiT('ui.admin_users.not_provided', 'Not provided'))}</td></tr>
                                 <tr><th>${uiT('ui.admin_users.requested', 'Requested')}:</th><td>${requestedDate}</td></tr>
                                 <tr><th>${uiT('ui.common.ip_address', 'IP Address')}:</th><td><code>${escapeHtml(user.ip_address || '')}</code></td></tr>
+                                <tr><th>${uiT('ui.admin_users.source', 'Source')}:</th><td>${renderSourceBadge(user.registration_source)}</td></tr>
                                 ${referrerInfo}
                             </table>
                         </div>

@@ -441,6 +441,7 @@ return [
     'ui.admin_users.new_password_help' => 'Lascia vuoto per mantenere la password attuale. Minimo 8 caratteri se modificata.',
     'ui.admin_users.no_pending_registrations' => 'Nessuna registrazione in attesa',
     'ui.admin_users.requested' => 'Richiesto',
+    'ui.admin_users.source' => 'Sorgente',
     'ui.admin_users.last_reminded' => 'Ultimo promemoria',
     'ui.admin_users.not_provided' => 'Non fornito',
     'ui.admin_users.view_profile' => 'Visualizza profilo',

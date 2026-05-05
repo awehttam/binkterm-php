@@ -15,6 +15,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Localized Documentation](#localized-documentation)
 - [Community Wireless Node Map](#community-wireless-node-map)
 - [File Areas](#file-areas)
+- [Terminal Registration](#terminal-registration)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -39,6 +40,11 @@ Make sure you have a current backup of your database and files before upgrading.
 - Added support for locale-specific documentation files. The user guide and admin help browser now serve translated Markdown files when available, falling back to the English source when no translation exists. Any locale directory added under `config/i18n/` now appears automatically in the telnet and SSH settings language list.
 - Added translated user guides for French (`index.fr.md`), Spanish (`index.es.md`), Italian (`index.it.md`), and German (`index.de.md`). These are served automatically when the user's active language matches the locale.
 - Fixed the web settings page so saving one changed preference no longer resubmits every setting from every tab. The page now shows a loading overlay until the user's saved settings are loaded, then saves only changed preferences so unrelated settings are not overwritten by stale or unloaded form values.
+
+### Terminal Registration
+
+- The admin pending users list now shows whether each registration was submitted through the web, telnet, or SSH, using a color-coded badge.
+- Email address and reason for joining are now required fields when registering via telnet or SSH. The registration flow re-prompts until both are provided.
 
 ### File Areas
 
@@ -134,6 +140,26 @@ The File Name field appears between the URL and Short Description fields. When a
 Users can edit the file name field freely before submitting. The field is required.
 
 No database changes or configuration updates are required.
+
+## Terminal Registration
+
+### Registration Source
+
+The admin **Manage Users** page now records and displays where each registration request originated. A color-coded badge appears in both the pending registrations table and the registration detail view:
+
+- **web** — submitted through the web registration form
+- **telnet** — submitted through the telnet BBS registration flow
+- **ssh** — submitted through the SSH BBS registration flow
+
+The upgrade adds a `registration_source` column to the `pending_users` table with a default value of `web`. Existing pending registrations will show as `web` after upgrading. Run `php scripts/setup.php` to apply the migration.
+
+### Required Email and Reason for Terminal Registration
+
+When a user registers through telnet or SSH, email address and reason for joining are now required fields. If either is left blank or the email address fails format validation, the terminal registration flow re-prompts the user until a valid value is entered.
+
+Web registration is not affected — email and reason remain optional for web-based sign-ups.
+
+No configuration changes are required.
 
 ## Upgrade Instructions
 
