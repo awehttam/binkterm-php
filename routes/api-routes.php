@@ -6206,7 +6206,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'saved' => $savedCount
             ]
         ]);
-    })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
+    })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
 
     $prepareEchomailAdBodyForSave = static function(array $message): string {
         $body = '';
@@ -6556,7 +6556,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
 
         echo json_encode($result);
-    })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
+    })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) {
         $user = RouteHelper::requireAuth();
@@ -6610,7 +6610,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
         }
-    })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
+    })->where(['echoarea' => '[-A-Za-z0-9._@\'!%]+', 'id' => '[0-9]+']);
 
     /**
      * Upload a file for attachment to an outbound netmail.
