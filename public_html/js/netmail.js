@@ -97,6 +97,7 @@ $(document).ready(function() {
                     break;
                 case 'f':
                 case 'F':
+                    if (e.ctrlKey || e.metaKey) break;
                     e.preventDefault();
                     toggleModalFullscreen();
                     break;

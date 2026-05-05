@@ -5,6 +5,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [Message Reader](#message-reader)
 - [Bulletin Manager](#bulletin-manager)
 - [Terminal Message Editor](#terminal-message-editor)
 - [Terminal Message Encoding](#terminal-message-encoding)
@@ -17,6 +18,10 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+### Message Reader
+
+- Fixed the message reader modal so the `f` key shortcut for toggling full-screen no longer intercepts the browser's Ctrl+F (or Cmd+F on Mac) find shortcut. Ctrl+F and Cmd+F now open the browser's native find dialog as expected. Applies to both echomail and netmail message modals.
 
 ### Content and Display
 
@@ -33,6 +38,12 @@ Make sure you have a current backup of your database and files before upgrading.
 ### File Areas
 
 - Added a File Name field to the Add Link form. When adding an external URL link to a file area, users can now set a specific display name for the link. The field is pre-populated from the URL path when a URL is entered, and updated to the page title when Fetch Info is used — both values can be freely edited before submitting.
+
+## Message Reader
+
+The `f` key in the web message reader modal toggles between full-screen and normal view. Previously, pressing Ctrl+F or Cmd+F while the modal was open triggered this toggle instead of opening the browser's native find-in-page dialog. The key handler now checks for Ctrl and Meta modifier keys and passes them through to the browser. Plain `f` still toggles full-screen. This fix applies to both the echomail and netmail message modals.
+
+No configuration changes or database migrations are required.
 
 ## Bulletin Manager
 
