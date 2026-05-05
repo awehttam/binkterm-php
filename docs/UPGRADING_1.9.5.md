@@ -121,8 +121,6 @@ This release ships translated user guides for French (`docs/userguide/index.fr.m
 
 > **Note:** The translated user guides were produced with AI assistance and have not been reviewed by a native speaker. They may contain inaccurate or unnatural phrasing. Corrections from native speakers are welcome.
 
-No database changes or upgrade steps are required for this feature.
-
 ## Community Wireless Node Map
 
 The Community Wireless Node Map now separates the overall active network count from the marker query used to populate the current map view. Previously, the frontend requested a single `limit=500` result page and displayed the number of returned rows, which made the network count appear capped at 500 even when additional manual entries or MeshCore repeater adverts were present.
@@ -173,9 +171,4 @@ scripts/restart_daemons.sh
 
 ### Using the Installer
 
-Replace your files with the new release archive, then run:
-
-```bash
-php scripts/setup.php
-scripts/restart_daemons.sh
-```
+Download the latest installer from the [BinktermPHP website](https://lovelybits.org/binktermphp) and run it. The installer handles file replacement, runs setup, and restarts all daemons automatically — no manual steps required.

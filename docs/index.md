@@ -110,7 +110,7 @@ This index lists documents in operational priority order — essentials first, a
 
 ## Upgrading
 
-Release-specific upgrade notes, listed newest-first.
+Release-specific upgrade notes, listed newest-first. See [UPGRADING_TEMPLATE.md](UPGRADING_TEMPLATE.md) for the document template.
 
 - [Upgrading to 1.9.5](UPGRADING_1.9.5.md)
 - [Upgrading to 1.9.4](UPGRADING_1.9.4.md)
