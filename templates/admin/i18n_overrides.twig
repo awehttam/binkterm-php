@@ -20,7 +20,7 @@
                 <label class="form-label mb-1">{{ t('ui.admin.i18n_overrides.locale_label', {}, 'common') }}</label>
                 <select id="localeSelect" class="form-select form-select-sm">
                     {% for loc in supported_locales %}
-                        <option value="{{ loc }}">{{ loc }}</option>
+                        <option value="{{ loc }}">{{ locale_names[loc] ?? loc }}</option>
                     {% endfor %}
                 </select>
             </div>

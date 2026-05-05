@@ -89,7 +89,7 @@
                             <label for="locale" class="form-label">{{ t('ui.settings.language', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="locale" name="locale">
                                 {% for localeCode in supported_locales %}
-                                    <option value="{{ localeCode }}">{{ localeCode }}</option>
+                                    <option value="{{ localeCode }}">{{ locale_names[localeCode] ?? localeCode }}</option>
                                 {% endfor %}
                             </select>
                             <div class="form-text">{{ t('ui.settings.language_help', {}, locale, ['common']) }}</div>

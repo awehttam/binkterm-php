@@ -157,6 +157,11 @@ class Template
         $this->twig->addGlobal('locale', $locale);
         $this->twig->addGlobal('default_locale', $this->translator->getDefaultLocale());
         $this->twig->addGlobal('supported_locales', $this->translator->getSupportedLocales());
+        $localeNames = [];
+        foreach ($this->translator->getSupportedLocales() as $code) {
+            $localeNames[$code] = $this->translator->getLocaleName($code);
+        }
+        $this->twig->addGlobal('locale_names', $localeNames);
         $this->twig->addGlobal('i18n_namespaces', ['common', 'errors']);
 
         // CSRF token — stored per-user in UserMeta so it is shared across web
