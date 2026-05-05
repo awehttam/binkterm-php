@@ -37,6 +37,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Fixed terminal echomail area labels for local echo groups that have no domain. Telnet and SSH now show plain area names such as `LOCAL.TEST` instead of appending an empty `@` suffix.
 - Fixed the terminal language selector so it shows all installed languages rather than a fixed list of three.
 - Added support for locale-specific documentation files. The user guide and admin help browser now serve translated Markdown files when available, falling back to the English source when no translation exists. Any locale directory added under `config/i18n/` now appears automatically in the telnet and SSH settings language list.
+- Added translated user guides for French (`index.fr.md`), Spanish (`index.es.md`), Italian (`index.it.md`), and German (`index.de.md`). These are served automatically when the user's active language matches the locale.
 - Fixed the web settings page so saving one changed preference no longer resubmits every setting from every tab. The page now shows a loading overlay until the user's saved settings are loaded, then saves only changed preferences so unrelated settings are not overwritten by stale or unloaded form values.
 
 ### File Areas
@@ -109,6 +110,10 @@ The resolution order for any documentation file is:
 3. `FILENAME.en.md` — an explicit English file as an alternative to the unsuffixed form
 
 To provide a translated version of a documentation file, place the translated file alongside the original using the locale code before the `.md` extension — for example, `docs/userguide/index.de.md` for a German user guide. No configuration changes are required.
+
+This release ships translated user guides for French (`docs/userguide/index.fr.md`), Spanish (`docs/userguide/index.es.md`), Italian (`docs/userguide/index.it.md`), and German (`docs/userguide/index.de.md`). Users with one of those languages set will see the translated guide automatically. All other locales continue to fall back to the English source.
+
+> **Note:** The translated user guides were produced with AI assistance and have not been reviewed by a native speaker. They may contain inaccurate or unnatural phrasing. Corrections from native speakers are welcome.
 
 No database changes or upgrade steps are required for this feature.
 
