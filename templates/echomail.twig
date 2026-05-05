@@ -780,9 +780,9 @@
 {% block scripts %}
 <script>
 // Twig-rendered variables
-let currentEchoarea = '{{ echoarea }}' || null;
-let domain = '{{ domain }}' || null;
-window.currentUserRealName = '{{ current_user.real_name }}';
+let currentEchoarea = {{ echoarea|default(null)|json_encode }};
+let domain = {{ domain|default(null)|json_encode }};
+window.currentUserRealName = {{ current_user.real_name|json_encode }};
 window.isAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
 window.echomailDateField = '{{ echomail_date_field|default("received") }}';
 </script>
