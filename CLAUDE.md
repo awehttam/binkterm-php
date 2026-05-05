@@ -164,6 +164,7 @@ If you introduce a new log file (e.g., `myfeature.log`):
 - **Accent Handling:** When editing French or other accented catalogs, use literal characters (e.g., 'é', 'à') only. Never use HTML entities (e.g., &eacute;) or Unicode escape sequences unless explicitly requested.
 - **No Emojis/4-Byte Characters:** Strictly prohibit the use of Emojis or any character outside the Basic Multilingual Plane (U+0000 to U+FFFF). These break legacy FTN/BBS terminal rendering.
 - **Verification Step:** Before completing a translation task, verify that you haven't "double-encoded" characters (e.g., ensuring 'é' doesn't become 'Ã©').
+- **ASCII quotes only in PHP catalog files:** PHP string delimiters must be ASCII single quotes (U+0027). Never use curly/smart quotes (U+2018 `'` or U+2019 `'`) as string delimiters — PHP does not recognize them and the file will fail to parse. This has been a recurring problem in the Italian (`it`) catalog. Italian text frequently contains apostrophes (`l'`, `all'`, `dell'`) — always escape these as `\'` inside single-quoted PHP strings. After writing or editing any `config/i18n/it/` file, run `php -l config/i18n/it/<file>.php` to confirm it parses cleanly before committing.
 
 ## Localization (i18n) Workflow
 
