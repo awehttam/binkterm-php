@@ -252,6 +252,52 @@ Examples:
 
 ---
 
+## Localizing Documentation Files
+
+In addition to UI string catalogs, documentation files served through the web interface support locale-specific variants using a file-naming convention. This covers:
+
+- The **User Guide** (`/user-guide`) — source file at `docs/userguide/index.md`
+- The **Admin documentation browser** (`/admin/docs`) — files in `docs/`
+- The special root-level docs surfaced in the admin browser: `FAQ.md`, `README.md`, `REGISTER.md`
+
+### File Naming Convention
+
+Place a translated file alongside the original, inserting the locale code before the `.md` extension:
+
+```
+docs/userguide/index.md        ← English source (always required)
+docs/userguide/index.de.md     ← German translation
+docs/userguide/index.fr.md     ← French translation
+docs/userguide/index.it.md     ← Italian translation
+
+docs/FAQ.md                    ← English source
+docs/FAQ.de.md                 ← German translation (placed in repo root)
+```
+
+### Resolution Order
+
+When a page is requested, `DocsController::resolveLocalizedPath()` (`src/Web/DocsController.php`) picks the first file that exists from this list:
+
+1. `FILENAME.<locale>.md` — the user's active locale (e.g. `index.de.md` for German)
+2. `FILENAME.md` — the generic file with no locale suffix (the English source)
+3. `FILENAME.en.md` — an explicit English file, as an alternative to the unsuffixed form
+
+The active locale is resolved the same way as for UI strings: user preference → locale cookie → `Accept-Language` header → default locale.
+
+### Adding a Translated Doc
+
+1. Copy the English source and translate the content.
+2. Save it as `FILENAME.<locale>.md` next to the original.
+3. No code changes are required — the resolution logic picks it up automatically.
+
+### Heading Anchors and Accented Characters
+
+The Markdown renderer generates heading anchors using a GitHub-style slugifier that only retains ASCII word characters (`[a-zA-Z0-9_]`). Accented characters in heading text (e.g. `ü`, `é`, `ñ`) are stripped from the anchor ID.
+
+When writing a translated document, make sure the Table of Contents anchor links match the slugified form of each heading. For example, the heading `## Échomail : Forums Mondiaux` produces the anchor `#chomail--forums-mondiaux` — or, more reliably, avoid accented characters in headings and use them only in body text.
+
+---
+
 ## Automated Catalog Generation
 
 The script `scripts/create_translation_catalog.php` translates the English catalogs into a new locale automatically using an AI API (OpenAI or Anthropic Claude).  It is the fastest way to bootstrap a new locale and produces a complete `common.php` and `errors.php` ready for human review.

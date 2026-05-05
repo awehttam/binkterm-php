@@ -2,6 +2,9 @@
 
 namespace BinktermPHP\Web;
 
+use BinktermPHP\Auth;
+use BinktermPHP\I18n\LocaleResolver;
+use BinktermPHP\I18n\Translator;
 use BinktermPHP\MarkdownRenderer;
 use BinktermPHP\Template;
 
@@ -16,11 +19,55 @@ class DocsController
 {
     private string $docsDir;
     private string $repoRoot;
+    private string $locale;
 
     public function __construct()
     {
-        $this->docsDir = realpath(__DIR__ . '/../../docs');
+        $this->docsDir  = realpath(__DIR__ . '/../../docs');
         $this->repoRoot = realpath(__DIR__ . '/../..');
+        $this->locale   = $this->resolveCurrentLocale();
+    }
+
+    /**
+     * Resolve the active locale for the current request.
+     */
+    private function resolveCurrentLocale(): string
+    {
+        try {
+            $user       = (new Auth())->getCurrentUser();
+            $translator = new Translator();
+            $resolver   = new LocaleResolver($translator);
+            return $resolver->resolveLocale(null, is_array($user) ? $user : null);
+        } catch (\Throwable) {
+            return 'en';
+        }
+    }
+
+    /**
+     * Resolve a localized Markdown file path from a base path (no extension).
+     *
+     * Resolution order:
+     *   1. {basePath}.{locale}.md  — locale-specific file
+     *   2. {basePath}.md           — generic (no locale suffix)
+     *   3. {basePath}.en.md        — explicit English fallback
+     *
+     * Returns the path of the first existing file, or null if none found.
+     */
+    public static function resolveLocalizedPath(string $basePath, string $locale): ?string
+    {
+        $candidates = [];
+        if ($locale !== '' && $locale !== 'en') {
+            $candidates[] = $basePath . '.' . $locale . '.md';
+        }
+        $candidates[] = $basePath . '.md';
+        $candidates[] = $basePath . '.en.md';
+
+        foreach ($candidates as $candidate) {
+            if (file_exists($candidate)) {
+                return $candidate;
+            }
+        }
+        return null;
     }
 
     /**
@@ -166,26 +213,35 @@ class DocsController
     }
 
     /**
-     * Resolve a documentation name to an allowed markdown file path.
+     * Resolve a documentation name to an allowed markdown file path,
+     * preferring a locale-specific variant when one exists.
      */
     private function resolveDocPath(string $name): ?string
     {
-        $specialDocs = [
-            'FAQ'      => $this->repoRoot . DIRECTORY_SEPARATOR . 'FAQ.md',
-            'README'   => $this->repoRoot . DIRECTORY_SEPARATOR . 'README.md',
-            'REGISTER' => $this->repoRoot . DIRECTORY_SEPARATOR . 'REGISTER.md',
+        $specialBases = [
+            'FAQ'      => $this->repoRoot . DIRECTORY_SEPARATOR . 'FAQ',
+            'README'   => $this->repoRoot . DIRECTORY_SEPARATOR . 'README',
+            'REGISTER' => $this->repoRoot . DIRECTORY_SEPARATOR . 'REGISTER',
         ];
 
-        if (isset($specialDocs[$name])) {
-            $realPath = realpath($specialDocs[$name]);
-            if ($realPath !== false && str_starts_with($realPath, $this->repoRoot . DIRECTORY_SEPARATOR)) {
-                return $realPath;
+        if (isset($specialBases[$name])) {
+            $resolved = self::resolveLocalizedPath($specialBases[$name], $this->locale);
+            if ($resolved === null) {
+                return null;
             }
-            return null;
+            $realPath = realpath($resolved);
+            if ($realPath === false || !str_starts_with($realPath, $this->repoRoot . DIRECTORY_SEPARATOR)) {
+                return null;
+            }
+            return $realPath;
         }
 
-        $filePath = $this->docsDir . DIRECTORY_SEPARATOR . $name . '.md';
-        $realPath = realpath($filePath);
+        $basePath = $this->docsDir . DIRECTORY_SEPARATOR . $name;
+        $resolved = self::resolveLocalizedPath($basePath, $this->locale);
+        if ($resolved === null) {
+            return null;
+        }
+        $realPath = realpath($resolved);
         if ($realPath === false || !str_starts_with($realPath, $this->docsDir . DIRECTORY_SEPARATOR)) {
             return null;
         }

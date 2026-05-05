@@ -1985,9 +1985,19 @@ SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {
 
 // User guide
 SimpleRouter::get('/user-guide', function() {
-    $path = __DIR__ . '/../docs/userguide/index.md';
-    $content = null;
-    if (file_exists($path)) {
+    try {
+        $auth     = new \BinktermPHP\Auth();
+        $user     = $auth->getCurrentUser();
+        $resolver = new \BinktermPHP\I18n\LocaleResolver(new \BinktermPHP\I18n\Translator());
+        $locale   = $resolver->resolveLocale(null, is_array($user) ? $user : null);
+    } catch (\Throwable $e) {
+        $locale = 'en';
+    }
+
+    $basePath = __DIR__ . '/../docs/userguide/index';
+    $path     = \BinktermPHP\Web\DocsController::resolveLocalizedPath($basePath, $locale);
+    $content  = null;
+    if ($path !== null) {
         $content = \BinktermPHP\MarkdownRenderer::toHtml(file_get_contents($path), 0, true);
     }
     $template = new Template();

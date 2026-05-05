@@ -12,6 +12,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Echomail Display](#terminal-echomail-display)
 - [User Settings](#user-settings)
 - [Terminal Language Selection](#terminal-language-selection)
+- [Localized Documentation](#localized-documentation)
 - [Community Wireless Node Map](#community-wireless-node-map)
 - [File Areas](#file-areas)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -34,7 +35,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - Fixed terminal message display so UTF-8 message text, subjects, sender names, and kludge/header lines are converted to the user's active terminal character set before being written to telnet or SSH sessions.
 - Updated the terminal echomail empty-state text to tell users when they are not subscribed to any echo areas, instead of implying that no areas exist.
 - Fixed terminal echomail area labels for local echo groups that have no domain. Telnet and SSH now show plain area names such as `LOCAL.TEST` instead of appending an empty `@` suffix.
-- Fixed the terminal language selector so it shows all installed languages rather than a fixed list of three. Any locale directory added under `config/i18n/` now appears automatically in the telnet and SSH settings language list.
+- Fixed the terminal language selector so it shows all installed languages rather than a fixed list of three.
+- Added support for locale-specific documentation files. The user guide and admin help browser now serve translated Markdown files when available, falling back to the English source when no translation exists. Any locale directory added under `config/i18n/` now appears automatically in the telnet and SSH settings language list.
 - Fixed the web settings page so saving one changed preference no longer resubmits every setting from every tab. The page now shows a loading overlay until the user's saved settings are loaded, then saves only changed preferences so unrelated settings are not overwritten by stale or unloaded form values.
 
 ### File Areas
@@ -95,6 +97,20 @@ No database changes or configuration updates are required.
 The web settings page now shows a loading overlay while the user's current settings are being loaded. The Save button stays disabled until loading finishes, so users are not shown an interactive form containing temporary default values.
 
 After loading, the page records the initial values and only sends preferences that were changed in the current edit session. This prevents a change to one setting, such as language or theme, from overwriting unrelated settings that live on other tabs. No database changes are required.
+
+## Localized Documentation
+
+The user guide (`/user-guide`) and the admin documentation browser (`/admin/docs`) now serve locale-specific Markdown files when available. Previously, both always loaded the English source regardless of the user's language setting.
+
+The resolution order for any documentation file is:
+
+1. `FILENAME.<locale>.md` — a file matching the user's active locale (e.g. `index.de.md` for German)
+2. `FILENAME.md` — the generic English source with no locale suffix
+3. `FILENAME.en.md` — an explicit English file as an alternative to the unsuffixed form
+
+To provide a translated version of a documentation file, place the translated file alongside the original using the locale code before the `.md` extension — for example, `docs/userguide/index.de.md` for a German user guide. No configuration changes are required.
+
+No database changes or upgrade steps are required for this feature.
 
 ## Community Wireless Node Map
 
