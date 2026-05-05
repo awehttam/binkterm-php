@@ -1036,7 +1036,7 @@ function saveBranding() {
             default_theme: $('#defaultTheme').val(),
             lock_theme: $('#lockTheme').is(':checked'),
             logo_url: $('#logoUrl').val().trim(),
-            footer_text: $('#footerText').val().trim(),
+            footer_text: ($('#footerText').val() || '').trim(),
             hide_powered_by: $('#hidePoweredBy').is(':checked'),
             show_registration_badge: $('#showRegistrationBadge').is(':checked')
         }
