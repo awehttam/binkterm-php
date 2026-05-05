@@ -11,6 +11,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Message Encoding](#terminal-message-encoding)
 - [Terminal Echomail Display](#terminal-echomail-display)
 - [User Settings](#user-settings)
+- [Terminal Language Selection](#terminal-language-selection)
 - [Community Wireless Node Map](#community-wireless-node-map)
 - [File Areas](#file-areas)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -33,6 +34,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Fixed terminal message display so UTF-8 message text, subjects, sender names, and kludge/header lines are converted to the user's active terminal character set before being written to telnet or SSH sessions.
 - Updated the terminal echomail empty-state text to tell users when they are not subscribed to any echo areas, instead of implying that no areas exist.
 - Fixed terminal echomail area labels for local echo groups that have no domain. Telnet and SSH now show plain area names such as `LOCAL.TEST` instead of appending an empty `@` suffix.
+- Fixed the terminal language selector so it shows all installed languages rather than a fixed list of three. Any locale directory added under `config/i18n/` now appears automatically in the telnet and SSH settings language list.
 - Fixed the web settings page so saving one changed preference no longer resubmits every setting from every tab. The page now shows a loading overlay until the user's saved settings are loaded, then saves only changed preferences so unrelated settings are not overwritten by stale or unloaded form values.
 
 ### File Areas
@@ -79,6 +81,14 @@ The terminal echomail browser also now distinguishes the subscription empty stat
 Terminal echomail area labels now omit the domain separator when an echo area has no domain. Local-only echo groups such as `LOCAL.TEST` are displayed as `LOCAL.TEST` in telnet and SSH message lists, message headers, compose screens, and related terminal logs. Networked echo areas with a domain continue to display as `TAG@domain`.
 
 No database changes or manual configuration updates are required.
+
+## Terminal Language Selection
+
+The language selector in the telnet and SSH settings screen previously showed a fixed list of three languages (English, French, Spanish). Languages added after that list was written, such as German, did not appear even when their catalog files were present under `config/i18n/`.
+
+The language list is now built dynamically from the installed locale directories, matching the behavior of the web interface. Any locale added by dropping a `config/i18n/<code>/` directory into the installation will appear automatically in both the web and terminal language selectors without a code change.
+
+No database changes or configuration updates are required.
 
 ## User Settings
 

@@ -173,6 +173,8 @@ The project uses key-based localization for both Twig and JavaScript. Translatio
 
 Current locale folders under `config/i18n/` must be kept in sync when adding or renaming keys. Do not update only the language you are actively reading; French keys are easy to miss, so check all locale directories every time.
 
+**Adding a new language:** New locales are typically added by dropping a `config/i18n/<code>/` directory with translated `common.php` and `errors.php` files. When this happens, also add the locale code and its native display name to the `$names` map in `Translator::getLocaleName()` (`src/I18n/Translator.php`) so it appears correctly in language selectors across both the web and terminal interfaces.
+
 ### Core Rules
 - Never hardcode new user-facing UI text in templates/JS when adding or changing features.
 - Add a translation key first, then use it from Twig/JS.
