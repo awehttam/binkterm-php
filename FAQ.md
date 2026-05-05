@@ -345,6 +345,11 @@ Users will see the new theme in their settings dropdown immediately after the co
 - Still require a domain to be set (use a name like "local")
 - Use the system address for message origin
 
+### Q: Why does unread echomail show 0 messages?
+**A:** The dashboard echomail count now shows the number of new messages since your last visit to echomail. Visiting an echomail page resets that count, so it can show 0 even when there are older messages you have not opened.
+
+You can change the badge back to total unread messages in your settings, but that count can take longer to display on systems with a large message base.
+
 ### Q: Why do I get "Can not determine sending address for this network - missing uplink?"
 **A:** This error occurs when posting to an echo area whose domain has no configured uplink. Solutions:
 1. For local-only areas: Enable the "Local Only" flag on the echo area
