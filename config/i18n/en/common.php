@@ -1398,6 +1398,8 @@ return [
     'ui.admin.i18n_overrides.save_failed' => 'Failed to save overrides.',
     'ui.admin.i18n_overrides.load_failed' => 'Failed to load catalog.',
     'ui.admin.i18n_overrides.select_locale_catalog' => 'Select a locale and catalog, then click Load.',
+    'ui.admin.i18n_overrides.translate_btn'         => 'Translate from English',
+    'ui.admin.i18n_overrides.translate_failed'      => 'Translation failed.',
 
     // Admin Upgrade Notes
     'ui.admin.upgrade_notes.none_for_version' => 'No upgrade notes found for version {version}.',

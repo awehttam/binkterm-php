@@ -1131,6 +1131,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.i18n_overrides.save_failed' => 'Échec de l\'enregistrement des substitutions.',
     'ui.admin.i18n_overrides.load_failed' => 'Échec du chargement du catalogue.',
     'ui.admin.i18n_overrides.select_locale_catalog' => 'Sélectionnez une locale et un catalogue, puis cliquez sur Charger.',
+    'ui.admin.i18n_overrides.translate_btn'         => 'Traduire depuis l\'anglais',
+    'ui.admin.i18n_overrides.translate_failed'      => 'La traduction a échoué.',
     'ui.admin.upgrade_notes.none_for_version' => 'Aucune note de mise à jour trouvée pour la version {version}.',
     'ui.admin.insecure_nodes.error_prefix' => 'Erreur : ',
     'ui.admin.insecure_nodes.add_failed' => 'Échec de l\'ajout du nœud',

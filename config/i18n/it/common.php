@@ -1398,6 +1398,8 @@ return [
     'ui.admin.i18n_overrides.save_failed' => 'Impossibile salvare gli override.',
     'ui.admin.i18n_overrides.load_failed' => 'Impossibile caricare il catalogo.',
     'ui.admin.i18n_overrides.select_locale_catalog' => 'Seleziona un locale e un catalogo, poi clicca Carica.',
+    'ui.admin.i18n_overrides.translate_btn'         => 'Traduci dall\'inglese',
+    'ui.admin.i18n_overrides.translate_failed'      => 'Traduzione non riuscita.',
 
     // Admin Upgrade Notes
     'ui.admin.upgrade_notes.none_for_version' => 'Nessuna nota di aggiornamento trovata per la versione {version}.',

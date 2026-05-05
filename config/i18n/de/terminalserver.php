@@ -1,0 +1,346 @@
+<?php
+
+// Telnet server UI strings (German)
+return [
+
+    // --- Connection / rate limiting ---
+    'ui.terminalserver.server.rate_limited'            => 'Zu viele fehlgeschlagene Anmeldeversuche. Bitte später erneut versuchen.',
+
+    // --- Login / register menu (pre-auth) ---
+    'ui.terminalserver.server.login_menu.prompt'       => 'Möchten Sie:',
+    'ui.terminalserver.server.login_menu.login'        => '  (L) Bei bestehendem Konto anmelden',
+    'ui.terminalserver.server.login_menu.reset_password' => '  (R) Verlorenes Passwort zurücksetzen',
+    'ui.terminalserver.server.login_menu.register'     => '  (N) Neues Konto registrieren',
+    'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) QWK-Übertragung',
+    'ui.terminalserver.server.login_menu.quit'         => '  (Q) Beenden',
+    'ui.terminalserver.server.login_menu.choice'       => 'Ihre Wahl: ',
+    'ui.terminalserver.server.login_menu.invalid_choice' => 'Ungültige Auswahl.',
+    'ui.terminalserver.server.goodbye'                 => 'Auf Wiedersehen!',
+    'ui.terminalserver.server.press_enter_disconnect'  => 'Drücken Sie Enter zum Trennen.',
+
+    // --- Login ---
+    'ui.terminalserver.server.login.username_prompt'   => 'Benutzername: ',
+    'ui.terminalserver.server.login.password_prompt'   => 'Passwort: ',
+    'ui.terminalserver.server.login.success'           => 'Anmeldung erfolgreich.',
+    'ui.terminalserver.server.login.failed_remaining'  => 'Anmeldung fehlgeschlagen. Noch {remaining} Versuch(e).',
+    'ui.terminalserver.server.login.failed_max'        => 'Anmeldung fehlgeschlagen. Maximale Versuche überschritten.',
+
+    // --- Lost password reset ---
+    'ui.terminalserver.server.reset_password.title'    => '=== Passwort zurücksetzen ===',
+    'ui.terminalserver.server.reset_password.intro'    => 'Geben Sie Ihren Benutzernamen, echten Namen oder Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen des Passworts, wenn das Konto existiert.',
+    'ui.terminalserver.server.reset_password.cancel_hint' => '(Eingabe bei leerem Feld drücken zum Abbrechen)',
+    'ui.terminalserver.server.reset_password.identifier_prompt' => 'Benutzername, echter Name oder E-Mail: ',
+    'ui.terminalserver.server.reset_password.submitting' => 'Passwort-Reset wird angefordert...',
+    'ui.terminalserver.server.reset_password.success'  => 'Falls ein Konto mit diesem Benutzernamen, echten Namen oder dieser E-Mail existiert, wurde ein Link zum Zurücksetzen des Passworts gesendet.',
+    'ui.terminalserver.server.reset_password.check_email' => 'Bitte prüfen Sie Ihren Posteingang und Spam-Ordner auf den Reset-Link.',
+    'ui.terminalserver.server.reset_password.failed'   => 'Passwort-Reset-Anfrage konnte nicht verarbeitet werden.',
+
+    // --- Registration ---
+    'ui.terminalserver.server.registration.title'          => '=== Neue Benutzerregistrierung ===',
+    'ui.terminalserver.server.registration.intro'          => 'Bitte geben Sie die folgenden Informationen an, um Ihr Konto zu erstellen.',
+    'ui.terminalserver.server.registration.cancel_hint'    => '(Geben Sie "cancel" bei einer Eingabeaufforderung ein, um die Registrierung abzubrechen)',
+    'ui.terminalserver.server.registration.username'       => 'Benutzername (3-20 Zeichen, Buchstaben/Zahlen/Unterstrich): ',
+    'ui.terminalserver.server.registration.password'       => 'Passwort (mindestens 8 Zeichen): ',
+    'ui.terminalserver.server.registration.confirm'        => 'Passwort bestätigen: ',
+    'ui.terminalserver.server.registration.password_mismatch' => 'Fehler: Passwörter stimmen nicht überein.',
+    'ui.terminalserver.server.registration.realname'       => 'Echter Name: ',
+    'ui.terminalserver.server.registration.email'          => 'E-Mail (optional): ',
+    'ui.terminalserver.server.registration.location'       => 'Ort (optional): ',
+    'ui.terminalserver.server.registration.reason'         => 'Grund für die Registrierung (optional): ',
+    'ui.terminalserver.server.registration.submitting'     => 'Registrierung wird eingereicht...',
+    'ui.terminalserver.server.registration.success'        => 'Registrierung erfolgreich!',
+    'ui.terminalserver.server.registration.pending'        => 'Ihr Konto wurde erstellt und wartet auf Genehmigung.',
+    'ui.terminalserver.server.registration.pending_review' => 'Sie werden benachrichtigt, sobald ein Administrator Ihre Registrierung geprüft hat.',
+
+    // --- Anti-bot challenge ---
+    'ui.terminalserver.server.press_esc'               => 'Drücken Sie zweimal ESC um fortzufahren...',
+
+    // --- Banner (login screen) ---
+    'ui.terminalserver.server.banner.title'            => 'BinktermPHP Terminal',
+    'ui.terminalserver.server.banner.system'           => 'System: ',
+    'ui.terminalserver.server.banner.location'         => 'Standort: ',
+    'ui.terminalserver.server.banner.origin'           => 'Herkunft: ',
+    'ui.terminalserver.server.banner.web'              => 'Web: ',
+    'ui.terminalserver.server.banner.visit_web'        => 'Besuchen Sie uns im Web @ {url}',
+    'ui.terminalserver.server.banner.tls'              => 'Verbunden über TLS',
+    'ui.terminalserver.server.banner.no_tls'           => 'Verbunden ohne TLS - nutzen Sie Port {port} für eine verschlüsselte Verbindung',
+    'ui.terminalserver.server.ssh_banner.welcome'      => 'Willkommen bei {system}.',
+    'ui.terminalserver.server.ssh_banner.line2'        => 'Melden Sie sich mit Ihren Kontodaten an oder geben Sie beliebige Anmeldedaten ein',
+    'ui.terminalserver.server.ssh_banner.line3'        => 'um zum Hauptanmeldebildschirm des BBS zu gelangen.',
+
+    // --- Main menu ---
+    'ui.terminalserver.server.menu.title'              => 'Hauptmenü',
+    'ui.terminalserver.server.menu.select_option'      => 'Option wählen:',
+    'ui.terminalserver.server.menu.netmail'            => 'N) Netmail ({count} Nachrichten)',
+    'ui.terminalserver.server.menu.echomail'           => 'E) Echomail ({count} Nachrichten)',
+    'ui.terminalserver.server.menu.whos_online'        => 'W) Wer ist online',
+    'ui.terminalserver.server.menu.shoutbox'           => 'S) Shoutbox',
+    'ui.terminalserver.server.menu.polls'              => 'P) Umfragen',
+    'ui.terminalserver.server.menu.doors'              => 'D) Türspiele',
+    'ui.terminalserver.server.menu.quit'               => 'Q) Beenden',
+    'ui.terminalserver.server.menu.files'              => 'F) Dateien',
+    'ui.terminalserver.server.menu.terminal_settings'  => 'T) Terminaleinstellungen',
+    'ui.terminalserver.server.menu.settings'           => 'T) Einstellungen',
+    'ui.terminalserver.server.menu.bulletins'          => 'U) Bulletins',
+
+    // --- Farewell ---
+    'ui.terminalserver.server.farewell'                => 'Danke für Ihren Besuch, noch einen schönen Tag!',
+    'ui.terminalserver.server.visit_web'               => 'Besuchen Sie uns wieder im Web unter {url}',
+
+    // --- Who's Online ---
+    'ui.terminalserver.server.whos_online.title'       => 'Wer ist online (letzte {minutes} Minuten)',
+    'ui.terminalserver.server.whos_online.empty'       => 'Keine Benutzer online.',
+
+    // --- Idle timeout ---
+    'ui.terminalserver.server.idle.disconnect'         => 'Inaktivitäts-Timeout - Verbindung wird getrennt...',
+    'ui.terminalserver.server.idle.warning_line'       => 'Sind Sie noch da? (Drücken Sie Enter um fortzufahren)',
+    'ui.terminalserver.server.idle.warning_key'        => 'Sind Sie noch da? (Beliebige Taste drücken zum Fortfahren)',
+
+    // --- Shared UI prompts ---
+    'ui.terminalserver.server.press_any_key'           => 'Beliebige Taste drücken zum Zurückkehren...',
+    'ui.terminalserver.server.press_continue'          => 'Beliebige Taste drücken zum Fortfahren...',
+
+    // --- Message editor (full screen) ---
+    'ui.terminalserver.editor.title'                   => 'NACHRICHTENEDITOR - VOLLBILDMODUS',
+    'ui.terminalserver.editor.shortcuts'               => 'Strg+K=Hilfe  Strg+Z=Senden  Strg+C=Abbrechen',
+    'ui.terminalserver.editor.cancelled'               => 'Nachricht abgebrochen.',
+    'ui.terminalserver.editor.saved'                   => 'Nachricht gespeichert und versandbereit.',
+    'ui.terminalserver.editor.starting_text'           => 'Beginnt mit zitiertem Text. Geben Sie Ihre Antwort unten ein.',
+    'ui.terminalserver.editor.instructions'            => 'Nachrichtentext eingeben. Mit einer einzelnen "."-Zeile beenden. "/abort" eingeben zum Abbrechen.',
+
+    // --- Message editor help ---
+    'ui.terminalserver.editor.help.title'              => 'NACHRICHTENEDITOR HILFE',
+    'ui.terminalserver.editor.help.separator'          => '-------------------',
+    'ui.terminalserver.editor.help.navigate'           => 'Pfeiltasten = Cursor bewegen',
+    'ui.terminalserver.editor.help.edit'               => 'Rücktaste/Entf = Text bearbeiten',
+    'ui.terminalserver.editor.help.help'               => 'Strg+K = Hilfe',
+    'ui.terminalserver.editor.help.start_of_line'      => 'Strg+A = Zeilenanfang',
+    'ui.terminalserver.editor.help.end_of_line'        => 'Strg+E = Zeilenende',
+    'ui.terminalserver.editor.help.delete_line'        => 'Strg+Y = Ganze Zeile löschen',
+    'ui.terminalserver.editor.help.save'               => 'Strg+Z = Nachricht speichern und senden',
+    'ui.terminalserver.editor.help.cancel'             => 'Strg+C = Nachricht abbrechen und verwerfen',
+
+    // --- Compose (shared between netmail and echomail) ---
+    'ui.terminalserver.compose.to_name'                => 'An Name: ',
+    'ui.terminalserver.compose.to_address'             => 'An Adresse: ',
+    'ui.terminalserver.compose.subject'                => 'Betreff: ',
+    'ui.terminalserver.compose.no_recipient'           => 'Empfängername erforderlich. Nachricht abgebrochen.',
+    'ui.terminalserver.compose.enter_message'          => 'Nachricht unten eingeben:',
+    'ui.terminalserver.compose.select_tagline'         => 'Tagline auswählen:',
+    'ui.terminalserver.compose.no_tagline'             => ' 0) Keine',
+    'ui.terminalserver.compose.tagline_default'        => 'Tagline # [{default}] (Enter für Standard): ',
+    'ui.terminalserver.compose.tagline_none'           => 'Tagline # (Enter für Keine): ',
+    'ui.terminalserver.compose.message_cancelled'      => 'Nachricht abgebrochen (leer).',
+
+    // --- Echomail ---
+    'ui.terminalserver.echomail.no_areas'              => 'Sie sind in keinen Bereichen angemeldet.',
+    'ui.terminalserver.echomail.areas_header'          => 'Echobereiche (Seite {page}/{total}):',
+    'ui.terminalserver.echomail.areas_nav'             => 'Nr. eingeben, n/p (vor/zurück), / (suchen), q (beenden)',
+    'ui.terminalserver.echomail.areas_nav_interests'   => 'Nr. eingeben, n/p (vor/zurück), / (suchen), i (nach Interesse), q (beenden)',
+    'ui.terminalserver.echomail.areas_filter'          => 'Filter: {term} ({count} Ergebnisse)',
+    'ui.terminalserver.echomail.areas_no_results'      => 'Keine Bereiche entsprechen Ihrer Suche.',
+    'ui.terminalserver.echomail.areas_search_prompt'   => 'Suchen: ',
+    'ui.terminalserver.echomail.areas_nav_clear'       => 'c (Filter löschen)',
+    'ui.terminalserver.echomail.interests_title'       => 'Nach Interesse durchsuchen',
+    'ui.terminalserver.echomail.interests_none'        => 'Keine Interessen verfügbar.',
+    'ui.terminalserver.echomail.interests_prompt'      => 'Nr. eingeben zum Durchsuchen, Q zum Zurückkehren:',
+    'ui.terminalserver.echomail.interest_areas_header' => '{name} (Seite {page}/{total}):',
+    'ui.terminalserver.echomail.no_messages'           => 'Keine Echomail-Nachrichten.',
+    'ui.terminalserver.echomail.messages_header'       => 'Echomail: {area} (Seite {page}/{total})',
+    'ui.terminalserver.echomail.compose_title'         => '=== Echomail verfassen ===',
+    'ui.terminalserver.echomail.area_label'            => 'Bereich: {area}',
+    'ui.terminalserver.echomail.posting'               => 'Echomail wird veröffentlicht...',
+    'ui.terminalserver.echomail.post_success'          => '✓ Echomail erfolgreich veröffentlicht!',
+    'ui.terminalserver.echomail.post_failed'           => '✗ Echomail konnte nicht veröffentlicht werden: {error}',
+
+    // --- Netmail ---
+    'ui.terminalserver.netmail.no_messages'            => 'Keine Netmail-Nachrichten.',
+    'ui.terminalserver.netmail.header'                 => 'Netmail (Seite {page}/{total}):',
+    'ui.terminalserver.netmail.compose_title'          => '=== Netmail verfassen ===',
+    'ui.terminalserver.netmail.sending'                => 'Netmail wird gesendet...',
+    'ui.terminalserver.netmail.send_success'           => '✓ Netmail erfolgreich gesendet!',
+    'ui.terminalserver.netmail.send_failed'            => '✗ Netmail konnte nicht gesendet werden: {error}',
+    'ui.terminalserver.netmail.attachments_none'       => 'Keine Dateianhänge an dieser Nachricht.',
+    'ui.terminalserver.netmail.attachments_header'     => 'Anhänge:',
+    'ui.terminalserver.netmail.attachment_download_prompt' => 'Anhang Nr. zum Herunterladen (Enter zum Abbrechen): ',
+
+    // --- Polls ---
+    'ui.terminalserver.polls.disabled'                 => 'Abstimmungsbereich ist deaktiviert.',
+    'ui.terminalserver.polls.title'                    => 'Umfragen',
+    'ui.terminalserver.polls.no_polls'                 => 'Keine aktiven Umfragen.',
+    'ui.terminalserver.polls.detail_title'             => 'Umfragedetails',
+    'ui.terminalserver.polls.total_votes'              => 'Gesamtstimmen: {count}',
+    'ui.terminalserver.polls.enter_poll'               => 'Umfrage Nr. eingeben oder Q zum Zurückkehren: ',
+    'ui.terminalserver.polls.vote_prompt'              => 'Mit Option Nr. abstimmen oder Q zum Zurückkehren: ',
+    'ui.terminalserver.polls.voted'                    => 'Stimme gespeichert.',
+
+    // --- Shoutbox ---
+    'ui.terminalserver.shoutbox.title'                 => 'Shoutbox',
+    'ui.terminalserver.shoutbox.recent_title'          => 'Aktuelle Shoutbox',
+    'ui.terminalserver.shoutbox.no_messages'           => 'Keine Shoutbox-Nachrichten.',
+    'ui.terminalserver.shoutbox.menu'                  => '[P]osten  [R]efresh  [Q]uittieren: ',
+    'ui.terminalserver.shoutbox.new_shout'             => 'Neuer Shout (leer lassen zum Abbrechen): ',
+    'ui.terminalserver.shoutbox.posted'                => 'Shout veröffentlicht.',
+    'ui.terminalserver.shoutbox.post_failed'           => 'Shout konnte nicht veröffentlicht werden.',
+
+    // --- File areas ---
+    'ui.terminalserver.files.no_areas'                 => 'Keine Dateibereiche verfügbar.',
+    'ui.terminalserver.files.areas_header'             => 'Dateibereiche (Seite {page}/{total}):',
+    'ui.terminalserver.files.areas_nav'                => 'Nr. eingeben, n/p (vor/zurück), q (beenden)',
+    'ui.terminalserver.files.area_header'              => 'Dateien: {area} (Seite {page}/{total})',
+    'ui.terminalserver.files.no_files'                 => 'Keine Dateien in diesem Bereich.',
+    'ui.terminalserver.files.files_nav'                => 'D)ownload  n/p (vor/zurück)  Q)uittieren',
+    'ui.terminalserver.files.files_nav_upload'         => 'D)ownload  U)pload  n/p (vor/zurück)  Q)uittieren',
+    'ui.terminalserver.files.files_nav_upload_only'    => 'U)pload  n/p (vor/zurück)  Q)uittieren',
+    'ui.terminalserver.files.files_nav_none'           => 'n/p (vor/zurück)  Q)uittieren',
+    'ui.terminalserver.files.transfer_unavailable'     => 'ZMODEM deaktiviert: Installieren Sie lrzsz (sz/rz) auf dem Server, um Übertragungen zu aktivieren.',
+    'ui.terminalserver.files.invalid_selection'        => 'Ungültige Auswahl.',
+    'ui.terminalserver.files.download_prompt'          => 'Datei Nr. zum Herunterladen (Enter zum Abbrechen): ',
+    'ui.terminalserver.files.download_error'           => 'Datei auf Server nicht gefunden.',
+    'ui.terminalserver.files.download_starting'        => 'ZMODEM-Download wird gestartet: {name}',
+    'ui.terminalserver.files.download_hint'            => 'Starten Sie jetzt den ZMODEM-Empfang in Ihrem Terminal...',
+    'ui.terminalserver.files.download_done'            => 'Übertragung abgeschlossen.',
+    'ui.terminalserver.files.download_failed'          => 'Übertragung fehlgeschlagen oder abgebrochen.',
+    'ui.terminalserver.files.upload_title'             => '=== Datei hochladen ===',
+    'ui.terminalserver.files.upload_area'              => 'Bereich: {area}',
+    'ui.terminalserver.files.upload_desc_prompt'       => 'Kurzbeschreibung (leer lassen zum Abbrechen): ',
+    'ui.terminalserver.files.upload_cancelled'         => 'Upload abgebrochen.',
+    'ui.terminalserver.files.upload_starting'          => 'Starten Sie jetzt das ZMODEM-Senden in Ihrem Terminal...',
+    'ui.terminalserver.files.upload_failed'            => 'Übertragung fehlgeschlagen oder abgebrochen.',
+    'ui.terminalserver.files.upload_done'              => 'Datei erfolgreich hochgeladen (ID: {id}).',
+    'ui.terminalserver.files.upload_error'             => 'Upload-Fehler: {error}',
+    'ui.terminalserver.files.upload_duplicate'         => 'Diese Datei existiert bereits in diesem Bereich.',
+    'ui.terminalserver.files.upload_readonly'          => 'Dieser Bereich ist schreibgeschützt. Uploads sind nicht erlaubt.',
+    'ui.terminalserver.files.upload_admin_only'        => 'Nur Administratoren können in diesen Bereich hochladen.',
+    'ui.terminalserver.files.files_back_hint'          => 'B)ack zum übergeordneten Ordner',
+    'ui.terminalserver.files.not_a_file'               => 'Dieser Eintrag ist ein Ordner, keine Datei.',
+    'ui.terminalserver.files.enter_folder_or_file'     => 'Ordnernummer zum Durchsuchen oder Dateinummer für Details eingeben.',
+
+    // --- QWK ---
+    'ui.terminalserver.qwk.action_logout'              => 'Q) Abmelden',
+
+    // --- Tabbed settings screen ---
+    'ui.terminalserver.settings.tab_title'             => 'BBS-Einstellungen',
+    'ui.terminalserver.settings.tab_terminal'          => 'Terminal',
+    'ui.terminalserver.settings.tab_display'           => 'Anzeige',
+    'ui.terminalserver.settings.tab_messaging'         => 'Nachrichten',
+    'ui.terminalserver.settings.tab_account'           => 'Konto',
+    'ui.terminalserver.settings.tab_ai'                => 'KI',
+    'ui.terminalserver.settings.hint_navigate'         => '  ↑↓ Bewegen   ◄► Ändern   [ ] Tabs   S) Speichern   Q) Beenden',
+    'ui.terminalserver.settings.hint_navigate_ascii'   => '  Hoch/Runter Bewegen   Links/Re Ändern   [/] Tabs   S) Speichern   Q) Beenden',
+    'ui.terminalserver.settings.discarded'             => 'Änderungen verworfen.',
+
+    // Terminal tab fields
+    'ui.terminalserver.settings.terminal.charset'      => 'Zeichensatz',
+    'ui.terminalserver.settings.terminal.ansi_color'   => 'ANSI-Farbe',
+    'ui.terminalserver.settings.terminal.run_wizard'   => 'Erkennungsassistenten starten',
+
+    // Display tab fields
+    'ui.terminalserver.settings.display.messages_per_page' => 'Nachrichten pro Seite',
+    'ui.terminalserver.settings.display.timezone'          => 'Zeitzone',
+    'ui.terminalserver.settings.display.language'          => 'Sprache',
+    'ui.terminalserver.settings.display.date_format'       => 'Datumsformat',
+    'ui.terminalserver.settings.display.default_echo_list' => 'Standard-Echoliste',
+    'ui.terminalserver.settings.display.echo_list_system'  => 'Systemstandard',
+    'ui.terminalserver.settings.display.echo_list_reader'  => 'Leser',
+    'ui.terminalserver.settings.display.echo_list_all'     => 'Alle Bereiche',
+
+    // Messaging tab fields
+    'ui.terminalserver.settings.messaging.signature'        => 'Signatur',
+    'ui.terminalserver.settings.messaging.signature_hint'   => 'ENTER zum Bearbeiten (max. 4 Zeilen)',
+    'ui.terminalserver.settings.messaging.tagline'          => 'Standard-Tagline',
+    'ui.terminalserver.settings.messaging.tagline_none'     => '(Keine Tagline)',
+    'ui.terminalserver.settings.messaging.tagline_random'   => '(Zufällig)',
+    'ui.terminalserver.settings.messaging.threaded_echo'    => 'Thread-Ansicht für Echomail',
+    'ui.terminalserver.settings.messaging.threaded_net'     => 'Thread-Ansicht für Netmail',
+    'ui.terminalserver.settings.messaging.quote_coloring'   => 'Zitierten Text einfärben',
+    'ui.terminalserver.settings.messaging.forward_netmail'  => 'Netmail an E-Mail weiterleiten',
+    'ui.terminalserver.settings.messaging.echomail_digest'  => 'Echomail-Digest',
+    'ui.terminalserver.settings.messaging.digest_none'      => 'Keine',
+    'ui.terminalserver.settings.messaging.digest_daily'     => 'Täglich',
+    'ui.terminalserver.settings.messaging.digest_weekly'    => 'Wöchentlich',
+    'ui.terminalserver.settings.messaging.echomail_badge_mode'      => 'Echomail-Badge',
+    'ui.terminalserver.settings.messaging.badge_mode_new'   => 'Neu seit letztem Besuch',
+    'ui.terminalserver.settings.messaging.badge_mode_unread' => 'Gesamt ungelesen',
+
+    // Account tab actions
+    'ui.terminalserver.settings.account.change_password'        => 'Passwort ändern',
+    'ui.terminalserver.settings.account.view_sessions'          => 'Aktive Sitzungen anzeigen',
+    'ui.terminalserver.settings.account.reset_onboarding'       => 'Echomail-Einführung zurücksetzen',
+    'ui.terminalserver.settings.account.sessions_title'         => 'Aktive Sitzungen',
+    'ui.terminalserver.settings.account.no_sessions'            => '  Keine aktiven Sitzungen gefunden.',
+    'ui.terminalserver.settings.account.sessions_hint'          => 'Sitzungsnummer zum Widerrufen eingeben oder Q zum Zurückkehren: ',
+    'ui.terminalserver.settings.account.old_password_prompt'    => 'Aktuelles Passwort: ',
+    'ui.terminalserver.settings.account.new_password_prompt'    => 'Neues Passwort: ',
+    'ui.terminalserver.settings.account.confirm_password_prompt' => 'Neues Passwort bestätigen: ',
+    'ui.terminalserver.settings.account.password_mismatch'      => 'Passwörter stimmen nicht überein.',
+    'ui.terminalserver.settings.account.password_changed'       => 'Passwort erfolgreich geändert.',
+    'ui.terminalserver.settings.account.password_failed'        => 'Passwort konnte nicht geändert werden.',
+    'ui.terminalserver.settings.account.onboarding_reset'       => 'Echomail-Einführung zurückgesetzt. Beim nächsten Besuch werden Sie durch die Interessenauswahl geführt.',
+    'ui.terminalserver.settings.account.onboarding_reset_failed' => 'Einführung konnte nicht zurückgesetzt werden.',
+
+    // AI/MCP tab
+    'ui.terminalserver.settings.ai.generate_key'       => 'MCP-Schlüssel generieren',
+    'ui.terminalserver.settings.ai.regenerate_key'     => 'MCP-Schlüssel neu generieren',
+    'ui.terminalserver.settings.ai.regenerate_confirm' => 'Neu generieren macht den vorhandenen Schlüssel ungültig. Fortfahren? (J/N): ',
+    'ui.terminalserver.settings.ai.revoke_key'         => 'MCP-Schlüssel widerrufen',
+    'ui.terminalserver.settings.ai.revoke_confirm'     => 'MCP-Schlüssel widerrufen? Alle verbundenen KI-Clients werden getrennt. (J/N): ',
+    'ui.terminalserver.settings.ai.mcp_key_exists'     => 'Schlüssel aktiv: {preview}',
+    'ui.terminalserver.settings.ai.mcp_no_key'         => 'Noch kein Schlüssel generiert',
+    'ui.terminalserver.settings.ai.key_generated'      => 'MCP-Schlüssel generiert. Jetzt kopieren — er wird nicht erneut angezeigt:',
+    'ui.terminalserver.settings.ai.generate_failed'    => 'Schlüssel konnte nicht generiert werden.',
+    'ui.terminalserver.settings.ai.key_revoked'        => 'MCP-Schlüssel widerrufen.',
+    'ui.terminalserver.settings.ai.revoke_failed'      => 'Schlüssel konnte nicht widerrufen werden.',
+
+    // --- Legacy terminal settings page ---
+    'ui.terminalserver.settings.title'                 => '=== Terminaleinstellungen ===',
+    'ui.terminalserver.settings.charset_label'         => 'Zeichensatz    : {value}',
+    'ui.terminalserver.settings.ansi_label'            => 'ANSI-Farbe     : {value}',
+    'ui.terminalserver.settings.not_set'               => 'Nicht konfiguriert',
+    'ui.terminalserver.settings.menu_detect'           => 'E) Erkennungsassistenten starten',
+    'ui.terminalserver.settings.menu_charset'          => 'Z) Zeichensatz manuell ändern',
+    'ui.terminalserver.settings.menu_ansi'             => 'A) ANSI-Farbe umschalten',
+    'ui.terminalserver.settings.menu_quit'             => 'Q) Zurück zum Hauptmenü',
+    'ui.terminalserver.settings.saved'                 => 'Einstellungen gespeichert.',
+    'ui.terminalserver.settings.save_failed'           => 'Warnung: Einstellungen konnten nicht gespeichert werden.',
+    'ui.terminalserver.settings.invalid_choice'        => 'Ungültige Auswahl.',
+    'ui.terminalserver.settings.charset_prompt'        => 'Auswählen: (U)TF-8, (C)P437, (A)SCII: ',
+
+    // --- Terminal detection wizard ---
+    'ui.terminalserver.detect.title'                   => '=== Terminal-Einrichtung ===',
+    'ui.terminalserver.detect.intro'                   => 'Das BBS testet nun Ihr Terminal, um sicherzustellen, dass Inhalte korrekt angezeigt werden.',
+    'ui.terminalserver.detect.charset_intro'           => 'Zeichensatz-Test:',
+    'ui.terminalserver.detect.charset_question'        => 'Erscheinen die obigen Zeichen als Pfeile, Häkchen und Buchstaben mit Akzenten? (J/N): ',
+    'ui.terminalserver.detect.charset_utf8'            => 'UTF-8-Zeichensatz aktiviert.',
+    'ui.terminalserver.detect.charset_cp437_intro'     => 'CP437 Rahmenzeichentest:',
+    'ui.terminalserver.detect.charset_cp437_question'  => 'Erscheinen die obigen Zeichen als Box mit Linien und Ecken? (J/N): ',
+    'ui.terminalserver.detect.charset_cp437'           => 'CP437 (DOS/ANSI) Zeichensatz aktiviert.',
+    'ui.terminalserver.detect.charset_ascii'           => 'ASCII-Modus aktiviert.',
+    'ui.terminalserver.detect.ansi_intro'              => 'Farbtest:',
+    'ui.terminalserver.detect.ansi_question'           => 'Erscheinen die obigen Wörter in verschiedenen Farben? (J/N): ',
+    'ui.terminalserver.detect.ansi_yes'                => 'ANSI-Farbe aktiviert.',
+    'ui.terminalserver.detect.ansi_no'                 => 'ANSI-Farbe deaktiviert.',
+    'ui.terminalserver.detect.complete'                => 'Terminal-Einrichtung abgeschlossen. Einstellungen gespeichert.',
+    'ui.terminalserver.detect.press_enter'             => 'Drücken Sie Enter um fortzufahren...',
+
+    // --- Door games ---
+    'ui.terminalserver.doors.no_doors'                 => 'Derzeit sind keine Türspiele verfügbar.',
+    'ui.terminalserver.doors.title'                    => '=== Türspiele ===',
+    'ui.terminalserver.doors.enter_choice'             => 'Nummer eingeben zum Spielen oder Q zum Zurückkehren: ',
+    'ui.terminalserver.doors.invalid'                  => 'Ungültige Auswahl.',
+    'ui.terminalserver.doors.launching'                => '{name} wird gestartet...',
+    'ui.terminalserver.doors.launch_error'             => 'Fehler: {error}',
+    'ui.terminalserver.doors.connecting'               => 'Verbindung zum Spielserver wird hergestellt...',
+    'ui.terminalserver.doors.connect_failed'           => 'Verbindung zur Spielbrücke fehlgeschlagen. Läuft die DOS-Türbrücke?',
+    'ui.terminalserver.doors.connected'                => 'Verbunden! Spiel wird gestartet...',
+    'ui.terminalserver.doors.returned'                 => 'Zurückgekehrt von {name}.',
+
+    // --- Message headers ---
+    'ui.terminalserver.message.headers_title'          => '=== Nachrichtenkopfzeilen ===',
+    'ui.terminalserver.message.no_headers'             => '(Keine Nachrichtenkopfzeilen)',
+
+    // --- Bulletins ---
+    'ui.terminalserver.bulletins.title'                => 'Bulletins',
+    'ui.terminalserver.bulletins.none'                 => 'Keine Bulletins verfügbar.',
+    'ui.terminalserver.bulletins.continue'             => 'Bulletin {current} von {total}. Enter für weiter, S um alle zu überspringen...',
+];

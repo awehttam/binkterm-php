@@ -40,6 +40,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Localization
 
+- **German translation**: German (`de`) translations are now available, courtesy of Neo67.
 - **Spanish and French orphaned keys**: Four translation keys that no longer exist in the English baseline were present in the Spanish (`es`) and French (`fr`) catalogs. These orphaned entries have been removed from both catalogs.
 - **New `check_i18n_extra_keys.php` script**: A new developer utility detects translation keys in non-English catalogs that are absent from the English baseline, complementing the existing `check_i18n_missing_keys.php` script.
 - **New `check_i18n_syntax.php` script**: A new developer utility runs `php -l` on every catalog file and reports parse errors before they can cause HTTP 500 errors in production.
@@ -238,6 +239,10 @@ The defaults allow 5 connections per minute per IP, which is sufficient for any 
 No database migration or `composer update` is required for this change. The feature activates automatically on daemon restart.
 
 ## Localization
+
+### German Translation
+
+German (`de`) translations are now available for the web interface and terminal server, courtesy of Neo67. No database migration or configuration change is required.
 
 ### Spanish and French Orphaned Keys
 

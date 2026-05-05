@@ -11,6 +11,7 @@
 | Agent 57951 | QWK/QWKE offline mail support |
 | Errol Casey | Extensive testing |
 | Freddy Krueger | Italian translation |
+| Neo67 | German translation |
 
 ## Third-Party Libraries
 

@@ -1451,6 +1451,8 @@ return [
     'ui.admin.i18n_overrides.save_failed' => 'Error al guardar los ajustes.',
     'ui.admin.i18n_overrides.load_failed' => 'Error al cargar el catalogo.',
     'ui.admin.i18n_overrides.select_locale_catalog' => 'Seleccione un idioma y catalogo, luego haga clic en Cargar.',
+    'ui.admin.i18n_overrides.translate_btn'         => 'Traducir del inglés',
+    'ui.admin.i18n_overrides.translate_failed'      => 'La traducción ha fallado.',
 
     // Admin Upgrade Notes
     'ui.admin.upgrade_notes.none_for_version' => 'No se encontraron notas de actualizacion para la version {version}.',

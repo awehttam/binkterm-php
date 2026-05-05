@@ -4804,6 +4804,66 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         }
     });
 
+    // POST /admin/api/i18n-overrides/translate — AI-powered single-string translation
+    SimpleRouter::post('/api/i18n-overrides/translate', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $locale = trim((string)($input['locale'] ?? ''));
+        $text   = trim((string)($input['text'] ?? ''));
+
+        if ($locale === '' || $text === '') {
+            apiError('errors.admin.i18n_overrides.missing_params', 'locale and text are required', 400);
+        }
+
+        $apiKey  = \BinktermPHP\Config::env('ANTHROPIC_API_KEY', '');
+        $apiBase = rtrim(\BinktermPHP\Config::env('ANTHROPIC_API_BASE', 'https://api.anthropic.com/v1'), '/');
+
+        if ($apiKey === '') {
+            http_response_code(503);
+            echo json_encode(['success' => false, 'error' => 'ANTHROPIC_API_KEY is not configured']);
+            return;
+        }
+
+        $prompt = "Translate the following UI string from English to the language with locale code \"{$locale}\". "
+                . "Preserve any {placeholder} tokens exactly as written. "
+                . "Return only the translated text with no explanation, no quotation marks, and no commentary.\n\n"
+                . $text;
+
+        try {
+            $result = \BinktermPHP\AI\HttpClient::postJson(
+                $apiBase . '/messages',
+                [
+                    'model'      => 'claude-haiku-4-5-20251001',
+                    'max_tokens' => 512,
+                    'messages'   => [['role' => 'user', 'content' => $prompt]],
+                ],
+                [
+                    'Content-Type: application/json',
+                    'x-api-key: ' . $apiKey,
+                    'anthropic-version: 2023-06-01',
+                ],
+                30
+            );
+
+            $translated = trim((string)($result['body']['content'][0]['text'] ?? ''));
+
+            if ($translated === '') {
+                getServerLogger()->error('i18n translate: empty response for locale=' . $locale);
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Translation returned empty result']);
+                return;
+            }
+
+            echo json_encode(['success' => true, 'translation' => $translated]);
+        } catch (Exception $e) {
+            getServerLogger()->error('i18n translate error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Translation failed']);
+        }
+    });
+
     // Auto Feed page
     SimpleRouter::get('/auto-feed', function() {
         $user = RouteHelper::requireAdmin();
