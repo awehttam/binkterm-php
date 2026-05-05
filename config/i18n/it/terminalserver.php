@@ -27,7 +27,7 @@ return [
 
     // --- Lost password reset ---
     'ui.terminalserver.server.reset_password.title'    => '=== Reimpostazione password ===',
-    'ui.terminalserver.server.reset_password.intro'    => 'Inserisci nome utente, nome reale o indirizzo email e ti invieremo un link per reimpostare la password se l’account esiste.',
+    'ui.terminalserver.server.reset_password.intro'    => 'Inserisci nome utente, nome reale o indirizzo email e ti invieremo un link per reimpostare la password se l\'account esiste.',
     'ui.terminalserver.server.reset_password.cancel_hint' => '(Premi Invio su un prompt vuoto per annullare)',
     'ui.terminalserver.server.reset_password.identifier_prompt' => 'Nome utente, nome reale o email: ',
     'ui.terminalserver.server.reset_password.submitting' => 'Richiesta reimpostazione password...',
@@ -44,11 +44,11 @@ return [
     'ui.terminalserver.server.registration.confirm'        => 'Conferma password: ',
     'ui.terminalserver.server.registration.password_mismatch' => 'Errore: le password non corrispondono.',
     'ui.terminalserver.server.registration.realname'       => 'Nome reale: ',
-    ‘ui.terminalserver.server.registration.email’          => ‘Email: ‘,
-    ‘ui.terminalserver.server.registration.email_invalid’  => ‘È richiesto un indirizzo email valido.’,
-    ‘ui.terminalserver.server.registration.location’       => ‘Località (opzionale): ‘,
-    ‘ui.terminalserver.server.registration.reason’         => ‘Motivo dell\’iscrizione: ‘,
-    ‘ui.terminalserver.server.registration.reason_required’ => ‘Fornire un motivo per l\’iscrizione.’,
+    'ui.terminalserver.server.registration.email'          => 'Email: ',
+    'ui.terminalserver.server.registration.email_invalid'  => 'È richiesto un indirizzo email valido.',
+    'ui.terminalserver.server.registration.location'       => 'Località (opzionale): ',
+    'ui.terminalserver.server.registration.reason'         => 'Motivo dell\'iscrizione: ',
+    'ui.terminalserver.server.registration.reason_required' => 'Fornire un motivo per l\'iscrizione.',
     'ui.terminalserver.server.registration.submitting'     => 'Invio registrazione...',
     'ui.terminalserver.server.registration.success'        => 'Registrazione completata!',
     'ui.terminalserver.server.registration.pending'        => 'Il tuo account è stato creato ed è in attesa di approvazione.',
@@ -83,7 +83,7 @@ return [
 
     // --- Farewell ---
     'ui.terminalserver.server.farewell'                => 'Grazie per la visita, buona giornata!',
-    'ui.terminalserver.server.visit_web'               => 'Torna a visitarci sul web all’indirizzo {url}',
+    'ui.terminalserver.server.visit_web'               => 'Torna a visitarci sul web all\'indirizzo {url}',
 
     // --- Who's Online ---
     'ui.terminalserver.server.whos_online.title'       => 'Chi è online (ultimi {minutes} minuti)',
@@ -102,7 +102,7 @@ return [
     'ui.terminalserver.editor.title'                   => 'EDITOR MESSAGGI - MODALITÀ SCHERMO INTERO',
     'ui.terminalserver.editor.shortcuts'               => 'Ctrl+K=Aiuto  Ctrl+Z=Invia  Ctrl+C=Annulla',
     'ui.terminalserver.editor.cancelled'               => 'Messaggio annullato.',
-    'ui.terminalserver.editor.saved'                   => 'Messaggio salvato e pronto per l’invio.',
+    'ui.terminalserver.editor.saved'                   => 'Messaggio salvato e pronto per l\'invio.',
     'ui.terminalserver.editor.starting_text'           => 'Inizio con testo citato. Inserisci la risposta sotto.',
     'ui.terminalserver.editor.instructions'            => 'Inserisci il testo del messaggio. Termina con una singola riga ".". Digita "/abort" per annullare.',
 
@@ -206,7 +206,7 @@ return [
     'ui.terminalserver.files.upload_area'              => 'Area: {area}',
     'ui.terminalserver.files.upload_desc_prompt'       => 'Descrizione breve (vuoto per annullare): ',
     'ui.terminalserver.files.upload_cancelled'         => 'Caricamento annullato.',
-    'ui.terminalserver.files.upload_starting'          => 'Avvia ora l’invio ZMODEM nel terminale...',
+    'ui.terminalserver.files.upload_starting'          => 'Avvia ora l\'invio ZMODEM nel terminale...',
     'ui.terminalserver.files.upload_failed'            => 'Trasferimento non riuscito o annullato.',
     'ui.terminalserver.files.upload_done'              => 'File caricato correttamente (ID: {id}).',
     'ui.terminalserver.files.upload_error'             => 'Errore caricamento: {error}',
@@ -282,7 +282,7 @@ return [
     'ui.terminalserver.settings.account.password_changed'       => 'Password modificata correttamente.',
     'ui.terminalserver.settings.account.password_failed'        => 'Impossibile modificare la password.',
     'ui.terminalserver.settings.account.onboarding_reset'       => 'Onboarding echomail reimpostato. Alla prossima visita verrai guidato nella selezione degli interessi.',
-    'ui.terminalserver.settings.account.onboarding_reset_failed' => 'Impossibile reimpostare l’onboarding.',
+    'ui.terminalserver.settings.account.onboarding_reset_failed' => 'Impossibile reimpostare l\'onboarding.',
 
     // AI/MCP tab
     'ui.terminalserver.settings.ai.generate_key'      => 'Genera chiave MCP',
