@@ -170,7 +170,9 @@ $(document).ready(function() {
         } else if (document.visibilityState === 'visible' && _hiddenAt !== null) {
             // Only refresh if the page was hidden for more than 30 seconds.
             if (Date.now() - _hiddenAt >= 30000) {
-                loadMessages(null, true);
+                if (!currentSearchTerms.length) {
+                    loadMessages(null, true);
+                }
                 loadStats();
             }
             _hiddenAt = null;
@@ -184,7 +186,9 @@ $(document).ready(function() {
         window.BinkStream.on('dashboard_stats', function() {
             clearTimeout(_dashboardRefreshTimer);
             _dashboardRefreshTimer = setTimeout(function() {
-                loadMessages(null, true);
+                if (!currentSearchTerms.length) {
+                    loadMessages(null, true);
+                }
                 loadStats();
             }, 2000);
         });

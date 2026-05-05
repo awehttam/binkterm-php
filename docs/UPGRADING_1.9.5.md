@@ -16,11 +16,16 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Community Wireless Node Map](#community-wireless-node-map)
 - [File Areas](#file-areas)
 - [Terminal Registration](#terminal-registration)
+- [Message Search](#message-search)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+### Message Search
+
+- Fixed echomail and netmail search results being replaced by the full message list when the background auto-refresh fired (on new-message events from BinkStream or when the browser tab was restored after being hidden). Search results now stay on screen until explicitly cleared.
 
 ### Message Reader
 
@@ -158,6 +163,14 @@ When a user registers through telnet or SSH, email address and reason for joinin
 Web registration is not affected — email and reason remain optional for web-based sign-ups.
 
 No configuration changes are required.
+
+## Message Search
+
+The web echomail and netmail message lists auto-refresh in two situations: when a BinkStream event signals that new messages have arrived, and when the browser tab returns to the foreground after being hidden for more than 30 seconds. Previously, both of these refreshes unconditionally reloaded the message list, which replaced any active search results with the full unfiltered list.
+
+The auto-refresh now skips the message list reload when a search is active. Unread counts, echoarea stats, and other sidebar data continue to update in the background so new arrivals are reflected without disturbing the search view. To dismiss search results and return to the live message list, use the Clear Search button.
+
+No database changes or configuration updates are required.
 
 ## Upgrade Instructions
 
