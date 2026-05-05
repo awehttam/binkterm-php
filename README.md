@@ -329,7 +329,7 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 ### Ubuntu/Debian package requirements
 ```bash
 sudo apt-get update
-sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom postgresql composer 
+sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom php-gmp postgresql composer  
 sudo apt-get install -y unzip p7zip-full
 # Optional: Sixel image rendering in telnet/SSH terminal reader
 sudo apt-get install -y libsixel-bin
@@ -506,6 +506,14 @@ yourdomain.com {
     handle @static {
         file_server {
             index index.html
+        }
+    }
+
+    # Everything else: try file, then fall back to index.php (for clean URLs)
+    handle {
+        try_files {path} {path}/ /index.php
+        php_fastcgi unix//run/php/php8.2-fpm.sock {
+            capture_stderr
         }
     }
 
