@@ -1,0 +1,23 @@
+/* BinkPlayer — Plyr theme overrides for BinkTermPHP themes */
+
+/* Default (light) theme */
+:root {
+    --plyr-color-main: var(--fidonet-blue, #0066cc);
+    --plyr-audio-controls-background: var(--message-bg, #ffffff);
+    --plyr-audio-control-color: var(--text-color, #000000);
+    --plyr-audio-control-color-hover: var(--fidonet-blue, #0066cc);
+    --plyr-video-controls-background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.7));
+    --plyr-range-fill-background: var(--fidonet-blue, #0066cc);
+}
+
+.plyr {
+    border-radius: 4px;
+}
+
+.plyr--audio {
+    max-width: 480px;
+}
+
+.plyr--video {
+    max-width: 640px;
+}

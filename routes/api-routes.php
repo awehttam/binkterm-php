@@ -9242,7 +9242,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['compose_advanced_open'] = $meta->getValue((int)$userId, 'compose_advanced_open') === 'true';
                 $rawWrap = $meta->getValue((int)$userId, 'compose_hard_wrap');
                 $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
-                $settings['image_load_mode'] = $meta->getValue((int)$userId, 'image_load_mode') ?? 'click';
+                $settings['media_render_mode'] = $meta->getValue((int)$userId, 'media_render_mode') ?? 'auto';
             }
 
             $settings['license_valid'] = \BinktermPHP\License::isValid();
@@ -9332,12 +9332,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $metaSettingsUpdated = true;
                 }
 
-                if (isset($settings['image_load_mode'])) {
-                    $modeVal = (string)$settings['image_load_mode'];
+                if (isset($settings['media_render_mode'])) {
+                    $modeVal = (string)$settings['media_render_mode'];
                     if (!in_array($modeVal, ['click', 'auto'], true)) {
-                        $modeVal = 'click';
+                        $modeVal = 'auto';
                     }
-                    $meta->setValue((int)$userId, 'image_load_mode', $modeVal);
+                    $meta->setValue((int)$userId, 'media_render_mode', $modeVal);
                     $metaSettingsUpdated = true;
                 }
             }
@@ -9350,7 +9350,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['file_notification_sound'],
                 $settings['compose_advanced_open'],
                 $settings['compose_hard_wrap'],
-                $settings['image_load_mode']
+                $settings['media_render_mode']
             );
 
             $handler = new MessageHandler();
@@ -11960,6 +11960,47 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } catch (\Exception $e) {
             http_response_code(500);
             apiError('errors.settings.load_failed', apiLocalizedText('errors.settings.load_failed', 'Failed to load images'), 500);
+        }
+    });
+
+    SimpleRouter::get('/media/embed', function() {
+        header('Content-Type: application/json');
+
+        $url = trim($_GET['url'] ?? '');
+        if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
+            echo json_encode(['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
+            return;
+        }
+
+        $scheme = strtolower(parse_url($url, PHP_URL_SCHEME) ?? '');
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            echo json_encode(['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
+            return;
+        }
+
+        try {
+            $mpConfig      = \BinktermPHP\AppearanceConfig::getMediaPlayerConfig();
+            $globalEnabled = !isset($mpConfig['enabled']) || !empty($mpConfig['enabled']);
+
+            if (!$globalEnabled) {
+                echo json_encode(['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
+                return;
+            }
+
+            $enabledProviders = $mpConfig['providers'] ?? [];
+            $allProviders = \BinktermPHP\Media\MediaLinkResolver::defaultProviders();
+            $providers = array_values(array_filter($allProviders, function ($p) use ($enabledProviders) {
+                $name = $p->getName();
+                return !isset($enabledProviders[$name]) || !empty($enabledProviders[$name]);
+            }));
+
+            $resolver = new \BinktermPHP\Media\MediaLinkResolver($providers);
+            $result   = $resolver->resolve($url);
+
+            echo json_encode($result ?? ['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
+        } catch (\Exception $e) {
+            getServerLogger()->error('media/embed resolve error: ' . $e->getMessage());
+            echo json_encode(['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
         }
     });
 

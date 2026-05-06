@@ -5,6 +5,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [Inline Media Player](#inline-media-player)
 - [Message Reader](#message-reader)
 - [Bulletin Manager](#bulletin-manager)
 - [Terminal Message Editor](#terminal-message-editor)
@@ -22,6 +23,12 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+### Inline Media Player
+
+- Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files are now automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, Twitter/X, SoundCloud, TikTok, Minds, Bastyon, and ReverbNation. Direct links to video, audio, and image files are also embedded inline.
+- The user preference formerly called "Image load mode" has been renamed "Inline media rendering" and controls whether embeds load automatically or require a user click to expand. All existing accounts are migrated to the automatic mode on upgrade.
+- Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**. Run `php scripts/setup.php` to apply the required database migration.
 
 ### Message Search
 
@@ -56,6 +63,57 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Added a File Name field to the Add Link form. When adding an external URL link to a file area, users can now set a specific display name for the link. The field is pre-populated from the URL path when a URL is entered, and updated to the page title when Fetch Info is used — both values can be freely edited before submitting.
 - Fixed URL metadata fetching for YouTube links. The Fetch Info button now uses the YouTube oEmbed API instead of scraping the page HTML, resolving an issue where production servers received generic placeholder metadata rather than the actual video title and thumbnail.
+
+## Inline Media Player
+
+The web message reader now detects URLs in echomail and netmail message bodies and embeds them as inline players. No changes to how messages are stored or sent are required — the embedding happens entirely in the browser when the message is rendered.
+
+### Supported platforms
+
+| Platform | Type |
+|---|---|
+| YouTube | Inline iframe |
+| Odysee | Inline iframe |
+| Rumble | Inline iframe |
+| BitChute | Inline iframe |
+| Brighteon | Inline iframe |
+| Twitter / X | oEmbed (server-fetched) |
+| SoundCloud | oEmbed (server-fetched) |
+| TikTok | oEmbed (server-fetched) |
+| Minds | oEmbed (server-fetched) |
+| Bastyon | oEmbed (server-fetched) |
+| ReverbNation | oEmbed (server-fetched) |
+| Video files (`mp4`, `webm`, `ogv`, `mov`) | Native HTML5 player |
+| Audio files (`mp3`, `flac`, `ogg`, `opus`, `wav`, `m4a`, `aac`) | Native HTML5 player |
+| Image files (`png`, `webp`, `gif`, `jpg`, `jpeg`, `svg`) | Inline image |
+
+oEmbed embeds are fetched by the server rather than the browser. This means the user's IP address is not sent to Twitter/X, SoundCloud, or other oEmbed services when a message is opened.
+
+### User setting: Inline media rendering
+
+Each user can control how embeds appear through the **Inline media rendering** setting on their Settings page:
+
+- **Automatically render rich media** — embeds load and appear immediately when a message is opened. This is the new default for all accounts.
+- **Click to expand** — a "▶ Load player" button appears in place of each embed. The player loads only when the user clicks the button.
+
+This setting was previously named "Image load mode" and controlled only whether Markdown inline images loaded automatically. The upgrade migrates all existing accounts to the automatic mode. Users who had previously set the old "Click to load" preference are also migrated to automatic; they can switch back to click-to-expand on their Settings page if preferred.
+
+The `image_load_mode` key in `users_meta` is renamed to `media_render_mode` and all values are set to `auto` by the migration. Run `php scripts/setup.php` to apply this change.
+
+### Admin settings
+
+The media player can be configured from **Admin → Appearance → Message Reader**:
+
+- **Enable inline media player** — turns the feature on or off globally for all users. Disabled by default the feature can be re-enabled at any time without data loss.
+- **Enabled providers** — individual toggles for each supported platform. Disabling a provider prevents the server from resolving embeds for that platform and hides any client-side embed injection for it.
+
+These settings are stored in `data/appearance.json` and take effect immediately without restarting any daemons.
+
+### Upgrade steps
+
+Run `php scripts/setup.php` as part of the normal upgrade. The setup script applies the `v20260506120000_rename_image_load_mode` migration, which renames the `image_load_mode` key to `media_render_mode` and sets all values to `auto`.
+
+No changes to `config/binkp.json`, `config/lovlynet.json`, or any other configuration file are required.
 
 ## Message Reader
 

@@ -2239,6 +2239,28 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $config['message_reader']['email_link_url'] = trim((string)($mr['email_link_url'] ?? ''));
                 $config['message_reader']['discord_url'] = trim((string)($mr['discord_url'] ?? ''));
 
+                if (array_key_exists('media_player', $mr)) {
+                    $mp = $mr['media_player'];
+                    $validProviders = [
+                        'youtube', 'odysee', 'rumble', 'bitchute', 'brighteon',
+                        'soundcloud', 'twitter', 'tiktok', 'minds', 'bastyon',
+                        'reverbnation', 'raw_media',
+                    ];
+                    $providers = [];
+                    foreach ($validProviders as $providerName) {
+                        $providers[$providerName] = !empty($mp['providers'][$providerName] ?? true);
+                    }
+                    $apiKeys = [];
+                    foreach (['soundcloud', 'twitter'] as $keyName) {
+                        $apiKeys[$keyName] = trim((string)($mp['api_keys'][$keyName] ?? ''));
+                    }
+                    $config['message_reader']['media_player'] = [
+                        'enabled'   => !empty($mp['enabled'] ?? true),
+                        'providers' => $providers,
+                        'api_keys'  => $apiKeys,
+                    ];
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);
                 \BinktermPHP\AppearanceConfig::reload();

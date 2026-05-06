@@ -911,6 +911,7 @@ function renderCurrentMessageBody() {
         });
 
     container.innerHTML = bodyHtml;
+    if (window.BinkMediaPlayer) BinkMediaPlayer.scan(container);
     updateRenderModeBadge();
 }
 

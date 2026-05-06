@@ -665,7 +665,8 @@ function linkifyUrls(text) {
     if (!text) return text;
 
     // Only match http://, https://, ftp:// URLs - never javascript: or data:
-    const urlPattern = /\b((?:https?|ftp):\/\/[^\s<>&"']+)/gi;
+    // &amp; is allowed as a unit so query-string params like ?v=ID&t=60s survive HTML-escaping
+    const urlPattern = /\b((?:https?|ftp):\/\/(?:[^\s<>&"']|&amp;)+)/gi;
 
     return text.replace(urlPattern, function(match, url) {
         // Double-check: only allow safe protocols
@@ -1714,7 +1715,7 @@ $(document).ready(function(){
 
     // Auto-load images when the setting is enabled, watching for dynamically added content
     const mdImageObserver = new MutationObserver(function(mutations) {
-        if ((window.userSettings || {}).image_load_mode !== 'auto') return;
+        if (((window.userSettings || {}).media_render_mode || 'auto') !== 'auto') return;
         mutations.forEach(function(mutation) {
             mutation.addedNodes.forEach(function(node) {
                 if (node.nodeType !== Node.ELEMENT_NODE) return;
