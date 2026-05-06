@@ -4613,68 +4613,82 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Fetch the URL with a short timeout
-        $ctx = stream_context_create([
-            'http' => [
-                'timeout'         => 8,
-                'follow_location' => true,
-                'max_redirects'   => 5,
-                'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'method'          => 'GET',
-            ],
-            'ssl' => [
-                'verify_peer'      => true,
-                'verify_peer_name' => true,
-            ],
-        ]);
-
-        $html = @file_get_contents($url, false, $ctx);
-
-        if ($html === false || $html === '') {
-            echo json_encode(['success' => true, 'short_description' => '', 'long_description' => '']);
-            return;
-        }
-
-        // Parse HTML for title, og:description, and og:image
         $shortDescription = '';
         $longDescription  = '';
         $ogImageUrl       = '';
 
-        $doc = new \DOMDocument();
-        @$doc->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
+        // YouTube blocks HTML scrapers from datacenter IPs; use their oEmbed API instead.
+        $parsedHost = strtolower(parse_url($url, PHP_URL_HOST) ?? '');
+        $isYoutube  = in_array($parsedHost, ['www.youtube.com', 'youtube.com', 'youtu.be', 'm.youtube.com'], true);
 
-        // <title>
-        $titles = $doc->getElementsByTagName('title');
-        if ($titles->length > 0) {
-            $shortDescription = trim($titles->item(0)->textContent);
-        }
-
-        // <meta property="og:*"> or <meta name="og:*">
-        $metas = $doc->getElementsByTagName('meta');
-        foreach ($metas as $meta) {
-            $prop    = strtolower((string)$meta->getAttribute('property'));
-            $name    = strtolower((string)$meta->getAttribute('name'));
-            $content = trim((string)$meta->getAttribute('content'));
-
-            if ($content === '') {
-                continue;
-            }
-
-            if ($prop === 'og:description' || $name === 'og:description') {
-                $longDescription = $content;
-            } elseif ($name === 'description' && $longDescription === '') {
-                $longDescription = $content;
-            } elseif (($prop === 'og:image' || $name === 'og:image') && $ogImageUrl === '') {
-                // Validate it looks like a URL before returning it
-                if (filter_var($content, FILTER_VALIDATE_URL)) {
-                    $ogImageUrl = $content;
+        if ($isYoutube) {
+            $oembedUrl = 'https://www.youtube.com/oembed?url=' . urlencode($url) . '&format=json';
+            $ctx = stream_context_create([
+                'http' => [
+                    'timeout'    => 8,
+                    'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'method'     => 'GET',
+                ],
+                'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
+            ]);
+            $json = @file_get_contents($oembedUrl, false, $ctx);
+            if ($json !== false && $json !== '') {
+                $data = json_decode($json, true) ?? [];
+                $shortDescription = mb_substr(trim($data['title'] ?? ''), 0, 255);
+                $thumbUrl = $data['thumbnail_url'] ?? '';
+                if ($thumbUrl !== '' && filter_var($thumbUrl, FILTER_VALIDATE_URL)) {
+                    $ogImageUrl = $thumbUrl;
                 }
             }
-        }
+        } else {
+            // Generic HTML scrape for non-YouTube URLs
+            $ctx = stream_context_create([
+                'http' => [
+                    'timeout'         => 8,
+                    'follow_location' => true,
+                    'max_redirects'   => 5,
+                    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'method'          => 'GET',
+                ],
+                'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
+            ]);
 
-        // Truncate to fit db columns
-        $shortDescription = mb_substr($shortDescription, 0, 255);
-        $longDescription  = mb_substr($longDescription, 0, 2000);
+            $html = @file_get_contents($url, false, $ctx);
+
+            if ($html !== false && $html !== '') {
+                $doc = new \DOMDocument();
+                @$doc->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
+
+                $titles = $doc->getElementsByTagName('title');
+                if ($titles->length > 0) {
+                    $shortDescription = trim($titles->item(0)->textContent);
+                }
+
+                $metas = $doc->getElementsByTagName('meta');
+                foreach ($metas as $meta) {
+                    $prop    = strtolower((string)$meta->getAttribute('property'));
+                    $name    = strtolower((string)$meta->getAttribute('name'));
+                    $content = trim((string)$meta->getAttribute('content'));
+
+                    if ($content === '') {
+                        continue;
+                    }
+
+                    if ($prop === 'og:description' || $name === 'og:description') {
+                        $longDescription = $content;
+                    } elseif ($name === 'description' && $longDescription === '') {
+                        $longDescription = $content;
+                    } elseif (($prop === 'og:image' || $name === 'og:image') && $ogImageUrl === '') {
+                        if (filter_var($content, FILTER_VALIDATE_URL)) {
+                            $ogImageUrl = $content;
+                        }
+                    }
+                }
+
+                $shortDescription = mb_substr($shortDescription, 0, 255);
+                $longDescription  = mb_substr($longDescription, 0, 2000);
+            }
+        }
 
         echo json_encode([
             'success'           => true,
