@@ -10186,6 +10186,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
             $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
+            $echomailModerationForced = isset($_POST['echomail_moderation_forced']) ? (int)$_POST['echomail_moderation_forced'] : 0;
             $password = $_POST['password'] ?? '';
 
             if (empty($realName)) {
@@ -10200,9 +10201,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'email = ?',
                 'is_active = ?',
                 'is_admin = ?',
-                'is_system = ?'
+                'is_system = ?',
+                'echomail_moderation_forced = ?'
             ];
-            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem];
+            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem, $echomailModerationForced ? 'true' : 'false'];
 
             // Add password if provided
             if ($password) {

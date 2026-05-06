@@ -273,6 +273,13 @@
                                 </label>
                                 <div class="form-text">{{ t('ui.admin_users.is_system_account_help', {}, locale, ['common']) }}</div>
                             </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="edit-echomail-moderation-forced">
+                                <label class="form-check-label text-warning" for="edit-echomail-moderation-forced">
+                                    {{ t('ui.admin.users.echomail_moderation_forced', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.admin.users.echomail_moderation_forced_help', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
                     </div>
                     
@@ -720,6 +727,7 @@ function editUser(userId) {
                 $('#edit-is-active').prop('checked', !!user.is_active);
                 $('#edit-is-admin').prop('checked', !!user.is_admin);
                 $('#edit-is-system').prop('checked', !!user.is_system);
+                $('#edit-echomail-moderation-forced').prop('checked', !!user.echomail_moderation_forced);
                 $('#edit-credit-balance').val(user.credit_balance || 0);
                 $('#edit-grant-credits-amount').val('');
                 $('#edit-grant-credits-note').val('');
@@ -753,7 +761,8 @@ function saveUserChanges() {
         email: $('#edit-email').val(),
         is_active: $('#edit-is-active').is(':checked') ? 1 : 0,
         is_admin: $('#edit-is-admin').is(':checked') ? 1 : 0,
-        is_system: $('#edit-is-system').is(':checked') ? 1 : 0
+        is_system: $('#edit-is-system').is(':checked') ? 1 : 0,
+        echomail_moderation_forced: $('#edit-echomail-moderation-forced').is(':checked') ? 1 : 0
     };
     
     // Only include password if it's provided
