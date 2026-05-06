@@ -17,11 +17,6 @@
             embed: function(m) { return 'https://odysee.com/$/embed/' + m[1]; }
         },
         {
-            name: 'rumble',
-            pattern: /rumble\.com\/(v[a-z0-9]+)-/i,
-            embed: function(m) { return 'https://rumble.com/embed/' + m[1] + '/'; }
-        },
-        {
             name: 'bitchute',
             pattern: /bitchute\.com\/video\/([a-zA-Z0-9]+)/,
             embed: function(m) { return 'https://www.bitchute.com/embed/' + m[1] + '/'; }
@@ -30,7 +25,18 @@
             name: 'brighteon',
             pattern: /brighteon\.com\/(?!embed\/)([a-zA-Z0-9_-]{8,})/,
             embed: function(m) { return 'https://www.brighteon.com/embed/' + m[1]; }
-        },
+        }
+    ];
+
+    /**
+     * Providers that need server-side resolution before embedding.
+     * Each entry: { name, pattern (RegExp) }
+     */
+    var PROXY_PROVIDERS = [
+        {
+            name: 'bastyon',
+            pattern: /bastyon\.com\/index\?[^#]*\bvideo=1\b/i
+        }
     ];
 
     /**
@@ -40,6 +46,11 @@
      * Each entry: { name, pattern (RegExp), endpoint (fn(url) -> endpoint URL string) }
      */
     var OEMBED_PROVIDERS = [
+        {
+            name: 'rumble',
+            pattern: /rumble\.com\/v[a-z0-9]+-/i,
+            endpoint: function(url) { return 'https://rumble.com/api/Media/oembed.json?url=' + encodeURIComponent(url); }
+        },
         {
             name: 'soundcloud',
             pattern: /soundcloud\.com\//i,
@@ -255,6 +266,29 @@
             });
     }
 
+    function resolveViaProxy(anchor, href) {
+        if (href in oembedCache) {
+            if (oembedCache[href]) injectOembed(anchor, oembedCache[href]);
+            return;
+        }
+
+        fetch('/api/media/embed?url=' + encodeURIComponent(href))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var html = (data && data.type !== 'unknown' && data.embed_html) || '';
+                oembedCache[href] = html;
+                if (html) injectOembed(anchor, html);
+            })
+            .catch(function() { oembedCache[href] = ''; });
+    }
+
+    function matchProxyProvider(href) {
+        for (var i = 0; i < PROXY_PROVIDERS.length; i++) {
+            if (PROXY_PROVIDERS[i].pattern.test(href)) return PROXY_PROVIDERS[i];
+        }
+        return null;
+    }
+
     function matchOembedProvider(href) {
         for (var i = 0; i < OEMBED_PROVIDERS.length; i++) {
             if (OEMBED_PROVIDERS[i].pattern.test(href)) return OEMBED_PROVIDERS[i];
@@ -288,6 +322,12 @@
         } else if (IMAGE_EXTS.test(path)) {
             injectAfter(anchor, buildImage(href));
         } else {
+            var proxyProvider = matchProxyProvider(href);
+            if (proxyProvider) {
+                resolveViaProxy(anchor, href);
+                return;
+            }
+
             var oembedProvider = matchOembedProvider(href);
             if (oembedProvider) resolveOembed(anchor, href, oembedProvider);
         }
