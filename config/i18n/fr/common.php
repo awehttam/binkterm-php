@@ -3373,6 +3373,9 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.appearance.message_reader.email_link_url' => 'URL du lien E-mail',
     'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
     'ui.admin.appearance.message_reader.email_link_url_help' => 'Lien optionnel affiche dans le menu Messagerie juste sous Echomail.',
+    'ui.admin.appearance.message_reader.discord_url' => 'Discord',
+    'ui.admin.appearance.message_reader.discord_url_placeholder' => 'https://discord.gg/...',
+    'ui.admin.appearance.message_reader.discord_url_help' => 'Lien d\'invitation Discord optionnel affiche dans le menu Messagerie.',
 
     // Broadcast Manager
     'ui.admin.ad_campaigns.ad' => 'Annonce',

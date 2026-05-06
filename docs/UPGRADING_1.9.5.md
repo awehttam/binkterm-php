@@ -33,6 +33,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Content and Display
 
+- Added a Discord invite link option to the Messaging menu. Sysops can paste a Discord server invite URL in **Admin → Appearance → Message Reader**. When set, a Discord entry appears in the Messaging navigation dropdown for all users.
 - Added a Bulletin Manager for sysop-authored BBS bulletins. Bulletins can be managed from the admin web interface and displayed to users in the web, telnet, and SSH BBS flows.
 - Added a BBS setting for bulletin display mode. Sysops can choose whether bulletins are shown once until read, or shown once at the start of each login session.
 - Renamed the Community Wireless Node List WebDoor to Community Wireless Node Map.
@@ -54,12 +55,19 @@ Make sure you have a current backup of your database and files before upgrading.
 ### File Areas
 
 - Added a File Name field to the Add Link form. When adding an external URL link to a file area, users can now set a specific display name for the link. The field is pre-populated from the URL path when a URL is entered, and updated to the page title when Fetch Info is used — both values can be freely edited before submitting.
+- Fixed URL metadata fetching for YouTube links. The Fetch Info button now uses the YouTube oEmbed API instead of scraping the page HTML, resolving an issue where production servers received generic placeholder metadata rather than the actual video title and thumbnail.
 
 ## Message Reader
 
 The `f` key in the web message reader modal toggles between full-screen and normal view. Previously, pressing Ctrl+F or Cmd+F while the modal was open triggered this toggle instead of opening the browser's native find-in-page dialog. The key handler now checks for Ctrl and Meta modifier keys and passes them through to the browser. Plain `f` still toggles full-screen. This fix applies to both the echomail and netmail message modals.
 
 No configuration changes or database migrations are required.
+
+### Discord Invite Link
+
+A new Discord field is available in **Admin → Appearance → Message Reader**. When a Discord server invite URL is entered and saved, a Discord link appears in the Messaging navigation dropdown for all users. Leaving the field blank hides the link entirely.
+
+No database changes or configuration file updates are required.
 
 ## Bulletin Manager
 
@@ -143,6 +151,14 @@ The File Name field appears between the URL and Short Description fields. When a
 Users can edit the file name field freely before submitting. The field is required.
 
 No database changes or configuration updates are required.
+
+### YouTube Link Metadata
+
+The Fetch Info button now uses the YouTube oEmbed API when the URL points to a YouTube video (`youtube.com` or `youtu.be`). Previously, metadata was retrieved by scraping the YouTube page HTML. This worked on development machines with residential internet connections but returned generic placeholder values on production servers, because YouTube restricts HTML scraping from datacenter IP addresses.
+
+The oEmbed API is a public endpoint that returns the actual video title and thumbnail from any server. Non-YouTube URLs continue to use the existing Open Graph HTML scraper.
+
+No configuration changes are required.
 
 ## Terminal Registration
 

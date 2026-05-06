@@ -676,6 +676,9 @@ return [
     'ui.admin.appearance.message_reader.email_link_url' => 'URL link e-mail',
     'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
     'ui.admin.appearance.message_reader.email_link_url_help' => 'Link opzionale mostrato nel menu Messaggistica direttamente sotto Echomail.',
+    'ui.admin.appearance.message_reader.discord_url' => 'Discord',
+    'ui.admin.appearance.message_reader.discord_url_placeholder' => 'https://discord.gg/...',
+    'ui.admin.appearance.message_reader.discord_url_help' => 'Link invito Discord opzionale mostrato nel menu Messaggistica.',
     'ui.admin.appearance.message_reader.save' => 'Salva impostazioni lettore messaggi',
 
     // Appearance - File Areas tab

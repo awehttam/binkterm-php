@@ -185,6 +185,13 @@
                                     </a>
                                 </li>
                                 {% endif %}
+                                {% if appearance.message_reader.discord_url %}
+                                <li>
+                                    <a class="dropdown-item" href="{{ appearance.message_reader.discord_url | e }}" target="_blank" rel="noopener noreferrer">
+                                        <i class="fab fa-discord"></i> {{ t('ui.admin.appearance.message_reader.discord_url', {}, 'common') }}
+                                    </a>
+                                </li>
+                                {% endif %}
                                 {% if bbs_feature_enabled('chat') %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li>

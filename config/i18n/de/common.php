@@ -679,6 +679,9 @@ Du kannst einzelne Erinnerungen mit den „Erinnern“-Schaltflächen in der Ben
     'ui.admin.appearance.message_reader.email_link_url' => 'E-mail link URL',
     'ui.admin.appearance.message_reader.email_link_url_placeholder' => 'https://mail.example.com/',
     'ui.admin.appearance.message_reader.email_link_url_help' => 'Optionaler Link, der im Nachrichtenmenü direkt unter Echomail angezeigt wird.',
+    'ui.admin.appearance.message_reader.discord_url' => 'Discord',
+    'ui.admin.appearance.message_reader.discord_url_placeholder' => 'https://discord.gg/...',
+    'ui.admin.appearance.message_reader.discord_url_help' => 'Optionaler Discord-Einladungslink, der im Nachrichtenmenü angezeigt wird.',
     'ui.admin.appearance.message_reader.save' => 'Nachricht Reader Einstellungen speichern',
 
     // Appearance - File Areas tab

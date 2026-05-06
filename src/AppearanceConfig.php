@@ -110,6 +110,7 @@ class AppearanceConfig
             'message_reader' => [
                 'scrollable_body' => true,
                 'email_link_url' => '',
+                'discord_url' => '',
             ],
             'file_areas' => [
                 'sidebar_info_title'    => '',
@@ -441,6 +442,12 @@ class AppearanceConfig
     {
         self::load();
         return trim((string)(self::$config['message_reader']['email_link_url'] ?? ''));
+    }
+
+    public static function getMessageReaderDiscordUrl(): string
+    {
+        self::load();
+        return trim((string)(self::$config['message_reader']['discord_url'] ?? ''));
     }
 
     // -------------------------------------------------------------------------
