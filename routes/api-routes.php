@@ -10072,7 +10072,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, created_at, last_login FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, echomail_moderation_forced, created_at, last_login FROM users WHERE id = ?");
             $stmt->execute([$id]);
             $userData = $stmt->fetch();
 
