@@ -28,7 +28,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files are now automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, Twitter/X, SoundCloud, TikTok, and ReverbNation. Direct links to video, audio, and image files are also embedded inline.
 - The user preference formerly called "Image load mode" has been renamed "Inline media rendering" and controls whether embeds load automatically or require a user click to expand. All existing accounts are migrated to the automatic mode on upgrade.
-- Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**. Run `php scripts/setup.php` to apply the required database migration.
+- Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**.
 
 ### Message Search
 
@@ -77,15 +77,15 @@ The web message reader now detects URLs in echomail and netmail message bodies a
 | Rumble | Inline iframe |
 | BitChute | Inline iframe |
 | Brighteon | Inline iframe |
-| Twitter / X | oEmbed (server-fetched) |
-| SoundCloud | oEmbed (server-fetched) |
-| TikTok | oEmbed (server-fetched) |
-| ReverbNation | oEmbed (server-fetched) |
+| Twitter / X | oEmbed (client-side) |
+| SoundCloud | oEmbed (client-side) |
+| TikTok | oEmbed (client-side) |
+| ReverbNation | oEmbed (client-side) |
 | Video files (`mp4`, `webm`, `ogv`, `mov`) | Native HTML5 player |
 | Audio files (`mp3`, `flac`, `ogg`, `opus`, `wav`, `m4a`, `aac`) | Native HTML5 player |
 | Image files (`png`, `webp`, `gif`, `jpg`, `jpeg`, `svg`) | Inline image |
 
-oEmbed embeds are fetched by the server rather than the browser. This means the user's IP address is not sent to Twitter/X, SoundCloud, or other oEmbed services when a message is opened.
+oEmbed embeds are resolved client-side: the browser fetches the oEmbed endpoint directly. If the direct request fails due to CORS restrictions, the player falls back to the server-side `/api/media/embed` proxy.
 
 ### User setting: Inline media rendering
 
@@ -96,7 +96,7 @@ Each user can control how embeds appear through the **Inline media rendering** s
 
 This setting was previously named "Image load mode" and controlled only whether Markdown inline images loaded automatically. The upgrade migrates all existing accounts to the automatic mode. Users who had previously set the old "Click to load" preference are also migrated to automatic; they can switch back to click-to-expand on their Settings page if preferred.
 
-The `image_load_mode` key in `users_meta` is renamed to `media_render_mode` and all values are set to `auto` by the migration. Run `php scripts/setup.php` to apply this change.
+The `image_load_mode` key in `users_meta` is renamed to `media_render_mode` and all values are set to `auto` by the migration.
 
 ### Admin settings
 
@@ -106,12 +106,6 @@ The media player can be configured from **Admin → Appearance → Message Reade
 - **Enabled providers** — individual toggles for each supported platform. Disabling a provider prevents the server from resolving embeds for that platform and hides any client-side embed injection for it.
 
 These settings are stored in `data/appearance.json` and take effect immediately without restarting any daemons.
-
-### Upgrade steps
-
-Run `php scripts/setup.php` as part of the normal upgrade. The setup script applies the `v20260506120000_rename_image_load_mode` migration, which renames the `image_load_mode` key to `media_render_mode` and sets all values to `auto`.
-
-No changes to `config/binkp.json`, `config/lovlynet.json`, or any other configuration file are required.
 
 ## Message Reader
 
@@ -135,9 +129,6 @@ By default, bulletins use the existing read-tracking behavior: a user sees each 
 
 - **Display once** shows unread bulletins until each user has read or skipped them.
 - **Always display** shows active bulletins once at the start of each new login session. It does not repeatedly interrupt users every time they return to the dashboard during the same session.
-
-The upgrade creates the bulletin storage tables and read-tracking table through `php scripts/setup.php`. No manual database changes are required.
-
 ## Terminal Message Editor
 
 The telnet and SSH full-screen message editor now hard-wraps typed text to the detected terminal message body width. The editor uses the same width as the terminal message reader, so newly composed netmail and echomail keep consistent line breaks when the saved message is viewed in-terminal.
