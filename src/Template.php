@@ -263,6 +263,8 @@ class Template
         $ansiRendererMode = Config::env('ANSI_RENDERER_MODE', 'grouped');
         $this->twig->addGlobal('ansi_renderer_mode', in_array($ansiRendererMode, ['grouped', 'perchar'], true) ? $ansiRendererMode : 'grouped');
 
+        $this->twig->addGlobal('media_player_enabled', AppearanceConfig::isMediaPlayerEnabled());
+
         $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
         $creditsEnabled = !empty($creditsConfig['enabled']);
         $creditsSymbol = trim((string)($creditsConfig['symbol'] ?? '$'));

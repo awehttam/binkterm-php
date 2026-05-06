@@ -598,6 +598,7 @@
 <script src="/js/sixel.js"></script>
 <script src="/js/pcboard.js"></script>
 <script src="/js/file-preview.js"></script>
+<script src="/js/media-player.js"></script>
 <script>
 let currentAreaId = null;
 let currentSubfolder = null;
@@ -1610,6 +1611,10 @@ function showFileDetails(fileId) {
                 $('#detailUrl').show().html(
                     `<a href="${escapeHtml(file.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(file.url)}</a>`
                 );
+                if (window.BinkMediaPlayer) {
+                    BinkMediaPlayer.cleanup(document.getElementById('detailUrl'));
+                    BinkMediaPlayer.scan(document.getElementById('detailUrl'));
+                }
             } else {
                 $('#detailUrlLabel').hide();
                 $('#detailUrl').hide().html('');

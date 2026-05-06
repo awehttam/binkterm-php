@@ -1013,6 +1013,40 @@ a.file-preview-link:hover {
     margin: 2px 0;
 }
 
+/* Media player embeds */
+.bink-media-embed {
+    display: block;
+    width: 100%;
+}
+
+.bink-media-iframe {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: none;
+    border-radius: 4px;
+}
+
+.bink-media-video {
+    display: block;
+    width: 100%;
+    max-width: 640px;
+    border-radius: 4px;
+}
+
+.bink-media-audio {
+    display: block;
+    width: 100%;
+    max-width: 480px;
+}
+
+.bink-media-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
 /* StyleCodes (MARKUP: StyleCodes 1.0) */
 .sc-body {
     white-space: pre-wrap;
