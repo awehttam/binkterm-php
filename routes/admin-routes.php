@@ -325,10 +325,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Users management page
     SimpleRouter::get('/users', function() {
-        $user = RouteHelper::requireAdmin();
+        RouteHelper::requireAdmin();
 
         $template = new Template();
-        $template->renderResponse('admin/users.twig');
+        $template->renderResponse('admin_users.twig');
     });
 
     // AI bots management page
@@ -801,13 +801,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/economy.twig');
-    });
-
-    SimpleRouter::get('/users-new', function() {
-        RouteHelper::requireAdmin();
-
-        $template = new Template();
-        $template->renderResponse('admin/users.twig');
     });
 
     // API routes for admin

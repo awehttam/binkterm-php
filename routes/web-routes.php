@@ -1029,28 +1029,6 @@ SimpleRouter::get('/whosonline', function() {
     ]);
 });
 
-SimpleRouter::get('/admin/users', function() {
-    $auth = new Auth();
-    $user = $auth->getCurrentUser();
-
-    if (!$user) {
-        return SimpleRouter::response()->redirect('/login');
-    }
-
-    // Check if user is admin
-    if (!$user['is_admin']) {
-        http_response_code(403);
-        $template = new Template();
-        $template->renderResponse('error.twig', [
-            'error_title_code' => 'ui.error.access_error',
-            'error_code' => 'ui.web.errors.user_management_admin_only'
-        ]);
-        return;
-    }
-
-    $template = new Template();
-    $template->renderResponse('admin_users.twig');
-});
 
 SimpleRouter::get('/echoareas', function() {
     $auth = new Auth();
