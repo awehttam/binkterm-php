@@ -25,6 +25,11 @@
             name: 'brighteon',
             pattern: /brighteon\.com\/(?!embed\/)([a-zA-Z0-9_-]{8,})/,
             embed: function(m) { return 'https://www.brighteon.com/embed/' + m[1]; }
+        },
+        {
+            name: 'peertube',
+            pattern: /^(https?:\/\/[^\/?#]+)\/videos\/(?:watch|embed)\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i,
+            embed: function(m) { return m[1] + '/videos/embed/' + m[2]; }
         }
     ];
 

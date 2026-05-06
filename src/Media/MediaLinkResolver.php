@@ -7,6 +7,7 @@ use BinktermPHP\Media\EmbedProviders\OdyseeProvider;
 use BinktermPHP\Media\EmbedProviders\RumbleProvider;
 use BinktermPHP\Media\EmbedProviders\BitChuteProvider;
 use BinktermPHP\Media\EmbedProviders\BrighteonProvider;
+use BinktermPHP\Media\EmbedProviders\PeerTubeProvider;
 use BinktermPHP\Media\EmbedProviders\BastyonProvider;
 use BinktermPHP\Media\EmbedProviders\SoundCloudProvider;
 use BinktermPHP\Media\EmbedProviders\TwitterProvider;
@@ -33,6 +34,7 @@ class MediaLinkResolver
             new RumbleProvider(),
             new BitChuteProvider(),
             new BrighteonProvider(),
+            new PeerTubeProvider(),
             new BastyonProvider(),
             new SoundCloudProvider(),
             new TwitterProvider(),

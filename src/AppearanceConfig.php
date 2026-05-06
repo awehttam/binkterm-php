@@ -119,6 +119,7 @@ class AppearanceConfig
                         'rumble'       => true,
                         'bitchute'     => true,
                         'brighteon'    => true,
+                        'peertube'     => true,
                         'soundcloud'   => true,
                         'twitter'      => true,
                         'tiktok'       => true,

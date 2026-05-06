@@ -2235,7 +2235,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if (array_key_exists('media_player', $mr)) {
                     $mp = $mr['media_player'];
                     $validProviders = [
-                        'youtube', 'odysee', 'rumble', 'bitchute', 'brighteon',
+                        'youtube', 'odysee', 'rumble', 'bitchute', 'brighteon', 'peertube',
                         'soundcloud', 'twitter', 'tiktok', 'minds', 'bastyon',
                         'reverbnation', 'raw_media',
                     ];
