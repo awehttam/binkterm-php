@@ -30,8 +30,40 @@
             name: 'brighteon',
             pattern: /brighteon\.com\/(?!embed\/)([a-zA-Z0-9_-]{8,})/,
             embed: function(m) { return 'https://www.brighteon.com/embed/' + m[1]; }
+        },
+    ];
+
+    /**
+     * oEmbed providers resolved client-side. The browser fetches the oEmbed endpoint
+     * directly; /api/media/embed is used as a silent CORS fallback when the direct
+     * fetch fails (e.g. providers that do not set Access-Control-Allow-Origin).
+     * Each entry: { name, pattern (RegExp), endpoint (fn(url) -> endpoint URL string) }
+     */
+    var OEMBED_PROVIDERS = [
+        {
+            name: 'soundcloud',
+            pattern: /soundcloud\.com\//i,
+            endpoint: function(url) { return 'https://soundcloud.com/oembed?format=json&url=' + encodeURIComponent(url); }
+        },
+        {
+            name: 'twitter',
+            pattern: /(?:twitter|x)\.com\//i,
+            endpoint: function(url) { return 'https://publish.twitter.com/oembed?url=' + encodeURIComponent(url); }
+        },
+        {
+            name: 'tiktok',
+            pattern: /tiktok\.com\/@[^\/]+\/video\//i,
+            endpoint: function(url) { return 'https://www.tiktok.com/oembed?url=' + encodeURIComponent(url); }
+        },
+        {
+            name: 'reverbnation',
+            pattern: /reverbnation\.com\//i,
+            endpoint: function(url) { return 'https://www.reverbnation.com/oembed?format=json&url=' + encodeURIComponent(url); }
         }
     ];
+
+    /** In-memory cache: source URL -> resolved embed HTML (empty string = no embed) */
+    var oembedCache = Object.create(null);
 
     var VIDEO_EXTS = /\.(mp4|webm|ogv|mov)$/i;
     var AUDIO_EXTS = /\.(mp3|flac|ogg|opus|wav|m4a|aac)$/i;
@@ -85,8 +117,30 @@
     }
 
     /**
+     * Walk up the DOM to find the nearest scrollable container (the modal body).
+     * Used to get the true available pixel width for image clamping.
+     */
+    function findScrollContainer(el) {
+        var node = el.parentNode;
+        while (node && node !== document.body) {
+            var style = window.getComputedStyle(node);
+            if (style.overflow === 'auto' || style.overflow === 'scroll' ||
+                    style.overflowX === 'auto' || style.overflowX === 'scroll' ||
+                    style.overflowY === 'auto' || style.overflowY === 'scroll') {
+                return node;
+            }
+            node = node.parentNode;
+        }
+        return document.body;
+    }
+
+    /**
      * SVG is intentionally loaded as <img> (not <object> or inline SVG) so the
      * browser does not execute SVG scripts and the image cannot access the parent DOM.
+     *
+     * After loading, clamp the image to the modal's actual pixel width so that
+     * percentage-based max-width cannot resolve wider than the modal when the image
+     * is injected inside an inline <span>.
      */
     function buildImage(url) {
         var img = document.createElement('img');
@@ -95,6 +149,13 @@
         img.loading = 'lazy';
         img.className = 'bink-media-player bink-media-image';
         img.alt = '';
+        img.addEventListener('load', function() {
+            var container = findScrollContainer(img);
+            var available = container ? Math.floor(container.clientWidth * 0.95) : 0;
+            if (available > 0 && img.naturalWidth > available) {
+                img.style.maxWidth = available + 'px';
+            }
+        });
         return img;
     }
 
@@ -126,30 +187,6 @@
         } else {
             anchor.parentNode.insertBefore(buildLoadButton(el, isMedia), anchor.nextSibling);
         }
-    }
-
-    /**
-     * Domains handled via the server-side oEmbed resolver (/api/media/embed).
-     * Keeps client-side URL checks minimal — the server validates further.
-     */
-    var OEMBED_DOMAINS = [
-        /(?:^|\.)twitter\.com$/i,
-        /(?:^|\.)x\.com$/i,
-        /(?:^|\.)soundcloud\.com$/i,
-        /(?:^|\.)tiktok\.com$/i,
-        /(?:^|\.)minds\.com$/i,
-        /(?:^|\.)bastyon\.com$/i,
-        /(?:^|\.)reverbnation\.com$/i,
-    ];
-
-    function isOembedDomain(href) {
-        try {
-            var host = new URL(href).hostname;
-            for (var i = 0; i < OEMBED_DOMAINS.length; i++) {
-                if (OEMBED_DOMAINS[i].test(host)) return true;
-            }
-        } catch (e) {}
-        return false;
     }
 
     /**
@@ -190,14 +227,39 @@
         }
     }
 
-    function resolveViaApi(anchor, href) {
-        fetch('/api/media/embed?url=' + encodeURIComponent(href))
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (!data || data.type === 'unknown' || !data.embed_html) return;
-                injectOembed(anchor, data.embed_html);
+    function resolveOembed(anchor, href, provider) {
+        if (href in oembedCache) {
+            if (oembedCache[href]) injectOembed(anchor, oembedCache[href]);
+            return;
+        }
+
+        fetch(provider.endpoint(href))
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
             })
-            .catch(function() {});
+            .then(function(data) {
+                var html = (data && data.html) || '';
+                oembedCache[href] = html;
+                if (html) injectOembed(anchor, html);
+            })
+            .catch(function() {
+                fetch('/api/media/embed?url=' + encodeURIComponent(href))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var html = (data && data.type !== 'unknown' && data.embed_html) || '';
+                        oembedCache[href] = html;
+                        if (html) injectOembed(anchor, html);
+                    })
+                    .catch(function() { oembedCache[href] = ''; });
+            });
+    }
+
+    function matchOembedProvider(href) {
+        for (var i = 0; i < OEMBED_PROVIDERS.length; i++) {
+            if (OEMBED_PROVIDERS[i].pattern.test(href)) return OEMBED_PROVIDERS[i];
+        }
+        return null;
     }
 
     function stripQuery(url) {
@@ -225,8 +287,9 @@
             injectAfter(anchor, buildAudio(href));
         } else if (IMAGE_EXTS.test(path)) {
             injectAfter(anchor, buildImage(href));
-        } else if (isOembedDomain(href)) {
-            resolveViaApi(anchor, href);
+        } else {
+            var oembedProvider = matchOembedProvider(href);
+            if (oembedProvider) resolveOembed(anchor, href, oembedProvider);
         }
     }
 

@@ -26,7 +26,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Inline Media Player
 
-- Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files are now automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, Twitter/X, SoundCloud, TikTok, Minds, Bastyon, and ReverbNation. Direct links to video, audio, and image files are also embedded inline.
+- Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files are now automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, Twitter/X, SoundCloud, TikTok, and ReverbNation. Direct links to video, audio, and image files are also embedded inline.
 - The user preference formerly called "Image load mode" has been renamed "Inline media rendering" and controls whether embeds load automatically or require a user click to expand. All existing accounts are migrated to the automatic mode on upgrade.
 - Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**. Run `php scripts/setup.php` to apply the required database migration.
 
@@ -80,8 +80,6 @@ The web message reader now detects URLs in echomail and netmail message bodies a
 | Twitter / X | oEmbed (server-fetched) |
 | SoundCloud | oEmbed (server-fetched) |
 | TikTok | oEmbed (server-fetched) |
-| Minds | oEmbed (server-fetched) |
-| Bastyon | oEmbed (server-fetched) |
 | ReverbNation | oEmbed (server-fetched) |
 | Video files (`mp4`, `webm`, `ogv`, `mov`) | Native HTML5 player |
 | Audio files (`mp3`, `flac`, `ogg`, `opus`, `wav`, `m4a`, `aac`) | Native HTML5 player |

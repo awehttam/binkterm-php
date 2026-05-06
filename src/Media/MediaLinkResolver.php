@@ -10,8 +10,6 @@ use BinktermPHP\Media\EmbedProviders\BrighteonProvider;
 use BinktermPHP\Media\EmbedProviders\SoundCloudProvider;
 use BinktermPHP\Media\EmbedProviders\TwitterProvider;
 use BinktermPHP\Media\EmbedProviders\TikTokProvider;
-use BinktermPHP\Media\EmbedProviders\MindsProvider;
-use BinktermPHP\Media\EmbedProviders\BastyonProvider;
 use BinktermPHP\Media\EmbedProviders\ReverbNationProvider;
 use BinktermPHP\Media\EmbedProviders\GenericRawMediaProvider;
 
@@ -37,8 +35,6 @@ class MediaLinkResolver
             new SoundCloudProvider(),
             new TwitterProvider(),
             new TikTokProvider(),
-            new MindsProvider(),
-            new BastyonProvider(),
             new ReverbNationProvider(),
             new GenericRawMediaProvider(),
         ];

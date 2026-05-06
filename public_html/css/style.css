@@ -1017,6 +1017,9 @@ a.file-preview-link:hover {
 .bink-media-embed {
     display: block;
     width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .bink-media-iframe {

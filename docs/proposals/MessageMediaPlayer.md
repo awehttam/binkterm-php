@@ -178,29 +178,45 @@ window.BinkMediaPlayer = {
 
 ### Phase 4 — oEmbed Providers ✅
 
-Extend the Phase 2 provider infrastructure with platforms that require a server-side API fetch. The server fetches the oEmbed endpoint and returns the resulting HTML so the user's IP is not sent to third-party platforms on page load.
+Extend `media-player.js` with client-side oEmbed resolution. The browser fetches each provider's oEmbed endpoint directly; resolved responses are cached in a `Map` keyed by URL so repeated views of the same message make zero additional network requests. For providers whose oEmbed endpoints do not support CORS, the client silently retries through the server-side `/api/media/embed` proxy endpoint from Phase 2.
 
 **Additional providers:**
 
-| Platform | URL Pattern | Embed Method |
-|---|---|---|
-| SoundCloud | `soundcloud.com/` | SoundCloud oEmbed API |
-| Twitter/X | `twitter.com/`, `x.com/` | Twitter oEmbed API |
-| TikTok | `tiktok.com/@{user}/video/{id}` | TikTok oEmbed API |
-| Minds | `minds.com/newsfeed/{id}` | Minds oEmbed or iframe |
-| Bastyon | `bastyon.com/` | iframe (where supported) |
-| ReverbNation | `reverbnation.com/` | ReverbNation embed widget |
+| Platform | URL Pattern | Embed Method | CORS |
+|---|---|---|---|
+| SoundCloud | `soundcloud.com/` | `soundcloud.com/oembed` | Yes |
+| Twitter/X | `twitter.com/`, `x.com/` | `publish.twitter.com/oembed` | Yes |
+| TikTok | `tiktok.com/@{user}/video/{id}` | `tiktok.com/oembed` | Yes |
+| Minds | `minds.com/newsfeed/{id}` | Minds oEmbed API | Uncertain — falls back to server proxy |
+| Bastyon | `bastyon.com/` | Direct iframe (no oEmbed) | N/A |
+| ReverbNation | `reverbnation.com/` | ReverbNation oEmbed | Uncertain — falls back to server proxy |
+
+**Resolution flow:**
+
+```js
+async function resolveOembed(url, oembedEndpoint) {
+    if (oembedCache.has(url)) return oembedCache.get(url);
+    const encoded = encodeURIComponent(url);
+    let html;
+    try {
+        const res = await fetch(`${oembedEndpoint}?url=${encoded}&format=json`);
+        html = (await res.json()).html;
+    } catch {
+        // CORS blocked — fall back to server proxy
+        const res = await fetch(`/api/media/embed?url=${encoded}`);
+        html = (await res.json()).embed_html;
+    }
+    oembedCache.set(url, html);
+    return html;
+}
+```
 
 **Files:**
 
 | Path | Change |
 |---|---|
-| `src/Media/EmbedProviders/SoundCloudProvider.php` | New |
-| `src/Media/EmbedProviders/TwitterProvider.php` | New |
-| `src/Media/EmbedProviders/TikTokProvider.php` | New |
-| `src/Media/EmbedProviders/MindsProvider.php` | New |
-| `src/Media/EmbedProviders/BastyonProvider.php` | New |
-| `src/Media/EmbedProviders/ReverbNationProvider.php` | New |
+| `public_html/js/media-player.js` | Add oEmbed provider registry and `resolveOembed()` with in-memory cache |
+| `routes/api-routes.php` | `/api/media/embed` retained as CORS fallback proxy only |
 
 ---
 
@@ -253,7 +269,7 @@ Replace the Phase 3 native HTML5 elements with a branded player based on a fork 
 
 - Phase 3 platform iframes are sandboxed: `sandbox="allow-scripts allow-same-origin allow-presentation"`.
 - Raw media URLs are passed directly to the browser; the server does not proxy the stream. The external server will see the user's IP when media loads.
-- Phase 4 oEmbed fetches happen server-side so the user's IP is not sent to third-party platforms on page load.
+- Phase 4 oEmbed fetches happen client-side. Since the embed itself loads third-party content that exposes the user's IP regardless, the oEmbed API call being client-side does not meaningfully change the privacy posture. Providers that block CORS are fetched via the server proxy.
 - CSP `frame-src` must be updated to include each enabled platform's embed domain.
 
 ---

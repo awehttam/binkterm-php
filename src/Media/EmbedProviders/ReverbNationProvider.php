@@ -13,7 +13,7 @@ class ReverbNationProvider extends OEmbedProvider
 
     protected function getOEmbedEndpoint(string $url): string
     {
-        return 'https://www.reverbnation.com/oembed?url=' . urlencode($url);
+        return 'https://www.reverbnation.com/oembed?format=json&url=' . urlencode($url);
     }
 
     public function getName(): string { return 'reverbnation'; }
