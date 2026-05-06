@@ -73,7 +73,7 @@ return [
     'ui.cron_builder.desc.weekends'                => 'Wochenenden',
     'ui.cron_builder.desc.yearly_on'               => 'Läuft am {dom}. {month} um {time}',
     'ui.cron_builder.desc.custom'                  => 'Benutzerdefinierter Zeitplan',
-    'ui.common.all' => 'Alle',
+    'ui.common.all' => 'All',
     'ui.common.all_messages' => 'Alle Nachrichten',
     'ui.common.unread' => 'Ungelesen',
     'ui.common.read' => 'Gelesen',
