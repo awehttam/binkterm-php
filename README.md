@@ -374,9 +374,9 @@ DB_PASS=your_password
 
 > **Note:** Using `127.0.0.1` instead of `localhost` forces a TCP connection, which avoids peer authentication issues on some systems.
 
-## Method 1: Using the Installer
+## Method 1: Using the Installer (Recommended)
 
-The installer provides an automated setup process that downloads, configures, and installs BinktermPHP.
+The installer is the recommended method for most sysops. It provides a fully automated setup process that downloads, configures, and installs BinktermPHP — including handling upgrades when you re-run it on an existing installation.
 
 ```bash
 # Download the installer
@@ -399,7 +399,7 @@ The installer will:
 
 ## Method 2: From Git
 
-This is the standard installation method currently in use while the installer is being developed.
+This method is recommended for developers, contributors, and advanced users who want to track the latest changes or submit patches. Most sysops should use the installer instead.
 
 ### Step 1: Clone Repository
 ```bash
