@@ -4619,7 +4619,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'timeout'         => 8,
                 'follow_location' => true,
                 'max_redirects'   => 5,
-                'user_agent'      => 'BinktermPHP/1.0 (URL metadata fetch)',
+                'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
                 'method'          => 'GET',
             ],
             'ssl' => [
