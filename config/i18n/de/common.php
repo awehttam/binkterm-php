@@ -1198,6 +1198,8 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.users.grant_credits_note_missing' => 'Bitte eine Notiz für diese Kreditgutschrift eingeben.',
     'ui.admin.users.credit_grant_success' => 'Credits added successfully',
     'ui.admin.users.credit_grant_failed' => 'Kredite konnten nicht hinzugefügt werden',
+    'ui.admin.users.echomail_moderation_forced' => 'Echomail-Moderation erzwingen',
+    'ui.admin.users.echomail_moderation_forced_help' => 'Alle vernetzten Echomail-Beiträge dieses Benutzers zur Prüfung zurückhalten, unabhängig von den globalen Moderationseinstellungen.',
 
     // Admin Chat Rooms
     'ui.admin.chat_rooms.load_failed' => 'Fehler beim Laden der Chaträume',

@@ -1246,6 +1246,8 @@ return [
     'ui.admin.users.grant_credits_note_missing' => 'Ingrese una nota para esta asignación de créditos.',
     'ui.admin.users.credit_grant_success' => 'Créditos agregados correctamente',
     'ui.admin.users.credit_grant_failed' => 'No se pudieron agregar los créditos',
+    'ui.admin.users.echomail_moderation_forced' => 'Forzar moderación de echomail',
+    'ui.admin.users.echomail_moderation_forced_help' => 'Retener todos los mensajes de echomail en red de este usuario para revisión, independientemente de la configuración global de moderación.',
 
     // Admin Chat Rooms
     'ui.admin.chat_rooms.load_failed' => 'Error al cargar salas de chat',

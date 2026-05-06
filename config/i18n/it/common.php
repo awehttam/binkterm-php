@@ -1193,6 +1193,8 @@ return [
     'ui.admin.users.grant_credits_note_missing' => 'Inserisci una nota per questa assegnazione crediti.',
     'ui.admin.users.credit_grant_success' => 'Crediti aggiunti correttamente',
     'ui.admin.users.credit_grant_failed' => 'Impossibile aggiungere crediti',
+    'ui.admin.users.echomail_moderation_forced' => 'Forza moderazione echomail',
+    'ui.admin.users.echomail_moderation_forced_help' => 'Trattieni tutti i messaggi echomail in rete di questo utente per revisione, indipendentemente dalle impostazioni globali di moderazione.',
 
     // Admin Chat Rooms
     'ui.admin.chat_rooms.load_failed' => 'Errore durante il caricamento delle stanze chat',

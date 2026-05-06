@@ -1818,12 +1818,19 @@ class MessageHandler
         $storage = $this->prepareLocalMessageStorage($finalMessageText);
 
         // Determine whether this post needs to be held for moderation.
-        // Moderation only applies to networked areas when the threshold is > 0
-        // (threshold 0 = feature disabled). Admins always bypass.
+        // Moderation applies to networked areas only. Admins always bypass.
+        // Two independent triggers:
+        //   1. echomail_moderation_forced = TRUE on the user — sysop-mandated, works
+        //      even when the global threshold is disabled (0).
+        //   2. Global threshold > 0 and the user has not yet been auto-promoted.
         $moderationThreshold = \BinktermPHP\BbsConfig::getEchomailModerationThreshold();
         $needsModeration = false;
-        if ($moderationThreshold > 0 && !$isLocalArea && empty($user['is_admin'])) {
-            $needsModeration = empty($user['can_post_netecho_unmoderated']);
+        if (!$isLocalArea && empty($user['is_admin'])) {
+            if (!empty($user['echomail_moderation_forced'])) {
+                $needsModeration = true;
+            } elseif ($moderationThreshold > 0 && empty($user['can_post_netecho_unmoderated'])) {
+                $needsModeration = true;
+            }
         }
         $moderationStatus = $needsModeration ? 'pending' : 'approved';
 

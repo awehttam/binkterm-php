@@ -260,6 +260,11 @@ class AdminController
             $params[] = $data['is_admin'] ? 1 : 0;
         }
 
+        if (isset($data['echomail_moderation_forced'])) {
+            $updates[] = 'echomail_moderation_forced = ?';
+            $params[] = $data['echomail_moderation_forced'] ? 'true' : 'false';
+        }
+
         // Update password if provided
         if (!empty($data['password'])) {
             $updates[] = 'password_hash = ?';

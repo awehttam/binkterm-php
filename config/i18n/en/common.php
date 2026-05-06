@@ -1193,6 +1193,8 @@ return [
     'ui.admin.users.grant_credits_note_missing' => 'Enter a note for this credit grant.',
     'ui.admin.users.credit_grant_success' => 'Credits added successfully',
     'ui.admin.users.credit_grant_failed' => 'Failed to add credits',
+    'ui.admin.users.echomail_moderation_forced' => 'Force echomail moderation',
+    'ui.admin.users.echomail_moderation_forced_help' => 'Hold all networked echomail posts from this user for review, regardless of global moderation settings.',
 
     // Admin Chat Rooms
     'ui.admin.chat_rooms.load_failed' => 'Error loading chat rooms',
