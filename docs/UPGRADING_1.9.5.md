@@ -42,7 +42,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Database Migration Fix
 
-- Fixed a regression introduced when the migration tracker was changed to set-based tracking. Established installations that were originally set up from the full schema dump (`postgres_schema.sql`) rather than by running migrations one at a time could incorrectly attempt to re-apply old migrations (such as `v1.4.9`) on upgrade, because those migrations were never individually recorded in the `database_migrations` table. The upgrade script now treats any legacy semantic-version migration whose version is at or below the highest version already recorded as already applied.
+- Fixed a regression from the set-based migration tracker change. Legacy semantic-version migrations (e.g. `v1.4.9`) are included in the base `postgres_schema.sql` and were never recorded individually in `database_migrations`, causing them to re-apply on upgrade. The tracker now skips any legacy migration at or below the highest already-recorded version, restoring the original behavior.
 
 ### Message Search
 
