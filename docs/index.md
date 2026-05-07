@@ -57,6 +57,7 @@ This index lists documents in operational priority order — essentials first, a
 
 ## Content & Display
 
+- [Media in Messages](MediaInMessages.md) — Inline images, video, audio, platform embeds, retro audio, and text art in echomail and netmail
 - [ANSI Support](ANSI_Support.md) — ANSI art rendering in messages and files
 - [ANSI Ads Generator](ANSI_Ads_Generator.md) — Generating ANSI-art advertisements
 - [RIPScrip Support](RIPScrip_Support.md) — RIPscrip vector graphics rendering in echomail and file areas

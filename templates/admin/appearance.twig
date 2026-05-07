@@ -682,11 +682,19 @@
                 <p class="text-muted small">{{ t('ui.admin.bbs_settings.media_player.providers_label', {}, locale, ['common']) }}</p>
                 <div class="row g-2 mb-3">
                     {% set providers = ['youtube','odysee','rumble','bitchute','brighteon','peertube','soundcloud','twitter','tiktok','minds','bastyon','reverbnation','raw_media'] %}
+                    {% set providersWithSettings = ['soundcloud', 'twitter'] %}
                     {% for provider in providers %}
                     <div class="col-sm-4 col-md-3">
-                        <div class="form-check">
-                            <input class="form-check-input media-provider-toggle" type="checkbox" id="mp_{{ provider }}" data-provider="{{ provider }}">
-                            <label class="form-check-label" for="mp_{{ provider }}">{{ provider|capitalize }}</label>
+                        <div class="d-flex align-items-center">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input media-provider-toggle" type="checkbox" id="mp_{{ provider }}" data-provider="{{ provider }}">
+                                <label class="form-check-label" for="mp_{{ provider }}">{{ provider|capitalize }}</label>
+                            </div>
+                            {% if provider in providersWithSettings %}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-2 lh-1 text-muted" onclick="openProviderSettings('{{ provider }}')" title="{{ t('ui.admin.bbs_settings.media_player.provider_settings', {}, locale, ['common']) }}">
+                                <i class="fas fa-pen fa-xs"></i>
+                            </button>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
@@ -750,6 +758,41 @@
     </div>
 
 </div>
+
+{# Provider settings modal #}
+<div class="modal fade" id="providerSettingsModal" tabindex="-1" aria-labelledby="providerSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="providerSettingsModalLabel">
+                    <span id="providerSettingsTitle"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <div id="providerSettingsPanel_soundcloud" style="display:none">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="mpApiKey_soundcloud">{{ t('ui.admin.bbs_settings.media_player.soundcloud_client_id', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control font-monospace" id="mpApiKey_soundcloud" maxlength="500" placeholder="{{ t('ui.admin.bbs_settings.media_player.soundcloud_client_id_placeholder', {}, locale, ['common']) }}" autocomplete="off">
+                        <div class="form-text">{{ t('ui.admin.bbs_settings.media_player.soundcloud_client_id_help', {}, locale, ['common']) }}</div>
+                    </div>
+                </div>
+                <div id="providerSettingsPanel_twitter" style="display:none">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="mpApiKey_twitter">{{ t('ui.admin.bbs_settings.media_player.twitter_bearer_token', {}, locale, ['common']) }}</label>
+                        <input type="password" class="form-control font-monospace" id="mpApiKey_twitter" maxlength="500" placeholder="{{ t('ui.admin.bbs_settings.media_player.twitter_bearer_token_placeholder', {}, locale, ['common']) }}" autocomplete="off">
+                        <div class="form-text">{{ t('ui.admin.bbs_settings.media_player.twitter_bearer_token_help', {}, locale, ['common']) }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="text-muted small me-auto">{{ t('ui.admin.bbs_settings.media_player.provider_settings_hint', {}, locale, ['common']) }}</span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" onclick="applyProviderSettings()">{{ t('ui.common.apply', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -771,6 +814,8 @@ let terminalScreens = [];
 let currentTerminalScreenKey = '';
 let termScreenAnsiEditor = null;
 let loginAnsiEditor = null;
+let mediaApiKeys = {};
+let currentEditingProvider = null;
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -1001,6 +1046,11 @@ function loadAppearanceConfig() {
             document.querySelectorAll('.media-provider-toggle').forEach(function(cb) {
                 cb.checked = mpProviders[cb.dataset.provider] !== false;
             });
+            const mpApiKeysRaw = mp.api_keys || {};
+            mediaApiKeys = {
+                soundcloud: mpApiKeysRaw.soundcloud || '',
+                twitter: mpApiKeysRaw.twitter || '',
+            };
 
             // File Areas
             const fa = config.file_areas || {};
@@ -1620,6 +1670,38 @@ function showStatus(id, type, msg) {
     }
 }
 
+function openProviderSettings(provider) {
+    currentEditingProvider = provider;
+    document.querySelectorAll('[id^="providerSettingsPanel_"]').forEach(function(el) {
+        el.style.display = 'none';
+    });
+    const panel = document.getElementById('providerSettingsPanel_' + provider);
+    if (panel) {
+        panel.style.display = '';
+    }
+    const titleMap = {
+        soundcloud: 'SoundCloud',
+        twitter: 'Twitter / X',
+    };
+    document.getElementById('providerSettingsTitle').textContent =
+        (titleMap[provider] || provider) + ' — ' + uiT('ui.admin.bbs_settings.media_player.provider_settings', 'Provider Settings');
+    if (provider === 'soundcloud') {
+        document.getElementById('mpApiKey_soundcloud').value = mediaApiKeys.soundcloud || '';
+    } else if (provider === 'twitter') {
+        document.getElementById('mpApiKey_twitter').value = mediaApiKeys.twitter || '';
+    }
+    new bootstrap.Modal(document.getElementById('providerSettingsModal')).show();
+}
+
+function applyProviderSettings() {
+    if (currentEditingProvider === 'soundcloud') {
+        mediaApiKeys.soundcloud = document.getElementById('mpApiKey_soundcloud').value.trim();
+    } else if (currentEditingProvider === 'twitter') {
+        mediaApiKeys.twitter = document.getElementById('mpApiKey_twitter').value.trim();
+    }
+    bootstrap.Modal.getInstance(document.getElementById('providerSettingsModal')).hide();
+}
+
 function saveMessageReader() {
     const providers = {};
     document.querySelectorAll('.media-provider-toggle').forEach(function(cb) {
@@ -1632,7 +1714,8 @@ function saveMessageReader() {
             discord_url: $('#mrDiscordUrl').val().trim(),
             media_player: {
                 enabled: $('#mediaPlayerEnabled').is(':checked'),
-                providers: providers
+                providers: providers,
+                api_keys: mediaApiKeys
             }
         }
     };
