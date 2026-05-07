@@ -1041,7 +1041,7 @@ function loadAppearanceConfig() {
             $('#mrEmailLinkUrl').val(mr.email_link_url || '');
             $('#mrDiscordUrl').val(mr.discord_url || '');
             const mp = mr.media_player || {};
-            $('#mediaPlayerEnabled').prop('checked', mp.enabled !== false);
+            $('#mediaPlayerEnabled').prop('checked', !!mp.enabled);
             const mpProviders = mp.providers || {};
             document.querySelectorAll('.media-provider-toggle').forEach(function(cb) {
                 cb.checked = mpProviders[cb.dataset.provider] !== false;
