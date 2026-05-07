@@ -331,8 +331,18 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 ### Ubuntu/Debian package requirements
 ```bash
 sudo apt-get update
-sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom php-gmp postgresql composer  
+
+# Choose a web server and PHP runner (recommended)
+#  If caddy is not available in your distro, see https://caddyserver.com/download downloads
+apt install caddy php-fpm
+
+# -or - Apache and PHP runner (not recommended)
+apt install libapache2-mod-php apache2
+
+# Install required packages
+sudo apt-get install  php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom php-gmp postgresql composer  
 sudo apt-get install -y unzip p7zip-full
+
 # Optional: Sixel image rendering in telnet/SSH terminal reader
 sudo apt-get install -y libsixel-bin
 ```
@@ -362,17 +372,7 @@ Verify the connection works with the new credentials:
 psql -U your_username -d your_database -h 127.0.0.1
 ```
 
-If the connection succeeds, update your `.env` file with the corresponding values:
-
-```
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_NAME=your_database
-DB_USER=your_username
-DB_PASS=your_password
-```
-
-> **Note:** Using `127.0.0.1` instead of `localhost` forces a TCP connection, which avoids peer authentication issues on some systems.
+Make note of your database name, username, and password as you may need to update .env later.
 
 ## Method 1: Using the Installer (Recommended)
 
