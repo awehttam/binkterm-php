@@ -274,7 +274,14 @@ function displaySharedMessage(message, shareInfo) {
         ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
     `;
     
+    const messageContent = document.getElementById('messageContent');
+    if (window.BinkMediaPlayer) {
+        BinkMediaPlayer.cleanup(messageContent);
+    }
     $('#messageContent').html(html);
+    if (window.BinkMediaPlayer) {
+        BinkMediaPlayer.scan(messageContent);
+    }
     $('#messageCard').show();
     
     // Show share info
