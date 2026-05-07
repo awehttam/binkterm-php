@@ -29,9 +29,9 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Inline Media Player
 
-- Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files are now automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, PeerTube, Bastyon, Twitter/X, SoundCloud, TikTok, and ReverbNation. Direct links to video, audio, image, tracker module, SID, and MIDI files are also embedded inline.
+- Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files can be automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, PeerTube, Bastyon, Twitter/X, SoundCloud, TikTok, and ReverbNation. Direct links to video, audio, image, tracker module, SID, and MIDI files are also embedded inline.
 - The user preference formerly called "Image load mode" has been renamed "Inline media rendering" and controls whether embeds load automatically or require a user click to expand. All existing accounts are migrated to click-to-expand on upgrade. The default for new accounts is also click-to-expand.
-- Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**. The media player is now **disabled by default** on fresh installations.
+- Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**. The media player is **disabled by default** on fresh installations.
 - Added per-network and per-area inline media controls. Each uplink in **Admin → Binkp Configuration** has an "Allow Inline Media" checkbox. Each echo area in the echo area manager has an "Inline Media Rendering" setting that can be set to inherit from its network, or explicitly enabled or disabled.
 - The user settings page now shows a notice when the sysop has disabled inline media globally, rather than presenting controls that have no effect.
 
