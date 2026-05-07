@@ -3547,6 +3547,7 @@ return [
     'ui.settings.media_render_mode.click' => 'Clic para expandir medios',
     'ui.settings.media_render_mode.auto' => 'Renderizar medios automaticamente',
     'ui.settings.media_render_mode.help' => 'Controla si los reproductores de plataformas, archivos multimedia e imagenes se renderizan automaticamente o al hacer clic.',
+    'ui.settings.media_render_mode.disabled_globally' => 'El renderizado de medios ha sido desactivado por el administrador.',
     'ui.settings.echomail_ignore_rules.title' => 'Echomail ignorado',
     'ui.settings.echomail_ignore_rules.help' => 'Administra reglas de remitente y asunto que ocultan mensajes de echomail en tu lector.',
     'ui.settings.echomail_ignore_rules.loading' => 'Cargando reglas de ignorar...',

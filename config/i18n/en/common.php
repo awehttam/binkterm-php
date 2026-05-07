@@ -3545,6 +3545,7 @@ return [
     'ui.settings.media_render_mode.click' => 'Click to expand media',
     'ui.settings.media_render_mode.auto' => 'Automatically render rich media',
     'ui.settings.media_render_mode.help' => 'Controls whether platform embeds, media files, and inline images are rendered automatically or expanded on demand.',
+    'ui.settings.media_render_mode.disabled_globally' => 'Inline media rendering has been disabled by the administrator.',
     'ui.settings.echomail_ignore_rules.title' => 'Ignored Echomail',
     'ui.settings.echomail_ignore_rules.help' => 'Manage sender and subject rules that hide echomail messages from your reader.',
     'ui.settings.echomail_ignore_rules.loading' => 'Loading ignore rules...',

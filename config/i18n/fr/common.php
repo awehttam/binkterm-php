@@ -2860,6 +2860,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.settings.media_render_mode.click' => 'Cliquer pour afficher le média',
     'ui.settings.media_render_mode.auto' => 'Afficher automatiquement les médias',
     'ui.settings.media_render_mode.help' => 'Contrôle si les lecteurs de plateformes, fichiers multimédias et images sont affichés automatiquement ou à la demande.',
+    'ui.settings.media_render_mode.disabled_globally' => 'L\'affichage des médias a été désactivé par l\'administrateur.',
     'ui.settings.onboarding.title' => 'Introduction à l\'Echomail',
     'ui.settings.onboarding.help' => 'Réinitialisez le guide d\'introduction à l\'echomail pour qu\'il s\'affiche à nouveau la prochaine fois que vous visitez Echomail.',
     'ui.settings.onboarding.reset_button' => 'Réinitialiser le guide d\'introduction',

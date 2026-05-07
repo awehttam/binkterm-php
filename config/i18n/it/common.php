@@ -3546,6 +3546,7 @@ return [
     'ui.settings.media_render_mode.click' => 'Clic per espandere il media',
     'ui.settings.media_render_mode.auto' => 'Mostra automaticamente i media',
     'ui.settings.media_render_mode.help' => 'Controlla se i lettori di piattaforme, i file multimediali e le immagini vengono mostrati automaticamente o su richiesta.',
+    'ui.settings.media_render_mode.disabled_globally' => 'La visualizzazione media inline è stata disabilitata dall\'amministratore.',
     'ui.settings.echomail_ignore_rules.title' => 'Echomail ignorate',
     'ui.settings.echomail_ignore_rules.help' => 'Gestisci regole su mittente e oggetto che nascondono messaggi echomail dal lettore.',
     'ui.settings.echomail_ignore_rules.loading' => 'Caricamento regole ignora...',
