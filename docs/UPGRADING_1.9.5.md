@@ -19,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [File Areas](#file-areas)
 - [Terminal Registration](#terminal-registration)
 - [Message Search](#message-search)
+- [Echoarea Message Count](#echoarea-message-count)
 - [Database Migration Fix](#database-migration-fix)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -33,6 +34,11 @@ Make sure you have a current backup of your database and files before upgrading.
 - Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**. The media player is now **disabled by default** on fresh installations.
 - Added per-network and per-area inline media controls. Each uplink in **Admin → Binkp Configuration** has an "Allow Inline Media" checkbox. Each echo area in the echo area manager has an "Inline Media Rendering" setting that can be set to inherit from its network, or explicitly enabled or disabled.
 - The user settings page now shows a notice when the sysop has disabled inline media globally, rather than presenting controls that have no effect.
+
+### Echoarea Message Count
+
+- Fixed the admin echomail bulk-delete endpoint so it recalculates `echoareas.message_count` after removing messages. Previously, bulk-deleting messages left the cached counter inflated, causing the echoarea list to report more messages than actually exist. Installations where bulk deletions were performed before this upgrade can correct the drift by running `php scripts/check_message_counts.php --fix`.
+- Added a `--fix` flag to `scripts/check_message_counts.php`. With `--fix`, the script recalculates and corrects any drifted `message_count` values in addition to reporting them.
 
 ### Database Migration Fix
 
@@ -281,6 +287,20 @@ The web echomail and netmail message lists auto-refresh in two situations: when 
 The auto-refresh now skips the message list reload when a search is active. Unread counts, echoarea stats, and other sidebar data continue to update in the background so new arrivals are reflected without disturbing the search view. To dismiss search results and return to the live message list, use the Clear Search button.
 
 No database changes or configuration updates are required.
+
+## Echoarea Message Count
+
+The `echoareas.message_count` column is a cached counter incremented when messages are posted and decremented when they are individually deleted. The admin-only bulk message delete endpoint (`POST /api/messages/echomail/delete`) was deleting rows directly from the `echomail` table without updating this counter. Echoareas where messages had been bulk-deleted would show an inflated count in the echoarea list that did not match the actual number of stored messages.
+
+The endpoint now recalculates `message_count` from an accurate `COUNT(*)` for each echoarea touched by the deletion. Using a recalculation rather than an incremental adjustment means the result is exact even when earlier drift had already accumulated.
+
+To correct any counts that drifted before this upgrade, run:
+
+```bash
+php scripts/check_message_counts.php --fix
+```
+
+Without `--fix`, the script reports discrepancies without modifying any data. Adding `--fix` was new in this release.
 
 ## Database Migration Fix
 

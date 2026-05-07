@@ -8,6 +8,16 @@ require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Database;
 
+$options = getopt('', ['fix', 'help']);
+
+if (isset($options['help'])) {
+    echo "Usage: php check_message_counts.php [--fix]\n";
+    echo "  --fix   Recalculate and correct drifted message_count values\n";
+    exit(0);
+}
+
+$fix = isset($options['fix']);
+
 $db = Database::getInstance()->getPdo();
 
 $sql = <<<SQL
@@ -53,4 +63,20 @@ foreach ($mismatches as $r) {
 }
 
 echo "\n" . count($mismatches) . " echoarea(s) with mismatched message_count (out of " . count($rows) . " total).\n";
+
+if ($fix) {
+    echo "\nFixing...\n";
+    $fixStmt = $db->prepare("
+        UPDATE echoareas
+        SET message_count = (SELECT COUNT(*) FROM echomail WHERE echoarea_id = :id)
+        WHERE id = :id
+    ");
+    foreach ($mismatches as $r) {
+        $fixStmt->execute(['id' => $r['id']]);
+        printf("  Fixed: %-{$tagLen}s  %d -> %d\n", $r['tag'], (int)$r['stored_count'], (int)$r['actual_count']);
+    }
+    echo "Done.\n";
+    exit(0);
+}
+
 exit(1);

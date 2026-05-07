@@ -5850,6 +5850,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $deleted = 0;
 
         $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+
+        // Capture affected echoareas before deletion so we can recalculate counts
+        $echoareaStmt = $db->prepare("SELECT DISTINCT echoarea_id FROM echomail WHERE id IN ($placeholders)");
+        $echoareaStmt->execute(array_values($messageIds));
+        $affectedEchoareaIds = $echoareaStmt->fetchAll(\PDO::FETCH_COLUMN);
+
         $db->prepare("UPDATE echomail SET reply_to_id = NULL WHERE reply_to_id IN ($placeholders)")
            ->execute(array_values($messageIds));
 
@@ -5858,6 +5864,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($stmt->execute([$id])) {
                 $deleted++;
             }
+        }
+
+        // Recalculate message_count from actual row count for each affected echoarea
+        foreach ($affectedEchoareaIds as $echoareaId) {
+            $db->prepare("
+                UPDATE echoareas
+                SET message_count = (SELECT COUNT(*) FROM echomail WHERE echoarea_id = ?)
+                WHERE id = ?
+            ")->execute([$echoareaId, $echoareaId]);
         }
 
         echo json_encode([
@@ -5975,131 +5990,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
-        $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
-        $isAdmin = !empty($user['is_admin']);
-        $sysopFilter = $isAdmin ? "" : " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
         $handler = new MessageHandler();
-        $ignoreFilter = $handler->buildEchomailIgnoreFilter($userId, 'em');
 
-        // Global echomail statistics (only from subscribed echoareas)
-        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}{$ignoreFilter['sql']}");
-        $totalParams = [$userId];
-        foreach ($ignoreFilter['params'] as $param) {
-            $totalParams[] = $param;
-        }
-        $totalStmt->execute($totalParams);
-        $total = $totalStmt->fetch()['count'];
-
-        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}{$ignoreFilter['sql']}");
-        $recentParams = [$userId];
-        foreach ($ignoreFilter['params'] as $param) {
-            $recentParams[] = $param;
-        }
-        $recentStmt->execute($recentParams);
-        $recent = $recentStmt->fetch()['count'];
-
-        $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
-        $areasStmt->execute([$userId]);
-        $areas = $areasStmt->fetch()['count'];
-
-        // Filter counts for this user
-        $allCount = $total; // All messages is same as total
-        $unreadCount = 0;
-        $readCount = 0;
-        $toMeCount = 0;
-        $savedCount = 0;
-
-        if ($userId) {
-            // Get user info for 'to me' filter
-            $userStmt = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
-            $userStmt->execute([$userId]);
-            $userInfo = $userStmt->fetch();
-
-            // Unread count
-            $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}{$ignoreFilter['sql']}
-            ");
-            $unreadParams = [$userId, $userId];
-            foreach ($ignoreFilter['params'] as $param) {
-                $unreadParams[] = $param;
-            }
-            $unreadStmt->execute($unreadParams);
-            $unreadCount = $unreadStmt->fetch()['count'];
-
-            // Read count
-            $readStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}{$ignoreFilter['sql']}
-            ");
-            $readParams = [$userId, $userId];
-            foreach ($ignoreFilter['params'] as $param) {
-                $readParams[] = $param;
-            }
-            $readStmt->execute($readParams);
-            $readCount = $readStmt->fetch()['count'];
-
-            // To Me count
-            if ($userInfo) {
-                $toMeStmt = $db->prepare("
-                    SELECT COUNT(*) as count FROM echomail em
-                    JOIN echoareas ea ON em.echoarea_id = ea.id
-                    JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                    WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}{$ignoreFilter['sql']}
-                ");
-                $toMeParams = [$userId, $userInfo['username'], $userInfo['real_name']];
-                foreach ($ignoreFilter['params'] as $param) {
-                    $toMeParams[] = $param;
-                }
-                $toMeStmt->execute($toMeParams);
-                $toMeCount = $toMeStmt->fetch()['count'];
-            }
-
-            // Saved count
-            $savedStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}{$ignoreFilter['sql']}
-            ");
-            $savedParams = [$userId, $userId];
-            foreach ($ignoreFilter['params'] as $param) {
-                $savedParams[] = $param;
-            }
-            $savedStmt->execute($savedParams);
-            $savedCount = $savedStmt->fetch()['count'];
-        }
-
-        // Drafts count
-        $draftsCount = 0;
-        if ($userId) {
-            $draftsStmt = $db->prepare("SELECT COUNT(*) as count FROM drafts WHERE user_id = ? AND type = 'echomail'");
-            $draftsStmt->execute([$userId]);
-            $draftsCount = $draftsStmt->fetch()['count'];
-        }
-
-        echo json_encode([
-            'total' => $total,
-            'recent' => $recent,
-            'areas' => $areas,
-            'unread' => $unreadCount,
-            'filter_counts' => [
-                'all' => $allCount,
-                'unread' => $unreadCount,
-                'read' => $readCount,
-                'tome' => $toMeCount,
-                'saved' => $savedCount,
-                'drafts' => $draftsCount
-            ]
-        ]);
+        echo json_encode($handler->getEchomailStats($userId));
     });
 
     SimpleRouter::get('/messages/echomail/stats/{echoarea}', function($echoarea) {
@@ -6116,7 +6010,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
         $handler = new MessageHandler();
-        $ignoreFilter = $handler->buildEchomailIgnoreFilter($userId, 'em');
 
         if (!$isAdmin && $userId) {
             $subscriptionManager = new \BinktermPHP\EchoareaSubscriptionManager();
@@ -6136,115 +6029,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        // Statistics for specific echoarea
-        $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as total,
-                   COUNT(CASE WHEN date_received > NOW() - INTERVAL '1 day' THEN 1 END) as recent
-            FROM echomail em
-            JOIN echoareas ea ON em.echoarea_id = ea.id
-            WHERE ea.tag = ? AND {$domainCondition}{$ignoreFilter['sql']}
-        ");
-        $params = [$echoarea];
-        if (!empty($domain)) {
-            $params[] = $domain;
-        }
-        foreach ($ignoreFilter['params'] as $param) {
-            $params[] = $param;
-        }
-        $stmt->execute($params);
-        $stats = $stmt->fetch();
+        $stats = $handler->getEchomailStats($userId, $echoarea, $domain);
+        $stats['echoarea'] = $echoarea;
+        unset($stats['areas']);
 
-        // Filter counts for this echoarea and user
-        $allCount = $stats['total']; // All messages is same as total
-        $unreadCount = 0;
-        $readCount = 0;
-        $toMeCount = 0;
-        $savedCount = 0;
-
-        if ($userId) {
-            // Get user info for 'to me' filter
-            $userStmt = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
-            $userStmt->execute([$userId]);
-            $userInfo = $userStmt->fetch();
-
-            // Unread count
-            $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NULL{$ignoreFilter['sql']}
-            ");
-            $unreadParams = [$userId, $echoarea];
-            if (!empty($domain)) $unreadParams[] = $domain;
-            foreach ($ignoreFilter['params'] as $param) {
-                $unreadParams[] = $param;
-            }
-            $unreadStmt->execute($unreadParams);
-            $unreadCount = $unreadStmt->fetch()['count'];
-
-            // Read count
-            $readStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NOT NULL{$ignoreFilter['sql']}
-            ");
-            $readParams = [$userId, $echoarea];
-            if (!empty($domain)) $readParams[] = $domain;
-            foreach ($ignoreFilter['params'] as $param) {
-                $readParams[] = $param;
-            }
-            $readStmt->execute($readParams);
-            $readCount = $readStmt->fetch()['count'];
-
-            // To Me count
-            if ($userInfo) {
-                $toMeStmt = $db->prepare("
-                    SELECT COUNT(*) as count FROM echomail em
-                    JOIN echoareas ea ON em.echoarea_id = ea.id
-                    WHERE ea.tag = ? AND {$domainCondition} AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$ignoreFilter['sql']}
-                ");
-                $toMeParams = [$echoarea];
-                if (!empty($domain)) $toMeParams[] = $domain;
-                $toMeParams[] = $userInfo['username'];
-                $toMeParams[] = $userInfo['real_name'];
-                foreach ($ignoreFilter['params'] as $param) {
-                    $toMeParams[] = $param;
-                }
-                $toMeStmt->execute($toMeParams);
-                $toMeCount = $toMeStmt->fetch()['count'];
-            }
-
-            // Saved count
-            $savedStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND sav.id IS NOT NULL{$ignoreFilter['sql']}
-            ");
-            $savedParams = [$userId, $echoarea];
-            if (!empty($domain)) $savedParams[] = $domain;
-            foreach ($ignoreFilter['params'] as $param) {
-                $savedParams[] = $param;
-            }
-            $savedStmt->execute($savedParams);
-            $savedCount = $savedStmt->fetch()['count'];
-        }
-
-        echo json_encode([
-            'echoarea' => $echoarea,
-            'total' => $stats['total'],
-            'recent' => $stats['recent'],
-            'unread' => $unreadCount,
-            'filter_counts' => [
-                'all' => $allCount,
-                'unread' => $unreadCount,
-                'read' => $readCount,
-                'tome' => $toMeCount,
-                'saved' => $savedCount
-            ]
-        ]);
+        echo json_encode($stats);
     })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
 
     $prepareEchomailAdBodyForSave = static function(array $message): string {
