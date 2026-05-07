@@ -162,8 +162,28 @@ class DatabaseUpgrader
     {
         $appliedVersions = $this->getAppliedVersions();
 
-        return array_values(array_filter($migrations, function($migration) use ($appliedVersions) {
-            return !isset($appliedVersions[$migration['version']]);
+        // Find the highest legacy semantic version recorded so we can skip older
+        // semantic migrations that were never individually recorded (e.g. on systems
+        // originally seeded from postgres_schema.sql rather than applied one-by-one).
+        $highestAppliedSemantic = '0.0.0';
+        foreach (array_keys($appliedVersions) as $v) {
+            if (!$this->isTimestampMigrationVersion($v) && version_compare($v, $highestAppliedSemantic, '>')) {
+                $highestAppliedSemantic = $v;
+            }
+        }
+
+        return array_values(array_filter($migrations, function($migration) use ($appliedVersions, $highestAppliedSemantic) {
+            if (isset($appliedVersions[$migration['version']])) {
+                return false;
+            }
+            // Legacy semantic migrations that predate the highest recorded version
+            // are implicitly applied — skip them.
+            if (!$this->isTimestampMigrationVersion($migration['version'])) {
+                if (version_compare($migration['version'], $highestAppliedSemantic, '<=')) {
+                    return false;
+                }
+            }
+            return true;
         }));
     }
 
