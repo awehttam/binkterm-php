@@ -112,7 +112,7 @@ class AppearanceConfig
                 'email_link_url' => '',
                 'discord_url' => '',
                 'media_player' => [
-                    'enabled'   => true,
+                    'enabled'   => false,
                     'providers' => [
                         'youtube'      => true,
                         'odysee'       => true,
@@ -476,7 +476,7 @@ class AppearanceConfig
     {
         self::load();
         $mp = self::$config['message_reader']['media_player'] ?? [];
-        return !isset($mp['enabled']) || !empty($mp['enabled']);
+        return !empty($mp['enabled']);
     }
 
     /**
