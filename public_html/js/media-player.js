@@ -91,7 +91,7 @@
     }
 
     function isAutoMode() {
-        return ((window.userSettings || {}).media_render_mode || 'auto') !== 'click';
+        return ((window.userSettings || {}).media_render_mode || 'click') !== 'click';
     }
 
     function buildIframe(src, providerName) {
@@ -220,47 +220,100 @@
         }
     }
 
-    function buildLoadButton(mediaEl, isMedia) {
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'bink-media-load-btn btn btn-sm btn-outline-secondary ms-2';
-        btn.textContent = '▶ Load player';
-        btn.addEventListener('click', function() {
-            btn.parentNode.insertBefore(wrapEmbed(mediaEl), btn);
-            if (isMedia) initPlyr(mediaEl);
-            btn.remove();
+    function showMediaMenu(anchor, onLoadPlayer) {
+        var existing = document.querySelector('.bink-media-menu');
+        if (existing) existing.remove();
+
+        var menu = document.createElement('div');
+        menu.className = 'bink-media-menu dropdown-menu show shadow-sm';
+        menu.style.cssText = 'position:fixed;z-index:9999;min-width:10rem;';
+
+        var itemLoad = document.createElement('button');
+        itemLoad.type = 'button';
+        itemLoad.className = 'dropdown-item';
+        itemLoad.textContent = '▶ Load player';
+
+        var itemNew = document.createElement('a');
+        itemNew.className = 'dropdown-item';
+        itemNew.href = anchor.href;
+        itemNew.target = '_blank';
+        itemNew.rel = 'noopener noreferrer';
+        itemNew.textContent = 'Open in new tab';
+
+        function closeMenu() {
+            menu.remove();
+            document.removeEventListener('click', dismissHandler, true);
+        }
+
+        itemLoad.addEventListener('click', function() {
+            closeMenu();
+            onLoadPlayer();
         });
-        return btn;
+        itemNew.addEventListener('click', closeMenu);
+
+        menu.appendChild(itemLoad);
+        menu.appendChild(itemNew);
+        document.body.appendChild(menu);
+
+        var rect = anchor.getBoundingClientRect();
+        menu.style.top  = (rect.bottom + 2) + 'px';
+        menu.style.left = rect.left + 'px';
+        var overflow = rect.left + menu.offsetWidth - (window.innerWidth - 8);
+        if (overflow > 0) menu.style.left = Math.max(8, rect.left - overflow) + 'px';
+
+        function dismissHandler(e) {
+            if (!menu.contains(e.target)) closeMenu();
+        }
+        setTimeout(function() { document.addEventListener('click', dismissHandler, true); }, 0);
+    }
+
+    // Shared insertion logic for both auto-mode and click-mode.
+    // For retro audio inside <pre> or span.message-line, inserts after the containing
+    // block rather than inside it, so that preserved whitespace / auto-promoted divs
+    // don't create a blank gap above the player.
+    function insertEmbed(anchor, el, isMedia, isRetroAudio) {
+        var wrapped = wrapEmbed(el, false);
+        var insertAfterNode = null;
+        if (isRetroAudio && anchor.closest) {
+            insertAfterNode = anchor.closest('pre') ||
+                anchor.closest('span.message-line, span.message-signature');
+        }
+        if (insertAfterNode) {
+            // Walk past any players already queued after this node so multiple
+            // retro audio URLs in the same container appear in source order.
+            var after = insertAfterNode;
+            while (after.nextSibling && after.nextSibling.classList &&
+                    after.nextSibling.classList.contains('bink-media-embed')) {
+                after = after.nextSibling;
+            }
+            after.parentNode.insertBefore(wrapped, after.nextSibling);
+        } else {
+            anchor.parentNode.insertBefore(wrapped, anchor.nextSibling);
+        }
+        if (isMedia) initPlyr(el);
+    }
+
+    function attachClickMenu(anchor, el, isMedia, isRetroAudio) {
+        var done = false;
+        function handler(e) {
+            e.preventDefault();
+            showMediaMenu(anchor, function() {
+                if (done) return;
+                done = true;
+                anchor.removeEventListener('click', handler);
+                insertEmbed(anchor, el, isMedia, isRetroAudio);
+            });
+        }
+        anchor.addEventListener('click', handler);
     }
 
     function injectAfter(anchor, el) {
         var isMedia = el.tagName === 'VIDEO' || el.tagName === 'AUDIO';
         var isRetroAudio = el.classList && el.classList.contains('bink-retro-audio');
         if (isAutoMode()) {
-            var wrapped = wrapEmbed(el, false);
-            // For retro audio inside <pre> or span.message-line, insert after the containing
-            // block rather than inside it, so that preserved whitespace / auto-promoted divs
-            // don't create a blank gap above the player.
-            var insertAfterNode = null;
-            if (isRetroAudio && anchor.closest) {
-                insertAfterNode = anchor.closest('pre') ||
-                    anchor.closest('span.message-line, span.message-signature');
-            }
-            if (insertAfterNode) {
-                // Walk past any players already queued after this node so multiple
-                // retro audio URLs in the same container appear in source order.
-                var after = insertAfterNode;
-                while (after.nextSibling && after.nextSibling.classList &&
-                        after.nextSibling.classList.contains('bink-media-embed')) {
-                    after = after.nextSibling;
-                }
-                after.parentNode.insertBefore(wrapped, after.nextSibling);
-            } else {
-                anchor.parentNode.insertBefore(wrapped, anchor.nextSibling);
-            }
-            if (isMedia) initPlyr(el);
+            insertEmbed(anchor, el, isMedia, isRetroAudio);
         } else {
-            anchor.parentNode.insertBefore(buildLoadButton(el, isMedia), anchor.nextSibling);
+            attachClickMenu(anchor, el, isMedia, isRetroAudio);
         }
     }
 
@@ -289,16 +342,18 @@
             anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
             activateScripts(wrap);
         } else {
-            var btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'bink-media-load-btn btn btn-sm btn-outline-secondary ms-2';
-            btn.textContent = '▶ Load player';
-            btn.addEventListener('click', function() {
-                btn.parentNode.insertBefore(wrap, btn);
-                activateScripts(wrap);
-                btn.remove();
-            });
-            anchor.parentNode.insertBefore(btn, anchor.nextSibling);
+            var done = false;
+            function handler(e) {
+                e.preventDefault();
+                showMediaMenu(anchor, function() {
+                    if (done) return;
+                    done = true;
+                    anchor.removeEventListener('click', handler);
+                    anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
+                    activateScripts(wrap);
+                });
+            }
+            anchor.addEventListener('click', handler);
         }
     }
 
@@ -412,10 +467,11 @@
      * Safe to call multiple times — already-processed anchors are skipped.
      * @param {Element|string} containerOrSelector
      */
-    function scan(containerOrSelector) {
+    function scan(containerOrSelector, opts) {
         var container = getContainer(containerOrSelector);
         if (!container) return;
         if (!isEnabled()) return;
+        if (opts && opts.mediaEnabled === false) return;
 
         var anchors = container.querySelectorAll('a[href]');
         for (var i = 0; i < anchors.length; i++) {
@@ -445,10 +501,12 @@
             });
         }
 
-        var embeds = container.querySelectorAll('.bink-media-embed, .bink-media-load-btn');
+        var embeds = container.querySelectorAll('.bink-media-embed');
         for (var i = 0; i < embeds.length; i++) {
             embeds[i].remove();
         }
+        var openMenu = document.querySelector('.bink-media-menu');
+        if (openMenu) openMenu.remove();
 
         var processed = container.querySelectorAll('a[data-bink-media-processed]');
         for (var i = 0; i < processed.length; i++) {

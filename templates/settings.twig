@@ -251,13 +251,13 @@
                             <label class="form-label">{{ t('ui.settings.media_render_mode', {}, locale, ['common']) }}</label>
                             {% if media_player_enabled %}
                             <div class="form-check mb-1">
-                                <input class="form-check-input" type="radio" name="media_render_mode" id="mediaRenderAuto" value="auto" checked>
+                                <input class="form-check-input" type="radio" name="media_render_mode" id="mediaRenderAuto" value="auto">
                                 <label class="form-check-label" for="mediaRenderAuto">
                                     {{ t('ui.settings.media_render_mode.auto', {}, locale, ['common']) }}
                                 </label>
                             </div>
                             <div class="form-check mb-1">
-                                <input class="form-check-input" type="radio" name="media_render_mode" id="mediaRenderClick" value="click">
+                                <input class="form-check-input" type="radio" name="media_render_mode" id="mediaRenderClick" value="click" checked>
                                 <label class="form-check-label" for="mediaRenderClick">
                                     {{ t('ui.settings.media_render_mode.click', {}, locale, ['common']) }}
                                 </label>
@@ -773,8 +773,8 @@ function loadSettings() {
             // Quote coloring (defaults to true if not set)
             $('#quoteColoring').prop('checked', data.quote_coloring !== false);
 
-            // Media render mode (defaults to 'auto')
-            $('input[name="media_render_mode"][value="' + (data.media_render_mode || 'auto') + '"]').prop('checked', true);
+            // Media render mode (defaults to 'click')
+            $('input[name="media_render_mode"][value="' + (data.media_render_mode || 'click') + '"]').prop('checked', true);
 
             // Notifications
             $('#chatNotificationSound').val(data.chat_notification_sound || 'notify3');
@@ -900,7 +900,7 @@ function collectCurrentSettings() {
         netmail_threaded_view: $('#netmailThreadedView').is(':checked'),
         remember_page_position: $('#rememberPagePosition').is(':checked'),
         quote_coloring: $('#quoteColoring').is(':checked'),
-        media_render_mode: $('input[name="media_render_mode"]:checked').val() || 'auto',
+        media_render_mode: $('input[name="media_render_mode"]:checked').val() || 'click',
         chat_notification_sound: $('#chatNotificationSound').val() || 'notify3',
         echomail_notification_sound: $('#echomailNotificationSound').val() || 'disabled',
         netmail_notification_sound: $('#netmailNotificationSound').val() || 'notify1',

@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Inline Media Player](#inline-media-player)
+- [Per-Network and Per-Area Media Controls](#per-network-and-per-area-media-controls)
 - [Message Reader](#message-reader)
 - [Bulletin Manager](#bulletin-manager)
 - [Terminal Message Editor](#terminal-message-editor)
@@ -18,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [File Areas](#file-areas)
 - [Terminal Registration](#terminal-registration)
 - [Message Search](#message-search)
+- [Database Migration Fix](#database-migration-fix)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -28,7 +30,13 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files are now automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, PeerTube, Bastyon, Twitter/X, SoundCloud, TikTok, and ReverbNation. Direct links to video, audio, image, tracker module, SID, and MIDI files are also embedded inline.
 - The user preference formerly called "Image load mode" has been renamed "Inline media rendering" and controls whether embeds load automatically or require a user click to expand. All existing accounts are migrated to the automatic mode on upgrade.
-- Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**.
+- Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**. The media player is now **disabled by default** on fresh installations.
+- Added per-network and per-area inline media controls. Each uplink in **Admin → Binkp Configuration** has an "Allow Inline Media" checkbox. Each echo area in the echo area manager has an "Inline Media Rendering" setting that can be set to inherit from its network, or explicitly enabled or disabled.
+- The user settings page now shows a notice when the sysop has disabled inline media globally, rather than presenting controls that have no effect.
+
+### Database Migration Fix
+
+- Fixed a regression introduced when the migration tracker was changed to set-based tracking. Established installations that were originally set up from the full schema dump (`postgres_schema.sql`) rather than by running migrations one at a time could incorrectly attempt to re-apply old migrations (such as `v1.4.9`) on upgrade, because those migrations were never individually recorded in the `database_migrations` table. The upgrade script now treats any legacy semantic-version migration whose version is at or below the highest version already recorded as already applied.
 
 ### Message Search
 
@@ -111,10 +119,38 @@ The `image_load_mode` key in `users_meta` is renamed to `media_render_mode` and 
 
 The media player can be configured from **Admin → Appearance → Message Reader**:
 
-- **Enable inline media player** — turns the feature on or off globally for all users. Disabled by default the feature can be re-enabled at any time without data loss.
+- **Enable inline media player** — turns the feature on or off globally for all users. The media player is **disabled by default** on new installations. Enabling it activates inline rendering for all networks and areas that do not have the feature explicitly disabled. The feature can be toggled at any time without data loss.
 - **Enabled providers** — individual toggles for each supported platform. Disabling a provider prevents the server from resolving embeds for that platform and hides any client-side embed injection for it.
 
 These settings are stored in `data/appearance.json` and take effect immediately without restarting any daemons.
+
+## Per-Network and Per-Area Media Controls
+
+When the inline media player is enabled globally, sysops can restrict or allow it at the network and echo area level independently.
+
+### Network-level control
+
+Each uplink in **Admin → Binkp Configuration** has an **Allow Inline Media** checkbox in the uplink edit modal, next to the existing Allow Markup checkbox. When unchecked, inline media embeds are suppressed for all messages received from or associated with that network. The checkbox defaults to checked for new uplinks, so existing networks are unaffected by the upgrade.
+
+The setting is stored as `allow_media` in each uplink entry in `config/binkp.json`. Uplinks that have no `allow_media` key (created before this version) are treated as allowing media.
+
+### Area-level control
+
+Each echo area in the echo area manager has an **Inline Media Rendering** setting with three options:
+
+- **Inherit from network** (default) — the area follows the allow/deny setting of its associated uplink. New areas default to this.
+- **Enabled** — inline media is allowed for this area regardless of the network setting.
+- **Disabled** — inline media is suppressed for this area regardless of the network setting.
+
+The setting is stored as `allow_media` on the `echoareas` table (nullable boolean; `NULL` means inherit). Run `php scripts/setup.php` to apply the migration that adds this column.
+
+### Resolution order
+
+When a message is loaded, the media player decision follows this precedence from highest to lowest:
+
+1. Global disabled (`Admin → Appearance`) → no media, regardless of network or area.
+2. Area `allow_media` is explicitly set → use that value.
+3. Area `allow_media` is inherit → use the uplink's `allow_media` value (default allow if not set).
 
 ## Message Reader
 
@@ -173,6 +209,8 @@ No database changes or configuration updates are required.
 The web settings page now shows a loading overlay while the user's current settings are being loaded. The Save button stays disabled until loading finishes, so users are not shown an interactive form containing temporary default values.
 
 After loading, the page records the initial values and only sends preferences that were changed in the current edit session. This prevents a change to one setting, such as language or theme, from overwriting unrelated settings that live on other tabs. No database changes are required.
+
+The **Inline Media Rendering** preference on the Settings page now shows a notice instead of the render-mode radio buttons when the sysop has disabled the inline media player globally. This makes it clear to users that the setting has no effect in its current state rather than presenting controls that cannot do anything.
 
 ## Localized Documentation
 
@@ -243,6 +281,16 @@ The web echomail and netmail message lists auto-refresh in two situations: when 
 The auto-refresh now skips the message list reload when a search is active. Unread counts, echoarea stats, and other sidebar data continue to update in the background so new arrivals are reflected without disturbing the search view. To dismiss search results and return to the live message list, use the Clear Search button.
 
 No database changes or configuration updates are required.
+
+## Database Migration Fix
+
+The migration tracking system was changed in 1.9.4 from a version-comparison approach (skip any migration whose version number is less than or equal to the highest recorded version) to a set-based approach (skip any migration whose version string appears in the `database_migrations` table). This change was made to support the new timestamp-based migration IDs alongside legacy semantic version IDs.
+
+On installations that were originally set up using the full schema dump (`postgres_schema.sql`) rather than by running individual migration files, some early migrations were never individually recorded in `database_migrations` even though the corresponding schema changes were already in place. When these installations upgraded to a version using the set-based tracker, those unrecorded migrations appeared as pending and were re-executed.
+
+The upgrade script now applies a backward-compatible rule: any legacy semantic-version migration file whose version is at or below the highest semantic version already recorded in `database_migrations` is considered already applied and is skipped, even if it does not appear in the table. Timestamp-based migrations are not affected by this rule and continue to be tracked only by explicit table entries.
+
+No manual intervention is required. The fix takes effect automatically the next time `php scripts/setup.php` is run.
 
 ## Upgrade Instructions
 

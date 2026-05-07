@@ -301,6 +301,10 @@
                                 <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup', {}, locale, ['common']) }}</label>
                             </div>
                             <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="uplinkAllowMedia">
+                                <label class="form-check-label" for="uplinkAllowMedia" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.allow_media_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.allow_media', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="uplinkSendDomainInAddr">
                                 <label class="form-check-label" for="uplinkSendDomainInAddr" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.send_domain_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.send_domain', {}, locale, ['common']) }}</label>
                             </div>
@@ -710,6 +714,7 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkSchedule').value = '0 */4 * * *';
         document.getElementById('uplinkNetworks').value = '';
         document.getElementById('uplinkAllowMarkdown').checked = false;
+        document.getElementById('uplinkAllowMedia').checked = true;
         document.getElementById('uplinkPostingNamePolicy').value = 'real_name';
         document.getElementById('uplinkDefaultCharset').value = '';
         document.getElementById('uplinkSendDomainInAddr').checked = false;
@@ -738,6 +743,7 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkSchedule').value = uplink.poll_schedule || '';
         document.getElementById('uplinkNetworks').value = Array.isArray(uplink.networks) ? uplink.networks.join('\n') : '';
         document.getElementById('uplinkAllowMarkdown').checked = !!(uplink.allow_markup ?? uplink.allow_markdown);
+        document.getElementById('uplinkAllowMedia').checked = uplink.allow_media !== false;
         document.getElementById('uplinkPostingNamePolicy').value = (uplink.posting_name_policy === 'username') ? 'username' : 'real_name';
         document.getElementById('uplinkDefaultCharset').value = uplink.default_charset || '';
         document.getElementById('uplinkSendDomainInAddr').checked = !!uplink.send_domain_in_addr;
@@ -768,6 +774,7 @@ function saveUplink() {
         poll_schedule: document.getElementById('uplinkSchedule').value.trim(),
         networks: document.getElementById('uplinkNetworks').value.split('\n').map(v => v.trim()).filter(Boolean),
         allow_markup: document.getElementById('uplinkAllowMarkdown').checked,
+        allow_media: document.getElementById('uplinkAllowMedia').checked,
         posting_name_policy: document.getElementById('uplinkPostingNamePolicy').value,
         default_charset: document.getElementById('uplinkDefaultCharset').value || null,
         send_domain_in_addr: document.getElementById('uplinkSendDomainInAddr').checked,

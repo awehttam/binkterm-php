@@ -1657,7 +1657,7 @@ function renderCurrentMessageBody() {
     const tmp = document.createElement('div');
     tmp.innerHTML = bodyHtml;
     while (tmp.firstChild) container.appendChild(tmp.firstChild);
-    if (window.BinkMediaPlayer) BinkMediaPlayer.scan(container);
+    if (window.BinkMediaPlayer) BinkMediaPlayer.scan(container, { mediaEnabled: currentMessageData.allow_media !== false });
     updateRenderModeBadge();
     updateSaveToAdLibraryButton();
 }

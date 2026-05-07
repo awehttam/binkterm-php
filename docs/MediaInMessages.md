@@ -31,11 +31,11 @@ BinktermPHP can render rich media embedded in echomail and netmail messages. Thi
 When a message is opened in the web reader, the JavaScript media engine (`public_html/js/media-player.js`) scans all links in the rendered message body. For each link it identifies the media type and either:
 
 - Renders it inline immediately (auto mode), or
-- Shows a click-to-load placeholder (click mode).
+- Intercepts clicks on the link and shows a small popup menu with **Load player** and **Open in new tab** options (click mode).
 
-For platform embeds (YouTube, Rumble, etc.), a server-side API call to `GET /api/media/embed` resolves the URL to embed HTML. For retro audio formats, files are proxied through `GET /api/media/raw`.
+Client-side platform embeds (YouTube, Odysee, BitChute, Brighteon, PeerTube) are resolved directly in the browser from the URL. oEmbed providers (Rumble, SoundCloud, Twitter/X, TikTok, ReverbNation) are fetched client-side from the provider's oEmbed endpoint, with a fallback to the server-side proxy at `GET /api/media/embed` when CORS blocks the direct request. Bastyon video posts are always resolved server-side through `GET /api/media/embed`. Retro audio formats are proxied through `GET /api/media/raw`.
 
-The scan runs via `BinkMediaPlayer.scan()` after every message render, including when switching messages and when viewing shared messages.
+The scan runs via `BinkMediaPlayer.scan()` after every message render, including when switching messages and when viewing shared messages. The message API response includes a resolved `allow_media` boolean that the caller passes to `BinkMediaPlayer.scan(container, { mediaEnabled: bool })` to suppress rendering when the feature is disabled at the network or area level.
 
 ---
 
@@ -164,7 +164,17 @@ The user's preferred mode is stored via `UserStorage` so it persists across sess
 
 Media player settings are managed in `src/AppearanceConfig.php` under the `media_player` key and can be changed through the admin interface.
 
-**Global toggle:** Disable all media rendering system-wide with `media_player.enabled = false`.
+**Global toggle:** Media rendering is **disabled by default** on fresh installs. Enable it system-wide with `media_player.enabled = true` in the admin panel. Disable it again with `media_player.enabled = false` to suppress all inline rendering across every network and area.
+
+**Per-network toggle:** Each uplink entry in `config/binkp.json` has an optional `allow_media` boolean. Set `allow_media: false` on an uplink to suppress inline media for all messages received from that network. When omitted, the network defaults to allowing media (subject to the global toggle).
+
+**Per-area toggle:** Each echo area has an `allow_media` column in the `echoareas` table. The value can be `true` (always allow), `false` (always deny), or `NULL` (inherit from the network setting). The area setting is configured in the echo area management interface.
+
+**Resolution order** (first match wins):
+1. Global disabled → media suppressed everywhere
+2. Area `allow_media = false` → media suppressed for that area
+3. Area `allow_media = true` → media allowed regardless of network setting
+4. Area `allow_media = NULL` → network `allow_media` setting (default: allow)
 
 **Per-provider toggles:** Each embed provider (youtube, odysee, rumble, bitchute, brighteon, peertube, soundcloud, twitter, tiktok, bastyon, reverbnation, raw_media) can be individually enabled or disabled.
 
@@ -172,18 +182,21 @@ Media player settings are managed in `src/AppearanceConfig.php` under the `media
 
 When `GET /api/media/embed` is called, it checks the global flag and the per-provider configuration before resolving the URL. Disabled providers return an error and the link is left as plain text.
 
+The resolved `allow_media` boolean is included in every message API response. The client passes this value to `BinkMediaPlayer.scan(container, { mediaEnabled: bool })` so that suppressed areas render links as plain text without any player UI.
+
 ---
 
 ## Architecture Reference
 
 | Component | Path | Role |
 |-----------|------|------|
-| Media player engine | `public_html/js/media-player.js` | URL detection, inline rendering, embed loading |
+| Media player engine | `public_html/js/media-player.js` | URL detection, inline rendering, popup menu, embed loading |
 | Retro audio player | `public_html/js/retro-audio-player.js` | Tracker/SID/MIDI playback |
 | SIXEL decoder | `public_html/js/sixel.js` | DEC Sixel bitmap rendering |
 | ANSI renderer | `public_html/js/ansisys.js` | ANSI escape sequence rendering |
 | Server embed resolver | `src/Media/MediaLinkResolver.php` | Coordinates all embed provider classes |
-| Embed API endpoint | `GET /api/media/embed` in `routes/api-routes.php` | Returns embed HTML for a URL |
+| Embed API endpoint | `GET /api/media/embed` in `routes/api-routes.php` | Returns embed HTML for a URL; used as CORS fallback for oEmbed providers |
 | Raw media proxy | `GET /api/media/raw` in `routes/api-routes.php` | Proxies retro audio files |
-| Message enrichment | `src/MessageHandler.php` | Attaches markup HTML, RIP detection, raw bytes |
-| Appearance config | `src/AppearanceConfig.php` | Reads/writes media player admin settings |
+| Message enrichment | `src/MessageHandler.php` | Attaches markup HTML, RIP detection, raw bytes, area `allow_media` |
+| Appearance config | `src/AppearanceConfig.php` | Reads/writes global media player admin settings |
+| Network media config | `src/Binkp/Config/BinkpConfig.php` (`isMediaAllowedForDomain()`) | Per-network `allow_media` lookup from `config/binkp.json` |

@@ -1715,7 +1715,7 @@ $(document).ready(function(){
 
     // Auto-load images when the setting is enabled, watching for dynamically added content
     const mdImageObserver = new MutationObserver(function(mutations) {
-        if (((window.userSettings || {}).media_render_mode || 'auto') !== 'auto') return;
+        if (((window.userSettings || {}).media_render_mode || 'click') !== 'auto') return;
         mutations.forEach(function(mutation) {
             mutation.addedNodes.forEach(function(node) {
                 if (node.nodeType !== Node.ELEMENT_NODE) return;

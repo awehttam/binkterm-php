@@ -1963,7 +1963,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     COALESCE(sub_counts.subscriber_count, 0) as subscriber_count,
                     e.last_post_subject as last_subject,
                     e.last_post_author  as last_author,
-                    e.last_post_date    as last_date
+                    e.last_post_date    as last_date,
+                    e.allow_media
                 FROM echoareas e";
 
         // Add subscription filtering if requested
@@ -2246,6 +2247,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
             $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
+            $allowMediaInput = $input['allow_media'] ?? 'inherit';
+            $allowMedia = match((string)$allowMediaInput) {
+                'allow', 'true' => 'true',
+                'deny', 'false' => 'false',
+                default => null,
+            };
 
             if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
                 $postingNamePolicy = null;
@@ -2274,11 +2281,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public, allow_media)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia]);
 
             if ($result) {
                 echo json_encode([
@@ -2336,6 +2343,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
             $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
+            $allowMediaInput = $input['allow_media'] ?? 'inherit';
+            $allowMedia = match((string)$allowMediaInput) {
+                'allow', 'true' => 'true',
+                'deny', 'false' => 'false',
+                default => null,
+            };
 
             if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
                 $postingNamePolicy = null;
@@ -2365,11 +2378,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?, allow_media = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia, $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode([
@@ -6339,6 +6352,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'echomail', $userId);
 
         if ($message) {
+            // Resolve allow_media: global → area → network
+            $areaAllowMedia = $message['area_allow_media'] ?? null;
+            unset($message['area_allow_media']);
+            if (!\BinktermPHP\AppearanceConfig::isMediaPlayerEnabled()) {
+                $message['allow_media'] = false;
+            } elseif ($areaAllowMedia !== null && $areaAllowMedia !== '') {
+                $message['allow_media'] = (bool)filter_var($areaAllowMedia, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool)$areaAllowMedia;
+            } else {
+                try {
+                    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                    $message['allow_media'] = $binkpConfig->isMediaAllowedForDomain((string)($message['domain'] ?? ''));
+                } catch (\Exception $e) {
+                    $message['allow_media'] = true;
+                }
+            }
+
             // Parse REPLYTO kludge from message text and add to response
             $replyToData = parseReplyToKludge($message['message_text']);
             if ($replyToData) {
@@ -9242,7 +9271,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['compose_advanced_open'] = $meta->getValue((int)$userId, 'compose_advanced_open') === 'true';
                 $rawWrap = $meta->getValue((int)$userId, 'compose_hard_wrap');
                 $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
-                $settings['media_render_mode'] = $meta->getValue((int)$userId, 'media_render_mode') ?? 'auto';
+                $settings['media_render_mode'] = $meta->getValue((int)$userId, 'media_render_mode') ?? 'click';
             }
 
             $settings['license_valid'] = \BinktermPHP\License::isValid();

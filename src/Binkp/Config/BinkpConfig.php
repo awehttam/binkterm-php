@@ -673,6 +673,19 @@ class BinkpConfig
     }
 
     /**
+     * Check if inline media rendering is allowed for a given domain.
+     * Defaults to true when not explicitly configured so existing networks are unaffected.
+     */
+    public function isMediaAllowedForDomain(string $domain): bool
+    {
+        $uplink = $this->getUplinkByDomain($domain);
+        if ($uplink === null) {
+            return true;
+        }
+        return !array_key_exists('allow_media', $uplink) || (bool)$uplink['allow_media'];
+    }
+
+    /**
      * Get posting name policy for a given domain.
      *
      * Supported values:

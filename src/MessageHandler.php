@@ -1172,7 +1172,7 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 SELECT em.*,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
-                       ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only,
+                       ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only, ea.allow_media as area_allow_media,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
