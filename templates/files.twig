@@ -724,6 +724,9 @@ $(document).ready(function() {
         if (window._sidPlayerReady) {
             try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
         }
+        if (window.BinkRetroAudio) {
+            try { window.BinkRetroAudio.stopWithin(this); } catch (e) {}
+        }
         $('#previewModalBody').css('background', '#1a1a1a').html(
             '<div class="py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>'
         );

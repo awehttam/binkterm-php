@@ -26,7 +26,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Inline Media Player
 
-- Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files are now automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, Twitter/X, SoundCloud, TikTok, and ReverbNation. Direct links to video, audio, and image files are also embedded inline.
+- Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files are now automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, PeerTube, Bastyon, Twitter/X, SoundCloud, TikTok, and ReverbNation. Direct links to video, audio, image, tracker module, SID, and MIDI files are also embedded inline.
 - The user preference formerly called "Image load mode" has been renamed "Inline media rendering" and controls whether embeds load automatically or require a user click to expand. All existing accounts are migrated to the automatic mode on upgrade.
 - Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**.
 
@@ -77,15 +77,24 @@ The web message reader now detects URLs in echomail and netmail message bodies a
 | Rumble | Inline iframe |
 | BitChute | Inline iframe |
 | Brighteon | Inline iframe |
+| PeerTube | Inline iframe |
+| Bastyon video posts | Server-resolved PeerTube iframe |
 | Twitter / X | oEmbed (client-side) |
 | SoundCloud | oEmbed (client-side) |
 | TikTok | oEmbed (client-side) |
 | ReverbNation | oEmbed (client-side) |
 | Video files (`mp4`, `webm`, `ogv`, `mov`) | Native HTML5 player |
 | Audio files (`mp3`, `flac`, `ogg`, `opus`, `wav`, `m4a`, `aac`) | Native HTML5 player |
+| Tracker module files (`xm`, `it`, `s3m`, `mod`, `stm`, `amf`, `669`, `mptm`) | Browser tracker player |
+| SID files (`sid`) | Browser SID player |
+| MIDI files (`mid`, `midi`) | Browser MIDI player |
 | Image files (`png`, `webp`, `gif`, `jpg`, `jpeg`, `svg`) | Inline image |
 
 oEmbed embeds are resolved client-side: the browser fetches the oEmbed endpoint directly. If the direct request fails due to CORS restrictions, the player falls back to the server-side `/api/media/embed` proxy.
+
+Rumble public URLs are resolved through Rumble's oEmbed API because the public video ID is not always the same as the iframe embed ID. PeerTube watch URLs are converted to their `/videos/embed/` form directly. Bastyon video post URLs are resolved server-side through PocketNet RPC nodes; the on-chain `peertube://` video reference is converted to a PeerTube embed URL, because the public Bastyon page is a JavaScript application that does not work as a direct iframe.
+
+Tracker module playback is provided in the browser through a bundled libopenmpt-based AudioWorklet player. SID playback uses the existing browser SID emulator. MIDI playback uses a lightweight browser synth fallback, which is suitable for previewing MIDI note data but is not a full General MIDI soundfont renderer. These retro audio formats are also supported in the file previewer, including previews of supported files inside archives.
 
 ### User setting: Inline media rendering
 

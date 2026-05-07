@@ -13,6 +13,7 @@ use BinktermPHP\Media\EmbedProviders\SoundCloudProvider;
 use BinktermPHP\Media\EmbedProviders\TwitterProvider;
 use BinktermPHP\Media\EmbedProviders\TikTokProvider;
 use BinktermPHP\Media\EmbedProviders\ReverbNationProvider;
+use BinktermPHP\Media\EmbedProviders\RetroAudioProvider;
 use BinktermPHP\Media\EmbedProviders\GenericRawMediaProvider;
 
 class MediaLinkResolver
@@ -40,6 +41,7 @@ class MediaLinkResolver
             new TwitterProvider(),
             new TikTokProvider(),
             new ReverbNationProvider(),
+            new RetroAudioProvider(),
             new GenericRawMediaProvider(),
         ];
     }

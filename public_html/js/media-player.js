@@ -83,6 +83,7 @@
 
     var VIDEO_EXTS = /\.(mp4|webm|ogv|mov)$/i;
     var AUDIO_EXTS = /\.(mp3|flac|ogg|opus|wav|m4a|aac)$/i;
+    var RETRO_AUDIO_EXTS = /\.(xm|it|s3m|mod|stm|amf|669|mptm|sid|midi?)$/i;
     var IMAGE_EXTS = /\.(png|webp|gif|jpe?g|svg)$/i;
 
     function isEnabled() {
@@ -124,6 +125,17 @@
         source.src = url;
         audio.appendChild(source);
         return audio;
+    }
+
+    function buildRetroAudio(url) {
+        var el = document.createElement('div');
+        el.className = 'bink-retro-audio';
+        el.dataset.retroAudioUrl = url;
+        el.dataset.retroAudioLabel = decodeURIComponent((url.split('/').pop() || 'Audio file').split('?')[0].split('#')[0]);
+        import('/js/retro-audio-player.js').then(function(m) {
+            m.renderRetroAudioPlayer(el);
+        });
+        return el;
     }
 
     function initPlyr(el) {
@@ -320,7 +332,9 @@
 
         var path = stripQuery(href);
 
-        if (VIDEO_EXTS.test(path)) {
+        if (RETRO_AUDIO_EXTS.test(path)) {
+            injectAfter(anchor, buildRetroAudio(href));
+        } else if (VIDEO_EXTS.test(path)) {
             injectAfter(anchor, buildVideo(href));
         } else if (AUDIO_EXTS.test(path)) {
             injectAfter(anchor, buildAudio(href));
@@ -373,6 +387,16 @@
     function cleanup(containerOrSelector) {
         var container = getContainer(containerOrSelector);
         if (!container) return;
+
+        var retroPlayers = Array.prototype.slice.call(container.querySelectorAll('[data-retro-player-id]'));
+        if (container.matches && container.matches('[data-retro-player-id]')) retroPlayers.push(container);
+        if (window.BinkRetroAudio) {
+            retroPlayers.forEach(function(el) { window.BinkRetroAudio.stop(el); });
+        } else if (retroPlayers.length) {
+            import('/js/retro-audio-player.js').then(function(m) {
+                retroPlayers.forEach(function(el) { m.stopRetroAudioPlayer(el); });
+            });
+        }
 
         var embeds = container.querySelectorAll('.bink-media-embed, .bink-media-load-btn');
         for (var i = 0; i < embeds.length; i++) {

@@ -11,7 +11,7 @@ const previewImageExts   = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','t
 const previewVideoExts   = ['mp4','webm','mov','ogv','m4v'];
 const previewAudioExts   = ['mp3','wav','ogg','flac','aac','m4a','opus'];
 const previewHtmlExts    = ['htm','html'];
-const previewModExts     = ['mod'];
+const previewModuleExts  = ['xm','it','s3m','mod','stm','amf','669','mptm'];
 const previewHeuristicTextExts = ['doc','msg'];
 const previewTextExts    = ['txt','log','nfo','diz','asc','cfg','ini','conf','lsm','json','xml','bat','sh'];
 const previewMarkdownExts = ['md'];
@@ -24,6 +24,7 @@ const previewRipExts           = ['rip'];
 const previewPCBoardExts       = ['bbs'];
 const previewArchiveExts       = ['zip','rar','r00','7z','tar','gz','tgz','bz2','tbz2','xz','txz','lzh','lha','arc','arj','cab'];
 const previewSidExts           = ['sid'];
+const previewMidiExts          = ['mid','midi'];
 const previewTorrentExts       = ['torrent'];
 
 function getFileType(filename) {
@@ -32,7 +33,7 @@ function getFileType(filename) {
     if (previewVideoExts.includes(ext))          return 'video';
     if (previewAudioExts.includes(ext))          return 'audio';
     if (previewHtmlExts.includes(ext))           return 'html';
-    if (previewModExts.includes(ext))            return 'mod';
+    if (previewModuleExts.includes(ext))         return 'module';
     if (previewHeuristicTextExts.includes(ext))  return 'text_probe';
     if (previewTextExts.includes(ext))           return 'text';
     if (previewMarkdownExts.includes(ext))       return 'markdown';
@@ -45,6 +46,7 @@ function getFileType(filename) {
     if (previewPCBoardExts.includes(ext))        return 'pcboard';
     if (previewArchiveExts.includes(ext))        return 'archive';
     if (previewSidExts.includes(ext))            return 'sid';
+    if (previewMidiExts.includes(ext))           return 'midi';
     if (previewTorrentExts.includes(ext))        return 'torrent';
     return 'download';
 }
@@ -412,6 +414,9 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
     if (window._sidPlayerReady) {
         try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
     }
+    if (window.BinkRetroAudio) {
+        try { window.BinkRetroAudio.stopWithin(body[0] || body); } catch (e) {}
+    }
 
     if (type === 'image') {
         body.css('background', '#1a1a1a').html(`
@@ -445,11 +450,8 @@ function renderPreviewContent(fileId, filename, container, shareParams) {
     } else if (type === 'html') {
         renderHtmlPreview(body, previewUrl);
 
-    } else if (type === 'mod') {
-        renderModPlayer(body, previewUrl, filename);
-
-    } else if (type === 'sid') {
-        renderSidPlayer(body, previewUrl, filename);
+    } else if (type === 'module' || type === 'sid' || type === 'midi') {
+        renderRetroAudioPreview(body, previewUrl, filename);
 
     } else if (type === 'text') {
         const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
@@ -973,8 +975,35 @@ function renderRipPreview(container, ripUrl) {
 }
 
 // ---------------------------------------------------------------------------
-// MOD tracker player
+// Retro audio player
 // ---------------------------------------------------------------------------
+
+function renderRetroAudioPreview(container, url, label) {
+    if (window._modPlayer) {
+        try { window._modPlayer.unload(); } catch(e) {}
+        window._modPlayer = null;
+    }
+    if (window.BinkRetroAudio) {
+        try { window.BinkRetroAudio.stopWithin(container[0] || container); } catch (e) {}
+    }
+
+    container.css('background', '').html(`
+        <div class="p-4 text-center">
+            <i class="fas fa-music fa-3x text-muted mb-3 d-block"></i>
+            <p class="text-muted mb-1 fw-semibold">${escapeHtml(label)}</p>
+            <div class="text-center py-3"><i class="fas fa-spinner fa-spin text-muted"></i></div>
+        </div>
+    `);
+
+    import('/js/retro-audio-player.js')
+        .then((m) => m.renderRetroAudioPlayer(container[0], { url: url, label: label }))
+        .catch((e) => {
+            console.error('Retro audio player load failed:', e);
+            container.css('background', '').html(
+                `<div class="alert alert-danger m-3">${_fpT('ui.files.preview_failed', 'Failed to load audio file')}</div>`
+            );
+        });
+}
 
 /**
  * Render a MOD tracker player UI into a container, loading from the given URL.
@@ -1345,8 +1374,9 @@ function zipEntryIcon(type) {
         case 'video':          return 'fa-film';
         case 'audio':          return 'fa-music';
         case 'html':           return 'fa-code';
-        case 'mod':            return 'fa-music';
+        case 'module':         return 'fa-music';
         case 'sid':            return 'fa-microchip';
+        case 'midi':           return 'fa-music';
         case 'text_probe':     return 'fa-file-lines';
         case 'text':           return 'fa-file-lines';
         case 'ansi':           return 'fa-terminal';
@@ -1627,11 +1657,8 @@ function renderArchiveEntry(container, fileId, entryPath, entryName, shareQs, on
     } else if (type === 'html') {
         renderHtmlPreview(previewArea, entryUrl);
 
-    } else if (type === 'mod') {
-        renderModPlayer(previewArea, entryUrl, entryName);
-
-    } else if (type === 'sid') {
-        renderSidPlayer(previewArea, entryUrl, entryName);
+    } else if (type === 'module' || type === 'sid' || type === 'midi') {
+        renderRetroAudioPreview(previewArea, entryUrl, entryName);
 
     } else if (type === 'text') {
         const ext2     = entryName.includes('.') ? entryName.split('.').pop().toLowerCase() : '';
@@ -1944,6 +1971,9 @@ function openFileInfoModal(fileId, shareParams) {
             // Stop SID player (uses AudioContext/ScriptProcessor, not a media element)
             if (window._sidPlayerReady) {
                 try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
+            }
+            if (window.BinkRetroAudio) {
+                try { window.BinkRetroAudio.stopWithin(previewBody); } catch (e) {}
             }
             _stopSidViz();
             previewBody.innerHTML = '';

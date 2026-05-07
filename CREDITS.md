@@ -50,6 +50,16 @@
 - **Author:** Juergen Wothke
 - WebAssembly SID emulator used to play Commodore 64 SID music files in the browser file previewer.
 
+### chiptune3
+- **License:** MIT
+- **Authors:** DrSnuggles, chiptune2.js contributors
+- Browser libopenmpt AudioWorklet player used for tracker module playback.
+
+### libopenmpt
+- **License:** BSD 3-Clause
+- **Authors:** OpenMPT Project Developers and Contributors
+- Tracker module decoding library bundled through chiptune3 for browser playback.
+
 ## AI Tooling
 
 BinktermPHP was developed with the assistance of AI language models. We gratefully acknowledge:

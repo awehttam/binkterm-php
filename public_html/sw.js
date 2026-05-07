@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v823';
+const CACHE_NAME = 'binkcache-v824';
 
 // Static assets to precache
 const staticAssets = [
@@ -6,9 +6,13 @@ const staticAssets = [
     '/js/user-storage.js',
     '/js/app.js',
     '/js/media-player.js',
+    '/js/retro-audio-player.js',
     '/js/binkplayer/binkplayer.js',
     '/vendor/plyr-3.8.4/plyr.min.js',
     '/vendor/plyr-3.8.4/plyr.min.css',
+    '/vendor/chiptune3/chiptune3.js',
+    '/vendor/chiptune3/chiptune3.worklet.js',
+    '/vendor/chiptune3/libopenmpt.worklet.js',
     '/css/binkplayer/binkplayer.css',
     '/js/interest-picker.js',
     '/js/netmail.js',
