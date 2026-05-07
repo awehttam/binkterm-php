@@ -52,12 +52,14 @@ function renderError(container, message) {
 function renderControls(container, options) {
     const subtitle = options.subtitle ? `<p class="text-muted small mb-3">${esc(options.subtitle)}</p>` : '<div class="mb-3"></div>';
     const extra = options.extra || '';
+    const visualizer = options.visualizer || '';
     container.innerHTML = `
         <div class="p-4 text-center">
             <i class="fas ${options.icon} fa-3x text-muted mb-3 d-block"></i>
             <p class="text-muted mb-1 fw-semibold" data-retro-title>${esc(options.title)}</p>
             <div data-retro-subtitle>${subtitle}</div>
             ${extra}
+            ${visualizer}
             <div class="d-flex justify-content-center align-items-center gap-3 mb-4">
                 <button type="button" class="btn btn-primary btn-lg" data-retro-play style="min-width:56px;">
                     <i class="fas fa-play"></i>
@@ -231,6 +233,67 @@ function ensureSidPlayerReady() {
     return window._sidPlayerLoading;
 }
 
+function drawSidVisualizer(canvas, state) {
+    const numBars = 48;
+    if (!state.levels) state.levels = new Float32Array(numBars);
+
+    let data = null;
+    try {
+        const player = ScriptNodePlayer.getInstance();
+        data = state.playing && player ? player.getFreqByteData() : null;
+    } catch (e) {}
+    const binCount = data ? Math.floor(data.length / 3) : 0;
+
+    for (let i = 0; i < numBars; i++) {
+        if (data) {
+            const binStart = Math.floor(i * binCount / numBars);
+            const binEnd = Math.max(binStart + 1, Math.floor((i + 1) * binCount / numBars));
+            let sum = 0;
+            for (let b = binStart; b < binEnd; b++) sum += data[b];
+            const target = (sum / (binEnd - binStart)) / 255;
+            state.levels[i] = state.levels[i] * 0.7 + target * 0.3;
+        } else {
+            state.levels[i] *= 0.92;
+        }
+    }
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const slotWidth = width / numBars;
+    const barWidth = slotWidth - 1;
+
+    for (let i = 0; i < numBars; i++) {
+        const barHeight = Math.round(state.levels[i] * height);
+        if (barHeight < 1) continue;
+        const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
+        gradient.addColorStop(0, '#00cfcf');
+        gradient.addColorStop(1, '#00ff41');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(i * slotWidth, height - barHeight, barWidth, barHeight);
+    }
+}
+
+function startSidVisualizer(canvas, state) {
+    stopSidVisualizer(state);
+    canvas.width = canvas.offsetWidth || 320;
+    const loop = () => {
+        drawSidVisualizer(canvas, state);
+        state.frameId = requestAnimationFrame(loop);
+    };
+    state.frameId = requestAnimationFrame(loop);
+}
+
+function stopSidVisualizer(state) {
+    if (state.frameId) {
+        cancelAnimationFrame(state.frameId);
+        state.frameId = null;
+    }
+    state.playing = false;
+}
+
 async function renderSid(container, url, label) {
     setLoading(container, label, 'fa-microchip');
     if (window._sidPlayerReady) {
@@ -244,6 +307,7 @@ async function renderSid(container, url, label) {
 
     let currentTrack = meta.startSong - 1;
     let playing = false;
+    const visualizerState = { playing: false, frameId: null, levels: null };
     const title = meta.title || label;
     const subtitle = [meta.author, meta.released].filter(Boolean).join(' - ');
     const trackOptions = meta.numSongs > 1
@@ -254,18 +318,22 @@ async function renderSid(container, url, label) {
                 </select>
            </div>`
         : '';
+    const visualizer = '<canvas data-retro-sid-visualizer height="60" style="width:100%;max-width:320px;display:block;margin:0 auto 16px;border-radius:4px;background:#111;"></canvas>';
 
-    renderControls(container, { icon: 'fa-microchip', title: title, subtitle: subtitle, extra: trackOptions, volume: 78 });
+    renderControls(container, { icon: 'fa-microchip', title: title, subtitle: subtitle, extra: trackOptions, visualizer: visualizer, volume: 78 });
 
     const loadTrack = (track) => ScriptNodePlayer.loadMusicFromURL(url, { track: track, timeout: -1 }, () => {}, () => {});
     const setPlaying = (value) => {
         playing = value;
+        visualizerState.playing = value;
         setPlayButton(container, playing);
     };
 
     await loadTrack(currentTrack);
     try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
     setPlaying(false);
+    const visualizerCanvas = container.querySelector('[data-retro-sid-visualizer]');
+    if (visualizerCanvas) startSidVisualizer(visualizerCanvas, visualizerState);
 
     container.querySelector('[data-retro-play]').addEventListener('click', () => {
         const p = ScriptNodePlayer.getInstance();
@@ -297,6 +365,7 @@ async function renderSid(container, url, label) {
 
     registerPlayer(container, {
         stop: () => {
+            stopSidVisualizer(visualizerState);
             try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
         },
     });
