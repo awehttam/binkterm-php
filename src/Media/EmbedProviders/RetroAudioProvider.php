@@ -19,7 +19,8 @@ class RetroAudioProvider implements EmbedProviderInterface
             return '';
         }
 
-        $safeUrl = htmlspecialchars($url, ENT_QUOTES);
+        $playableUrl = '/api/media/raw?url=' . rawurlencode($url);
+        $safeUrl = htmlspecialchars($playableUrl, ENT_QUOTES);
         $label = htmlspecialchars(rawurldecode(basename(parse_url($url, PHP_URL_PATH) ?? 'Audio file')), ENT_QUOTES);
 
         return '<div class="bink-retro-audio" data-retro-audio-url="' . $safeUrl . '"'

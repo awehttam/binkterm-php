@@ -127,10 +127,20 @@
         return audio;
     }
 
+    function buildRetroAudioSource(url) {
+        try {
+            var parsed = new URL(url, window.location.href);
+            if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.origin !== window.location.origin) {
+                return '/api/media/raw?url=' + encodeURIComponent(parsed.href);
+            }
+        } catch (e) {}
+        return url;
+    }
+
     function buildRetroAudio(url) {
         var el = document.createElement('div');
         el.className = 'bink-retro-audio';
-        el.dataset.retroAudioUrl = url;
+        el.dataset.retroAudioUrl = buildRetroAudioSource(url);
         el.dataset.retroAudioLabel = decodeURIComponent((url.split('/').pop() || 'Audio file').split('?')[0].split('#')[0]);
         import('/js/retro-audio-player.js').then(function(m) {
             m.renderRetroAudioPlayer(el);
@@ -187,11 +197,27 @@
         return img;
     }
 
-    function wrapEmbed(el) {
-        var wrap = document.createElement('div');
-        wrap.className = 'bink-media-embed mt-2 mb-1';
+    function wrapEmbed(el, inline) {
+        var wrap = document.createElement(inline ? 'span' : 'div');
+        var isRetroAudio = el.classList && el.classList.contains('bink-retro-audio');
+        wrap.className = isRetroAudio
+            ? 'bink-media-embed mt-1 mb-1'
+            : 'bink-media-embed mt-2 mb-1';
+        if (inline) {
+            wrap.style.display = 'block';
+            wrap.style.whiteSpace = 'normal';
+        }
         wrap.appendChild(el);
         return wrap;
+    }
+
+    function trimBlankSiblingsAfter(anchor) {
+        var node = anchor.nextSibling;
+        while (node && node.nodeType === Node.TEXT_NODE && /^\s*$/.test(node.nodeValue || '')) {
+            var next = node.nextSibling;
+            node.remove();
+            node = next;
+        }
     }
 
     function buildLoadButton(mediaEl, isMedia) {
@@ -209,8 +235,17 @@
 
     function injectAfter(anchor, el) {
         var isMedia = el.tagName === 'VIDEO' || el.tagName === 'AUDIO';
+        var isRetroAudio = el.classList && el.classList.contains('bink-retro-audio');
+        var pre = isRetroAudio && anchor.closest ? anchor.closest('pre') : null;
         if (isAutoMode()) {
-            anchor.parentNode.insertBefore(wrapEmbed(el), anchor.nextSibling);
+            var wrapped = wrapEmbed(el, !!pre);
+            if (pre) {
+                trimBlankSiblingsAfter(anchor);
+                anchor.parentNode.insertBefore(document.createTextNode('\n'), anchor.nextSibling);
+                anchor.parentNode.insertBefore(wrapped, anchor.nextSibling.nextSibling);
+            } else {
+                anchor.parentNode.insertBefore(wrapped, anchor.nextSibling);
+            }
             if (isMedia) initPlyr(el);
         } else {
             anchor.parentNode.insertBefore(buildLoadButton(el, isMedia), anchor.nextSibling);

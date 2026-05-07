@@ -11965,6 +11965,127 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/media/raw', function() {
+        $url = trim($_GET['url'] ?? '');
+        $allowedExts = ['xm', 'it', 's3m', 'mod', 'stm', 'amf', '669', 'mptm', 'sid', 'mid', 'midi'];
+        $maxBytes = 8 * 1024 * 1024;
+
+        $sendNotFound = function(): void {
+            http_response_code(404);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo 'Media not found';
+        };
+
+        $isPublicHost = function(string $host): bool {
+            $host = trim($host, '[]');
+            if ($host === '' || in_array(strtolower($host), ['localhost', 'localhost.localdomain'], true)) {
+                return false;
+            }
+
+            $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
+            if (!$ips) {
+                return false;
+            }
+
+            foreach ($ips as $ip) {
+                if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        $isAllowedUrl = function(string $candidate) use ($allowedExts, $isPublicHost): bool {
+            if (!filter_var($candidate, FILTER_VALIDATE_URL)) {
+                return false;
+            }
+
+            $scheme = strtolower(parse_url($candidate, PHP_URL_SCHEME) ?? '');
+            $host = parse_url($candidate, PHP_URL_HOST) ?? '';
+            $path = strtolower(parse_url($candidate, PHP_URL_PATH) ?? '');
+            $ext = ltrim(strrchr($path, '.') ?: '', '.');
+
+            return in_array($scheme, ['http', 'https'], true)
+                && in_array($ext, $allowedExts, true)
+                && $isPublicHost($host);
+        };
+
+        if (!$isAllowedUrl($url) || !function_exists('curl_init')) {
+            $sendNotFound();
+            return;
+        }
+
+        $currentUrl = $url;
+        $body = false;
+        $contentType = 'application/octet-stream';
+        $status = 0;
+
+        for ($redirects = 0; $redirects <= 3; $redirects++) {
+            $ch = curl_init($currentUrl);
+            $options = [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HEADER         => true,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_USERAGENT      => 'BinktermPHP-MediaProxy/1.0',
+                CURLOPT_HTTPHEADER     => ['Accept: audio/*,application/octet-stream,*/*'],
+                CURLOPT_ENCODING       => 'gzip, deflate',
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_MAXFILESIZE    => $maxBytes,
+            ];
+            if (defined('CURLOPT_PROTOCOLS')) {
+                $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+            }
+            curl_setopt_array($ch, $options);
+
+            $raw = curl_exec($ch);
+            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $headerSize = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+            $curlContentType = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            curl_close($ch);
+
+            if ($raw === false) {
+                $sendNotFound();
+                return;
+            }
+
+            $headers = substr($raw, 0, $headerSize);
+            $body = substr($raw, $headerSize);
+
+            if (in_array($status, [301, 302, 303, 307, 308], true) && preg_match('/^Location:\s*(.+)$/mi', $headers, $m)) {
+                $location = trim($m[1]);
+                $nextUrl = filter_var($location, FILTER_VALIDATE_URL)
+                    ? $location
+                    : rtrim(dirname($currentUrl), '/') . '/' . ltrim($location, '/');
+                if (!$isAllowedUrl($nextUrl)) {
+                    $sendNotFound();
+                    return;
+                }
+                $currentUrl = $nextUrl;
+                continue;
+            }
+
+            if ($curlContentType !== '') {
+                $contentType = preg_replace('/[\r\n].*/', '', $curlContentType) ?: $contentType;
+            }
+            break;
+        }
+
+        if ($status < 200 || $status >= 300 || $body === false || strlen($body) > $maxBytes) {
+            $sendNotFound();
+            return;
+        }
+
+        $filename = sanitizeFilenameForWindows(basename(parse_url($currentUrl, PHP_URL_PATH) ?: 'audio'), 'audio');
+        header('Content-Type: ' . $contentType);
+        header('Content-Length: ' . strlen($body));
+        header('Content-Disposition: inline; filename="' . addcslashes($filename, '"\\') . '"');
+        header('Cache-Control: public, max-age=86400');
+        echo $body;
+    });
+
     SimpleRouter::get('/media/embed', function() {
         header('Content-Type: application/json');
 

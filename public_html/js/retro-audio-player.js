@@ -28,6 +28,16 @@ function getKind(url, label) {
     return '';
 }
 
+function getPlayableUrl(url) {
+    try {
+        const parsed = new URL(url, window.location.href);
+        if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.origin !== window.location.origin) {
+            return '/api/media/raw?url=' + encodeURIComponent(parsed.href);
+        }
+    } catch (e) {}
+    return url;
+}
+
 function assignId(container) {
     if (!container.dataset.retroPlayerId) {
         container.dataset.retroPlayerId = String(nextPlayerId++);
@@ -38,10 +48,12 @@ function assignId(container) {
 function setLoading(container, label, icon) {
     container.classList.add('bink-retro-audio');
     container.innerHTML = `
-        <div class="p-4 text-center">
-            <i class="fas ${icon} fa-3x text-muted mb-3 d-block"></i>
-            <p class="text-muted mb-1 fw-semibold">${esc(label)}</p>
-            <div class="text-center py-3"><i class="fas fa-spinner fa-spin text-muted"></i></div>
+        <div class="py-2 px-3">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fas ${icon} text-muted"></i>
+                <span class="text-muted fw-semibold small">${esc(label)}</span>
+                <i class="fas fa-spinner fa-spin text-muted ms-auto"></i>
+            </div>
         </div>`;
 }
 
@@ -50,29 +62,32 @@ function renderError(container, message) {
 }
 
 function renderControls(container, options) {
-    const subtitle = options.subtitle ? `<p class="text-muted small mb-3">${esc(options.subtitle)}</p>` : '<div class="mb-3"></div>';
+    const subtitle = options.subtitle ? `<span class="text-muted small" data-retro-subtitle-text>${esc(options.subtitle)}</span>` : '';
     const extra = options.extra || '';
-    const visualizer = options.visualizer || '';
+    const visualizer = options.visualizer ? `<div class="mt-2">${options.visualizer}</div>` : '';
+    const iconButtonStyle = 'width:32px;height:28px;padding:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;';
     container.innerHTML = `
-        <div class="p-4 text-center">
-            <i class="fas ${options.icon} fa-3x text-muted mb-3 d-block"></i>
-            <p class="text-muted mb-1 fw-semibold" data-retro-title>${esc(options.title)}</p>
-            <div data-retro-subtitle>${subtitle}</div>
-            ${extra}
+        <div class="py-1 px-2" style="max-width:560px;">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <i class="fas ${options.icon} text-muted"></i>
+                <span class="text-muted fw-semibold small text-truncate" data-retro-title style="max-width:min(320px, 45vw);">${esc(options.title)}</span>
+                <span data-retro-subtitle>${subtitle}</span>
+                ${extra}
+                <div class="d-flex align-items-center gap-1">
+                    <button type="button" class="btn btn-primary btn-sm" data-retro-play style="${iconButtonStyle}">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-retro-stop style="${iconButtonStyle}">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-volume-low text-muted small"></i>
+                    <input type="range" class="form-range mb-0" data-retro-volume style="width:96px;" min="0" max="100" value="${options.volume}">
+                    <i class="fas fa-volume-high text-muted small"></i>
+                </div>
+            </div>
             ${visualizer}
-            <div class="d-flex justify-content-center align-items-center gap-3 mb-4">
-                <button type="button" class="btn btn-primary btn-lg" data-retro-play style="min-width:56px;">
-                    <i class="fas fa-play"></i>
-                </button>
-                <button type="button" class="btn btn-outline-secondary" data-retro-stop>
-                    <i class="fas fa-stop"></i>
-                </button>
-            </div>
-            <div class="d-flex align-items-center justify-content-center gap-2">
-                <i class="fas fa-volume-low text-muted"></i>
-                <input type="range" class="form-range" data-retro-volume style="width:160px;" min="0" max="100" value="${options.volume}">
-                <i class="fas fa-volume-high text-muted"></i>
-            </div>
         </div>`;
 }
 
@@ -109,9 +124,10 @@ export function stopRetroAudioWithin(root) {
 
 async function renderTracker(container, url, label) {
     setLoading(container, label, 'fa-music');
+    const playableUrl = getPlayableUrl(url);
     const [{ ChiptuneJsPlayer }, response] = await Promise.all([
         import('/vendor/chiptune3/chiptune3.js'),
-        fetch(url, { credentials: 'same-origin' }),
+        fetch(playableUrl, { credentials: 'same-origin' }),
     ]);
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const buffer = await response.arrayBuffer();
@@ -137,7 +153,7 @@ async function renderTracker(container, url, label) {
         const titleEl = container.querySelector('[data-retro-title]');
         const subtitleEl = container.querySelector('[data-retro-subtitle]');
         if (titleEl) titleEl.textContent = title;
-        if (subtitleEl && meta && meta.type) subtitleEl.innerHTML = `<p class="text-muted small mb-3">${esc(meta.type)}</p>`;
+        if (subtitleEl && meta && meta.type) subtitleEl.innerHTML = `<span class="text-muted small">${esc(meta.type)}</span>`;
     });
     player.onEnded(() => {
         playing = false;
@@ -296,11 +312,12 @@ function stopSidVisualizer(state) {
 
 async function renderSid(container, url, label) {
     setLoading(container, label, 'fa-microchip');
+    const playableUrl = getPlayableUrl(url);
     if (window._sidPlayerReady) {
         try { ScriptNodePlayer.getInstance().pause(); } catch (e) {}
     }
 
-    const response = await fetch(url, { credentials: 'same-origin' });
+    const response = await fetch(playableUrl, { credentials: 'same-origin' });
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const meta = parseSidHeader(new Uint8Array(await response.arrayBuffer()));
     await ensureSidPlayerReady();
@@ -311,18 +328,18 @@ async function renderSid(container, url, label) {
     const title = meta.title || label;
     const subtitle = [meta.author, meta.released].filter(Boolean).join(' - ');
     const trackOptions = meta.numSongs > 1
-        ? `<div class="d-flex align-items-center justify-content-center gap-2 mb-3">
+        ? `<div class="d-flex align-items-center gap-1">
                 <label class="text-muted small mb-0">Track:</label>
                 <select class="form-select form-select-sm" data-retro-track style="width:auto;">
                     ${Array.from({ length: meta.numSongs }, (_, i) => `<option value="${i}" ${i === currentTrack ? 'selected' : ''}>${i + 1}</option>`).join('')}
                 </select>
            </div>`
         : '';
-    const visualizer = '<canvas data-retro-sid-visualizer height="60" style="width:100%;max-width:320px;display:block;margin:0 auto 16px;border-radius:4px;background:#111;"></canvas>';
+    const visualizer = '<canvas data-retro-sid-visualizer height="40" style="width:100%;max-width:320px;display:block;margin:0;border-radius:4px;background:#111;"></canvas>';
 
     renderControls(container, { icon: 'fa-microchip', title: title, subtitle: subtitle, extra: trackOptions, visualizer: visualizer, volume: 78 });
 
-    const loadTrack = (track) => ScriptNodePlayer.loadMusicFromURL(url, { track: track, timeout: -1 }, () => {}, () => {});
+    const loadTrack = (track) => ScriptNodePlayer.loadMusicFromURL(playableUrl, { track: track, timeout: -1 }, () => {}, () => {});
     const setPlaying = (value) => {
         playing = value;
         visualizerState.playing = value;
@@ -479,7 +496,8 @@ function noteFrequency(note) {
 
 async function renderMidi(container, url, label) {
     setLoading(container, label, 'fa-music');
-    const response = await fetch(url, { credentials: 'same-origin' });
+    const playableUrl = getPlayableUrl(url);
+    const response = await fetch(playableUrl, { credentials: 'same-origin' });
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const parsed = parseMidi(await response.arrayBuffer());
 
