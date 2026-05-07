@@ -374,10 +374,22 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     // Binkp configuration page
     SimpleRouter::get('/binkp-config', function() {
         $user = RouteHelper::requireAdmin();
+        $networkManager = new \BinktermPHP\NetworkManager();
 
         $template = new Template();
         $template->renderResponse('admin/binkp_config.twig', [
-            'timezone_list' => \DateTimeZone::listIdentifiers()
+            'timezone_list' => \DateTimeZone::listIdentifiers(),
+            'supported_charsets' => \BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets(),
+            'networks' => $networkManager->getAll(),
+        ]);
+    });
+
+    SimpleRouter::get('/networks', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/networks.twig', [
+            'supported_charsets' => \BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets(),
         ]);
     });
 
@@ -2727,6 +2739,124 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/networks', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\NetworkManager();
+                echo json_encode(['success' => true, 'networks' => $manager->getAll()]);
+            } catch (Exception $e) {
+                apiError('errors.admin.networks.load_failed', apiLocalizedText('errors.admin.networks.load_failed', 'Failed to load networks'), 500);
+            }
+        });
+
+        SimpleRouter::post('/networks', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $manager = new \BinktermPHP\NetworkManager();
+                $network = $manager->create(is_array($payload) ? $payload : []);
+                echo json_encode(['success' => true, 'network' => $network, 'message_code' => 'ui.admin.networks.saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.networks.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::put('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $manager = new \BinktermPHP\NetworkManager();
+                $network = $manager->update((int)$id, is_array($payload) ? $payload : []);
+                echo json_encode(['success' => true, 'network' => $network, 'message_code' => 'ui.admin.networks.saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.networks.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::post('/networks/{id}/change-domain', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $service = new \BinktermPHP\NetworkDomainChangeService();
+                $result = $service->changeDomain((int)$id, (string)($payload['domain'] ?? ''));
+                echo json_encode(['success' => true, 'result' => $result, 'message_code' => 'ui.admin.networks.domain_changed']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.networks.change_domain_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::delete('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\NetworkManager();
+                $network = $manager->getById((int)$id);
+                if (!$network) {
+                    throw new InvalidArgumentException('Network not found');
+                }
+
+                $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $dependentUplinks = [];
+                foreach ($config->getUplinks() as $uplink) {
+                    if (strcasecmp((string)($uplink['domain'] ?? ''), (string)$network['domain']) === 0) {
+                        $dependentUplinks[] = (string)($uplink['address'] ?? '');
+                    }
+                }
+                if ($dependentUplinks !== []) {
+                    apiError('errors.admin.networks.delete_in_use', apiLocalizedText('errors.admin.networks.delete_in_use', 'Network is in use'), 409, [
+                        'uplinks' => array_values(array_filter($dependentUplinks)),
+                    ]);
+                    return;
+                }
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $stmt = $db->prepare("SELECT COUNT(*) FROM echoareas WHERE LOWER(domain) = LOWER(?)");
+                $stmt->execute([(string)$network['domain']]);
+                if ((int)$stmt->fetchColumn() > 0) {
+                    apiError('errors.admin.networks.delete_in_use', apiLocalizedText('errors.admin.networks.delete_in_use', 'Network is in use'), 409);
+                    return;
+                }
+
+                $manager->delete((int)$id);
+                echo json_encode(['success' => true, 'message_code' => 'ui.admin.networks.deleted']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.networks.delete_failed', $e->getMessage(), 400);
+            }
+        });
+
         SimpleRouter::get('/binkp-config', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
@@ -2758,6 +2888,24 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $payload = json_decode(file_get_contents('php://input'), true);
                 $config = $payload['config'] ?? [];
+                $networkManager = new \BinktermPHP\NetworkManager();
+                foreach (($config['uplinks'] ?? []) as &$uplink) {
+                    if (!is_array($uplink)) {
+                        continue;
+                    }
+                    unset(
+                        $uplink['allow_markup'],
+                        $uplink['allow_markdown'],
+                        $uplink['allow_media'],
+                        $uplink['default_charset'],
+                        $uplink['posting_name_policy']
+                    );
+                    $domain = trim((string)($uplink['domain'] ?? ''));
+                    if ($domain !== '' && !$networkManager->exists($domain)) {
+                        throw new InvalidArgumentException("Unknown network domain: {$domain}");
+                    }
+                }
+                unset($uplink);
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setFullBinkpConfig($config);
                 echo json_encode([

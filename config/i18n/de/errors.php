@@ -127,6 +127,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Tag and description sind erforderlich',
     'errors.echoareas.invalid_tag_format' => 'Ungültig: tag format',
     'errors.echoareas.invalid_color_format' => 'Ungültig: color format',
+    'errors.echoareas.unknown_domain' => 'Wählen Sie eine konfigurierte Netzwerkdomäne',
     'errors.echoareas.tag_already_exists' => 'An echo area with that tag existiert bereits',
     'errors.echoareas.create_failed' => 'Echo-Bereich konnte nicht erstellt werden',
     'errors.echoareas.not_found_or_unchanged' => 'Echo-Bereich nicht gefunden or no changes made',
@@ -694,4 +695,9 @@ return [
 
     // Files: linked file
     'errors.files.link.file_name_required'     => 'Dateiname ist erforderlich',
+    'errors.admin.networks.load_failed' => 'Failed to load networks',
+    'errors.admin.networks.save_failed' => 'Failed to save network',
+    'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
+    'errors.admin.networks.delete_in_use' => 'Network is in use',
+    'errors.admin.networks.delete_failed' => 'Failed to delete network',
 ];

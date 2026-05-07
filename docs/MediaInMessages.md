@@ -166,7 +166,7 @@ Media player settings are managed in `src/AppearanceConfig.php` under the `media
 
 **Global toggle:** Media rendering is **disabled by default** on fresh installs. Enable it system-wide with `media_player.enabled = true` in the admin panel. Disable it again with `media_player.enabled = false` to suppress all inline rendering across every network and area.
 
-**Per-network toggle:** Each uplink entry in `config/binkp.json` has an optional `allow_media` boolean. Set `allow_media: true` on an uplink to allow inline media for all messages received from that network. When omitted, the network defaults to denying media.
+**Per-network toggle:** Each row in the `networks` table has an `allow_media` boolean, managed through **Admin → Networks**. Enable it on a network to allow inline media for messages received from or associated with that network. New networks default to denying media until enabled.
 
 **Per-area toggle:** Each echo area has an `allow_media` column in the `echoareas` table. The value can be `true` (always allow), `false` (always deny), or `NULL` (inherit from the network setting). The area setting is configured in the echo area management interface.
 
@@ -199,4 +199,4 @@ The resolved `allow_media` boolean is included in every message API response. Th
 | Raw media proxy | `GET /api/media/raw` in `routes/api-routes.php` | Proxies retro audio files |
 | Message enrichment | `src/MessageHandler.php` | Attaches markup HTML, RIP detection, raw bytes, area `allow_media` |
 | Appearance config | `src/AppearanceConfig.php` | Reads/writes global media player admin settings |
-| Network media config | `src/Binkp/Config/BinkpConfig.php` (`isMediaAllowedForDomain()`) | Per-network `allow_media` lookup from `config/binkp.json` |
+| Network media config | `src/Binkp/Config/BinkpConfig.php` (`isMediaAllowedForDomain()`) | Per-network `allow_media` lookup from the `networks` table |

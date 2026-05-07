@@ -1049,8 +1049,12 @@ SimpleRouter::get('/echoareas', function() {
         return;
     }
 
+    $networkManager = new \BinktermPHP\NetworkManager();
+
     $template = new Template();
-    $template->renderResponse('echoareas.twig');
+    $template->renderResponse('echoareas.twig', [
+        'networks' => $networkManager->getAll(),
+    ]);
 });
 
 SimpleRouter::get('/echoareas/import', function() {
@@ -1351,8 +1355,9 @@ SimpleRouter::get('/compose/{type}', function($type) {
         $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         foreach ($binkpCfg->getUplinks() as $uplink) {
             $uplinkDomain = strtolower($uplink['domain'] ?? '');
-            if ($uplinkDomain !== '' && !empty($uplink['default_charset'])) {
-                $domainCharsets[$uplinkDomain] = strtoupper($uplink['default_charset']);
+            $networkCharset = $uplinkDomain !== '' ? $binkpCfg->getDefaultCharsetForDomain($uplinkDomain) : null;
+            if ($uplinkDomain !== '' && $networkCharset !== null) {
+                $domainCharsets[$uplinkDomain] = strtoupper($networkCharset);
             }
         }
         // Apply override for initial charset if domain is already known from GET param (echomail)
@@ -1366,9 +1371,9 @@ SimpleRouter::get('/compose/{type}', function($type) {
             if ($binkpCfg->isMyAddress(trim((string)$toAddress))) {
                 $defaultCharset = 'UTF-8';
             } else {
-                $destUplink = $binkpCfg->getUplinkForDestination((string)$toAddress);
-                if ($destUplink && !empty($destUplink['default_charset'])) {
-                    $defaultCharset = strtoupper($destUplink['default_charset']);
+                $networkCharset = $binkpCfg->getDefaultCharsetForDestination((string)$toAddress);
+                if ($networkCharset !== null) {
+                    $defaultCharset = strtoupper($networkCharset);
                 }
             }
         }

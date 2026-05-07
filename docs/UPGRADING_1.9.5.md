@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Inline Media Player](#inline-media-player)
+- [Networks Admin](#networks-admin)
 - [Per-Network and Per-Area Media Controls](#per-network-and-per-area-media-controls)
 - [Message Reader](#message-reader)
 - [Bulletin Manager](#bulletin-manager)
@@ -32,7 +33,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - Added an inline media player to the web message reader. URLs in echomail and netmail message bodies that point to supported video platforms, oEmbed-compatible services, or raw media files can be automatically embedded as playable inline players. Supported platforms include YouTube, Odysee, Rumble, BitChute, Brighteon, PeerTube, Bastyon, Twitter/X, SoundCloud, TikTok, and ReverbNation. Direct links to video, audio, image, tracker module, SID, and MIDI files are also embedded inline.
 - The user preference formerly called "Image load mode" has been renamed "Inline media rendering" and controls whether embeds load automatically or require a user click to expand. All existing accounts are migrated to click-to-expand on upgrade. The default for new accounts is also click-to-expand.
 - Sysops can globally enable or disable the media player and toggle individual providers from **Admin → Appearance → Message Reader**. The media player is **disabled by default** on fresh installations.
-- Added per-network and per-area inline media controls. Each uplink in **Admin → Binkp Configuration** has an "Allow Inline Media" checkbox. Each echo area in the echo area manager has an "Inline Media Rendering" setting that can be set to inherit from its network, or explicitly enabled or disabled.
+- Added a **Networks** admin page that stores network-level message policy settings separately from BinkP uplink connection details. The upgrade migrates existing uplink-level `allow_markup`, `allow_media`, `default_charset`, and `posting_name_policy` values into network rows and removes those migrated keys from `config/binkp.json`.
+- Added per-network and per-area inline media controls. Sysops manage the network default in **Admin → Networks**. Each echo area in the echo area manager has an "Inline Media Rendering" setting that can be set to inherit from its network, or explicitly enabled or disabled.
 - The user settings page now shows a notice when the sysop has disabled inline media globally, rather than presenting controls that have no effect.
 
 ### Echoarea Message Count
@@ -130,21 +132,39 @@ The media player can be configured from **Admin → Appearance → Message Reade
 
 These settings are stored in `data/appearance.json` and take effect immediately without restarting any daemons.
 
+## Networks Admin
+
+Version 1.9.5 adds **Admin → Networks** for FTN network metadata and network-level message policy settings. Built-in rows are created for common networks such as FidoNet, LovlyNet, ArakNet, FSXNet, RetroNet, DoveNet, MicroNet, BattleNet, SciNet, and WWIVNet. Sysops can also create custom network rows for private nets and local domains.
+
+Each network row owns these settings:
+
+- Display name, description, and website URL
+- Markdown/StyleCodes allowance
+- Inline media allowance
+- Default message charset override
+- Posting-name policy
+
+Uplink connection details remain in **Admin → BinkP Configuration** and in `config/binkp.json`. Uplinks now select a configured network by domain instead of carrying their own copies of the network-level flags. Multiple uplinks can use the same domain, such as a primary and backup hub, and they will share the same network policy settings.
+
+The upgrade migrates any existing uplink-level `allow_markup`, `allow_markdown`, `allow_media`, `default_charset`, and `posting_name_policy` values from `config/binkp.json` into the `networks` table. If multiple uplinks for the same domain have conflicting values, the first uplink in the file wins and a warning is written to `server.log` for sysop review. After migration, those keys are stripped from `config/binkp.json` and future BinkP config saves will not write them back.
+
+The network editor includes a dedicated change-domain control beside the domain label. Changing a domain cascades to matching `echoareas.domain` values and matching BinkP uplink domains so the network row, echo areas, and uplink connection records stay aligned.
+
 ## Per-Network and Per-Area Media Controls
 
 When the inline media player is enabled globally, sysops can restrict or allow it at the network and echo area level independently.
 
 ### Network-level control
 
-Each uplink in **Admin → Binkp Configuration** has an **Allow Inline Media** checkbox in the uplink edit modal, next to the existing Allow Markup checkbox. When unchecked, inline media embeds are suppressed for all messages received from or associated with that network. The checkbox defaults to unchecked for new uplinks; inline media must be explicitly enabled per uplink.
+Each network in **Admin → Networks** has an **Allow Inline Media** setting. When unchecked, inline media embeds are suppressed for all messages received from or associated with that network unless an echo area explicitly overrides it. The setting defaults to unchecked for new networks; inline media must be explicitly enabled per network.
 
-The setting is stored as `allow_media` in each uplink entry in `config/binkp.json`. Uplinks that have no `allow_media` key (created before this version) are treated as denying media.
+The setting is stored as `allow_media` in the `networks` table. The old per-uplink `allow_media` key in `config/binkp.json` is migrated automatically and then removed from the file.
 
 ### Area-level control
 
 Each echo area in the echo area manager has an **Inline Media Rendering** setting with three options:
 
-- **Inherit from network** (default) — the area follows the allow/deny setting of its associated uplink. New areas default to this.
+- **Inherit from network** (default) — the area follows the allow/deny setting of its associated network. New areas default to this.
 - **Enabled** — inline media is allowed for this area regardless of the network setting.
 - **Disabled** — inline media is suppressed for this area regardless of the network setting.
 
@@ -156,7 +176,7 @@ When a message is loaded, the media player decision follows this precedence from
 
 1. Global disabled (`Admin → Appearance`) → no media, regardless of network or area.
 2. Area `allow_media` is explicitly set → use that value.
-3. Area `allow_media` is inherit → use the uplink's `allow_media` value (default deny if not set).
+3. Area `allow_media` is inherit → use the network's `allow_media` value.
 
 ## Message Reader
 

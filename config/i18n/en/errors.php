@@ -127,6 +127,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Tag and description are required',
     'errors.echoareas.invalid_tag_format' => 'Invalid tag format',
     'errors.echoareas.invalid_color_format' => 'Invalid color format',
+    'errors.echoareas.unknown_domain' => 'Select a configured network domain',
     'errors.echoareas.tag_already_exists' => 'An echo area with that tag already exists',
     'errors.echoareas.create_failed' => 'Failed to create echo area',
     'errors.echoareas.not_found_or_unchanged' => 'Echo area not found or no changes made',
@@ -690,4 +691,9 @@ return [
     'errors.bulletins.invalid_ids' => 'Invalid bulletin list.',
     'errors.admin.bulletins.invalid_payload' => 'Invalid bulletin data.',
     'errors.admin.bulletins.save_failed' => 'Failed to save bulletin.',
+    'errors.admin.networks.load_failed' => 'Failed to load networks',
+    'errors.admin.networks.save_failed' => 'Failed to save network',
+    'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
+    'errors.admin.networks.delete_in_use' => 'Network is in use',
+    'errors.admin.networks.delete_failed' => 'Failed to delete network',
 ];
