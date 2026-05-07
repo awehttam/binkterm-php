@@ -828,6 +828,15 @@ function buildLovlyNetSettingIssueMessages(area) {
                     ? uiT('ui.admin.lovlynet.issue_replace_on', 'LovlyNet recommends enabling file replacement in this area')
                     : uiT('ui.admin.lovlynet.issue_replace_off', 'LovlyNet recommends disabling file replacement in this area')
             );
+            return;
+        }
+
+        if (issue.setting === 'allow_media') {
+            messages.push(
+                issue.recommended
+                    ? uiT('ui.admin.lovlynet.issue_allow_media_on', 'LovlyNet recommends enabling inline media for this area')
+                    : uiT('ui.admin.lovlynet.issue_allow_media_off', 'LovlyNet recommends disabling inline media for this area')
+            );
         }
     });
 

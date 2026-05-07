@@ -74,7 +74,7 @@ class EchoareaManager
         $placeholders = implode(',', array_fill(0, count($tags), '?'));
         [$domainClause, $domainParams] = $this->buildDomainWhereClause($domains);
         $stmt = $this->db->prepare("
-            SELECT UPPER(tag) AS tag_key, id, domain, description, is_sysop_only
+            SELECT UPPER(tag) AS tag_key, id, domain, description, is_sysop_only, allow_media
             FROM echoareas
             WHERE UPPER(tag) IN ($placeholders)
               AND {$domainClause}
@@ -98,6 +98,10 @@ class EchoareaManager
             $area['local_domain'] = $local['domain'] ?? null;
             $area['local_description'] = $local['description'] ?? null;
             $area['local_is_sysop_only'] = $local !== null ? !empty($local['is_sysop_only']) : null;
+            $rawAllowMedia = $local['allow_media'] ?? null;
+            $area['local_allow_media'] = ($local !== null && $rawAllowMedia !== null)
+                ? filter_var($rawAllowMedia, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+                : null;
             $remoteDescription = trim((string)($area['description'] ?? ''));
             $localDescription = trim((string)($local['description'] ?? ''));
             $area['description_mismatch'] = $local !== null && $remoteDescription !== '' && $remoteDescription !== $localDescription;
@@ -196,6 +200,17 @@ class EchoareaManager
 
         $stmt = $this->db->prepare("UPDATE echoareas SET is_sysop_only = ? WHERE id = ?");
         return $stmt->execute([$isSysopOnly ? 'true' : 'false', $id]);
+    }
+
+    public function updateAllowMedia(int $id, ?bool $allowMedia): bool
+    {
+        if ($id <= 0) {
+            return false;
+        }
+
+        $value = $allowMedia === null ? null : ($allowMedia ? 'true' : 'false');
+        $stmt = $this->db->prepare("UPDATE echoareas SET allow_media = ? WHERE id = ?");
+        return $stmt->execute([$value, $id]);
     }
 
     /**

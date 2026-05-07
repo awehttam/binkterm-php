@@ -4257,6 +4257,8 @@ return [
     'ui.admin.lovlynet.issue_readonly_off' => 'LovlyNet consiglia di consentire gli upload in questa area',
     'ui.admin.lovlynet.issue_replace_on' => 'LovlyNet consiglia di abilitare la sostituzione dei file in questa area',
     'ui.admin.lovlynet.issue_replace_off' => 'LovlyNet consiglia di disabilitare la sostituzione dei file in questa area',
+    'ui.admin.lovlynet.issue_allow_media_on' => 'LovlyNet consiglia di abilitare i media incorporati per questa area',
+    'ui.admin.lovlynet.issue_allow_media_off' => 'LovlyNet consiglia di disabilitare i media incorporati per questa area',
     'ui.admin.lovlynet.request_button_echo' => 'Avvia richiesta AREAFIX',
     'ui.admin.lovlynet.request_button_file' => 'Avvia richiesta FILEFIX',
     'ui.admin.lovlynet.btn_rescan' => 'Riscansiona',

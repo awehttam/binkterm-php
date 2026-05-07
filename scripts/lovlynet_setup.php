@@ -171,6 +171,12 @@ function syncSubscribedLovlyNetAreas(string $hubAddress): void {
                 'gemini_public'  => false,
             ], ['', LOVLYNET_DOMAIN]);
 
+            if (!$existingId) {
+                // Default new LovlyNet areas to media-enabled; applyRecommendedSettings
+                // will override this if LovlyNet's metadata specifies a different value.
+                $echoareaManager->updateAllowMedia($localId, true);
+            }
+
             $client->applyRecommendedSettings('echo', array_merge($area, ['local_echoarea_id' => $localId]));
 
             if ($existingId) {

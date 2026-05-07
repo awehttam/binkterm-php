@@ -4258,6 +4258,8 @@ return [
     'ui.admin.lovlynet.issue_readonly_off' => 'LovlyNet recomienda permitir subidas en esta area',
     'ui.admin.lovlynet.issue_replace_on' => 'LovlyNet recomienda habilitar el reemplazo de archivos en esta area',
     'ui.admin.lovlynet.issue_replace_off' => 'LovlyNet recomienda deshabilitar el reemplazo de archivos en esta area',
+    'ui.admin.lovlynet.issue_allow_media_on' => 'LovlyNet recomienda habilitar los medios integrados para esta area',
+    'ui.admin.lovlynet.issue_allow_media_off' => 'LovlyNet recomienda deshabilitar los medios integrados para esta area',
     'ui.admin.lovlynet.request_button_echo' => 'Iniciar solicitud AREAFIX',
     'ui.admin.lovlynet.request_button_file' => 'Iniciar solicitud FILEFIX',
     'ui.admin.lovlynet.btn_rescan' => 'Reescanear',

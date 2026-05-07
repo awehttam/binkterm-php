@@ -6439,6 +6439,18 @@ if (!function_exists('annotateLovlyNetAreasWithMetadataIssues')) {
                 }
             }
 
+            if ($areaType === 'echo' && array_key_exists('allow_media', $metadata) && !empty($area['local_exists'])) {
+                $recommendedAllowMedia = filter_var($metadata['allow_media'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualAllowMedia = $area['local_allow_media'] ?? null; // null = use global default
+                if ($recommendedAllowMedia !== null && $recommendedAllowMedia !== $actualAllowMedia) {
+                    $issues[] = [
+                        'setting' => 'allow_media',
+                        'recommended' => $recommendedAllowMedia,
+                        'actual' => $actualAllowMedia,
+                    ];
+                }
+            }
+
             if ($areaType === 'file' && array_key_exists('readonly', $metadata) && !empty($area['local_exists'])) {
                 $recommendedReadonly = filter_var($metadata['readonly'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
                 $actualReadonly = ((int)($area['local_upload_permission'] ?? -1)) === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY;

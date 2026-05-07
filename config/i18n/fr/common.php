@@ -3838,6 +3838,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.lovlynet.issue_readonly_off' => 'LovlyNet recommande d\'autoriser les envois dans cette zone',
     'ui.admin.lovlynet.issue_replace_on' => 'LovlyNet recommande d\'activer le remplacement de fichiers dans cette zone',
     'ui.admin.lovlynet.issue_replace_off' => 'LovlyNet recommande de désactiver le remplacement de fichiers dans cette zone',
+    'ui.admin.lovlynet.issue_allow_media_on' => 'LovlyNet recommande d\'activer les médias intégrés pour cette zone',
+    'ui.admin.lovlynet.issue_allow_media_off' => 'LovlyNet recommande de désactiver les médias intégrés pour cette zone',
     'ui.admin.lovlynet.tab_echo' => 'Zones echo',
     'ui.admin.lovlynet.tab_file' => 'Zones de fichiers',
     'ui.admin.lovlynet.tab_requests' => 'Demandes',
