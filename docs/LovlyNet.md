@@ -401,7 +401,7 @@ If you're migrating to a new server:
 
 ### Importing Existing Manual Configuration
 
-If you were manually added to LovlyNet by the hub sysop before the automated registry existed, you will not have a `config/lovlynet.json` file or an API key. Without these, the setup tool cannot prove ownership of your existing node number and cannot safely import your configuration.
+If you obtained a node number without using `lovlynet_setup.php`, or were manually added to the network, you will not have a full LovlyNet configuration including a `config/lovlynet.json` file and API key. Without these, the setup tool cannot prove ownership of your existing node number and cannot safely import your configuration.
 
 Contact the LovlyNet administrator to have a `config/lovlynet.json` generated for your node. Once you have that file, place it in `config/` and you will have full access to the web interface and CLI tools without needing to re-register or change your FTN address.
 
