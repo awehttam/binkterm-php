@@ -236,13 +236,25 @@
     function injectAfter(anchor, el) {
         var isMedia = el.tagName === 'VIDEO' || el.tagName === 'AUDIO';
         var isRetroAudio = el.classList && el.classList.contains('bink-retro-audio');
-        var pre = isRetroAudio && anchor.closest ? anchor.closest('pre') : null;
         if (isAutoMode()) {
-            var wrapped = wrapEmbed(el, !!pre);
-            if (pre) {
-                trimBlankSiblingsAfter(anchor);
-                anchor.parentNode.insertBefore(document.createTextNode('\n'), anchor.nextSibling);
-                anchor.parentNode.insertBefore(wrapped, anchor.nextSibling.nextSibling);
+            var wrapped = wrapEmbed(el, false);
+            // For retro audio inside <pre> or span.message-line, insert after the containing
+            // block rather than inside it, so that preserved whitespace / auto-promoted divs
+            // don't create a blank gap above the player.
+            var insertAfterNode = null;
+            if (isRetroAudio && anchor.closest) {
+                insertAfterNode = anchor.closest('pre') ||
+                    anchor.closest('span.message-line, span.message-signature');
+            }
+            if (insertAfterNode) {
+                // Walk past any players already queued after this node so multiple
+                // retro audio URLs in the same container appear in source order.
+                var after = insertAfterNode;
+                while (after.nextSibling && after.nextSibling.classList &&
+                        after.nextSibling.classList.contains('bink-media-embed')) {
+                    after = after.nextSibling;
+                }
+                after.parentNode.insertBefore(wrapped, after.nextSibling);
             } else {
                 anchor.parentNode.insertBefore(wrapped, anchor.nextSibling);
             }
