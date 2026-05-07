@@ -401,13 +401,9 @@ If you're migrating to a new server:
 
 ### Importing Existing Manual Configuration
 
-If you manually configured LovlyNet before the auto-setup tool existed:
+If you were manually added to LovlyNet by the hub sysop before the automated registry existed, you will not have a `config/lovlynet.json` file or an API key. Without these, the setup tool cannot prove ownership of your existing node number and cannot safely import your configuration.
 
-1. Note your FTN address from `config/binkp.json` (e.g., 227:1/400)
-2. Run `php scripts/lovlynet_setup.php`
-3. Script will detect existing uplink and request that node number
-4. If available, registry assigns your existing number
-5. If taken, you'll get a new number (update binkp.json manually)
+Contact the LovlyNet administrator to have a `config/lovlynet.json` generated for your node. Once you have that file, place it in `config/` and you will have full access to the web interface and CLI tools without needing to re-register or change your FTN address.
 
 ### Multiple Networks
 
