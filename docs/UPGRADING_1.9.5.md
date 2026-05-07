@@ -111,9 +111,9 @@ Each user can control how embeds appear through the **Inline media rendering** s
 - **Automatically render rich media** — embeds load and appear immediately when a message is opened. This is the new default for all accounts.
 - **Click to expand** — a "▶ Load player" button appears in place of each embed. The player loads only when the user clicks the button.
 
-This setting was previously named "Image load mode" and controlled only whether Markdown inline images loaded automatically. The upgrade migrates all existing accounts to the automatic mode. Users who had previously set the old "Click to load" preference are also migrated to automatic; they can switch back to click-to-expand on their Settings page if preferred.
+This setting was previously named "Image load mode" and controlled only whether Markdown inline images loaded automatically. The upgrade migrates all existing accounts to the click-to-expand mode. Users who prefer automatic rendering can switch on their Settings page.
 
-The `image_load_mode` key in `users_meta` is renamed to `media_render_mode` and all values are set to `auto` by the migration.
+The `image_load_mode` key in `users_meta` is renamed to `media_render_mode` and all values are set to `click` by the migration.
 
 ### Admin settings
 
