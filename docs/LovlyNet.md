@@ -1,5 +1,41 @@
 # LovlyNet Network Integration
 
+## Table of Contents
+
+- [What is LovlyNet?](#what-is-lovlynet)
+- [Quick Start](#quick-start)
+- [Public vs Passive Nodes](#public-vs-passive-nodes)
+  - [Public Nodes](#public-nodes)
+  - [Passive Nodes](#passive-nodes)
+- [Registration Process](#registration-process)
+  - [Step-by-Step](#step-by-step)
+  - [What You Receive](#what-you-receive)
+  - [Verification Endpoint](#verification-endpoint)
+- [Managing LovlyNet (Web Interface)](#managing-lovlynet-web-interface)
+  - [Echo Areas Tab](#echo-areas-tab)
+  - [File Areas Tab](#file-areas-tab)
+  - [Setup Tab](#setup-tab)
+- [Updating Registration](#updating-registration)
+- [Checking Status](#checking-status)
+- [Configuration Files](#configuration-files)
+  - [config/lovlynet.json](#configlovlynetjson)
+  - [config/binkpjson](#configbinkpjson)
+- [Polling Configuration](#polling-configuration)
+  - [Manual Poll](#manual-poll)
+  - [Automatic Polling (Recommended)](#automatic-polling-recommended)
+- [Manual AreaFix Commands](#manual-areafix-commands)
+  - [Default Areas](#default-areas)
+  - [Subscribing via Netmail](#subscribing-via-netmail)
+  - [Areafix Commands](#areafix-commands)
+- [Troubleshooting](#troubleshooting)
+- [Advanced Usage](#advanced-usage)
+  - [Importing Existing Manual Configuration](#importing-existing-manual-configuration)
+  - [Multiple Networks](#multiple-networks)
+  - [Changing Node Type](#changing-node-type)
+- [Getting Help](#getting-help)
+- [Network Information](#network-information)
+- [References](#references)
+
 ## What is LovlyNet?
 
 LovlyNet is a FidoNet Technology Network (FTN) operating in Zone 227. It provides an automated registration system that allows BBS operators to join the network and start exchanging mail with other systems without manual coordination with a hub sysop.
@@ -10,16 +46,19 @@ LovlyNet is a FidoNet Technology Network (FTN) operating in Zone 227. It provide
 - Automatic uplink configuration
 - Echo area subscription
 - Support for both public and passive nodes
+- Web-based management via **Admin → LovlyNet** after initial setup
 
 ## Quick Start
 
-To join LovlyNet, run the setup script:
+Initial registration is a one-time CLI step:
 
 ```bash
 php scripts/lovlynet_setup.php
 ```
 
 The script will guide you through registration and automatically configure your system.
+
+**After registration, all ongoing management is done through the web interface** at **Admin → LovlyNet** — including echo area subscriptions, registration updates, and connectivity health checks. You do not need to re-run the CLI tool for routine management.
 
 ## Public vs Passive Nodes
 
@@ -130,9 +169,38 @@ If this doesn't work, check:
 - Router/firewall allows HTTP/HTTPS traffic
 - BBS software is properly configured
 
+## Managing LovlyNet (Web Interface)
+
+**Admin → LovlyNet** is the primary interface for managing your LovlyNet membership after the initial CLI registration. It shows your node number, hub address, server URL, and subscribed area count at a glance, and provides three tabs for managing areas and your registration details.
+
+You should rarely need to touch the CLI again once your node is registered. The web interface covers the full management lifecycle: subscribing and unsubscribing echo areas, requesting rescans, updating your registration details, and monitoring connectivity health.
+
+### Echo Areas Tab
+
+Lists all echo areas available from the hub with their subscription status. Each row shows the area tag, description, and whether you are currently subscribed. From this tab you can subscribe or unsubscribe individual areas, request a **rescan** (replay messages from the last N days, last N messages, or all messages), and send freeform AreaFix commands to the hub via the **Request** button.
+
+### File Areas Tab
+
+The same layout as the Echo Areas tab, but for file areas managed through FileFix.
+
+### Setup Tab
+
+The Setup tab lets you update your LovlyNet registration without running `lovlynet_setup.php` from the command line. Fields include:
+
+- **System Name** — the name of your BBS
+- **Sysop Name** — your name as it appears in the nodelist
+- **Hostname** — your BBS's public hostname
+- **BinkP Port** — the port your BinkP server listens on
+- **Site URL** — your BBS's public web address
+- **Passive Node** — check this if your node does not accept inbound connections
+
+Saving the form sends the updated information to the LovlyNet registry. A checklist panel alongside the form shows the current health of your registration (reachability, certificate, BinkP connectivity, etc.) to help diagnose configuration problems.
+
 ## Updating Registration
 
-To update your registration (change hostname, switch public/passive, etc.):
+**Preferred method:** Use the **Setup tab** in **Admin → LovlyNet** to update your hostname, node type, sysop name, or port. Changes take effect immediately without requiring CLI access.
+
+**CLI alternative:** If you need to update from the command line (e.g., during initial server setup before the web interface is accessible):
 
 ```bash
 php scripts/lovlynet_setup.php --update
@@ -152,7 +220,9 @@ The script will:
 
 ## Checking Status
 
-View your current registration:
+**Via the web interface:** The **Admin → LovlyNet** dashboard shows your FTN address, registration date, subscribed area count, and a connectivity health checklist at a glance.
+
+**Via the CLI:**
 
 ```bash
 php scripts/lovlynet_setup.php --status
@@ -236,23 +306,22 @@ crontab -e
 */30 * * * * cd /path/to/binkterm-php && php scripts/binkp_poll.php >> data/logs/poll.log 2>&1
 ```
 
-## Echo Area Management
+## Manual AreaFix Commands
 
-### Viewing Available Areas
+> **Tip:** Most echo area management can be done graphically from the **Echo Areas** tab in **Admin → LovlyNet**. The commands below are for advanced use or when web access is unavailable.
 
-Check `config/lovlynet.json` after registration for the echo area list. You can also view areas in the web interface under Admin → Echo Areas.
+### Default Areas
 
-### Subscribing to Areas
+- **BINKTERMPHP** - General discussion about BinktermPHP and FTN systems
+- **ANNOUNCE** - Network announcements and sysop information
+- **TEST** - Testing and experiments
+
+### Subscribing via Netmail
 
 Send a netmail to AreaFix at 227:1/1:
 - **To:** AreaFix
 - **Subject:** [Your areafix password from config]
 - **Body:** `+AREA_TAG` (to subscribe) or `-AREA_TAG` (to unsubscribe)
-
-**Default areas:**
-- **BINKTERMPHP** - General discussion about BinktermPHP and FTN systems
-- **ANNOUNCE** - Network announcements and sysop information
-- **TEST** - Testing and experiments
 
 ### Areafix Commands
 
@@ -264,31 +333,6 @@ Send these in the body of a netmail to AreaFix:
 - `+AREA_TAG` - Subscribe to an area
 - `-AREA_TAG` - Unsubscribe from an area
 - `%RESCAN AREA_TAG` - Request rescan of area
-
-### Web-Based LovlyNet Manager
-
-The LovlyNet manager at **Admin → LovlyNet** is the primary web interface for managing your LovlyNet membership once initial registration has been completed with `lovlynet_setup.php`. It shows your node number, hub address, server URL, and subscribed area count at a glance, and provides three tabs for managing areas and your registration details.
-
-#### Echo Areas Tab
-
-Lists all echo areas available from the hub with their subscription status. Each row shows the area tag, description, and whether you are currently subscribed. From this tab you can subscribe or unsubscribe individual areas, request a **rescan** (replay messages from the last N days, last N messages, or all messages), and send freeform AreaFix commands to the hub via the **Request** button.
-
-#### File Areas Tab
-
-The same layout as the Echo Areas tab, but for file areas managed through FileFix.
-
-#### Setup Tab
-
-The Setup tab lets you update your LovlyNet registration without running `lovlynet_setup.php` from the command line. Fields include:
-
-- **System Name** — the name of your BBS
-- **Sysop Name** — your name as it appears in the nodelist
-- **Hostname** — your BBS's public hostname
-- **BinkP Port** — the port your BinkP server listens on
-- **Site URL** — your BBS's public web address
-- **Passive Node** — check this if your node does not accept inbound connections
-
-Saving the form sends the updated information to the LovlyNet registry. A checklist panel alongside the form shows the current health of your registration (reachability, certificate, BinkP connectivity, etc.) to help diagnose configuration problems.
 
 ## Troubleshooting
 
@@ -379,14 +423,13 @@ Each network should have its own domain identifier in `config/binkp.json`.
 **From passive to public:**
 1. Configure port forwarding and firewall
 2. Test `/api/verify` endpoint externally
-3. Run `php scripts/lovlynet_setup.php --update`
-4. Answer "Y" for public access
-5. Provide new hostname
-6. Hub will start delivering mail directly
+3. Update via **Admin → LovlyNet → Setup tab** (or run `php scripts/lovlynet_setup.php --update`)
+4. Set public hostname and uncheck Passive Node
+5. Hub will start delivering mail directly
 
 **From public to passive:**
-1. Run `php scripts/lovlynet_setup.php --update`
-2. Answer "N" for public access
+1. Update via **Admin → LovlyNet → Setup tab** (or run `php scripts/lovlynet_setup.php --update`)
+2. Check the Passive Node option
 3. Set up polling via cron
 4. Hub will stop attempting inbound connections
 
