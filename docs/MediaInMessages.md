@@ -166,7 +166,7 @@ Media player settings are managed in `src/AppearanceConfig.php` under the `media
 
 **Global toggle:** Media rendering is **disabled by default** on fresh installs. Enable it system-wide with `media_player.enabled = true` in the admin panel. Disable it again with `media_player.enabled = false` to suppress all inline rendering across every network and area.
 
-**Per-network toggle:** Each uplink entry in `config/binkp.json` has an optional `allow_media` boolean. Set `allow_media: false` on an uplink to suppress inline media for all messages received from that network. When omitted, the network defaults to allowing media (subject to the global toggle).
+**Per-network toggle:** Each uplink entry in `config/binkp.json` has an optional `allow_media` boolean. Set `allow_media: true` on an uplink to allow inline media for all messages received from that network. When omitted, the network defaults to denying media.
 
 **Per-area toggle:** Each echo area has an `allow_media` column in the `echoareas` table. The value can be `true` (always allow), `false` (always deny), or `NULL` (inherit from the network setting). The area setting is configured in the echo area management interface.
 
@@ -174,7 +174,7 @@ Media player settings are managed in `src/AppearanceConfig.php` under the `media
 1. Global disabled → media suppressed everywhere
 2. Area `allow_media = false` → media suppressed for that area
 3. Area `allow_media = true` → media allowed regardless of network setting
-4. Area `allow_media = NULL` → network `allow_media` setting (default: allow)
+4. Area `allow_media = NULL` → network `allow_media` setting (default: deny)
 
 **Per-provider toggles:** Each embed provider (youtube, odysee, rumble, bitchute, brighteon, peertube, soundcloud, twitter, tiktok, bastyon, reverbnation, raw_media) can be individually enabled or disabled.
 

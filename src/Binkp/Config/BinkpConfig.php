@@ -682,7 +682,7 @@ class BinkpConfig
         if ($uplink === null) {
             return true;
         }
-        return !array_key_exists('allow_media', $uplink) || (bool)$uplink['allow_media'];
+        return array_key_exists('allow_media', $uplink) && (bool)$uplink['allow_media'];
     }
 
     /**
