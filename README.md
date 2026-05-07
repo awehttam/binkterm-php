@@ -449,7 +449,11 @@ php scripts/upgrade.php
 ### Caddy
 Caddy has been tested with BinktermPHP and works well. It handles HTTPS automatically and does not buffer SSE responses by default. The example config below excludes the SSE endpoint from compression, which would otherwise buffer the stream.
 
+ * Update the php8.2-fpm.sock location in the configuration below to match your version of PHP 
+
 ```caddyfile
+# /etc/caddy/Caddyfile
+
 yourdomain.com {
     bind 0.0.0.0
 
@@ -530,6 +534,8 @@ Replace `yourdomain.com`, the `bind` address, `root` path, and php-fpm socket pa
 
 ### Nginx
 
+(untested)
+
 ```nginx
 server {
     listen 443 ssl;
@@ -572,7 +578,10 @@ server {
 
 Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
 
-### Apache
+### Apache (libapache2-php)
+
+BinktermPHP recommends Caddy.
+
 Requires `mod_proxy`, `mod_proxy_fcgi`, and `mod_proxy_wstunnel`. The two WebSocket proxies must appear before the PHP handler.
 
 ```apache
