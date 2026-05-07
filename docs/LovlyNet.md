@@ -144,7 +144,7 @@ After successful registration:
 - **API Key**: For future updates (saved automatically)
 - **Binkp Password**: For secure mailer authentication
 - **Areafix Password**: For echo area management
-- **Echo Areas**: BINKTERMPHP, ANNOUNCE, TEST (auto-subscribed)
+- **Echo Areas**: LVLY_BINKTERMPHP, LVLY_ANNOUNCE, LVLY_TEST (auto-subscribed)
 
 ### Verification Endpoint
 
@@ -312,9 +312,9 @@ crontab -e
 
 ### Default Areas
 
-- **BINKTERMPHP** - General discussion about BinktermPHP and FTN systems
-- **ANNOUNCE** - Network announcements and sysop information
-- **TEST** - Testing and experiments
+- **LVLY_BINKTERMPHP** - General discussion about BinktermPHP and FTN systems
+- **LVLY_ANNOUNCE** - Network announcements and sysop information
+- **LVLY_TEST** - Testing and experiments
 
 ### Subscribing via Netmail
 
