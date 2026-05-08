@@ -55,7 +55,7 @@ Fill in the form fields:
 
 - **Tag** — Required. Auto-converted to uppercase. Maximum 20 characters. Use alphanumeric characters, dots, underscores, or hyphens (e.g. `MICRONET.CHAT`).
 - **Description** — Required. Displayed to users in the area list.
-- **Domain** — The FTN network this area belongs to. Leave blank for a local area. Available domains come from the configured networks list.
+- **Network** — The FTN network this area belongs to. Choose **Local** for a local area; local areas have no domain (or an empty domain) and are never transmitted to any uplink. Available network options come from the configured networks list.
 - **Uplink Address** — The node address of the upstream system for this area (e.g. `1:153/757`). Optional.
 - **Moderator** — Name of the area moderator. Optional, displayed in area info.
 - **Color** — Visual accent color for the web interface. Choose from presets or enter a hex value.
