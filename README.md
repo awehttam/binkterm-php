@@ -322,6 +322,7 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **Web Server** - Caddy, Apache, Nginx, etc.
 - **Composer** - For dependency management
 - **libsixel** (`libsixel-bin`) - Optional, enables Sixel image rendering in the telnet/SSH terminal reader
+- **Feature-specific dependencies** - Some optional features, such as DOS Doors, may require additional installation steps. See each feature's documentation for its specific requirements.
 - **Hardware Recommendation** - If you are running all services, we recommend at least 2 GB of RAM and 2 CPU cores
 - **Sizing Note** - Running fewer services generally requires less RAM
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
@@ -334,10 +335,10 @@ sudo apt-get update
 
 # Choose a web server and PHP runner (recommended)
 #  If caddy is not available in your distro, see https://caddyserver.com/download downloads
-apt install caddy php-fpm
+sudo apt-get install caddy php-fpm
 
 # -or - Apache and PHP runner (not recommended)
-apt install libapache2-mod-php apache2
+sudo apt-get install libapache2-mod-php apache2
 
 # Install required packages
 sudo apt-get install  php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom php-gmp postgresql composer  

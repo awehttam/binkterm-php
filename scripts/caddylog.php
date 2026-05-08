@@ -45,6 +45,7 @@ function main(array $argv): void
     }
 
     if (!empty($options['tail'])) {
+        configureRealtimeOutput();
         tailLogFile($logFile, $format);
         return;
     }
@@ -120,6 +121,16 @@ function processFile(string $logFile, string $format): void
     }
 }
 
+function configureRealtimeOutput(): void
+{
+    while (ob_get_level() > 0) {
+        ob_end_flush();
+    }
+
+    ob_implicit_flush(true);
+    stream_set_write_buffer(STDOUT, 0);
+}
+
 function tailLogFile(string $logFile, string $format): void
 {
     $size = @filesize($logFile);
@@ -182,7 +193,8 @@ function emitConvertedLine(string $line, string $source, string $format): void
         return;
     }
 
-    echo $converted, PHP_EOL;
+    fwrite(STDOUT, $converted . PHP_EOL);
+    fflush(STDOUT);
     flush();
 }
 
