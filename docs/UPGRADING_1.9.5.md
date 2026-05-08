@@ -326,7 +326,7 @@ Without `--fix`, the script reports discrepancies without modifying any data. Ad
 
 The migration tracking system was changed in 1.9.4 from a version-comparison approach (skip any migration whose version number is less than or equal to the highest recorded version) to a set-based approach (skip any migration whose version string appears in the `database_migrations` table). This change was made to support the new timestamp-based migration IDs alongside legacy semantic version IDs.
 
-On installations that were originally set up using the full schema dump (`postgres_schema.sql`) rather than by running individual migration files, some early migrations were never individually recorded in `database_migrations` even though the corresponding schema changes were already in place. When these installations upgraded to a version using the set-based tracker, those unrecorded migrations appeared as pending and were re-executed.
+All installations are initially populated from the base schema dump (`postgres_schema.sql`). That schema already includes the changes from many legacy semantic-version migrations, but those individual migration files are not necessarily recorded one-by-one in `database_migrations`. After the tracker changed to set-based checks, those already-baked-in legacy migrations could appear as pending and be re-executed.
 
 The upgrade script now applies a backward-compatible rule: any legacy semantic-version migration file whose version is at or below the highest semantic version already recorded in `database_migrations` is considered already applied and is skipped, even if it does not appear in the table. Timestamp-based migrations are not affected by this rule and continue to be tracked only by explicit table entries.
 
