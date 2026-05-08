@@ -67,8 +67,8 @@ return function(\PDO $db): bool {
     }
 
     $insert = $db->prepare("
-        INSERT INTO networks (domain, name, allow_markup, allow_media, default_charset, posting_name_policy, is_builtin)
-        VALUES (?, ?, ?, ?, ?, ?, FALSE)
+        INSERT INTO networks (domain, name, network_type, allow_markup, allow_media, default_charset, posting_name_policy, is_builtin)
+        VALUES (?, ?, 1, ?, ?, ?, ?, FALSE)
         ON CONFLICT (domain) DO NOTHING
     ");
     $update = $db->prepare("

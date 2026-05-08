@@ -6,6 +6,8 @@ use PDO;
 
 class NetworkManager
 {
+    public const NETWORK_TYPE_FIDONET = 1;
+
     private PDO $db;
 
     public function __construct(?PDO $db = null)
@@ -19,7 +21,7 @@ class NetworkManager
     public function getAll(): array
     {
         $stmt = $this->db->query("
-            SELECT id, domain, name, description, website, allow_markup, allow_media,
+            SELECT id, domain, name, description, website, network_type, allow_markup, allow_media,
                    default_charset, posting_name_policy, is_builtin, created_at, updated_at
             FROM networks
             ORDER BY is_builtin DESC, LOWER(name), LOWER(domain)
@@ -31,7 +33,7 @@ class NetworkManager
     public function getById(int $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT id, domain, name, description, website, allow_markup, allow_media,
+            SELECT id, domain, name, description, website, network_type, allow_markup, allow_media,
                    default_charset, posting_name_policy, is_builtin, created_at, updated_at
             FROM networks
             WHERE id = ?
@@ -51,7 +53,7 @@ class NetworkManager
         }
 
         $stmt = $this->db->prepare("
-            SELECT id, domain, name, description, website, allow_markup, allow_media,
+            SELECT id, domain, name, description, website, network_type, allow_markup, allow_media,
                    default_charset, posting_name_policy, is_builtin, created_at, updated_at
             FROM networks
             WHERE LOWER(domain) = LOWER(?)
@@ -85,9 +87,9 @@ class NetworkManager
         $values = $this->normalizeSettings($data);
         $stmt = $this->db->prepare("
             INSERT INTO networks (
-                domain, name, description, website, allow_markup, allow_media,
+                domain, name, description, website, network_type, allow_markup, allow_media,
                 default_charset, posting_name_policy, is_builtin
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
         ");
         $stmt->execute([
@@ -95,6 +97,7 @@ class NetworkManager
             $name,
             $values['description'],
             $values['website'],
+            $values['network_type'],
             $values['allow_markup'] ? 'true' : 'false',
             $values['allow_media'] ? 'true' : 'false',
             $values['default_charset'],
@@ -124,6 +127,7 @@ class NetworkManager
             SET name = ?,
                 description = ?,
                 website = ?,
+                network_type = ?,
                 allow_markup = ?,
                 allow_media = ?,
                 default_charset = ?,
@@ -135,6 +139,7 @@ class NetworkManager
             $name,
             $values['description'],
             $values['website'],
+            $values['network_type'],
             $values['allow_markup'] ? 'true' : 'false',
             $values['allow_media'] ? 'true' : 'false',
             $values['default_charset'],
@@ -197,6 +202,7 @@ class NetworkManager
             'default_charset' => 'UTF-8',
             'posting_name_policy' => 'username',
             'is_builtin' => true,
+            'network_type' => self::NETWORK_TYPE_FIDONET,
         ];
 
         return $existing ? $this->update((int)$existing['id'], $data) : $this->create($data);
@@ -220,10 +226,17 @@ class NetworkManager
         return [
             'description' => trim((string)($data['description'] ?? '')) ?: null,
             'website' => trim((string)($data['website'] ?? '')) ?: null,
+            'network_type' => $this->normalizeNetworkType($data['network_type'] ?? self::NETWORK_TYPE_FIDONET),
             'allow_markup' => filter_var($data['allow_markup'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'allow_media' => filter_var($data['allow_media'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'default_charset' => $charset !== '' ? \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset($charset) : null,
             'posting_name_policy' => in_array($policy, ['real_name', 'username'], true) ? $policy : 'real_name',
         ];
+    }
+
+    private function normalizeNetworkType(mixed $value): int
+    {
+        $type = (int)$value;
+        return $type === self::NETWORK_TYPE_FIDONET ? $type : self::NETWORK_TYPE_FIDONET;
     }
 }
