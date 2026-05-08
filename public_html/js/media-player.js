@@ -84,7 +84,8 @@
     var VIDEO_EXTS = /\.(mp4|webm|ogv|mov)$/i;
     var AUDIO_EXTS = /\.(mp3|flac|ogg|opus|wav|m4a|aac)$/i;
     var RETRO_AUDIO_EXTS = /\.(xm|it|s3m|mod|stm|amf|669|mptm|sid|midi?)$/i;
-    var IMAGE_EXTS = /\.(png|webp|gif|jpe?g|svg)$/i;
+    var IMAGE_EXTS = /(?:\.(png|webp|gif|jpe?g|svg)|@(png|webp|gif|jpe?g))$/i;
+    var BLUESKY_CDN_IMAGE = /^https?:\/\/cdn\.bsky\.app\/img\//i;
 
     function isEnabled() {
         return (window.siteConfig || {}).mediaPlayerEnabled !== false;
@@ -440,7 +441,7 @@
             injectAfter(anchor, buildVideo(href));
         } else if (AUDIO_EXTS.test(path)) {
             injectAfter(anchor, buildAudio(href));
-        } else if (IMAGE_EXTS.test(path)) {
+        } else if (IMAGE_EXTS.test(path) || BLUESKY_CDN_IMAGE.test(href)) {
             injectAfter(anchor, buildImage(href));
         } else {
             var proxyProvider = matchProxyProvider(href);

@@ -5084,7 +5084,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         header('Content-Type: application/json');
 
-        $stmt = $db->prepare("SELECT * FROM auto_feed_sources WHERE id = ?");
+        $stmt = $db->prepare("
+            SELECT f.*, u.username, u.real_name
+            FROM auto_feed_sources f
+            LEFT JOIN users u ON u.id = f.post_as_user_id
+            WHERE f.id = ?
+        ");
         $stmt->execute([$id]);
         $feed = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -5104,7 +5109,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         header('Content-Type: application/json');
 
-        $input = json_decode(file_get_contents('php://input'), true);
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $sourceType = normalizeAutoFeedSourceType($input['source_type'] ?? null, $input['feed_url'] ?? '');
 
         // Validate required fields
         if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
@@ -5141,20 +5147,22 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         try {
             $stmt = $db->prepare("
                 INSERT INTO auto_feed_sources
-                (feed_url, feed_name, echoarea_id, post_as_user_id,
+                (feed_url, feed_name, source_type, echoarea_id, post_as_user_id,
                  max_articles_per_check, active, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                RETURNING id
             ");
             $stmt->execute([
                 $input['feed_url'],
                 $input['feed_name'] ?? null,
+                $sourceType,
                 $input['echoarea_id'],
                 $input['post_as_user_id'],
                 $input['max_articles_per_check'] ?? 10,
                 $input['active'] ?? true
             ]);
 
-            $feedId = $db->lastInsertId();
+            $feedId = (int)$stmt->fetchColumn();
 
             // Log action
             $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
@@ -5186,7 +5194,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         header('Content-Type: application/json');
 
-        $input = json_decode(file_get_contents('php://input'), true);
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $sourceType = normalizeAutoFeedSourceType($input['source_type'] ?? null, $input['feed_url'] ?? '');
 
         // Validate feed exists
         $stmt = $db->prepare("SELECT * FROM auto_feed_sources WHERE id = ?");
@@ -5206,11 +5215,34 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             return;
         }
 
+        if (!filter_var($input['feed_url'], FILTER_VALIDATE_URL)) {
+            http_response_code(400);
+            apiError('errors.admin.auto_feed.invalid_url', apiLocalizedText('errors.admin.auto_feed.invalid_url', 'Feed URL is invalid'));
+            return;
+        }
+
+        $stmt = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+        $stmt->execute([$input['echoarea_id']]);
+        if (!$stmt->fetch()) {
+            http_response_code(400);
+            apiError('errors.admin.auto_feed.echoarea_not_found', apiLocalizedText('errors.admin.auto_feed.echoarea_not_found', 'Echo area not found'));
+            return;
+        }
+
+        $stmt = $db->prepare("SELECT id FROM users WHERE id = ?");
+        $stmt->execute([$input['post_as_user_id']]);
+        if (!$stmt->fetch()) {
+            http_response_code(400);
+            apiError('errors.admin.auto_feed.user_not_found', apiLocalizedText('errors.admin.auto_feed.user_not_found', 'Posting user not found'));
+            return;
+        }
+
         try {
             $stmt = $db->prepare("
                 UPDATE auto_feed_sources
                 SET feed_url = ?,
                     feed_name = ?,
+                    source_type = ?,
                     echoarea_id = ?,
                     post_as_user_id = ?,
                     max_articles_per_check = ?,
@@ -5221,6 +5253,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $stmt->execute([
                 $input['feed_url'],
                 $input['feed_name'] ?? null,
+                $sourceType,
                 $input['echoarea_id'],
                 $input['post_as_user_id'],
                 $input['max_articles_per_check'] ?? 10,
@@ -5346,6 +5379,21 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         echo json_encode($stats);
     });
+
+    /**
+     * Normalize an auto feed source type from form input and URL.
+     */
+    function normalizeAutoFeedSourceType($inputType, $feedUrl) {
+        $sourceType = strtolower(trim((string)($inputType ?? '')));
+        $host = strtolower((string)(parse_url((string)$feedUrl, PHP_URL_HOST) ?: ''));
+        if ($host === 'bsky.app' || $host === 'www.bsky.app') {
+            $sourceType = 'bluesky';
+        } elseif ($sourceType === '') {
+            $sourceType = 'rss';
+        }
+
+        return in_array($sourceType, ['rss', 'bluesky'], true) ? $sourceType : 'rss';
+    }
 
     // Ad analytics API (license required)
     SimpleRouter::get('/api/ad-analytics', function() {

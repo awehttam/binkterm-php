@@ -41,8 +41,17 @@ class GenericRawMediaProvider implements EmbedProviderInterface
 
     private function detectMediaType(string $url): ?string
     {
+        $host = strtolower(parse_url($url, PHP_URL_HOST) ?? '');
         $path = strtolower(parse_url($url, PHP_URL_PATH) ?? '');
-        $ext  = ltrim(strrchr($path, '.'), '.');
+        if ($host === 'cdn.bsky.app' && strpos($path, '/img/') === 0) {
+            return 'image';
+        }
+
+        $dotExt = strrchr($path, '.');
+        $ext = $dotExt === false ? '' : ltrim($dotExt, '.');
+        if ($ext === '' && preg_match('/@([a-z0-9]+)$/', $path, $matches)) {
+            $ext = $matches[1];
+        }
 
         if (in_array($ext, self::VIDEO_EXTS, true)) return 'video';
         if (in_array($ext, self::AUDIO_EXTS, true)) return 'audio';

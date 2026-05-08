@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Inline Media Player](#inline-media-player)
 - [Networks Admin](#networks-admin)
 - [Per-Network and Per-Area Media Controls](#per-network-and-per-area-media-controls)
+- [Auto Feed](#auto-feed)
 - [Message Reader](#message-reader)
 - [Bulletin Manager](#bulletin-manager)
 - [Terminal Message Editor](#terminal-message-editor)
@@ -41,6 +42,27 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Fixed the admin echomail bulk-delete endpoint so it recalculates `echoareas.message_count` after removing messages. Previously, bulk-deleting messages left the cached counter inflated, causing the echoarea list to report more messages than actually exist. Installations where bulk deletions were performed before this upgrade can correct the drift by running `php scripts/check_message_counts.php --fix`.
 - Added a `--fix` flag to `scripts/check_message_counts.php`. With `--fix`, the script recalculates and corrects any drifted `message_count` values in addition to reporting them.
+
+### Auto Feed
+
+- Added a source type field to Auto Feed so the existing cron-driven poster can support additional source adapters beyond RSS/Atom. Existing feed rows are migrated to `rss`.
+- Added a Bluesky source adapter. Public Bluesky profile URLs can be configured in **Admin → Auto Feed** and are polled by `scripts/rss_poster.php`. Posts without media attachments are skipped; media URLs from Bluesky image embeds are included in the generated echomail body so the inline media renderer can process them.
+- The inline media renderer now recognizes Bluesky CDN image URLs, including CDN paths that do not end with a traditional image file extension.
+- Auto Feed messages now use `BinktermPHP Auto Feed` for the generated tagline and tearline component instead of the older RSS-specific text.
+
+## Auto Feed
+
+Auto Feed now stores a `source_type` for each configured source. The database migration adds this column with a default of `rss`, so existing RSS/Atom sources continue to run without manual changes.
+
+To add a Bluesky source, open **Admin → Auto Feed**, create or edit a feed source, set **Source Type** to **Bluesky**, and use a public profile URL such as `https://bsky.app/profile/example.bsky.social`. The existing cron command remains the same:
+
+```bash
+php scripts/rss_poster.php
+```
+
+The Bluesky adapter uses the public author feed endpoint, skips reposts and text-only posts, and posts only source items that expose image/media URLs.
+
+Messages posted by Auto Feed now identify the poster component as `BinktermPHP Auto Feed` in generated message metadata, including the visible tearline at the bottom of the message body.
 
 ### Database Migration Fix
 
