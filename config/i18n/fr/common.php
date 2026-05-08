@@ -4640,6 +4640,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.networks.heading' => 'Networks',
     'ui.admin.networks.add_network' => 'Add Network',
     'ui.admin.networks.edit_network' => 'Edit Network',
+    'ui.admin.networks.type' => 'Type',
     'ui.admin.networks.domain' => 'Domain',
     'ui.admin.networks.name' => 'Name',
     'ui.admin.networks.description' => 'Description',

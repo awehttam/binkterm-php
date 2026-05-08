@@ -19,9 +19,12 @@
                 <table class="table table-striped align-middle" id="networksTable">
                     <thead>
                         <tr>
+                            <th class="text-center" style="width: 3rem;" title="{{ t('ui.admin.networks.type', {}, locale, ['common']) }}" aria-label="{{ t('ui.admin.networks.type', {}, locale, ['common']) }}">
+                                <i class="fas fa-shapes" aria-hidden="true"></i>
+                            </th>
                             <th>{{ t('ui.admin.networks.domain', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.networks.name', {}, locale, ['common']) }}</th>
-                            <th>{{ t('ui.admin.networks.website', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.networks.description', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.networks.flags', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.common.actions', {}, locale, ['common']) }}</th>
                         </tr>
@@ -126,6 +129,7 @@
 let networks = [];
 let networkModal;
 let domainModal;
+const NETWORK_TYPE_FIDONET = 1;
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -165,20 +169,44 @@ function renderNetworks() {
         ].filter(Boolean);
         const row = document.createElement('tr');
         row.innerHTML = `
+            <td class="text-center">
+                <span class="text-primary" role="img" title="${escapeHtmlAttr(getNetworkTypeLabel(network))}" aria-label="${escapeHtmlAttr(getNetworkTypeLabel(network))}">
+                    <i class="${escapeHtmlAttr(getNetworkTypeIconClass(network))}" aria-hidden="true"></i>
+                </span>
+            </td>
             <td><code>${escapeHtml(network.domain || '')}</code>
-                ${network.is_builtin ? '<i class="fas fa-lock ms-1 text-muted"></i>' : ''}
                 <button class="btn btn-sm btn-link p-0 ms-1" type="button" onclick="openDomainModal(${Number(network.id)})" title="${escapeHtmlAttr(uiT('ui.admin.networks.change_domain', 'Change domain'))}" aria-label="${escapeHtmlAttr(uiT('ui.admin.networks.change_domain', 'Change domain'))}"><i class="fas fa-pen"></i></button>
             </td>
-            <td>${escapeHtml(network.name || '')}</td>
-            <td>${network.website ? `<a href="${escapeHtmlAttr(network.website)}" target="_blank" rel="noopener">${escapeHtml(network.website)}</a>` : ''}</td>
-            <td>${flags.map(flag => `<span class="badge bg-secondary me-1">${escapeHtml(flag)}</span>`).join('')}</td>
             <td>
-                <button class="btn btn-sm btn-outline-primary" type="button" onclick="openNetworkModal(${Number(network.id)})">${escapeHtml(uiT('ui.common.edit', 'Edit'))}</button>
-                <button class="btn btn-sm btn-outline-danger ms-1" type="button" onclick="deleteNetwork(${Number(network.id)})"${network.is_builtin ? ' disabled' : ''}>${escapeHtml(uiT('ui.common.delete', 'Delete'))}</button>
+                <div>${escapeHtml(network.name || '')}</div>
+                ${network.website ? `<a class="small" href="${escapeHtmlAttr(network.website)}" target="_blank" rel="noopener">${escapeHtml(uiT('ui.admin.networks.website', 'Website'))}</a>` : ''}
+            </td>
+            <td>${escapeHtml(network.description || '')}</td>
+            <td>${flags.map(flag => `<span class="badge bg-secondary me-1">${escapeHtml(flag)}</span>`).join('')}</td>
+            <td class="text-nowrap">
+                <div class="btn-group btn-group-sm" role="group" aria-label="${escapeHtmlAttr(uiT('ui.common.actions', 'Actions'))}">
+                    <button class="btn btn-outline-primary" type="button" onclick="openNetworkModal(${Number(network.id)})" title="${escapeHtmlAttr(uiT('ui.common.edit', 'Edit'))}" aria-label="${escapeHtmlAttr(uiT('ui.common.edit', 'Edit'))}">
+                        <i class="fas fa-pen" aria-hidden="true"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" type="button" onclick="deleteNetwork(${Number(network.id)})" title="${escapeHtmlAttr(uiT('ui.common.delete', 'Delete'))}" aria-label="${escapeHtmlAttr(uiT('ui.common.delete', 'Delete'))}">
+                        <i class="fas fa-trash" aria-hidden="true"></i>
+                    </button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
     });
+}
+
+function getNetworkTypeIconClass(network) {
+    if (Number(network.network_type) === NETWORK_TYPE_FIDONET) {
+        return 'fas fa-dog';
+    }
+    return 'fas fa-globe';
+}
+
+function getNetworkTypeLabel(network) {
+    return network.name || network.domain || uiT('ui.admin.networks.type', 'Type');
 }
 
 function openNetworkModal(id = null) {

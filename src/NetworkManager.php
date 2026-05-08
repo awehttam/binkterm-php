@@ -27,7 +27,7 @@ class NetworkManager
             ORDER BY is_builtin DESC, LOWER(name), LOWER(domain)
         ");
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return array_map([$this, 'normalizeRow'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
     }
 
     public function getById(int $id): ?array
@@ -42,7 +42,7 @@ class NetworkManager
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $row ?: null;
+        return $row ? $this->normalizeRow($row) : null;
     }
 
     public function getByDomain(string $domain): ?array
@@ -62,7 +62,7 @@ class NetworkManager
         $stmt->execute([$normalized]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $row ?: null;
+        return $row ? $this->normalizeRow($row) : null;
     }
 
     public function exists(string $domain): bool
@@ -156,9 +156,6 @@ class NetworkManager
         if (!$existing) {
             throw new \InvalidArgumentException('Network not found');
         }
-        if (!empty($existing['is_builtin'])) {
-            throw new \InvalidArgumentException('Built-in networks cannot be deleted');
-        }
 
         $stmt = $this->db->prepare("DELETE FROM networks WHERE id = ?");
         $stmt->execute([$id]);
@@ -238,5 +235,26 @@ class NetworkManager
     {
         $type = (int)$value;
         return $type === self::NETWORK_TYPE_FIDONET ? $type : self::NETWORK_TYPE_FIDONET;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function normalizeRow(array $row): array
+    {
+        foreach (['allow_markup', 'allow_media', 'is_builtin'] as $field) {
+            if (array_key_exists($field, $row)) {
+                $row[$field] = filter_var($row[$field], FILTER_VALIDATE_BOOLEAN);
+            }
+        }
+        if (array_key_exists('network_type', $row)) {
+            $row['network_type'] = (int)$row['network_type'];
+        }
+        if (array_key_exists('id', $row)) {
+            $row['id'] = (int)$row['id'];
+        }
+
+        return $row;
     }
 }
