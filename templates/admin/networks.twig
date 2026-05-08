@@ -50,7 +50,12 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label" for="networkDomain">{{ t('ui.admin.networks.domain', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="networkDomain">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="networkDomain">
+                            <button class="btn btn-outline-secondary d-none" id="networkChangeDomainBtn" type="button" onclick="openDomainModalFromEditor()" title="{{ t('ui.admin.networks.change_domain', {}, locale, ['common']) }}" aria-label="{{ t('ui.admin.networks.change_domain', {}, locale, ['common']) }}">
+                                <i class="fas fa-pen" aria-hidden="true"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="networkName">{{ t('ui.admin.networks.name', {}, locale, ['common']) }}</label>
@@ -176,7 +181,6 @@ function renderNetworks() {
                 </span>
             </td>
             <td><code>${escapeHtml(network.domain || '')}</code>
-                <button class="btn btn-sm btn-link p-0 ms-1" type="button" onclick="openDomainModal(${Number(network.id)})" title="${escapeHtmlAttr(uiT('ui.admin.networks.change_domain', 'Change domain'))}" aria-label="${escapeHtmlAttr(uiT('ui.admin.networks.change_domain', 'Change domain'))}"><i class="fas fa-pen"></i></button>
             </td>
             <td>
                 <div>${escapeHtml(network.name || '')}</div>
@@ -229,6 +233,7 @@ function openNetworkModal(id = null) {
     document.getElementById('networkId').value = network ? network.id : '';
     document.getElementById('networkDomain').value = network ? network.domain : '';
     document.getElementById('networkDomain').readOnly = !!network;
+    document.getElementById('networkChangeDomainBtn').classList.toggle('d-none', !network);
     document.getElementById('networkName').value = network ? network.name : '';
     document.getElementById('networkDescription').value = network ? (network.description || '') : '';
     document.getElementById('networkWebsite').value = network ? (network.website || '') : '';
@@ -238,6 +243,15 @@ function openNetworkModal(id = null) {
     document.getElementById('networkAllowMedia').checked = !!(network && network.allow_media);
     document.getElementById('networkModalTitle').textContent = network ? uiT('ui.admin.networks.edit_network', 'Edit Network') : uiT('ui.admin.networks.add_network', 'Add Network');
     networkModal.show();
+}
+
+function openDomainModalFromEditor() {
+    const id = document.getElementById('networkId').value;
+    if (!id) {
+        return;
+    }
+    networkModal.hide();
+    openDomainModal(Number(id));
 }
 
 function saveNetwork() {
