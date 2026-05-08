@@ -9,6 +9,9 @@ class GenericRawMediaProvider implements EmbedProviderInterface
     private const VIDEO_EXTS = ['mp4', 'webm', 'ogv', 'mov'];
     private const AUDIO_EXTS = ['mp3', 'flac', 'ogg', 'opus', 'wav', 'm4a', 'aac'];
     private const IMAGE_EXTS = ['png', 'webp', 'gif', 'jpg', 'jpeg', 'svg'];
+    private const IMAGE_URL_PREFIXES = [
+        ['scheme' => 'https', 'host' => 'cdn.bsky.app', 'path' => '/img/'],
+    ];
 
     public function matches(string $url): bool
     {
@@ -42,9 +45,15 @@ class GenericRawMediaProvider implements EmbedProviderInterface
     private function detectMediaType(string $url): ?string
     {
         $host = strtolower(parse_url($url, PHP_URL_HOST) ?? '');
+        $scheme = strtolower(parse_url($url, PHP_URL_SCHEME) ?? '');
         $path = strtolower(parse_url($url, PHP_URL_PATH) ?? '');
-        if ($host === 'cdn.bsky.app' && strpos($path, '/img/') === 0) {
-            return 'image';
+        foreach (self::IMAGE_URL_PREFIXES as $prefix) {
+            if ($scheme === $prefix['scheme']
+                && $host === $prefix['host']
+                && strpos($path, $prefix['path']) === 0
+            ) {
+                return 'image';
+            }
         }
 
         $dotExt = strrchr($path, '.');

@@ -6140,8 +6140,54 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ];
     };
 
+    $normalizeNullableBoolean = function($value): ?bool {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (bool)$value;
+        }
+
+        $normalized = strtolower(trim((string)$value));
+        if (in_array($normalized, ['1', 't', 'true', 'y', 'yes', 'on'], true)) {
+            return true;
+        }
+        if (in_array($normalized, ['0', 'f', 'false', 'n', 'no', 'off'], true)) {
+            return false;
+        }
+
+        return (bool)$value;
+    };
+
+    $resolveEchomailMediaPermission = function(array $message) use ($normalizeNullableBoolean): array {
+        $areaAllowMedia = $normalizeNullableBoolean($message['area_allow_media'] ?? null);
+        unset($message['area_allow_media']);
+
+        if (!\BinktermPHP\AppearanceConfig::isMediaPlayerEnabled()) {
+            $message['allow_media'] = false;
+            return $message;
+        }
+
+        if ($areaAllowMedia !== null) {
+            $message['allow_media'] = $areaAllowMedia;
+            return $message;
+        }
+
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $message['allow_media'] = $binkpConfig->isMediaAllowedForDomain((string)($message['domain'] ?? ''));
+        } catch (\Exception $e) {
+            $message['allow_media'] = true;
+        }
+
+        return $message;
+    };
+
     // Route for getting specific echomail message by ID only (when echoarea not known)
-    SimpleRouter::get('/messages/echomail/message/{id}', function($id) {
+    SimpleRouter::get('/messages/echomail/message/{id}', function($id) use ($resolveEchomailMediaPermission) {
         $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
@@ -6153,21 +6199,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'echomail', $userId);
 
         if ($message) {
-            // Resolve allow_media: global → area → network
-            $areaAllowMedia = $message['area_allow_media'] ?? null;
-            unset($message['area_allow_media']);
-            if (!\BinktermPHP\AppearanceConfig::isMediaPlayerEnabled()) {
-                $message['allow_media'] = false;
-            } elseif ($areaAllowMedia !== null && $areaAllowMedia !== '') {
-                $message['allow_media'] = (bool)filter_var($areaAllowMedia, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool)$areaAllowMedia;
-            } else {
-                try {
-                    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-                    $message['allow_media'] = $binkpConfig->isMediaAllowedForDomain((string)($message['domain'] ?? ''));
-                } catch (\Exception $e) {
-                    $message['allow_media'] = true;
-                }
-            }
+            $message = $resolveEchomailMediaPermission($message);
 
             // Parse REPLYTO kludge from message text and add to response
             $replyToData = parseReplyToKludge($message['message_text']);
@@ -6414,7 +6446,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode($result);
     })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
 
-    SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) {
+    SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) use ($resolveEchomailMediaPermission) {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
@@ -6444,6 +6476,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
                 return;
             }
+
+            $message = $resolveEchomailMediaPermission($message);
 
             // Parse REPLYTO kludge from message text and add to response
             $replyToData = parseReplyToKludge($message['message_text']);

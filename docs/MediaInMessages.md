@@ -43,7 +43,7 @@ The scan runs via `BinkMediaPlayer.scan()` after every message render, including
 
 ### Images
 
-Direct image URLs ending in `.png`, `.webp`, `.gif`, `.jpg`, `.jpeg`, or `.svg` are rendered as inline `<img>` elements.
+Direct image URLs ending in `.png`, `.webp`, `.gif`, `.jpg`, `.jpeg`, or `.svg` are rendered as inline `<img>` elements. Known image CDN prefixes are also recognized when the CDN path omits a file extension, currently including `https://cdn.bsky.app/img/`.
 
 ### Video
 

@@ -85,7 +85,9 @@
     var AUDIO_EXTS = /\.(mp3|flac|ogg|opus|wav|m4a|aac)$/i;
     var RETRO_AUDIO_EXTS = /\.(xm|it|s3m|mod|stm|amf|669|mptm|sid|midi?)$/i;
     var IMAGE_EXTS = /(?:\.(png|webp|gif|jpe?g|svg)|@(png|webp|gif|jpe?g))$/i;
-    var BLUESKY_CDN_IMAGE = /^https?:\/\/cdn\.bsky\.app\/img\//i;
+    var IMAGE_URL_PREFIXES = [
+        'https://cdn.bsky.app/img/'
+    ];
 
     function isEnabled() {
         return (window.siteConfig || {}).mediaPlayerEnabled !== false;
@@ -420,6 +422,19 @@
         return url.split('?')[0].split('#')[0];
     }
 
+    function hasKnownImageUrlPrefix(href) {
+        try {
+            var parsed = new URL(href);
+            var normalized = parsed.protocol + '//' + parsed.host + parsed.pathname;
+            for (var i = 0; i < IMAGE_URL_PREFIXES.length; i++) {
+                if (normalized.toLowerCase().indexOf(IMAGE_URL_PREFIXES[i]) === 0) {
+                    return true;
+                }
+            }
+        } catch (e) {}
+        return false;
+    }
+
     function resolveAnchor(anchor) {
         var href = anchor.href;
         if (!href || !/^https?:\/\//i.test(href)) return;
@@ -441,7 +456,7 @@
             injectAfter(anchor, buildVideo(href));
         } else if (AUDIO_EXTS.test(path)) {
             injectAfter(anchor, buildAudio(href));
-        } else if (IMAGE_EXTS.test(path) || BLUESKY_CDN_IMAGE.test(href)) {
+        } else if (IMAGE_EXTS.test(path) || hasKnownImageUrlPrefix(href)) {
             injectAfter(anchor, buildImage(href));
         } else {
             var proxyProvider = matchProxyProvider(href);
