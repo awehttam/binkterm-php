@@ -227,7 +227,7 @@ Sono disponibili numerose impostazioni per personalizzare la tua esperienza sul 
 - **Fuso Orario** — Imposta il tuo fuso orario in modo che tutte le date e gli orari siano visualizzati nell'ora locale.
 - **Vista echo predefinita** — Scegli se il link Echomail ti porta al lettore messaggi integrato o all'elenco aree in stile forum.
 - **Thread messaggi** — Controlla se i messaggi sono visualizzati in vista a thread o piatta per impostazione predefinita.
-- **Visualizzazione immagini inline** — Scegli se le immagini collegate nei messaggi vengono visualizzate inline durante la lettura.
+- **Rendering dei media inline** — Scegli se i link multimediali supportati nei messaggi vengono visualizzati inline durante la lettura, inclusi immagini, video, audio e incorporamenti di piattaforme quando consentito dalle impostazioni del sysop, della rete e dell'area.
 - **Firma** — Aggiungi una firma predefinita che viene aggiunta ai tuoi messaggi echomail e netmail.
 - **Tearline** — Personalizza la tearline che appare in fondo ai tuoi messaggi in uscita.
 - **Utenti ignorati** — Gestisci un elenco di utenti i cui messaggi preferisci non vedere.

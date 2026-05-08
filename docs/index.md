@@ -17,6 +17,7 @@ This index lists documents in operational priority order — essentials first, a
 ## FTN Networking
 
 - [Echo Areas](EchoAreas.md) — Creating, managing, and subscribing to echomail areas
+- [Joining and Configuring an FTN](FTNGuide.md) — Joining an FTN, configuring a binkp uplink, and subscribing to areas
 - [Echo Digests](EchoDigests.md) — Scheduled email digests of echomail areas
 - [File Areas](FileAreas.md) — File area configuration, uploads, and management
 - [FREQ](FREQ.md) — File request (FREQ) serving and requesting: modes, magic names, routing, and CLI tools

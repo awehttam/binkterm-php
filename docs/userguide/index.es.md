@@ -227,7 +227,7 @@ Hay numerosos ajustes disponibles para personalizar tu experiencia en el BBS. Al
 - **Zona horaria** — Establece tu zona horaria para que todas las fechas y horas se muestren en tu hora local.
 - **Vista predeterminada del area echo** — Elige si el enlace de Echomail te lleva al lector de mensajes integrado o a la lista de areas echo estilo foro.
 - **Hilos de mensajes** — Controla si los mensajes se muestran en vista en hilo o plana de forma predeterminada.
-- **Visualizacion de imagenes en linea** — Elige si las imagenes enlazadas en los mensajes se muestran en linea al leer.
+- **Renderizado de medios en linea** — Elige si los enlaces de medios compatibles en los mensajes se muestran en linea al leer, incluidas imagenes, video, audio e incrustaciones de plataformas cuando lo permiten los ajustes del sysop, la red y el area.
 - **Firma** — Agrega una firma predeterminada que se adjunta a tus mensajes de echomail y netmail.
 - **Tearline** — Personaliza la tearline que aparece al final de tus mensajes salientes.
 - **Usuarios ignorados** — Gestiona una lista de usuarios cuyos mensajes preferirias no ver.

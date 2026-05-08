@@ -227,7 +227,7 @@ De nombreux paramètres sont disponibles pour personnaliser votre expérience su
 - **Fuseau horaire** — Définissez votre fuseau horaire pour que toutes les dates et heures soient affichées en heure locale.
 - **Vue par défaut des zones echo** — Choisissez si le lien Echomail vous amène au lecteur de messages intégré ou à la liste de zones echo en style forum.
 - **Fil de messages** — Contrôlez si les messages sont affichés en vue filée ou à plat par défaut.
-- **Affichage d'images en ligne** — Choisissez si les images liées dans les messages sont affichées en ligne lors de la lecture.
+- **Rendu des médias en ligne** — Choisissez si les liens multimédias pris en charge dans les messages sont affichés en ligne lors de la lecture, y compris les images, la vidéo, l'audio et les intégrations de plateformes lorsque les réglages du sysop, du réseau et de la zone l'autorisent.
 - **Signature** — Ajoutez une signature par défaut qui sera ajoutée à vos messages Echomail et Netmail.
 - **Tearline** — Personnalisez la tearline qui apparaît en bas de vos messages sortants.
 - **Utilisateurs ignorés** — Gérez une liste d'utilisateurs dont vous préférez ne pas voir les messages.

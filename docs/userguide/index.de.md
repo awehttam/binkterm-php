@@ -227,7 +227,7 @@ Es stehen zahlreiche Einstellungen zur Verfügung, um dein BBS-Erlebnis nach dei
 - **Zeitzone** — Lege deine Zeitzone fest, damit alle Datum- und Zeitangaben in deiner Ortszeit angezeigt werden.
 - **Standard-Echo-Bereich-Ansicht** — Wähle, ob der Echomail-Link dich zum integrierten Nachrichtenleser oder zur Forenstil-Echo-Bereichsliste führt.
 - **Nachrichten-Threading** — Lege fest, ob Nachrichten standardmäßig in der Thread- oder flachen Ansicht angezeigt werden.
-- **Inline-Bildanzeige** — Wähle, ob in Nachrichten verlinkte Bilder beim Lesen inline angezeigt werden.
+- **Inline-Medienwiedergabe** — Wähle, ob unterstützte Medienlinks in Nachrichten beim Lesen inline dargestellt werden, einschließlich Bilder, Video, Audio und Plattform-Einbettungen, sofern dies durch Sysop-, Netzwerk- und Bereichseinstellungen erlaubt ist.
 - **Signatur** — Füge eine Standard-Signatur hinzu, die an deine Echomail- und Netmail-Nachrichten angehängt wird.
 - **Tearline** — Passe die Tearline an, die am Ende deiner ausgehenden Nachrichten erscheint.
 - **Ignorierte Benutzer** — Verwalte eine Liste von Benutzern, deren Nachrichten du lieber nicht sehen möchtest.
