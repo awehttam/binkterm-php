@@ -18,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Language Selection](#terminal-language-selection)
 - [Localized Documentation](#localized-documentation)
 - [Community Wireless Node Map](#community-wireless-node-map)
+- [BBS Directory CLI](#bbs-directory-cli)
 - [File Areas](#file-areas)
 - [Terminal Registration](#terminal-registration)
 - [Message Search](#message-search)
@@ -42,6 +43,11 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Fixed the admin echomail bulk-delete endpoint so it recalculates `echoareas.message_count` after removing messages. Previously, bulk-deleting messages left the cached counter inflated, causing the echoarea list to report more messages than actually exist. Installations where bulk deletions were performed before this upgrade can correct the drift by running `php scripts/check_message_counts.php --fix`.
 - Added a `--fix` flag to `scripts/check_message_counts.php`. With `--fix`, the script recalculates and corrects any drifted `message_count` values in addition to reporting them.
+
+### BBS Directory CLI
+
+- Added `scripts/dlimport_bbslist.php`, a cron-friendly wrapper that downloads the current monthly Telnet BBS Guide archive (`ibbsMMYY.zip`) from `https://www.telnetbbsguide.com/bbslist/` and runs `scripts/import_bbslist.php` against the downloaded ZIP.
+- The script supports explicit month/year selection, explicit filenames, dry-run imports, and quiet mode for scheduled jobs.
 
 ### Auto Feed
 
@@ -283,6 +289,26 @@ The Community Wireless Node Map now separates the overall active network count f
 The CWN list API now returns `total_all` for the full active, non-expired map total. The frontend displays that value in the statistics panel while loading marker data only for the current Leaflet map bounds. Panning or zooming the map refreshes the visible markers for the new viewport. This keeps the displayed total accurate without forcing the browser to load every CWN row as the database grows.
 
 No manual configuration changes are required. Run `php scripts/setup.php` as part of the normal upgrade process so any pending CWN schema migrations from earlier 1.9.x changes are applied.
+
+## BBS Directory CLI
+
+The BBS Directory importer can now be run directly against the monthly Telnet BBS Guide download without manually fetching the ZIP first:
+
+```bash
+php scripts/dlimport_bbslist.php
+```
+
+The script builds the monthly filename as `ibbsMMYY.zip`, downloads it from `https://www.telnetbbsguide.com/bbslist/` into `data/bbslist/`, and then invokes `scripts/import_bbslist.php` with the downloaded archive.
+
+For a scheduled dry run or a specific archive:
+
+```bash
+php scripts/dlimport_bbslist.php --dry-run
+php scripts/dlimport_bbslist.php --file=ibbs0526.zip
+php scripts/dlimport_bbslist.php --month=05 --year=2026 --quiet
+```
+
+No database schema changes or configuration updates are required. The underlying import behavior is unchanged: BBS entries are upserted by name, local entries are not modified, and no deletions are performed.
 
 ## File Areas
 
