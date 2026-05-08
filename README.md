@@ -319,7 +319,7 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL, GMP
 - **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
-- **Web Server** - Apache, Nginx, or PHP built-in server
+- **Web Server** - Caddy, Apache, Nginx, etc.
 - **Composer** - For dependency management
 - **libsixel** (`libsixel-bin`) - Optional, enables Sixel image rendering in the telnet/SSH terminal reader
 - **Hardware Recommendation** - If you are running all services, we recommend at least 2 GB of RAM and 2 CPU cores
