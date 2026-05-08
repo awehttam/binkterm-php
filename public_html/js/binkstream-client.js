@@ -157,7 +157,7 @@
     }
 
     try {
-        const WORKER_BUILD = 8;
+        const WORKER_BUILD = 9;
         const worker = new SharedWorker('/js/binkstream-worker-v2.js?v=' + WORKER_BUILD, { name: 'binkstream-v' + WORKER_BUILD });
         workerPort = worker.port;
         workerPort.onmessage = function (e) {
@@ -251,6 +251,15 @@
                 UserStorage.setItem('binkstream_cursor', lastKnownCursor);
                 UserStorage.setItem('binkstream_cursor_ts', String(Date.now()));
             } catch (_) {}
+        });
+        window.addEventListener('pagehide', function (event) {
+            if (event && event.persisted) { return; }
+            if (!workerPort) { return; }
+            try {
+                workerPort.postMessage({ action: 'disconnect' });
+                workerPort.close();
+            } catch (_) {}
+            workerPort = null;
         });
     } catch (_) {
         workerPort = null;

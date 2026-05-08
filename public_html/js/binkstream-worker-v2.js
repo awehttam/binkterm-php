@@ -35,6 +35,7 @@ let wsRetryProbeTimer = null;
 let wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
 let lastCursor = '';
 let isInitialized = false;
+let activeTransportMode = 'poll';
 
 function debugLog() {
     if (typeof console === 'undefined' || typeof console.log !== 'function') {
@@ -64,6 +65,9 @@ self.onconnect = function (e) {
             case 'command':
                 handleCommand(port, data);
                 break;
+            case 'disconnect':
+                forgetPort(port);
+                break;
         }
     };
 
@@ -77,6 +81,11 @@ self.onconnect = function (e) {
     if (lastCursor) {
         try {
             port.postMessage({ type: '__cursor', data: { cursor: lastCursor } });
+        } catch (_) {}
+    }
+    if (activeTransportMode) {
+        try {
+            port.postMessage({ type: '__transport', data: { mode: activeTransportMode } });
         } catch (_) {}
     }
 };
@@ -118,6 +127,7 @@ function ensureTransport() {
         return;
     }
     if (ports.size === 0) {
+        activeTransportMode = 'poll';
         closeTransport();
         return;
     }
@@ -176,6 +186,7 @@ function clearWsRetryProbeTimer() {
 
 function scheduleReconnect() {
     if (ports.size === 0) {
+        activeTransportMode = 'poll';
         closeTransport();
         return;
     }
@@ -567,12 +578,27 @@ function broadcast(type, data) {
         ports.delete(port);
     });
     if (ports.size === 0) {
+        activeTransportMode = 'poll';
         closeTransport();
     }
 }
 
 function broadcastTransportMode(mode) {
+    activeTransportMode = mode;
     broadcast('__transport', { mode: mode });
+}
+
+function forgetPort(port) {
+    ports.delete(port);
+    requestPorts.forEach(function (requestPort, requestId) {
+        if (requestPort === port) {
+            requestPorts.delete(requestId);
+        }
+    });
+    if (ports.size === 0) {
+        activeTransportMode = 'poll';
+        closeTransport();
+    }
 }
 
 function broadcastCursor(cursor) {

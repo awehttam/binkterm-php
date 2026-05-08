@@ -67,9 +67,7 @@ if ($realtimeWsUrl === '') {
 }
 $effectiveRealtimeTransportMode = $configuredRealtimeTransportMode;
 if ($configuredRealtimeTransportMode === 'auto') {
-    // Browser-side transport preference should follow the publicly
-    // reachable WS endpoint, not local PID visibility from the web process.
-    $effectiveRealtimeTransportMode = ($realtimeWsUrl !== '' && $realtimeWsUrl !== '/ws') ? 'ws' : 'sse';
+    $effectiveRealtimeTransportMode = mrcRealtimeDaemonAvailable() ? 'ws' : 'sse';
 }
 ?><!DOCTYPE html>
 <html lang="en">
