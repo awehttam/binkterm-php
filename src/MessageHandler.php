@@ -1371,9 +1371,9 @@ class MessageHandler
             // Use getUplinkForDestination() — the same routing logic used to pick the origin
             // address — so the charset lookup is always consistent with packet routing.
             $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
-            $uplink = $binkpConfig->getUplinkForDestination($toAddress);
-            if ($uplink && !empty($uplink['default_charset'])) {
-                $defaultCharset = strtoupper($uplink['default_charset']);
+            $networkCharset = $binkpConfig->getDefaultCharsetForDestination($toAddress);
+            if ($networkCharset !== null) {
+                $defaultCharset = strtoupper($networkCharset);
             }
             $packetCharset = $defaultCharset;
             if (!empty($replyToId)) {
@@ -1785,9 +1785,9 @@ class MessageHandler
                 $defaultCharset = 'UTF-8';
             } else {
                 $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
-                $uplink = $binkpConfig->getUplinkByDomain((string)$domain);
-                if ($uplink && !empty($uplink['default_charset'])) {
-                    $defaultCharset = strtoupper($uplink['default_charset']);
+                $networkCharset = $binkpConfig->getDefaultCharsetForDomain((string)$domain);
+                if ($networkCharset !== null) {
+                    $defaultCharset = strtoupper($networkCharset);
                 }
             }
             $packetCharset = $defaultCharset;
@@ -2674,7 +2674,7 @@ class MessageHandler
      *
      * Priority:
      * 1) Echo area override (posting_name_policy on echoareas)
-     * 2) Uplink policy by domain (posting_name_policy on uplink config)
+     * 2) Network policy by domain (posting_name_policy on networks)
      * 3) Default: real_name
      */
     private function resolveEchomailPostingName(array $user, array $echoarea, string $domain): string
@@ -2694,17 +2694,17 @@ class MessageHandler
             return $selectByPolicy($echoPolicy);
         }
 
-        $uplinkPolicy = 'real_name';
+        $networkPolicy = 'real_name';
         if ($domain !== '') {
             try {
                 $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-                $uplinkPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
+                $networkPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
             } catch (\Throwable $e) {
-                $uplinkPolicy = 'real_name';
+                $networkPolicy = 'real_name';
             }
         }
 
-        return $selectByPolicy($uplinkPolicy);
+        return $selectByPolicy($networkPolicy);
     }
 
     /**

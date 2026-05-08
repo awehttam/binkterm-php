@@ -127,6 +127,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Se requieren etiqueta y descripcion',
     'errors.echoareas.invalid_tag_format' => 'Formato de etiqueta invalido',
     'errors.echoareas.invalid_color_format' => 'Formato de color invalido',
+    'errors.echoareas.unknown_domain' => 'Seleccione un dominio de red configurado',
     'errors.echoareas.tag_already_exists' => 'Ya existe un área de eco con esa etiqueta',
     'errors.echoareas.create_failed' => 'No se pudo crear el area de eco',
     'errors.echoareas.not_found_or_unchanged' => 'Area de eco no encontrada o sin cambios',
@@ -690,4 +691,9 @@ return [
     'errors.bulletins.invalid_ids' => 'Lista de boletines no valida.',
     'errors.admin.bulletins.invalid_payload' => 'Datos de boletin no validos.',
     'errors.admin.bulletins.save_failed' => 'No se pudo guardar el boletin.',
+    'errors.admin.networks.load_failed' => 'Failed to load networks',
+    'errors.admin.networks.save_failed' => 'Failed to save network',
+    'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
+    'errors.admin.networks.delete_in_use' => 'Network is in use',
+    'errors.admin.networks.delete_failed' => 'Failed to delete network',
 ];

@@ -1784,7 +1784,15 @@ class AdminDaemonServer
             $key = $uplink['address'] ?? ($uplink['hostname'] ?? null);
             $lookup = $key !== null ? strtolower((string)$key) : null;
             $base = $lookup !== null && isset($indexed[$lookup]) ? $indexed[$lookup] : [];
-            $merged[] = array_merge($base, $uplink);
+            $mergedUplink = array_merge($base, $uplink);
+            unset(
+                $mergedUplink['allow_markup'],
+                $mergedUplink['allow_markdown'],
+                $mergedUplink['allow_media'],
+                $mergedUplink['default_charset'],
+                $mergedUplink['posting_name_policy']
+            );
+            $merged[] = $mergedUplink;
         }
 
         return $merged;

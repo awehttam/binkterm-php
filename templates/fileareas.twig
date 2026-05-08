@@ -109,7 +109,12 @@
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label for="fileareaDomain" class="form-label">{{ t('ui.common.domain', {}, locale, ['common']) }}</label>
-                                    <input type="text" class="form-control" id="fileareaDomain" name="domain" maxlength="255">
+                                    <select class="form-select" id="fileareaDomain" name="domain">
+                                        <option value="">{{ t('ui.fileareas.local', {}, locale, ['common']) }}</option>
+                                        {% for network in networks|default([]) %}
+                                            <option value="{{ network.domain }}">{{ network.name }} ({{ network.domain }})</option>
+                                        {% endfor %}
+                                    </select>
                                     <div class="form-text">{{ t('ui.fileareas.network_domain', {}, locale, ['common']) }}</div>
                                 </div>
                                 <div class="col-md-6">
@@ -417,6 +422,10 @@ $(document).ready(function() {
 
     $('#fileareaTag').on('input', function() {
         this.value = this.value.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    });
+
+    $('#fileareaDomain').on('change', function() {
+        rebuildCommentEchoareaOptions($(this).val());
     });
 });
 
@@ -731,6 +740,14 @@ function updateIsoMountStatusUI(area) {
     $('#isoReindexBtn').prop('disabled', !accessible);
 }
 
+function ensureFileareaDomainOption(domain) {
+    domain = String(domain || '').trim();
+    if (domain === '' || $('#fileareaDomain option').filter(function() { return this.value === domain; }).length > 0) {
+        return;
+    }
+    $('#fileareaDomain').append(new Option(`${domain} (${uiT('ui.admin.binkp_config.uplinks.modal.unconfigured_network', 'unconfigured')})`, domain));
+}
+
 function showAddFileareaModal() {
     currentFileareaId = null;
     $('#fileareaModalTitle').text(uiT('ui.fileareas.add_file_area', 'Add File Area'));
@@ -767,6 +784,7 @@ function editFilearea(id) {
             $('#fileareaTagHelp').hide();
             $('#fileareaTagReadonlyNote').show();
             $('#fileareaDescription').val(area.description);
+            ensureFileareaDomainOption(area.domain || '');
             $('#fileareaDomain').val(area.domain || '');
             $('#fileareaPassword').val(area.password || '');
             $('#fileareaMaxSize').val((area.max_file_size || 10485760) / 1048576);

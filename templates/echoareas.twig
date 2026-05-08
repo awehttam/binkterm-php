@@ -178,7 +178,12 @@
 
                             <div class="mb-3">
                                 <label for="echoareaDomain" class="form-label">{{ t('ui.common.domain', {}, locale, ['common']) }}</label>
-                                <input type="text" class="form-control" id="echoareaDomain" name="domain" maxlength="20">
+                                <select class="form-select" id="echoareaDomain" name="domain">
+                                    <option value="">{{ t('ui.echoareas.local', {}, locale, ['common']) }}</option>
+                                    {% for network in networks %}
+                                        <option value="{{ network.domain }}">{{ network.name }} ({{ network.domain }})</option>
+                                    {% endfor %}
+                                </select>
                                 <div class="form-text">{{ t('ui.echoareas.network_domain_help', {}, locale, ['common']) }}</div>
                             </div>
 
@@ -347,6 +352,7 @@ let pendingEchoareaTag = null;
 let pendingEchoareaDomain = null;
 let pendingEchoareaOpenHandled = false;
 let currentEchoareaInfo = null;
+const configuredNetworkDomains = {{ networks|map(n => n.domain)|json_encode|raw }};
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -691,6 +697,20 @@ function showAddEchoareaModal() {
     $('#echoareaModal').modal('show');
 }
 
+function ensureEchoareaDomainOption(domain) {
+    if (!domain || configuredNetworkDomains.includes(domain)) {
+        return;
+    }
+    const select = document.getElementById('echoareaDomain');
+    if (!select || Array.from(select.options).some(option => option.value === domain)) {
+        return;
+    }
+    const option = document.createElement('option');
+    option.value = domain;
+    option.textContent = `${domain} (${uiT('ui.admin.binkp_config.uplinks.modal.unconfigured_network', 'unconfigured')})`;
+    select.appendChild(option);
+}
+
 function editEchoarea(id) {
     currentEchoareaId = id;
     $('#echoareaModalTitle').text(uiT('ui.echoareas.edit_echo_area', 'Edit Echo Area'));
@@ -703,7 +723,8 @@ function editEchoarea(id) {
 
             $('#echoareaTag').val(area.tag);
             $('#echoareaDescription').val(area.description);
-            $("#echoareaDomain").val(area.domain);
+            ensureEchoareaDomainOption(area.domain || '');
+            $("#echoareaDomain").val(area.domain || '');
             $('#echoareaUplink').val(area.uplink_address || '');
             $('#echoareaColor').val(area.color || '#28a745');
             $('#echoareaModerator').val(area.moderator || '');
@@ -778,6 +799,14 @@ function saveEchoarea() {
         form[0].reportValidity();
         return;
     }
+
+    const selectedDomain = String($("#echoareaDomain").val() || '').trim();
+    if (selectedDomain !== '' && !configuredNetworkDomains.includes(selectedDomain)) {
+        $('#echoareaModalError')
+            .text(uiT('errors.echoareas.unknown_domain', 'Select a configured network domain'))
+            .removeClass('d-none');
+        return;
+    }
     
     const formData = {
         tag: $('#echoareaTag').val().toUpperCase(),
@@ -789,7 +818,7 @@ function saveEchoarea() {
         is_local: $('#echoareaLocal').is(':checked'),
         is_sysop_only: $('#echoareaSysopOnly').is(':checked'),
         gemini_public: $('#echoareaGeminiPublic').is(':checked'),
-        domain: $("#echoareaDomain").val() || null,
+        domain: selectedDomain || null,
         posting_name_policy: $('#echoareaPostingNamePolicy').val(),
         art_format_hint: $('#echoareaArtFormatHint').val(),
         allow_media: $('#echoareaAllowMedia').val()

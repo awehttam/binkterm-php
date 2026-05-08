@@ -93,6 +93,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Le tag et la description sont requis',
     'errors.echoareas.invalid_tag_format' => 'Format de tag invalide',
     'errors.echoareas.invalid_color_format' => 'Format de couleur invalide',
+    'errors.echoareas.unknown_domain' => 'Sélectionnez un domaine réseau configuré',
     'errors.echoareas.tag_already_exists' => 'Une zone echo avec ce tag existe déjà',
     'errors.echoareas.create_failed' => 'Échec de la création de la zone echo',
     'errors.echoareas.not_found_or_unchanged' => 'Zone echo introuvable ou aucune modification effectuée',
@@ -647,6 +648,11 @@ return [
     'errors.bulletins.invalid_ids' => 'Liste de bulletins non valide.',
     'errors.admin.bulletins.invalid_payload' => 'Donnees de bulletin non valides.',
     'errors.admin.bulletins.save_failed' => 'Impossible d enregistrer le bulletin.',
+    'errors.admin.networks.load_failed' => 'Failed to load networks',
+    'errors.admin.networks.save_failed' => 'Failed to save network',
+    'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
+    'errors.admin.networks.delete_in_use' => 'Network is in use',
+    'errors.admin.networks.delete_failed' => 'Failed to delete network',
 ];
 
 

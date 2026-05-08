@@ -438,8 +438,17 @@ class LovlyNetClient
 
         $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
         $result = $daemonClient->saveLovlyNetConfig($json);
+        $saved = (bool)($result['ok'] ?? $result['success'] ?? false);
+        if ($saved) {
+            try {
+                (new \BinktermPHP\NetworkManager())->upsertLovlyNetDefaults();
+            } catch (\Throwable $e) {
+                // Registration updates should not fail solely because the network
+                // table is not available yet during an upgrade window.
+            }
+        }
 
-        return (bool)($result['ok'] ?? false);
+        return $saved;
     }
 
     /**

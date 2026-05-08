@@ -55,12 +55,12 @@ Fill in the form fields:
 
 - **Tag** — Required. Auto-converted to uppercase. Maximum 20 characters. Use alphanumeric characters, dots, underscores, or hyphens (e.g. `MICRONET.CHAT`).
 - **Description** — Required. Displayed to users in the area list.
-- **Domain** — The FTN network this area belongs to. Leave blank for a local area. Available domains are discovered from the BinkP uplink configuration.
+- **Domain** — The FTN network this area belongs to. Leave blank for a local area. Available domains come from the configured networks list.
 - **Uplink Address** — The node address of the upstream system for this area (e.g. `1:153/757`). Optional.
 - **Moderator** — Name of the area moderator. Optional, displayed in area info.
 - **Color** — Visual accent color for the web interface. Choose from presets or enter a hex value.
 - **Posting Name Policy** — Controls how the user's name appears in outbound messages:
-  - *(inherit)* — Use the policy configured for the uplink (default behavior).
+  - *(inherit)* — Use the policy configured for the network (default behavior).
   - `real_name` — Use the user's real name field.
   - `username` — Use the user's login username.
 - **Active** — Uncheck to disable the area without deleting it.
@@ -115,7 +115,7 @@ Character encoding is detected via the `CHRS` kludge and converted to UTF-8 for 
 2. The message is stored in the `echomail` table.
 3. If echomail moderation is enabled and the user has not yet earned unmoderated posting rights, the message is stored with `moderation_status = 'pending'` and held for sysop review (see [Echomail Moderation](#echomail-moderation) below). Otherwise it proceeds immediately.
 4. At the next binkp poll, `BinkdProcessor` selects pending outbound messages for areas where `is_local = false` and `is_active = true`, and bundles them into a packet destined for the configured uplink.
-5. The posting name in the outbound packet is determined by the area's `posting_name_policy` (or the uplink's default policy if the area policy is unset).
+5. The posting name in the outbound packet is determined by the area's `posting_name_policy` (or the network's default policy if the area policy is unset).
 
 ---
 
@@ -185,9 +185,9 @@ Users subscribe to echo areas to receive them in their message feed. Subscriptio
 
 ## Multi-Network Support
 
-BinktermPHP supports simultaneous membership in multiple FTN networks. Each uplink is configured with a domain name in the BinkP settings. When a packet arrives from an uplink, its domain is used to scope the echo area lookup, so `GENERAL@fidonet` and `GENERAL@lovlynet` are stored and managed as separate areas even though they share the same tag.
+BinktermPHP supports simultaneous membership in multiple FTN networks. Each uplink selects a configured network domain in the BinkP settings. When a packet arrives from an uplink, its domain is used to scope the echo area lookup, so `GENERAL@fidonet` and `GENERAL@lovlynet` are stored and managed as separate areas even though they share the same tag.
 
-Domain names are discovered automatically from the BinkP uplink configuration and are available in the domain drop-down when creating areas.
+Domain names are managed in **Admin → Networks** and are available in the domain drop-down when creating areas.
 
 ---
 

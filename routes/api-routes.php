@@ -2278,6 +2278,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Invalid color format');
             }
 
+            if ($domain !== '' && !(new \BinktermPHP\NetworkManager())->exists($domain)) {
+                throw new \Exception('Unknown network domain');
+            }
+
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
@@ -2309,6 +2313,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_tag_format', apiLocalizedText('errors.echoareas.invalid_tag_format', 'Invalid tag format', $user));
             } elseif ($message === 'Invalid color format') {
                 apiError('errors.echoareas.invalid_color_format', apiLocalizedText('errors.echoareas.invalid_color_format', 'Invalid color format', $user));
+            } elseif ($message === 'Unknown network domain') {
+                apiError('errors.echoareas.unknown_domain', apiLocalizedText('errors.echoareas.unknown_domain', 'Select a configured network domain', $user));
             } elseif ($e instanceof \PDOException && $e->getCode() === '23505') {
                 apiError('errors.echoareas.tag_already_exists', apiLocalizedText('errors.echoareas.tag_already_exists', 'An echo area with that tag already exists', $user));
             } else {
@@ -2374,6 +2380,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Invalid color format');
             }
 
+            if ($domain !== '' && !(new \BinktermPHP\NetworkManager())->exists($domain)) {
+                throw new \Exception('Unknown network domain');
+            }
+
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
@@ -2405,6 +2415,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_tag_format', apiLocalizedText('errors.echoareas.invalid_tag_format', 'Invalid tag format', $user));
             } elseif ($message === 'Invalid color format') {
                 apiError('errors.echoareas.invalid_color_format', apiLocalizedText('errors.echoareas.invalid_color_format', 'Invalid color format', $user));
+            } elseif ($message === 'Unknown network domain') {
+                apiError('errors.echoareas.unknown_domain', apiLocalizedText('errors.echoareas.unknown_domain', 'Select a configured network domain', $user));
             } elseif ($message === 'Echo area not found or no changes made') {
                 apiError('errors.echoareas.not_found_or_unchanged', apiLocalizedText('errors.echoareas.not_found_or_unchanged', 'Echo area not found or no changes made', $user));
             } elseif ($e instanceof \PDOException && $e->getCode() === '23505') {
@@ -6756,9 +6768,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $defaultCharsetForDest = 'UTF-8';
                 } else {
                     $defaultCharsetForDest = \BinktermPHP\BbsConfig::getOutgoingCharset();
-                    $destUplink = $binkpConfig->getUplinkForDestination((string)$address);
-                    if ($destUplink && !empty($destUplink['default_charset'])) {
-                        $defaultCharsetForDest = strtoupper($destUplink['default_charset']);
+                    $networkCharset = $binkpConfig->getDefaultCharsetForDestination((string)$address);
+                    if ($networkCharset !== null) {
+                        $defaultCharsetForDest = strtoupper($networkCharset);
                     }
                 }
             }

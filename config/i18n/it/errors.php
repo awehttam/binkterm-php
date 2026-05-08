@@ -127,6 +127,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Tag e descrizione sono obbligatori',
     'errors.echoareas.invalid_tag_format' => 'Formato tag non valido',
     'errors.echoareas.invalid_color_format' => 'Formato colore non valido',
+    'errors.echoareas.unknown_domain' => 'Seleziona un dominio di rete configurato',
     'errors.echoareas.tag_already_exists' => 'Esiste già un’area echo con quel tag',
     'errors.echoareas.create_failed' => 'Impossibile creare l’area echo',
     'errors.echoareas.not_found_or_unchanged' => 'Area echo non trovata o nessuna modifica effettuata',
@@ -690,4 +691,9 @@ return [
     'errors.bulletins.invalid_ids' => 'Elenco bollettini non valido.',
     'errors.admin.bulletins.invalid_payload' => 'Dati bollettino non validi.',
     'errors.admin.bulletins.save_failed' => 'Impossibile salvare il bollettino.',
+    'errors.admin.networks.load_failed' => 'Failed to load networks',
+    'errors.admin.networks.save_failed' => 'Failed to save network',
+    'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
+    'errors.admin.networks.delete_in_use' => 'Network is in use',
+    'errors.admin.networks.delete_failed' => 'Failed to delete network',
 ];

@@ -22,6 +22,7 @@ use BinktermPHP\EchoareaManager;
 use BinktermPHP\FileAreaManager;
 use BinktermPHP\LovlyNetClient;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\NetworkManager;
 use BinktermPHP\Version;
 
 define('LOVLYNET_REGISTRY_URL', 'https://lovlynet.lovelybits.org/api/register.php');
@@ -111,6 +112,18 @@ function saveLovlyNetConfig($config) {
  */
 function deriveLovlyNetTicPassword(string $areafixPassword): string {
     return strtoupper(substr($areafixPassword, 0, 8));
+}
+
+/**
+ * Ensure the LovlyNet network-level settings exist in the networks table.
+ */
+function ensureLovlyNetNetworkDefaults(): void {
+    try {
+        $manager = new NetworkManager();
+        $manager->upsertLovlyNetDefaults();
+    } catch (\Throwable $e) {
+        echo "Warning: Could not update LovlyNet network defaults: " . $e->getMessage() . "\n";
+    }
 }
 
 /**
@@ -528,6 +541,7 @@ function doRegistration($isUpdate = false) {
     }
 
     // Configure binkp uplink
+    ensureLovlyNetNetworkDefaults();
     echo "Configuring LovlyNet uplink... ";
 
     try {
@@ -544,12 +558,10 @@ function doRegistration($isUpdate = false) {
                 'tic_password' => $ticPassword,
                 'domain' => LOVLYNET_DOMAIN,
                 'networks' => ['227:*/*'],
-                'allow_markup' => true,
                 'enabled' => true,
                 'compression' => false,
                 'crypt' => true,
                 'poll_schedule' => '*/15 * * * *',
-                'default_charset' => 'UTF-8',
             ]);
         } else {
             // Add new uplink
@@ -563,11 +575,9 @@ function doRegistration($isUpdate = false) {
                     'domain' => LOVLYNET_DOMAIN,
                     'networks' => ['227:*/*'],
                     'tic_password' => $ticPassword,
-                    'allow_markup' => true,
                     'compression' => false,
                     'crypt' => true,
                     'poll_schedule' => '*/15 * * * *',
-                    'default_charset' => 'UTF-8',
                 ]
             );
         }
