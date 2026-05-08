@@ -1172,8 +1172,11 @@ SimpleRouter::get('/fileareas', function() {
         return;
     }
 
+    $networkManager = new \BinktermPHP\NetworkManager();
     $template = new Template();
-    $template->renderResponse('fileareas.twig');
+    $template->renderResponse('fileareas.twig', [
+        'networks' => $networkManager->getAll(),
+    ]);
 });
 
 SimpleRouter::get('/files', function() {

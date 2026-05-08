@@ -2865,6 +2865,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     apiError('errors.admin.networks.delete_in_use', apiLocalizedText('errors.admin.networks.delete_in_use', 'Network is in use'), 409);
                     return;
                 }
+                $stmt = $db->prepare("SELECT COUNT(*) FROM file_areas WHERE LOWER(domain) = LOWER(?)");
+                $stmt->execute([(string)$network['domain']]);
+                if ((int)$stmt->fetchColumn() > 0) {
+                    apiError('errors.admin.networks.delete_in_use', apiLocalizedText('errors.admin.networks.delete_in_use', 'Network is in use'), 409);
+                    return;
+                }
 
                 $manager->delete((int)$id);
                 echo json_encode(['success' => true, 'message_code' => 'ui.admin.networks.deleted']);

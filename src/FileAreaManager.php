@@ -110,6 +110,17 @@ class FileAreaManager
         return $mountPoint;
     }
 
+    private function validateNetworkDomain(string $domain): void
+    {
+        $domain = trim($domain);
+        if ($domain === '') {
+            return;
+        }
+        if (!(new NetworkManager($this->db))->exists($domain)) {
+            throw new \Exception('Unknown network domain');
+        }
+    }
+
     private function isFreqExperimentalEnabled(): bool
     {
         return Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true';
@@ -1070,6 +1081,7 @@ class FileAreaManager
         if (empty($tag) || empty($description)) {
             throw new \Exception('Tag and description are required');
         }
+        $this->validateNetworkDomain($domain);
 
         // Check for duplicate
         if ($this->getFileAreaByTag($tag, $domain)) {
@@ -1149,6 +1161,7 @@ class FileAreaManager
         if (empty($description)) {
             throw new \Exception('Description is required');
         }
+        $this->validateNetworkDomain($domain);
         $areaType    = in_array($data['area_type'] ?? $currentArea['area_type'] ?? 'normal', ['normal', 'iso'])
             ? ($data['area_type'] ?? $currentArea['area_type'] ?? 'normal')
             : 'normal';

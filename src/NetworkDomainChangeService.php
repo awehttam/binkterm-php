@@ -30,6 +30,7 @@ class NetworkDomainChangeService
             return [
                 'network' => $network,
                 'echoareas_updated' => 0,
+                'fileareas_updated' => 0,
                 'uplinks_updated' => 0,
             ];
         }
@@ -54,6 +55,10 @@ class NetworkDomainChangeService
             $stmt->execute([$normalizedNewDomain, $oldDomain]);
             $echoareasUpdated = $stmt->rowCount();
 
+            $stmt = $this->db->prepare("UPDATE file_areas SET domain = ? WHERE LOWER(domain) = LOWER(?)");
+            $stmt->execute([$normalizedNewDomain, $oldDomain]);
+            $fileareasUpdated = $stmt->rowCount();
+
             if ($uplinksUpdated > 0) {
                 $client = new AdminDaemonClient();
                 $client->setFullBinkpConfig($config);
@@ -64,6 +69,7 @@ class NetworkDomainChangeService
             return [
                 'network' => $updatedNetwork,
                 'echoareas_updated' => $echoareasUpdated,
+                'fileareas_updated' => $fileareasUpdated,
                 'uplinks_updated' => $uplinksUpdated,
             ];
         } catch (\Throwable $e) {
