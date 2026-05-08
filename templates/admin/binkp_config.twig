@@ -346,6 +346,7 @@ let binkpConfig = null;
 let uplinkModal;
 let uplinkCheckStates = {};
 const configuredNetworkDomains = {{ networks|map(n => n.domain)|json_encode|raw }};
+const requestedUplinkAddress = new URLSearchParams(window.location.search).get('uplink');
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -380,6 +381,7 @@ function loadBinkpConfig() {
             binkpConfig = data.config || {};
             populateForm();
             renderUplinks();
+            openRequestedUplinkEditor();
             setSettingsLoading('#binkpConfigCards, #binkpUplinksCard', false);
         })
         .catch(error => {
@@ -575,6 +577,19 @@ function renderUplinks() {
         `;
         tbody.appendChild(row);
     });
+}
+
+function openRequestedUplinkEditor() {
+    if (!requestedUplinkAddress) {
+        return;
+    }
+    const uplinks = binkpConfig.uplinks || [];
+    const index = uplinks.findIndex(uplink => String(uplink.address || '').toLowerCase() === requestedUplinkAddress.toLowerCase());
+    if (index === -1) {
+        showBinkpAlert(uiT('ui.admin.binkp_config.uplinks.not_found', 'Uplink not found.'), 'warning');
+        return;
+    }
+    openUplinkModal(index);
 }
 
 function renderUplinkCheckButton(address) {

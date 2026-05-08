@@ -25,6 +25,7 @@
                             <th>{{ t('ui.admin.networks.domain', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.networks.name', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.networks.description', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.binkp.uplinks', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.networks.flags', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.common.actions', {}, locale, ['common']) }}</th>
                         </tr>
@@ -182,6 +183,7 @@ function renderNetworks() {
                 ${network.website ? `<a class="small" href="${escapeHtmlAttr(network.website)}" target="_blank" rel="noopener">${escapeHtml(uiT('ui.admin.networks.website', 'Website'))}</a>` : ''}
             </td>
             <td>${escapeHtml(network.description || '')}</td>
+            <td>${renderNetworkUplinks(network)}</td>
             <td>${flags.map(flag => `<span class="badge bg-secondary me-1">${escapeHtml(flag)}</span>`).join('')}</td>
             <td class="text-nowrap">
                 <div class="btn-group btn-group-sm" role="group" aria-label="${escapeHtmlAttr(uiT('ui.common.actions', 'Actions'))}">
@@ -196,6 +198,18 @@ function renderNetworks() {
         `;
         tbody.appendChild(row);
     });
+}
+
+function renderNetworkUplinks(network) {
+    const uplinks = Array.isArray(network.uplinks) ? network.uplinks : [];
+    if (uplinks.length === 0) {
+        return '<span class="text-muted">&mdash;</span>';
+    }
+    return uplinks.map(address => {
+        const value = String(address || '');
+        const url = `/admin/binkp-config?uplink=${encodeURIComponent(value)}`;
+        return `<a class="d-block font-monospace small" href="${escapeHtmlAttr(url)}">${escapeHtml(value)}</a>`;
+    }).join('');
 }
 
 function getNetworkTypeIconClass(network) {
@@ -293,15 +307,24 @@ function deleteNetwork(id) {
         return;
     }
     fetch(`/admin/api/networks/${encodeURIComponent(id)}`, { method: 'DELETE' })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                throw new Error(apiError(data, uiT('ui.admin.networks.delete_failed', 'Failed to delete network')));
+        .then(response => response.json().catch(() => ({})).then(data => ({ response, data })))
+        .then(({ response, data }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(formatDeleteNetworkError(data));
             }
             loadNetworks();
             showAlert('networksAlert', apiMessage(data, uiT('ui.admin.networks.deleted', 'Network deleted')), 'success');
         })
         .catch(error => showAlert('networksAlert', error.message, 'danger'));
+}
+
+function formatDeleteNetworkError(payload) {
+    let message = apiError(payload, uiT('ui.admin.networks.delete_failed', 'Failed to delete network'));
+    const uplinks = Array.isArray(payload && payload.uplinks) ? payload.uplinks.filter(Boolean) : [];
+    if (uplinks.length > 0) {
+        message += ` ${uiT('ui.binkp.uplinks', 'Uplinks')}: ${uplinks.join(', ')}`;
+    }
+    return message;
 }
 
 function apiError(payload, fallback) {

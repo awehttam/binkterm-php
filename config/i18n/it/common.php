@@ -773,6 +773,7 @@ return [
     'ui.admin.binkp_config.uplinks.title' => 'Uplink',
     'ui.admin.binkp_config.uplinks.add_uplink' => 'Aggiungi uplink',
     'ui.admin.binkp_config.uplinks.edit_uplink' => 'Modifica uplink',
+    'ui.admin.binkp_config.uplinks.not_found' => 'Uplink not found.',
     'ui.admin.binkp_config.uplinks.none_configured' => 'Nessun uplink configurato.',
     'ui.admin.binkp_config.uplinks.check_failed' => 'Controllo connettività non riuscito',
     'ui.admin.binkp_config.uplinks.check_success' => 'Controllo connettività riuscito',

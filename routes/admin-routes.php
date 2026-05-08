@@ -2750,7 +2750,23 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $manager = new \BinktermPHP\NetworkManager();
-                echo json_encode(['success' => true, 'networks' => $manager->getAll()]);
+                $networks = $manager->getAll();
+                $uplinksByDomain = [];
+                $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                foreach ($config->getUplinks() as $uplink) {
+                    $domain = strtolower(trim((string)($uplink['domain'] ?? '')));
+                    $address = trim((string)($uplink['address'] ?? ''));
+                    if ($domain === '' || $address === '') {
+                        continue;
+                    }
+                    $uplinksByDomain[$domain][] = $address;
+                }
+                foreach ($networks as &$network) {
+                    $domain = strtolower(trim((string)($network['domain'] ?? '')));
+                    $network['uplinks'] = array_values(array_unique($uplinksByDomain[$domain] ?? []));
+                }
+                unset($network);
+                echo json_encode(['success' => true, 'networks' => $networks]);
             } catch (Exception $e) {
                 apiError('errors.admin.networks.load_failed', apiLocalizedText('errors.admin.networks.load_failed', 'Failed to load networks'), 500);
             }
