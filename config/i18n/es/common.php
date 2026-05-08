@@ -4711,6 +4711,7 @@ return [
     'ui.admin.bulletins.reordered_success' => 'Boletines reordenados.',
 
     'ui.admin.bbs_settings.media_player.title' => 'Reproductor multimedia',
+    'ui.admin.bbs_settings.media_player.description' => 'Experimental. Renderiza URL de medios detectadas en linea en los lectores de mensajes. Los usuarios pueden cargar medios con un clic o usar la visualizacion automatica. En modo automatico, las URL de medios detectadas se cargan o incrustan de inmediato y pueden implicar analiticas de terceros. Recomendado habilitado para LovlyNet.',
     'ui.admin.bbs_settings.media_player.enabled' => 'Habilitar reproductor multimedia en linea',
     'ui.admin.bbs_settings.media_player.providers_label' => 'Proveedores habilitados:',
     'ui.admin.bbs_settings.media_player.save' => 'Guardar configuracion del reproductor',

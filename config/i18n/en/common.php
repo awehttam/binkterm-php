@@ -4708,6 +4708,7 @@ return [
     'ui.admin.bulletins.reordered_success' => 'Bulletins reordered.',
 
     'ui.admin.bbs_settings.media_player.title' => 'Media Player',
+    'ui.admin.bbs_settings.media_player.description' => 'Experimental. Renders detected media URLs inline in message readers. Users can load media by clicking it, or use automatic display; automatic mode loads or embeds detected media URLs immediately and may involve third-party analytics. Recommended enabled for LovlyNet.',
     'ui.admin.bbs_settings.media_player.enabled' => 'Enable inline media player',
     'ui.admin.bbs_settings.media_player.providers_label' => 'Enabled providers:',
     'ui.admin.bbs_settings.media_player.save' => 'Save Media Player Settings',

@@ -4617,6 +4617,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.bulletins.reordered_success' => 'Bulletins reordonnes.',
 
     'ui.admin.bbs_settings.media_player.title' => 'Lecteur multimedia',
+    'ui.admin.bbs_settings.media_player.description' => 'Experimental. Affiche les URL multimedia detectees directement dans les lecteurs de messages. Les utilisateurs peuvent charger les medias par clic ou utiliser l affichage automatique. En mode automatique, les URL multimedia detectees sont chargees ou integrees immediatement et peuvent impliquer des analyses de tiers. Recommande pour LovlyNet.',
     'ui.admin.bbs_settings.media_player.enabled' => 'Activer le lecteur multimedia integre',
     'ui.admin.bbs_settings.media_player.providers_label' => 'Fournisseurs actives :',
     'ui.admin.bbs_settings.media_player.save' => 'Enregistrer les parametres du lecteur',

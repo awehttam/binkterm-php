@@ -4723,6 +4723,7 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.files.link_file_name_help' => 'Anzeigename für diesen Link (z.B. video.mp4 oder Mein Dokument).',
 
     'ui.admin.bbs_settings.media_player.title' => 'Mediaplayer',
+    'ui.admin.bbs_settings.media_player.description' => 'Experimentell. Rendert erkannte Medien-URLs inline in Nachrichtenlesern. Benutzer koennen Medien per Klick laden oder die automatische Anzeige verwenden. Im automatischen Modus werden erkannte Medien-URLs sofort geladen oder eingebettet und koennen Drittanbieter-Analysen einbeziehen. Fuer LovlyNet empfohlen.',
     'ui.admin.bbs_settings.media_player.enabled' => 'Integrierten Mediaplayer aktivieren',
     'ui.admin.bbs_settings.media_player.providers_label' => 'Aktivierte Anbieter:',
     'ui.admin.bbs_settings.media_player.save' => 'Mediaplayer-Einstellungen speichern',

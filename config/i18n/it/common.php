@@ -4708,6 +4708,7 @@ return [
     'ui.admin.bulletins.reordered_success' => 'Bollettini riordinati.',
 
     'ui.admin.bbs_settings.media_player.title' => 'Lettore multimediale',
+    'ui.admin.bbs_settings.media_player.description' => 'Sperimentale. Visualizza gli URL multimediali rilevati direttamente nei lettori dei messaggi. Gli utenti possono caricare i media con un clic oppure usare la visualizzazione automatica. In modalita automatica, gli URL multimediali rilevati vengono caricati o incorporati subito e possono coinvolgere analitiche di terze parti. Consigliato abilitato per LovlyNet.',
     'ui.admin.bbs_settings.media_player.enabled' => 'Abilita il lettore multimediale integrato',
     'ui.admin.bbs_settings.media_player.providers_label' => 'Provider abilitati:',
     'ui.admin.bbs_settings.media_player.save' => 'Salva impostazioni lettore',
