@@ -277,6 +277,9 @@
                     <dt class="col-sm-3">{{ t('ui.files.from', {}, 'common') }}:</dt>
                     <dd class="col-sm-9" id="detailFrom"></dd>
 
+                    <dt class="col-sm-3">{{ t('ui.files.area', {}, 'common') }}:</dt>
+                    <dd class="col-sm-9" id="detailArea"></dd>
+
                     <dt class="col-sm-3">{{ t('ui.files.virus_scan', {}, 'common') }}:</dt>
                     <dd class="col-sm-9">
                         <span id="detailVirusScan"></span>
@@ -1580,6 +1583,12 @@ function showFileDetails(fileId) {
             $('#detailSize').text(file.source_type === 'url' ? '—' : formatBytes(file.filesize));
             $('#detailUploaded').text(formatDate(file.created_at));
             $('#detailFrom').text(file.display_from || uiT('ui.common.unknown', 'Unknown'));
+            const detailAreaTag = file.area_tag || file.file_area_tag || '';
+            const detailAreaDomain = file.domain ? `<span class="text-muted">@${escapeHtml(file.domain)}</span>` : '';
+            $('#detailArea').html(detailAreaTag
+                ? `<span class="badge bg-secondary">${escapeHtml(detailAreaTag)}</span>${detailAreaDomain}`
+                : uiT('ui.common.unknown', 'Unknown')
+            );
 
             // Virus scan status
             let scanStatus = uiT('ui.files.not_scanned', 'Not scanned');
