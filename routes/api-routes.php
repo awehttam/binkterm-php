@@ -1941,9 +1941,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         $messageHandler = new MessageHandler();
         $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
+        $moderationFilter = $messageHandler->buildModerationVisibilityFilter($userId, 'em');
 
-        // Query with cached message count / last-post columns and one live subquery for unread count.
-        // total_counts (was: COUNT(*) GROUP BY) is replaced by e.message_count — maintained incrementally.
+        // Query with cached last-post columns and one live subquery for user-visible message counts.
+        // e.message_count is the raw area total; sidebar counts must match the message list filters.
         // last_posts (was: DISTINCT ON full scan + external sort) is replaced by e.last_post_* columns.
         $sql = "SELECT
                     e.id,
@@ -1958,8 +1959,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.domain,
                     e.is_local,
                     e.is_sysop_only,
-                    e.message_count,
-                    COALESCE(unread_counts.unread_count, 0) as unread_count,
+                    COALESCE(visible_counts.message_count, 0) as message_count,
+                    COALESCE(visible_counts.unread_count, 0) as unread_count,
                     COALESCE(sub_counts.subscriber_count, 0) as subscriber_count,
                     e.last_post_subject as last_subject,
                     e.last_post_author  as last_author,
@@ -1978,13 +1979,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sql .= " LEFT JOIN (
                     SELECT
                         em.echoarea_id,
-                        COUNT(*) as unread_count
+                        COUNT(*) as message_count,
+                        COUNT(*) FILTER (WHERE mrs.read_at IS NULL) as unread_count
                     FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    WHERE mrs.read_at IS NULL
-                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
+                    WHERE (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}{$moderationFilter['sql']}
                     GROUP BY em.echoarea_id
-                ) unread_counts ON e.id = unread_counts.echoarea_id
+                ) visible_counts ON e.id = visible_counts.echoarea_id
                 LEFT JOIN (
                     SELECT echoarea_id, COUNT(*) as subscriber_count
                     FROM user_echoarea_subscriptions
@@ -1994,6 +1995,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $params[] = $userId;
         foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
+        foreach ($moderationFilter['params'] as $param) {
             $params[] = $param;
         }
 
