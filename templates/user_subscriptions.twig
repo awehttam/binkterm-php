@@ -16,11 +16,40 @@
                 <div class="card-body">
                     {% set subscribed_count = echoareas|filter(e => e.subscribed)|length %}
                     {% set total_count = echoareas|length %}
-                    <div class="d-flex align-items-center gap-3 mb-3">
+                    {% if interests is defined and interests|length > 0 %}
+                    <div class="alert alert-info d-flex align-items-center gap-2 mb-3">
+                        <i class="fas fa-layer-group flex-shrink-0" aria-hidden="true"></i>
+                        <div>
+                            {{ t('ui.user_subscriptions.interests_blurb', {}, locale, ['common']) }}
+                            <a href="/interests" class="alert-link">{{ t('ui.user_subscriptions.review_interests', {}, locale, ['common']) }}</a>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-3 mb-3">
                         <input type="text"
                                class="form-control"
                                id="search-echoareas"
                                placeholder="{{ t('ui.user_subscriptions.search_placeholder', {}, locale, ['common']) }}">
+                        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                            <label for="sort-echoareas" class="form-label mb-0 text-muted small text-nowrap">
+                                {{ t('ui.user_subscriptions.sort_by', {}, locale, ['common']) }}
+                            </label>
+                            <select class="form-select form-select-sm" id="sort-echoareas" style="min-width: 160px;">
+                                <option value="name">{{ t('ui.user_subscriptions.sort_name', {}, locale, ['common']) }}</option>
+                                <option value="created">{{ t('ui.user_subscriptions.sort_created', {}, locale, ['common']) }}</option>
+                                <option value="messages">{{ t('ui.user_subscriptions.sort_messages', {}, locale, ['common']) }}</option>
+                            </select>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary"
+                                    id="sort-direction"
+                                    data-direction="asc"
+                                    data-asc-label="{{ t('ui.user_subscriptions.sort_direction_asc', {}, locale, ['common']) }}"
+                                    data-desc-label="{{ t('ui.user_subscriptions.sort_direction_desc', {}, locale, ['common']) }}"
+                                    aria-label="{{ t('ui.user_subscriptions.sort_direction_asc', {}, locale, ['common']) }}"
+                                    title="{{ t('ui.user_subscriptions.sort_direction_asc', {}, locale, ['common']) }}">
+                                <i class="fas fa-sort-alpha-down" aria-hidden="true"></i>
+                            </button>
+                        </div>
                         <div class="flex-shrink-0 text-end" style="min-width:160px">
                             <small class="text-muted d-block">{{ t('ui.user_subscriptions.subscribed_label', {}, locale, ['common']) }} <strong>{{ subscribed_count }} / {{ total_count }}</strong></small>
                             <div class="progress mt-1" style="height: 5px;">
@@ -46,6 +75,9 @@
                         {% for echoarea in echoareas %}
                         <div class="card mb-3 echoarea-card"
                              data-tag="{{ echoarea.tag|lower }}"
+                             data-name="{{ echoarea.tag|lower }}"
+                             data-created="{{ echoarea.created_at ? echoarea.created_at|date('U') : 0 }}"
+                             data-messages="{{ echoarea.message_count|default(0) }}"
                              data-interest-ids="{{ (echoarea_interest_map is defined and echoarea_interest_map[echoarea.id] is defined) ? echoarea_interest_map[echoarea.id]|join(',') : '' }}">
                             <div class="card-body">
                                 <div class="row align-items-center">
@@ -122,7 +154,10 @@ function uiT(key, fallback, params = {}) {
 
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search-echoareas');
-    const echoareaCards = document.querySelectorAll('.echoarea-card');
+    const sortSelect = document.getElementById('sort-echoareas');
+    const sortDirectionButton = document.getElementById('sort-direction');
+    const echoareasList = document.getElementById('echoareas-list');
+    const echoareaCards = Array.from(document.querySelectorAll('.echoarea-card'));
     const subscriptionToggles = document.querySelectorAll('.subscription-toggle');
     const toastEl = document.getElementById('subscriptionToast');
     const toastBody = document.getElementById('subscriptionToastBody');
@@ -149,6 +184,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Search functionality
     searchInput.addEventListener('input', applyFilters);
+
+    function sortEchoareas() {
+        const sortKey = sortSelect.value;
+        const direction = sortDirectionButton.dataset.direction === 'desc' ? -1 : 1;
+
+        const sortedCards = [...echoareaCards].sort((a, b) => {
+            if (sortKey === 'created') {
+                return ((parseInt(a.dataset.created, 10) || 0) - (parseInt(b.dataset.created, 10) || 0)) * direction;
+            }
+
+            if (sortKey === 'messages') {
+                return ((parseInt(a.dataset.messages, 10) || 0) - (parseInt(b.dataset.messages, 10) || 0)) * direction;
+            }
+
+            return a.dataset.name.localeCompare(b.dataset.name, undefined, { sensitivity: 'base' }) * direction;
+        });
+
+        sortedCards.forEach(card => echoareasList.appendChild(card));
+    }
+
+    function updateSortDirectionButton() {
+        const descending = sortDirectionButton.dataset.direction === 'desc';
+        const label = descending ? sortDirectionButton.dataset.descLabel : sortDirectionButton.dataset.ascLabel;
+        sortDirectionButton.setAttribute('aria-label', label);
+        sortDirectionButton.setAttribute('title', label);
+        sortDirectionButton.querySelector('i').className = descending ? 'fas fa-sort-alpha-up' : 'fas fa-sort-alpha-down';
+    }
+
+    sortSelect.addEventListener('change', sortEchoareas);
+    sortDirectionButton.addEventListener('click', function() {
+        this.dataset.direction = this.dataset.direction === 'asc' ? 'desc' : 'asc';
+        updateSortDirectionButton();
+        sortEchoareas();
+    });
+
+    sortEchoareas();
 
     // Interest filter buttons (cumulative toggle)
     document.querySelectorAll('.interest-filter-btn').forEach(btn => {

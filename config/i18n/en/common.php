@@ -4006,6 +4006,14 @@ return [
     'ui.user_subscriptions.update_failed' => 'Failed to update subscription. Please try again.',
     'ui.user_subscriptions.network_error' => 'Network error. Please try again.',
     'ui.user_subscriptions.filter_by_interest' => 'Filter by interest:',
+    'ui.user_subscriptions.sort_by' => 'Sort by:',
+    'ui.user_subscriptions.sort_name' => 'Name',
+    'ui.user_subscriptions.sort_created' => 'Date created',
+    'ui.user_subscriptions.sort_messages' => 'Messages',
+    'ui.user_subscriptions.sort_direction_asc' => 'Sort ascending',
+    'ui.user_subscriptions.sort_direction_desc' => 'Sort descending',
+    'ui.user_subscriptions.interests_blurb' => 'Interests are another way to manage echo area subscriptions by topic.',
+    'ui.user_subscriptions.review_interests' => 'Review your interests.',
 
     // Echoareas import
     'ui.echoareas_import.page_title' => 'Import Echo Areas',

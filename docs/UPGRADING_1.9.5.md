@@ -15,9 +15,11 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Message Encoding](#terminal-message-encoding)
 - [Terminal Echomail Display](#terminal-echomail-display)
 - [User Settings](#user-settings)
+- [User Subscriptions](#user-subscriptions)
 - [Terminal Language Selection](#terminal-language-selection)
 - [Localized Documentation](#localized-documentation)
 - [Community Wireless Node Map](#community-wireless-node-map)
+- [Dashboard](#dashboard)
 - [BBS Directory CLI](#bbs-directory-cli)
 - [File Areas](#file-areas)
 - [Terminal Registration](#terminal-registration)
@@ -96,7 +98,9 @@ Messages posted by Auto Feed now identify the poster component as `BinktermPHP A
 - Fixed the terminal language selector so it shows all installed languages rather than a fixed list of three.
 - Added support for locale-specific documentation files. The user guide and admin help browser now serve translated Markdown files when available, falling back to the English source when no translation exists. Any locale directory added under `config/i18n/` now appears automatically in the telnet and SSH settings language list.
 - Added translated user guides for French (`index.fr.md`), Spanish (`index.es.md`), Italian (`index.it.md`), and German (`index.de.md`). These are served automatically when the user's active language matches the locale.
+- Renamed the dashboard's top mail summary card to "Mail & Areas" and added a **NEW ECHOAREAS** section that lists active echo areas created in the past 30 days. Non-admin users do not see sysop-only areas in this list.
 - Fixed the web settings page so saving one changed preference no longer resubmits every setting from every tab. The page now shows a loading overlay until the user's saved settings are loaded, then saves only changed preferences so unrelated settings are not overwritten by stale or unloaded form values.
+- Added sorting controls to the user's **Manage Subscriptions** page. Users can sort echo area subscriptions by name, date created, or number of messages, with ascending and descending order controls.
 
 ### Terminal Registration
 
@@ -266,6 +270,12 @@ After loading, the page records the initial values and only sends preferences th
 
 The **Inline Media Rendering** preference on the Settings page now shows a notice instead of the render-mode radio buttons when the sysop has disabled the inline media player globally. This makes it clear to users that the setting has no effect in its current state rather than presenting controls that cannot do anything.
 
+## User Subscriptions
+
+The user's **Manage Subscriptions** page now includes sorting controls for the echo area list. Users can sort by echo area name, date created, or message count, and can switch between ascending and descending order without reloading the page.
+
+Sorting uses the existing `echoareas.created_at` and `echoareas.message_count` values already loaded for the page. No database changes or manual configuration updates are required.
+
 ## Localized Documentation
 
 The user guide (`/user-guide`) and the admin documentation browser (`/admin/docs`) now serve locale-specific Markdown files when available. Previously, both always loaded the English source regardless of the user's language setting.
@@ -289,6 +299,12 @@ The Community Wireless Node Map now separates the overall active network count f
 The CWN list API now returns `total_all` for the full active, non-expired map total. The frontend displays that value in the statistics panel while loading marker data only for the current Leaflet map bounds. Panning or zooming the map refreshes the visible markers for the new viewport. This keeps the displayed total accurate without forcing the browser to load every CWN row as the database grows.
 
 No manual configuration changes are required. Run `php scripts/setup.php` as part of the normal upgrade process so any pending CWN schema migrations from earlier 1.9.x changes are applied.
+
+## Dashboard
+
+The dashboard's top mail summary card is now named **Mail & Areas**. In addition to the unread netmail and echomail counters, it now includes a **NEW ECHOAREAS** section showing active echo areas that were added within the past 30 days.
+
+The list uses the existing `echoareas.created_at` timestamp. Admin users can see all active new areas; non-admin users do not see areas marked sysop-only. No database changes or manual configuration updates are required.
 
 ## BBS Directory CLI
 

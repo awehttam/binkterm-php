@@ -4008,6 +4008,14 @@ return [
     'ui.user_subscriptions.update_failed' => 'No se pudo actualizar la suscripcion. Intente de nuevo.',
     'ui.user_subscriptions.network_error' => 'Error de red. Intente de nuevo.',
     'ui.user_subscriptions.filter_by_interest' => 'Filtrar por interés:',
+    'ui.user_subscriptions.sort_by' => 'Ordenar por:',
+    'ui.user_subscriptions.sort_name' => 'Nombre',
+    'ui.user_subscriptions.sort_created' => 'Fecha de creacion',
+    'ui.user_subscriptions.sort_messages' => 'Mensajes',
+    'ui.user_subscriptions.sort_direction_asc' => 'Orden ascendente',
+    'ui.user_subscriptions.sort_direction_desc' => 'Orden descendente',
+    'ui.user_subscriptions.interests_blurb' => 'Los intereses son otra forma de gestionar suscripciones de echoareas por tema.',
+    'ui.user_subscriptions.review_interests' => 'Revise sus intereses.',
 
     // Echoareas import
     'ui.echoareas_import.page_title' => 'Importar echoareas',

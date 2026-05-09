@@ -4007,6 +4007,14 @@ return [
     'ui.user_subscriptions.update_failed' => 'Impossibile aggiornare la sottoscrizione. Riprova.',
     'ui.user_subscriptions.network_error' => 'Errore di rete. Riprova.',
     'ui.user_subscriptions.filter_by_interest' => 'Filtra per interesse:',
+    'ui.user_subscriptions.sort_by' => 'Ordina per:',
+    'ui.user_subscriptions.sort_name' => 'Nome',
+    'ui.user_subscriptions.sort_created' => 'Data creazione',
+    'ui.user_subscriptions.sort_messages' => 'Messaggi',
+    'ui.user_subscriptions.sort_direction_asc' => 'Ordine crescente',
+    'ui.user_subscriptions.sort_direction_desc' => 'Ordine decrescente',
+    'ui.user_subscriptions.interests_blurb' => 'Gli interessi sono un altro modo per gestire le sottoscrizioni alle aree echo per argomento.',
+    'ui.user_subscriptions.review_interests' => 'Rivedi i tuoi interessi.',
 
     // Echoareas import
     'ui.echoareas_import.page_title' => 'Importa aree echo',
