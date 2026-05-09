@@ -4,6 +4,7 @@ use BinktermPHP\ActivityTracker;
 use BinktermPHP\AddressBookController;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
+use BinktermPHP\BulletinManager;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\I18n\LocaleResolver;
@@ -136,6 +137,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'httponly' => true,
                 'samesite' => 'Lax',
             ]);
+            if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
+                $_SESSION['show_login_bulletins_for_session'] = $sessionId;
+            }
             // Track login event and retrieve CSRF token for the response
             $csrfToken = null;
             try {
@@ -403,6 +407,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if ($isTerminalRegistration) {
+            if (empty($email)) {
+                apiError('errors.register.email_required', apiLocalizedText('errors.register.email_required', 'Email address is required'), 400);
+                return;
+            }
+            if (empty($reason)) {
+                apiError('errors.register.reason_required', apiLocalizedText('errors.register.reason_required', 'Reason for joining is required'), 400);
+                return;
+            }
+        }
+
         // Normalize and validate username format. Spaces are allowed only when
         // USERNAMES_ALLOW_SPACES=true is set in .env (defaults to false).
         $username = \BinktermPHP\Config::normalizeUsername($username);
@@ -476,8 +491,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Insert pending user
             $insertStmt = $db->prepare("
-                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent, referral_code, referrer_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent, referral_code, referrer_id, registration_source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
             ");
 
@@ -491,7 +506,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $ipAddress,
                 $userAgent,
                 $referralCode,
-                $referrerId
+                $referrerId,
+                $registrationSource,
             ]);
 
             $pendingUserRow = $insertStmt->fetch(\PDO::FETCH_ASSOC);
@@ -740,6 +756,45 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $handler->updateUserSettings($userId, ['dashboard_layout' => $layout]);
 
+        echo json_encode(['success' => true]);
+    });
+
+    SimpleRouter::get('/bulletins', function() {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+        $manager = new BulletinManager();
+        echo json_encode([
+            'success' => true,
+            'bulletins' => $manager->getActiveBulletins($userId),
+            'unread_count' => $manager->getUnreadCount($userId),
+            'bulletin_display_mode' => \BinktermPHP\BbsConfig::getBulletinDisplayMode(),
+        ]);
+    });
+
+    SimpleRouter::post('/bulletins/{id}/read', function($id) {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        header('Content-Type: application/json');
+        (new BulletinManager())->markRead($userId, (int)$id);
+        echo json_encode(['success' => true]);
+    });
+
+    SimpleRouter::post('/bulletins/read-all', function() {
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $ids = is_array($payload) ? ($payload['ids'] ?? []) : [];
+
+        header('Content-Type: application/json');
+        if (!is_array($ids)) {
+            apiError('errors.bulletins.invalid_ids', apiLocalizedText('errors.bulletins.invalid_ids', 'Invalid bulletin list.', $user), 400);
+            return;
+        }
+
+        (new BulletinManager())->markAllRead($userId, $ids);
         echo json_encode(['success' => true]);
     });
 
@@ -1886,9 +1941,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         $messageHandler = new MessageHandler();
         $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
+        $moderationFilter = $messageHandler->buildModerationVisibilityFilter($userId, 'em');
 
-        // Query with cached message count / last-post columns and one live subquery for unread count.
-        // total_counts (was: COUNT(*) GROUP BY) is replaced by e.message_count — maintained incrementally.
+        // Query with cached last-post columns and one live subquery for user-visible message counts.
+        // e.message_count is the raw area total; sidebar counts must match the message list filters.
         // last_posts (was: DISTINCT ON full scan + external sort) is replaced by e.last_post_* columns.
         $sql = "SELECT
                     e.id,
@@ -1903,12 +1959,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.domain,
                     e.is_local,
                     e.is_sysop_only,
-                    e.message_count,
-                    COALESCE(unread_counts.unread_count, 0) as unread_count,
+                    COALESCE(visible_counts.message_count, 0) as message_count,
+                    COALESCE(visible_counts.unread_count, 0) as unread_count,
                     COALESCE(sub_counts.subscriber_count, 0) as subscriber_count,
                     e.last_post_subject as last_subject,
                     e.last_post_author  as last_author,
-                    e.last_post_date    as last_date
+                    e.last_post_date    as last_date,
+                    e.allow_media
                 FROM echoareas e";
 
         // Add subscription filtering if requested
@@ -1922,13 +1979,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sql .= " LEFT JOIN (
                     SELECT
                         em.echoarea_id,
-                        COUNT(*) as unread_count
+                        COUNT(*) as message_count,
+                        COUNT(*) FILTER (WHERE mrs.read_at IS NULL) as unread_count
                     FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    WHERE mrs.read_at IS NULL
-                      AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}
+                    WHERE (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}{$moderationFilter['sql']}
                     GROUP BY em.echoarea_id
-                ) unread_counts ON e.id = unread_counts.echoarea_id
+                ) visible_counts ON e.id = visible_counts.echoarea_id
                 LEFT JOIN (
                     SELECT echoarea_id, COUNT(*) as subscriber_count
                     FROM user_echoarea_subscriptions
@@ -1938,6 +1995,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $params[] = $userId;
         foreach ($ignoreFilter['params'] as $param) {
+            $params[] = $param;
+        }
+        foreach ($moderationFilter['params'] as $param) {
             $params[] = $param;
         }
 
@@ -2191,6 +2251,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
             $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
+            $allowMediaInput = $input['allow_media'] ?? 'inherit';
+            $allowMedia = match((string)$allowMediaInput) {
+                'allow', 'true' => 'true',
+                'deny', 'false' => 'false',
+                default => null,
+            };
 
             if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
                 $postingNamePolicy = null;
@@ -2216,14 +2282,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Invalid color format');
             }
 
+            if ($domain !== '' && !(new \BinktermPHP\NetworkManager())->exists($domain)) {
+                throw new \Exception('Unknown network domain');
+            }
+
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public, allow_media)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia]);
 
             if ($result) {
                 echo json_encode([
@@ -2247,6 +2317,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_tag_format', apiLocalizedText('errors.echoareas.invalid_tag_format', 'Invalid tag format', $user));
             } elseif ($message === 'Invalid color format') {
                 apiError('errors.echoareas.invalid_color_format', apiLocalizedText('errors.echoareas.invalid_color_format', 'Invalid color format', $user));
+            } elseif ($message === 'Unknown network domain') {
+                apiError('errors.echoareas.unknown_domain', apiLocalizedText('errors.echoareas.unknown_domain', 'Select a configured network domain', $user));
             } elseif ($e instanceof \PDOException && $e->getCode() === '23505') {
                 apiError('errors.echoareas.tag_already_exists', apiLocalizedText('errors.echoareas.tag_already_exists', 'An echo area with that tag already exists', $user));
             } else {
@@ -2281,6 +2353,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
             $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
+            $allowMediaInput = $input['allow_media'] ?? 'inherit';
+            $allowMedia = match((string)$allowMediaInput) {
+                'allow', 'true' => 'true',
+                'deny', 'false' => 'false',
+                default => null,
+            };
 
             if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
                 $postingNamePolicy = null;
@@ -2306,15 +2384,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Invalid color format');
             }
 
+            if ($domain !== '' && !(new \BinktermPHP\NetworkManager())->exists($domain)) {
+                throw new \Exception('Unknown network domain');
+            }
+
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?, allow_media = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia, $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode([
@@ -2337,6 +2419,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_tag_format', apiLocalizedText('errors.echoareas.invalid_tag_format', 'Invalid tag format', $user));
             } elseif ($message === 'Invalid color format') {
                 apiError('errors.echoareas.invalid_color_format', apiLocalizedText('errors.echoareas.invalid_color_format', 'Invalid color format', $user));
+            } elseif ($message === 'Unknown network domain') {
+                apiError('errors.echoareas.unknown_domain', apiLocalizedText('errors.echoareas.unknown_domain', 'Select a configured network domain', $user));
             } elseif ($message === 'Echo area not found or no changes made') {
                 apiError('errors.echoareas.not_found_or_unchanged', apiLocalizedText('errors.echoareas.not_found_or_unchanged', 'Echo area not found or no changes made', $user));
             } elseif ($e instanceof \PDOException && $e->getCode() === '23505') {
@@ -4406,6 +4490,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $body             = json_decode(file_get_contents('php://input'), true) ?? [];
             $fileAreaId       = (int)($body['file_area_id'] ?? 0);
             $url              = trim($body['url'] ?? '');
+            $fileName         = trim($body['file_name'] ?? '');
             $shortDescription = trim($body['short_description'] ?? '');
             $longDescription  = trim($body['long_description'] ?? '');
 
@@ -4467,7 +4552,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $longDescription,
                 $uploadedBy,
                 $ownerId,
-                $initialStatus
+                $initialStatus,
+                $fileName
             );
 
             if ($uploadReward > 0 && $initialStatus === 'approved') {
@@ -4556,68 +4642,82 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Fetch the URL with a short timeout
-        $ctx = stream_context_create([
-            'http' => [
-                'timeout'         => 8,
-                'follow_location' => true,
-                'max_redirects'   => 5,
-                'user_agent'      => 'BinktermPHP/1.0 (URL metadata fetch)',
-                'method'          => 'GET',
-            ],
-            'ssl' => [
-                'verify_peer'      => true,
-                'verify_peer_name' => true,
-            ],
-        ]);
-
-        $html = @file_get_contents($url, false, $ctx);
-
-        if ($html === false || $html === '') {
-            echo json_encode(['success' => true, 'short_description' => '', 'long_description' => '']);
-            return;
-        }
-
-        // Parse HTML for title, og:description, and og:image
         $shortDescription = '';
         $longDescription  = '';
         $ogImageUrl       = '';
 
-        $doc = new \DOMDocument();
-        @$doc->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
+        // YouTube blocks HTML scrapers from datacenter IPs; use their oEmbed API instead.
+        $parsedHost = strtolower(parse_url($url, PHP_URL_HOST) ?? '');
+        $isYoutube  = in_array($parsedHost, ['www.youtube.com', 'youtube.com', 'youtu.be', 'm.youtube.com'], true);
 
-        // <title>
-        $titles = $doc->getElementsByTagName('title');
-        if ($titles->length > 0) {
-            $shortDescription = trim($titles->item(0)->textContent);
-        }
-
-        // <meta property="og:*"> or <meta name="og:*">
-        $metas = $doc->getElementsByTagName('meta');
-        foreach ($metas as $meta) {
-            $prop    = strtolower((string)$meta->getAttribute('property'));
-            $name    = strtolower((string)$meta->getAttribute('name'));
-            $content = trim((string)$meta->getAttribute('content'));
-
-            if ($content === '') {
-                continue;
-            }
-
-            if ($prop === 'og:description' || $name === 'og:description') {
-                $longDescription = $content;
-            } elseif ($name === 'description' && $longDescription === '') {
-                $longDescription = $content;
-            } elseif (($prop === 'og:image' || $name === 'og:image') && $ogImageUrl === '') {
-                // Validate it looks like a URL before returning it
-                if (filter_var($content, FILTER_VALIDATE_URL)) {
-                    $ogImageUrl = $content;
+        if ($isYoutube) {
+            $oembedUrl = 'https://www.youtube.com/oembed?url=' . urlencode($url) . '&format=json';
+            $ctx = stream_context_create([
+                'http' => [
+                    'timeout'    => 8,
+                    'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'method'     => 'GET',
+                ],
+                'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
+            ]);
+            $json = @file_get_contents($oembedUrl, false, $ctx);
+            if ($json !== false && $json !== '') {
+                $data = json_decode($json, true) ?? [];
+                $shortDescription = mb_substr(trim($data['title'] ?? ''), 0, 255);
+                $thumbUrl = $data['thumbnail_url'] ?? '';
+                if ($thumbUrl !== '' && filter_var($thumbUrl, FILTER_VALIDATE_URL)) {
+                    $ogImageUrl = $thumbUrl;
                 }
             }
-        }
+        } else {
+            // Generic HTML scrape for non-YouTube URLs
+            $ctx = stream_context_create([
+                'http' => [
+                    'timeout'         => 8,
+                    'follow_location' => true,
+                    'max_redirects'   => 5,
+                    'user_agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'method'          => 'GET',
+                ],
+                'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
+            ]);
 
-        // Truncate to fit db columns
-        $shortDescription = mb_substr($shortDescription, 0, 255);
-        $longDescription  = mb_substr($longDescription, 0, 2000);
+            $html = @file_get_contents($url, false, $ctx);
+
+            if ($html !== false && $html !== '') {
+                $doc = new \DOMDocument();
+                @$doc->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
+
+                $titles = $doc->getElementsByTagName('title');
+                if ($titles->length > 0) {
+                    $shortDescription = trim($titles->item(0)->textContent);
+                }
+
+                $metas = $doc->getElementsByTagName('meta');
+                foreach ($metas as $meta) {
+                    $prop    = strtolower((string)$meta->getAttribute('property'));
+                    $name    = strtolower((string)$meta->getAttribute('name'));
+                    $content = trim((string)$meta->getAttribute('content'));
+
+                    if ($content === '') {
+                        continue;
+                    }
+
+                    if ($prop === 'og:description' || $name === 'og:description') {
+                        $longDescription = $content;
+                    } elseif ($name === 'description' && $longDescription === '') {
+                        $longDescription = $content;
+                    } elseif (($prop === 'og:image' || $name === 'og:image') && $ogImageUrl === '') {
+                        if (filter_var($content, FILTER_VALIDATE_URL)) {
+                            $ogImageUrl = $content;
+                        }
+                    }
+                }
+
+                $shortDescription = mb_substr($shortDescription, 0, 255);
+                $longDescription  = mb_substr($longDescription, 0, 2000);
+            }
+        }
 
         echo json_encode([
             'success'           => true,
@@ -5766,6 +5866,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $deleted = 0;
 
         $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+
+        // Capture affected echoareas before deletion so we can recalculate counts
+        $echoareaStmt = $db->prepare("SELECT DISTINCT echoarea_id FROM echomail WHERE id IN ($placeholders)");
+        $echoareaStmt->execute(array_values($messageIds));
+        $affectedEchoareaIds = $echoareaStmt->fetchAll(\PDO::FETCH_COLUMN);
+
         $db->prepare("UPDATE echomail SET reply_to_id = NULL WHERE reply_to_id IN ($placeholders)")
            ->execute(array_values($messageIds));
 
@@ -5774,6 +5880,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($stmt->execute([$id])) {
                 $deleted++;
             }
+        }
+
+        // Recalculate message_count from actual row count for each affected echoarea
+        foreach ($affectedEchoareaIds as $echoareaId) {
+            $db->prepare("
+                UPDATE echoareas
+                SET message_count = (SELECT COUNT(*) FROM echomail WHERE echoarea_id = ?)
+                WHERE id = ?
+            ")->execute([$echoareaId, $echoareaId]);
         }
 
         echo json_encode([
@@ -5891,131 +6006,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
-        $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
-        $isAdmin = !empty($user['is_admin']);
-        $sysopFilter = $isAdmin ? "" : " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
         $handler = new MessageHandler();
-        $ignoreFilter = $handler->buildEchomailIgnoreFilter($userId, 'em');
 
-        // Global echomail statistics (only from subscribed echoareas)
-        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}{$ignoreFilter['sql']}");
-        $totalParams = [$userId];
-        foreach ($ignoreFilter['params'] as $param) {
-            $totalParams[] = $param;
-        }
-        $totalStmt->execute($totalParams);
-        $total = $totalStmt->fetch()['count'];
-
-        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}{$ignoreFilter['sql']}");
-        $recentParams = [$userId];
-        foreach ($ignoreFilter['params'] as $param) {
-            $recentParams[] = $param;
-        }
-        $recentStmt->execute($recentParams);
-        $recent = $recentStmt->fetch()['count'];
-
-        $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
-        $areasStmt->execute([$userId]);
-        $areas = $areasStmt->fetch()['count'];
-
-        // Filter counts for this user
-        $allCount = $total; // All messages is same as total
-        $unreadCount = 0;
-        $readCount = 0;
-        $toMeCount = 0;
-        $savedCount = 0;
-
-        if ($userId) {
-            // Get user info for 'to me' filter
-            $userStmt = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
-            $userStmt->execute([$userId]);
-            $userInfo = $userStmt->fetch();
-
-            // Unread count
-            $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}{$ignoreFilter['sql']}
-            ");
-            $unreadParams = [$userId, $userId];
-            foreach ($ignoreFilter['params'] as $param) {
-                $unreadParams[] = $param;
-            }
-            $unreadStmt->execute($unreadParams);
-            $unreadCount = $unreadStmt->fetch()['count'];
-
-            // Read count
-            $readStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}{$ignoreFilter['sql']}
-            ");
-            $readParams = [$userId, $userId];
-            foreach ($ignoreFilter['params'] as $param) {
-                $readParams[] = $param;
-            }
-            $readStmt->execute($readParams);
-            $readCount = $readStmt->fetch()['count'];
-
-            // To Me count
-            if ($userInfo) {
-                $toMeStmt = $db->prepare("
-                    SELECT COUNT(*) as count FROM echomail em
-                    JOIN echoareas ea ON em.echoarea_id = ea.id
-                    JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                    WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}{$ignoreFilter['sql']}
-                ");
-                $toMeParams = [$userId, $userInfo['username'], $userInfo['real_name']];
-                foreach ($ignoreFilter['params'] as $param) {
-                    $toMeParams[] = $param;
-                }
-                $toMeStmt->execute($toMeParams);
-                $toMeCount = $toMeStmt->fetch()['count'];
-            }
-
-            // Saved count
-            $savedStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}{$ignoreFilter['sql']}
-            ");
-            $savedParams = [$userId, $userId];
-            foreach ($ignoreFilter['params'] as $param) {
-                $savedParams[] = $param;
-            }
-            $savedStmt->execute($savedParams);
-            $savedCount = $savedStmt->fetch()['count'];
-        }
-
-        // Drafts count
-        $draftsCount = 0;
-        if ($userId) {
-            $draftsStmt = $db->prepare("SELECT COUNT(*) as count FROM drafts WHERE user_id = ? AND type = 'echomail'");
-            $draftsStmt->execute([$userId]);
-            $draftsCount = $draftsStmt->fetch()['count'];
-        }
-
-        echo json_encode([
-            'total' => $total,
-            'recent' => $recent,
-            'areas' => $areas,
-            'unread' => $unreadCount,
-            'filter_counts' => [
-                'all' => $allCount,
-                'unread' => $unreadCount,
-                'read' => $readCount,
-                'tome' => $toMeCount,
-                'saved' => $savedCount,
-                'drafts' => $draftsCount
-            ]
-        ]);
+        echo json_encode($handler->getEchomailStats($userId));
     });
 
     SimpleRouter::get('/messages/echomail/stats/{echoarea}', function($echoarea) {
@@ -6032,7 +6026,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
         $handler = new MessageHandler();
-        $ignoreFilter = $handler->buildEchomailIgnoreFilter($userId, 'em');
 
         if (!$isAdmin && $userId) {
             $subscriptionManager = new \BinktermPHP\EchoareaSubscriptionManager();
@@ -6052,116 +6045,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        // Statistics for specific echoarea
-        $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as total,
-                   COUNT(CASE WHEN date_received > NOW() - INTERVAL '1 day' THEN 1 END) as recent
-            FROM echomail em
-            JOIN echoareas ea ON em.echoarea_id = ea.id
-            WHERE ea.tag = ? AND {$domainCondition}{$ignoreFilter['sql']}
-        ");
-        $params = [$echoarea];
-        if (!empty($domain)) {
-            $params[] = $domain;
-        }
-        foreach ($ignoreFilter['params'] as $param) {
-            $params[] = $param;
-        }
-        $stmt->execute($params);
-        $stats = $stmt->fetch();
+        $stats = $handler->getEchomailStats($userId, $echoarea, $domain);
+        $stats['echoarea'] = $echoarea;
+        unset($stats['areas']);
 
-        // Filter counts for this echoarea and user
-        $allCount = $stats['total']; // All messages is same as total
-        $unreadCount = 0;
-        $readCount = 0;
-        $toMeCount = 0;
-        $savedCount = 0;
-
-        if ($userId) {
-            // Get user info for 'to me' filter
-            $userStmt = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
-            $userStmt->execute([$userId]);
-            $userInfo = $userStmt->fetch();
-
-            // Unread count
-            $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NULL{$ignoreFilter['sql']}
-            ");
-            $unreadParams = [$userId, $echoarea];
-            if (!empty($domain)) $unreadParams[] = $domain;
-            foreach ($ignoreFilter['params'] as $param) {
-                $unreadParams[] = $param;
-            }
-            $unreadStmt->execute($unreadParams);
-            $unreadCount = $unreadStmt->fetch()['count'];
-
-            // Read count
-            $readStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NOT NULL{$ignoreFilter['sql']}
-            ");
-            $readParams = [$userId, $echoarea];
-            if (!empty($domain)) $readParams[] = $domain;
-            foreach ($ignoreFilter['params'] as $param) {
-                $readParams[] = $param;
-            }
-            $readStmt->execute($readParams);
-            $readCount = $readStmt->fetch()['count'];
-
-            // To Me count
-            if ($userInfo) {
-                $toMeStmt = $db->prepare("
-                    SELECT COUNT(*) as count FROM echomail em
-                    JOIN echoareas ea ON em.echoarea_id = ea.id
-                    WHERE ea.tag = ? AND {$domainCondition} AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$ignoreFilter['sql']}
-                ");
-                $toMeParams = [$echoarea];
-                if (!empty($domain)) $toMeParams[] = $domain;
-                $toMeParams[] = $userInfo['username'];
-                $toMeParams[] = $userInfo['real_name'];
-                foreach ($ignoreFilter['params'] as $param) {
-                    $toMeParams[] = $param;
-                }
-                $toMeStmt->execute($toMeParams);
-                $toMeCount = $toMeStmt->fetch()['count'];
-            }
-
-            // Saved count
-            $savedStmt = $db->prepare("
-                SELECT COUNT(*) as count FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ? AND {$domainCondition} AND sav.id IS NOT NULL{$ignoreFilter['sql']}
-            ");
-            $savedParams = [$userId, $echoarea];
-            if (!empty($domain)) $savedParams[] = $domain;
-            foreach ($ignoreFilter['params'] as $param) {
-                $savedParams[] = $param;
-            }
-            $savedStmt->execute($savedParams);
-            $savedCount = $savedStmt->fetch()['count'];
-        }
-
-        echo json_encode([
-            'echoarea' => $echoarea,
-            'total' => $stats['total'],
-            'recent' => $stats['recent'],
-            'unread' => $unreadCount,
-            'filter_counts' => [
-                'all' => $allCount,
-                'unread' => $unreadCount,
-                'read' => $readCount,
-                'tome' => $toMeCount,
-                'saved' => $savedCount
-            ]
-        ]);
-    })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
+        echo json_encode($stats);
+    })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
 
     $prepareEchomailAdBodyForSave = static function(array $message): string {
         $body = '';
@@ -6255,8 +6144,54 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ];
     };
 
+    $normalizeNullableBoolean = function($value): ?bool {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (bool)$value;
+        }
+
+        $normalized = strtolower(trim((string)$value));
+        if (in_array($normalized, ['1', 't', 'true', 'y', 'yes', 'on'], true)) {
+            return true;
+        }
+        if (in_array($normalized, ['0', 'f', 'false', 'n', 'no', 'off'], true)) {
+            return false;
+        }
+
+        return (bool)$value;
+    };
+
+    $resolveEchomailMediaPermission = function(array $message) use ($normalizeNullableBoolean): array {
+        $areaAllowMedia = $normalizeNullableBoolean($message['area_allow_media'] ?? null);
+        unset($message['area_allow_media']);
+
+        if (!\BinktermPHP\AppearanceConfig::isMediaPlayerEnabled()) {
+            $message['allow_media'] = false;
+            return $message;
+        }
+
+        if ($areaAllowMedia !== null) {
+            $message['allow_media'] = $areaAllowMedia;
+            return $message;
+        }
+
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $message['allow_media'] = $binkpConfig->isMediaAllowedForDomain((string)($message['domain'] ?? ''));
+        } catch (\Exception $e) {
+            $message['allow_media'] = true;
+        }
+
+        return $message;
+    };
+
     // Route for getting specific echomail message by ID only (when echoarea not known)
-    SimpleRouter::get('/messages/echomail/message/{id}', function($id) {
+    SimpleRouter::get('/messages/echomail/message/{id}', function($id) use ($resolveEchomailMediaPermission) {
         $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
@@ -6268,6 +6203,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'echomail', $userId);
 
         if ($message) {
+            $message = $resolveEchomailMediaPermission($message);
+
             // Parse REPLYTO kludge from message text and add to response
             $replyToData = parseReplyToKludge($message['message_text']);
             if ($replyToData) {
@@ -6511,9 +6448,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
 
         echo json_encode($result);
-    })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
+    })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
 
-    SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) {
+    SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) use ($resolveEchomailMediaPermission) {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
@@ -6544,6 +6481,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
 
+            $message = $resolveEchomailMediaPermission($message);
+
             // Parse REPLYTO kludge from message text and add to response
             $replyToData = parseReplyToKludge($message['message_text']);
             if ($replyToData) {
@@ -6565,7 +6504,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
         }
-    })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
+    })->where(['echoarea' => '[-A-Za-z0-9._@\'!%]+', 'id' => '[0-9]+']);
 
     /**
      * Upload a file for attachment to an outbound netmail.
@@ -6867,9 +6806,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $defaultCharsetForDest = 'UTF-8';
                 } else {
                     $defaultCharsetForDest = \BinktermPHP\BbsConfig::getOutgoingCharset();
-                    $destUplink = $binkpConfig->getUplinkForDestination((string)$address);
-                    if ($destUplink && !empty($destUplink['default_charset'])) {
-                        $defaultCharsetForDest = strtoupper($destUplink['default_charset']);
+                    $networkCharset = $binkpConfig->getDefaultCharsetForDestination((string)$address);
+                    if ($networkCharset !== null) {
+                        $defaultCharsetForDest = strtoupper($networkCharset);
                     }
                 }
             }
@@ -9171,7 +9110,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['compose_advanced_open'] = $meta->getValue((int)$userId, 'compose_advanced_open') === 'true';
                 $rawWrap = $meta->getValue((int)$userId, 'compose_hard_wrap');
                 $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
-                $settings['image_load_mode'] = $meta->getValue((int)$userId, 'image_load_mode') ?? 'click';
+                $settings['media_render_mode'] = $meta->getValue((int)$userId, 'media_render_mode') ?? 'click';
             }
 
             $settings['license_valid'] = \BinktermPHP\License::isValid();
@@ -9261,12 +9200,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $metaSettingsUpdated = true;
                 }
 
-                if (isset($settings['image_load_mode'])) {
-                    $modeVal = (string)$settings['image_load_mode'];
+                if (isset($settings['media_render_mode'])) {
+                    $modeVal = (string)$settings['media_render_mode'];
                     if (!in_array($modeVal, ['click', 'auto'], true)) {
-                        $modeVal = 'click';
+                        $modeVal = 'auto';
                     }
-                    $meta->setValue((int)$userId, 'image_load_mode', $modeVal);
+                    $meta->setValue((int)$userId, 'media_render_mode', $modeVal);
                     $metaSettingsUpdated = true;
                 }
             }
@@ -9279,7 +9218,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['file_notification_sound'],
                 $settings['compose_advanced_open'],
                 $settings['compose_hard_wrap'],
-                $settings['image_load_mode']
+                $settings['media_render_mode']
             );
 
             $handler = new MessageHandler();
@@ -10001,7 +9940,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, created_at, last_login FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, echomail_moderation_forced, created_at, last_login FROM users WHERE id = ?");
             $stmt->execute([$id]);
             $userData = $stmt->fetch();
 
@@ -10115,6 +10054,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
             $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
+            $echomailModerationForced = isset($_POST['echomail_moderation_forced']) ? (int)$_POST['echomail_moderation_forced'] : 0;
             $password = $_POST['password'] ?? '';
 
             if (empty($realName)) {
@@ -10129,9 +10069,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'email = ?',
                 'is_active = ?',
                 'is_admin = ?',
-                'is_system = ?'
+                'is_system = ?',
+                'echomail_moderation_forced = ?'
             ];
-            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem];
+            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem, $echomailModerationForced ? 'true' : 'false'];
 
             // Add password if provided
             if ($password) {
@@ -11889,6 +11830,168 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } catch (\Exception $e) {
             http_response_code(500);
             apiError('errors.settings.load_failed', apiLocalizedText('errors.settings.load_failed', 'Failed to load images'), 500);
+        }
+    });
+
+    SimpleRouter::get('/media/raw', function() {
+        $url = trim($_GET['url'] ?? '');
+        $allowedExts = ['xm', 'it', 's3m', 'mod', 'stm', 'amf', '669', 'mptm', 'sid', 'mid', 'midi'];
+        $maxBytes = 8 * 1024 * 1024;
+
+        $sendNotFound = function(): void {
+            http_response_code(404);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo 'Media not found';
+        };
+
+        $isPublicHost = function(string $host): bool {
+            $host = trim($host, '[]');
+            if ($host === '' || in_array(strtolower($host), ['localhost', 'localhost.localdomain'], true)) {
+                return false;
+            }
+
+            $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
+            if (!$ips) {
+                return false;
+            }
+
+            foreach ($ips as $ip) {
+                if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        $isAllowedUrl = function(string $candidate) use ($allowedExts, $isPublicHost): bool {
+            if (!filter_var($candidate, FILTER_VALIDATE_URL)) {
+                return false;
+            }
+
+            $scheme = strtolower(parse_url($candidate, PHP_URL_SCHEME) ?? '');
+            $host = parse_url($candidate, PHP_URL_HOST) ?? '';
+            $path = strtolower(parse_url($candidate, PHP_URL_PATH) ?? '');
+            $ext = ltrim(strrchr($path, '.') ?: '', '.');
+
+            return in_array($scheme, ['http', 'https'], true)
+                && in_array($ext, $allowedExts, true)
+                && $isPublicHost($host);
+        };
+
+        if (!$isAllowedUrl($url) || !function_exists('curl_init')) {
+            $sendNotFound();
+            return;
+        }
+
+        $currentUrl = $url;
+        $body = false;
+        $contentType = 'application/octet-stream';
+        $status = 0;
+
+        for ($redirects = 0; $redirects <= 3; $redirects++) {
+            $ch = curl_init($currentUrl);
+            $options = [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HEADER         => true,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_USERAGENT      => 'BinktermPHP-MediaProxy/1.0',
+                CURLOPT_HTTPHEADER     => ['Accept: audio/*,application/octet-stream,*/*'],
+                CURLOPT_ENCODING       => 'gzip, deflate',
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_MAXFILESIZE    => $maxBytes,
+            ];
+            if (defined('CURLOPT_PROTOCOLS')) {
+                $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+            }
+            curl_setopt_array($ch, $options);
+
+            $raw = curl_exec($ch);
+            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $headerSize = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+            $curlContentType = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            curl_close($ch);
+
+            if ($raw === false) {
+                $sendNotFound();
+                return;
+            }
+
+            $headers = substr($raw, 0, $headerSize);
+            $body = substr($raw, $headerSize);
+
+            if (in_array($status, [301, 302, 303, 307, 308], true) && preg_match('/^Location:\s*(.+)$/mi', $headers, $m)) {
+                $location = trim($m[1]);
+                $nextUrl = filter_var($location, FILTER_VALIDATE_URL)
+                    ? $location
+                    : rtrim(dirname($currentUrl), '/') . '/' . ltrim($location, '/');
+                if (!$isAllowedUrl($nextUrl)) {
+                    $sendNotFound();
+                    return;
+                }
+                $currentUrl = $nextUrl;
+                continue;
+            }
+
+            if ($curlContentType !== '') {
+                $contentType = preg_replace('/[\r\n].*/', '', $curlContentType) ?: $contentType;
+            }
+            break;
+        }
+
+        if ($status < 200 || $status >= 300 || $body === false || strlen($body) > $maxBytes) {
+            $sendNotFound();
+            return;
+        }
+
+        $filename = sanitizeFilenameForWindows(basename(parse_url($currentUrl, PHP_URL_PATH) ?: 'audio'), 'audio');
+        header('Content-Type: ' . $contentType);
+        header('Content-Length: ' . strlen($body));
+        header('Content-Disposition: inline; filename="' . addcslashes($filename, '"\\') . '"');
+        header('Cache-Control: public, max-age=86400');
+        echo $body;
+    });
+
+    SimpleRouter::get('/media/embed', function() {
+        header('Content-Type: application/json');
+
+        $url = trim($_GET['url'] ?? '');
+        if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
+            echo json_encode(['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
+            return;
+        }
+
+        $scheme = strtolower(parse_url($url, PHP_URL_SCHEME) ?? '');
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            echo json_encode(['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
+            return;
+        }
+
+        try {
+            $mpConfig      = \BinktermPHP\AppearanceConfig::getMediaPlayerConfig();
+            $globalEnabled = !isset($mpConfig['enabled']) || !empty($mpConfig['enabled']);
+
+            if (!$globalEnabled) {
+                echo json_encode(['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
+                return;
+            }
+
+            $enabledProviders = $mpConfig['providers'] ?? [];
+            $allProviders = \BinktermPHP\Media\MediaLinkResolver::defaultProviders();
+            $providers = array_values(array_filter($allProviders, function ($p) use ($enabledProviders) {
+                $name = $p->getName();
+                return !isset($enabledProviders[$name]) || !empty($enabledProviders[$name]);
+            }));
+
+            $resolver = new \BinktermPHP\Media\MediaLinkResolver($providers);
+            $result   = $resolver->resolve($url);
+
+            echo json_encode($result ?? ['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
+        } catch (\Exception $e) {
+            getServerLogger()->error('media/embed resolve error: ' . $e->getMessage());
+            echo json_encode(['type' => 'unknown', 'provider' => null, 'embed_html' => '']);
         }
     });
 

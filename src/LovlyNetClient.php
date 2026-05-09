@@ -263,12 +263,10 @@ class LovlyNetClient
         }
 
         if ($areaType === 'echo') {
-            if (!array_key_exists('sysop_only', $metadata)) {
-                return true;
-            }
+            $hasSysopOnly = array_key_exists('sysop_only', $metadata);
+            $hasAllowMedia = array_key_exists('allow_media', $metadata);
 
-            $recommendedSysopOnly = filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($recommendedSysopOnly === null) {
+            if (!$hasSysopOnly && !$hasAllowMedia) {
                 return true;
             }
 
@@ -279,9 +277,27 @@ class LovlyNetClient
                 $echoareaId = (int)($existing['id'] ?? 0);
             }
 
-            return $echoareaId > 0
-                ? $echoareaManager->updateSysopOnly($echoareaId, $recommendedSysopOnly)
-                : false;
+            if ($echoareaId <= 0) {
+                return false;
+            }
+
+            $result = true;
+
+            if ($hasSysopOnly) {
+                $recommendedSysopOnly = filter_var($metadata['sysop_only'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($recommendedSysopOnly !== null) {
+                    $result = $echoareaManager->updateSysopOnly($echoareaId, $recommendedSysopOnly) && $result;
+                }
+            }
+
+            if ($hasAllowMedia) {
+                $recommendedAllowMedia = filter_var($metadata['allow_media'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($recommendedAllowMedia !== null) {
+                    $result = $echoareaManager->updateAllowMedia($echoareaId, $recommendedAllowMedia) && $result;
+                }
+            }
+
+            return $result;
         }
 
         if ($areaType === 'file') {
@@ -422,8 +438,17 @@ class LovlyNetClient
 
         $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
         $result = $daemonClient->saveLovlyNetConfig($json);
+        $saved = (bool)($result['ok'] ?? $result['success'] ?? false);
+        if ($saved) {
+            try {
+                (new \BinktermPHP\NetworkManager())->upsertLovlyNetDefaults();
+            } catch (\Throwable $e) {
+                // Registration updates should not fail solely because the network
+                // table is not available yet during an upgrade window.
+            }
+        }
 
-        return (bool)($result['ok'] ?? false);
+        return $saved;
     }
 
     /**

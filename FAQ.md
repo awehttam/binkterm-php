@@ -345,6 +345,11 @@ Users will see the new theme in their settings dropdown immediately after the co
 - Still require a domain to be set (use a name like "local")
 - Use the system address for message origin
 
+### Q: Why does unread echomail show 0 messages?
+**A:** The dashboard echomail count now shows the number of new messages since your last visit to echomail. Visiting an echomail page resets that count, so it can show 0 even when there are older messages you have not opened.
+
+You can change the badge back to total unread messages in your settings, but that count can take longer to display on systems with a large message base.
+
 ### Q: Why do I get "Can not determine sending address for this network - missing uplink?"
 **A:** This error occurs when posting to an echo area whose domain has no configured uplink. Solutions:
 1. For local-only areas: Enable the "Local Only" flag on the echo area
@@ -440,6 +445,33 @@ Note: the server currently sends a CRAM-MD5 challenge if any configured uplink h
 **A:**
 - **Polling** (`binkp_poll.php`): Your system initiates a connection to your uplink to send/receive mail
 - **Binkp server** (`binkp_server.php`): Listens for incoming connections from other systems (downlinks, direct connects)
+
+### Q: The BinkP sessions page shows an active session that is no longer running. How do I clear it?
+**A:** BinkP session activity is shown from the `binkp_session_log` database table. If a daemon child process exits before it can update the row, the session can remain marked as `active` even though the operating system process is gone.
+
+First, confirm the stale row and note its `id`:
+
+```sql
+SELECT id, remote_address, remote_ip, process_id, log_file, started_at,
+       NOW() - started_at AS age
+FROM binkp_session_log
+WHERE status = 'active'
+ORDER BY started_at;
+```
+
+After confirming that the recorded process is not running, clear only that specific session row by `id`:
+
+```sql
+UPDATE binkp_session_log
+SET status = 'failed',
+    ended_at = CURRENT_TIMESTAMP,
+    error_message = 'Manually cleared stale active session; no matching OS process found'
+WHERE status = 'active'
+  AND ended_at IS NULL
+  AND id = 12345;
+```
+
+Replace `12345` with the stale session `id` returned by the query. This keeps the audit record while removing it from the active sessions list. Targeting the session `id` is safer than targeting `process_id`, because operating system PIDs can be reused.
 
 ---
 

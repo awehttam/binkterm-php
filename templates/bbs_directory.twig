@@ -216,7 +216,7 @@
                                 data-last-seen="{{ entry.last_seen ? entry.last_seen|date('U') : 0 }}"
                             >
                                 <td>
-                                    <a href="/bbs-directory/{{ entry.id }}" class="fw-semibold">{{ entry.name | e }}</a>
+                                    <a href="{{ entry.public_path | default('/bbs-directory/' ~ entry.id) }}" class="fw-semibold">{{ entry.name | e }}</a>
                                 </td>
                                 <td>{{ entry.sysop | e | default('') }}</td>
                                 <td>{{ entry.location | e | default('') }}</td>
@@ -358,6 +358,7 @@
         {% for entry in entries %}
         {
             name: {{ entry.name|json_encode|raw }},
+            url: {{ (entry.public_path ?? ('/bbs-directory/' ~ entry.id))|json_encode|raw }},
             sysop: {{ (entry.sysop ?? '')|json_encode|raw }},
             location: {{ (entry.location ?? '')|json_encode|raw }},
             telnet_host: {{ (entry.telnet_host ?? '')|json_encode|raw }},
@@ -505,7 +506,7 @@
 
             const popupParts = [
                 '<div class="bbs-map-popup">',
-                '<strong>' + escapeHtml(entry.name) + '</strong>'
+                '<strong><a href="' + encodeURI(entry.url || '') + '">' + escapeHtml(entry.name) + '</a></strong>'
             ];
 
             if (entry.location) {

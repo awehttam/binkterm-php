@@ -984,6 +984,42 @@ Options:
 
 Imports a BBS list from a ZIP archive containing `bbslist.csv` into the BBS Directory. Entries are upserted by name (case-insensitive); no deletions are performed.
 
+### Download and Import the Monthly Telnet BBS Guide
+
+`dlimport_bbslist.php` downloads the current monthly Telnet BBS Guide archive from `https://www.telnetbbsguide.com/bbslist/` and then runs `import_bbslist.php` against the downloaded ZIP. The generated filename uses the current month and year in `ibbsMMYY.zip` format, such as `ibbs0526.zip` for May 2026.
+
+```bash
+# Download the current month's archive and import it
+php scripts/dlimport_bbslist.php
+
+# Download and parse without writing to the database
+php scripts/dlimport_bbslist.php --dry-run
+
+# Download a specific archive filename
+php scripts/dlimport_bbslist.php --file=ibbs0526.zip
+
+# Download a specific month/year quietly for cron
+php scripts/dlimport_bbslist.php --month=05 --year=2026 --quiet
+```
+
+Options:
+- `--month=MM` - Month to download (`01`-`12`); defaults to the current month
+- `--year=YYYY` - Year to download; defaults to the current year
+- `--file=NAME` - Specific archive filename, e.g. `ibbs0526.zip`
+- `--dry-run` - Download and pass `--dry-run` to `import_bbslist.php`
+- `--quiet` - Suppress normal output except errors
+- `--help, -h` - Show usage
+
+Downloaded archives are stored in `data/bbslist/`.
+
+Cron example:
+
+```cron
+0 4 1 * * cd /path/to/binkterm && /usr/bin/php scripts/dlimport_bbslist.php --quiet
+```
+
+### Import an Existing ZIP
+
 ```bash
 # Import from a ZIP file
 php scripts/import_bbslist.php /path/to/bbslist.zip

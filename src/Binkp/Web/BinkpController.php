@@ -186,10 +186,6 @@ class BinkpController
                 'poll_schedule' => $data['poll_schedule'] ?? '0 */4 * * *',
             ];
 
-            if (isset($data['default_charset']) && $data['default_charset'] !== '') {
-                $options['default_charset'] = strtoupper(trim((string)$data['default_charset']));
-            }
-            
             $this->config->addUplink($address, $hostname, $port, $password, $options);
             
             return [
@@ -1112,4 +1108,3 @@ class BinkpController
         return $translated === $errorCode ? $fallbackMessage : $translated;
     }
 }
-

@@ -87,6 +87,21 @@ class Translator
         return $locales;
     }
 
+    /**
+     * Returns the native display name for a locale code, or the code itself as fallback.
+     */
+    public function getLocaleName(string $code): string
+    {
+        $names = [
+            'de' => 'Deutsch',
+            'en' => 'English',
+            'es' => 'Español',
+            'fr' => 'Français',
+            'it' => 'Italiano',
+        ];
+        return $names[$code] ?? $code;
+    }
+
     public function translate(string $key, array $params = [], ?string $locale = null, array $namespaces = ['common']): string
     {
         $resolvedLocale = $this->resolveToSupportedLocale($locale);

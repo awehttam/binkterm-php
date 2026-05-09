@@ -3,7 +3,7 @@
 
     "game": {
         "id": "cwn",
-        "name": "Community Wireless Node List",
+        "name": "Community Wireless Node Map",
         "description": "Discover and share community wireless networks - mesh networks, wireless BBSs, and grassroots wireless infrastructure",
         "version": "1.0.0",
         "author": "awehttam",

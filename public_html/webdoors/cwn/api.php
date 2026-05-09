@@ -105,22 +105,26 @@ function handleListNetworks($db)
 
     $sql = "SELECT * FROM cwn_networks WHERE 1=1";
     $sqlParams = [];
+    $whereSql = "";
+    $whereParams = [];
 
     if ($activeOnly) {
-        $sql .= " AND is_active = TRUE";
+        $whereSql .= " AND is_active = TRUE";
     }
 
-    $sql .= cwnMeshcoreExpiryClause();
+    $whereSql .= cwnMeshcoreExpiryClause();
 
     // Bounding box filter
     if (!empty($params['bbox'])) {
         $bbox = explode(',', $params['bbox']);
         if (count($bbox) === 4) {
-            $sql .= " AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?";
-            $sqlParams = array_merge($sqlParams, $bbox);
+            $whereSql .= " AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?";
+            $whereParams = array_merge($whereParams, $bbox);
         }
     }
 
+    $sql .= $whereSql;
+    $sqlParams = $whereParams;
     $sql .= " ORDER BY date_added DESC LIMIT ? OFFSET ?";
     $sqlParams[] = $limit;
     $sqlParams[] = $offset;
@@ -130,16 +134,22 @@ function handleListNetworks($db)
     $networks = $stmt->fetchAll();
 
     // Get total count
-    $countSql = "SELECT COUNT(*) FROM cwn_networks WHERE 1=1";
+    $countSql = "SELECT COUNT(*) FROM cwn_networks WHERE 1=1" . $whereSql;
+    $countStmt = $db->prepare($countSql);
+    $countStmt->execute($whereParams);
+    $total = $countStmt->fetchColumn();
+
+    $totalAllSql = "SELECT COUNT(*) FROM cwn_networks WHERE 1=1";
     if ($activeOnly) {
-        $countSql .= " AND is_active = TRUE";
+        $totalAllSql .= " AND is_active = TRUE";
     }
-    $countSql .= cwnMeshcoreExpiryClause();
-    $total = $db->query($countSql)->fetchColumn();
+    $totalAllSql .= cwnMeshcoreExpiryClause();
+    $totalAll = $db->query($totalAllSql)->fetchColumn();
 
     echo json_encode([
         'networks' => $networks,
         'total' => (int)$total,
+        'total_all' => (int)$totalAll,
         'limit' => $limit,
         'offset' => $offset
     ]);

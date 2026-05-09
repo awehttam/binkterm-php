@@ -18,6 +18,7 @@
         chat_total: 0,
         new_files: 0
     };
+    let lastSeenChatMaxId = 0;
 
     const defaultNotificationSounds = {
         chat: 'notify3',
@@ -284,7 +285,11 @@
             .then(res => res.json())
             .then(async data => {
                 const chatTotal = parseInt(data?.chat_total || 0, 10) || 0;
+                const chatMaxId = parseInt(data?.chat_max_id || 0, 10) || 0;
                 chatUnread = chatTotal > 0;
+                if (chatTotal === 0 && chatMaxId > lastSeenChatMaxId) {
+                    lastSeenChatMaxId = chatMaxId;
+                }
 
                 maybePlayNotificationSounds(data, suppressSounds);
                 updateMailIcons(data, clearTarget);
@@ -293,6 +298,9 @@
 
                 if (clearTarget === 'chat' || isPathMatch('/chat')) {
                     chatUnread = false;
+                    if (chatMaxId > lastSeenChatMaxId) {
+                        lastSeenChatMaxId = chatMaxId;
+                    }
                 }
 
                 updateChatIcons();
@@ -311,6 +319,12 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ target, current_count: currentCount || 0 })
             });
+            if (target === 'chat') {
+                const chatMaxId = parseInt(currentCount || 0, 10) || 0;
+                if (chatMaxId > lastSeenChatMaxId) {
+                    lastSeenChatMaxId = chatMaxId;
+                }
+            }
         } catch (err) {
             // ignore
         }
@@ -380,7 +394,11 @@
             // Incrementing previousStats.chat_total prevents the dashboard_stats
             // event (which also fires on chat INSERT via the chat trigger) from
             // double-firing a sound for the same message.
-            window.BinkStream.on('chat_message', function () {
+            window.BinkStream.on('chat_message', function (data) {
+                const messageId = parseInt(data?.id || 0, 10) || 0;
+                if (messageId && messageId <= lastSeenChatMaxId) {
+                    return;
+                }
                 previousStats.chat_total++;
                 if (!isPathMatch('/chat')) {
                     chatUnread = true;

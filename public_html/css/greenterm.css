@@ -391,6 +391,19 @@ a:hover {
     color: var(--term-green-dark);
 }
 
+.form-control[type="date"],
+.form-control[type="datetime-local"],
+.form-control[type="time"] {
+    color-scheme: dark;
+}
+
+.form-control[type="date"]::-webkit-calendar-picker-indicator,
+.form-control[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.form-control[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.85;
+}
+
 .form-text {
     color: var(--text-color-muted);
 }

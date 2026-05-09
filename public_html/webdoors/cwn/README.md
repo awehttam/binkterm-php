@@ -1,4 +1,4 @@
-# Community Wireless Node List (CWN) WebDoor
+# Community Wireless Node Map (CWN) WebDoor
 
 ## Overview
 
@@ -21,7 +21,7 @@ A WebDoor for discovering and sharing community wireless networks - mesh network
 
 2. **Access the WebDoor**
    - Navigate to `/webdoors` in your BBS
-   - Click on "Community Wireless Node List"
+   - Click on "Community Wireless Node Map"
    - Or direct URL: `/webdoors/cwn/index.html`
 
 ## Usage

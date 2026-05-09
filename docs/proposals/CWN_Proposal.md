@@ -1331,7 +1331,7 @@ function checkRateLimit($db, int $userId, string $type, int $maxPerDay): void
     <div class="container-fluid p-3">
         <div class="row mb-3">
             <div class="col">
-                <h3><i class="fas fa-wifi"></i> Community Wireless Node List</h3>
+                <h3><i class="fas fa-wifi"></i> Community Wireless Node Map</h3>
                 <p class="text-muted">Discover and share community wireless networks</p>
             </div>
             <div class="col-auto">

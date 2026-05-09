@@ -214,11 +214,34 @@ class DashboardStatsService
             $pendingEchomailModeration = (int)($moderationStmt->fetch()['count'] ?? 0);
         }
 
+        $newEchoareaFilter = $isAdmin ? "" : " AND COALESCE(is_sysop_only, FALSE) = FALSE";
+        $newEchoareaCountStmt = $this->db->query("
+            SELECT COUNT(*) AS count
+            FROM echoareas
+            WHERE is_active = TRUE
+              AND created_at >= NOW() - INTERVAL '30 days'
+              {$newEchoareaFilter}
+        ");
+        $newEchoareaCount = (int)($newEchoareaCountStmt->fetch()['count'] ?? 0);
+
+        $newEchoareaStmt = $this->db->query("
+            SELECT id, tag, domain, description, created_at
+            FROM echoareas
+            WHERE is_active = TRUE
+              AND created_at >= NOW() - INTERVAL '30 days'
+              {$newEchoareaFilter}
+            ORDER BY created_at DESC, tag ASC
+            LIMIT 8
+        ");
+        $newEchoareas = $newEchoareaStmt->fetchAll(PDO::FETCH_ASSOC);
+
         return [
             'unread_netmail' => $netmailBadge,
             'new_echomail' => $echomailBadge,
             'chat_total' => $chatBadge,
             'new_files' => $filesBadge,
+            'new_echoareas' => $newEchoareaCount,
+            'recent_echoareas' => $newEchoareas,
             'total_netmail' => $unreadNetmail,
             'echomail_max_id' => $echomailMaxId,
             'chat_max_id' => $chatMaxId,

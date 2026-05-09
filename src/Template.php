@@ -157,6 +157,11 @@ class Template
         $this->twig->addGlobal('locale', $locale);
         $this->twig->addGlobal('default_locale', $this->translator->getDefaultLocale());
         $this->twig->addGlobal('supported_locales', $this->translator->getSupportedLocales());
+        $localeNames = [];
+        foreach ($this->translator->getSupportedLocales() as $code) {
+            $localeNames[$code] = $this->translator->getLocaleName($code);
+        }
+        $this->twig->addGlobal('locale_names', $localeNames);
         $this->twig->addGlobal('i18n_namespaces', ['common', 'errors']);
 
         // CSRF token — stored per-user in UserMeta so it is shared across web
@@ -243,9 +248,7 @@ class Template
         }
         $effectiveRealtimeTransportMode = $configuredRealtimeTransportMode;
         if ($configuredRealtimeTransportMode === 'auto') {
-            // Browser-side transport preference should follow the publicly
-            // reachable WS endpoint, not local PID visibility from php-fpm.
-            $effectiveRealtimeTransportMode = ($realtimeWsUrl !== '' && $realtimeWsUrl !== '/ws') ? 'ws' : 'sse';
+            $effectiveRealtimeTransportMode = $this->isRealtimeDaemonAvailable() ? 'ws' : 'sse';
         }
         $this->twig->addGlobal('configured_realtime_transport_mode', $configuredRealtimeTransportMode);
         $this->twig->addGlobal('effective_realtime_transport_mode', $effectiveRealtimeTransportMode);
@@ -257,6 +260,8 @@ class Template
         // enables URL hyperlinking) or 'perchar' (one span per character, original behavior).
         $ansiRendererMode = Config::env('ANSI_RENDERER_MODE', 'grouped');
         $this->twig->addGlobal('ansi_renderer_mode', in_array($ansiRendererMode, ['grouped', 'perchar'], true) ? $ansiRendererMode : 'grouped');
+
+        $this->twig->addGlobal('media_player_enabled', AppearanceConfig::isMediaPlayerEnabled());
 
         $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
         $creditsEnabled = !empty($creditsConfig['enabled']);
@@ -415,6 +420,7 @@ class Template
         $defaultLabelKeys = [
             '/echomail' => 'ui.admin.appearance.default_menu.messages',
             '/netmail' => 'ui.admin.appearance.default_menu.netmail',
+            '/bulletins' => 'ui.bulletins.title',
             '/files' => 'ui.admin.appearance.default_menu.files',
             '/games' => 'ui.admin.appearance.default_menu.games_doors',
             '/settings' => 'ui.admin.appearance.default_menu.settings',
@@ -471,6 +477,14 @@ class Template
                 ['H', 'U', 'B', 'X']
             );
         }
+
+        $normalizedItems = $this->appendBbsMenuFeatureItem(
+            $normalizedItems,
+            '/bulletins',
+            $this->translator->translate('ui.bulletins.title', [], $locale ?: null),
+            'clipboard-list',
+            ['U', 'B']
+        );
 
         return $normalizedItems;
     }

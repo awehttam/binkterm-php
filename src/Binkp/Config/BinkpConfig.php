@@ -17,6 +17,7 @@
 namespace BinktermPHP\Binkp\Config;
 
 use BinktermPHP\FtnRouter;
+use BinktermPHP\NetworkManager;
 
 class BinkpConfig
 {
@@ -512,7 +513,29 @@ class BinkpConfig
     
     private function saveConfig()
     {
+        $this->stripMigratedUplinkFlags();
         file_put_contents($this->configPath, json_encode($this->config, JSON_PRETTY_PRINT));
+    }
+
+    private function stripMigratedUplinkFlags(): void
+    {
+        if (empty($this->config['uplinks']) || !is_array($this->config['uplinks'])) {
+            return;
+        }
+
+        foreach ($this->config['uplinks'] as &$uplink) {
+            if (!is_array($uplink)) {
+                continue;
+            }
+            unset(
+                $uplink['allow_markup'],
+                $uplink['allow_markdown'],
+                $uplink['allow_media'],
+                $uplink['default_charset'],
+                $uplink['posting_name_policy']
+            );
+        }
+        unset($uplink);
     }
     
     public function getFullConfig()
@@ -660,6 +683,33 @@ class BinkpConfig
         return null;
     }
 
+    private function getNetworkByDomain(string $domain): ?array
+    {
+        $domain = trim($domain);
+        if ($domain === '') {
+            return null;
+        }
+
+        try {
+            return (new NetworkManager())->getByDomain($domain);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function logJsonFlagFallback(string $domain, string $flag): void
+    {
+        if (!function_exists('getServerLogger')) {
+            return;
+        }
+
+        try {
+            getServerLogger()->warning("Using deprecated binkp.json {$flag} fallback for domain {$domain}");
+        } catch (\Throwable $e) {
+            // Logging fallback must never break message processing.
+        }
+    }
+
     /**
      * Check if Markup is allowed for a given domain.
      *
@@ -668,8 +718,38 @@ class BinkpConfig
      */
     public function isMarkdownAllowedForDomain(string $domain): bool
     {
+        $network = $this->getNetworkByDomain($domain);
+        if ($network !== null) {
+            return !empty($network['allow_markup']);
+        }
+
         $uplink = $this->getUplinkByDomain($domain);
-        return !empty($uplink['allow_markup']) || !empty($uplink['allow_markdown']);
+        if ($uplink !== null && (array_key_exists('allow_markup', $uplink) || array_key_exists('allow_markdown', $uplink))) {
+            $this->logJsonFlagFallback($domain, 'allow_markup');
+            return !empty($uplink['allow_markup']) || !empty($uplink['allow_markdown']);
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if inline media rendering is allowed for a given domain.
+     * Defaults to true when not explicitly configured so existing networks are unaffected.
+     */
+    public function isMediaAllowedForDomain(string $domain): bool
+    {
+        $network = $this->getNetworkByDomain($domain);
+        if ($network !== null) {
+            return !empty($network['allow_media']);
+        }
+
+        $uplink = $this->getUplinkByDomain($domain);
+        if ($uplink !== null && array_key_exists('allow_media', $uplink)) {
+            $this->logJsonFlagFallback($domain, 'allow_media');
+            return (bool)$uplink['allow_media'];
+        }
+
+        return false;
     }
 
     /**
@@ -681,9 +761,35 @@ class BinkpConfig
      */
     public function getPostingNamePolicyForDomain(string $domain): string
     {
+        $network = $this->getNetworkByDomain($domain);
+        if ($network !== null) {
+            $policy = strtolower(trim((string)($network['posting_name_policy'] ?? '')));
+            return in_array($policy, ['real_name', 'username'], true) ? $policy : 'real_name';
+        }
+
         $uplink = $this->getUplinkByDomain($domain);
+        if ($uplink !== null && array_key_exists('posting_name_policy', $uplink)) {
+            $this->logJsonFlagFallback($domain, 'posting_name_policy');
+        }
         $policy = strtolower(trim((string)($uplink['posting_name_policy'] ?? '')));
         return in_array($policy, ['real_name', 'username'], true) ? $policy : 'real_name';
+    }
+
+    public function getDefaultCharsetForDomain(string $domain): ?string
+    {
+        $network = $this->getNetworkByDomain($domain);
+        if ($network !== null) {
+            $charset = trim((string)($network['default_charset'] ?? ''));
+            return $charset !== '' ? self::normalizeCharset($charset) : null;
+        }
+
+        $uplink = $this->getUplinkByDomain($domain);
+        if ($uplink !== null && !empty($uplink['default_charset'])) {
+            $this->logJsonFlagFallback($domain, 'default_charset');
+            return self::normalizeCharset((string)$uplink['default_charset']);
+        }
+
+        return null;
     }
 
     /**
@@ -696,8 +802,21 @@ class BinkpConfig
     public function getPostingNamePolicyForDestination(string $destAddr): string
     {
         $uplink = $this->getUplinkForDestination($destAddr);
-        $policy = strtolower(trim((string)($uplink['posting_name_policy'] ?? '')));
-        return in_array($policy, ['real_name', 'username'], true) ? $policy : 'real_name';
+        if (!$uplink) {
+            return 'real_name';
+        }
+
+        return $this->getPostingNamePolicyForDomain((string)($uplink['domain'] ?? ''));
+    }
+
+    public function getDefaultCharsetForDestination(string $destAddr): ?string
+    {
+        $uplink = $this->getUplinkForDestination($destAddr);
+        if (!$uplink) {
+            return null;
+        }
+
+        return $this->getDefaultCharsetForDomain((string)($uplink['domain'] ?? ''));
     }
 
     /**
@@ -717,7 +836,11 @@ class BinkpConfig
         }
 
         $uplink = $this->getUplinkForDestination($destAddr);
-        return $uplink ? (!empty($uplink['allow_markup']) || !empty($uplink['allow_markdown'])) : false;
+        if (!$uplink) {
+            return false;
+        }
+
+        return $this->isMarkdownAllowedForDomain((string)($uplink['domain'] ?? ''));
     }
 
     /**

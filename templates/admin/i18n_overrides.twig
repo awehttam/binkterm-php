@@ -20,7 +20,7 @@
                 <label class="form-label mb-1">{{ t('ui.admin.i18n_overrides.locale_label', {}, 'common') }}</label>
                 <select id="localeSelect" class="form-select form-select-sm">
                     {% for loc in supported_locales %}
-                        <option value="{{ loc }}">{{ loc }}</option>
+                        <option value="{{ loc }}">{{ locale_names[loc] ?? loc }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -196,6 +196,12 @@
                         onclick="clearOverride('${escAttr(key)}', this)">
                         <i class="fas fa-times"></i>
                     </button>
+                    ${currentLocale !== 'en' && enVal !== null ? `
+                    <button class="btn btn-sm btn-outline-primary py-0 px-1 mt-1 translate-btn"
+                        title="{{ t('ui.admin.i18n_overrides.translate_btn', {}, 'common') }}"
+                        onclick="translateKey('${escAttr(key)}', this)">
+                        <i class="fas fa-language"></i>
+                    </button>` : ''}
                 </td>
             </tr>`;
         });
@@ -292,6 +298,36 @@
         el.className = `alert alert-${type} mb-3`;
         el.textContent = msg;
     }
+
+    // ── AI translation ────────────────────────────────────────────────────────
+    window.translateKey = async function(key, btn) {
+        const enText = enBaseData[key];
+        if (!enText || currentLocale === 'en') return;
+
+        const row      = btn.closest('tr');
+        const textarea = row.querySelector('textarea');
+        const icon     = btn.querySelector('i');
+
+        btn.disabled      = true;
+        icon.className    = 'fas fa-spinner fa-spin';
+
+        try {
+            const r    = await fetch('/admin/api/i18n-overrides/translate', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ locale: currentLocale, text: enText }),
+            });
+            const json = await r.json();
+            if (!json.success) throw new Error(json.error || 'Translation failed');
+            textarea.value = json.translation;
+            onOverrideInput(textarea);
+        } catch (e) {
+            setStatus('danger', uiT('ui.admin.i18n_overrides.translate_failed', {}, 'Translation failed.'));
+        } finally {
+            btn.disabled   = false;
+            icon.className = 'fas fa-language';
+        }
+    };
 
     function escHtml(s) {
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

@@ -1,9 +1,9 @@
 #!/usr/bin/env php
 <?php
 /**
- * Auto Feed: RSS to Echoarea Poster
+ * Auto Feed: Feed to Echoarea Poster
  *
- * Monitors RSS feeds and posts new articles to specified echoareas.
+ * Monitors configured feeds and posts new items to specified echoareas.
  * Run periodically via cron or manually to check for new feed items.
  *
  * Usage:
@@ -133,25 +133,20 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
         }
     }
 
-    // Fetch RSS feed
+    // Fetch source feed
     if ($verbose) {
-        echo sprintf("[Feed #%d] Fetching feed from %s\n", $feed['id'], $feed['feed_url']);
+        echo sprintf("[Feed #%d] Fetching %s feed from %s\n",
+            $feed['id'], getFeedSourceType($feed), $feed['feed_url']);
     }
-    $xml = fetchRssFeed($feed['feed_url']);
-
-    // Parse feed
-    if ($verbose) {
-        echo sprintf("[Feed #%d] Parsing feed XML\n", $feed['id']);
-    }
-    $articles = parseRssFeed($xml);
+    $articles = fetchArticlesForFeed($feed);
 
     if ($verbose) {
-        echo sprintf("[Feed #%d] Found %d articles in feed\n", $feed['id'], count($articles));
+        echo sprintf("[Feed #%d] Found %d item(s) in feed\n", $feed['id'], count($articles));
     }
 
     if (empty($articles)) {
         if ($verbose) {
-            echo sprintf("[Feed #%d] No articles found in feed\n", $feed['id']);
+            echo sprintf("[Feed #%d] No items found in feed\n", $feed['id']);
         }
         updateLastCheck($db, $feed['id']);
         return 0;
@@ -166,7 +161,7 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
 
     if (empty($newArticles)) {
         if ($verbose) {
-            echo sprintf("[Feed #%d] No new articles\n", $feed['id']);
+            echo sprintf("[Feed #%d] No new items\n", $feed['id']);
         }
         updateLastCheck($db, $feed['id']);
         return 0;
@@ -183,7 +178,7 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
             }
             $posted++;
         } catch (Exception $e) {
-            echo sprintf("[Feed #%d] Failed to post article '%s': %s\n",
+            echo sprintf("[Feed #%d] Failed to post item '%s': %s\n",
                 $feed['id'], substr($article['title'], 0, 50), $e->getMessage());
         }
     }
@@ -198,6 +193,275 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
     updateLastCheck($db, $feed['id']);
 
     return $posted;
+}
+
+/**
+ * Fetch and parse articles for a configured feed source.
+ *
+ * @param array $feed Feed configuration
+ * @return array Array of normalized article records
+ * @throws Exception on fetch or parse failure
+ */
+function fetchArticlesForFeed($feed) {
+    $sourceType = getFeedSourceType($feed);
+
+    if ($sourceType === 'bluesky') {
+        $requestLimit = min(100, max(10, (int)($feed['max_articles_per_check'] ?? 10) * 5));
+        return fetchBlueskyFeed($feed['feed_url'], $requestLimit);
+    }
+
+    $xml = fetchRssFeed($feed['feed_url']);
+    return parseRssFeed($xml);
+}
+
+/**
+ * Resolve the feed source type. Older rows default to RSS, while Bluesky profile
+ * URLs are auto-detected to keep existing configuration simple.
+ *
+ * @param array $feed Feed configuration
+ * @return string Source type
+ */
+function getFeedSourceType($feed) {
+    $sourceType = strtolower((string)($feed['source_type'] ?? ''));
+    if ($sourceType !== '') {
+        return $sourceType;
+    }
+
+    return isBlueskyProfileUrl((string)$feed['feed_url']) ? 'bluesky' : 'rss';
+}
+
+/**
+ * Fetch public Bluesky author posts and normalize posts with media attachments.
+ *
+ * @param string $url Bluesky profile URL, handle, or DID
+ * @param int $limit Maximum number of posts to request
+ * @return array Normalized article records ordered newest first
+ * @throws Exception on fetch or parse failure
+ */
+function fetchBlueskyFeed($url, $limit = 10) {
+    $actor = extractBlueskyActor($url);
+    if ($actor === '') {
+        throw new Exception("Invalid Bluesky profile URL: $url");
+    }
+
+    $limit = max(1, min(100, $limit));
+    $apiUrl = 'https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed'
+        . '?actor=' . rawurlencode($actor)
+        . '&filter=posts_no_replies'
+        . '&limit=' . $limit;
+
+    $json = fetchJson($apiUrl, 'BinktermPHP Auto Feed Bluesky/1.0');
+    $items = $json['feed'] ?? null;
+    if (!is_array($items)) {
+        throw new Exception('Bluesky response did not include a feed array');
+    }
+
+    $articles = [];
+    foreach ($items as $item) {
+        if (!empty($item['reason'])) {
+            continue;
+        }
+
+        $post = $item['post'] ?? null;
+        if (!is_array($post)) {
+            continue;
+        }
+
+        $article = normalizeBlueskyPost($post);
+        if ($article !== null) {
+            $articles[] = $article;
+        }
+    }
+
+    return $articles;
+}
+
+/**
+ * Normalize a Bluesky post view into the common article structure.
+ *
+ * @param array $post Bluesky post view
+ * @return array|null Article data, or null when the post has no media URL
+ */
+function normalizeBlueskyPost($post) {
+    $mediaUrls = extractBlueskyMediaUrls($post['embed'] ?? null);
+    if (empty($mediaUrls)) {
+        return null;
+    }
+
+    $record = is_array($post['record'] ?? null) ? $post['record'] : [];
+    $author = is_array($post['author'] ?? null) ? $post['author'] : [];
+    $text = trim((string)($record['text'] ?? ''));
+    $handle = (string)($author['handle'] ?? '');
+    $displayName = trim((string)($author['displayName'] ?? ''));
+    $postedBy = $displayName !== '' ? $displayName : ($handle !== '' ? '@' . $handle : 'Bluesky');
+    $createdAt = (string)($record['createdAt'] ?? $post['indexedAt'] ?? '');
+    $uri = (string)($post['uri'] ?? '');
+    $cid = (string)($post['cid'] ?? '');
+    $link = buildBlueskyPostUrl($handle, $uri);
+
+    $title = $text !== ''
+        ? firstLine($text)
+        : 'Bluesky media post by ' . $postedBy;
+
+    return [
+        'guid' => $uri !== '' ? $uri : $cid,
+        'title' => $title,
+        'link' => $link,
+        'description' => $text,
+        'pubDate' => $createdAt,
+        'sourceType' => 'bluesky',
+        'author' => $postedBy,
+        'mediaUrls' => $mediaUrls
+    ];
+}
+
+/**
+ * Extract image/video thumbnail URLs from supported Bluesky embed shapes.
+ *
+ * @param mixed $embed Bluesky embed view
+ * @return array Unique media URLs
+ */
+function extractBlueskyMediaUrls($embed) {
+    if (!is_array($embed)) {
+        return [];
+    }
+
+    $urls = [];
+    $type = (string)($embed['$type'] ?? '');
+
+    if ($type === 'app.bsky.embed.images#view' && is_array($embed['images'] ?? null)) {
+        foreach ($embed['images'] as $image) {
+            if (!is_array($image)) {
+                continue;
+            }
+            $url = (string)($image['fullsize'] ?? $image['thumb'] ?? '');
+            if ($url !== '') {
+                $urls[] = $url;
+            }
+        }
+    } elseif ($type === 'app.bsky.embed.video#view') {
+        $url = (string)($embed['thumbnail'] ?? '');
+        if ($url !== '') {
+            $urls[] = $url;
+        }
+    } elseif ($type === 'app.bsky.embed.external#view' && is_array($embed['external'] ?? null)) {
+        $url = (string)($embed['external']['thumb'] ?? '');
+        if ($url !== '') {
+            $urls[] = $url;
+        }
+    } elseif ($type === 'app.bsky.embed.recordWithMedia#view') {
+        $urls = array_merge($urls, extractBlueskyMediaUrls($embed['media'] ?? null));
+    }
+
+    return array_values(array_unique(array_filter($urls, function($url) {
+        return preg_match('/^https:\/\//i', $url) === 1;
+    })));
+}
+
+/**
+ * Extract a Bluesky actor handle or DID from a profile URL or raw input.
+ *
+ * @param string $url Profile URL, handle, or DID
+ * @return string Actor identifier
+ */
+function extractBlueskyActor($url) {
+    $value = trim($url);
+    if ($value === '') {
+        return '';
+    }
+
+    if (preg_match('/^did:[a-z0-9:._-]+$/i', $value)) {
+        return $value;
+    }
+
+    if (preg_match('/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i', $value)) {
+        return $value;
+    }
+
+    $parts = parse_url($value);
+    $host = strtolower((string)($parts['host'] ?? ''));
+    $path = (string)($parts['path'] ?? '');
+    if (($host === 'bsky.app' || $host === 'www.bsky.app')
+        && preg_match('#^/profile/([^/]+)#', $path, $matches)) {
+        return rawurldecode($matches[1]);
+    }
+
+    return '';
+}
+
+/**
+ * Build a human-facing Bluesky post URL.
+ *
+ * @param string $handle Author handle
+ * @param string $uri AT URI
+ * @return string Public post URL
+ */
+function buildBlueskyPostUrl($handle, $uri) {
+    if ($handle === '' || !preg_match('#/app\.bsky\.feed\.post/([^/]+)$#', $uri, $matches)) {
+        return '';
+    }
+
+    return 'https://bsky.app/profile/' . rawurlencode($handle) . '/post/' . rawurlencode($matches[1]);
+}
+
+/**
+ * Return the first non-empty line of text.
+ *
+ * @param string $text Input text
+ * @return string First line
+ */
+function firstLine($text) {
+    $lines = preg_split('/\R/', $text);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line !== '') {
+            return $line;
+        }
+    }
+    return '';
+}
+
+/**
+ * Fetch and decode JSON from an HTTP endpoint.
+ *
+ * @param string $url Endpoint URL
+ * @param string $userAgent HTTP user agent
+ * @return array Decoded JSON
+ * @throws Exception on fetch or decode failure
+ */
+function fetchJson($url, $userAgent) {
+    $context = stream_context_create([
+        'http' => [
+            'timeout' => 30,
+            'user_agent' => $userAgent,
+            'follow_location' => true,
+            'max_redirects' => 5,
+            'header' => "Accept: application/json\r\n"
+        ]
+    ]);
+
+    $json = @file_get_contents($url, false, $context);
+
+    if ($json === false) {
+        throw new Exception("Failed to fetch JSON: $url");
+    }
+
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        throw new Exception('Failed to parse JSON response');
+    }
+
+    return $decoded;
+}
+
+/**
+ * Determine whether a URL points at a Bluesky profile.
+ *
+ * @param string $url URL to test
+ * @return bool True for Bluesky profile URLs
+ */
+function isBlueskyProfileUrl($url) {
+    return extractBlueskyActor($url) !== '';
 }
 
 /**
@@ -374,11 +638,11 @@ function postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose) 
         $subject,
         $body,
         null,       // replyToId
-        'Auto Feed RSS', // tagline
+        'BinktermPHP Auto Feed', // tagline
         false,      // skipCredits
         null,       // markupType
         '',         // prependKludges
-        'Auto Feed' // tearlineComponent
+        'BinktermPHP Auto Feed' // tearlineComponent
     );
 
     // Increment posted article counter
@@ -406,6 +670,10 @@ function formatArticleMessage($article) {
         $body .= str_repeat('=', min(strlen($article['title']), 79)) . "\n\n";
     }
 
+    if (($article['sourceType'] ?? '') === 'bluesky' && !empty($article['author'])) {
+        $body .= "Posted by: " . $article['author'] . "\n\n";
+    }
+
     // Add description/summary
     if (!empty($article['description'])) {
         // Strip HTML tags
@@ -420,9 +688,18 @@ function formatArticleMessage($article) {
         $body .= $description . "\n\n";
     }
 
+    if (!empty($article['mediaUrls']) && is_array($article['mediaUrls'])) {
+        $body .= "Media:\n";
+        foreach ($article['mediaUrls'] as $mediaUrl) {
+            $body .= $mediaUrl . "\n";
+        }
+        $body .= "\n";
+    }
+
     // Add link
     if (!empty($article['link'])) {
-        $body .= "Read more: " . $article['link'] . "\n";
+        $label = (($article['sourceType'] ?? '') === 'bluesky') ? 'View post' : 'Read more';
+        $body .= $label . ": " . $article['link'] . "\n";
     }
 
     // Add publication date
@@ -470,7 +747,7 @@ function truncate($str, $length) {
  */
 function showHelp() {
     echo <<<HELP
-Auto Feed: RSS/Atom to Echoarea Poster
+Auto Feed: Feed to Echoarea Poster
 
 Usage:
   php rss_poster.php [options]

@@ -37,6 +37,7 @@ bash scripts/restart_daemons.sh
 |------|---------|------------|
 | `.env` | Database, SMTP, daemon ports, feature flags | Text editor (initial setup) |
 | `config/binkp.json` | System identity, uplinks, binkp daemon, security, crashmail | Admin UI → BinkP Config |
+| Database `networks` table | FTN network metadata and network-level message policy flags | Admin UI → Networks |
 | `config/bbs.json` | BBS features (credits, file areas, registration, etc.) | Admin UI → BBS Settings |
 | `config/nodelists.json` | Nodelist download sources | Admin UI → Nodelists |
 | `config/mrc.json` | MRC chat relay server | Admin UI or text editor |
@@ -270,6 +271,8 @@ FILEAREA_RULE_ACTION_LOG=data/logs/filearea_rules.log
 
 `config/binkp.json` defines your system's FTN identity, the binkp daemon, uplinks, and related services.  See `config/binkp.json.example` for an annotated reference.
 
+Network-level message policy settings are not stored in `config/binkp.json`. Manage each network's display name, default charset, markup setting, inline media setting, and posting-name policy from **Admin → Networks**. Uplink entries keep only connection, routing, polling, and authentication details and reference a network through their `domain` value.
+
 **After editing this file, restart services.**
 
 Minimal example:
@@ -348,7 +351,6 @@ Each entry in the `uplinks` array defines one hub/uplink connection.
 | `domain` | Yes | Network domain (e.g., `"fidonet"`, `"fsxnet"`, `"agoranet"`) |
 | `networks` | Yes | Address patterns routed through this uplink (see below) |
 | `poll_schedule` | No | Cron expression for automated polling, e.g. `"0 */4 * * *"` |
-| `allow_markup` | No | Enable Markdown/StyleCodes for messages via this uplink |
 | `send_domain_in_addr` | No | Include `@domain` suffix in the ADR address sent to this uplink |
 | `enabled` | No | Whether uplink is active (default: `true`) |
 | `default` | No | Whether this is the default uplink for unrouted messages |
@@ -362,6 +364,8 @@ Each entry in the `uplinks` array defines one hub/uplink connection.
 "21:*/*"  → all Zone 21 (FSXNet)
 "46:*/*"  → all Zone 46 (AgoraNet)
 ```
+
+**Network domain** — `domain` must match a configured network in **Admin → Networks**. Multiple uplinks may use the same domain, for example a primary and backup FidoNet hub. They share the network row's markup, inline media, default charset, and posting-name policy settings.
 
 **Multiple networks example:**
 ```json

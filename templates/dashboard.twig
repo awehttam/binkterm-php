@@ -65,11 +65,11 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-tachometer-alt"></i>
-                    {{ t('ui.dashboard.title', {}, locale, ['common']) }}
+                    {{ t('ui.dashboard.mail_and_areas', {}, locale, ['common']) }}
                 </h5>
             </div>
             <div class="card-body">
-                <div class="row">
+                <div class="row g-3">
                     <div class="col-md-6">
                         <a href="/netmail" class="text-decoration-none">
                             <div class="card bg-primary text-white">
@@ -95,6 +95,46 @@
                                 </div>
                             </div>
                         </a>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-top">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="fw-semibold small text-uppercase">
+                            <i class="fas fa-map-signs me-1"></i>
+                            {{ t('ui.dashboard.new_echoareas', {}, locale, ['common']) }}
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="small text-muted" id="newEchoareaCount">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                    id="toggleNewEchoareas"
+                                    onclick="toggleNewEchoareasSection()"
+                                    aria-expanded="true"
+                                    aria-controls="newEchoareasBody"
+                                    title="{{ t('ui.dashboard.new_echoareas_hide', {}, locale, ['common']) }}">
+                                <i class="fas fa-chevron-up" aria-hidden="true"></i>
+                                <span class="visually-hidden">{{ t('ui.dashboard.new_echoareas_hide', {}, locale, ['common']) }}</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="newEchoareasBody">
+                        <div id="newEchoareaList">
+                            <div class="text-center text-muted small">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2 mt-2">
+                            <a class="btn btn-sm btn-outline-secondary" href="/subscriptions">
+                                <i class="fas fa-bookmark me-1"></i>{{ t('ui.dashboard.manage_subscriptions', {}, locale, ['common']) }}
+                            </a>
+                            {% if interests_enabled %}
+                            <a class="btn btn-sm btn-outline-secondary" href="/interests">
+                                <i class="fas fa-layer-group me-1"></i>{{ t('ui.dashboard.manage_interests', {}, locale, ['common']) }}
+                            </a>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -189,6 +229,27 @@
     </div>
 
     <div class="col-lg-4" id="dashSidebarCards">
+        <div class="dash-card-wrapper" data-card-id="bulletins">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>{{ t('ui.bulletins.title', {}, locale, ['common']) }}</h6>
+            </div>
+            <div class="card-body">
+                {% if bulletin_unread_count > 0 %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="h4 mb-0">{{ bulletin_unread_count }}</div>
+                            <div class="text-muted small">{{ t('ui.dashboard.bulletins.unread', {'count': bulletin_unread_count}, locale, ['common']) }}</div>
+                        </div>
+                        <a class="btn btn-primary btn-sm" href="/bulletins">{{ t('ui.bulletins.title', {}, locale, ['common']) }}</a>
+                    </div>
+                {% else %}
+                    <div class="text-muted small">{{ t('ui.bulletins.no_new', {}, locale, ['common']) }}</div>
+                {% endif %}
+            </div>
+        </div>
+        </div>{# /dash-card-wrapper bulletins #}
+
         <div class="dash-card-wrapper" data-card-id="system_info">
         <div class="card">
             <div class="card-header">
@@ -392,6 +453,8 @@ let votingPolls = [];
 let votingPollIndex = 0;
 let shoutboxOffset = 0;
 const shoutboxPageSize = 5;
+const NEW_ECHOAREAS_COLLAPSED_KEY = 'dashboardNewEchoareasCollapsed';
+let latestDashboardStats = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -414,7 +477,9 @@ const dashboardAdImpressionsSent = new Set();
 
 $(document).ready(function() {
     applyDashboardLayout(DASHBOARD_LAYOUT);
+    applyNewEchoareasCollapsedState();
     loadI18nNamespaces(['common', 'errors']).then(function() {
+    updateNewEchoareasToggle();
     loadDashboardData();
     {% if bbs_feature_enabled('voting_booth') %}
     loadVotingBooth();
@@ -470,9 +535,97 @@ $(document).ready(function() {
 function loadDashboardData() {
     $.get('/api/dashboard/stats')
         .done(function(data) {
+            latestDashboardStats = data;
             $('#netmailCount').text(data.total_netmail || 0);
             $('#echomailCount').text(data.new_echomail || 0);
+            renderNewEchoareas(data);
         });
+}
+
+function isNewEchoareasCollapsed() {
+    try {
+        return UserStorage.getItem(NEW_ECHOAREAS_COLLAPSED_KEY) === '1';
+    } catch (_) {
+        return false;
+    }
+}
+
+function setNewEchoareasCollapsed(collapsed) {
+    try {
+        UserStorage.setItem(NEW_ECHOAREAS_COLLAPSED_KEY, collapsed ? '1' : '0');
+    } catch (_) {}
+}
+
+function applyNewEchoareasCollapsedState() {
+    const collapsed = isNewEchoareasCollapsed();
+    $('#newEchoareasBody').toggleClass('d-none', collapsed);
+    $('#toggleNewEchoareas').attr('aria-expanded', collapsed ? 'false' : 'true');
+    updateNewEchoareasToggle();
+}
+
+function updateNewEchoareasToggle() {
+    const collapsed = isNewEchoareasCollapsed();
+    const label = collapsed
+        ? uiT('ui.dashboard.new_echoareas_show', 'Show new echo areas')
+        : uiT('ui.dashboard.new_echoareas_hide', 'Hide new echo areas');
+    $('#toggleNewEchoareas')
+        .attr('title', label)
+        .attr('aria-label', label)
+        .find('i')
+        .toggleClass('fa-chevron-down', collapsed)
+        .toggleClass('fa-chevron-up', !collapsed);
+    $('#toggleNewEchoareas .visually-hidden').text(label);
+}
+
+function toggleNewEchoareasSection() {
+    const collapsed = !isNewEchoareasCollapsed();
+    setNewEchoareasCollapsed(collapsed);
+    applyNewEchoareasCollapsedState();
+    if (!collapsed && latestDashboardStats) {
+        renderNewEchoareas(latestDashboardStats);
+    }
+}
+
+function renderNewEchoareas(data) {
+    const areas = Array.isArray(data.recent_echoareas) ? data.recent_echoareas : [];
+    const count = Number(data.new_echoareas || areas.length || 0);
+    $('#newEchoareaCount').text(uiT('ui.dashboard.new_echoareas_count', '{count} added in past 30 days', { count }));
+
+    if (isNewEchoareasCollapsed()) {
+        return;
+    }
+
+    if (count === 0) {
+        $('#newEchoareaList').html(`<div class="text-muted small">${uiT('ui.dashboard.new_echoareas_none', 'No new echo areas in the past 30 days.')}</div>`);
+        return;
+    }
+
+    const html = areas.map(function(area) {
+        const tag = area.tag || '';
+        const domain = area.domain || '';
+        const areaUrl = domain
+            ? `/echomail/${encodeURIComponent(tag)}@${encodeURIComponent(domain)}`
+            : `/echomail/${encodeURIComponent(tag)}`;
+        const createdAtRaw = area.created_at ? String(area.created_at).replace(' ', 'T') : '';
+        const createdDate = createdAtRaw ? new Date(createdAtRaw) : null;
+        const createdAt = createdDate && !Number.isNaN(createdDate.getTime()) ? createdDate.toLocaleDateString() : '';
+        const dateLabel = createdAt
+            ? `<span class="text-muted small">${uiT('ui.dashboard.new_echoareas_added', 'Added')} ${escapeHtml(createdAt)}</span>`
+            : '';
+
+        return `
+            <div class="d-flex justify-content-between align-items-start py-1">
+                <div class="me-2">
+                    <a href="${areaUrl}" class="text-decoration-none fw-semibold">${escapeHtml(tag)}</a>
+                    ${domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.65em; vertical-align: middle;">${escapeHtml(domain)}</span>` : ''}
+                    ${area.description ? `<div class="text-muted small">${escapeHtml(area.description)}</div>` : ''}
+                </div>
+                <div class="text-nowrap">${dateLabel}</div>
+            </div>
+        `;
+    }).join('');
+
+    $('#newEchoareaList').html(html);
 }
 
 function loadVotingBooth(keepPollId = null) {
@@ -626,12 +779,14 @@ function loadEchoareas() {
                 data.echoareas.forEach(function(area) {
                     const unreadCount = area.unread_count || 0;
                     const totalCount = area.message_count || 0;
-                    const fullTag = `${area.tag}@${area.domain}`;
+                    const areaUrl = area.domain
+                        ? `/echomail/${encodeURIComponent(area.tag)}@${encodeURIComponent(area.domain)}`
+                        : `/echomail/${encodeURIComponent(area.tag)}`;
 
                     html += `
                         <div class="d-flex justify-content-between align-items-center py-1">
                             <div>
-                                <a href="/echomail/${encodeURIComponent(fullTag)}" class="text-decoration-none">
+                                <a href="${areaUrl}" class="text-decoration-none">
                                     ${area.tag}
                                 </a>
                                 ${area.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.65em; vertical-align: middle;">${area.domain}</span>` : ''}

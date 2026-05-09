@@ -7,7 +7,7 @@
 <meta name="description" content="{{ meta_desc | e }}">
 <meta property="og:title" content="{{ t('ui.bbs_directory.entry_page_title', {'name': entry.name}, 'common') | e }}">
 <meta property="og:description" content="{{ meta_desc | e }}">
-<meta property="og:url" content="{{ site_url }}/bbs-directory/{{ entry.id }}">
+<meta property="og:url" content="{{ entry.public_url | default(site_url ~ '/bbs-directory/' ~ entry.id) }}">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <script type="application/ld+json">

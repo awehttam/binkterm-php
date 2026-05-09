@@ -22,6 +22,7 @@ use BinktermPHP\EchoareaManager;
 use BinktermPHP\FileAreaManager;
 use BinktermPHP\LovlyNetClient;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\NetworkManager;
 use BinktermPHP\Version;
 
 define('LOVLYNET_REGISTRY_URL', 'https://lovlynet.lovelybits.org/api/register.php');
@@ -114,6 +115,18 @@ function deriveLovlyNetTicPassword(string $areafixPassword): string {
 }
 
 /**
+ * Ensure the LovlyNet network-level settings exist in the networks table.
+ */
+function ensureLovlyNetNetworkDefaults(): void {
+    try {
+        $manager = new NetworkManager();
+        $manager->upsertLovlyNetDefaults();
+    } catch (\Throwable $e) {
+        echo "Warning: Could not update LovlyNet network defaults: " . $e->getMessage() . "\n";
+    }
+}
+
+/**
  * Pull currently subscribed LovlyNet areas from the API and ensure matching
  * local echo/file areas exist.
  *
@@ -170,6 +183,12 @@ function syncSubscribedLovlyNetAreas(string $hubAddress): void {
                 'is_sysop_only'  => $isSysopOnly,
                 'gemini_public'  => false,
             ], ['', LOVLYNET_DOMAIN]);
+
+            if (!$existingId) {
+                // Default new LovlyNet areas to media-enabled; applyRecommendedSettings
+                // will override this if LovlyNet's metadata specifies a different value.
+                $echoareaManager->updateAllowMedia($localId, true);
+            }
 
             $client->applyRecommendedSettings('echo', array_merge($area, ['local_echoarea_id' => $localId]));
 
@@ -522,6 +541,7 @@ function doRegistration($isUpdate = false) {
     }
 
     // Configure binkp uplink
+    ensureLovlyNetNetworkDefaults();
     echo "Configuring LovlyNet uplink... ";
 
     try {
@@ -538,12 +558,10 @@ function doRegistration($isUpdate = false) {
                 'tic_password' => $ticPassword,
                 'domain' => LOVLYNET_DOMAIN,
                 'networks' => ['227:*/*'],
-                'allow_markup' => true,
                 'enabled' => true,
                 'compression' => false,
                 'crypt' => true,
                 'poll_schedule' => '*/15 * * * *',
-                'default_charset' => 'UTF-8',
             ]);
         } else {
             // Add new uplink
@@ -557,11 +575,9 @@ function doRegistration($isUpdate = false) {
                     'domain' => LOVLYNET_DOMAIN,
                     'networks' => ['227:*/*'],
                     'tic_password' => $ticPassword,
-                    'allow_markup' => true,
                     'compression' => false,
                     'crypt' => true,
                     'poll_schedule' => '*/15 * * * *',
-                    'default_charset' => 'UTF-8',
                 ]
             );
         }

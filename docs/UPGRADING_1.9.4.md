@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Configurable Echomail Badge Mode](#configurable-echomail-badge-mode)
 - [PacketBBS Gateway](#packetbbs-gateway)
 - [CWN MeshCore Node Mapping](#cwn-meshcore-node-mapping)
+- [BBS Directory](#bbs-directory)
 - [Telnet Daemon](#telnet-daemon)
 - [Shoutbox](#shoutbox)
 - [Localization](#localization)
@@ -29,12 +30,17 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **ANSI and URL rendering**: Shoutbox messages now render ANSI color codes and clickable URLs using the same rendering pipeline as echomail messages. Previously, message text was displayed as plain escaped text.
 
+### BBS Directory
+
+- **Friendly listing URLs**: Public BBS directory listing links now include the BBS name as a URL slug, for example `/bbs-directory/831/the-bbs-name`. The numeric ID remains the authoritative lookup key, and older `/bbs-directory/831` links continue to work.
+
 ### Telnet Daemon
 
 - **Connection rate limiting**: The telnet daemon now rejects repeated rapid connections from the same IP address before forking a new process for each one. The limit is configurable via two `.env` variables (`TELNET_RATE_LIMIT_MAX`, `TELNET_RATE_LIMIT_WINDOW`) and is enabled by default. Set `TELNET_RATE_LIMIT_MAX=0` to disable it.
 
 ### Localization
 
+- **German translation**: German (`de`) translations are now available, courtesy of Neo67.
 - **Spanish and French orphaned keys**: Four translation keys that no longer exist in the English baseline were present in the Spanish (`es`) and French (`fr`) catalogs. These orphaned entries have been removed from both catalogs.
 - **New `check_i18n_extra_keys.php` script**: A new developer utility detects translation keys in non-English catalogs that are absent from the English baseline, complementing the existing `check_i18n_missing_keys.php` script.
 - **New `check_i18n_syntax.php` script**: A new developer utility runs `php -l` on every catalog file and reports parse errors before they can cause HTTP 500 errors in production.
@@ -199,6 +205,20 @@ Shoutbox message bodies are now passed through the same `formatMessageText` rend
 
 No database migration or configuration change is required.
 
+## BBS Directory
+
+### Friendly Listing URLs
+
+Public BBS directory detail pages now support and generate human-readable URLs that include both the database ID and a slug derived from the BBS name:
+
+```text
+/bbs-directory/831/the-bbs-name
+```
+
+The numeric ID remains the only value used to look up the listing. The slug is present for readability and sharing, so existing links such as `/bbs-directory/831` remain valid and continue to load the same listing.
+
+The public directory page, map popups, and Open Graph metadata now use the friendly URL form. No database migration or configuration change is required.
+
 ## Telnet Daemon
 
 ### Connection Rate Limiting
@@ -219,6 +239,10 @@ The defaults allow 5 connections per minute per IP, which is sufficient for any 
 No database migration or `composer update` is required for this change. The feature activates automatically on daemon restart.
 
 ## Localization
+
+### German Translation
+
+German (`de`) translations are now available for the web interface and terminal server, courtesy of Neo67. No database migration or configuration change is required.
 
 ### Spanish and French Orphaned Keys
 

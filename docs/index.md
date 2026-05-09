@@ -17,6 +17,7 @@ This index lists documents in operational priority order — essentials first, a
 ## FTN Networking
 
 - [Echo Areas](EchoAreas.md) — Creating, managing, and subscribing to echomail areas
+- [Joining and Configuring an FTN](FTNGuide.md) — Joining an FTN, configuring a binkp uplink, and subscribing to areas
 - [Echo Digests](EchoDigests.md) — Scheduled email digests of echomail areas
 - [File Areas](FileAreas.md) — File area configuration, uploads, and management
 - [FREQ](FREQ.md) — File request (FREQ) serving and requesting: modes, magic names, routing, and CLI tools
@@ -57,6 +58,7 @@ This index lists documents in operational priority order — essentials first, a
 
 ## Content & Display
 
+- [Media in Messages](MediaInMessages.md) — Inline images, video, audio, platform embeds, retro audio, and text art in echomail and netmail
 - [ANSI Support](ANSI_Support.md) — ANSI art rendering in messages and files
 - [ANSI Ads Generator](ANSI_Ads_Generator.md) — Generating ANSI-art advertisements
 - [RIPScrip Support](RIPScrip_Support.md) — RIPscrip vector graphics rendering in echomail and file areas
@@ -110,8 +112,9 @@ This index lists documents in operational priority order — essentials first, a
 
 ## Upgrading
 
-Release-specific upgrade notes, listed newest-first.
+Release-specific upgrade notes, listed newest-first. See [UPGRADING_TEMPLATE.md](UPGRADING_TEMPLATE.md) for the document template.
 
+- [Upgrading to 1.9.5](UPGRADING_1.9.5.md)
 - [Upgrading to 1.9.4](UPGRADING_1.9.4.md)
 - [Upgrading to 1.9.3](UPGRADING_1.9.3.md)
 - [Upgrading to 1.9.2](UPGRADING_1.9.2.md)

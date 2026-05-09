@@ -28,6 +28,8 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 
 awehttam operates a full instance of BinktermPHP over at https://claudes.lovelybits.org - Claude's very own BBS, and a point system @ https://mypoint.lovelybits.org.
 
+BinktermPHP was featured in the *Calling All Nodes* YouTube video: [CALLING ALL NODES — BinktermPHP](https://www.youtube.com/watch?v=I_s8X2O7Lmk)
+
 ---
 
 # Table of Contents
@@ -317,9 +319,10 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL, GMP
 - **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
-- **Web Server** - Apache, Nginx, or PHP built-in server
+- **Web Server** - Caddy, Apache, Nginx, etc.
 - **Composer** - For dependency management
 - **libsixel** (`libsixel-bin`) - Optional, enables Sixel image rendering in the telnet/SSH terminal reader
+- **Feature-specific dependencies** - Some optional features, such as DOS Doors, may require additional installation steps. See each feature's documentation for its specific requirements.
 - **Hardware Recommendation** - If you are running all services, we recommend at least 2 GB of RAM and 2 CPU cores
 - **Sizing Note** - Running fewer services generally requires less RAM
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
@@ -329,8 +332,18 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 ### Ubuntu/Debian package requirements
 ```bash
 sudo apt-get update
-sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom postgresql composer 
+
+# Choose a web server and PHP runner (recommended)
+#  If caddy is not available in your distro, see https://caddyserver.com/download downloads
+sudo apt-get install caddy php-fpm
+
+# -or - Apache and PHP runner (not recommended)
+sudo apt-get install libapache2-mod-php apache2
+
+# Install required packages
+sudo apt-get install  php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom php-gmp postgresql composer  
 sudo apt-get install -y unzip p7zip-full
+
 # Optional: Sixel image rendering in telnet/SSH terminal reader
 sudo apt-get install -y libsixel-bin
 ```
@@ -360,21 +373,11 @@ Verify the connection works with the new credentials:
 psql -U your_username -d your_database -h 127.0.0.1
 ```
 
-If the connection succeeds, update your `.env` file with the corresponding values:
+Make note of your database name, username, and password as you may need to update .env later.
 
-```
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_NAME=your_database
-DB_USER=your_username
-DB_PASS=your_password
-```
+## Method 1: Using the Installer (Recommended)
 
-> **Note:** Using `127.0.0.1` instead of `localhost` forces a TCP connection, which avoids peer authentication issues on some systems.
-
-## Method 1: Using the Installer
-
-The installer provides an automated setup process that downloads, configures, and installs BinktermPHP.
+The installer is the recommended method for most sysops. It provides a fully automated setup process that downloads, configures, and installs BinktermPHP — including handling upgrades when you re-run it on an existing installation.
 
 ```bash
 # Download the installer
@@ -397,7 +400,7 @@ The installer will:
 
 ## Method 2: From Git
 
-This is the standard installation method currently in use while the installer is being developed.
+This method is recommended for developers, contributors, and advanced users who want to track the latest changes or submit patches. Most sysops should use the installer instead.
 
 ### Step 1: Clone Repository
 ```bash
@@ -447,7 +450,11 @@ php scripts/upgrade.php
 ### Caddy
 Caddy has been tested with BinktermPHP and works well. It handles HTTPS automatically and does not buffer SSE responses by default. The example config below excludes the SSE endpoint from compression, which would otherwise buffer the stream.
 
+ * Update the php8.2-fpm.sock location in the configuration below to match your version of PHP 
+
 ```caddyfile
+# /etc/caddy/Caddyfile
+
 yourdomain.com {
     bind 0.0.0.0
 
@@ -509,6 +516,14 @@ yourdomain.com {
         }
     }
 
+    # Everything else: try file, then fall back to index.php (for clean URLs)
+    handle {
+        try_files {path} {path}/ /index.php
+        php_fastcgi unix//run/php/php8.2-fpm.sock {
+            capture_stderr
+        }
+    }
+
     log {
         output file /var/log/caddy/binkterm-access.log
         format console
@@ -519,6 +534,8 @@ yourdomain.com {
 Replace `yourdomain.com`, the `bind` address, `root` path, and php-fpm socket path to match your installation. Caddy obtains and renews TLS certificates automatically. Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
 
 ### Nginx
+
+(untested)
 
 ```nginx
 server {
@@ -562,7 +579,10 @@ server {
 
 Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
 
-### Apache
+### Apache (libapache2-php)
+
+BinktermPHP recommends Caddy.
+
 Requires `mod_proxy`, `mod_proxy_fcgi`, and `mod_proxy_wstunnel`. The two WebSocket proxies must appear before the PHP handler.
 
 ```apache
@@ -638,13 +658,16 @@ php scripts/upgrade.php                    # Run migrations
 php scripts/upgrade.php status             # Show migration status
 
 # Create a new migration (for developers)
-php scripts/upgrade.php create 1.3.0 "add feature"
+php scripts/migration.php create "add feature"
+php scripts/migration.php create "backfill feature data" php
 ```
 
 ### Migration System
-Database changes are managed through versioned SQL migration files stored in `database/migrations/`:
+Database changes are managed through timestamped SQL or PHP migration files stored in `database/migrations/`:
 
-- **Filename format**: `vX.Y.Z_description.sql` (e.g., `v1.1.0_add_user_preferences.sql`)
+- **Filename format**: `vYYYYMMDDHHMMSS_description.sql` or `.php` (e.g., `v20260503143000_add_user_preferences.sql`)
+- **Creation utility**: Use `php scripts/migration.php create "description"` so new migration IDs are generated consistently in UTC
+- **Legacy support**: Existing `vX.Y.Z_description.sql` and `.php` migrations are still supported, but new migrations should use timestamp IDs
 - **Automatic tracking**: Migration status is recorded in `database_migrations` table
 - **Safe execution**: Each migration runs in a transaction with rollback on failure
 - **Comment support**: SQL comments are automatically stripped during execution
@@ -727,6 +750,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [1.9.5](docs/UPGRADING_1.9.5.md)       | May 2026    | Inline media player for web messages with provider/admin controls; Networks admin page and per-network/per-area media policies; Bulletin Manager; localized documentation; terminal editor, encoding, echomail display, language selector, and registration improvements; file area link-name and YouTube metadata fixes; message search refresh fix; echoarea message count repair; legacy migration tracker fix |
 | [1.9.4](docs/UPGRADING_1.9.4.md)       | May 2026    | PacketBBS mesh/radio gateway with TOTP login and admin node management; echomail performance improvements (echolist cached columns, dashboard watermark unread echomail badge); configurable unread echomail badge mode; CWN MeshCore repeater auto-mapping; telnet connection rate limiting; shoutbox ANSI/URL rendering; i18n orphaned-key cleanup and new catalog check scripts; fix echo area delete error not displayed; fix site-wide showError/showSuccess alerts silently discarded |
 | [1.9.3](docs/UPGRADING_1.9.3.md)       | Apr 2026    | Interest area management: Manage Areas dialog replaces unsubscribe-only flow; Italian locale; echomail_maintenance FK fix |
 | [1.9.2](docs/UPGRADING_1.9.2.md)       | Apr 2026    | AI assistant; admin credit grants; JS-DOS doors; sixel login/menu screens; terminal registration handling; image rendering in terminal; door session expiry enforcement; insecure FREQ support; bug fixes |
@@ -786,6 +810,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `generate_ad.php` | Generate ANSI ads from current system settings |
 | `logrotate.php` | Rotate and archive log files in data/logs |
 | `lovlynet_setup.php` | Automated LovlyNet network registration |
+| `migration.php` | Create timestamped SQL or PHP database migration files |
 | `move_messages.php` | Move messages between echo areas |
 | `post_ad.php` | Post an ANSI ad to an echomail area |
 | `post_message.php` | Post netmail or echomail from the command line |

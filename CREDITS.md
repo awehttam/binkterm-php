@@ -11,6 +11,7 @@
 | Agent 57951 | QWK/QWKE offline mail support |
 | Errol Casey | Extensive testing |
 | Freddy Krueger | Italian translation |
+| Neo67 | German translation |
 
 ## Third-Party Libraries
 
@@ -48,6 +49,16 @@
 - **License:** CC BY-NC-SA 4.0
 - **Author:** Juergen Wothke
 - WebAssembly SID emulator used to play Commodore 64 SID music files in the browser file previewer.
+
+### chiptune3
+- **License:** MIT
+- **Authors:** DrSnuggles, chiptune2.js contributors
+- Browser libopenmpt AudioWorklet player used for tracker module playback.
+
+### libopenmpt
+- **License:** BSD 3-Clause
+- **Authors:** OpenMPT Project Developers and Contributors
+- Tracker module decoding library bundled through chiptune3 for browser playback.
 
 ## AI Tooling
 

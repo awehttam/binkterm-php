@@ -31,6 +31,8 @@ return [
     'errors.register.restricted_name' => 'Este nombre de usuario o nombre real no esta permitido',
     'errors.register.weak_password' => 'La contrasena debe tener al menos 8 caracteres',
     'errors.register.user_exists' => 'Ya existe un usuario con ese nombre de usuario o nombre. Intente iniciar sesion o contacte al sysop para obtener ayuda.',
+    'errors.register.email_required' => 'La dirección de correo electrónico es obligatoria',
+    'errors.register.reason_required' => 'El motivo para unirse es obligatorio',
     'errors.register.failed' => 'El registro fallo. Intentelo de nuevo mas tarde.',
 
     // Reminder
@@ -125,6 +127,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Se requieren etiqueta y descripcion',
     'errors.echoareas.invalid_tag_format' => 'Formato de etiqueta invalido',
     'errors.echoareas.invalid_color_format' => 'Formato de color invalido',
+    'errors.echoareas.unknown_domain' => 'Seleccione un dominio de red configurado',
     'errors.echoareas.tag_already_exists' => 'Ya existe un área de eco con esa etiqueta',
     'errors.echoareas.create_failed' => 'No se pudo crear el area de eco',
     'errors.echoareas.not_found_or_unchanged' => 'Area de eco no encontrada o sin cambios',
@@ -172,6 +175,7 @@ return [
     'errors.files.upload.insufficient_credits' => 'No tiene creditos suficientes para subir este archivo',
     'errors.files.upload.failed' => 'No se pudo subir el archivo',
     'errors.files.link.invalid_url' => 'Se requiere una URL válida',
+    'errors.files.link.file_name_required' => 'El nombre de archivo es obligatorio',
     'errors.files.link.add_failed' => 'No se pudo agregar el enlace',
     'errors.admin.file_approvals.load_failed' => 'No se pudieron cargar las aprobaciones de archivos pendientes',
     'errors.admin.file_approvals.not_found' => 'No se encontro el archivo pendiente',
@@ -684,4 +688,12 @@ return [
     'errors.packetbbs_totp.not_enabled'       => 'El autenticador PacketBBS no esta activado.',
     'errors.packetbbs_totp.setup_failed'      => 'No se pudo configurar el autenticador. Por favor, intentalo de nuevo.',
     'errors.packetbbs_totp.disable_failed'    => 'No se pudo desactivar el autenticador. Por favor, intentalo de nuevo.',
+    'errors.bulletins.invalid_ids' => 'Lista de boletines no valida.',
+    'errors.admin.bulletins.invalid_payload' => 'Datos de boletin no validos.',
+    'errors.admin.bulletins.save_failed' => 'No se pudo guardar el boletin.',
+    'errors.admin.networks.load_failed' => 'Failed to load networks',
+    'errors.admin.networks.save_failed' => 'Failed to save network',
+    'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
+    'errors.admin.networks.delete_in_use' => 'Network is in use',
+    'errors.admin.networks.delete_failed' => 'Failed to delete network',
 ];

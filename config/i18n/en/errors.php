@@ -31,6 +31,8 @@ return [
     'errors.register.restricted_name' => 'This username or real name is not allowed',
     'errors.register.weak_password' => 'Password must be at least 8 characters long',
     'errors.register.user_exists' => 'A user with this username or name already exists. Please try logging in or contact the sysop for assistance.',
+    'errors.register.email_required' => 'Email address is required',
+    'errors.register.reason_required' => 'Reason for joining is required',
     'errors.register.failed' => 'Registration failed. Please try again later.',
 
     // Reminder
@@ -125,6 +127,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Tag and description are required',
     'errors.echoareas.invalid_tag_format' => 'Invalid tag format',
     'errors.echoareas.invalid_color_format' => 'Invalid color format',
+    'errors.echoareas.unknown_domain' => 'Select a configured network domain',
     'errors.echoareas.tag_already_exists' => 'An echo area with that tag already exists',
     'errors.echoareas.create_failed' => 'Failed to create echo area',
     'errors.echoareas.not_found_or_unchanged' => 'Echo area not found or no changes made',
@@ -172,6 +175,7 @@ return [
     'errors.files.upload.insufficient_credits' => 'Insufficient credits to upload this file',
     'errors.files.upload.failed' => 'Failed to upload file',
     'errors.files.link.invalid_url' => 'A valid URL is required',
+    'errors.files.link.file_name_required' => 'File name is required',
     'errors.files.link.add_failed' => 'Failed to add link',
     'errors.admin.file_approvals.load_failed' => 'Failed to load pending file approvals',
     'errors.admin.file_approvals.not_found' => 'Pending file not found',
@@ -684,4 +688,12 @@ return [
     'errors.packetbbs_totp.not_enabled'       => 'PacketBBS authenticator is not enabled.',
     'errors.packetbbs_totp.setup_failed'      => 'Failed to set up authenticator. Please try again.',
     'errors.packetbbs_totp.disable_failed'    => 'Failed to disable authenticator. Please try again.',
+    'errors.bulletins.invalid_ids' => 'Invalid bulletin list.',
+    'errors.admin.bulletins.invalid_payload' => 'Invalid bulletin data.',
+    'errors.admin.bulletins.save_failed' => 'Failed to save bulletin.',
+    'errors.admin.networks.load_failed' => 'Failed to load networks',
+    'errors.admin.networks.save_failed' => 'Failed to save network',
+    'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
+    'errors.admin.networks.delete_in_use' => 'Network is in use',
+    'errors.admin.networks.delete_failed' => 'Failed to delete network',
 ];

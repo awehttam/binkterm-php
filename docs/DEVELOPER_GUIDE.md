@@ -98,7 +98,7 @@ binkterm-php/
 │   ├── outbound/        Packets queued for transmission
 │   └── logs/            Application and packet logs
 ├── database/
-│   └── migrations/      Database migrations (vX.Y.Z_description.sql or .php)
+│   └── migrations/      Database migrations (vYYYYMMDDHHMMSS_description.sql or .php)
 ├── docs/                Documentation
 ├── native-doors/        Native door installations and drop files
 ├── public_html/         Web root (index.php, CSS, JS, webdoors)
@@ -137,10 +137,10 @@ binkterm-php/
 
 ### Database Migrations
 
-- **Migration files**: `database/migrations/vX.Y.Z_description.sql` (or `.php`)
+- **Migration files**: `database/migrations/vYYYYMMDDHHMMSS_description.sql` (or `.php`)
 - **Apply migrations**: Run `php scripts/setup.php` — this runs both migrations and other upgrade tasks
 - **DO NOT** edit `postgres_schema.sql` directly — use migrations
-- **Version numbering**: Before creating a migration, check the highest existing version with `ls database/migrations/ | sort -V | tail -5`. The new file must be one increment higher — do not guess or reuse a version from a different branch of the version tree
+- **Migration IDs**: Use timestamp IDs in UTC to avoid collisions between parallel development branches. Prefer `php scripts/migration.php create "description"` so the filename is generated consistently. Legacy `vX.Y.Z_description` migrations are still supported for existing files, but new migrations should use timestamps.
 - Migrations can be SQL files or PHP files. Two PHP patterns are supported:
 
 **Pattern 1: Direct Execution** — for simple SQL operations. The file executes on include, uses `$db` from scope, and returns `true`.

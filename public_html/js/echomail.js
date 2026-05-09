@@ -97,6 +97,8 @@ $(document).ready(function() {
 
     // Handle modal close events
     $('#messageModal').on('hidden.bs.modal', function() {
+        cleanupMessageModalMedia();
+
         // If modal wasn't closed by back button and we're in a modal state, go back in history
         if (!modalClosedByBackButton && history.state && history.state.modal === 'message') {
             history.back();
@@ -130,6 +132,7 @@ $(document).ready(function() {
                     break;
                 case 'f':
                 case 'F':
+                    if (e.ctrlKey || e.metaKey) break;
                     e.preventDefault();
                     toggleModalFullscreen();
                     break;
@@ -174,7 +177,9 @@ $(document).ready(function() {
         } else if (document.visibilityState === 'visible' && _hiddenAt !== null) {
             // Only refresh if the page was hidden for more than 30 seconds.
             if (Date.now() - _hiddenAt >= 30000) {
-                loadMessages(null, true);
+                if (!isSearchActive) {
+                    loadMessages(null, true);
+                }
                 loadStats();
                 loadEchoareas();
             }
@@ -189,7 +194,9 @@ $(document).ready(function() {
         window.BinkStream.on('dashboard_stats', function() {
             clearTimeout(_dashboardRefreshTimer);
             _dashboardRefreshTimer = setTimeout(function() {
-                loadMessages(null, true);
+                if (!isSearchActive) {
+                    loadMessages(null, true);
+                }
                 loadStats();
                 loadEchoareas();
             }, 2000);
@@ -210,6 +217,30 @@ $(document).ready(function() {
     window.addEventListener('resize', hideMessageContextMenu);
     bindMessageListTouchContextMenu();
 });
+
+function cleanupMessageModalMedia() {
+    const content = document.getElementById('messageContent');
+    if (!content) return;
+
+    if (window.BinkMediaPlayer && typeof window.BinkMediaPlayer.cleanup === 'function') {
+        window.BinkMediaPlayer.cleanup(content);
+    }
+
+    content.querySelectorAll('video, audio').forEach(function(mediaEl) {
+        try {
+            mediaEl.pause();
+            mediaEl.removeAttribute('src');
+            mediaEl.querySelectorAll('source').forEach(function(source) {
+                source.removeAttribute('src');
+            });
+            mediaEl.load();
+        } catch (e) {}
+    });
+
+    content.querySelectorAll('iframe, embed, object').forEach(function(embedEl) {
+        embedEl.remove();
+    });
+}
 
 function loadEchoareas(callback) {
     $.get('/api/echoareas?subscribed_only=true')
@@ -307,6 +338,20 @@ function renderEchoInfoBar(area, subscribed) {
            .html(`<i class="far fa-star me-1"></i>${uiT('ui.echomail.subscribe', 'Subscribe')}`);
     }
 
+    const editBtn = $('#echoEditAreaBtn');
+    if (editBtn.length) {
+        if (area && area.tag) {
+            const params = new URLSearchParams({ tag: String(area.tag) });
+            const areaDomain = String(area.domain || '').trim();
+            if (areaDomain) {
+                params.set('domain', areaDomain);
+            }
+            editBtn.attr('href', `/echoareas?${params.toString()}`).removeClass('d-none');
+        } else {
+            editBtn.attr('href', '/echoareas').addClass('d-none');
+        }
+    }
+
     $('#echoInfoBar').removeClass('d-none');
 }
 
@@ -319,6 +364,7 @@ function renderInterestInfoBar(name) {
     $('#echoTitle').text(name);
     $('#echoDescription').text('');
     $('#echoSubscribeBtn').addClass('d-none');
+    $('#echoEditAreaBtn').addClass('d-none');
     $('#echoInfoBar').removeClass('d-none');
 }
 
@@ -1652,6 +1698,7 @@ function renderCurrentMessageBody() {
     const tmp = document.createElement('div');
     tmp.innerHTML = bodyHtml;
     while (tmp.firstChild) container.appendChild(tmp.firstChild);
+    if (window.BinkMediaPlayer) BinkMediaPlayer.scan(container, { mediaEnabled: currentMessageData.allow_media !== false });
     updateRenderModeBadge();
     updateSaveToAdLibraryButton();
 }

@@ -227,7 +227,7 @@ There are numerous settings available to custom tailor your experience on the BB
 - **Timezone** — Set your timezone so all dates and times are displayed in your local time.
 - **Default echo area view** — Choose whether the Echomail link takes you to the integrated message reader or the forum-style echo area list.
 - **Message threading** — Control whether messages are displayed in threaded or flat view by default.
-- **Inline image display** — Choose whether images linked in messages are displayed inline while reading.
+- **Inline Media Rendering** — Choose whether supported media links in messages are rendered inline while reading, including images, video, audio, and platform embeds when allowed by the sysop, network, and area settings.
 - **Signature** — Add a default signature that gets appended to your echomail and netmail messages.
 - **Tearline** — Customize the tearline that appears at the bottom of your outgoing messages.
 - **Ignored users** — Manage a list of users whose messages you'd prefer not to see.

@@ -110,6 +110,17 @@ class FileAreaManager
         return $mountPoint;
     }
 
+    private function validateNetworkDomain(string $domain): void
+    {
+        $domain = trim($domain);
+        if ($domain === '') {
+            return;
+        }
+        if (!(new NetworkManager($this->db))->exists($domain)) {
+            throw new \Exception('Unknown network domain');
+        }
+    }
+
     private function isFreqExperimentalEnabled(): bool
     {
         return Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true';
@@ -1070,6 +1081,7 @@ class FileAreaManager
         if (empty($tag) || empty($description)) {
             throw new \Exception('Tag and description are required');
         }
+        $this->validateNetworkDomain($domain);
 
         // Check for duplicate
         if ($this->getFileAreaByTag($tag, $domain)) {
@@ -1149,6 +1161,7 @@ class FileAreaManager
         if (empty($description)) {
             throw new \Exception('Description is required');
         }
+        $this->validateNetworkDomain($domain);
         $areaType    = in_array($data['area_type'] ?? $currentArea['area_type'] ?? 'normal', ['normal', 'iso'])
             ? ($data['area_type'] ?? $currentArea['area_type'] ?? 'normal')
             : 'normal';
@@ -1855,19 +1868,24 @@ class FileAreaManager
         string $longDescription = '',
         string $uploadedBy = '',
         ?int $ownerId = null,
-        string $initialStatus = 'approved'
+        string $initialStatus = 'approved',
+        string $fileName = ''
     ): int {
         $fileArea = $this->getFileAreaById($fileAreaId);
         if (!$fileArea || !$fileArea['is_active']) {
             throw new \Exception('File area not found or inactive');
         }
 
-        // Derive a display name from the URL path
-        $parsed   = parse_url($url);
-        $pathPart = $parsed['path'] ?? '';
-        $name     = basename(rtrim($pathPart, '/'));
-        if ($name === '' || $name === '.') {
-            $name = $parsed['host'] ?? parse_url($url, PHP_URL_HOST) ?? 'link';
+        if ($fileName !== '') {
+            $name = $fileName;
+        } else {
+            // Derive a display name from the URL path
+            $parsed   = parse_url($url);
+            $pathPart = $parsed['path'] ?? '';
+            $name     = basename(rtrim($pathPart, '/'));
+            if ($name === '' || $name === '.') {
+                $name = $parsed['host'] ?? parse_url($url, PHP_URL_HOST) ?? 'link';
+            }
         }
 
         $status = strtolower(trim($initialStatus)) === 'pending' ? 'pending' : 'approved';

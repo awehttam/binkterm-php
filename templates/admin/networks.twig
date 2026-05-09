@@ -1,0 +1,380 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.networks.page_title', {}, locale, ['common']) }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.networks.heading', {}, locale, ['common']) }}</h1>
+        <button class="btn btn-primary" type="button" onclick="openNetworkModal()">
+            <i class="fas fa-plus me-1"></i>{{ t('ui.admin.networks.add_network', {}, locale, ['common']) }}
+        </button>
+    </div>
+
+    <div id="networksAlert"></div>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped align-middle" id="networksTable">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width: 3rem;" title="{{ t('ui.admin.networks.type', {}, locale, ['common']) }}" aria-label="{{ t('ui.admin.networks.type', {}, locale, ['common']) }}">
+                                <i class="fas fa-shapes" aria-hidden="true"></i>
+                            </th>
+                            <th>{{ t('ui.admin.networks.domain', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.networks.name', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.networks.description', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.binkp.uplinks', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.networks.flags', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.actions', {}, locale, ['common']) }}</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="networkModal" tabindex="-1" aria-labelledby="networkModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="networkModalTitle">{{ t('ui.admin.networks.edit_network', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="networkId">
+                <div id="networkModalAlert"></div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="networkDomain">{{ t('ui.admin.networks.domain', {}, locale, ['common']) }}</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="networkDomain">
+                            <button class="btn btn-outline-secondary d-none" id="networkChangeDomainBtn" type="button" onclick="openDomainModalFromEditor()" title="{{ t('ui.admin.networks.change_domain', {}, locale, ['common']) }}" aria-label="{{ t('ui.admin.networks.change_domain', {}, locale, ['common']) }}">
+                                <i class="fas fa-pen" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="networkName">{{ t('ui.admin.networks.name', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="networkName">
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label" for="networkDescription">{{ t('ui.admin.networks.description', {}, locale, ['common']) }}</label>
+                        <textarea class="form-control" id="networkDescription" rows="2"></textarea>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label" for="networkWebsite">{{ t('ui.admin.networks.website', {}, locale, ['common']) }}</label>
+                        <input type="url" class="form-control" id="networkWebsite">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="networkPostingNamePolicy">{{ t('ui.admin.binkp_config.uplinks.modal.posting_name_policy', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="networkPostingNamePolicy">
+                            <option value="real_name">{{ t('ui.admin.binkp_config.uplinks.real_name', {}, locale, ['common']) }}</option>
+                            <option value="username">{{ t('ui.admin.binkp_config.uplinks.username', {}, locale, ['common']) }}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="networkDefaultCharset">{{ t('ui.admin.binkp_config.uplinks.modal.default_charset', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="networkDefaultCharset">
+                            <option value="">{{ t('ui.admin.networks.no_charset_override', {}, locale, ['common']) }}</option>
+                            {% for cs in supported_charsets %}
+                                <option value="{{ cs.value }}">{{ cs.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="networkAllowMarkup">
+                            <label class="form-check-label" for="networkAllowMarkup">{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup', {}, locale, ['common']) }}</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="networkAllowMedia">
+                            <label class="form-check-label" for="networkAllowMedia">{{ t('ui.admin.binkp_config.uplinks.modal.allow_media', {}, locale, ['common']) }}</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button class="btn btn-primary" type="button" onclick="saveNetwork()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="domainModal" tabindex="-1" aria-labelledby="domainModalTitle" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="domainModalTitle">{{ t('ui.admin.networks.change_domain', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="domainNetworkId">
+                <div id="domainModalAlert"></div>
+                <label class="form-label" for="newNetworkDomain">{{ t('ui.admin.networks.new_domain', {}, locale, ['common']) }}</label>
+                <input type="text" class="form-control" id="newNetworkDomain">
+                <div class="form-text">{{ t('ui.admin.networks.change_domain_help', {}, locale, ['common']) }}</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button class="btn btn-primary" type="button" onclick="changeDomain()">{{ t('ui.admin.networks.change_domain', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let networks = [];
+let networkModal;
+let domainModal;
+const NETWORK_TYPE_FIDONET = 1;
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    networkModal = new bootstrap.Modal(document.getElementById('networkModal'));
+    domainModal = new bootstrap.Modal(document.getElementById('domainModal'));
+    loadI18nNamespaces(['common', 'errors']).then(loadNetworks);
+});
+
+function loadNetworks() {
+    fetch('/admin/api/networks')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.networks.load_failed', 'Failed to load networks')));
+            }
+            networks = data.networks || [];
+            renderNetworks();
+        })
+        .catch(error => showAlert('networksAlert', error.message, 'danger'));
+}
+
+function renderNetworks() {
+    const tbody = document.querySelector('#networksTable tbody');
+    tbody.innerHTML = '';
+    networks.forEach(network => {
+        const flags = [
+            network.allow_markup ? uiT('ui.admin.networks.markup', 'Markup') : null,
+            network.allow_media ? uiT('ui.admin.networks.media', 'Media') : null,
+            network.default_charset ? String(network.default_charset) : null,
+            network.posting_name_policy === 'username' ? uiT('ui.admin.binkp_config.uplinks.username', 'Username') : uiT('ui.admin.binkp_config.uplinks.real_name', 'Real Name'),
+        ].filter(Boolean);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="text-center">
+                <span class="text-primary" role="img" title="${escapeHtmlAttr(getNetworkTypeLabel(network))}" aria-label="${escapeHtmlAttr(getNetworkTypeLabel(network))}">
+                    <i class="${escapeHtmlAttr(getNetworkTypeIconClass(network))}" aria-hidden="true"></i>
+                </span>
+            </td>
+            <td><code>${escapeHtml(network.domain || '')}</code>
+            </td>
+            <td>
+                <div>${escapeHtml(network.name || '')}</div>
+                ${network.website ? `<a class="small" href="${escapeHtmlAttr(network.website)}" target="_blank" rel="noopener">${escapeHtml(uiT('ui.admin.networks.website', 'Website'))}</a>` : ''}
+            </td>
+            <td>${escapeHtml(network.description || '')}</td>
+            <td>${renderNetworkUplinks(network)}</td>
+            <td>${flags.map(flag => `<span class="badge bg-secondary me-1">${escapeHtml(flag)}</span>`).join('')}</td>
+            <td class="text-nowrap">
+                <div class="btn-group btn-group-sm" role="group" aria-label="${escapeHtmlAttr(uiT('ui.common.actions', 'Actions'))}">
+                    <button class="btn btn-outline-primary" type="button" onclick="openNetworkModal(${Number(network.id)})" title="${escapeHtmlAttr(uiT('ui.common.edit', 'Edit'))}" aria-label="${escapeHtmlAttr(uiT('ui.common.edit', 'Edit'))}">
+                        <i class="fas fa-pen" aria-hidden="true"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" type="button" onclick="deleteNetwork(${Number(network.id)})" title="${escapeHtmlAttr(uiT('ui.common.delete', 'Delete'))}" aria-label="${escapeHtmlAttr(uiT('ui.common.delete', 'Delete'))}">
+                        <i class="fas fa-trash" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function renderNetworkUplinks(network) {
+    const uplinks = Array.isArray(network.uplinks) ? network.uplinks : [];
+    if (uplinks.length === 0) {
+        return '<span class="text-muted">&mdash;</span>';
+    }
+    return uplinks.map(address => {
+        const value = String(address || '');
+        const url = `/admin/binkp-config?uplink=${encodeURIComponent(value)}`;
+        return `<a class="d-block font-monospace small" href="${escapeHtmlAttr(url)}">${escapeHtml(value)}</a>`;
+    }).join('');
+}
+
+function getNetworkTypeIconClass(network) {
+    if (Number(network.network_type) === NETWORK_TYPE_FIDONET) {
+        return 'fas fa-dog';
+    }
+    return 'fas fa-globe';
+}
+
+function getNetworkTypeLabel(network) {
+    return network.name || network.domain || uiT('ui.admin.networks.type', 'Type');
+}
+
+function openNetworkModal(id = null) {
+    const network = id ? networks.find(item => Number(item.id) === Number(id)) : null;
+    document.getElementById('networkModalAlert').innerHTML = '';
+    document.getElementById('networkId').value = network ? network.id : '';
+    document.getElementById('networkDomain').value = network ? network.domain : '';
+    document.getElementById('networkDomain').readOnly = !!network;
+    document.getElementById('networkChangeDomainBtn').classList.toggle('d-none', !network);
+    document.getElementById('networkName').value = network ? network.name : '';
+    document.getElementById('networkDescription').value = network ? (network.description || '') : '';
+    document.getElementById('networkWebsite').value = network ? (network.website || '') : '';
+    document.getElementById('networkPostingNamePolicy').value = network && network.posting_name_policy === 'username' ? 'username' : 'real_name';
+    document.getElementById('networkDefaultCharset').value = network ? (network.default_charset || '') : '';
+    document.getElementById('networkAllowMarkup').checked = !!(network && network.allow_markup);
+    document.getElementById('networkAllowMedia').checked = !!(network && network.allow_media);
+    document.getElementById('networkModalTitle').textContent = network ? uiT('ui.admin.networks.edit_network', 'Edit Network') : uiT('ui.admin.networks.add_network', 'Add Network');
+    networkModal.show();
+}
+
+function openDomainModalFromEditor() {
+    const id = document.getElementById('networkId').value;
+    if (!id) {
+        return;
+    }
+    networkModal.hide();
+    openDomainModal(Number(id));
+}
+
+function saveNetwork() {
+    const id = document.getElementById('networkId').value;
+    const payload = {
+        domain: document.getElementById('networkDomain').value.trim(),
+        name: document.getElementById('networkName').value.trim(),
+        description: document.getElementById('networkDescription').value.trim(),
+        website: document.getElementById('networkWebsite').value.trim(),
+        posting_name_policy: document.getElementById('networkPostingNamePolicy').value,
+        default_charset: document.getElementById('networkDefaultCharset').value,
+        allow_markup: document.getElementById('networkAllowMarkup').checked,
+        allow_media: document.getElementById('networkAllowMedia').checked
+    };
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/admin/api/networks/${encodeURIComponent(id)}` : '/admin/api/networks';
+    fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.networks.save_failed', 'Failed to save network')));
+            }
+            networkModal.hide();
+            loadNetworks();
+            showAlert('networksAlert', apiMessage(data, uiT('ui.admin.networks.saved', 'Network saved')), 'success');
+        })
+        .catch(error => showAlert('networkModalAlert', error.message, 'danger'));
+}
+
+function openDomainModal(id) {
+    const network = networks.find(item => Number(item.id) === Number(id));
+    if (!network) {
+        return;
+    }
+    document.getElementById('domainModalAlert').innerHTML = '';
+    document.getElementById('domainNetworkId').value = network.id;
+    document.getElementById('newNetworkDomain').value = network.domain || '';
+    domainModal.show();
+}
+
+function changeDomain() {
+    const id = document.getElementById('domainNetworkId').value;
+    const domain = document.getElementById('newNetworkDomain').value.trim();
+    fetch(`/admin/api/networks/${encodeURIComponent(id)}/change-domain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.networks.change_domain_failed', 'Failed to change domain')));
+            }
+            domainModal.hide();
+            loadNetworks();
+            showAlert('networksAlert', apiMessage(data, uiT('ui.admin.networks.domain_changed', 'Domain changed')), 'success');
+        })
+        .catch(error => showAlert('domainModalAlert', error.message, 'danger'));
+}
+
+function deleteNetwork(id) {
+    if (!confirm(uiT('ui.admin.networks.delete_confirm', 'Delete this network?'))) {
+        return;
+    }
+    fetch(`/admin/api/networks/${encodeURIComponent(id)}`, { method: 'DELETE' })
+        .then(response => response.json().catch(() => ({})).then(data => ({ response, data })))
+        .then(({ response, data }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(formatDeleteNetworkError(data));
+            }
+            loadNetworks();
+            showAlert('networksAlert', apiMessage(data, uiT('ui.admin.networks.deleted', 'Network deleted')), 'success');
+        })
+        .catch(error => showAlert('networksAlert', error.message, 'danger'));
+}
+
+function formatDeleteNetworkError(payload) {
+    let message = apiError(payload, uiT('ui.admin.networks.delete_failed', 'Failed to delete network'));
+    const uplinks = Array.isArray(payload && payload.uplinks) ? payload.uplinks.filter(Boolean) : [];
+    if (uplinks.length > 0) {
+        message += ` ${uiT('ui.binkp.uplinks', 'Uplinks')}: ${uplinks.join(', ')}`;
+    }
+    return message;
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? String(payload.error) : fallback;
+}
+
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    return payload && payload.message ? String(payload.message) : fallback;
+}
+
+function showAlert(id, message, type) {
+    document.getElementById(id).innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${escapeHtml(message || '')}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function escapeHtmlAttr(value) {
+    return escapeHtml(value).replace(/"/g, '&quot;');
+}
+</script>
+{% endblock %}

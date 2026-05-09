@@ -44,9 +44,11 @@ return [
     'ui.terminalserver.server.registration.confirm'        => 'Confirm password: ',
     'ui.terminalserver.server.registration.password_mismatch' => 'Error: Passwords do not match.',
     'ui.terminalserver.server.registration.realname'       => 'Real Name: ',
-    'ui.terminalserver.server.registration.email'          => 'Email (optional): ',
+    'ui.terminalserver.server.registration.email'          => 'Email: ',
+    'ui.terminalserver.server.registration.email_invalid'  => 'A valid email address is required.',
     'ui.terminalserver.server.registration.location'       => 'Location (optional): ',
-    'ui.terminalserver.server.registration.reason'         => 'Reason for joining (optional): ',
+    'ui.terminalserver.server.registration.reason'         => 'Reason for joining: ',
+    'ui.terminalserver.server.registration.reason_required' => 'Please provide a reason for joining.',
     'ui.terminalserver.server.registration.submitting'     => 'Submitting registration...',
     'ui.terminalserver.server.registration.success'        => 'Registration successful!',
     'ui.terminalserver.server.registration.pending'        => 'Your account has been created and is pending approval.',
@@ -129,7 +131,7 @@ return [
     'ui.terminalserver.compose.message_cancelled'      => 'Message cancelled (empty).',
 
     // --- Echomail ---
-    'ui.terminalserver.echomail.no_areas'              => 'No echoareas available.',
+    'ui.terminalserver.echomail.no_areas'              => 'You are not subscribed to any areas.',
     'ui.terminalserver.echomail.areas_header'          => 'Echoareas (page {page}/{total}):',
     'ui.terminalserver.echomail.areas_nav'             => 'Enter #, n/p (next/prev), / (search), q (quit)',
     'ui.terminalserver.echomail.areas_nav_interests'   => 'Enter #, n/p (next/prev), / (search), i (by interest), q (quit)',
@@ -340,4 +342,8 @@ return [
 
     'ui.terminalserver.message.headers_title'          => '=== Message Headers ===',
     'ui.terminalserver.message.no_headers'             => '(No message headers)',
+    'ui.terminalserver.server.menu.bulletins' => 'U) Bulletins',
+    'ui.terminalserver.bulletins.title' => 'Bulletins',
+    'ui.terminalserver.bulletins.none' => 'No bulletins are available.',
+    'ui.terminalserver.bulletins.continue' => 'Bulletin {current} of {total}. Press Enter for next, S to skip all...',
 ];

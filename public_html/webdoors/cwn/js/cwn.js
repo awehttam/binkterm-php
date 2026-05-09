@@ -1,5 +1,5 @@
 /**
- * Community Wireless Node List - Main JavaScript
+ * Community Wireless Node Map - Main JavaScript
  */
 
 let map;
@@ -7,6 +7,8 @@ let markers;
 let allNetworks = [];
 let currentUser = null;
 let userLocation = null;
+const NETWORK_PAGE_SIZE = 500;
+let networkLoadTimer = null;
 
 // Initialize on page load
 $(document).ready(function() {
@@ -63,6 +65,10 @@ function initMap() {
     });
 
     map.addLayer(markers);
+
+    map.on('moveend', function() {
+        scheduleNetworkLoad();
+    });
 
     // Add map click handler for picking location
     map.on('click', function(e) {
@@ -128,22 +134,40 @@ function requestUserLocation() {
  * Load all networks and display on map
  */
 function loadNetworks() {
-    $.get('api.php?action=list&limit=500')
-        .done(function(data) {
-            allNetworks = data.networks;
-            displayNetworksOnMap(allNetworks);
-            displayNetworksList(allNetworks);
-            updateStatistics(data);
-        })
-        .fail(function(xhr) {
-            showError('Failed to load networks: ' + (xhr.responseJSON?.error || 'Unknown error'));
-        });
+    const bounds = map.getBounds();
+    const bbox = [
+        bounds.getSouth(),
+        bounds.getNorth(),
+        bounds.getWest(),
+        bounds.getEast()
+    ].join(',');
+
+    $.get('api.php', {
+        action: 'list',
+        limit: NETWORK_PAGE_SIZE,
+        bbox: bbox
+    }).done(function(data) {
+        allNetworks = data.networks || [];
+        const total = parseInt(data.total_all ?? data.total, 10) || 0;
+        const visibleTotal = parseInt(data.total, 10) || allNetworks.length;
+
+        displayNetworksOnMap(allNetworks, total);
+        displayNetworksList(allNetworks, total, visibleTotal);
+        updateStatistics(data);
+    }).fail(function(xhr) {
+        showError('Failed to load networks: ' + (xhr.responseJSON?.error || 'Unknown error'));
+    });
+}
+
+function scheduleNetworkLoad() {
+    clearTimeout(networkLoadTimer);
+    networkLoadTimer = setTimeout(loadNetworks, 250);
 }
 
 /**
  * Display networks on map
  */
-function displayNetworksOnMap(networks) {
+function displayNetworksOnMap(networks, total) {
     markers.clearLayers();
 
     networks.forEach(function(network) {
@@ -177,13 +201,13 @@ function displayNetworksOnMap(networks) {
         markers.addLayer(marker);
     });
 
-    $('#totalNetworks').text(networks.length);
+    $('#totalNetworks').text(total ?? networks.length);
 }
 
 /**
  * Display networks list
  */
-function displayNetworksList(networks) {
+function displayNetworksList(networks, total, visibleTotal) {
     const container = $('#networksList');
 
     if (networks.length === 0) {
@@ -222,8 +246,14 @@ function displayNetworksList(networks) {
 
     html += '</div>';
 
-    if (networks.length > 10) {
-        html += `<div class="text-center mt-3"><small class="text-muted">Showing 10 of ${networks.length} networks. Use map to see all.</small></div>`;
+    const totalNetworks = total ?? networks.length;
+    const visibleNetworks = visibleTotal ?? networks.length;
+
+    if (visibleNetworks > 10) {
+        const markerNote = visibleNetworks > networks.length
+            ? ` Displaying ${networks.length} map markers; zoom in to narrow the area.`
+            : '';
+        html += `<div class="text-center mt-3"><small class="text-muted">Showing 10 of ${visibleNetworks} visible networks. ${totalNetworks} total.${markerNote}</small></div>`;
     }
 
     container.html(html);

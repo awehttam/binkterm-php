@@ -1491,19 +1491,21 @@ class BinkdProcessor
             }
         }
 
-        // Update message count and cache last-post info for the echolist display.
-        $this->db->prepare("
-            UPDATE echoareas
-            SET message_count     = message_count + 1,
-                last_post_subject = ?,
-                last_post_author  = ?,
-                last_post_date    = NOW()
-            WHERE id = ?
-        ")->execute([
-            mb_substr($message['subject'] ?? '', 0, 255),
-            mb_substr($message['fromName'] ?? '', 0, 100),
-            $echoarea['id'],
-        ]);
+        if ($newId > 0) {
+            // Update message count and cache last-post info for the echolist display.
+            $this->db->prepare("
+                UPDATE echoareas
+                SET message_count     = message_count + 1,
+                    last_post_subject = ?,
+                    last_post_author  = ?,
+                    last_post_date    = NOW()
+                WHERE id = ?
+            ")->execute([
+                mb_substr($message['subject'] ?? '', 0, 255),
+                mb_substr($message['fromName'] ?? '', 0, 100),
+                $echoarea['id'],
+            ]);
+        }
 
         //$this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
     }

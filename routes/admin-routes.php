@@ -325,10 +325,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Users management page
     SimpleRouter::get('/users', function() {
-        $user = RouteHelper::requireAdmin();
+        RouteHelper::requireAdmin();
 
         $template = new Template();
-        $template->renderResponse('admin/users.twig');
+        $template->renderResponse('admin_users.twig');
     });
 
     // AI bots management page
@@ -355,6 +355,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/polls.twig');
     });
 
+    // Bulletins management page
+    SimpleRouter::get('/bulletins', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/bulletins.twig');
+    });
+
     // Shoutbox moderation page
     SimpleRouter::get('/shoutbox', function() {
         $user = RouteHelper::requireAdmin();
@@ -366,10 +374,22 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     // Binkp configuration page
     SimpleRouter::get('/binkp-config', function() {
         $user = RouteHelper::requireAdmin();
+        $networkManager = new \BinktermPHP\NetworkManager();
 
         $template = new Template();
         $template->renderResponse('admin/binkp_config.twig', [
-            'timezone_list' => \DateTimeZone::listIdentifiers()
+            'timezone_list' => \DateTimeZone::listIdentifiers(),
+            'supported_charsets' => \BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets(),
+            'networks' => $networkManager->getAll(),
+        ]);
+    });
+
+    SimpleRouter::get('/networks', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/networks.twig', [
+            'supported_charsets' => \BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets(),
         ]);
     });
 
@@ -793,13 +813,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/economy.twig');
-    });
-
-    SimpleRouter::get('/users-new', function() {
-        RouteHelper::requireAdmin();
-
-        $template = new Template();
-        $template->renderResponse('admin/users.twig');
     });
 
     // API routes for admin
@@ -1429,6 +1442,89 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        // Bulletins management
+        SimpleRouter::get('/bulletins', function() {
+            RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'bulletins' => (new \BinktermPHP\BulletinManager())->getAllBulletins(),
+            ]);
+        });
+
+        SimpleRouter::post('/bulletins', function() {
+            $user = RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            $payload = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($payload)) {
+                apiError('errors.admin.bulletins.invalid_payload', apiLocalizedText('errors.admin.bulletins.invalid_payload', 'Invalid bulletin data.'), 400);
+                return;
+            }
+
+            try {
+                $id = (new \BinktermPHP\BulletinManager())->create($payload, (int)($user['user_id'] ?? $user['id'] ?? 0));
+                echo json_encode([
+                    'success' => true,
+                    'id' => $id,
+                    'message_code' => 'ui.admin.bulletins.saved_success',
+                ]);
+            } catch (\Throwable $e) {
+                apiError('errors.admin.bulletins.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::put('/bulletins/{id}', function($id) {
+            RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            $payload = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($payload)) {
+                apiError('errors.admin.bulletins.invalid_payload', apiLocalizedText('errors.admin.bulletins.invalid_payload', 'Invalid bulletin data.'), 400);
+                return;
+            }
+
+            try {
+                (new \BinktermPHP\BulletinManager())->update((int)$id, $payload);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.bulletins.saved_success',
+                ]);
+            } catch (\Throwable $e) {
+                apiError('errors.admin.bulletins.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::delete('/bulletins/{id}', function($id) {
+            RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            (new \BinktermPHP\BulletinManager())->delete((int)$id);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin.bulletins.deleted_success',
+            ]);
+        });
+
+        SimpleRouter::post('/bulletins/reorder', function() {
+            RouteHelper::requireAdmin();
+
+            header('Content-Type: application/json');
+            $payload = json_decode(file_get_contents('php://input'), true);
+            $ids = is_array($payload) ? ($payload['ids'] ?? []) : [];
+            if (!is_array($ids)) {
+                apiError('errors.admin.bulletins.invalid_payload', apiLocalizedText('errors.admin.bulletins.invalid_payload', 'Invalid bulletin data.'), 400);
+                return;
+            }
+
+            (new \BinktermPHP\BulletinManager())->reorder($ids);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin.bulletins.reordered_success',
+            ]);
+        });
+
         // Shoutbox moderation
         SimpleRouter::get('/shoutbox', function() {
             $auth = new Auth();
@@ -1638,6 +1734,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         throw new Exception('Dashboard ad rotation interval must be between 5 and 300 seconds');
                     }
                     $config['dashboard_ad_rotate_interval_seconds'] = $dashboardAdRotateInterval;
+                }
+
+                if (array_key_exists('bulletin_display_mode', $config)) {
+                    $bulletinDisplayMode = strtolower(trim((string)$config['bulletin_display_mode']));
+                    if (!in_array($bulletinDisplayMode, ['once', 'always'], true)) {
+                        throw new Exception('Invalid bulletin display mode');
+                    }
+                    $config['bulletin_display_mode'] = $bulletinDisplayMode;
                 }
 
                 if (isset($config['qwk']['bbs_id'])) {
@@ -2138,6 +2242,29 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $config = \BinktermPHP\AppearanceConfig::getConfig();
                 $config['message_reader']['scrollable_body'] = !empty($mr['scrollable_body']);
                 $config['message_reader']['email_link_url'] = trim((string)($mr['email_link_url'] ?? ''));
+                $config['message_reader']['discord_url'] = trim((string)($mr['discord_url'] ?? ''));
+
+                if (array_key_exists('media_player', $mr)) {
+                    $mp = $mr['media_player'];
+                    $validProviders = [
+                        'youtube', 'odysee', 'rumble', 'bitchute', 'brighteon', 'peertube',
+                        'soundcloud', 'twitter', 'tiktok', 'minds', 'bastyon',
+                        'reverbnation', 'raw_media',
+                    ];
+                    $providers = [];
+                    foreach ($validProviders as $providerName) {
+                        $providers[$providerName] = !empty($mp['providers'][$providerName] ?? true);
+                    }
+                    $apiKeys = [];
+                    foreach (['soundcloud', 'twitter'] as $keyName) {
+                        $apiKeys[$keyName] = trim((string)($mp['api_keys'][$keyName] ?? ''));
+                    }
+                    $config['message_reader']['media_player'] = [
+                        'enabled'   => !empty($mp['enabled'] ?? true),
+                        'providers' => $providers,
+                        'api_keys'  => $apiKeys,
+                    ];
+                }
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);
@@ -2612,6 +2739,146 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/networks', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\NetworkManager();
+                $networks = $manager->getAll();
+                $uplinksByDomain = [];
+                $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                foreach ($config->getUplinks() as $uplink) {
+                    $domain = strtolower(trim((string)($uplink['domain'] ?? '')));
+                    $address = trim((string)($uplink['address'] ?? ''));
+                    if ($domain === '' || $address === '') {
+                        continue;
+                    }
+                    $uplinksByDomain[$domain][] = $address;
+                }
+                foreach ($networks as &$network) {
+                    $domain = strtolower(trim((string)($network['domain'] ?? '')));
+                    $network['uplinks'] = array_values(array_unique($uplinksByDomain[$domain] ?? []));
+                }
+                unset($network);
+                echo json_encode(['success' => true, 'networks' => $networks]);
+            } catch (Exception $e) {
+                apiError('errors.admin.networks.load_failed', apiLocalizedText('errors.admin.networks.load_failed', 'Failed to load networks'), 500);
+            }
+        });
+
+        SimpleRouter::post('/networks', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $manager = new \BinktermPHP\NetworkManager();
+                $network = $manager->create(is_array($payload) ? $payload : []);
+                echo json_encode(['success' => true, 'network' => $network, 'message_code' => 'ui.admin.networks.saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.networks.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::put('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $manager = new \BinktermPHP\NetworkManager();
+                $network = $manager->update((int)$id, is_array($payload) ? $payload : []);
+                echo json_encode(['success' => true, 'network' => $network, 'message_code' => 'ui.admin.networks.saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.networks.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::post('/networks/{id}/change-domain', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $service = new \BinktermPHP\NetworkDomainChangeService();
+                $result = $service->changeDomain((int)$id, (string)($payload['domain'] ?? ''));
+                echo json_encode(['success' => true, 'result' => $result, 'message_code' => 'ui.admin.networks.domain_changed']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.networks.change_domain_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::delete('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\NetworkManager();
+                $network = $manager->getById((int)$id);
+                if (!$network) {
+                    throw new InvalidArgumentException('Network not found');
+                }
+
+                $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $dependentUplinks = [];
+                foreach ($config->getUplinks() as $uplink) {
+                    if (strcasecmp((string)($uplink['domain'] ?? ''), (string)$network['domain']) === 0) {
+                        $dependentUplinks[] = (string)($uplink['address'] ?? '');
+                    }
+                }
+                if ($dependentUplinks !== []) {
+                    apiError('errors.admin.networks.delete_in_use', apiLocalizedText('errors.admin.networks.delete_in_use', 'Network is in use'), 409, [
+                        'uplinks' => array_values(array_filter($dependentUplinks)),
+                    ]);
+                    return;
+                }
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $stmt = $db->prepare("SELECT COUNT(*) FROM echoareas WHERE LOWER(domain) = LOWER(?)");
+                $stmt->execute([(string)$network['domain']]);
+                if ((int)$stmt->fetchColumn() > 0) {
+                    apiError('errors.admin.networks.delete_in_use', apiLocalizedText('errors.admin.networks.delete_in_use', 'Network is in use'), 409);
+                    return;
+                }
+                $stmt = $db->prepare("SELECT COUNT(*) FROM file_areas WHERE LOWER(domain) = LOWER(?)");
+                $stmt->execute([(string)$network['domain']]);
+                if ((int)$stmt->fetchColumn() > 0) {
+                    apiError('errors.admin.networks.delete_in_use', apiLocalizedText('errors.admin.networks.delete_in_use', 'Network is in use'), 409);
+                    return;
+                }
+
+                $manager->delete((int)$id);
+                echo json_encode(['success' => true, 'message_code' => 'ui.admin.networks.deleted']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.networks.delete_failed', $e->getMessage(), 400);
+            }
+        });
+
         SimpleRouter::get('/binkp-config', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
@@ -2643,6 +2910,24 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $payload = json_decode(file_get_contents('php://input'), true);
                 $config = $payload['config'] ?? [];
+                $networkManager = new \BinktermPHP\NetworkManager();
+                foreach (($config['uplinks'] ?? []) as &$uplink) {
+                    if (!is_array($uplink)) {
+                        continue;
+                    }
+                    unset(
+                        $uplink['allow_markup'],
+                        $uplink['allow_markdown'],
+                        $uplink['allow_media'],
+                        $uplink['default_charset'],
+                        $uplink['posting_name_policy']
+                    );
+                    $domain = trim((string)($uplink['domain'] ?? ''));
+                    if ($domain !== '' && !$networkManager->exists($domain)) {
+                        throw new InvalidArgumentException("Unknown network domain: {$domain}");
+                    }
+                }
+                unset($uplink);
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setFullBinkpConfig($config);
                 echo json_encode([
@@ -4705,6 +4990,66 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         }
     });
 
+    // POST /admin/api/i18n-overrides/translate — AI-powered single-string translation
+    SimpleRouter::post('/api/i18n-overrides/translate', function() {
+        RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $locale = trim((string)($input['locale'] ?? ''));
+        $text   = trim((string)($input['text'] ?? ''));
+
+        if ($locale === '' || $text === '') {
+            apiError('errors.admin.i18n_overrides.missing_params', 'locale and text are required', 400);
+        }
+
+        $apiKey  = \BinktermPHP\Config::env('ANTHROPIC_API_KEY', '');
+        $apiBase = rtrim(\BinktermPHP\Config::env('ANTHROPIC_API_BASE', 'https://api.anthropic.com/v1'), '/');
+
+        if ($apiKey === '') {
+            http_response_code(503);
+            echo json_encode(['success' => false, 'error' => 'ANTHROPIC_API_KEY is not configured']);
+            return;
+        }
+
+        $prompt = "Translate the following UI string from English to the language with locale code \"{$locale}\". "
+                . "Preserve any {placeholder} tokens exactly as written. "
+                . "Return only the translated text with no explanation, no quotation marks, and no commentary.\n\n"
+                . $text;
+
+        try {
+            $result = \BinktermPHP\AI\HttpClient::postJson(
+                $apiBase . '/messages',
+                [
+                    'model'      => 'claude-haiku-4-5-20251001',
+                    'max_tokens' => 512,
+                    'messages'   => [['role' => 'user', 'content' => $prompt]],
+                ],
+                [
+                    'Content-Type: application/json',
+                    'x-api-key: ' . $apiKey,
+                    'anthropic-version: 2023-06-01',
+                ],
+                30
+            );
+
+            $translated = trim((string)($result['body']['content'][0]['text'] ?? ''));
+
+            if ($translated === '') {
+                getServerLogger()->error('i18n translate: empty response for locale=' . $locale);
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Translation returned empty result']);
+                return;
+            }
+
+            echo json_encode(['success' => true, 'translation' => $translated]);
+        } catch (Exception $e) {
+            getServerLogger()->error('i18n translate error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Translation failed']);
+        }
+    });
+
     // Auto Feed page
     SimpleRouter::get('/auto-feed', function() {
         $user = RouteHelper::requireAdmin();
@@ -4739,7 +5084,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         header('Content-Type: application/json');
 
-        $stmt = $db->prepare("SELECT * FROM auto_feed_sources WHERE id = ?");
+        $stmt = $db->prepare("
+            SELECT f.*, u.username, u.real_name
+            FROM auto_feed_sources f
+            LEFT JOIN users u ON u.id = f.post_as_user_id
+            WHERE f.id = ?
+        ");
         $stmt->execute([$id]);
         $feed = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -4759,7 +5109,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         header('Content-Type: application/json');
 
-        $input = json_decode(file_get_contents('php://input'), true);
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $sourceType = normalizeAutoFeedSourceType($input['source_type'] ?? null, $input['feed_url'] ?? '');
 
         // Validate required fields
         if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
@@ -4796,20 +5147,22 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         try {
             $stmt = $db->prepare("
                 INSERT INTO auto_feed_sources
-                (feed_url, feed_name, echoarea_id, post_as_user_id,
+                (feed_url, feed_name, source_type, echoarea_id, post_as_user_id,
                  max_articles_per_check, active, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                RETURNING id
             ");
             $stmt->execute([
                 $input['feed_url'],
                 $input['feed_name'] ?? null,
+                $sourceType,
                 $input['echoarea_id'],
                 $input['post_as_user_id'],
                 $input['max_articles_per_check'] ?? 10,
                 $input['active'] ?? true
             ]);
 
-            $feedId = $db->lastInsertId();
+            $feedId = (int)$stmt->fetchColumn();
 
             // Log action
             $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
@@ -4841,7 +5194,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         header('Content-Type: application/json');
 
-        $input = json_decode(file_get_contents('php://input'), true);
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $sourceType = normalizeAutoFeedSourceType($input['source_type'] ?? null, $input['feed_url'] ?? '');
 
         // Validate feed exists
         $stmt = $db->prepare("SELECT * FROM auto_feed_sources WHERE id = ?");
@@ -4861,11 +5215,34 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             return;
         }
 
+        if (!filter_var($input['feed_url'], FILTER_VALIDATE_URL)) {
+            http_response_code(400);
+            apiError('errors.admin.auto_feed.invalid_url', apiLocalizedText('errors.admin.auto_feed.invalid_url', 'Feed URL is invalid'));
+            return;
+        }
+
+        $stmt = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+        $stmt->execute([$input['echoarea_id']]);
+        if (!$stmt->fetch()) {
+            http_response_code(400);
+            apiError('errors.admin.auto_feed.echoarea_not_found', apiLocalizedText('errors.admin.auto_feed.echoarea_not_found', 'Echo area not found'));
+            return;
+        }
+
+        $stmt = $db->prepare("SELECT id FROM users WHERE id = ?");
+        $stmt->execute([$input['post_as_user_id']]);
+        if (!$stmt->fetch()) {
+            http_response_code(400);
+            apiError('errors.admin.auto_feed.user_not_found', apiLocalizedText('errors.admin.auto_feed.user_not_found', 'Posting user not found'));
+            return;
+        }
+
         try {
             $stmt = $db->prepare("
                 UPDATE auto_feed_sources
                 SET feed_url = ?,
                     feed_name = ?,
+                    source_type = ?,
                     echoarea_id = ?,
                     post_as_user_id = ?,
                     max_articles_per_check = ?,
@@ -4876,6 +5253,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $stmt->execute([
                 $input['feed_url'],
                 $input['feed_name'] ?? null,
+                $sourceType,
                 $input['echoarea_id'],
                 $input['post_as_user_id'],
                 $input['max_articles_per_check'] ?? 10,
@@ -5001,6 +5379,21 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         echo json_encode($stats);
     });
+
+    /**
+     * Normalize an auto feed source type from form input and URL.
+     */
+    function normalizeAutoFeedSourceType($inputType, $feedUrl) {
+        $sourceType = strtolower(trim((string)($inputType ?? '')));
+        $host = strtolower((string)(parse_url((string)$feedUrl, PHP_URL_HOST) ?: ''));
+        if ($host === 'bsky.app' || $host === 'www.bsky.app') {
+            $sourceType = 'bluesky';
+        } elseif ($sourceType === '') {
+            $sourceType = 'rss';
+        }
+
+        return in_array($sourceType, ['rss', 'bluesky'], true) ? $sourceType : 'rss';
+    }
 
     // Ad analytics API (license required)
     SimpleRouter::get('/api/ad-analytics', function() {
@@ -6260,6 +6653,18 @@ if (!function_exists('annotateLovlyNetAreasWithMetadataIssues')) {
                         'setting' => 'sysop_only',
                         'recommended' => $recommendedSysopOnly,
                         'actual' => $actualSysopOnly,
+                    ];
+                }
+            }
+
+            if ($areaType === 'echo' && array_key_exists('allow_media', $metadata) && !empty($area['local_exists'])) {
+                $recommendedAllowMedia = filter_var($metadata['allow_media'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                $actualAllowMedia = $area['local_allow_media'] ?? null; // null = use global default
+                if ($recommendedAllowMedia !== null && $recommendedAllowMedia !== $actualAllowMedia) {
+                    $issues[] = [
+                        'setting' => 'allow_media',
+                        'recommended' => $recommendedAllowMedia,
+                        'actual' => $actualAllowMedia,
                     ];
                 }
             }

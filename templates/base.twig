@@ -22,6 +22,8 @@
     <link href="/vendor/fontawesome-6.4.0/css/all.min.css" rel="stylesheet">
     <link id="theme-stylesheet" href="{{ stylesheet }}" rel="stylesheet">
     <link href="/css/ansisys.css" rel="stylesheet">
+    <link href="/vendor/plyr-3.8.4/plyr.min.css" rel="stylesheet">
+    <link href="/css/binkplayer/binkplayer.css" rel="stylesheet">
     {% block head %}{% endblock %}
     <style>
         .chat-menu-icon.unread {
@@ -88,6 +90,7 @@
         window.appI18nNamespaces = {{ i18n_namespaces|json_encode|raw }};
         window.siteConfig = {
             ansiRendererMode: {{ ansi_renderer_mode|json_encode|raw }},
+            mediaPlayerEnabled: {{ media_player_enabled ? 'true' : 'false' }},
             sseTransportMode: {{ effective_sse_transport_mode|json_encode|raw }},
             configuredRealtimeTransportMode: {{ configured_realtime_transport_mode|json_encode|raw }},
             realtimeTransportMode: {{ effective_realtime_transport_mode|json_encode|raw }},
@@ -96,6 +99,9 @@
     </script>
     <script src="/js/user-storage.js"></script>
     <script src="/js/app.js"></script>
+    <script src="/vendor/plyr-3.8.4/plyr.min.js"></script>
+    <script src="/js/binkplayer/binkplayer.js"></script>
+    <script src="/js/media-player.js"></script>
     {% if current_user %}
     <script src="/js/binkstream-client.js"></script>
     {% endif %}
@@ -166,6 +172,11 @@
                                         <i class="fas fa-comments mail-menu-icon" id="echomailMenuIcon"></i> {{ t('ui.base.echomail', {}, 'common') }}
                                     </a>
                                 </li>
+                                <li>
+                                    <a class="dropdown-item" href="/bulletins">
+                                        <i class="fas fa-clipboard-list"></i> {{ t('ui.base.bulletins', {}, 'common') }}
+                                    </a>
+                                </li>
                                 {% if bbs_feature_enabled('qwk') %}
                                 <li>
                                     <a class="dropdown-item" href="/qwk">
@@ -192,6 +203,13 @@
                                 <li>
                                     <a class="dropdown-item" href="/games/mrc">
                                         <i class="fas fa-satellite-dish"></i> {{ t('ui.base.mrc_chat', {}, 'common') }}
+                                    </a>
+                                </li>
+                                {% endif %}
+                                {% if appearance.message_reader.discord_url %}
+                                <li>
+                                    <a class="dropdown-item" href="{{ appearance.message_reader.discord_url | e }}" target="_blank" rel="noopener noreferrer">
+                                        <i class="fab fa-discord"></i> {{ t('ui.admin.appearance.message_reader.discord_url', {}, 'common') }}
                                     </a>
                                 </li>
                                 {% endif %}
@@ -296,6 +314,7 @@
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="/admin/ads"><i class="fas fa-image"></i> {{ t('ui.base.admin.ads', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/ad-campaigns"><i class="fas fa-bullhorn"></i> {{ t('ui.base.admin.ad_campaigns', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/bulletins"><i class="fas fa-clipboard-list"></i> {{ t('ui.base.admin.bulletins', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
                                 <li class="dropdown-submenu">
@@ -324,6 +343,7 @@
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="/admin/appearance"><i class="fas fa-palette"></i> {{ t('ui.base.admin.appearance', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> {{ t('ui.base.admin.binkp_configuration', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/networks"><i class="fas fa-globe"></i> {{ t('ui.base.admin.networks', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/packet-bbs"><i class="fas fa-broadcast-tower"></i> {{ t('ui.base.admin.packet_bbs', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/i18n-overrides"><i class="fas fa-language"></i> {{ t('ui.base.admin.i18n_overrides', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/licensing"><i class="fas fa-id-card"></i> {{ t('ui.base.admin.licensing', {}, 'common') }}</a></li>

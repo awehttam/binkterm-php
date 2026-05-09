@@ -909,11 +909,12 @@ class SettingsHandler
      */
     private function buildLocaleOptions(string $currentLocale): array
     {
-        return [
-            'en' => 'English',
-            'fr' => 'Français',
-            'es' => 'Español',
-        ];
+        $translator = new \BinktermPHP\I18n\Translator();
+        $options    = [];
+        foreach ($translator->getSupportedLocales() as $code) {
+            $options[$code] = $translator->getLocaleName($code);
+        }
+        return $options;
     }
 
     // ── Utility ───────────────────────────────────────────────────────────────

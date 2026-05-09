@@ -110,6 +110,26 @@ class AppearanceConfig
             'message_reader' => [
                 'scrollable_body' => true,
                 'email_link_url' => '',
+                'discord_url' => '',
+                'media_player' => [
+                    'enabled'   => false,
+                    'providers' => [
+                        'youtube'      => true,
+                        'odysee'       => true,
+                        'rumble'       => true,
+                        'bitchute'     => true,
+                        'brighteon'    => true,
+                        'peertube'     => true,
+                        'soundcloud'   => true,
+                        'twitter'      => true,
+                        'tiktok'       => true,
+                        'minds'        => true,
+                        'bastyon'      => true,
+                        'reverbnation' => true,
+                        'raw_media'    => true,
+                    ],
+                    'api_keys' => ['soundcloud' => '', 'twitter' => ''],
+                ],
             ],
             'file_areas' => [
                 'sidebar_info_title'    => '',
@@ -441,6 +461,31 @@ class AppearanceConfig
     {
         self::load();
         return trim((string)(self::$config['message_reader']['email_link_url'] ?? ''));
+    }
+
+    public static function getMessageReaderDiscordUrl(): string
+    {
+        self::load();
+        return trim((string)(self::$config['message_reader']['discord_url'] ?? ''));
+    }
+
+    /**
+     * Whether the inline media player is globally enabled.
+     */
+    public static function isMediaPlayerEnabled(): bool
+    {
+        self::load();
+        $mp = self::$config['message_reader']['media_player'] ?? [];
+        return !empty($mp['enabled']);
+    }
+
+    /**
+     * Full media_player sub-config (enabled, providers, api_keys).
+     */
+    public static function getMediaPlayerConfig(): array
+    {
+        self::load();
+        return self::$config['message_reader']['media_player'] ?? [];
     }
 
     // -------------------------------------------------------------------------

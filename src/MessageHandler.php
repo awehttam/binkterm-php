@@ -1172,7 +1172,7 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 SELECT em.*,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
-                       ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only,
+                       ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only, ea.allow_media as area_allow_media,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
@@ -1371,9 +1371,9 @@ class MessageHandler
             // Use getUplinkForDestination() — the same routing logic used to pick the origin
             // address — so the charset lookup is always consistent with packet routing.
             $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
-            $uplink = $binkpConfig->getUplinkForDestination($toAddress);
-            if ($uplink && !empty($uplink['default_charset'])) {
-                $defaultCharset = strtoupper($uplink['default_charset']);
+            $networkCharset = $binkpConfig->getDefaultCharsetForDestination($toAddress);
+            if ($networkCharset !== null) {
+                $defaultCharset = strtoupper($networkCharset);
             }
             $packetCharset = $defaultCharset;
             if (!empty($replyToId)) {
@@ -1785,9 +1785,9 @@ class MessageHandler
                 $defaultCharset = 'UTF-8';
             } else {
                 $defaultCharset = \BinktermPHP\BbsConfig::getOutgoingCharset();
-                $uplink = $binkpConfig->getUplinkByDomain((string)$domain);
-                if ($uplink && !empty($uplink['default_charset'])) {
-                    $defaultCharset = strtoupper($uplink['default_charset']);
+                $networkCharset = $binkpConfig->getDefaultCharsetForDomain((string)$domain);
+                if ($networkCharset !== null) {
+                    $defaultCharset = strtoupper($networkCharset);
                 }
             }
             $packetCharset = $defaultCharset;
@@ -1818,12 +1818,19 @@ class MessageHandler
         $storage = $this->prepareLocalMessageStorage($finalMessageText);
 
         // Determine whether this post needs to be held for moderation.
-        // Moderation only applies to networked areas when the threshold is > 0
-        // (threshold 0 = feature disabled). Admins always bypass.
+        // Moderation applies to networked areas only. Admins always bypass.
+        // Two independent triggers:
+        //   1. echomail_moderation_forced = TRUE on the user — sysop-mandated, works
+        //      even when the global threshold is disabled (0).
+        //   2. Global threshold > 0 and the user has not yet been auto-promoted.
         $moderationThreshold = \BinktermPHP\BbsConfig::getEchomailModerationThreshold();
         $needsModeration = false;
-        if ($moderationThreshold > 0 && !$isLocalArea && empty($user['is_admin'])) {
-            $needsModeration = empty($user['can_post_netecho_unmoderated']);
+        if (!$isLocalArea && empty($user['is_admin'])) {
+            if (!empty($user['echomail_moderation_forced'])) {
+                $needsModeration = true;
+            } elseif ($moderationThreshold > 0 && empty($user['can_post_netecho_unmoderated'])) {
+                $needsModeration = true;
+            }
         }
         $moderationStatus = $needsModeration ? 'pending' : 'approved';
 
@@ -2033,6 +2040,141 @@ class MessageHandler
         return [
             'sql'    => " AND {$alias}.moderation_status = 'approved'",
             'params' => [],
+        ];
+    }
+
+    /**
+     * Get echomail statistics and tab counts using the same visibility rules as message list queries.
+     *
+     * @param int|null    $userId
+     * @param string|null $echoareaTag Optional echoarea tag. Null means all subscribed echoareas.
+     * @param string|null $domain      Optional echoarea domain. Empty string means local/no-domain area.
+     * @return array{
+     *     total:int,
+     *     recent:int,
+     *     unread:int,
+     *     areas:int|null,
+     *     filter_counts:array{all:int,unread:int,read:int,tome:int,saved:int,drafts:int}
+     * }
+     */
+    public function getEchomailStats(?int $userId, ?string $echoareaTag = null, ?string $domain = null): array
+    {
+        $user = $userId ? $this->getUserById($userId) : null;
+        $isAdmin = $user && !empty($user['is_admin']);
+
+        $where = [
+            'ea.is_active = TRUE',
+            '(em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE \'UTC\'))',
+        ];
+        $params = [];
+
+        if (!$isAdmin) {
+            $where[] = 'COALESCE(ea.is_sysop_only, FALSE) = FALSE';
+        }
+
+        if ($echoareaTag !== null) {
+            $where[] = 'ea.tag = ?';
+            $params[] = $echoareaTag;
+            if ($domain === null || $domain === '') {
+                $where[] = "(ea.domain IS NULL OR ea.domain = '')";
+            } else {
+                $where[] = 'ea.domain = ?';
+                $params[] = $domain;
+            }
+        } elseif ($userId) {
+            $where[] = 'ues.is_active = TRUE';
+        }
+
+        $ignoreFilter = $this->buildEchomailIgnoreFilter($userId, 'em');
+        if ($ignoreFilter['sql'] !== '') {
+            $where[] = substr(trim($ignoreFilter['sql']), 4);
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
+        }
+
+        $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
+        if ($moderationFilter['sql'] !== '') {
+            $where[] = substr(trim($moderationFilter['sql']), 4);
+            foreach ($moderationFilter['params'] as $param) {
+                $params[] = $param;
+            }
+        }
+
+        $toMeUser = $user['username'] ?? '';
+        $toMeRealName = $user['real_name'] ?? '';
+        $joinSubscription = ($echoareaTag === null && $userId)
+            ? 'JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?'
+            : '';
+
+        $sql = "
+            SELECT
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE em.date_received > NOW() - INTERVAL '1 day') AS recent,
+                COUNT(*) FILTER (WHERE mrs.read_at IS NULL) AS unread_count,
+                COUNT(*) FILTER (WHERE mrs.read_at IS NOT NULL) AS read_count,
+                COUNT(*) FILTER (WHERE LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)) AS tome_count,
+                COUNT(*) FILTER (WHERE sav.id IS NOT NULL) AS saved_count
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            {$joinSubscription}
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            WHERE " . implode(' AND ', $where);
+
+        $queryParams = [$toMeUser, $toMeRealName];
+        if ($echoareaTag === null && $userId) {
+            $queryParams[] = $userId;
+        }
+        $queryParams[] = $userId;
+        $queryParams[] = $userId;
+        $queryParams = array_merge($queryParams, $params);
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($queryParams);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+        $areas = null;
+        if ($echoareaTag === null && $userId) {
+            $areaWhere = ['ea.is_active = TRUE', 'ues.is_active = TRUE'];
+            if (!$isAdmin) {
+                $areaWhere[] = 'COALESCE(ea.is_sysop_only, FALSE) = FALSE';
+            }
+            $areasStmt = $this->db->prepare("
+                SELECT COUNT(*) AS count
+                FROM echoareas ea
+                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
+                WHERE " . implode(' AND ', $areaWhere));
+            $areasStmt->execute([$userId]);
+            $areas = (int)$areasStmt->fetchColumn();
+        }
+
+        $draftsCount = 0;
+        if ($userId) {
+            $draftsStmt = $this->db->prepare("SELECT COUNT(*) FROM drafts WHERE user_id = ? AND type = 'echomail'");
+            $draftsStmt->execute([$userId]);
+            $draftsCount = (int)$draftsStmt->fetchColumn();
+        }
+
+        $total = (int)($row['total'] ?? 0);
+        $unread = (int)($row['unread_count'] ?? 0);
+        $read = (int)($row['read_count'] ?? 0);
+        $toMe = (int)($row['tome_count'] ?? 0);
+        $saved = (int)($row['saved_count'] ?? 0);
+
+        return [
+            'total' => $total,
+            'recent' => (int)($row['recent'] ?? 0),
+            'unread' => $unread,
+            'areas' => $areas,
+            'filter_counts' => [
+                'all' => $total,
+                'unread' => $unread,
+                'read' => $read,
+                'tome' => $toMe,
+                'saved' => $saved,
+                'drafts' => $draftsCount,
+            ],
         ];
     }
 
@@ -2532,7 +2674,7 @@ class MessageHandler
      *
      * Priority:
      * 1) Echo area override (posting_name_policy on echoareas)
-     * 2) Uplink policy by domain (posting_name_policy on uplink config)
+     * 2) Network policy by domain (posting_name_policy on networks)
      * 3) Default: real_name
      */
     private function resolveEchomailPostingName(array $user, array $echoarea, string $domain): string
@@ -2552,17 +2694,17 @@ class MessageHandler
             return $selectByPolicy($echoPolicy);
         }
 
-        $uplinkPolicy = 'real_name';
+        $networkPolicy = 'real_name';
         if ($domain !== '') {
             try {
                 $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-                $uplinkPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
+                $networkPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
             } catch (\Throwable $e) {
-                $uplinkPolicy = 'real_name';
+                $networkPolicy = 'real_name';
             }
         }
 
-        return $selectByPolicy($uplinkPolicy);
+        return $selectByPolicy($networkPolicy);
     }
 
     /**
@@ -5332,6 +5474,10 @@ class MessageHandler
             $limit = $settings['messages_per_page'] ?? 25;
         } elseif ($limit === null) {
             $limit = 25; // Default fallback if no user ID
+        }
+
+        if ($echoareaTag && $filter === 'tome' && $userId) {
+            return $this->getEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter, false, false, $sort);
         }
 
         // Build the WHERE clause based on filter
