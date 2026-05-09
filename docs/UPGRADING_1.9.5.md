@@ -98,7 +98,7 @@ Messages posted by Auto Feed now identify the poster component as `BinktermPHP A
 - Fixed the terminal language selector so it shows all installed languages rather than a fixed list of three.
 - Added support for locale-specific documentation files. The user guide and admin help browser now serve translated Markdown files when available, falling back to the English source when no translation exists. Any locale directory added under `config/i18n/` now appears automatically in the telnet and SSH settings language list.
 - Added translated user guides for French (`index.fr.md`), Spanish (`index.es.md`), Italian (`index.it.md`), and German (`index.de.md`). These are served automatically when the user's active language matches the locale.
-- Renamed the dashboard's top mail summary card to "Mail & Areas" and added a **NEW ECHOAREAS** section that lists active echo areas created in the past 30 days. Non-admin users do not see sysop-only areas in this list.
+- Renamed the dashboard's top mail summary card to "Mail & Areas" and added a **NEW ECHOAREAS** section that lists active echo areas created in the past 30 days. Non-admin users do not see sysop-only areas in this list. The section includes **Manage Subscriptions** and **Manage Interests** buttons for quick access to echo area subscription management.
 - Fixed the web settings page so saving one changed preference no longer resubmits every setting from every tab. The page now shows a loading overlay until the user's saved settings are loaded, then saves only changed preferences so unrelated settings are not overwritten by stale or unloaded form values.
 - Added sorting controls to the user's **Manage Subscriptions** page. Users can sort echo area subscriptions by name, date created, or number of messages, with ascending and descending order controls.
 
@@ -304,7 +304,7 @@ No manual configuration changes are required. Run `php scripts/setup.php` as par
 
 The dashboard's top mail summary card is now named **Mail & Areas**. In addition to the unread netmail and echomail counters, it now includes a **NEW ECHOAREAS** section showing active echo areas that were added within the past 30 days.
 
-The list uses the existing `echoareas.created_at` timestamp. Admin users can see all active new areas; non-admin users do not see areas marked sysop-only. No database changes or manual configuration updates are required.
+The list uses the existing `echoareas.created_at` timestamp. Admin users can see all active new areas; non-admin users do not see areas marked sysop-only. **Manage Subscriptions** and **Manage Interests** buttons below the new echo areas list link directly to the user's subscription management pages. No database changes or manual configuration updates are required.
 
 ## BBS Directory CLI
 

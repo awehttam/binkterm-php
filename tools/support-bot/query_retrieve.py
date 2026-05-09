@@ -10,6 +10,7 @@ Usage: python3 query_retrieve.py <question> [top_k] [db_path]
 
 import json
 import os
+import re
 import sqlite3
 import struct
 import sys
@@ -23,8 +24,11 @@ except ImportError:
     sys.exit(1)
 
 DEFAULT_DB   = os.path.join(os.path.dirname(__file__), "binkterm_knowledge.db")
-MODEL_NAME   = "all-MiniLM-L6-v2"
+MODEL_NAME   = "sentence-transformers/all-MiniLM-L6-v2"
 EMBED_SERVER = "http://127.0.0.1:5001"
+MIN_CONTENT_CHARS = 80
+MIN_CANDIDATES    = 100
+VERSION_RE        = re.compile(r"\b\d+\.\d+\.\d+\b")
 
 
 def pack_vector(vec: list[float]) -> bytes:
@@ -52,14 +56,88 @@ def embed_via_server(text: str) -> list | None:
 
 
 def embed_local(text: str) -> list:
-    """Load the model in-process and return the embedding."""
+    """Load the same local model used at index-build time and return the embedding."""
     try:
-        from sentence_transformers import SentenceTransformer
+        from fastembed import TextEmbedding
     except ImportError:
-        print("Error: sentence-transformers not installed. Run: pip install -r requirements.txt", file=sys.stderr)
+        print("Error: fastembed not installed. Run: pip install -r requirements.txt", file=sys.stderr)
         sys.exit(1)
-    model = SentenceTransformer(MODEL_NAME)
-    return model.encode(text, convert_to_numpy=True).tolist()
+    model = TextEmbedding(MODEL_NAME)
+    return next(iter(model.embed([text]))).tolist()
+
+
+def rerank_chunks(question: str, rows: list[tuple]) -> list[dict]:
+    """
+    Rerank vector-search candidates so contentful chunks from an exact
+    version-matched upgrade document outrank empty section-heading chunks.
+    """
+    versions = VERSION_RE.findall(question)
+    scored_rows: list[tuple[float, tuple]] = []
+
+    for row in rows:
+        source, heading_context, content, distance = row
+        heading = heading_context or ""
+        stripped_content = content.strip()
+        score = float(distance)
+
+        if len(stripped_content) < MIN_CONTENT_CHARS:
+            score += 0.35
+        if "table of contents" in heading.lower():
+            score += 0.35
+        if "upgrade instructions" in heading.lower():
+            score += 0.25
+        if "summary of changes >" in heading.lower() and len(stripped_content) >= MIN_CONTENT_CHARS:
+            score -= 0.15
+
+        for version in versions:
+            if version in source:
+                score -= 0.60
+            if version in heading:
+                score -= 0.20
+
+        scored_rows.append((score, row))
+
+    scored_rows.sort(key=lambda item: (item[0], item[1][3]))
+
+    ranked_chunks = [
+        {
+            "source":          row[0],
+            "heading_context": row[1] or "",
+            "content":         row[2],
+            "distance":        row[3],
+        }
+        for _, row in scored_rows
+    ]
+
+    def is_exact_version_match(chunk: dict) -> bool:
+        return any(
+            version in chunk["source"] or version in chunk["heading_context"]
+            for version in versions
+        )
+
+    def is_substantive(chunk: dict) -> bool:
+        heading = chunk["heading_context"].lower()
+        return (
+            len(chunk["content"].strip()) >= MIN_CONTENT_CHARS
+            and "table of contents" not in heading
+        )
+
+    def is_summary_detail(chunk: dict) -> bool:
+        return "summary of changes >" in chunk["heading_context"].lower()
+
+    exact_version_chunks = [chunk for chunk in ranked_chunks if is_exact_version_match(chunk)]
+    other_chunks = [chunk for chunk in ranked_chunks if chunk not in exact_version_chunks]
+
+    ordered_chunks = (
+        [chunk for chunk in exact_version_chunks if is_substantive(chunk) and is_summary_detail(chunk)]
+        + [chunk for chunk in exact_version_chunks if is_substantive(chunk) and not is_summary_detail(chunk)]
+        + [chunk for chunk in exact_version_chunks if not is_substantive(chunk)]
+        + [chunk for chunk in other_chunks if is_substantive(chunk) and is_summary_detail(chunk)]
+        + [chunk for chunk in other_chunks if is_substantive(chunk) and not is_summary_detail(chunk)]
+        + [chunk for chunk in other_chunks if not is_substantive(chunk)]
+    )
+
+    return ordered_chunks
 
 
 if __name__ == "__main__":
@@ -89,6 +167,8 @@ if __name__ == "__main__":
     sqlite_vec.load(con)
     con.enable_load_extension(False)
 
+    candidate_k = max(top_k * 25, MIN_CANDIDATES)
+
     rows = con.execute("""
         SELECT c.source,
                c.heading_context,
@@ -99,18 +179,10 @@ if __name__ == "__main__":
         WHERE  v.embedding MATCH ?
           AND  k = ?
         ORDER  BY v.distance
-    """, [blob, top_k]).fetchall()
+    """, [blob, candidate_k]).fetchall()
 
     con.close()
 
-    chunks = [
-        {
-            "source":          row[0],
-            "heading_context": row[1] or "",
-            "content":         row[2],
-            "distance":        row[3],
-        }
-        for row in rows
-    ]
+    chunks = rerank_chunks(question, rows)[:top_k]
 
     print(json.dumps(chunks))
