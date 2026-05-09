@@ -48,6 +48,22 @@
                         </div>
                         <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">{{ t('ui.admin.bbs_settings.system.save', {}, locale, ['common']) }}</button>
                     </form>
+                    <hr>
+                    <h6 class="mb-3">{{ t('ui.admin.bbs_settings.packet_bbs.title', {}, locale, ['common']) }}</h6>
+                    <div id="bbsPacketBbsAlert"></div>
+                    <form id="bbsPacketBbsForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsPacketBbsSessionTimeout">{{ t('ui.admin.bbs_settings.packet_bbs.session_timeout_minutes', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsPacketBbsSessionTimeout" min="1" step="1" value="15">
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.packet_bbs.session_timeout_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsPacketBbsAllowGuestWho">
+                            <label class="form-check-label" for="bbsPacketBbsAllowGuestWho">{{ t('ui.admin.bbs_settings.packet_bbs.allow_guest_who', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.packet_bbs.allow_guest_who_help', {}, locale, ['common']) }}</small></div>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsPacketBbs()">{{ t('ui.admin.bbs_settings.packet_bbs.save', {}, locale, ['common']) }}</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -181,17 +197,62 @@
                 </div>
                 <div class="card-body">
                     <div id="bbsCreditsAlert"></div>
-                    <div class="row">
-                        <div class="col-lg-6">
+                    <div class="row g-4">
+                        <div class="col-md-6 col-xl-3">
                             <div class="mb-3 form-check">
                                 <input class="form-check-input" type="checkbox" id="bbsCreditsEnabled">
                                 <label class="form-check-label" for="bbsCreditsEnabled">{{ t('ui.admin.bbs_settings.credits.enabled', {}, locale, ['common']) }}</label>
                             </div>
+                        </div>
+                        <div class="col-md-6 col-xl-3">
                             <div class="mb-3">
                                 <label class="form-label" for="bbsCreditsSymbol">{{ t('ui.admin.bbs_settings.credits.currency_symbol', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="bbsCreditsSymbol" maxlength="5">
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.currency_symbol_help', {}, locale, ['common']) }}</small>
                             </div>
+                        </div>
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-lg-6">
+                            <h6 class="mb-3">{{ t('ui.admin.bbs_settings.credits.costs_and_fees', {}, locale, ['common']) }}</h6>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsNetmailCost">{{ t('ui.admin.bbs_settings.credits.netmail_cost', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsNetmailCost" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.netmail_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsCrashmailCost">{{ t('ui.admin.bbs_settings.credits.crashmail_cost', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsCrashmailCost" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.crashmail_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsPollCreationCost">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsPollCreationCost" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileUploadCost">{{ t('ui.admin.bbs_settings.credits.file_upload_cost', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileUploadCost" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_upload_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsFileDownloadCost">{{ t('ui.admin.bbs_settings.credits.file_download_cost', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsFileDownloadCost" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_download_cost_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsAiPerMilliUsd">{{ t('ui.admin.bbs_settings.credits.ai_credits_per_milli_usd', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsAiPerMilliUsd" min="0" step="1">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.ai_credits_per_milli_usd_help', {}, locale, ['common']) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsTransferFee">{{ t('ui.admin.bbs_settings.credits.transfer_fee_percentage', {}, locale, ['common']) }}</label>
+                                <input type="number" class="form-control" id="bbsCreditsTransferFee" min="0" max="1" step="0.01">
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.transfer_fee_help', {}, locale, ['common']) }}</small>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <h6 class="mb-3">{{ t('ui.admin.bbs_settings.credits.rewards_and_bonuses', {}, locale, ['common']) }}</h6>
                             <div class="mb-3">
                                 <label class="form-label" for="bbsCreditsDailyAmount">{{ t('ui.admin.bbs_settings.credits.daily_login_bonus_amount', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsDailyAmount" min="0" step="1">
@@ -212,32 +273,10 @@
                                 <input type="number" class="form-control" id="bbsCreditsNew14Days" min="0" step="1">
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.new_user_14_day_bonus_help', {}, locale, ['common']) }}</small>
                             </div>
-                        </div>
-                        <div class="col-lg-6">
-                            <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsNetmailCost">{{ t('ui.admin.bbs_settings.credits.netmail_cost', {}, locale, ['common']) }}</label>
-                                <input type="number" class="form-control" id="bbsCreditsNetmailCost" min="0" step="1">
-                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.netmail_cost_help', {}, locale, ['common']) }}</small>
-                            </div>
                             <div class="mb-3">
                                 <label class="form-label" for="bbsCreditsEchomailReward">{{ t('ui.admin.bbs_settings.credits.echomail_reward', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsEchomailReward" min="0" step="1">
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.echomail_reward_help', {}, locale, ['common']) }}</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsCrashmailCost">{{ t('ui.admin.bbs_settings.credits.crashmail_cost', {}, locale, ['common']) }}</label>
-                                <input type="number" class="form-control" id="bbsCreditsCrashmailCost" min="0" step="1">
-                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.crashmail_cost_help', {}, locale, ['common']) }}</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsPollCreationCost">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost', {}, locale, ['common']) }}</label>
-                                <input type="number" class="form-control" id="bbsCreditsPollCreationCost" min="0" step="1">
-                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost_help', {}, locale, ['common']) }}</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsFileUploadCost">{{ t('ui.admin.bbs_settings.credits.file_upload_cost', {}, locale, ['common']) }}</label>
-                                <input type="number" class="form-control" id="bbsCreditsFileUploadCost" min="0" step="1">
-                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_upload_cost_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label" for="bbsCreditsFileUploadReward">{{ t('ui.admin.bbs_settings.credits.file_upload_reward', {}, locale, ['common']) }}</label>
@@ -245,24 +284,9 @@
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_upload_reward_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsFileDownloadCost">{{ t('ui.admin.bbs_settings.credits.file_download_cost', {}, locale, ['common']) }}</label>
-                                <input type="number" class="form-control" id="bbsCreditsFileDownloadCost" min="0" step="1">
-                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_download_cost_help', {}, locale, ['common']) }}</small>
-                            </div>
-                            <div class="mb-3">
                                 <label class="form-label" for="bbsCreditsFileDownloadReward">{{ t('ui.admin.bbs_settings.credits.file_download_reward', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsFileDownloadReward" min="0" step="1">
                                 <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.file_download_reward_help', {}, locale, ['common']) }}</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsAiPerMilliUsd">{{ t('ui.admin.bbs_settings.credits.ai_credits_per_milli_usd', {}, locale, ['common']) }}</label>
-                                <input type="number" class="form-control" id="bbsCreditsAiPerMilliUsd" min="0" step="1">
-                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.ai_credits_per_milli_usd_help', {}, locale, ['common']) }}</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsTransferFee">{{ t('ui.admin.bbs_settings.credits.transfer_fee_percentage', {}, locale, ['common']) }}</label>
-                                <input type="number" class="form-control" id="bbsCreditsTransferFee" min="0" max="1" step="0.01">
-                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.transfer_fee_help', {}, locale, ['common']) }}</small>
                             </div>
                             <hr>
                             <h6 class="mb-3">{{ t('ui.admin.bbs_settings.credits.referral_system', {}, locale, ['common']) }}</h6>
@@ -278,29 +302,6 @@
                         </div>
                     </div>
                     <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">{{ t('ui.admin.bbs_settings.credits.save', {}, locale, ['common']) }}</button>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-6">
-            <div class="card shadow h-100">
-                <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.packet_bbs.title', {}, locale, ['common']) }}</h6>
-                </div>
-                <div class="card-body">
-                    <div id="bbsPacketBbsAlert"></div>
-                    <form id="bbsPacketBbsForm">
-                        <div class="mb-3">
-                            <label class="form-label" for="bbsPacketBbsSessionTimeout">{{ t('ui.admin.bbs_settings.packet_bbs.session_timeout_minutes', {}, locale, ['common']) }}</label>
-                            <input type="number" class="form-control" id="bbsPacketBbsSessionTimeout" min="1" step="1" value="15">
-                            <small class="text-muted">{{ t('ui.admin.bbs_settings.packet_bbs.session_timeout_help', {}, locale, ['common']) }}</small>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="bbsPacketBbsAllowGuestWho">
-                            <label class="form-check-label" for="bbsPacketBbsAllowGuestWho">{{ t('ui.admin.bbs_settings.packet_bbs.allow_guest_who', {}, locale, ['common']) }}</label>
-                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.packet_bbs.allow_guest_who_help', {}, locale, ['common']) }}</small></div>
-                        </div>
-                        <button type="button" class="btn btn-primary" onclick="saveBbsPacketBbs()">{{ t('ui.admin.bbs_settings.packet_bbs.save', {}, locale, ['common']) }}</button>
-                    </form>
                 </div>
             </div>
         </div>

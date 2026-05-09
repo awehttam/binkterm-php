@@ -1569,6 +1569,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.bbs_settings.packet_bbs.save' => 'Enregistrer les paramètres Packet BBS',
     'ui.admin.bbs_settings.packet_bbs.save_failed' => 'Échec de l\'enregistrement des paramètres Packet BBS.',
     'ui.admin.bbs_settings.packet_bbs.saved_success' => 'Paramètres Packet BBS enregistrés avec succès.',
+    'ui.admin.bbs_settings.credits.costs_and_fees' => 'Coûts et frais',
+    'ui.admin.bbs_settings.credits.rewards_and_bonuses' => 'Récompenses et bonus',
     'ui.admin.mrc_settings.page_title' => 'Paramètres MRC',
     'ui.admin.mrc_settings.heading' => 'Paramètres du chat MRC',
     'ui.admin.mrc_settings.note_label' => 'Remarque',

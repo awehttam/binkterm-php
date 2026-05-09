@@ -1881,6 +1881,8 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.bbs_settings.packet_bbs.save' => 'Packet BBS Einstellungen speichern',
     'ui.admin.bbs_settings.packet_bbs.save_failed' => 'Packet BBS Einstellungen. konnte nicht gespeichert werden',
     'ui.admin.bbs_settings.packet_bbs.saved_success' => 'Packet BBS Einstellungen gespeichert successfully.',
+    'ui.admin.bbs_settings.credits.costs_and_fees' => 'Kosten und Gebühren',
+    'ui.admin.bbs_settings.credits.rewards_and_bonuses' => 'Belohnungen und Boni',
 
     // Admin MRC Settings
     'ui.admin.mrc_settings.page_title' => 'MRC Einstellungen',

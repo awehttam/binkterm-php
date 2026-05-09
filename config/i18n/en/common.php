@@ -1816,6 +1816,8 @@ return [
     'ui.admin.bbs_settings.credits.enabled' => 'Credits System Enabled',
     'ui.admin.bbs_settings.credits.currency_symbol' => 'Currency Symbol',
     'ui.admin.bbs_settings.credits.currency_symbol_help' => 'Example: $, USD (max 5 characters). Leave blank for no symbol.',
+    'ui.admin.bbs_settings.credits.costs_and_fees' => 'Costs and Fees',
+    'ui.admin.bbs_settings.credits.rewards_and_bonuses' => 'Rewards and Bonuses',
     'ui.admin.bbs_settings.credits.daily_login_bonus_amount' => 'Daily Login Bonus Amount',
     'ui.admin.bbs_settings.credits.daily_login_bonus_help' => 'Amount of credits awarded to users on daily login.',
     'ui.admin.bbs_settings.credits.daily_login_delay_minutes' => 'Daily Login Delay (minutes)',

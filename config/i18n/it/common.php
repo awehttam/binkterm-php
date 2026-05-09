@@ -1880,6 +1880,8 @@ return [
     'ui.admin.bbs_settings.packet_bbs.save' => 'Salva impostazioni Packet BBS',
     'ui.admin.bbs_settings.packet_bbs.save_failed' => 'Salvataggio impostazioni Packet BBS non riuscito.',
     'ui.admin.bbs_settings.packet_bbs.saved_success' => 'Impostazioni Packet BBS salvate con successo.',
+    'ui.admin.bbs_settings.credits.costs_and_fees' => 'Costi e commissioni',
+    'ui.admin.bbs_settings.credits.rewards_and_bonuses' => 'Ricompense e bonus',
 
     // Admin MRC Settings
     'ui.admin.mrc_settings.page_title' => 'Impostazioni MRC',

@@ -1933,6 +1933,8 @@ return [
     'ui.admin.bbs_settings.packet_bbs.save' => 'Guardar configuracion de Packet BBS',
     'ui.admin.bbs_settings.packet_bbs.save_failed' => 'Error al guardar la configuracion de Packet BBS.',
     'ui.admin.bbs_settings.packet_bbs.saved_success' => 'Configuracion de Packet BBS guardada correctamente.',
+    'ui.admin.bbs_settings.credits.costs_and_fees' => 'Costos y tarifas',
+    'ui.admin.bbs_settings.credits.rewards_and_bonuses' => 'Recompensas y bonos',
 
     // Admin MRC Settings
     'ui.admin.mrc_settings.page_title' => 'Configuracion MRC',
