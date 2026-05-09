@@ -610,7 +610,7 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
         'has_interests' => $hasInterests,
         'ai_assistant_enabled' => $aiAssistantEnabled,
     ]);
-})->where(['echoarea' => '[A-Za-z0-9@._-]+']);
+})->where(['echoarea' => "[-A-Za-z0-9@._'!%]+"]);
 
 SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
     $auth   = new Auth();
