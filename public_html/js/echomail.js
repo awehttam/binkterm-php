@@ -97,6 +97,8 @@ $(document).ready(function() {
 
     // Handle modal close events
     $('#messageModal').on('hidden.bs.modal', function() {
+        cleanupMessageModalMedia();
+
         // If modal wasn't closed by back button and we're in a modal state, go back in history
         if (!modalClosedByBackButton && history.state && history.state.modal === 'message') {
             history.back();
@@ -215,6 +217,30 @@ $(document).ready(function() {
     window.addEventListener('resize', hideMessageContextMenu);
     bindMessageListTouchContextMenu();
 });
+
+function cleanupMessageModalMedia() {
+    const content = document.getElementById('messageContent');
+    if (!content) return;
+
+    if (window.BinkMediaPlayer && typeof window.BinkMediaPlayer.cleanup === 'function') {
+        window.BinkMediaPlayer.cleanup(content);
+    }
+
+    content.querySelectorAll('video, audio').forEach(function(mediaEl) {
+        try {
+            mediaEl.pause();
+            mediaEl.removeAttribute('src');
+            mediaEl.querySelectorAll('source').forEach(function(source) {
+                source.removeAttribute('src');
+            });
+            mediaEl.load();
+        } catch (e) {}
+    });
+
+    content.querySelectorAll('iframe, embed, object').forEach(function(embedEl) {
+        embedEl.remove();
+    });
+}
 
 function loadEchoareas(callback) {
     $.get('/api/echoareas?subscribed_only=true')

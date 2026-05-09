@@ -507,6 +507,26 @@
         var container = getContainer(containerOrSelector);
         if (!container) return;
 
+        var mediaEls = container.querySelectorAll('video, audio');
+        for (var i = 0; i < mediaEls.length; i++) {
+            try {
+                mediaEls[i].pause();
+                mediaEls[i].removeAttribute('src');
+                mediaEls[i].querySelectorAll('source').forEach(function(source) {
+                    source.removeAttribute('src');
+                });
+                mediaEls[i].load();
+            } catch (e) {}
+        }
+
+        var frameEls = container.querySelectorAll('iframe, embed, object');
+        for (var i = 0; i < frameEls.length; i++) {
+            try {
+                frameEls[i].removeAttribute('src');
+                frameEls[i].removeAttribute('data');
+            } catch (e) {}
+        }
+
         var retroPlayers = Array.prototype.slice.call(container.querySelectorAll('[data-retro-player-id]'));
         if (container.matches && container.matches('[data-retro-player-id]')) retroPlayers.push(container);
         if (window.BinkRetroAudio) {
