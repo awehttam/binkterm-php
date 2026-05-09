@@ -2727,6 +2727,7 @@ return [
     // Echomail Page
     'ui.echomail.title' => 'Echomail',
     'ui.echomail.post_message' => 'Post Message',
+    'ui.echomail.edit_area' => 'Edit Area',
     'ui.echomail.viewing_prefix' => 'Viewing:',
     'ui.echomail.viewing_all' => 'Viewing: All Messages',
     'ui.echomail.echo_list' => 'Echo List',

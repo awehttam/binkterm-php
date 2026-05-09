@@ -2728,6 +2728,7 @@ Dies ist eine **eigene Splash-Nachricht**.',
     // Echomail Page
     'ui.echomail.title' => 'Echomail',
     'ui.echomail.post_message' => 'Nachricht schreiben',
+    'ui.echomail.edit_area' => 'Bereich bearbeiten',
     'ui.echomail.viewing_prefix' => 'Angezeigt:',
     'ui.echomail.viewing_all' => 'Angezeigt: Alle Nachrichten',
     'ui.echomail.echo_list' => 'Echo-Liste',

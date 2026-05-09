@@ -22,6 +22,11 @@
                 </button>
             {% endif %}
             </div>
+            {% if current_user.is_admin %}
+            <a class="btn btn-sm btn-outline-secondary d-none" id="echoEditAreaBtn" href="/echoareas">
+                <i class="fas fa-edit me-1"></i>{{ t('ui.echomail.edit_area', {}, locale, ['common']) }}
+            </a>
+            {% endif %}
         </div>
     </div>
 </div>

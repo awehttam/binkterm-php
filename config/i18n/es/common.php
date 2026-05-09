@@ -2729,6 +2729,7 @@ return [
     // Echomail Page
     'ui.echomail.title' => 'Echomail',
     'ui.echomail.post_message' => 'Publicar mensaje',
+    'ui.echomail.edit_area' => 'Editar area',
     'ui.echomail.viewing_prefix' => 'Viendo:',
     'ui.echomail.viewing_all' => 'Viendo: Todos los mensajes',
     'ui.echomail.echo_list' => 'Lista de ecos',

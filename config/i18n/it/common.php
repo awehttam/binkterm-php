@@ -2728,6 +2728,7 @@ return [
     // Echomail Page
     'ui.echomail.title' => 'Echomail',
     'ui.echomail.post_message' => 'Pubblica messaggio',
+    'ui.echomail.edit_area' => 'Modifica area',
     'ui.echomail.viewing_prefix' => 'Visualizzazione:',
     'ui.echomail.viewing_all' => 'Visualizzazione: tutti i messaggi',
     'ui.echomail.echo_list' => 'Lista echo',

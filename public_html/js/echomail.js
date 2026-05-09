@@ -312,6 +312,20 @@ function renderEchoInfoBar(area, subscribed) {
            .html(`<i class="far fa-star me-1"></i>${uiT('ui.echomail.subscribe', 'Subscribe')}`);
     }
 
+    const editBtn = $('#echoEditAreaBtn');
+    if (editBtn.length) {
+        if (area && area.tag) {
+            const params = new URLSearchParams({ tag: String(area.tag) });
+            const areaDomain = String(area.domain || '').trim();
+            if (areaDomain) {
+                params.set('domain', areaDomain);
+            }
+            editBtn.attr('href', `/echoareas?${params.toString()}`).removeClass('d-none');
+        } else {
+            editBtn.attr('href', '/echoareas').addClass('d-none');
+        }
+    }
+
     $('#echoInfoBar').removeClass('d-none');
 }
 
@@ -324,6 +338,7 @@ function renderInterestInfoBar(name) {
     $('#echoTitle').text(name);
     $('#echoDescription').text('');
     $('#echoSubscribeBtn').addClass('d-none');
+    $('#echoEditAreaBtn').addClass('d-none');
     $('#echoInfoBar').removeClass('d-none');
 }
 

@@ -2219,6 +2219,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.address_book.always_crashmail_help' => 'Activer automatiquement le crashmail lors de la rédaction de messages à ce contact.',
     'ui.echomail.title' => 'Echomail',
     'ui.echomail.post_message' => 'Publier un message',
+    'ui.echomail.edit_area' => 'Modifier la zone',
     'ui.echomail.viewing_prefix' => 'Affichage :',
     'ui.echomail.viewing_all' => 'Affichage : Tous les messages',
     'ui.echomail.echo_list' => 'Liste des echos',
