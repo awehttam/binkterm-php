@@ -33,7 +33,11 @@ class EchoareaSubscriptionManager
     public function getUserSubscribedEchoareas($userId)
     {
         $sql = "
-            SELECT e.*, s.subscribed_at, s.subscription_type, s.is_active as subscribed
+            SELECT e.*,
+                   CASE WHEN e.created_at >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END AS is_new,
+                   s.subscribed_at,
+                   s.subscription_type,
+                   s.is_active as subscribed
             FROM echoareas e
             JOIN user_echoarea_subscriptions s ON e.id = s.echoarea_id
             WHERE s.user_id = ? AND s.is_active = TRUE AND e.is_active = TRUE
@@ -61,6 +65,7 @@ class EchoareaSubscriptionManager
     {
         $sql = "
             SELECT e.*,
+                   CASE WHEN e.created_at >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END AS is_new,
                    s.is_active as subscribed,
                    s.subscription_type,
                    s.subscribed_at,

@@ -3997,6 +3997,8 @@ return [
     'ui.user_subscriptions.heading_help' => 'Suscribase a echoareas para ver sus mensajes',
     'ui.user_subscriptions.search_placeholder' => 'Buscar echoareas...',
     'ui.user_subscriptions.default_subscription_title' => 'Suscripcion predeterminada',
+    'ui.user_subscriptions.new_area_badge' => 'Nuevo!',
+    'ui.user_subscriptions.new_area_title' => 'Creada en los ultimos 30 dias',
     'ui.user_subscriptions.message_count' => '{count} mensajes',
     'ui.user_subscriptions.dot_subscribed' => '- Suscrito',
     'ui.user_subscriptions.automatic' => '(automatico)',

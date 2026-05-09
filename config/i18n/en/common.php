@@ -3995,6 +3995,8 @@ return [
     'ui.user_subscriptions.heading_help' => 'Subscribe to echoareas to see their messages',
     'ui.user_subscriptions.search_placeholder' => 'Search echoareas...',
     'ui.user_subscriptions.default_subscription_title' => 'Default subscription',
+    'ui.user_subscriptions.new_area_badge' => 'New!',
+    'ui.user_subscriptions.new_area_title' => 'Created in the past 30 days',
     'ui.user_subscriptions.message_count' => '{count} messages',
     'ui.user_subscriptions.dot_subscribed' => '- Subscribed',
     'ui.user_subscriptions.automatic' => '(automatic)',

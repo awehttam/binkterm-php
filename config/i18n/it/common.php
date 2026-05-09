@@ -3996,6 +3996,8 @@ return [
     'ui.user_subscriptions.heading_help' => 'Sottoscrivi le aree echo per vedere i loro messaggi',
     'ui.user_subscriptions.search_placeholder' => 'Cerca aree echo...',
     'ui.user_subscriptions.default_subscription_title' => 'Sottoscrizione predefinita',
+    'ui.user_subscriptions.new_area_badge' => 'Nuovo!',
+    'ui.user_subscriptions.new_area_title' => 'Creata negli ultimi 30 giorni',
     'ui.user_subscriptions.message_count' => '{count} messaggi',
     'ui.user_subscriptions.dot_subscribed' => '- Sottoscritta',
     'ui.user_subscriptions.automatic' => '(automatica)',

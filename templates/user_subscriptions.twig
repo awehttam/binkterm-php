@@ -94,6 +94,12 @@
                                         <div class="d-flex align-items-center" style="min-width:0">
                                             <span class="me-2 flex-shrink-0" style="display: inline-block; width: 20px; height: 20px; background-color: {{ echoarea.color }}; border-radius: 3px;"></span>
                                             <h6 class="mb-0 text-truncate" style="color: #ffc107;">{{ echoarea.tag }}</h6>
+                                            {% if echoarea.is_new %}
+                                                <span class="badge bg-success ms-2 flex-shrink-0"
+                                                      title="{{ t('ui.user_subscriptions.new_area_title', {}, locale, ['common']) }}">
+                                                    {{ t('ui.user_subscriptions.new_area_badge', {}, locale, ['common']) }}
+                                                </span>
+                                            {% endif %}
                                         </div>
                                         {% if echoarea.domain or echoarea.is_default_subscription %}
                                         <div class="ms-4 mt-1">

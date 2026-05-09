@@ -3235,6 +3235,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.user_subscriptions.heading_help' => 'Abonnez-vous aux zones d\'écho pour voir leurs messages',
     'ui.user_subscriptions.search_placeholder' => 'Rechercher des zones d\'écho...',
     'ui.user_subscriptions.default_subscription_title' => 'Abonnement par défaut',
+    'ui.user_subscriptions.new_area_badge' => 'Nouveau !',
+    'ui.user_subscriptions.new_area_title' => 'Créée ces 30 derniers jours',
     'ui.user_subscriptions.message_count' => '{count} messages',
     'ui.user_subscriptions.dot_subscribed' => '- Abonné',
     'ui.user_subscriptions.automatic' => '(automatique)',
