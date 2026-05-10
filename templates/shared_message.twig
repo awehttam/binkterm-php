@@ -2,21 +2,26 @@
 
 {% block title %}{% if message and message.subject %}{{ message.subject }} | {{ t('ui.shared_message.title', {}, locale, ['common']) }}{% else %}{{ t('ui.shared_message.title', {}, locale, ['common']) }}{% endif %} - {{ parent() }}{% endblock %}
 
-{% block meta_tags %}
+{% block meta_description_tags %}
     {% if message %}
         {# Description meta tag - use first 160 chars of message body #}
         {% set description = message.message_text|striptags|slice(0, 160)|trim %}
         {% if description %}
             <meta name="description" content="{{ description }}{% if description|length >= 160 %}...{% endif %}">
+            <meta property="og:description" content="{{ description }}{% if description|length >= 160 %}...{% endif %}">
         {% endif %}
+    {% else %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}
 
+{% block meta_tags %}
+    {% if message %}
+        {% set description = message.message_text|striptags|slice(0, 160)|trim %}
         {# Open Graph meta tags for social media sharing #}
         <meta property="og:title" content="{% if message.subject %}{{ message.subject }}{% else %}{{ t('ui.shared_message.title', {}, locale, ['common']) }}{% endif %}">
         <meta property="og:type" content="article">
         <meta property="og:url" content="{{ share_url }}">
-        {% if description %}
-            <meta property="og:description" content="{{ description }}{% if description|length >= 160 %}...{% endif %}">
-        {% endif %}
         {% if message.from_name %}
             <meta property="og:site_name" content="{{ system_name }}">
             <meta property="article:author" content="{{ message.from_name }}">

@@ -6,6 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token }}">{# session-scoped CSRF token, stable across tabs #}
     <title>{% block title %}{{ system_name }}{% endblock %}</title>
 
+    {% block meta_description_tags %}{% endblock %}
+
     {# Meta tags block for SEO - can be overridden by child templates #}
     {% block meta_tags %}{% endblock %}
 

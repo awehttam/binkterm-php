@@ -6,11 +6,13 @@
     <meta name="csrf-token" content="{{ csrf_token }}">{# session-scoped CSRF token, stable across tabs #}
     <title>{% block title %}{{ system_name }}{% endblock %}</title>
 
-    {# SEO meta tags from appearance config #}
-    {% if appearance.seo.description %}
+    {# SEO description tags from appearance config; child templates may override these entirely #}
+    {% block meta_description_tags %}
+        {% if appearance.seo.description %}
     <meta name="description" content="{{ appearance.seo.description | e }}">
     <meta property="og:description" content="{{ appearance.seo.description | e }}">
-    {% endif %}
+        {% endif %}
+    {% endblock %}
     {% if appearance.seo.og_image_url %}
     <meta property="og:image" content="{{ appearance.seo.og_image_url | e }}">
     {% endif %}

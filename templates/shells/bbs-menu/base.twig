@@ -6,9 +6,11 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}{{ system_name }}{% endblock %}</title>
 
-    {% if appearance.seo.description %}
+    {% block meta_description_tags %}
+        {% if appearance.seo.description %}
     <meta name="description" content="{{ appearance.seo.description | e }}">
-    {% endif %}
+        {% endif %}
+    {% endblock %}
 
     {% block meta_tags %}{% endblock %}
 
