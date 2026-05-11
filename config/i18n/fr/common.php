@@ -81,6 +81,7 @@ return [
     'ui.common.show_password' => 'Afficher le mot de passe',
     'ui.common.hide_password' => 'Masquer le mot de passe',
     'ui.common.reply' => 'Répondre',
+    'ui.common.repost' => 'Republier',
     'ui.common.username' => 'Nom d\'utilisateur',
     'ui.common.real_name' => 'Nom réel',
     'ui.common.email' => 'E-mail',

@@ -647,6 +647,15 @@ function replyFromContextMenu() {
     composeMessage('netmail', messageId);
 }
 
+function repostFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    repostMessage(messageId);
+}
+
 function viewConversationFromContextMenu() {
     if (!currentContextMenuMessageId) {
         return;
@@ -1085,6 +1094,17 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         $('#replyButton').hide();
     }
 
+    $('#repostButton').show().off('click').on('click', function() {
+        const messageId = currentMessageId;
+
+        $('#messageModal').one('hidden.bs.modal', function() {
+            setTimeout(function() {
+                repostMessage(messageId);
+            }, 10);
+        });
+        $('#messageModal').modal('hide');
+    });
+
     // Set up delete button
     $('#deleteButton').show().off('click').on('click', function() {
         deleteMessage(currentMessageId);
@@ -1152,6 +1172,13 @@ function saveEditMessage() {
 
 function composeMessage(type, replyToId = null) {
     window.location.href = `/compose/netmail${replyToId ? '?reply=' + replyToId : ''}`;
+}
+
+function repostMessage(messageId) {
+    if (!messageId) {
+        return;
+    }
+    window.location.href = `/compose/netmail?repost=${encodeURIComponent(messageId)}`;
 }
 
 function composeMessageToUser(toName, toAddress, subject, alwaysCrashmail) {

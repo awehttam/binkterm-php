@@ -99,6 +99,7 @@ return [
     'ui.common.show_password' => 'Passwort anzeigen',
     'ui.common.hide_password' => 'Passwort ausblenden',
     'ui.common.reply' => 'Antworten',
+    'ui.common.repost' => 'Erneut posten',
     'ui.common.username' => 'Benutzername',
     'ui.common.real_name' => 'Echter Name',
     'ui.common.email' => 'E-Mail',

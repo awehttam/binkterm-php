@@ -382,6 +382,9 @@
     <button type="button" class="dropdown-item" onclick="replyFromContextMenu()">
         <i class="fas fa-reply me-2"></i>{{ t('ui.common.reply', {}, 'common') }}
     </button>
+    <button type="button" class="dropdown-item" onclick="repostFromContextMenu()">
+        <i class="fas fa-share me-2"></i>{{ t('ui.common.repost', {}, 'common') }}
+    </button>
     <button type="button" class="dropdown-item" onclick="viewConversationFromContextMenu()">
         <i class="fas fa-comments me-2"></i>{{ t('ui.common.view_conversation', {}, locale, ['common']) }}
     </button>
@@ -496,6 +499,10 @@
                     <button type="button" class="btn btn-fidonet btn-compact-label" id="replyButton">
                         <i class="fas fa-reply"></i>
                         <span class="btn-text">{{ t('ui.common.reply', {}, locale, ['common']) }}</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary btn-compact-label" id="repostButton">
+                        <i class="fas fa-share"></i>
+                        <span class="btn-text">{{ t('ui.common.repost', {}, locale, ['common']) }}</span>
                     </button>
                 </div>
             </div>

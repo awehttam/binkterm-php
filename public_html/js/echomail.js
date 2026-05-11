@@ -1152,6 +1152,15 @@ function replyFromContextMenu() {
     composeMessage('echomail', messageId);
 }
 
+function repostFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    repostMessage(messageId);
+}
+
 function viewConversationFromContextMenu() {
     if (!currentContextMenuMessageId) {
         return;
@@ -2015,6 +2024,17 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         $('#messageModal').modal('hide');
     });
 
+    $('#repostButton').show().off('click').on('click', function() {
+        const messageId = currentMessageId;
+
+        $('#messageModal').one('hidden.bs.modal', function() {
+            setTimeout(function() {
+                repostMessage(messageId);
+            }, 10);
+        });
+        $('#messageModal').modal('hide');
+    });
+
     // Set up share button
     $('#shareButton').show().off('click').on('click', function() {
         showShareDialog(currentMessageId);
@@ -2046,6 +2066,19 @@ function composeMessage(type, replyToId = null) {
     }
 
     window.location.href = url;
+}
+
+function repostMessage(messageId) {
+    if (!messageId) {
+        return;
+    }
+
+    let url = `/compose/echomail`;
+    const params = new URLSearchParams();
+    params.append('repost', messageId);
+    params.append('return_to', `${window.location.pathname}${window.location.search}`);
+
+    window.location.href = `${url}?${params.toString()}`;
 }
 
 function searchMessages() {
