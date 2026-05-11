@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Shared Pages](#shared-pages)
+- [Documentation](#documentation)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -16,6 +17,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Fixed shared message pages so they no longer emit two `og:description` tags. Social previews now use the shared message subject/body excerpt instead of also including the site-wide description from the global appearance settings.
 - Applied the same metadata override pattern to shared file pages so file shares also emit a single page-specific `og:description` value.
+
+### Documentation
+
+- Expanded the user guide with a dedicated message reader section that explains the web reader interface and lists the supported keyboard shortcuts for both echomail and netmail readers. The translated user guide variants were updated to include the same section.
 
 ---
 
@@ -28,6 +33,12 @@ The page now emits only the message-specific description metadata when a shared 
 The same override structure is also applied to shared file pages. Shared files continue to use their own file description or fallback text, but they no longer risk combining that description with a second site-wide Open Graph description tag.
 
 No database changes, migration steps, or manual configuration updates are required for this fix.
+
+## Documentation
+
+The user guide now includes a dedicated message reader section. It explains that the web message reader is shared by echomail and netmail and documents the supported keyboard shortcuts for navigation, viewer mode changes, downloads, full-screen mode, shortcut help, and closing the reader.
+
+The localized user guide files were updated alongside the main English guide so the same message reader guidance is available across the translated variants.
 
 ## Upgrade Instructions
 

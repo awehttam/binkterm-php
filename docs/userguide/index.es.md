@@ -8,13 +8,14 @@ Bienvenido a bordo! Esta guia te llevara a traves de todo lo que este BBS tiene 
 
 1. [Tu panel de control](#tu-panel-de-control)
 2. [Echomail: Foros globales](#echomail-foros-globales)
-3. [Netmail: Mensajes privados](#netmail-mensajes-privados)
-4. [Chat local y en red](#chat-local-y-en-red)
-5. [Puertas: Juegos y aplicaciones](#puertas-juegos-y-aplicaciones)
-6. [Areas de archivos](#areas-de-archivos)
-7. [Explorando las redes BBS](#explorando-las-redes-bbs)
-8. [Tu perfil y ajustes](#tu-perfil-y-ajustes)
-9. [Obtener ayuda](#obtener-ayuda)
+3. [Lector de mensajes](#lector-de-mensajes)
+4. [Netmail: Mensajes privados](#netmail-mensajes-privados)
+5. [Chat local y en red](#chat-local-y-en-red)
+6. [Puertas: Juegos y aplicaciones](#puertas-juegos-y-aplicaciones)
+7. [Areas de archivos](#areas-de-archivos)
+8. [Explorando las redes BBS](#explorando-las-redes-bbs)
+9. [Tu perfil y ajustes](#tu-perfil-y-ajustes)
+10. [Obtener ayuda](#obtener-ayuda)
 
 ---
 
@@ -90,6 +91,23 @@ Tu mensaje sera encolado y enviado a la red en el proximo intercambio de correo 
 Gestionas tus suscripciones a areas echo desde tu pagina personal de **Suscripciones**, que encontraras en tu menu de usuario. Desde alli puedes explorar todas las areas disponibles y activar o desactivar cuales sigues. Tus suscripciones determinan que areas aparecen en el lector de mensajes integrado y en tu panel.
 
 Si tu BBS tiene **Intereses** configurados, tambien puedes establecer intereses tematicos desde tu menu de usuario para recibir recomendaciones personalizadas de areas.
+
+---
+
+## Lector de mensajes
+
+El lector de mensajes web se utiliza tanto en **Echomail** como en **Netmail**. Cuando abres un mensaje, aparece en un lector emergente con botones para pasar al mensaje anterior o siguiente, cambiar el modo de visualizacion, descargar el mensaje y responder.
+
+Si prefieres usar el teclado, el lector de mensajes admite estos atajos:
+
+- **Flecha izquierda / Flecha derecha** — Ir al mensaje anterior o siguiente
+- **A** — Cambiar entre los modos de visor disponibles, como Auto, ANSI, Amiga ANSI, PETSCII y Texto plano
+- **D** — Descargar el mensaje actual
+- **F** — Activar o desactivar el modo de pantalla completa del lector
+- **?** o **H** — Mostrar u ocultar la ayuda de atajos de teclado
+- **Esc** — Cerrar el lector de mensajes
+
+> **Consejo:** Los mismos atajos funcionan tanto en el lector de echomail como en el de netmail.
 
 ---
 

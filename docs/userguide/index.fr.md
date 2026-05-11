@@ -8,13 +8,14 @@ Bienvenue à bord ! Ce guide vous accompagnera à travers tout ce que ce BBS a �
 
 1. [Votre tableau de bord](#votre-tableau-de-bord)
 2. [Echomail : Forums mondiaux](#echomail-forums-mondiaux)
-3. [Netmail : Messages privés](#netmail-messages-prives)
-4. [Chat local et en réseau](#chat-local-et-en-reseau)
-5. [Doors : Jeux et applications](#doors-jeux-et-applications)
-6. [Zones de fichiers](#zones-de-fichiers)
-7. [Explorer les réseaux BBS](#explorer-les-reseaux-bbs)
-8. [Votre profil et paramètres](#votre-profil-et-parametres)
-9. [Obtenir de l'aide](#obtenir-de-laide)
+3. [Lecteur de messages](#lecteur-de-messages)
+4. [Netmail : Messages privés](#netmail-messages-prives)
+5. [Chat local et en réseau](#chat-local-et-en-reseau)
+6. [Doors : Jeux et applications](#doors-jeux-et-applications)
+7. [Zones de fichiers](#zones-de-fichiers)
+8. [Explorer les réseaux BBS](#explorer-les-reseaux-bbs)
+9. [Votre profil et paramètres](#votre-profil-et-parametres)
+10. [Obtenir de l'aide](#obtenir-de-laide)
 
 ---
 
@@ -90,6 +91,23 @@ Votre message sera mis en file d'attente et envoyé au réseau lors du prochain 
 Vous gérez vos abonnements aux zones echo depuis votre page personnelle **Abonnements**, accessible via votre menu utilisateur. Vous pouvez y parcourir toutes les zones disponibles et choisir celles que vous souhaitez suivre. Vos abonnements déterminent quelles zones apparaissent dans le lecteur de messages intégré et sur votre tableau de bord.
 
 Si votre BBS a configuré des **Intérêts**, vous pouvez également définir des centres d'intérêt thématiques depuis votre menu utilisateur pour obtenir des recommandations de zones personnalisées.
+
+---
+
+## Lecteur de messages
+
+Le lecteur de messages web est utilisé à la fois dans **Echomail** et dans **Netmail**. Lorsque vous ouvrez un message, il apparaît dans un lecteur contextuel avec des boutons pour passer au message précédent ou suivant, changer le mode d'affichage, télécharger le message et répondre.
+
+Si vous préférez utiliser le clavier, le lecteur de messages prend en charge ces raccourcis :
+
+- **Flèche gauche / Flèche droite** — Aller au message précédent ou suivant
+- **A** — Faire défiler les modes de visualisation disponibles, comme Auto, ANSI, Amiga ANSI, PETSCII et Texte brut
+- **D** — Télécharger le message actuel
+- **F** — Activer ou désactiver le mode plein écran du lecteur
+- **?** ou **H** — Afficher ou masquer l'aide des raccourcis clavier
+- **Esc** — Fermer le lecteur de messages
+
+> **Conseil :** Les mêmes raccourcis fonctionnent dans le lecteur Echomail et dans le lecteur Netmail.
 
 ---
 

@@ -8,13 +8,14 @@ Herzlich willkommen! Dieses Handbuch führt dich durch alles, was dieses BBS zu 
 
 1. [Dein Dashboard](#dein-dashboard)
 2. [Echomail: Globale Foren](#echomail-globale-foren)
-3. [Netmail: Private Nachrichten](#netmail-private-nachrichten)
-4. [Lokaler und vernetzter Chat](#lokaler-und-vernetzter-chat)
-5. [Doors: Spiele & Anwendungen](#doors-spiele-anwendungen)
-6. [Dateibereiche](#dateibereiche)
-7. [Die BBS-Netzwerke erkunden](#die-bbs-netzwerke-erkunden)
-8. [Dein Profil & Einstellungen](#dein-profil-einstellungen)
-9. [Hilfe erhalten](#hilfe-erhalten)
+3. [Nachrichtenleser](#nachrichtenleser)
+4. [Netmail: Private Nachrichten](#netmail-private-nachrichten)
+5. [Lokaler und vernetzter Chat](#lokaler-und-vernetzter-chat)
+6. [Doors: Spiele & Anwendungen](#doors-spiele-anwendungen)
+7. [Dateibereiche](#dateibereiche)
+8. [Die BBS-Netzwerke erkunden](#die-bbs-netzwerke-erkunden)
+9. [Dein Profil & Einstellungen](#dein-profil-einstellungen)
+10. [Hilfe erhalten](#hilfe-erhalten)
 
 ---
 
@@ -90,6 +91,23 @@ Deine Nachricht wird in die Warteschlange gestellt und beim nächsten Mailwechse
 Du verwaltest deine Echo-Bereich-Abonnements über deine persönliche Seite **Abonnements** im Benutzermenü. Dort kannst du alle verfügbaren Bereiche durchstöbern und festlegen, welchen du folgst. Deine Abonnements bestimmen, welche Bereiche im integrierten Nachrichtenleser und auf deinem Dashboard erscheinen.
 
 Wenn dein BBS **Interessen** konfiguriert hat, kannst du auch Themeninteressen in deinem Benutzermenü festlegen, um personalisierte Bereichsempfehlungen zu erhalten.
+
+---
+
+## Nachrichtenleser
+
+Der Web-Nachrichtenleser wird sowohl in **Echomail** als auch in **Netmail** verwendet. Wenn du eine Nachricht öffnest, erscheint sie in einem Pop-up-Leser mit Schaltflächen für die vorherige oder nächste Nachricht, das Umschalten des Anzeigemodus, das Herunterladen der Nachricht und das Antworten.
+
+Wenn du lieber die Tastatur verwendest, unterstützt der Nachrichtenleser diese Kürzel:
+
+- **Linke Pfeiltaste / Rechte Pfeiltaste** — Zur vorherigen oder nächsten Nachricht wechseln
+- **A** — Zwischen den verfügbaren Anzeigemodi wechseln, etwa Auto, ANSI, Amiga ANSI, PETSCII und Klartext
+- **D** — Die aktuelle Nachricht herunterladen
+- **F** — Den Vollbildmodus des Lesers ein- oder ausschalten
+- **?** oder **H** — Die Hilfe zu den Tastaturkürzeln ein- oder ausblenden
+- **Esc** — Den Nachrichtenleser schließen
+
+> **Tipp:** Dieselben Kürzel funktionieren sowohl im Echomail- als auch im Netmail-Leser.
 
 ---
 

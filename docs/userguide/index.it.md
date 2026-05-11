@@ -8,13 +8,14 @@ Benvenuto a bordo! Questa guida ti illustrera tutto cio che questo BBS ha da off
 
 1. [Il Pannello di Controllo](#il-pannello-di-controllo)
 2. [Echomail: Forum Globali](#echomail-forum-globali)
-3. [Netmail: Messaggi Privati](#netmail-messaggi-privati)
-4. [Chat Locale e di Rete](#chat-locale-e-di-rete)
-5. [Doors: Giochi e Applicazioni](#doors-giochi-e-applicazioni)
-6. [Aree File](#aree-file)
-7. [Esplorare le Reti BBS](#esplorare-le-reti-bbs)
-8. [Il Tuo Profilo e le Impostazioni](#il-tuo-profilo-e-le-impostazioni)
-9. [Ottenere Assistenza](#ottenere-assistenza)
+3. [Lettore Messaggi](#lettore-messaggi)
+4. [Netmail: Messaggi Privati](#netmail-messaggi-privati)
+5. [Chat Locale e di Rete](#chat-locale-e-di-rete)
+6. [Doors: Giochi e Applicazioni](#doors-giochi-e-applicazioni)
+7. [Aree File](#aree-file)
+8. [Esplorare le Reti BBS](#esplorare-le-reti-bbs)
+9. [Il Tuo Profilo e le Impostazioni](#il-tuo-profilo-e-le-impostazioni)
+10. [Ottenere Assistenza](#ottenere-assistenza)
 
 ---
 
@@ -90,6 +91,23 @@ Il tuo messaggio verra messo in coda e inviato alla rete al successivo scambio d
 Gestisci i tuoi abbonamenti alle aree echo dalla pagina **Abbonamenti** nel menu utente. Da li puoi sfogliare tutte le aree disponibili e attivare o disattivare quelle che segui. I tuoi abbonamenti determinano quali aree appaiono nel lettore messaggi integrato e nel pannello di controllo.
 
 Se il tuo BBS ha configurato gli **Interessi**, puoi anche impostare i tuoi interessi tematici dal menu utente per ricevere raccomandazioni personalizzate di aree.
+
+---
+
+## Lettore Messaggi
+
+Il lettore messaggi web viene usato sia in **Echomail** sia in **Netmail**. Quando apri un messaggio, appare in un lettore a comparsa con pulsanti per passare al messaggio precedente o successivo, cambiare la modalita di visualizzazione, scaricare il messaggio e rispondere.
+
+Se preferisci usare la tastiera, il lettore messaggi supporta queste scorciatoie:
+
+- **Freccia sinistra / Freccia destra** — Passa al messaggio precedente o successivo
+- **A** — Scorre le modalita di visualizzazione disponibili, come Auto, ANSI, Amiga ANSI, PETSCII e Testo semplice
+- **D** — Scarica il messaggio corrente
+- **F** — Attiva o disattiva la modalita a schermo intero del lettore
+- **?** o **H** — Mostra o nasconde l'aiuto delle scorciatoie da tastiera
+- **Esc** — Chiude il lettore messaggi
+
+> **Suggerimento:** Le stesse scorciatoie funzionano sia nel lettore echomail sia in quello netmail.
 
 ---
 
