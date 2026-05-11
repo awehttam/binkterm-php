@@ -82,6 +82,7 @@ return [
     'ui.common.hide_password' => 'Masquer le mot de passe',
     'ui.common.reply' => 'Répondre',
     'ui.common.repost' => 'Republier',
+    'ui.common.forward_by_netmail' => 'Transférer par netmail',
     'ui.common.username' => 'Nom d\'utilisateur',
     'ui.common.real_name' => 'Nom réel',
     'ui.common.email' => 'E-mail',

@@ -100,6 +100,7 @@ return [
     'ui.common.hide_password' => 'Nascondi password',
     'ui.common.reply' => 'Rispondi',
     'ui.common.repost' => 'Ripubblica',
+    'ui.common.forward_by_netmail' => 'Inoltra via netmail',
     'ui.common.username' => 'Nome utente',
     'ui.common.real_name' => 'Nome reale',
     'ui.common.email' => 'Email',

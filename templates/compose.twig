@@ -1952,14 +1952,12 @@ function sendMessage() {
 
                 setTimeout(function() {
                     let returnUrl = `/${messageType}`;
-                    if (messageType === 'echomail') {
-                        const explicitReturnTo = ($('#returnTo').val() || '').trim();
-                        if (explicitReturnTo.startsWith('/')) {
-                            returnUrl = explicitReturnTo;
-                        } else {
+                    const explicitReturnTo = ($('#returnTo').val() || '').trim();
+                    if (explicitReturnTo.startsWith('/')) {
+                        returnUrl = explicitReturnTo;
+                    } else if (messageType === 'echomail') {
                             const areaVal = $('#echoarea').val() || '';
                             if (areaVal) returnUrl = `/echomail/${encodeURIComponent(areaVal)}`;
-                        }
                     }
                     window.location.href = returnUrl;
                 }, 2000);

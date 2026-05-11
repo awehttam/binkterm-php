@@ -1161,6 +1161,15 @@ function repostFromContextMenu() {
     repostMessage(messageId);
 }
 
+function forwardByNetmailFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    forwardMessageByNetmail(messageId);
+}
+
 function viewConversationFromContextMenu() {
     if (!currentContextMenuMessageId) {
         return;
@@ -2076,6 +2085,20 @@ function repostMessage(messageId) {
     let url = `/compose/echomail`;
     const params = new URLSearchParams();
     params.append('repost', messageId);
+    params.append('return_to', `${window.location.pathname}${window.location.search}`);
+
+    window.location.href = `${url}?${params.toString()}`;
+}
+
+function forwardMessageByNetmail(messageId) {
+    if (!messageId) {
+        return;
+    }
+
+    const url = `/compose/netmail`;
+    const params = new URLSearchParams();
+    params.append('repost', messageId);
+    params.append('source_type', 'echomail');
     params.append('return_to', `${window.location.pathname}${window.location.search}`);
 
     window.location.href = `${url}?${params.toString()}`;

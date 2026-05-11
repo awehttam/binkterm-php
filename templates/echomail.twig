@@ -394,17 +394,20 @@
     <button type="button" class="dropdown-item" onclick="downloadMessageFromContextMenu()">
         <i class="fas fa-download me-2"></i>{{ t('ui.common.download_message', {}, locale, ['common']) }}
     </button>
-    <button type="button" class="dropdown-item" onclick="openIgnoreMessageModalFromContextMenu()">
-        <i class="fas fa-eye-slash me-2"></i>{{ t('ui.echomail.ignore.open_action', {}, locale, ['common']) }}
-    </button>
     <button type="button" class="dropdown-item" onclick="shareMessageFromContextMenu()">
         <i class="fas fa-share-alt me-2"></i>{{ t('ui.common.share', {}, locale, ['common']) }}
+    </button>
+    <button type="button" class="dropdown-item" onclick="forwardByNetmailFromContextMenu()">
+        <i class="fas fa-envelope me-2"></i>{{ t('ui.common.forward_by_netmail', {}, 'common') }}
     </button>
     {% if current_user.email %}
     <button type="button" class="dropdown-item" onclick="forwardMessageToEmailFromContextMenu()">
         <i class="fas fa-envelope me-2"></i>{{ t('ui.common.forward_to_me_by_email', {}, locale, ['common']) }}
     </button>
     {% endif %}
+    <button type="button" class="dropdown-item" onclick="openIgnoreMessageModalFromContextMenu()">
+        <i class="fas fa-eye-slash me-2"></i>{{ t('ui.echomail.ignore.open_action', {}, locale, ['common']) }}
+    </button>
 </div>
 
 <div class="modal fade" id="ignoreMessageModal" tabindex="-1" aria-labelledby="ignoreMessageModalLabel" aria-hidden="true">

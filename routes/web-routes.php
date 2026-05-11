@@ -1274,9 +1274,13 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $replyId = $_GET['reply'] ?? null;
     $repostId = $_GET['repost'] ?? null;
     $prefillMessageId = $replyId ?: $repostId;
+    $sourceType = $_GET['source_type'] ?? $type;
     $echoarea = $_GET['echoarea'] ?? null;
     $domainParam = $_GET['domain'] ?? null;
     $returnTo = $_GET['return_to'] ?? null;
+    if (!in_array($sourceType, ['netmail', 'echomail'], true)) {
+        $sourceType = $type;
+    }
 
     // Interest context: restrict echo area list and cross-post list to interest areas
     $interestSlug = $_GET['interest'] ?? null;
@@ -1414,7 +1418,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
     if ($prefillMessageId) {
         $handler = new MessageHandler();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
-        $originalMessage = $handler->getMessage($prefillMessageId, $type, $userId);
+        $originalMessage = $handler->getMessage($prefillMessageId, $sourceType, $userId);
 
         if ($originalMessage) {
             $templateVars['reply_markup_type'] = getMessageMarkupType($originalMessage) ?? '';

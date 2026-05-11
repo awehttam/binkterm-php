@@ -100,6 +100,7 @@ return [
     'ui.common.hide_password' => 'Hide password',
     'ui.common.reply' => 'Reply',
     'ui.common.repost' => 'Re-Post',
+    'ui.common.forward_by_netmail' => 'Forward by Netmail',
     'ui.common.username' => 'Username',
     'ui.common.real_name' => 'Real Name',
     'ui.common.email' => 'Email',
