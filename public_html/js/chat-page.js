@@ -514,7 +514,10 @@
                 if (!state.active.id) {
                     const lobby = state.rooms.find(room => room.name === 'Lobby') || state.rooms[0];
                     if (lobby) {
-                        state.active = { type: 'room', id: lobby.id };
+                        // Use setActiveThread() so the default room's unread count is cleared
+                        // and messages are loaded automatically, same as a manual room click.
+                        setActiveThread({ type: 'room', id: lobby.id });
+                        return;
                     }
                 }
                 renderRooms();
@@ -640,6 +643,11 @@
 
     async function init() {
         await loadState();
+        // Clear the active thread's unread count immediately — its messages load on init,
+        // so any persisted unread count from a previous session is stale.
+        if (state.active.id) {
+            state.unreadCounts[threadKey(state.active)] = 0;
+        }
         initInput();
         initModerationMenu();
         const loadOlderBtn = document.getElementById('chatLoadOlderBtn');

@@ -403,6 +403,11 @@
                 if (!isPathMatch('/chat')) {
                     chatUnread = true;
                     updateChatIcons();
+                } else if (messageId > lastSeenChatMaxId) {
+                    // User is actively on the chat page — keep last_chat_max_id current so
+                    // navigating away doesn't falsely show the badge for messages they saw.
+                    lastSeenChatMaxId = messageId;
+                    markSeen('chat', messageId);
                 }
                 maybeChatSound();
             });
