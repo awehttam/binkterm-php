@@ -318,6 +318,7 @@ return [
     'ui.base.admin.sse_test' => 'BinkStream Test',
     'ui.base.admin.ai_usage' => 'AI Usage',
     'ui.base.admin.ai_bots' => 'AI Bots',
+    'ui.base.admin.ai_settings' => 'AI Settings',
     'ui.base.admin.sharing' => 'Sharing',
     'ui.base.admin.economy_viewer' => 'Economy Viewer',
     'ui.base.admin.referrals' => 'Referral Analytics',
@@ -2773,6 +2774,8 @@ return [
     'ui.echomail.shares.friendly_url_generated' => 'Friendly URL generated!',
     'ui.echomail.shares.revoked' => 'Share link revoked',
     'ui.echomail.shares.url_copied' => 'Share URL copied to clipboard!',
+    'ui.echomail.shares.existing_links' => 'Shared by others:',
+    'ui.echomail.shares.by_user' => 'by {username}',
 
     // Files Page
     'ui.files.title' => 'File Areas',
@@ -4690,6 +4693,26 @@ return [
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Enable AI Assistant',
     'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Show the AI Assistant button in echomail and netmail readers. Requires an Anthropic API key to be configured.',
+
+    // AI Settings page
+    'ui.admin.bbs_settings.ai.page_title'           => 'AI Settings',
+    'ui.admin.bbs_settings.ai.heading'              => 'AI Settings',
+    'ui.admin.bbs_settings.ai.features_title'       => 'AI Features',
+    'ui.admin.bbs_settings.ai.configure_link'       => 'AI Settings',
+    'ui.admin.bbs_settings.ai.no_provider_warning'  => 'No AI provider is configured. Add an OpenAI or Anthropic API key to .env to enable these features.',
+    'ui.admin.bbs_settings.ai.enable_share_summary' => 'Enable AI summaries for shared message links',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'When enabled, an AI button appears in the share dialog so users can generate a one-sentence link preview description. Requires an AI provider to be configured.',
+    'ui.admin.bbs_settings.ai.save'                 => 'Save AI Settings',
+    'ui.admin.bbs_settings.ai.save_failed'          => 'Failed to save AI settings.',
+    'ui.admin.bbs_settings.ai.saved_success'                  => 'AI settings saved.',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_label'    => 'Share summary system prompt',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_help'     => 'System prompt sent to the AI when generating link preview descriptions. Leave blank to use the built-in default.',
+
+    // Share modal - description field and AI summary
+    'ui.share.description_label'       => 'Link preview description',
+    'ui.share.description_placeholder' => 'Optional — describe what this message is about',
+    'ui.share.ai_summary_button_title' => 'Generate AI summary',
+    'ui.share.ai_summary_failed'       => 'Could not generate a summary. Please try again.',
 
     // AI Assistant (echomail + netmail readers)
     'ui.ai_assistant.button'             => 'AI Assistant',

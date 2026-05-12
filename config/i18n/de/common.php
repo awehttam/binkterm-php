@@ -318,6 +318,7 @@ return [
     'ui.base.admin.sse_test' => 'BinkStream Test',
     'ui.base.admin.ai_usage' => 'AI Usage',
     'ui.base.admin.ai_bots' => 'AI Bots',
+    'ui.base.admin.ai_settings' => 'KI-Einstellungen',
     'ui.base.admin.sharing' => 'Sharing',
     'ui.base.admin.economy_viewer' => 'Economy Anzeige',
     'ui.base.admin.referrals' => 'Referral Analytics',
@@ -2774,6 +2775,8 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.echomail.shares.friendly_url_generated' => 'Friendly URL generated!',
     'ui.echomail.shares.revoked' => 'Freigabelink widerrufen',
     'ui.echomail.shares.url_copied' => 'Share URL copied to clipboard!',
+    'ui.echomail.shares.existing_links' => 'Von anderen geteilt:',
+    'ui.echomail.shares.by_user' => 'von {username}',
 
     // Files Page
     'ui.files.title' => 'Dateibereiche',
@@ -4689,6 +4692,26 @@ Dies ist eine **eigene Splash-Nachricht**.',
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Enable AI Assistant',
     'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Zeigt die KI-Assistent-Schaltfläche in Echomail- und Netmail-Readern. Erfordert einen konfigurierten Anthropic-API-Schlüssel.',
+
+    // AI Settings page
+    'ui.admin.bbs_settings.ai.page_title'           => 'KI-Einstellungen',
+    'ui.admin.bbs_settings.ai.heading'              => 'KI-Einstellungen',
+    'ui.admin.bbs_settings.ai.features_title'       => 'KI-Funktionen',
+    'ui.admin.bbs_settings.ai.configure_link'       => 'KI-Einstellungen',
+    'ui.admin.bbs_settings.ai.no_provider_warning'  => 'Kein KI-Anbieter konfiguriert. Fügen Sie einen OpenAI- oder Anthropic-API-Schlüssel in .env hinzu, um diese Funktionen zu aktivieren.',
+    'ui.admin.bbs_settings.ai.enable_share_summary' => 'KI-Zusammenfassungen für geteilte Nachrichtenlinks aktivieren',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Wenn aktiviert, erscheint im Teilen-Dialog eine KI-Schaltfläche zur Erstellung einer Vorschaubeschreibung. Erfordert einen konfigurierten KI-Anbieter.',
+    'ui.admin.bbs_settings.ai.save'                 => 'KI-Einstellungen speichern',
+    'ui.admin.bbs_settings.ai.save_failed'          => 'KI-Einstellungen konnten nicht gespeichert werden.',
+    'ui.admin.bbs_settings.ai.saved_success'                        => 'KI-Einstellungen gespeichert.',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_label'          => 'System-Prompt für Teilen-Zusammenfassung',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_help'           => 'System-Prompt, der an die KI gesendet wird, wenn Vorschaubeschreibungen generiert werden. Leer lassen, um den integrierten Standard zu verwenden.',
+
+    // Share modal - description field and AI summary
+    'ui.share.description_label'       => 'Link-Vorschaubeschreibung',
+    'ui.share.description_placeholder' => 'Optional — beschreiben Sie den Inhalt dieser Nachricht',
+    'ui.share.ai_summary_button_title' => 'KI-Zusammenfassung erstellen',
+    'ui.share.ai_summary_failed'       => 'Zusammenfassung konnte nicht erstellt werden. Bitte erneut versuchen.',
 
     // AI Assistant (echomail + netmail readers)
     'ui.ai_assistant.button'             => 'KI-Assistent',

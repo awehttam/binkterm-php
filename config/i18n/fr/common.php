@@ -285,6 +285,7 @@ return [
     'ui.base.admin.sse_test' => 'Test SSE',
     'ui.base.admin.ai_usage' => 'Utilisation IA',
     'ui.base.admin.ai_bots' => 'Bots IA',
+    'ui.base.admin.ai_settings' => 'Parametres IA',
     'ui.base.admin.economy_viewer' => 'Visualiseur d\'économie',
     'ui.base.admin.bbs_settings' => 'Paramètres BBS',
     'ui.base.admin.appearance' => 'Apparence',
@@ -2258,6 +2259,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.echomail.shares.friendly_url_generated' => 'URL conviviale générée !',
     'ui.echomail.shares.revoked' => 'Lien de partage révoqué',
     'ui.echomail.shares.url_copied' => 'URL de partage copiée dans le presse-papiers !',
+    'ui.echomail.shares.existing_links' => 'Partagé par d\'autres :',
+    'ui.echomail.shares.by_user' => 'par {username}',
     'ui.files.title' => 'Zones de Fichiers',
     'ui.files.security_notice_label' => 'Avis de sécurité :',
     'ui.files.security_notice_text' => 'Vous êtes responsable de vous assurer que les fichiers que vous téléchargez sont sûrs. Utilisez un logiciel de protection contre les logiciels malveillants approprié.',
@@ -4579,6 +4582,26 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Activer l\'assistant IA',
     'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Affiche le bouton assistant IA dans les lecteurs de messages echomail et netmail. Necessite une cle API Anthropic configuree.',
+
+    // AI Settings page
+    'ui.admin.bbs_settings.ai.page_title'           => 'Parametres IA',
+    'ui.admin.bbs_settings.ai.heading'              => 'Parametres IA',
+    'ui.admin.bbs_settings.ai.features_title'       => 'Fonctionnalites IA',
+    'ui.admin.bbs_settings.ai.configure_link'       => 'Parametres IA',
+    'ui.admin.bbs_settings.ai.no_provider_warning'  => 'Aucun fournisseur IA n\'est configure. Ajoutez une cle API OpenAI ou Anthropic dans .env pour activer ces fonctionnalites.',
+    'ui.admin.bbs_settings.ai.enable_share_summary' => 'Activer les resumes IA pour les liens de messages partages',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Lorsqu\'il est active, un bouton IA apparait dans la boite de dialogue de partage pour generer une description d\'apercu en une phrase. Necessite un fournisseur IA configure.',
+    'ui.admin.bbs_settings.ai.save'                 => 'Enregistrer les parametres IA',
+    'ui.admin.bbs_settings.ai.save_failed'          => 'Echec de l\'enregistrement des parametres IA.',
+    'ui.admin.bbs_settings.ai.saved_success'                  => 'Parametres IA enregistres.',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_label'    => 'Invite systeme du resume de partage',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_help'     => 'Invite systeme envoyee a l\'IA lors de la generation des descriptions d\'apercu. Laissez vide pour utiliser la valeur par defaut integree.',
+
+    // Share modal - description field and AI summary
+    'ui.share.description_label'       => 'Description de l\'apercu du lien',
+    'ui.share.description_placeholder' => 'Facultatif — decrivez ce message',
+    'ui.share.ai_summary_button_title' => 'Generer un resume IA',
+    'ui.share.ai_summary_failed'       => 'Impossible de generer un resume. Veuillez reessayer.',
 
     // AI Assistant (echomail + netmail readers)
     'ui.ai_assistant.button'             => 'Assistant IA',

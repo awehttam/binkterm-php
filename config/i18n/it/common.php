@@ -318,6 +318,7 @@ return [
     'ui.base.admin.sse_test' => 'Test BinkStream',
     'ui.base.admin.ai_usage' => 'Utilizzo AI',
     'ui.base.admin.ai_bots' => 'Bot AI',
+    'ui.base.admin.ai_settings' => 'Impostazioni AI',
     'ui.base.admin.sharing' => 'Condivisione',
     'ui.base.admin.economy_viewer' => 'Visualizzatore economia',
     'ui.base.admin.referrals' => 'Analisi referral',
@@ -2774,6 +2775,8 @@ return [
     'ui.echomail.shares.friendly_url_generated' => 'URL leggibile generato!',
     'ui.echomail.shares.revoked' => 'Link di condivisione revocato',
     'ui.echomail.shares.url_copied' => 'URL di condivisione copiato negli appunti!',
+    'ui.echomail.shares.existing_links' => 'Condiviso da altri:',
+    'ui.echomail.shares.by_user' => 'da {username}',
 
     // Files Page
     'ui.files.title' => 'Aree file',
@@ -4670,6 +4673,26 @@ return [
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Abilita assistente AI',
     'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Mostra il pulsante Assistente AI nei lettori echomail e netmail. Richiede una chiave API Anthropic configurata.',
+
+    // AI Settings page
+    'ui.admin.bbs_settings.ai.page_title'           => 'Impostazioni AI',
+    'ui.admin.bbs_settings.ai.heading'              => 'Impostazioni AI',
+    'ui.admin.bbs_settings.ai.features_title'       => 'Funzionalita AI',
+    'ui.admin.bbs_settings.ai.configure_link'       => 'Impostazioni AI',
+    'ui.admin.bbs_settings.ai.no_provider_warning'  => 'Nessun fornitore AI configurato. Aggiungi una chiave API OpenAI o Anthropic nel file .env per abilitare queste funzionalita.',
+    'ui.admin.bbs_settings.ai.enable_share_summary' => 'Abilita riepiloghi AI per i link ai messaggi condivisi',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Se abilitato, nel dialogo di condivisione appare un pulsante AI per generare una descrizione di anteprima. Richiede un fornitore AI configurato.',
+    'ui.admin.bbs_settings.ai.save'                 => 'Salva impostazioni AI',
+    'ui.admin.bbs_settings.ai.save_failed'          => 'Impossibile salvare le impostazioni AI.',
+    'ui.admin.bbs_settings.ai.saved_success'                  => 'Impostazioni AI salvate.',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_label'    => 'Prompt di sistema per il riepilogo condivisione',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_help'     => 'Prompt di sistema inviato all\'AI durante la generazione delle descrizioni di anteprima. Lasciare vuoto per usare il valore predefinito integrato.',
+
+    // Share modal - description field and AI summary
+    'ui.share.description_label'       => 'Descrizione anteprima link',
+    'ui.share.description_placeholder' => 'Facoltativo — descrivi di cosa tratta questo messaggio',
+    'ui.share.ai_summary_button_title' => 'Genera riepilogo AI',
+    'ui.share.ai_summary_failed'       => 'Impossibile generare un riepilogo. Riprova.',
 
     // AI Assistant (echomail + netmail readers)
     'ui.ai_assistant.button'             => 'Assistente AI',

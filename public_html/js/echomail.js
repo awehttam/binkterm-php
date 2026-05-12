@@ -3289,22 +3289,49 @@ function showShareDialog(messageId) {
     $('#shareError').addClass('d-none');
     $('#shareExpiryInfo').hide();
     $('#shareAccessInfo').hide();
-    $('#shareExpirySection').show(); // Show expiry dropdown for new shares
+    $('#shareExpirySection').show();
+    $('#shareDescriptionSection').show();
+    $('#shareDescription').val('');
     $('#createShareBtn').removeClass('d-none');
     $('#friendlyUrlBtn').addClass('d-none');
     $('#revokeShareBtn').addClass('d-none');
     $('#publicShare').prop('checked', true);
     $('#shareExpiry').val('');
+    $('#otherSharesSection').addClass('d-none');
+    $('#otherSharesList').empty().off('click');
 
     // Check if message is already shared
     $.get(`/api/messages/echomail/${messageId}/shares`)
         .done(function(data) {
-            if (data.shares && data.shares.length > 0) {
-                // Show existing share
-                const share = data.shares[0];
+            // Show links created by other users above the creation form
+            if (data.other_shares && data.other_shares.length > 0) {
+                let html = '';
+                data.other_shares.forEach(function(share) {
+                    const url = escapeHtml(share.share_url);
+                    const byText = uiT('ui.echomail.shares.by_user', 'by {username}', { username: escapeHtml(share.shared_by_username) });
+                    html += `<div class="d-flex align-items-center gap-2 mb-1">` +
+                        `<input type="text" class="form-control form-control-sm" value="${url}" readonly>` +
+                        `<button class="btn btn-sm btn-outline-secondary copy-other-share-btn" data-url="${url}" title="${uiT('ui.common.copy', 'Copy')}">` +
+                        `<i class="fas fa-copy"></i></button>` +
+                        `<small class="text-muted text-nowrap">${byText}</small>` +
+                        `</div>`;
+                });
+                $('#otherSharesList').html(html).on('click', '.copy-other-share-btn', function() {
+                    const url = $(this).data('url');
+                    navigator.clipboard.writeText(url).then(function() {
+                        showSuccess(uiT('ui.echomail.shares.url_copied', 'Share URL copied to clipboard!'));
+                    });
+                });
+                $('#otherSharesSection').removeClass('d-none');
+            }
+
+            // Show the current user's own existing share if one exists
+            if (data.my_shares && data.my_shares.length > 0) {
+                const share = data.my_shares[0];
                 $('#shareUrl').val(share.share_url);
                 $('#shareResult').removeClass('d-none');
-                $('#shareExpirySection').hide(); // Hide expiry dropdown for existing shares
+                $('#shareExpirySection').hide();
+                $('#shareDescriptionSection').hide();
                 $('#createShareBtn').addClass('d-none');
                 if (!share.has_friendly_url) {
                     $('#friendlyUrlBtn').removeClass('d-none');
@@ -3318,7 +3345,6 @@ function showShareDialog(messageId) {
                     const now = new Date();
                     const createdDate = new Date(share.created_at);
 
-                    // Calculate time remaining
                     if (expiresDate > now) {
                         const diffMs = expiresDate - now;
                         const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
@@ -3338,7 +3364,6 @@ function showShareDialog(messageId) {
                         $('#shareExpiryInfo').show().removeClass('alert-info').addClass('alert-warning');
                     }
 
-                    // Set expiry dropdown to match current settings for editing
                     const diffHours = Math.round((expiresDate - createdDate) / (1000 * 60 * 60));
                     $('#shareExpiry').val(diffHours.toString());
                 } else {
@@ -3354,6 +3379,7 @@ function showShareDialog(messageId) {
                 $('#shareAccessText').text(`Accessed ${accessCount} time${accessCount !== 1 ? 's' : ''}. Last accessed: ${lastAccessed}`);
                 $('#shareAccessInfo').show();
             }
+
             $('#shareModal').modal('show');
         })
         .fail(function() {
@@ -3373,12 +3399,15 @@ function createShare() {
     // Hide previous errors
     $('#shareError').addClass('d-none');
 
+    const descriptionText = $('#shareDescription').val().trim();
+
     $.ajax({
         url: `/api/messages/echomail/${currentMessageId}/share`,
         method: 'POST',
         data: JSON.stringify({
             public: publicShare,
-            expires_hours: expiryHours || null
+            expires_hours: expiryHours || null,
+            ai_og_summary: descriptionText || null
         }),
         contentType: 'application/json',
         success: function(data) {
@@ -3414,6 +3443,39 @@ function createShare() {
         }
     });
 }
+
+function generateAiShareSummary() {
+    const btn = $('#aiShareSummaryBtn');
+    const icon = $('#aiShareSummaryIcon');
+    if (!btn.length || btn.prop('disabled')) return;
+
+    btn.prop('disabled', true);
+    icon.removeClass('fa-robot').addClass('fa-spinner fa-spin');
+
+    $.ajax({
+        url: `/api/messages/echomail/${currentMessageId}/share-summary`,
+        method: 'POST',
+        contentType: 'application/json',
+        success: function(data) {
+            if (data.success && data.summary) {
+                $('#shareDescription').val(data.summary);
+            } else {
+                showError(uiT('ui.share.ai_summary_failed', 'Could not generate a summary. Please try again.'));
+            }
+        },
+        error: function() {
+            showError(uiT('ui.share.ai_summary_failed', 'Could not generate a summary. Please try again.'));
+        },
+        complete: function() {
+            btn.prop('disabled', false);
+            icon.removeClass('fa-spinner fa-spin').addClass('fa-robot');
+        }
+    });
+}
+
+$(document).on('click', '#aiShareSummaryBtn', function() {
+    generateAiShareSummary();
+});
 
 function generateFriendlyUrl() {
     const btn = $('#friendlyUrlBtn');

@@ -318,6 +318,7 @@ return [
     'ui.base.admin.sse_test' => 'Prueba SSE',
     'ui.base.admin.ai_usage' => 'Uso de IA',
     'ui.base.admin.ai_bots' => 'Bots de IA',
+    'ui.base.admin.ai_settings' => 'Configuracion de IA',
     'ui.base.admin.sharing' => 'Sharing',
     'ui.base.admin.economy_viewer' => 'Visor de economia',
     'ui.base.admin.referrals' => 'Analitica de referidos',
@@ -2775,6 +2776,8 @@ return [
     'ui.echomail.shares.friendly_url_generated' => 'URL amigable generada',
     'ui.echomail.shares.revoked' => 'Enlace compartido revocado',
     'ui.echomail.shares.url_copied' => 'URL compartida copiada al portapapeles',
+    'ui.echomail.shares.existing_links' => 'Compartido por otros:',
+    'ui.echomail.shares.by_user' => 'por {username}',
 
     // Files Page
     'ui.files.title' => 'Áreas de Archivos',
@@ -4673,6 +4676,26 @@ return [
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Habilitar asistente IA',
     'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Muestra el boton de asistente IA en los lectores de echomail y netmail. Requiere una clave API de Anthropic configurada.',
+
+    // AI Settings page
+    'ui.admin.bbs_settings.ai.page_title'           => 'Configuracion de IA',
+    'ui.admin.bbs_settings.ai.heading'              => 'Configuracion de IA',
+    'ui.admin.bbs_settings.ai.features_title'       => 'Funciones de IA',
+    'ui.admin.bbs_settings.ai.configure_link'       => 'Configuracion de IA',
+    'ui.admin.bbs_settings.ai.no_provider_warning'  => 'No hay ningun proveedor de IA configurado. Agrega una clave API de OpenAI o Anthropic en .env para habilitar estas funciones.',
+    'ui.admin.bbs_settings.ai.enable_share_summary' => 'Habilitar resumenes de IA para enlaces de mensajes compartidos',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Cuando esta habilitado, aparece un boton de IA en el dialogo de compartir para generar una descripcion de vista previa. Requiere un proveedor de IA configurado.',
+    'ui.admin.bbs_settings.ai.save'                 => 'Guardar configuracion de IA',
+    'ui.admin.bbs_settings.ai.save_failed'          => 'Error al guardar la configuracion de IA.',
+    'ui.admin.bbs_settings.ai.saved_success'                  => 'Configuracion de IA guardada.',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_label'    => 'Indicacion del sistema para resumen compartido',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_help'     => 'Indicacion del sistema enviada a la IA al generar descripciones de vista previa. Dejar en blanco para usar el valor predeterminado integrado.',
+
+    // Share modal - description field and AI summary
+    'ui.share.description_label'       => 'Descripcion de vista previa del enlace',
+    'ui.share.description_placeholder' => 'Opcional — describe de que trata este mensaje',
+    'ui.share.ai_summary_button_title' => 'Generar resumen con IA',
+    'ui.share.ai_summary_failed'       => 'No se pudo generar un resumen. Por favor, intentalo de nuevo.',
 
     // AI Assistant (echomail + netmail readers)
     'ui.ai_assistant.button'             => 'Asistente IA',
