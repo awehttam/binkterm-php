@@ -421,9 +421,9 @@ function detectAuth(array $middleware, array $tokens, int $start, int $n): bool
         }
     }
 
-    // Also look for inline $auth->getCurrentUser() checks in the snippet
+    // Also look for inline auth checks in the snippet
     $snippet = extractClosureBody($tokens, $start, $n, 30);
-    if (preg_match('/getCurrentUser|authRequired|requireAuth|isLoggedIn/i', $snippet)) {
+    if (preg_match('/getCurrentUser|requireAuth|requireAdmin|requireBinkpAdmin|isLoggedIn/i', $snippet)) {
         return true;
     }
 
