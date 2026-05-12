@@ -292,7 +292,7 @@ function loadMatterbridgeSettings() {
             if (bridgeId > 0) {
                 fetch(`/admin/api/users/${bridgeId}`)
                     .then(r => r.json())
-                    .then(u => { if (u && u.id) setSelectedBridgeUser(u); })
+                    .then(u => { if (u && u.user && u.user.id) setSelectedBridgeUser(u.user); })
                     .catch(() => {});
             } else {
                 setSelectedBridgeUser(null);
