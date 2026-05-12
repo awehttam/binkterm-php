@@ -88,6 +88,11 @@ $pidFile      = $args['pid-file'] ?? 'data/run/matterbridge_daemon.pid';
 $logLevelName = strtoupper((string)($args['log-level'] ?? 'INFO'));
 $pollInterval = max(1, (int)($args['poll-interval'] ?? 2));
 
+// Resolve to absolute path before daemonize() calls chdir('/').
+if (!str_starts_with($pidFile, '/')) {
+    $pidFile = getcwd() . '/' . $pidFile;
+}
+
 $logLevelMap = [
     'DEBUG'    => Logger::LEVEL_DEBUG,
     'INFO'     => Logger::LEVEL_INFO,
