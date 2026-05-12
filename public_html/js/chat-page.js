@@ -244,6 +244,9 @@
     function renderThread(messages) {
         const container = document.getElementById('chatThread');
         const loadOlderWrap = document.getElementById('chatLoadOlderWrap');
+        // Full re-render — reset tracking so BinkStream catch-up IDs don't
+        // suppress messages that are about to be rendered from scratch.
+        state.displayedMessageIds.clear();
         container.innerHTML = '';
         if (loadOlderWrap) {
             container.appendChild(loadOlderWrap);
