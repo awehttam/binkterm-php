@@ -13,11 +13,13 @@
         users: [],
         active: { type: 'room', id: null },
         unreadCounts: {},
+        lastSeenIds: {},   // { 'room:2': 383 } — highest msg id seen per thread
         oldestIds: {},
         hasMore: {},
         lastChatId: 0,
         loadingHistory: false,
-        displayedMessageIds: new Set() // Track displayed messages to prevent duplicates
+        displayedMessageIds: new Set(), // Track displayed messages to prevent duplicates
+        incomingBuffer: []  // BinkStream messages that arrived during a loadMessages fetch
     };
 
     let dbPromise = null;
@@ -96,6 +98,7 @@
                 state.active.id = parseInt(state.active.id, 10) || state.active.id;
             }
             state.unreadCounts = stored.unreadCounts || {};
+            state.lastSeenIds = stored.lastSeenIds || {};
             state.lastChatId = stored.lastChatId || stored.lastEventId || 0;
         }
     }
@@ -104,6 +107,7 @@
         const payload = {
             active: state.active,
             unreadCounts: state.unreadCounts,
+            lastSeenIds: state.lastSeenIds,
             lastChatId: state.lastChatId
         };
         idbSet(CHAT_STORAGE_KEY, payload);
@@ -265,14 +269,13 @@
         const insertBefore = loadOlderWrap ? loadOlderWrap.nextSibling : container.firstChild;
         const frag = document.createDocumentFragment();
         messages.forEach(msg => {
-            // Skip if message already displayed (deduplication)
-            if (msg.id && state.displayedMessageIds.has(msg.id)) {
+            const msgId = msg.id ? parseInt(msg.id, 10) : null;
+            if (msgId && state.displayedMessageIds.has(msgId)) {
                 return;
             }
             frag.appendChild(buildMessageElement(msg));
-            // Track this message ID
-            if (msg.id) {
-                state.displayedMessageIds.add(msg.id);
+            if (msgId) {
+                state.displayedMessageIds.add(msgId);
             }
         });
         container.insertBefore(frag, insertBefore);
@@ -280,8 +283,9 @@
     }
 
     function appendMessage(msg, skipScroll) {
-        // Skip if message already displayed (deduplication)
-        if (msg.id && state.displayedMessageIds.has(msg.id)) {
+        // Normalize to integer so API-loaded string IDs and SSE integer IDs compare equal.
+        const msgId = msg.id ? parseInt(msg.id, 10) : null;
+        if (msgId && state.displayedMessageIds.has(msgId)) {
             return;
         }
 
@@ -289,9 +293,8 @@
         const wrapper = buildMessageElement(msg);
         container.appendChild(wrapper);
 
-        // Track this message ID
-        if (msg.id) {
-            state.displayedMessageIds.add(msg.id);
+        if (msgId) {
+            state.displayedMessageIds.add(msgId);
         }
 
         trimMessages(container);
@@ -346,6 +349,7 @@
     function loadMessages() {
         if (state.loadingHistory) return;
         state.loadingHistory = true;
+        state.incomingBuffer = [];
         const params = new URLSearchParams();
         if (state.active.type === 'room') {
             params.set('room_id', state.active.id);
@@ -362,12 +366,27 @@
                 const key = threadKey(state.active);
                 if (messages.length > 0) {
                     state.oldestIds[key] = messages[0].id;
+                    // Record the highest ID from history so that inactive-thread dedup
+                    // can distinguish genuinely new messages from BinkStream catch-up
+                    // re-deliveries after the user switches away from this thread.
+                    const maxId = parseInt(messages[messages.length - 1].id, 10);
+                    if (maxId > (state.lastSeenIds[key] || 0)) {
+                        state.lastSeenIds[key] = maxId;
+                    }
                 }
                 state.hasMore[key] = (data.has_more !== undefined) ? data.has_more : messages.length === limit;
                 updateLoadOlderVisibility();
+                // Flush messages that arrived via BinkStream while the fetch was in flight.
+                // Handles the race where a bridge message is delivered between the API
+                // request being sent and renderThread() clearing the DOM.
+                const buffered = state.incomingBuffer.splice(0);
+                buffered.forEach(msg => handleIncoming(msg));
+                saveState();
             })
             .catch(() => {
-                // Ignore for now
+                // Drain buffer on error so buffered messages aren't silently dropped.
+                const buffered = state.incomingBuffer.splice(0);
+                buffered.forEach(msg => handleIncoming(msg));
             })
             .finally(() => {
                 state.loadingHistory = false;
@@ -467,8 +486,9 @@
 
     function handleIncoming(payload) {
         if (!payload || !payload.id) return;
+        const msgId = parseInt(payload.id, 10);
         // Guard against duplicate delivery (BinkStream catch-up + poll overlap).
-        if (state.displayedMessageIds.has(payload.id)) return;
+        if (state.displayedMessageIds.has(msgId)) return;
 
         const fromId = parseInt(payload.from_user_id, 10);
         const meId   = parseInt(window.currentUserId, 10);
@@ -484,15 +504,26 @@
         if (isActive) {
             // appendMessage() renders and adds the id to displayedMessageIds.
             appendMessage(payload);
+            // Track highest seen ID so inactive-thread dedup works after switching away.
+            if (msgId > (state.lastSeenIds[key] || 0)) {
+                state.lastSeenIds[key] = msgId;
+                saveState();
+            }
         } else if (fromId !== meId) {
-            // Inactive thread — track as processed so re-delivery doesn't
-            // double-count the unread badge.
-            state.displayedMessageIds.add(payload.id);
-            state.unreadCounts[key] = (state.unreadCounts[key] || 0) + 1;
-            saveState();
-            renderUnreadBadge();
-            renderRooms();
-            renderUsers();
+            // Only count as unread if this message is newer than the last time we viewed
+            // this thread. BinkStream catch-up can re-deliver already-seen messages on
+            // reconnect; lastSeenIds prevents old messages from incrementing the badge.
+            if (msgId > (state.lastSeenIds[key] || 0)) {
+                state.displayedMessageIds.add(msgId);
+                state.unreadCounts[key] = (state.unreadCounts[key] || 0) + 1;
+                saveState();
+                renderUnreadBadge();
+                renderRooms();
+                renderUsers();
+            } else {
+                // Already seen — mark processed so future catch-ups don't re-count it.
+                state.displayedMessageIds.add(msgId);
+            }
         }
     }
 
@@ -676,15 +707,17 @@
         if (window.BinkStream) {
             window.BinkStream.on('chat_message', function (payload) {
                 if (!payload || !payload.id) return;
-                // Full message payload arrives via BinkStream — render directly with no
-                // extra HTTP round-trip. Advance the poll fallback cursor so the
-                // safety-net poll won't re-deliver the same message.
-                // Note: the stream cursor is managed automatically by the
-                // browser/SharedWorker transport layer.
                 payload._source = (typeof window.BinkStream.getMode === 'function')
                     ? window.BinkStream.getMode()
                     : 'binkstream';
-                handleIncoming(payload);
+                // Buffer messages that arrive while a loadMessages fetch is in flight.
+                // Without this, a message delivered between the API request being sent
+                // and renderThread() clearing the DOM would be lost permanently.
+                if (state.loadingHistory) {
+                    state.incomingBuffer.push(payload);
+                } else {
+                    handleIncoming(payload);
+                }
                 if (payload.id > state.lastChatId) {
                     state.lastChatId = payload.id;
                     saveState();
