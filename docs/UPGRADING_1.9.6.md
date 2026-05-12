@@ -11,6 +11,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Shared Pages](#shared-pages)
 - [Sharing Analytics](#sharing-analytics)
 - [Markdown Editor](#markdown-editor)
+- [Terminal Server](#terminal-server)
 - [Documentation](#documentation)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -50,6 +51,11 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Markdown Editor
 
 - Fixed the Markdown editor inserting unnecessary backslash escapes before underscores and hyphens when composing messages in WYSIWYG mode. Characters typed in plain text (for example underscores in usernames or filenames, and hyphen runs used as dividers) were being stored with backslash prefixes such as `\_` or `\-\-\-`, which could appear as literal backslash sequences in some renderers.
+
+### Terminal Server
+
+- Terminal login, main-menu, and goodbye art screens now support simple rotating file families. You can keep a single file such as `telnet/screens/login.ans`, or add numbered variants such as `telnet/screens/login1.ans`, `telnet/screens/login2.ans`, `telnet/screens/mainmenu1.sixel`, and `telnet/screens/bye1.ans`.
+- When multiple matching files exist for the same screen family and file type, the terminal server now uses a glob match and randomly selects one file each time that screen is shown.
 
 ### Documentation
 
@@ -110,6 +116,12 @@ Shared message access counting has also been tightened up. The public shared mes
 ## Markdown Editor
 
 The Markdown composer in WYSIWYG mode was inserting unnecessary backslash escapes before underscores. This happened because the underlying Toast UI editor serializes WYSIWYG content to Markdown and defensively escapes characters that carry special meaning in Markdown syntax, including underscores. The post-processing step that already stripped similar unnecessary escapes from `.`, `~`, and `|` was extended to cover `_` and `-` as well. Underscores and hyphens typed in plain prose are now stored without backslash prefixes.
+
+## Terminal Server
+
+The terminal server now supports rotating custom screen families for login, main menu, and goodbye art. Instead of being limited to one fixed file per screen, you can now place multiple matching files in `telnet/screens/` and let the server pick one at random each time the screen is displayed.
+
+Examples include `telnet/screens/login.ans`, `telnet/screens/login1.ans`, `telnet/screens/login2.ans`, `telnet/screens/mainmenu.sixel`, `telnet/screens/mainmenu1.sixel`, and `telnet/screens/bye1.ans`. Matching is done per file type, so Sixel-capable clients randomize across matching `.sixel` files and ANSI-capable clients randomize across matching `.ans` files.
 
 ## Documentation
 

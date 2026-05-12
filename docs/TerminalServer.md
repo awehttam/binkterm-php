@@ -123,6 +123,18 @@ consistent across Telnet and SSH.
   - Supports direct login when SSH credentials validate successfully
   - Passes PTY dimensions from `pty-req` to the BBS session
 
+## Custom Terminal Screens
+
+Terminal login, main-menu, and goodbye screens are loaded from `telnet/screens/`.
+Both ANSI (`.ans`) and Sixel (`.sixel`) assets support simple rotating families:
+
+- `login.ans`, `login1.ans`, `login2.ans`
+- `mainmenu.sixel`, `mainmenu1.sixel`
+- `bye.ans`, `bye1.ans`
+
+When multiple files share the same base name and extension, the terminal server
+uses a simple glob match and picks one at random each time that screen is shown.
+
 These differences are transport-layer concerns only; terminal features after
 login are the same.
 

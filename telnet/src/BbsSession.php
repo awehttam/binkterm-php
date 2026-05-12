@@ -680,8 +680,8 @@ class BbsSession
                 $this->log("Menu: {$username} -> Settings");
                 $settingsHandler->show($conn, $state, $session);
             } elseif ($choice === 'q') {
-                if (!($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("bye.sixel", $this, $conn))) {
-                    TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
+                if (!($this->sixelSupported && TelnetUtils::showSixelScreenIfExists('bye.sixel', $this, $conn))) {
+                    TelnetUtils::showScreenIfExists('bye.ans', $this, $conn);
                 }
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $this->colorize(
