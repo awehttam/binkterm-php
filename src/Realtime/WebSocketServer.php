@@ -346,6 +346,7 @@ class WebSocketServer implements LoopServiceInterface
             }
 
             $highestSeen = $cursor;
+            $lastDeliveredId = $cursor;
             foreach ($this->streamService->fetchEventsSince($this->clients[$clientId]['user'], $cursor) as $event) {
                 $highestSeen = max($highestSeen, (int)$event['id']);
                 if (!isset($this->clients[$clientId]['subscriptions'][$event['event']])) {
@@ -357,8 +358,18 @@ class WebSocketServer implements LoopServiceInterface
                     'id' => (int)$event['id'],
                     'data' => $this->tryParseJson($event['data']),
                 ]);
+                $lastDeliveredId = (int)$event['id'];
             }
             $this->clients[$clientId]['cursor'] = $highestSeen;
+
+            // If the batch contained unsubscribed events after the last delivered
+            // event (e.g. dashboard_stats trailing a chat_message, or an entire
+            // batch of unsubscribed rows), the client's cursor lags behind the
+            // server's.  A lightweight sync message carries the true position so
+            // the client doesn't replay these rows on the next reconnect.
+            if ($highestSeen > $lastDeliveredId) {
+                $this->sendJson($clientId, ['type' => '__cursor_sync', 'id' => $highestSeen]);
+            }
         }
     }
 
