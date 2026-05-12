@@ -481,7 +481,6 @@
         const key = threadKey(thread);
 
         const isActive = state.active.type === thread.type && state.active.id === thread.id;
-        console.log('[chat]', payload.type, 'msg', payload.id, '| active:', state.active.type, state.active.id, '(' + typeof state.active.id + ')', '| thread:', thread.type, thread.id, '(' + typeof thread.id + ')', '| isActive:', isActive);
         if (isActive) {
             // appendMessage() renders and adds the id to displayedMessageIds.
             appendMessage(payload);
