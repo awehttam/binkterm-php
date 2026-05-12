@@ -35,12 +35,21 @@
                         <label for="matterbridgeUsernameSuffix" class="form-label">{{ t('ui.admin.matterbridge_settings.username_suffix', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="matterbridgeUsernameSuffix" placeholder=" @ BinktermPHP">
                     </div>
-                    <div class="col-md-8">
+                    <div class="col-md-6">
                         <label for="matterbridgeToken" class="form-label">{{ t('ui.admin.matterbridge_settings.token', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="matterbridgeToken">
                     </div>
-                    <div class="col-md-4 d-flex align-items-end">
-                        <div class="form-check mb-2">
+                    <div class="col-md-3">
+                        <label for="matterbridgeBridgeUserSearch" class="form-label">{{ t('ui.admin.matterbridge_settings.bridge_user_id', {}, locale, ['common']) }}</label>
+                        <input type="hidden" id="matterbridgeBridgeUserId">
+                        <div class="position-relative">
+                            <input type="text" class="form-control" id="matterbridgeBridgeUserSearch" autocomplete="off" placeholder="{{ t('ui.admin.matterbridge_settings.bridge_user_search_placeholder', {}, locale, ['common']) }}">
+                            <div id="matterbridgeBridgeUserResults" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 1060;"></div>
+                        </div>
+                        <div class="form-text">{{ t('ui.admin.matterbridge_settings.bridge_user_id_help', {}, locale, ['common']) }}</div>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-start pt-4">
+                        <div class="form-check mt-1">
                             <input class="form-check-input" type="checkbox" id="matterbridgeSkipTlsVerify">
                             <label class="form-check-label" for="matterbridgeSkipTlsVerify">{{ t('ui.admin.matterbridge_settings.skip_tls_verify', {}, locale, ['common']) }}</label>
                         </div>
@@ -150,9 +159,6 @@ function uiT(key, fallback, params = {}) {
 }
 
 function escapeHtml(text) {
-    if (window.escapeHtml) {
-        return window.escapeHtml(text);
-    }
     return String(text).replace(/[&<>"']/g, function(m) {
         return ({
             '&': '&amp;',
@@ -163,8 +169,109 @@ function escapeHtml(text) {
         })[m];
     });
 }
+// ---- Bridge user search ----
+
+let selectedBridgeUser = null;
+let bridgeUserSearchTimer = null;
+
+function initBridgeUserSearch() {
+    const searchEl = document.getElementById('matterbridgeBridgeUserSearch');
+    if (!searchEl) return;
+
+    searchEl.addEventListener('input', function() {
+        selectedBridgeUser = null;
+        document.getElementById('matterbridgeBridgeUserId').value = '';
+        clearTimeout(bridgeUserSearchTimer);
+        bridgeUserSearchTimer = setTimeout(function() {
+            searchBridgeUsers(searchEl.value);
+        }, 200);
+    });
+
+    searchEl.addEventListener('focus', function() {
+        clearTimeout(bridgeUserSearchTimer);
+        bridgeUserSearchTimer = setTimeout(function() {
+            searchBridgeUsers(searchEl.value);
+        }, 200);
+    });
+
+    searchEl.addEventListener('blur', function() {
+        setTimeout(function() {
+            document.getElementById('matterbridgeBridgeUserResults').classList.add('d-none');
+        }, 150);
+    });
+}
+
+function searchBridgeUsers(query) {
+    const search = (query || '').trim();
+    const results = document.getElementById('matterbridgeBridgeUserResults');
+
+    if (search.length < 2) {
+        results.classList.add('d-none');
+        results.innerHTML = '';
+        return;
+    }
+
+    results.classList.remove('d-none');
+    results.innerHTML = `<div class="list-group-item text-muted">${uiT('ui.admin.auto_feed.searching_users', 'Searching users...')}</div>`;
+
+    fetch(`/admin/api/users?search=${encodeURIComponent(search)}&limit=10`)
+        .then(r => r.json())
+        .then(data => displayBridgeUserResults(data.users || []))
+        .catch(() => {
+            results.classList.remove('d-none');
+            results.innerHTML = `<div class="list-group-item text-danger">${uiT('ui.admin.auto_feed.user_search_failed', 'User search failed')}</div>`;
+        });
+}
+
+function displayBridgeUserResults(users) {
+    const results = document.getElementById('matterbridgeBridgeUserResults');
+    results.innerHTML = '';
+
+    if (!users.length) {
+        results.classList.remove('d-none');
+        results.innerHTML = `<div class="list-group-item text-muted">${uiT('ui.admin.auto_feed.no_users_found', 'No users found')}</div>`;
+        return;
+    }
+
+    users.forEach(function(user) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'list-group-item list-group-item-action';
+        btn.innerHTML = `<div class="fw-semibold">${escapeHtml(user.username || '')}</div><small class="text-muted">${escapeHtml(user.real_name || '')}</small>`;
+        btn.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            setSelectedBridgeUser(user);
+            results.classList.add('d-none');
+        });
+        results.appendChild(btn);
+    });
+
+    results.classList.remove('d-none');
+}
+
+function setSelectedBridgeUser(user) {
+    selectedBridgeUser = (user && user.id) ? user : null;
+    const hiddenEl = document.getElementById('matterbridgeBridgeUserId');
+    const searchEl = document.getElementById('matterbridgeBridgeUserSearch');
+    if (!hiddenEl || !searchEl) return;
+
+    if (selectedBridgeUser) {
+        hiddenEl.value = selectedBridgeUser.id;
+        const label = selectedBridgeUser.real_name
+            ? `${selectedBridgeUser.username} (${selectedBridgeUser.real_name})`
+            : selectedBridgeUser.username;
+        searchEl.value = label;
+    } else {
+        hiddenEl.value = '';
+        searchEl.value = '';
+    }
+}
+
+// ---- End bridge user search ----
+
 document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
+        initBridgeUserSearch();
         loadMatterbridgeSettings();
         loadChatRooms();
     });
@@ -181,6 +288,15 @@ function loadMatterbridgeSettings() {
             document.getElementById('matterbridgeTimeout').value = config.api?.timeout_seconds || 10;
             document.getElementById('matterbridgeSkipTlsVerify').checked = !!config.api?.skip_tls_verify;
             document.getElementById('matterbridgeUsernameSuffix').value = config.defaults?.username_suffix || ' @ BinktermPHP';
+            const bridgeId = parseInt(config.bridge_user_id || 0, 10);
+            if (bridgeId > 0) {
+                fetch(`/admin/api/users/${bridgeId}`)
+                    .then(r => r.json())
+                    .then(u => { if (u && u.id) setSelectedBridgeUser(u); })
+                    .catch(() => {});
+            } else {
+                setSelectedBridgeUser(null);
+            }
         })
         .catch(error => {
             console.error(uiT('ui.admin.matterbridge_settings.load_failed', 'Error loading Matterbridge settings') + ':', error);
@@ -192,6 +308,7 @@ function saveMatterbridgeSettings() {
     const payload = {
         config: {
             enabled: document.getElementById('matterbridgeEnabled').checked,
+            bridge_user_id: parseInt(document.getElementById('matterbridgeBridgeUserId').value || '0', 10),
             api: {
                 base_url: document.getElementById('matterbridgeBaseUrl').value.trim(),
                 token: document.getElementById('matterbridgeToken').value,

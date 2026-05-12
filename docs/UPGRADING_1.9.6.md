@@ -5,6 +5,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [Chat Room Bridging (Matterbridge)](#chat-room-bridging-matterbridge)
 - [AI Settings](#ai-settings)
 - [AI Share Summarizer](#ai-share-summarizer)
 - [Messaging](#messaging)
@@ -18,6 +19,16 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+### Chat Room Bridging (Matterbridge)
+
+- Local BinktermPHP chat rooms can now relay messages to and from external platforms (Discord, Slack, IRC, and others) via the third-party [Matterbridge](https://github.com/42wim/matterbridge) gateway.
+- A new **Matterbridge Bridge Settings** panel on **Admin → Chat Rooms** lets the sysop configure the global API connection (URL, token, bridge user, and default username suffix).
+- Each chat room has new per-room bridge fields: enable/disable bridging and a Matterbridge gateway name that maps the room to a configured gateway in `matterbridge.toml`.
+- Outbound bridging is handled in-process by `ChatMessageService`. Inbound messages are injected by a new background daemon, `scripts/matterbridge_daemon.php`, which polls the Matterbridge API and inserts messages into local chat under a dedicated bridge user account.
+- Global bridge settings are stored in `config/matterbridge.json`. A sample file is at `config/matterbridge.json.example`.
+- This release adds three new columns to the `chat_rooms` table (`matterbridge_enabled`, `matterbridge_gateway`, `matterbridge_options`). The migration runs automatically via `setup.php`.
+- `scripts/restart_daemons.sh` now manages `matterbridge_daemon` as an optional service — it only restarts if it was already running.
 
 ### AI Settings
 
@@ -62,6 +73,55 @@ Make sure you have a current backup of your database and files before upgrading.
 - Expanded the user guide with a dedicated message reader section that explains the web reader interface and lists the supported keyboard shortcuts for both echomail and netmail readers. The translated user guide variants were updated to include the same section.
 
 ---
+
+## Chat Room Bridging (Matterbridge)
+
+BinktermPHP chat rooms can now relay messages bidirectionally to external platforms — Discord, Slack, IRC, Telegram, and any other network supported by the third-party [Matterbridge](https://github.com/42wim/matterbridge) tool.
+
+### How it works
+
+Two processes are required beyond the web server:
+
+1. **The Matterbridge binary** — a separate Go program you download and run. It maintains connections to external platforms and exposes a local HTTP API. BinktermPHP sends outbound messages to it and polls it for inbound ones.
+2. **`scripts/matterbridge_daemon.php`** — a BinktermPHP background daemon that polls the Matterbridge API every few seconds, matches incoming messages to local rooms by gateway name, and inserts them into `chat_messages` under a configured bridge user account.
+
+Neither process is started automatically. Both must be running for bidirectional bridging to work. See `docs/Matterbridge.md` for setup instructions including a sample `matterbridge.toml` configuration and systemd unit examples.
+
+### Database migration
+
+Three columns are added to `chat_rooms`:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `matterbridge_enabled` | `BOOLEAN` | Whether this room relays messages |
+| `matterbridge_gateway` | `VARCHAR(100)` | Matterbridge gateway name matching a `[[gateway]]` in `matterbridge.toml` |
+| `matterbridge_options` | `JSONB` | Per-room options (username template, etc.) |
+
+The migration runs automatically when `setup.php` is run during upgrade. No manual SQL is needed.
+
+### Configuration
+
+Copy `config/matterbridge.json.example` to `config/matterbridge.json` and fill in your values, or configure it through the admin panel. The file is not created automatically — bridging remains disabled until it exists.
+
+Global settings (API URL, token, bridge user, default username suffix) are managed at **Admin → Chat Rooms → Matterbridge Bridge Settings**. Per-room settings (enable bridging, gateway name, username template) are on each room's edit form.
+
+### Running the inbound daemon
+
+```bash
+# Start
+scripts/restart_daemons.sh --start matterbridge_daemon
+
+# The daemon also participates in a full restart — but only if it was already running
+scripts/restart_daemons.sh
+```
+
+Or directly:
+
+```bash
+php scripts/matterbridge_daemon.php --daemon --pid-file=data/run/matterbridge_daemon.pid
+```
+
+The daemon exits immediately if Matterbridge is not enabled in `config/matterbridge.json` or if no bridge user is set.
 
 ## AI Settings
 

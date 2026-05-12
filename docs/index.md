@@ -51,7 +51,7 @@ This index lists documents in operational priority order — essentials first, a
 
 ## Communication & Chat
 
-- [Matterbridge](Matterbridge.md) — Relay local chat rooms into Matterbridge-connected platforms
+- [Matterbridge](Matterbridge.md) — Bidirectional bridge between local chat rooms and external platforms (Discord, Slack, IRC, etc.) via Matterbridge
 - [MRC Chat](MRC_Chat.md) — Multi-Relay Chat protocol integration
 - [Gemini Capsule](GeminiCapsule.md) — Gemini protocol capsule support
 

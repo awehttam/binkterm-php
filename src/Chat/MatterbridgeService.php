@@ -75,6 +75,119 @@ class MatterbridgeService
     }
 
     /**
+     * Fetch and drain the inbound message queue from Matterbridge.
+     *
+     * Returns an array of message objects (each is an associative array).
+     * Only messages that did NOT originate from the API side are returned —
+     * this prevents BinktermPHP's own outbound messages from echoing back.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function pollMessages(): array
+    {
+        if (!$this->isAvailable()) {
+            return [];
+        }
+
+        $url = $this->config->getBaseUrl() . '/api/messages';
+        $headers = ['Accept: application/json'];
+        $token = $this->config->getToken();
+        if ($token !== '') {
+            $headers[] = 'Authorization: Bearer ' . $token;
+        }
+
+        [$status, $rawBody] = $this->getJson($url, $headers);
+
+        if ($status === 0 || $status >= 400) {
+            return [];
+        }
+
+        $decoded = json_decode($rawBody, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $filtered = [];
+        foreach ($decoded as $msg) {
+            if (!is_array($msg)) {
+                continue;
+            }
+            $protocol = strtolower((string)($msg['protocol'] ?? ''));
+            if ($protocol === 'api') {
+                continue;
+            }
+            $filtered[] = $msg;
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * @return array{0:int,1:string}
+     */
+    private function getJson(string $url, array $headers): array
+    {
+        $timeout = $this->config->getTimeoutSeconds();
+        $skipTlsVerify = $this->config->shouldSkipTlsVerify();
+
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => $headers,
+                CURLOPT_TIMEOUT => $timeout,
+                CURLOPT_CONNECTTIMEOUT => min($timeout, 10),
+            ]);
+
+            if ($skipTlsVerify) {
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            }
+
+            $raw = curl_exec($ch);
+            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+
+            if ($raw === false) {
+                throw new \RuntimeException('Matterbridge network error: ' . $error);
+            }
+
+            return [$status, (string) $raw];
+        }
+
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => implode("\r\n", $headers) . "\r\n",
+                'timeout' => $timeout,
+                'ignore_errors' => true,
+            ],
+            'ssl' => [
+                'verify_peer' => !$skipTlsVerify,
+                'verify_peer_name' => !$skipTlsVerify,
+            ],
+        ]);
+
+        $raw = file_get_contents($url, false, $context);
+        if ($raw === false) {
+            throw new \RuntimeException('Matterbridge network error while polling messages');
+        }
+
+        $status = 0;
+        if (isset($http_response_header) && is_array($http_response_header)) {
+            foreach ($http_response_header as $headerLine) {
+                if (preg_match('#^HTTP/\S+\s+(\d{3})#', $headerLine, $matches)) {
+                    $status = (int) $matches[1];
+                    break;
+                }
+            }
+        }
+
+        return [$status, (string) $raw];
+    }
+
+    /**
      * @return array{0:int,1:string}
      */
     private function postJson(string $url, string $json, array $headers): array

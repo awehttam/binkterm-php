@@ -65,6 +65,15 @@ class MatterbridgeConfig
     }
 
     /**
+     * User ID used to post inbound bridge messages into local chat.
+     * Returns 0 when not configured, which the daemon treats as disabled.
+     */
+    public function getBridgeUserId(): int
+    {
+        return (int)($this->config['bridge_user_id'] ?? 0);
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public function getFullConfig(): array
@@ -130,6 +139,7 @@ class MatterbridgeConfig
 
         return [
             'enabled' => false,
+            'bridge_user_id' => 0,
             'api' => [
                 'base_url' => 'http://127.0.0.1:4240',
                 'token' => '',
