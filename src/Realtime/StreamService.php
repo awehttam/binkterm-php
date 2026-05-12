@@ -23,7 +23,16 @@ class StreamService
 
     public function getAnchorCursor(int $lastEventId): int
     {
-        return $lastEventId > 0 ? $lastEventId : $this->getMaxSseId();
+        $maxId = $this->getMaxSseId();
+        if ($lastEventId <= 0) {
+            return $maxId;
+        }
+        // Cap the catch-up window so clients with stale cursors don't replay
+        // thousands of ephemeral events (dashboard_stats, etc.) that piled up
+        // while they were disconnected.  Chat history is loaded via the messages
+        // API, so BinkStream only needs to cover a short recent window.
+        $maxLookback = 5000;
+        return max($lastEventId, $maxId - $maxLookback);
     }
 
     public function getConnectedPayload(array $user, int $cursor): array
@@ -34,7 +43,7 @@ class StreamService
         ];
     }
 
-    public function fetchEventsSince(array $user, int $fromId, int $limit = 200): array
+    public function fetchEventsSince(array $user, int $fromId, int $limit = 1000): array
     {
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
         $isAdmin = !empty($user['is_admin']);
