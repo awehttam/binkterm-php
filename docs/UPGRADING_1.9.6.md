@@ -89,23 +89,10 @@ Two processes are required beyond the web server:
 1. **The Matterbridge binary** — a separate Go program you download and run. It maintains connections to external platforms and exposes a local HTTP API. BinktermPHP sends outbound messages to it and polls it for inbound ones.
 2. **`scripts/matterbridge_daemon.php`** — a BinktermPHP background daemon that polls the Matterbridge API every few seconds, matches incoming messages to local rooms by gateway name, and inserts them into `chat_messages` under a configured bridge user account.
 
-Neither process is started automatically. Both must be running for bidirectional bridging to work. See `docs/Matterbridge.md` for setup instructions including a sample `matterbridge.toml` configuration and systemd unit examples.
-
-### Database migration
-
-Three columns are added to `chat_rooms`:
-
-| Column | Type | Purpose |
-|---|---|---|
-| `matterbridge_enabled` | `BOOLEAN` | Whether this room relays messages |
-| `matterbridge_gateway` | `VARCHAR(100)` | Matterbridge gateway name matching a `[[gateway]]` in `matterbridge.toml` |
-| `matterbridge_options` | `JSONB` | Per-room options (username template, etc.) |
-
-The migration runs automatically when `setup.php` is run during upgrade. No manual SQL is needed.
-
+Neither process is started 
 ### Configuration
 
-Copy `config/matterbridge.json.example` to `config/matterbridge.json` and fill in your values, or configure it through the admin panel. The file is not created automatically — bridging remains disabled until it exists.
+Configure it through the admin panel, or copy `config/matterbridge.json.example` to `config/matterbridge.json` and fill in your values.
 
 Global settings (API URL, token, bridge user, default username suffix) are managed at **Admin → Chat Rooms → Matterbridge Bridge Settings**. Per-room settings (enable bridging, gateway name, username template) are on each room's edit form.
 
