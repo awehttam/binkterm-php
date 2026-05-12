@@ -27,9 +27,6 @@ Make sure you have a current backup of your database and files before upgrading.
 - A new **Matterbridge Bridge Settings** panel on **Admin → Chat Rooms** lets the sysop configure the global API connection (URL, token, bridge user, and default username suffix).
 - Each chat room has new per-room bridge fields: enable/disable bridging and a Matterbridge gateway name that maps the room to a configured gateway in `matterbridge.toml`.
 - Outbound bridging is handled in-process by `ChatMessageService`. Inbound messages are injected by a new background daemon, `scripts/matterbridge_daemon.php`, which polls the Matterbridge API and inserts messages into local chat under a dedicated bridge user account.
-- Global bridge settings are stored in `config/matterbridge.json`. A sample file is at `config/matterbridge.json.example`.
-- This release adds three new columns to the `chat_rooms` table (`matterbridge_enabled`, `matterbridge_gateway`, `matterbridge_options`). The migration runs automatically via `setup.php`.
-- `scripts/restart_daemons.sh` now manages `matterbridge_daemon` as an optional service — it only restarts if it was already running.
 
 ### AI Settings
 
