@@ -65,3 +65,6 @@ dosbox-bridge/dos/drops/
 
 # Support bot generated index
 tools/support-bot/*.db
+
+# Matterbridge
+matterbridge/matterbridge*
