@@ -87,9 +87,19 @@ class MarkdownRenderer
 
             // --- ATX Headings ---
             if (preg_match('/^(#{1,6})\s+(.+)$/', $line, $m)) {
-                $level    = strlen($m[1]);
-                $content  = self::inlineHtml($m[2], $allowHtml);
-                $slug     = self::slugify($m[2]);
+                $level = strlen($m[1]);
+                $text  = $m[2];
+
+                // Support explicit anchor: "## Heading {#my-id}" — strip the {#id}
+                // from display text and use it directly as the element id.
+                $id = null;
+                if (preg_match('/^(.*?)\s+\{#([a-z0-9][a-z0-9-]*)\}\s*$/i', $text, $am)) {
+                    $text = $am[1];
+                    $id   = $am[2];
+                }
+
+                $content  = self::inlineHtml($text, $allowHtml);
+                $slug     = $id ?? self::slugify($text);
                 $output[] = "<h{$level} id=\"{$slug}\">{$content}</h{$level}>";
                 $i++;
                 continue;

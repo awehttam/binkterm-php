@@ -648,7 +648,7 @@ function generateMarkdown(array $sections): string
 
         foreach ($grouped as $tag => $tagRoutes) {
             $tagAnchor = anchorSlug($section['label'] . '-' . $tag);
-            $out[]     = "### {$tag}";
+            $out[]     = "### {$tag} {#$tagAnchor}";
             $out[]     = "";
 
             // Quick-reference table
@@ -688,8 +688,7 @@ function renderMarkdownRoute(array $route): array
     $auth   = $route['auth'] ? '**Requires authentication**' : 'Public';
     $ai     = $route['ai'] ?? null;
 
-    $anchor = endpointAnchor($method, $path);
-    $out[]  = "#### `{$method} {$path}` {#$anchor}";
+    $out[]  = "#### `{$method} {$path}`";
     $out[]  = "";
     $out[]  = $auth;
     $out[]  = "";

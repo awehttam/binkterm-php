@@ -53,17 +53,17 @@ Most endpoints require session authentication. Log in via `POST /api/auth/login`
 
 ## Public API
 
-### Account
+### Account {#public-api-account}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/account/reminder`](#post-apiaccountreminder) | No | Send account reminder email to inactive user. |
 
-#### `POST /api/account/reminder` {#post-apiaccountreminder}
+#### `POST /api/account/reminder`
 
 Public
 
-Sends a password reminder or account notification email to a user who has not yet logged in. Validates that the user exists and has not already logged in before sending. Returns success status and whether email was actually sent.
+Sends a reminder message to a user who has not yet logged in. Validates that the user exists and has not logged in before sending. Returns success with email_sent flag indicating whether email delivery was attempted.
 
 **Request Body** _(JSON)_
 
@@ -79,9 +79,9 @@ Reminder send result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether reminder was processed successfully |
-| `message_code` | string | Localization key for UI message |
-| `email_sent` | boolean | Whether email was actually delivered |
+| `success` | boolean | Whether reminder was sent |
+| `message_code` | string | Localization key for result message |
+| `email_sent` | boolean | Whether email was actually sent |
 
 **Error Responses**
 
@@ -93,7 +93,7 @@ Reminder send result
 
 ---
 
-### Address Book
+### Address Book {#public-api-address-book}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -105,11 +105,11 @@ Reminder send result
 | `GET` | [`/api/address-book/search/{query}`](#get-apiaddress-booksearchquery) | Yes | Search address book entries for autocomplete. |
 | `GET` | [`/api/address-book/stats`](#get-apiaddress-bookstats) | Yes | Get address book statistics for the user. |
 
-#### `GET /api/address-book/` {#get-apiaddress-book}
+#### `GET /api/address-book/`
 
 **Requires authentication**
 
-Retrieves all address book entries for the authenticated user. Supports optional full-text search via the 'search' query parameter to filter entries by name or address. Returns an array of entry objects.
+Retrieves all address book entries for the authenticated user. Supports optional full-text search via the 'search' query parameter to filter entries by name or address. Returns an array of matching entries.
 
 **Query Parameters**
 
@@ -119,11 +119,11 @@ Retrieves all address book entries for the authenticated user. Supports optional
 
 **Response** _(JSON)_
 
-Array of address book entries
+Array of address book entries matching the search criteria
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success status |
+| `success` | boolean | Always true on success |
 | `entries` | array | Array of address book entry objects |
 
 **Error Responses**
@@ -134,11 +134,11 @@ Array of address book entries
 
 ---
 
-#### `GET /api/address-book/{id}` {#get-apiaddress-bookid}
+#### `GET /api/address-book/{id}`
 
 **Requires authentication**
 
-Fetches a single address book entry by its ID, verifying ownership by the authenticated user. Returns the entry object if found and accessible.
+Fetches a single address book entry by its ID, verifying ownership by the authenticated user. Returns the full entry details or 404 if not found or not owned by the user.
 
 **Path Parameters**
 
@@ -152,23 +152,23 @@ Single address book entry object
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success status |
+| `success` | boolean | True if entry found |
 | `entry` | object | Address book entry details |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Entry not found or not accessible by user |
+| 404 | Entry not found or not owned by user |
 | 500 | Failed to load address book entry |
 
 ---
 
-#### `POST /api/address-book/` {#post-apiaddress-book}
+#### `POST /api/address-book/`
 
 **Requires authentication**
 
-Creates a new address book entry for the authenticated user. Accepts entry data in JSON format. Returns the newly created entry ID on success. Validates user authentication and required fields; throws AddressBookException for validation errors.
+Creates a new address book entry for the authenticated user. Accepts entry data in JSON request body. Returns the newly created entry ID on success. Validates user authentication and required fields; throws AddressBookException for validation errors.
 
 **Request Body** _(JSON)_
 
@@ -185,24 +185,23 @@ Newly created entry confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success status |
+| `success` | boolean | True on successful creation |
 | `entry_id` | integer | ID of the newly created entry |
-| `message_code` | string | Localization key for success message |
+| `message_code` | string | Localization key for UI message |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | User ID not found in authentication data or validation error |
-| 400 | Failed to create address book entry |
+| 400 | User ID not found, validation error, or creation failed |
 
 ---
 
-#### `PUT /api/address-book/{id}` {#put-apiaddress-bookid}
+#### `PUT /api/address-book/{id}`
 
 **Requires authentication**
 
-Updates an address book entry by ID, verifying ownership by the authenticated user. Accepts partial or complete entry data in JSON format. Returns success confirmation on update.
+Updates an address book entry by ID, verifying ownership by the authenticated user. Accepts partial or full entry data in JSON request body. Returns success confirmation or error if entry not found or update fails.
 
 **Path Parameters**
 
@@ -212,7 +211,7 @@ Updates an address book entry by ID, verifying ownership by the authenticated us
 
 **Request Body** _(JSON)_
 
-Updated address book entry data
+Updated address book entry data (partial updates supported)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -225,23 +224,23 @@ Update confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success status |
-| `message_code` | string | Localization key for success message |
+| `success` | boolean | True if update succeeded |
+| `message_code` | string | Localization key for UI message |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Failed to update address book entry or validation error |
+| 400 | Update failed or validation error |
 | 404 | Entry not found (via AddressBookException) |
 
 ---
 
-#### `DELETE /api/address-book/{id}` {#delete-apiaddress-bookid}
+#### `DELETE /api/address-book/{id}`
 
 **Requires authentication**
 
-Deletes an address book entry by ID, verifying ownership by the authenticated user. Returns success confirmation if entry was deleted.
+Deletes an address book entry by ID, verifying ownership by the authenticated user. Returns success confirmation or 404 if entry not found or not owned by user.
 
 **Path Parameters**
 
@@ -255,35 +254,35 @@ Deletion confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success status |
-| `message_code` | string | Localization key for success message |
+| `success` | boolean | True if deletion succeeded |
+| `message_code` | string | Localization key for UI message |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Entry not found or not accessible by user |
+| 404 | Entry not found or not owned by user |
 | 500 | Failed to delete address book entry |
 
 ---
 
-#### `GET /api/address-book/search/{query}` {#get-apiaddress-booksearchquery}
+#### `GET /api/address-book/search/{query}`
 
 **Requires authentication**
 
-Performs a full-text search on the authenticated user's address book entries. Designed for autocomplete functionality with configurable result limit (max 20, default 10). Returns matching entries sorted by relevance.
+Performs a full-text search on the authenticated user's address book entries, returning a limited result set suitable for autocomplete UI. Limits results to 10 by default, maximum 20. Query string is URL-decoded before search.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `query` | string | URL-encoded search query term |
+| `query` | string | Search query string (URL-encoded) |
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `limit` | integer | No | Maximum results to return (capped at 20, default 10) |
+| `limit` | integer | No | Maximum results to return (default 10, max 20) |
 
 **Response** _(JSON)_
 
@@ -291,8 +290,8 @@ Array of matching address book entries
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success status |
-| `entries` | array | Array of matching entry objects |
+| `success` | boolean | True on success |
+| `entries` | array | Matching address book entries (limited) |
 
 **Error Responses**
 
@@ -302,11 +301,11 @@ Array of matching address book entries
 
 ---
 
-#### `GET /api/address-book/stats` {#get-apiaddress-bookstats}
+#### `GET /api/address-book/stats`
 
 **Requires authentication**
 
-Retrieves aggregate statistics about the authenticated user's address book, such as total entry count and other usage metrics.
+Retrieves aggregate statistics about the authenticated user's address book, such as total entry count or other metrics. Useful for UI display or analytics.
 
 **Response** _(JSON)_
 
@@ -314,8 +313,8 @@ Address book statistics object
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success status |
-| `stats` | object | Statistics including entry count and other metrics |
+| `success` | boolean | True on success |
+| `stats` | object | Statistics object (e.g., total_entries, etc.) |
 
 **Error Responses**
 
@@ -325,18 +324,18 @@ Address book statistics object
 
 ---
 
-### Ads
+### Ads {#public-api-ads}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/ads/{id}/impression`](#post-apiadsidimpression) | Yes | Record an advertisement impression for the authenticated user. |
-| `POST` | [`/api/ads/{id}/click`](#post-apiadsidclick) | Yes | Record an advertisement click and retrieve click URL. |
+| `POST` | [`/api/ads/{id}/click`](#post-apiadsidclick) | Yes | Record an advertisement click and retrieve the click URL. |
 
-#### `POST /api/ads/{id}/impression` {#post-apiadsidimpression}
+#### `POST /api/ads/{id}/impression`
 
 **Requires authentication**
 
-Records that the authenticated user has viewed an advertisement. Increments impression counter for the ad. Used for ad analytics and tracking.
+Logs that the authenticated user has viewed an advertisement. Used for tracking ad impressions and analytics. Returns success confirmation or error if recording fails.
 
 **Path Parameters**
 
@@ -350,7 +349,7 @@ Impression recording confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether impression was recorded |
+| `success` | boolean | Impression was recorded |
 
 **Error Responses**
 
@@ -360,11 +359,11 @@ Impression recording confirmation
 
 ---
 
-#### `POST /api/ads/{id}/click` {#post-apiadsidclick}
+#### `POST /api/ads/{id}/click`
 
 **Requires authentication**
 
-Records that the authenticated user clicked an advertisement and returns the click-through URL. Increments click counter for the ad. Used for ad analytics and click tracking.
+Logs that the authenticated user clicked an advertisement and returns the target click URL. Used for tracking ad engagement and redirecting users to advertiser destinations.
 
 **Path Parameters**
 
@@ -378,8 +377,8 @@ Click recording confirmation with redirect URL
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether click was recorded |
-| `click_url` | string | URL to redirect user to (from ad's click_url field) |
+| `success` | boolean | Click was recorded |
+| `click_url` | string | URL to redirect user to (advertiser destination) |
 
 **Error Responses**
 
@@ -390,23 +389,23 @@ Click recording confirmation with redirect URL
 
 ---
 
-### Auth
+### Auth {#public-api-auth}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `POST` | [`/api/auth/login`](#post-apiauthlogin) | No | Authenticate user with username and password, return session and CSRF token. |
-| `POST` | [`/api/auth/logout`](#post-apiauthlogout) | No | Terminate user session and clear authentication cookie. |
+| `POST` | [`/api/auth/login`](#post-apiauthlogin) | No | Authenticate user with username and password, returning session cookie and CSRF token. |
+| `POST` | [`/api/auth/logout`](#post-apiauthlogout) | No | Invalidate user session and clear authentication cookie. |
 | `POST` | [`/api/auth/verify-gateway-token`](#post-apiauthverify-gateway-token) | No | Verify gateway token for external service integration (requires API key). |
-| `POST` | [`/api/auth/gateway-token`](#post-apiauthgateway-token) | Yes | Generate time-limited gateway token for authenticated user. |
-| `POST` | [`/api/auth/forgot-password`](#post-apiauthforgot-password) | No | Request password reset link via username or email. |
+| `POST` | [`/api/auth/gateway-token`](#post-apiauthgateway-token) | Yes | Generate a time-limited gateway token for authenticated user. |
+| `POST` | [`/api/auth/forgot-password`](#post-apiauthforgot-password) | No | Initiate password reset by username or email address. |
 | `POST` | [`/api/auth/validate-reset-token`](#post-apiauthvalidate-reset-token) | No | Validate password reset token before allowing password change. |
-| `POST` | [`/api/auth/reset-password`](#post-apiauthreset-password) | No | Complete password reset with token and new password. |
+| `POST` | [`/api/auth/reset-password`](#post-apiauthreset-password) | No | Complete password reset with valid token and new password. |
 
-#### `POST /api/auth/login` {#post-apiauthlogin}
+#### `POST /api/auth/login`
 
 Public
 
-Validates credentials and creates an authenticated session. Sets a 30-day HTTP-only session cookie and tracks login activity. Returns CSRF token for subsequent requests. Supports multiple service types (web, etc.). Failed authentication returns 401.
+Validates credentials and creates an authenticated session. Sets a 30-day HTTP-only session cookie and tracks the login event. Returns a CSRF token for subsequent authenticated requests. The service parameter (default 'web') determines session behavior. Failed authentication returns 401 with invalid credentials error.
 
 **Request Body** _(JSON)_
 
@@ -420,12 +419,12 @@ Login credentials
 
 **Response** _(JSON)_
 
-Login success with session token
+Authentication success response
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true on success |
-| `csrf_token` | string|null | CSRF token for authenticated requests |
+| `csrf_token` | string|null | CSRF token for authenticated requests, null if tracking fails |
 
 **Error Responses**
 
@@ -436,11 +435,11 @@ Login success with session token
 
 ---
 
-#### `POST /api/auth/logout` {#post-apiauthlogout}
+#### `POST /api/auth/logout`
 
 Public
 
-Invalidates the current session by removing the session cookie. Safe to call even if no active session exists. Returns success regardless of prior session state.
+Terminates the current session by removing the session cookie and invalidating the session in the database. Safe to call even if no session exists. Always returns success regardless of prior session state.
 
 **Response** _(JSON)_
 
@@ -452,11 +451,11 @@ Logout confirmation
 
 ---
 
-#### `POST /api/auth/verify-gateway-token` {#post-apiauthverify-gateway-token}
+#### `POST /api/auth/verify-gateway-token`
 
 Public
 
-Validates a gateway token issued for external services like bbslinkgateway. Requires X-API-KEY header matching BBSLINK_API_KEY environment variable. Returns user info if token is valid and not expired. Used for cross-service authentication.
+Validates a gateway token issued for external services like bbslinkgateway. Requires X-API-KEY header matching BBSLINK_API_KEY environment variable. Returns user information if token is valid and not expired. Used by external systems to authenticate users without direct password access.
 
 **Request Body** _(JSON)_
 
@@ -469,27 +468,27 @@ Token verification request
 
 **Response** _(JSON)_
 
-Token validation result with user info
+Token validation result with user information
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `valid` | boolean | Token validity status |
-| `userInfo` | object | User information if valid |
+| `userInfo` | object | User information object if valid |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 401 | Invalid or missing API key |
-| 400 | Missing userid/token or invalid/expired token |
+| 400 | Missing userid or token, or invalid/expired token |
 
 ---
 
-#### `POST /api/auth/gateway-token` {#post-apiauthgateway-token}
+#### `POST /api/auth/gateway-token`
 
 **Requires authentication**
 
-Creates a gateway token for the authenticated user to access external services. TTL is capped at 10 minutes for security. Requires valid session authentication. Returns token with expiration time.
+Creates a gateway token for the authenticated user to access external services. TTL is capped at 10 minutes maximum for security. Optional door parameter can specify which service the token grants access to. Returns the token and expiration time in seconds.
 
 **Request Body** _(JSON)_
 
@@ -497,7 +496,7 @@ Token generation parameters
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `door` | string | No | Target door/service identifier |
+| `door` | string|null | No | Target service/door identifier |
 | `ttl` | integer | No | Time-to-live in seconds (default: 300, max: 600) |
 
 **Response** _(JSON)_
@@ -508,16 +507,22 @@ Generated gateway token
 |-------|------|-------------|
 | `success` | boolean | Always true |
 | `userid` | integer | User ID |
-| `token` | string | Gateway token |
-| `expires_in` | integer | Token TTL in seconds |
+| `token` | string | Gateway token string |
+| `expires_in` | integer | Token expiration time in seconds |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
 
 ---
 
-#### `POST /api/auth/forgot-password` {#post-apiauthforgot-password}
+#### `POST /api/auth/forgot-password`
 
 Public
 
-Initiates password reset flow by sending reset link to user's email. Accepts either username or email address. Returns localized success/error response. Does not reveal whether user exists for security.
+Requests a password reset for a user identified by username or email. Triggers password reset email with a time-limited token. Response indicates success or provides localized error details. Does not reveal whether username/email exists for security.
 
 **Request Body** _(JSON)_
 
@@ -533,8 +538,7 @@ Password reset request result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Request processed |
-| `message` | string | Localized status message |
+| `success` | boolean | Request success status |
 
 **Error Responses**
 
@@ -544,11 +548,11 @@ Password reset request result
 
 ---
 
-#### `POST /api/auth/validate-reset-token` {#post-apiauthvalidate-reset-token}
+#### `POST /api/auth/validate-reset-token`
 
 Public
 
-Checks if a reset token is valid and not expired. Used to verify token before showing password reset form. Returns validity status without revealing token details.
+Checks if a password reset token is valid and not expired. Used to verify token before presenting password reset form. Returns validity status without revealing token details.
 
 **Request Body** _(JSON)_
 
@@ -564,7 +568,7 @@ Token validity status
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `valid` | boolean | Token is valid and not expired |
+| `valid` | boolean | Token validity status |
 
 **Error Responses**
 
@@ -574,11 +578,11 @@ Token validity status
 
 ---
 
-#### `POST /api/auth/reset-password` {#post-apiauthreset-password}
+#### `POST /api/auth/reset-password`
 
 Public
 
-Finalizes password reset by validating token and updating password. Token must be valid and not expired. Returns localized success/error response. Sets HTTP 400 on failure.
+Resets user password using a valid reset token. Token must pass validation before calling this endpoint. Returns success status with localized error messages on failure. Sets HTTP 400 status if reset fails.
 
 **Request Body** _(JSON)_
 
@@ -586,8 +590,8 @@ Password reset completion
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `token` | string | Yes | Password reset token |
-| `newPassword` | string | Yes | New password |
+| `token` | string | Yes | Valid password reset token |
+| `newPassword` | string | Yes | New password for user |
 
 **Response** _(JSON)_
 
@@ -595,8 +599,7 @@ Password reset result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Password updated successfully |
-| `message` | string | Localized status message |
+| `success` | boolean | Reset success status |
 
 **Error Responses**
 
@@ -606,58 +609,59 @@ Password reset result
 
 ---
 
-### Binkp
+### Binkp {#public-api-binkp}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/binkp/status`](#get-apibinkpstatus) | Yes | Get BinkP daemon status (admin only). |
-| `POST` | [`/api/binkp/poll`](#post-apibinkppoll) | No | Trigger BinkP poll for specific address or all uplinks. |
-| `POST` | [`/api/binkp/poll-all`](#post-apibinkppoll-all) | No | Trigger BinkP poll for all configured uplinks. |
-| `POST` | [`/api/binkp/process-packets`](#post-apibinkpprocess-packets) | No | Trigger packet processing for BinkP protocol. |
-| `GET` | [`/api/binkp/uplinks`](#get-apibinkpuplinks) | No | Retrieve list of configured BinkP uplinks. |
-| `GET` | [`/api/binkp/uplink-status`](#get-apibinkpuplink-status) | No | Test authentication status of a BinkP uplink. |
-| `POST` | [`/api/binkp/uplinks`](#post-apibinkpuplinks) | No | Add a new BinkP uplink configuration. |
-| `PUT` | [`/api/binkp/uplinks/{address}`](#put-apibinkpuplinksaddress) | No | Update an existing BinkP uplink configuration. |
-| `DELETE` | [`/api/binkp/uplinks/{address}`](#delete-apibinkpuplinksaddress) | No | Delete a BinkP uplink configuration. |
-| `GET` | [`/api/binkp/files/inbound`](#get-apibinkpfilesinbound) | Yes | List inbound files received via BinkP. |
+| `GET` | [`/api/binkp/status`](#get-apibinkpstatus) | Yes | Get current BinkP daemon status (admin only). |
+| `POST` | [`/api/binkp/poll`](#post-apibinkppoll) | Yes | Trigger BinkP poll for a specific address or all uplinks. |
+| `POST` | [`/api/binkp/poll-all`](#post-apibinkppoll-all) | Yes | Trigger BinkP poll for all configured uplinks. |
+| `POST` | [`/api/binkp/process-packets`](#post-apibinkpprocess-packets) | Yes | Trigger packet processing for BinkP protocol. |
+| `GET` | [`/api/binkp/uplinks`](#get-apibinkpuplinks) | Yes | Retrieve list of configured BinkP uplinks. |
+| `GET` | [`/api/binkp/uplink-status`](#get-apibinkpuplink-status) | Yes | Test BinkP uplink authentication and connectivity. |
+| `POST` | [`/api/binkp/uplinks`](#post-apibinkpuplinks) | Yes | Add a new BinkP uplink configuration. |
+| `PUT` | [`/api/binkp/uplinks/{address}`](#put-apibinkpuplinksaddress) | Yes | Update an existing BinkP uplink configuration. |
+| `DELETE` | [`/api/binkp/uplinks/{address}`](#delete-apibinkpuplinksaddress) | Yes | Delete a BinkP uplink configuration. |
+| `GET` | [`/api/binkp/files/inbound`](#get-apibinkpfilesinbound) | Yes | List files in BinkP inbound directory. |
 | `GET` | [`/api/binkp/files/outbound`](#get-apibinkpfilesoutbound) | Yes | Retrieve list of outbound files queued for transmission. |
 | `POST` | [`/api/binkp/process/inbound`](#post-apibinkpprocessinbound) | Yes | Trigger processing of inbound BinkP packets. |
-| `POST` | [`/api/binkp/process/outbound`](#post-apibinkpprocessoutbound) | Yes | Trigger outbound BinkP queue processing and polling. |
-| `GET` | [`/api/binkp/kept-packets/inspect`](#get-apibinkpkept-packetsinspect) | Yes | Inspect contents of a kept (archived) BinkP packet. |
-| `GET` | [`/api/binkp/kept-packets/download`](#get-apibinkpkept-packetsdownload) | Yes | Download a kept (archived) BinkP packet file. |
-| `GET` | [`/api/binkp/queue/inspect`](#get-apibinkpqueueinspect) | Yes | Inspect contents of a queued BinkP packet. |
-| `GET` | [`/api/binkp/queue/download`](#get-apibinkpqueuedownload) | Yes | Download a queued BinkP packet file. |
-| `GET` | [`/api/binkp/kept-packets/bundle/list`](#get-apibinkpkept-packetsbundlelist) | Yes | List contents of a kept (archived) packet bundle. |
+| `POST` | [`/api/binkp/process/outbound`](#post-apibinkpprocessoutbound) | Yes | Trigger outbound queue processing and polling. |
+| `GET` | [`/api/binkp/kept-packets/inspect`](#get-apibinkpkept-packetsinspect) | Yes | Inspect contents of a kept inbound or outbound packet. |
+| `GET` | [`/api/binkp/kept-packets/download`](#get-apibinkpkept-packetsdownload) | Yes | Download a kept inbound or outbound packet file. |
+| `GET` | [`/api/binkp/queue/inspect`](#get-apibinkpqueueinspect) | Yes | Inspect contents of a queued inbound or outbound packet. |
+| `GET` | [`/api/binkp/queue/download`](#get-apibinkpqueuedownload) | Yes | Download a queued inbound or outbound packet file. |
+| `GET` | [`/api/binkp/kept-packets/bundle/list`](#get-apibinkpkept-packetsbundlelist) | Yes | List contents of a packet bundle (archive file). |
 | `GET` | [`/api/binkp/kept-packets/bundle/inspect`](#get-apibinkpkept-packetsbundleinspect) | Yes | Inspect contents of a kept BinkP packet bundle. |
 | `GET` | [`/api/binkp/kept-packets/bundle/download`](#get-apibinkpkept-packetsbundledownload) | Yes | Download a kept BinkP bundle file. |
 | `GET` | [`/api/binkp/kept-packets`](#get-apibinkpkept-packets) | Yes | List kept BinkP packet bundles. |
 | `GET` | [`/api/binkp/logs`](#get-apibinkplogs) | Yes | Retrieve recent BinkP logs. |
 | `GET` | [`/api/binkp/logs/search`](#get-apibinkplogssearch) | Yes | Search BinkP logs by query string. |
 
-#### `GET /api/binkp/status` {#get-apibinkpstatus}
+#### `GET /api/binkp/status`
 
 **Requires authentication**
 
-Retrieves current BinkP protocol daemon status and statistics. Admin-only endpoint. Delegates to BinkpController for status details. Returns 403 if user lacks admin privileges.
+Returns operational status of the BinkP daemon including connection state, queue info, and other metrics. Requires admin privileges. Delegates to BinkpController for status retrieval.
 
 **Response** _(JSON)_
 
-BinkP daemon status object (structure varies by controller implementation)
+BinkP daemon status object (structure varies by implementation)
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | User is not an administrator |
-| 500 | Error retrieving BinkP status |
+| 401 | Authentication required |
+| 403 | Admin access required |
+| 500 | Failed to retrieve BinkP status |
 
 ---
 
-#### `POST /api/binkp/poll` {#post-apibinkppoll}
+#### `POST /api/binkp/poll`
 
-Public
+**Requires authentication**
 
-Initiates an immediate BinkP poll via the admin daemon. If no address is provided, polls all configured uplinks. Requires BinkP admin privileges (checked via requireBinkpAdmin). Returns success confirmation with poll result.
+Initiates an immediate BinkP poll via the admin daemon. If no address is provided, polls all configured uplinks. Requires admin privileges. Returns success confirmation and poll result from the daemon.
 
 **Request Body** _(JSON)_
 
@@ -665,7 +669,7 @@ Poll target specification
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `address` | string | No | FidoNet address to poll (e.g., '1:234/567'); omit or empty string to poll all |
+| `address` | string | No | FidoNet address to poll (e.g., '1:123/456'). If omitted, polls all uplinks. |
 
 **Response** _(JSON)_
 
@@ -674,70 +678,74 @@ Poll trigger confirmation
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True if poll was triggered |
-| `message_code` | string | Localization key 'ui.api.binkp.poll_triggered' |
-| `result` | mixed | Poll result from daemon client |
+| `message_code` | string | Localization key for UI message |
+| `result` | mixed | Result from daemon poll operation |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 500 | Failed to trigger poll (daemon communication error) |
+| 401 | Authentication required |
+| 403 | Admin access required |
+| 500 | Failed to trigger BinkP poll |
 
 ---
 
-#### `POST /api/binkp/poll-all` {#post-apibinkppoll-all}
+#### `POST /api/binkp/poll-all`
 
-Public
+**Requires authentication**
 
-Convenience endpoint that polls all BinkP uplinks immediately via the admin daemon. Requires BinkP admin privileges. Equivalent to calling /api/binkp/poll with no address parameter.
+Initiates an immediate poll of all BinkP uplinks via the admin daemon. Convenience endpoint equivalent to POST /api/binkp/poll with no address parameter. Requires admin privileges.
 
 **Response** _(JSON)_
 
-Poll-all trigger confirmation
+Poll trigger confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True if poll was triggered |
-| `message_code` | string | Localization key 'ui.api.binkp.poll_all_triggered' |
-| `result` | mixed | Poll result from daemon client |
+| `message_code` | string | Localization key for UI message |
+| `result` | mixed | Result from daemon poll operation |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 500 | Failed to trigger poll-all (daemon communication error) |
+| 401 | Authentication required |
+| 403 | Admin access required |
+| 500 | Failed to poll all BinkP uplinks |
 
 ---
 
-#### `POST /api/binkp/process-packets` {#post-apibinkpprocess-packets}
+#### `POST /api/binkp/process-packets`
 
-Public
+**Requires authentication**
 
-Initiates asynchronous processing of BinkP packets via the admin daemon. Requires BinkP admin privileges. Returns immediately with a success status and processing result. Use this to manually trigger packet synchronization outside normal scheduled intervals.
+Initiates asynchronous processing of BinkP packets via the admin daemon. Requires BinkP administrator privileges. Returns immediately with a success status and processing result. Use this to manually trigger packet queue processing outside normal scheduled intervals.
 
 **Response** _(JSON)_
 
-Processing initiation result with status and message code.
+Processing initiation status with result details.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether processing was initiated successfully |
-| `message_code` | string | Localization key for UI message |
+| `success` | boolean | Always true on success |
+| `message_code` | string | Localization key: 'ui.api.binkp.process_packets_started' |
 | `result` | object | Daemon processing result details |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 500 | Failed to initiate packet processing |
+| 500 | Packet processing failed; daemon communication error |
 
 ---
 
-#### `GET /api/binkp/uplinks` {#get-apibinkpuplinks}
+#### `GET /api/binkp/uplinks`
 
-Public
+**Requires authentication**
 
-Fetches all configured uplink nodes for BinkP protocol. Requires BinkP admin privileges. Returns array of uplink configurations including addresses, credentials, and connection settings.
+Fetches all configured BinkP uplink nodes. Requires BinkP administrator privileges. Returns uplink configuration details including addresses, authentication settings, and connection parameters.
 
 **Response** _(JSON)_
 
@@ -745,9 +753,7 @@ Array of uplink configurations.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `[].address` | string | FidoNet address of uplink |
-| `[].host` | string | Hostname or IP address |
-| `[].port` | integer | BinkP port number |
+| `[array]` | array | List of uplink objects with address, credentials, and settings |
 
 **Error Responses**
 
@@ -757,52 +763,52 @@ Array of uplink configurations.
 
 ---
 
-#### `GET /api/binkp/uplink-status` {#get-apibinkpuplink-status}
+#### `GET /api/binkp/uplink-status`
 
-Public
+**Requires authentication**
 
-Validates connectivity and authentication credentials for a specified uplink address. Requires BinkP admin privileges and a valid uplink address parameter. Returns authentication test results including connection status and credential validation.
+Validates authentication credentials and connection status for a specific uplink address. Requires BinkP administrator privileges. Useful for diagnosing uplink configuration issues before enabling production traffic.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `address` | string | Yes | FidoNet address of uplink to test |
+| `address` | string | Yes | FidoNet address of uplink to test (e.g., '1:234/567') |
 
 **Response** _(JSON)_
 
-Uplink authentication test result.
+Uplink authentication and status test results.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `authenticated` | boolean | Whether uplink authenticated successfully |
-| `status` | string | Connection status message |
+| `authenticated` | boolean | Whether credentials are valid |
+| `connected` | boolean | Whether connection succeeded |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Uplink address parameter missing |
-| 500 | Failed to test uplink status |
+| 400 | Address parameter missing or empty |
+| 500 | Status check failed |
 
 ---
 
-#### `POST /api/binkp/uplinks` {#post-apibinkpuplinks}
+#### `POST /api/binkp/uplinks`
 
-Public
+**Requires authentication**
 
-Creates a new uplink node configuration for BinkP protocol. Requires BinkP admin privileges. Accepts JSON payload with uplink details (address, host, port, credentials). Returns created uplink configuration with validation results.
+Creates a new uplink node configuration. Requires BinkP administrator privileges. Accepts JSON payload with uplink details (address, credentials, connection parameters). Returns created uplink configuration with validation results.
 
 **Request Body** _(JSON)_
 
-Uplink configuration details.
+Uplink configuration parameters.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `address` | string | Yes | FidoNet address |
-| `host` | string | Yes | Hostname or IP |
-| `port` | integer | No | BinkP port (default 24554) |
-| `password` | string | Yes | Session password |
+| `address` | string | Yes | FidoNet address (e.g., '1:234/567') |
+| `password` | string | Yes | BinkP session password |
+| `host` | string | No | Hostname or IP address |
+| `port` | integer | No | TCP port (default 24554) |
 
 **Response** _(JSON)_
 
@@ -810,16 +816,16 @@ Created uplink configuration.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether uplink was created |
-| `address` | string | Uplink FidoNet address |
+| `success` | boolean | Uplink created successfully |
+| `uplink` | object | Uplink configuration details |
 
 ---
 
-#### `PUT /api/binkp/uplinks/{address}` {#put-apibinkpuplinksaddress}
+#### `PUT /api/binkp/uplinks/{address}`
 
-Public
+**Requires authentication**
 
-Modifies settings for an existing uplink node. Requires BinkP admin privileges and valid uplink address in path. Accepts JSON payload with updated configuration fields. Returns updated uplink configuration.
+Modifies settings for a configured uplink. Requires BinkP administrator privileges. Accepts JSON payload with updated parameters. Address in URL path identifies the uplink to modify.
 
 **Path Parameters**
 
@@ -833,9 +839,9 @@ Updated uplink configuration fields.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `host` | string | No | Hostname or IP |
-| `port` | integer | No | BinkP port |
-| `password` | string | No | Session password |
+| `password` | string | No | New BinkP session password |
+| `host` | string | No | New hostname or IP |
+| `port` | integer | No | New TCP port |
 
 **Response** _(JSON)_
 
@@ -843,22 +849,22 @@ Updated uplink configuration.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether update succeeded |
-| `address` | string | Uplink FidoNet address |
+| `success` | boolean | Update completed |
+| `uplink` | object | Modified uplink details |
 
 ---
 
-#### `DELETE /api/binkp/uplinks/{address}` {#delete-apibinkpuplinksaddress}
+#### `DELETE /api/binkp/uplinks/{address}`
 
-Public
+**Requires authentication**
 
-Removes an uplink node configuration. Requires BinkP admin privileges and valid uplink address in path. Returns confirmation of deletion.
+Removes an uplink node configuration. Requires BinkP administrator privileges. Address in URL path identifies the uplink to delete. Deletion is permanent.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `address` | string | FidoNet address of uplink to delete |
+| `address` | string | FidoNet address of uplink to remove |
 
 **Response** _(JSON)_
 
@@ -866,16 +872,15 @@ Deletion confirmation.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether uplink was deleted |
-| `address` | string | Deleted uplink address |
+| `success` | boolean | Uplink deleted successfully |
 
 ---
 
-#### `GET /api/binkp/files/inbound` {#get-apibinkpfilesinbound}
+#### `GET /api/binkp/files/inbound`
 
 **Requires authentication**
 
-Retrieves files in the BinkP inbound directory. Requires user authentication. Returns array of received files with metadata including filename, size, and reception timestamp.
+Retrieves inventory of files received via BinkP in the inbound directory. Requires authentication. Returns file metadata including names, sizes, and timestamps for received packets and attachments.
 
 **Response** _(JSON)_
 
@@ -883,9 +888,7 @@ Array of inbound files.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `[].filename` | string | Name of received file |
-| `[].size` | integer | File size in bytes |
-| `[].received` | string | Reception timestamp (ISO 8601) |
+| `[array]` | array | List of file objects with name, size, timestamp, and status |
 
 **Error Responses**
 
@@ -895,7 +898,7 @@ Array of inbound files.
 
 ---
 
-#### `GET /api/binkp/files/outbound` {#get-apibinkpfilesoutbound}
+#### `GET /api/binkp/files/outbound`
 
 **Requires authentication**
 
@@ -917,11 +920,11 @@ Array of outbound file objects with metadata
 
 ---
 
-#### `POST /api/binkp/process/inbound` {#post-apibinkpprocessinbound}
+#### `POST /api/binkp/process/inbound`
 
 **Requires authentication**
 
-Initiates packet processing for all inbound BinkP transfers. Requires BinkP admin privileges. Communicates with daemon to extract and process received packets. Returns processing result.
+Initiates immediate processing of received inbound packets through the daemon. Requires BinkP admin privileges. Returns processing result details. This is an administrative action that may take time to complete.
 
 **Response** _(JSON)_
 
@@ -929,9 +932,9 @@ Processing completion status with result details
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success flag |
+| `success` | boolean | Whether processing completed successfully |
 | `message_code` | string | Localization key for UI message |
-| `result` | object | Daemon processing result |
+| `result` | object | Processing result details from daemon |
 
 **Error Responses**
 
@@ -942,21 +945,21 @@ Processing completion status with result details
 
 ---
 
-#### `POST /api/binkp/process/outbound` {#post-apibinkpprocessoutbound}
+#### `POST /api/binkp/process/outbound`
 
 **Requires authentication**
 
-Initiates BinkP poll for all configured nodes to transmit queued outbound packets. Requires BinkP admin privileges. Communicates with daemon to execute poll cycle.
+Initiates BinkP poll of all configured nodes to transmit queued outbound packets. Requires BinkP admin privileges. Polls all nodes in the system for transmission opportunities.
 
 **Response** _(JSON)_
 
-Poll completion status with result details
+Polling completion status with result details
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success flag |
+| `success` | boolean | Whether polling completed successfully |
 | `message_code` | string | Localization key for UI message |
-| `result` | object | Daemon poll result |
+| `result` | object | Polling result details from daemon |
 
 **Error Responses**
 
@@ -967,28 +970,27 @@ Poll completion status with result details
 
 ---
 
-#### `GET /api/binkp/kept-packets/inspect` {#get-apibinkpkept-packetsinspect}
+#### `GET /api/binkp/kept-packets/inspect`
 
 **Requires authentication**
 
-Examines structure and contents of a stored inbound or outbound packet file. Requires BinkP admin privileges and valid license. Returns packet metadata and message details.
+Examines the structure and contents of archived packets stored in the kept-packets directory. Requires BinkP admin privileges and valid license. Returns detailed packet metadata and message information.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `type` | string | No | Packet type: 'inbound' or 'outbound' (default: 'inbound') |
-| `date` | string | No | Archive date directory (optional) |
+| `date` | string | No | Archive date directory (format varies by storage) |
 | `filename` | string | Yes | Packet filename to inspect |
 
 **Response** _(JSON)_
 
-Packet inspection details including messages and metadata
+Packet inspection details including structure and contents
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `packet_info` | object | Packet header and metadata |
-| `messages` | array | Messages contained in packet |
+| `packet_info` | object | Packet metadata and structure |
 
 **Error Responses**
 
@@ -999,18 +1001,18 @@ Packet inspection details including messages and metadata
 
 ---
 
-#### `GET /api/binkp/kept-packets/download` {#get-apibinkpkept-packetsdownload}
+#### `GET /api/binkp/kept-packets/download`
 
 **Requires authentication**
 
-Retrieves and downloads a stored inbound or outbound packet file. Requires BinkP admin privileges and valid license. Returns binary packet data with appropriate headers.
+Retrieves and downloads an archived packet file from the kept-packets directory. Requires BinkP admin privileges and valid license. Returns binary packet data with appropriate headers for file download.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `type` | string | No | Packet type: 'inbound' or 'outbound' (default: 'inbound') |
-| `date` | string | No | Archive date directory (optional) |
+| `date` | string | No | Archive date directory (format varies by storage) |
 | `filename` | string | Yes | Packet filename to download |
 
 **Response** _(JSON)_
@@ -1019,7 +1021,7 @@ Binary packet file data
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `body` | binary | Packet file contents |
+| `file_content` | binary | Raw packet file bytes |
 
 **Error Responses**
 
@@ -1031,27 +1033,26 @@ Binary packet file data
 
 ---
 
-#### `GET /api/binkp/queue/inspect` {#get-apibinkpqueueinspect}
+#### `GET /api/binkp/queue/inspect`
 
 **Requires authentication**
 
-Examines structure and contents of a packet currently in the inbound or outbound processing queue. Requires BinkP admin privileges and valid license. Returns packet metadata and message details.
+Examines the structure and contents of packets currently in the active queue (not archived). Requires BinkP admin privileges and valid license. Returns detailed packet metadata and message information.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `type` | string | No | Packet type: 'inbound' or 'outbound' (default: 'inbound') |
-| `filename` | string | Yes | Queued packet filename to inspect |
+| `filename` | string | Yes | Queue packet filename to inspect |
 
 **Response** _(JSON)_
 
-Packet inspection details including messages and metadata
+Queue packet inspection details including structure and contents
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `packet_info` | object | Packet header and metadata |
-| `messages` | array | Messages contained in packet |
+| `packet_info` | object | Packet metadata and structure |
 
 **Error Responses**
 
@@ -1062,18 +1063,18 @@ Packet inspection details including messages and metadata
 
 ---
 
-#### `GET /api/binkp/queue/download` {#get-apibinkpqueuedownload}
+#### `GET /api/binkp/queue/download`
 
 **Requires authentication**
 
-Retrieves and downloads a packet currently in the inbound or outbound processing queue. Requires BinkP admin privileges and valid license. Returns binary packet data with appropriate headers.
+Retrieves and downloads a packet file from the active queue directory. Requires BinkP admin privileges and valid license. Returns binary packet data with appropriate headers for file download.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `type` | string | No | Packet type: 'inbound' or 'outbound' (default: 'inbound') |
-| `filename` | string | Yes | Queued packet filename to download |
+| `filename` | string | Yes | Queue packet filename to download |
 
 **Response** _(JSON)_
 
@@ -1081,7 +1082,7 @@ Binary packet file data
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `body` | binary | Packet file contents |
+| `file_content` | binary | Raw packet file bytes |
 
 **Error Responses**
 
@@ -1089,32 +1090,31 @@ Binary packet file data
 |--------|-------------|
 | 400 | Invalid type or missing filename parameter |
 | 403 | User lacks BinkP admin privileges or license not valid |
-| 404 | Packet file not found in queue |
+| 404 | Queue packet file not found |
 
 ---
 
-#### `GET /api/binkp/kept-packets/bundle/list` {#get-apibinkpkept-packetsbundlelist}
+#### `GET /api/binkp/kept-packets/bundle/list`
 
 **Requires authentication**
 
-Enumerates all files and messages contained within a stored inbound or outbound packet bundle. Requires BinkP admin privileges and valid license. Returns detailed bundle contents.
+Enumerates files contained within a bundle or archive packet from the kept-packets directory. Requires BinkP admin privileges and valid license. Returns list of bundled files with metadata.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `type` | string | No | Bundle type: 'inbound' or 'outbound' (default: 'inbound') |
-| `date` | string | No | Archive date directory (optional) |
-| `filename` | string | Yes | Bundle filename to list |
+| `type` | string | No | Packet type: 'inbound' or 'outbound' (default: 'inbound') |
+| `date` | string | No | Archive date directory (format varies by storage) |
+| `filename` | string | Yes | Bundle/archive packet filename |
 
 **Response** _(JSON)_
 
-Bundle contents listing with file and message details
+List of files contained in the bundle
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `files` | array | Files contained in bundle |
-| `messages` | array | Messages contained in bundle |
+| `files` | array | Array of bundled file objects with metadata |
 
 **Error Responses**
 
@@ -1125,7 +1125,7 @@ Bundle contents listing with file and message details
 
 ---
 
-#### `GET /api/binkp/kept-packets/bundle/inspect` {#get-apibinkpkept-packetsbundleinspect}
+#### `GET /api/binkp/kept-packets/bundle/inspect`
 
 **Requires authentication**
 
@@ -1148,16 +1148,16 @@ Packet inspection data with metadata and contents
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid type, missing bundle or pkt parameters |
+| 400 | Invalid type, missing bundle or pkt parameter |
 | 403 | License not valid or user lacks BinkP admin privileges |
 
 ---
 
-#### `GET /api/binkp/kept-packets/bundle/download` {#get-apibinkpkept-packetsbundledownload}
+#### `GET /api/binkp/kept-packets/bundle/download`
 
 **Requires authentication**
 
-Downloads a binary file from a kept bundle (inbound or outbound). Requires BinkP admin privileges and valid license. Returns file as octet-stream attachment with proper headers to prevent MIME-type sniffing.
+Downloads a file from a kept bundle as an attachment. Requires BinkP admin privileges and valid license. Returns the file with appropriate headers for binary download.
 
 **Query Parameters**
 
@@ -1169,7 +1169,7 @@ Downloads a binary file from a kept bundle (inbound or outbound). Requires BinkP
 
 **Response** _(JSON)_
 
-Binary file content with Content-Disposition header
+Binary file content with Content-Disposition attachment header
 
 **Error Responses**
 
@@ -1181,11 +1181,11 @@ Binary file content with Content-Disposition header
 
 ---
 
-#### `GET /api/binkp/kept-packets` {#get-apibinkpkept-packets}
+#### `GET /api/binkp/kept-packets`
 
 **Requires authentication**
 
-Retrieves a list of all kept packet bundles (inbound or outbound). Requires BinkP admin privileges and valid license. Useful for browsing archived or retained packets.
+Retrieves a list of kept packet bundles (inbound or outbound). Requires BinkP admin privileges and valid license. Useful for browsing archived or retained packets.
 
 **Query Parameters**
 
@@ -1206,11 +1206,11 @@ Array of kept packet bundles with metadata
 
 ---
 
-#### `GET /api/binkp/logs` {#get-apibinkplogs}
+#### `GET /api/binkp/logs`
 
 **Requires authentication**
 
-Fetches the most recent log entries from BinkP operations. Requires BinkP admin privileges. Defaults to 100 lines but configurable via query parameter.
+Fetches recent BinkP protocol logs. Requires BinkP admin privileges. Supports configurable line count for pagination.
 
 **Query Parameters**
 
@@ -1230,11 +1230,11 @@ Array of log entries
 
 ---
 
-#### `GET /api/binkp/logs/search` {#get-apibinkplogssearch}
+#### `GET /api/binkp/logs/search`
 
 **Requires authentication**
 
-Searches BinkP logs for entries matching a query string. Requires BinkP admin privileges. Query must be at least 2 characters. Results are JSON-encoded with UTF-8 substitution for invalid sequences.
+Searches BinkP logs for entries matching a query. Requires BinkP admin privileges. Query must be at least 2 characters. Results are JSON-encoded with UTF-8 substitution for invalid sequences.
 
 **Query Parameters**
 
@@ -1256,19 +1256,19 @@ Array of matching log entries
 
 ---
 
-### Bulletins
+### Bulletins {#public-api-bulletins}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/bulletins`](#get-apibulletins) | Yes | Retrieve active bulletins for authenticated user. |
+| `GET` | [`/api/bulletins`](#get-apibulletins) | Yes | Retrieve active bulletins and unread count for user. |
 | `POST` | [`/api/bulletins/{id}/read`](#post-apibulletinsidread) | Yes | Mark a single bulletin as read for the authenticated user. |
 | `POST` | [`/api/bulletins/read-all`](#post-apibulletinsread-all) | Yes | Mark multiple bulletins as read in a single request. |
 
-#### `GET /api/bulletins` {#get-apibulletins}
+#### `GET /api/bulletins`
 
 **Requires authentication**
 
-Returns all active bulletins visible to the user, unread count, and the configured bulletin display mode. Bulletins are filtered based on user permissions and visibility rules.
+Returns list of active bulletins visible to the user, unread count, and the configured bulletin display mode. Bulletins are filtered based on user permissions and read status.
 
 **Response** _(JSON)_
 
@@ -1279,7 +1279,7 @@ Bulletins and metadata
 | `success` | boolean | Always true on success |
 | `bulletins` | array | Array of active bulletin objects |
 | `unread_count` | integer | Number of unread bulletins for this user |
-| `bulletin_display_mode` | string | Display mode setting (e.g., 'modal', 'page', 'sidebar') |
+| `bulletin_display_mode` | string | Configured display mode (e.g., 'popup', 'list', 'none') |
 
 **Error Responses**
 
@@ -1289,11 +1289,11 @@ Bulletins and metadata
 
 ---
 
-#### `POST /api/bulletins/{id}/read` {#post-apibulletinsidread}
+#### `POST /api/bulletins/{id}/read`
 
 **Requires authentication**
 
-Records that the authenticated user has read a specific bulletin. Extracts the user ID from the auth token and calls BulletinManager to update the read status. Returns a success confirmation on completion.
+Records that the authenticated user has read a specific bulletin. Uses the bulletin ID from the URL path. Returns success confirmation. No validation of bulletin existence is performed in the snippet.
 
 **Path Parameters**
 
@@ -1303,29 +1303,23 @@ Records that the authenticated user has read a specific bulletin. Extracts the u
 
 **Response** _(JSON)_
 
-Confirmation that the bulletin was marked as read
+JSON object with success status
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Always true on success |
-
-**Error Responses**
-
-| Status | Description |
-|--------|-------------|
-| 401 | Authentication required |
+| `success` | boolean | Always true on successful completion |
 
 ---
 
-#### `POST /api/bulletins/read-all` {#post-apibulletinsread-all}
+#### `POST /api/bulletins/read-all`
 
 **Requires authentication**
 
-Marks a batch of bulletins as read for the authenticated user. Accepts a JSON payload with an array of bulletin IDs. Validates that the IDs array is properly formatted before processing. Returns success or a validation error.
+Marks a batch of bulletins as read for the authenticated user. Accepts a JSON array of bulletin IDs in the request body. Validates that the ids field is an array before processing. Returns success confirmation or a 400 error if validation fails.
 
 **Request Body** _(JSON)_
 
-JSON payload containing bulletin IDs to mark as read
+JSON object containing array of bulletin IDs
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -1333,37 +1327,36 @@ JSON payload containing bulletin IDs to mark as read
 
 **Response** _(JSON)_
 
-Confirmation that all bulletins were marked as read
+JSON object with success status
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Always true on success |
+| `success` | boolean | True when all bulletins are marked as read |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid bulletin list (ids not an array) |
-| 401 | Authentication required |
+| 400 | Invalid bulletin list (ids is not an array) |
 
 ---
 
-### Chat
+### Chat {#public-api-chat}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/chat/rooms`](#get-apichatrooms) | Yes | List all active chat rooms. |
 | `GET` | [`/api/chat/online`](#get-apichatonline) | Yes | Get list of online users and active bots. |
-| `GET` | [`/api/chat/messages`](#get-apichatmessages) | Yes | Fetch chat messages from a room or direct message conversation. |
-| `POST` | [`/api/chat/send`](#post-apichatsend) | Yes | Send a chat message to a room or direct message. |
+| `GET` | [`/api/chat/messages`](#get-apichatmessages) | Yes | Fetch chat messages from a room or direct message thread. |
+| `POST` | [`/api/chat/send`](#post-apichatsend) | Yes | Send a message to a chat room or direct message. |
 | `POST` | [`/api/chat/moderate`](#post-apichatmoderate) | Yes | Moderate chat: kick or ban user from room. |
 | `GET` | [`/api/chat/poll`](#get-apichatpoll) | Yes | Poll for new chat messages since last check. |
 
-#### `GET /api/chat/rooms` {#get-apichatrooms}
+#### `GET /api/chat/rooms`
 
 **Requires authentication**
 
-Retrieves a list of all active chat rooms available to the authenticated user. Returns room ID, name, and description for each room. Chat feature must be enabled in configuration.
+Retrieves a list of all active chat rooms available on the BBS. Returns room ID, name, and description for each room. Chat feature must be enabled. Useful for populating room selection UI.
 
 **Response** _(JSON)_
 
@@ -1372,9 +1365,9 @@ Array of active chat rooms
 | Field | Type | Description |
 |-------|------|-------------|
 | `rooms` | array | List of room objects |
-| `id` | integer | Room ID |
-| `name` | string | Room name |
-| `description` | string | Room description |
+| `rooms[].id` | integer | Unique room identifier |
+| `rooms[].name` | string | Room display name |
+| `rooms[].description` | string | Room description |
 
 **Error Responses**
 
@@ -1384,11 +1377,11 @@ Array of active chat rooms
 
 ---
 
-#### `GET /api/chat/online` {#get-apichatonline}
+#### `GET /api/chat/online`
 
 **Requires authentication**
 
-Returns users currently online (within 15 minutes) and all active AI bots, excluding the authenticated user. Includes user ID, username, location, and bot status flag.
+Returns users currently online (within 15 minutes) plus all active AI bots, excluding the authenticated user. Bots are always listed regardless of session state. Useful for presence indicators and direct message targeting.
 
 **Response** _(JSON)_
 
@@ -1396,10 +1389,11 @@ Array of online users and bots
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `user_id` | integer | User ID |
-| `username` | string | Username |
-| `location` | string | User location or empty string |
-| `is_bot` | boolean | True if user is an AI bot |
+| `online_users` | array | List of online user objects |
+| `online_users[].user_id` | integer | User ID |
+| `online_users[].username` | string | User's display name |
+| `online_users[].location` | string | User's current location (may be empty) |
+| `online_users[].is_bot` | boolean | True if user is an AI bot |
 
 **Error Responses**
 
@@ -1409,11 +1403,11 @@ Array of online users and bots
 
 ---
 
-#### `GET /api/chat/messages` {#get-apichatmessages}
+#### `GET /api/chat/messages`
 
 **Requires authentication**
 
-Retrieves paginated chat messages either from a specific room or a direct message thread between two users. Supports cursor-based pagination via before_id. Must specify either room_id or dm_user_id, not both. Limit capped at 200 messages.
+Retrieves paginated messages from either a chat room or a direct message conversation. Supports cursor-based pagination via before_id. Must specify exactly one of room_id or dm_user_id. Returns up to 200 messages ordered newest first.
 
 **Query Parameters**
 
@@ -1421,8 +1415,8 @@ Retrieves paginated chat messages either from a specific room or a direct messag
 |------|------|----------|-------------|
 | `room_id` | integer | No | Chat room ID (mutually exclusive with dm_user_id) |
 | `dm_user_id` | integer | No | User ID for direct message thread (mutually exclusive with room_id) |
-| `before_id` | integer | No | Message ID to fetch messages before (for pagination) |
-| `limit` | integer | No | Max messages to return, default 50, max 200 |
+| `before_id` | integer | No | Fetch messages before this message ID (for pagination) |
+| `limit` | integer | No | Max messages to return (default 50, max 200) |
 
 **Response** _(JSON)_
 
@@ -1430,14 +1424,15 @@ Array of chat messages
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | Message ID |
-| `room_id` | integer|null | Room ID if room message, null if DM |
-| `room_name` | string | Room name if applicable |
-| `from_user_id` | integer | Sender user ID |
-| `from_username` | string | Sender username |
-| `to_user_id` | integer|null | Recipient user ID if DM |
-| `body` | string | Message text |
-| `created_at` | string | ISO 8601 timestamp |
+| `messages` | array | List of message objects |
+| `messages[].id` | integer | Message ID |
+| `messages[].room_id` | integer|null | Room ID (null for DMs) |
+| `messages[].room_name` | string|null | Room name (null for DMs) |
+| `messages[].from_user_id` | integer | Sender user ID |
+| `messages[].from_username` | string | Sender username |
+| `messages[].to_user_id` | integer|null | Recipient user ID (null for room messages) |
+| `messages[].body` | string | Message text |
+| `messages[].created_at` | string | ISO 8601 timestamp |
 
 **Error Responses**
 
@@ -1448,89 +1443,92 @@ Array of chat messages
 
 ---
 
-#### `POST /api/chat/send` {#post-apichatsend}
+#### `POST /api/chat/send`
 
 **Requires authentication**
 
-Posts a message to either a chat room or direct message conversation. Supports special commands: /source (GitHub URL), /help (command list), /kick and /ban (admin only). Message body must be 1-1000 characters. Exactly one of room_id or to_user_id required.
+Posts a new message to either a room or direct message thread. Supports special commands: /source (GitHub URL), /help (command list), /kick and /ban (admin only). Message body must be 1-1000 characters. Exactly one of room_id or to_user_id must be specified.
 
 **Request Body** _(JSON)_
 
-Chat message payload
+Message to send
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `room_id` | integer | No | Target room ID (mutually exclusive with to_user_id) |
 | `to_user_id` | integer | No | Target user ID for DM (mutually exclusive with room_id) |
-| `body` | string | Yes | Message text, 1-1000 characters |
+| `body` | string | Yes | Message text (1-1000 characters) |
 
 **Response** _(JSON)_
 
-Message sent confirmation or local system message
+Confirmation of sent message or local system message
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success |
-| `local_message` | object | System message object for /help and /source commands |
-| `from_username` | string | Sender username |
-| `body` | string | Message text |
-| `created_at` | string | ISO 8601 timestamp |
-| `type` | string | Message type: 'local' for system messages |
+| `success` | boolean | Whether message was sent |
+| `local_message` | object | System message object (for /help, /source, or errors) |
+| `local_message.from_username` | string | Always 'System' for local messages |
+| `local_message.body` | string | Message content |
+| `local_message.type` | string | Always 'local' for system messages |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid target or message length (must be 1-1000 chars) |
-| 403 | Chat feature disabled or insufficient permissions for moderation commands |
+| 400 | Invalid target (must specify exactly one of room_id or to_user_id) |
+| 400 | Message length invalid (must be 1-1000 characters) |
+| 403 | Admin required for /kick or /ban commands |
+| 403 | Chat feature is disabled |
 
 ---
 
-#### `POST /api/chat/moderate` {#post-apichatmoderate}
+#### `POST /api/chat/moderate`
 
 **Requires authentication**
 
-Admin-only endpoint to kick (10-minute temporary ban) or permanently ban a user from a chat room. Requires admin privileges. Validates room and user existence before applying action.
+Admin-only endpoint to kick (10-minute temporary ban) or permanently ban a user from a chat room. Validates room and user existence before applying action. Requires admin privileges.
 
 **Request Body** _(JSON)_
 
-Moderation action request
+Moderation action
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `room_id` | integer | Yes | Target chat room ID |
-| `user_id` | integer | Yes | User ID to moderate |
-| `action` | string | Yes | Action: 'kick' (10 min) or 'ban' (permanent) |
+| `user_id` | integer | Yes | User ID to kick or ban |
+| `action` | string | Yes | Either 'kick' (10 min) or 'ban' (permanent) |
 
 **Response** _(JSON)_
 
-Moderation action result
+Confirmation of moderation action
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Action completed |
+| `success` | boolean | Whether action was applied |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid moderation request or action not in ['kick', 'ban'] |
-| 403 | Chat disabled or user lacks admin privileges |
-| 404 | Room or user not found |
+| 400 | Invalid moderation request (missing fields or invalid action) |
+| 403 | Admin privileges required |
+| 404 | Chat room not found |
+| 404 | User not found or inactive |
+| 403 | Chat feature is disabled |
 
 ---
 
-#### `GET /api/chat/poll` {#get-apichatpoll}
+#### `GET /api/chat/poll`
 
 **Requires authentication**
 
-Long-polling endpoint that returns new room and direct messages since the provided cursor (since_id). Excludes messages from the authenticated user. Returns up to 200 messages with HTML markup rendered.
+Long-polling endpoint that returns new messages (room and DM) since the provided since_id cursor. Excludes messages from the authenticated user. Returns up to 200 messages with HTML markup rendered. Useful for clients that don't support Server-Sent Events.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `since_id` | integer | No | Message ID cursor; return messages with id > since_id, default 0 |
+| `since_id` | integer | No | Return messages with ID greater than this (default 0) |
 
 **Response** _(JSON)_
 
@@ -1538,16 +1536,17 @@ Array of new messages since cursor
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | Message ID |
-| `type` | string | 'room' or 'dm' |
-| `room_id` | integer|null | Room ID if type='room' |
-| `room_name` | string|null | Room name if type='room' |
-| `from_user_id` | integer | Sender user ID |
-| `from_username` | string | Sender username |
-| `to_user_id` | integer|null | Recipient user ID if type='dm' |
-| `body` | string | Message text |
-| `markup_html` | string | HTML-rendered message body |
-| `created_at` | string | ISO 8601 timestamp |
+| `messages` | array | List of message objects |
+| `messages[].id` | integer | Message ID |
+| `messages[].type` | string | Either 'room' or 'dm' |
+| `messages[].room_id` | integer|null | Room ID (null for DMs) |
+| `messages[].room_name` | string|null | Room name (null for DMs) |
+| `messages[].from_user_id` | integer | Sender user ID |
+| `messages[].from_username` | string | Sender username |
+| `messages[].to_user_id` | integer|null | Recipient user ID (null for room messages) |
+| `messages[].body` | string | Raw message text |
+| `messages[].markup_html` | string | HTML-rendered message (markdown processed) |
+| `messages[].created_at` | string | ISO 8601 timestamp |
 
 **Error Responses**
 
@@ -1557,17 +1556,17 @@ Array of new messages since cursor
 
 ---
 
-### Credits
+### Credits {#public-api-credits}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/credits/send`](#post-apicreditssend) | Yes | Send credits from authenticated user to another user. |
 
-#### `POST /api/credits/send` {#post-apicreditssend}
+#### `POST /api/credits/send`
 
 **Requires authentication**
 
-Transfers credits between users with validation of amount, recipient existence, and sender balance. Credits feature must be enabled. Amount is restricted to 1-200 range. Users cannot send credits to themselves. Requires both sender and recipient to be active.
+Transfers credits between users with validation of amount, recipient existence, and sender balance. Credits feature must be enabled. Amount must be between 1 and 200. Users cannot send credits to themselves. Creates transaction records for both parties.
 
 **Request Body** _(JSON)_
 
@@ -1577,7 +1576,7 @@ Credit transfer request
 |-------|------|----------|-------------|
 | `recipient_id` | integer | Yes | ID of the user receiving credits |
 | `amount` | integer | Yes | Number of credits to send (1-200) |
-| `message` | string | No | Optional message accompanying the transfer |
+| `message` | string | No | Optional message to include with transfer |
 
 **Response** _(JSON)_
 
@@ -1586,8 +1585,8 @@ Transfer confirmation with updated balances
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Transfer success flag |
-| `sender_balance` | integer | Sender's balance after transfer |
-| `recipient_balance` | integer | Recipient's balance after transfer |
+| `sender_balance` | integer | Sender's new credit balance |
+| `recipient_balance` | integer | Recipient's new credit balance |
 
 **Error Responses**
 
@@ -1598,18 +1597,18 @@ Transfer confirmation with updated balances
 
 ---
 
-### Dashboard
+### Dashboard {#public-api-dashboard}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/dashboard/stats`](#get-apidashboardstats) | Yes | Retrieve dashboard statistics for authenticated user. |
 | `POST` | [`/api/dashboard/layout`](#post-apidashboardlayout) | Yes | Save or reset user's dashboard card layout. |
 
-#### `GET /api/dashboard/stats` {#get-apidashboardstats}
+#### `GET /api/dashboard/stats`
 
 **Requires authentication**
 
-Returns aggregated statistics for the user's dashboard including message counts, file counts, and other metrics. Statistics are computed by DashboardStatsService and may vary based on user permissions and system configuration.
+Returns aggregated dashboard statistics including user activity, message counts, and system metrics. Statistics are computed by DashboardStatsService and may vary based on user role and permissions.
 
 **Response** _(JSON)_
 
@@ -1617,7 +1616,7 @@ Dashboard statistics object
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `stats` | object | User-specific dashboard metrics (structure varies by configuration) |
+| `stats` | object | User-specific dashboard statistics (structure varies by service implementation) |
 
 **Error Responses**
 
@@ -1627,11 +1626,11 @@ Dashboard statistics object
 
 ---
 
-#### `POST /api/dashboard/layout` {#post-apidashboardlayout}
+#### `POST /api/dashboard/layout`
 
 **Requires authentication**
 
-Persists the user's custom dashboard layout configuration or resets to defaults. Validates layout against available cards (which may depend on user role and feature flags like referral credits). Supports a reset flag to clear saved layout.
+Persists custom dashboard layout configuration or resets to defaults. Validates layout against available cards (which may depend on user role and feature flags like referral credits). Supports reset flag to clear saved layout.
 
 **Request Body** _(JSON)_
 
@@ -1639,7 +1638,7 @@ Dashboard layout configuration
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `reset` | boolean | No | If true, clears saved layout and restores defaults |
+| `reset` | boolean | No | If true, clears saved layout and uses defaults on next load |
 | `cards` | array | No | Array of card configurations (structure validated against available cards) |
 
 **Response** _(JSON)_
@@ -1655,21 +1654,20 @@ Layout save confirmation
 | Status | Description |
 |--------|-------------|
 | 400 | Invalid layout data or validation failed |
-| 401 | Authentication required |
 
 ---
 
-### Debug
+### Debug {#public-api-debug}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/admin/debug`](#get-apiadmindebug) | Yes | Debug endpoint to verify authentication |
+| `GET` | [`/api/admin/debug`](#get-apiadmindebug) | Yes | Debug endpoint for authentication testing |
 
-#### `GET /api/admin/debug` {#get-apiadmindebug}
+#### `GET /api/admin/debug`
 
 **Requires authentication**
 
-Returns current authenticated user info and session state. Useful for testing auth configuration and debugging session issues. Exposes session cookie details.
+Returns current authenticated user info, admin status, and session cookie details. Useful for debugging auth issues and verifying session state.
 
 **Response** _(JSON)_
 
@@ -1690,21 +1688,21 @@ Current authentication state
 
 ---
 
-### Docs
+### Docs {#public-api-docs}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/docs/mcp-client-help/claude`](#get-apidocsmcp-client-helpclaude) | Yes | Retrieve MCP client help documentation as HTML. |
 
-#### `GET /api/docs/mcp-client-help/claude` {#get-apidocsmcp-client-helpclaude}
+#### `GET /api/docs/mcp-client-help/claude`
 
 **Requires authentication**
 
-Returns rendered HTML version of MCPClientHelp.md markdown documentation. Converts markdown to HTML for display in client applications. Requires authentication and valid license.
+Returns rendered HTML version of MCPClientHelp.md markdown documentation. Requires authentication and valid license. Useful for embedding help content in client applications.
 
 **Response** _(JSON)_
 
-Rendered help documentation
+Rendered help documentation in HTML format.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -1719,7 +1717,7 @@ Rendered help documentation
 
 ---
 
-### Echoareas
+### Echoareas {#public-api-echoareas}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -1729,20 +1727,20 @@ Rendered help documentation
 | `PUT` | [`/api/echoareas/{id}`](#put-apiechoareasid) | Yes | Update echo area configuration. |
 | `DELETE` | [`/api/echoareas/{id}`](#delete-apiechoareasid) | Yes | Delete an echo area. |
 | `GET` | [`/api/echoareas/stats`](#get-apiechoareasstats) | Yes | Get echo area statistics. |
-| `GET` | [`/api/echoareas/simple-list`](#get-apiechoareassimple-list) | No | Lightweight list of all echo areas for admin comboboxes. |
+| `GET` | [`/api/echoareas/simple-list`](#get-apiechoareassimple-list) | Yes | Lightweight list of all echo areas for admin comboboxes. |
 
-#### `GET /api/echoareas` {#get-apiechoareas}
+#### `GET /api/echoareas`
 
 **Requires authentication**
 
-Retrieves a paginated list of echo areas with support for active/inactive filtering and subscription filtering. Returns message counts (total and unread), subscriber counts, and last post metadata. Respects user permissions and moderation visibility rules. Counts are computed from live subqueries to ensure accuracy with message list filters.
+Retrieves a paginated list of echo areas with support for filtering by status (active/inactive/all), subscription status, and visibility rules. Returns message counts (total and unread), subscriber counts, and last post metadata. Respects user permissions and moderation filters. Admins see all areas; regular users see only non-sysop areas they're subscribed to or have access to.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `filter` | string | No | Filter areas by status: 'active' (default), 'inactive', or 'all' |
-| `subscribed_only` | string | No | If 'true', return only areas the user is subscribed to (default: 'false') |
+| `filter` | string | No | Filter by status: 'active' (default), 'inactive', or 'all' |
+| `subscribed_only` | boolean | No | If 'true', return only areas the user is subscribed to (default: false) |
 
 **Response** _(JSON)_
 
@@ -1754,7 +1752,7 @@ Array of echo area objects with message and subscription metadata
 | `tag` | string | Echo area tag (uppercase) |
 | `description` | string | Human-readable description |
 | `moderator` | string|null | Moderator name or null |
-| `message_count` | integer | Total visible messages (filtered by user permissions) |
+| `message_count` | integer | Total visible messages (respects user permissions) |
 | `unread_count` | integer | Unread messages for current user |
 | `subscriber_count` | integer | Number of active subscribers |
 | `last_subject` | string|null | Subject of most recent post |
@@ -1763,6 +1761,7 @@ Array of echo area objects with message and subscription metadata
 | `is_active` | boolean | Whether area is active |
 | `is_sysop_only` | boolean | Whether area is restricted to sysops |
 | `allow_media` | boolean|null | Media attachment policy |
+| `color` | string | Hex color code for UI display |
 
 **Error Responses**
 
@@ -1772,11 +1771,11 @@ Array of echo area objects with message and subscription metadata
 
 ---
 
-#### `GET /api/echoareas/{id}` {#get-apiechoareasid}
+#### `GET /api/echoareas/{id}`
 
 **Requires authentication**
 
-Retrieves full configuration for a single echo area including all settings and LovlyNet integration metadata. Admin-only endpoint. For LovlyNet-domain areas, fetches remote metadata and validates local settings against recommended values, reporting any mismatches.
+Retrieves full configuration for a single echo area including all settings and optional LovlyNet integration metadata. Admin-only endpoint. If the area is configured for LovlyNet domain, fetches remote metadata and validates local settings against recommended values, reporting any mismatches.
 
 **Path Parameters**
 
@@ -1786,15 +1785,18 @@ Retrieves full configuration for a single echo area including all settings and L
 
 **Response** _(JSON)_
 
-Echo area object with full configuration and LovlyNet metadata
+Single echo area object with extended metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | integer | Echo area ID |
 | `tag` | string | Echo area tag |
-| `lovlynet_metadata` | object | Remote LovlyNet metadata (empty if not LovlyNet domain) |
+| `description` | string | Description |
+| `domain` | string | Domain (e.g., 'lovlynet') |
+| `is_sysop_only` | boolean | Sysop-only flag |
+| `lovlynet_metadata` | object | Remote LovlyNet metadata if domain is 'lovlynet' |
 | `lovlynet_setting_issues` | array | Array of setting mismatches with recommended vs actual values |
-| `lovlynet_has_setting_issues` | boolean | Whether any LovlyNet setting mismatches exist |
+| `lovlynet_has_setting_issues` | boolean | Whether any setting mismatches exist |
 
 **Error Responses**
 
@@ -1806,7 +1808,7 @@ Echo area object with full configuration and LovlyNet metadata
 
 ---
 
-#### `POST /api/echoareas` {#post-apiechoareas}
+#### `POST /api/echoareas`
 
 **Requires authentication**
 
@@ -1818,42 +1820,44 @@ Echo area configuration
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `tag` | string | Yes | Unique area tag (uppercase, alphanumeric + . _ - ') |
+| `tag` | string | Yes | Uppercase tag matching /^[A-Z0-9._'-]+$/ |
 | `description` | string | Yes | Human-readable description |
-| `moderator` | string | No | Moderator name |
-| `uplink_address` | string | No | FidoNet uplink address |
-| `color` | string | No | Hex color code (default: '#28a745') |
+| `moderator` | string|null | No | Moderator name |
+| `uplink_address` | string|null | No | FidoNet uplink address |
+| `color` | string | No | Hex color code (default: #28a745) |
 | `is_active` | boolean | No | Whether area is active |
 | `is_local` | boolean | No | Whether area is local-only |
-| `is_sysop_only` | boolean | No | Whether area is restricted to sysops |
+| `is_sysop_only` | boolean | No | Whether area is sysop-only |
 | `domain` | string | No | Domain name (e.g., 'lovlynet') |
-| `posting_name_policy` | string | No | Policy for posting names: 'real_name', 'username', or null for inherit |
-| `art_format_hint` | string | No | Art format hint: 'ansi', 'amiga_ansi', 'petscii', or null for auto |
-| `allow_media` | string | No | 'allow', 'deny', or 'inherit' (default) |
+| `posting_name_policy` | string|null | No | 'real_name', 'username', or null for inherit |
+| `art_format_hint` | string|null | No | 'ansi', 'amiga_ansi', 'petscii', or null for auto |
+| `allow_media` | string | No | 'allow'/'true', 'deny'/'false', or 'inherit' (default) |
+| `gemini_public` | boolean | No | Whether area is public on Gemini protocol |
 
 **Response** _(JSON)_
 
-Created echo area object with ID
+Created echo area with ID
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | Newly created echo area ID |
-| `tag` | string | Echo area tag |
+| `success` | boolean | true on success |
+| `id` | integer | New echo area ID |
+| `message_code` | string | Localization key for success message |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid input (tag format, duplicate tag, missing required fields) |
+| 400 | Validation error (invalid tag format, missing required fields, duplicate tag) |
 | 403 | Admin privileges required |
 
 ---
 
-#### `PUT /api/echoareas/{id}` {#put-apiechoareasid}
+#### `PUT /api/echoareas/{id}`
 
 **Requires authentication**
 
-Updates an existing echo area's configuration. Admin-only. Validates tag format and policy values. Supports partial updates; omitted fields retain current values. Null values inherit from system defaults.
+Updates an existing echo area's configuration. Admin-only. Validates all fields same as POST. Supports partial updates; omitted fields retain current values. Tag must be unique unless unchanged.
 
 **Path Parameters**
 
@@ -1863,47 +1867,47 @@ Updates an existing echo area's configuration. Admin-only. Validates tag format 
 
 **Request Body** _(JSON)_
 
-Echo area configuration (all fields optional)
+Echo area configuration (same as POST, all fields optional)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `tag` | string | No | Unique area tag (uppercase, alphanumeric + . _ - ') |
-| `description` | string | No | Human-readable description |
-| `moderator` | string | No | Moderator name |
-| `uplink_address` | string | No | FidoNet uplink address |
+| `tag` | string | No | Uppercase tag |
+| `description` | string | No | Description |
+| `moderator` | string|null | No | Moderator name |
+| `uplink_address` | string|null | No | FidoNet uplink address |
 | `color` | string | No | Hex color code |
-| `is_active` | boolean | No | Whether area is active |
-| `is_local` | boolean | No | Whether area is local-only |
-| `is_sysop_only` | boolean | No | Whether area is restricted to sysops |
+| `is_active` | boolean | No | Active status |
+| `is_local` | boolean | No | Local-only flag |
+| `is_sysop_only` | boolean | No | Sysop-only flag |
 | `domain` | string | No | Domain name |
-| `posting_name_policy` | string | No | 'real_name', 'username', or null for inherit |
-| `art_format_hint` | string | No | 'ansi', 'amiga_ansi', 'petscii', or null for auto |
-| `allow_media` | string | No | 'allow', 'deny', or 'inherit' |
+| `posting_name_policy` | string|null | No | Posting name policy |
+| `art_format_hint` | string|null | No | Art format hint |
+| `allow_media` | string | No | Media policy |
+| `gemini_public` | boolean | No | Gemini public flag |
 
 **Response** _(JSON)_
 
-Updated echo area object
+Updated echo area
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | Echo area ID |
-| `tag` | string | Echo area tag |
+| `success` | boolean | true on success |
+| `message_code` | string | Localization key |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid input or validation failure |
+| 400 | Validation error or echo area not found |
 | 403 | Admin privileges required |
-| 404 | Echo area not found |
 
 ---
 
-#### `DELETE /api/echoareas/{id}` {#delete-apiechoareasid}
+#### `DELETE /api/echoareas/{id}`
 
 **Requires authentication**
 
-Deletes an echo area only if it contains no messages. Admin-only. Returns error if area has messages; recommend deactivating instead. Performs hard delete from database.
+Deletes an echo area only if it contains no messages. Admin-only. Returns error if area has messages; deactivation is recommended instead. Cascades delete to subscriptions and related data.
 
 **Path Parameters**
 
@@ -1917,23 +1921,23 @@ Deletion confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether deletion succeeded |
+| `success` | boolean | true on success |
 | `message_code` | string | Localization key for success message |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Cannot delete area with messages or area not found |
+| 400 | Cannot delete area with messages, or area not found |
 | 403 | Admin privileges required |
 
 ---
 
-#### `GET /api/echoareas/stats` {#get-apiechoareasstats}
+#### `GET /api/echoareas/stats`
 
 **Requires authentication**
 
-Returns aggregate statistics for all echo areas: active count, total messages, and messages posted today. Lightweight endpoint for dashboard/status displays.
+Returns aggregate statistics for all echo areas: count of active areas, total messages across all areas, and messages posted today. Useful for dashboard/monitoring.
 
 **Response** _(JSON)_
 
@@ -1943,7 +1947,7 @@ Echo area statistics
 |-------|------|-------------|
 | `active_count` | integer | Number of active echo areas |
 | `total_messages` | integer | Total messages across all areas |
-| `today_messages` | integer | Messages posted today |
+| `today_messages` | integer | Messages posted today (UTC) |
 
 **Error Responses**
 
@@ -1953,11 +1957,11 @@ Echo area statistics
 
 ---
 
-#### `GET /api/echoareas/simple-list` {#get-apiechoareassimple-list}
+#### `GET /api/echoareas/simple-list`
 
-Public
+**Requires authentication**
 
-Returns a minimal echo area list optimized for UI dropdowns. Includes only id, tag, description, and domain fields. Sorted alphabetically by tag. Requires admin authentication.
+Returns a minimal echo area listing suitable for populating admin UI dropdowns. Includes only essential fields: id, tag, description, and domain. Sorted alphabetically by tag.
 
 **Response** _(JSON)_
 
@@ -1965,34 +1969,30 @@ Array of echo areas
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `echoareas` | array | List of echo area objects |
-| `echoareas[].id` | integer | Echo area ID |
-| `echoareas[].tag` | string | Echo area tag |
-| `echoareas[].description` | string | Echo area description |
-| `echoareas[].domain` | string | FidoNet domain |
+| `echoareas` | array | List of echo area objects with id, tag, description, domain |
 
 ---
 
-### Fileareas
+### Fileareas {#public-api-fileareas}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/fileareas`](#get-apifileareas) | Yes | List file areas with LovlyNet metadata. |
-| `GET` | [`/api/fileareas/{id}`](#get-apifileareasid) | No | Get detailed file area configuration. |
-| `POST` | [`/api/fileareas`](#post-apifileareas) | No | Create a new file area. |
-| `PUT` | [`/api/fileareas/{id}`](#put-apifileareasid) | No | Update an existing file area. |
-| `DELETE` | [`/api/fileareas/{id}`](#delete-apifileareasid) | No | Delete a file area. |
+| `GET` | [`/api/fileareas/{id}`](#get-apifileareasid) | Yes | Get detailed file area configuration. |
+| `POST` | [`/api/fileareas`](#post-apifileareas) | Yes | Create a new file area. |
+| `PUT` | [`/api/fileareas/{id}`](#put-apifileareasid) | Yes | Update an existing file area. |
+| `DELETE` | [`/api/fileareas/{id}`](#delete-apifileareasid) | Yes | Delete a file area. |
 | `GET` | [`/api/fileareas/stats`](#get-apifileareasstats) | Yes | Get file area statistics. |
-| `GET` | [`/api/fileareas/{id}/preview-iso`](#get-apifileareasidpreview-iso) | No | Preview ISO file import without committing changes. |
-| `POST` | [`/api/fileareas/{id}/reindex-iso`](#post-apifileareasidreindex-iso) | No | Re-index an ISO file area with optional overrides. |
-| `DELETE` | [`/api/fileareas/{id}/subfolder`](#delete-apifileareasidsubfolder) | No | Delete all files in a subfolder. |
-| `POST` | [`/api/fileareas/{id}/comment-area`](#post-apifileareasidcomment-area) | No | Admin: link, create, or unlink a comment echo area for a file area. |
+| `GET` | [`/api/fileareas/{id}/preview-iso`](#get-apifileareasidpreview-iso) | Yes | Preview ISO file import without committing changes. |
+| `POST` | [`/api/fileareas/{id}/reindex-iso`](#post-apifileareasidreindex-iso) | Yes | Re-index an ISO file area with optional overrides. |
+| `DELETE` | [`/api/fileareas/{id}/subfolder`](#delete-apifileareasidsubfolder) | Yes | Delete all files in a subfolder. |
+| `POST` | [`/api/fileareas/{id}/comment-area`](#post-apifileareasidcomment-area) | Yes | Admin: link, create, or unlink a comment echo area for a file area. |
 
-#### `GET /api/fileareas` {#get-apifileareas}
+#### `GET /api/fileareas`
 
 **Requires authentication**
 
-Retrieves file areas filtered by status and user permissions. Returns ISO mount point accessibility status. For LovlyNet-domain areas, fetches and includes remote metadata. Supports public (unauthenticated) access with restricted visibility.
+Retrieves file areas with filtering by status and user access level. Returns ISO mount point accessibility status. Fetches LovlyNet metadata for areas in the 'lovlynet' domain. Respects admin/user/public visibility rules.
 
 **Query Parameters**
 
@@ -2008,11 +2008,11 @@ Array of file area objects with metadata
 |-------|------|-------------|
 | `id` | integer | File area ID |
 | `tag` | string | File area tag |
-| `description` | string | Human-readable description |
-| `area_type` | string | Area type: 'iso', 'local', etc. |
+| `description` | string | Description |
+| `area_type` | string | Type: 'iso', 'local', etc. |
 | `iso_accessible` | boolean | Whether ISO mount point is readable (if area_type='iso') |
-| `domain` | string | Domain name (e.g., 'lovlynet') |
-| `lovlynet_metadata` | object | Remote LovlyNet metadata by tag |
+| `domain` | string | Domain name |
+| `is_active` | boolean | Whether area is active |
 
 **Error Responses**
 
@@ -2022,11 +2022,11 @@ Array of file area objects with metadata
 
 ---
 
-#### `GET /api/fileareas/{id}` {#get-apifileareasid}
+#### `GET /api/fileareas/{id}`
 
-Public
+**Requires authentication**
 
-Retrieves full configuration for a single file area. Admin-only. Includes ISO mount point accessibility status for ISO-type areas.
+Retrieves full configuration for a single file area including ISO mount point accessibility. Admin-only endpoint.
 
 **Path Parameters**
 
@@ -2036,12 +2036,12 @@ Retrieves full configuration for a single file area. Admin-only. Includes ISO mo
 
 **Response** _(JSON)_
 
-File area object with full configuration
+Single file area object with full configuration
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `filearea` | object | File area configuration object |
-| `iso_accessible` | boolean | Whether ISO mount point is readable (if area_type='iso') |
+| `iso_accessible` | boolean | Whether ISO mount point is readable (if applicable) |
 
 **Error Responses**
 
@@ -2052,9 +2052,9 @@ File area object with full configuration
 
 ---
 
-#### `POST /api/fileareas` {#post-apifileareas}
+#### `POST /api/fileareas`
 
-Public
+**Requires authentication**
 
 Creates a new file area with the provided configuration. Requires admin authentication. Returns the newly created file area ID on success. The request body should contain file area configuration details passed to FileAreaManager::createFileArea().
 
@@ -2080,11 +2080,11 @@ Success response with created file area ID
 
 ---
 
-#### `PUT /api/fileareas/{id}` {#put-apifileareasid}
+#### `PUT /api/fileareas/{id}`
 
-Public
+**Requires authentication**
 
-Updates a file area configuration by ID. Requires admin authentication. Accepts partial updates via the request body passed to FileAreaManager::updateFileArea().
+Updates a file area identified by ID with new configuration data. Requires admin authentication. Modifies the file area in-place and returns success status without the updated object.
 
 **Path Parameters**
 
@@ -2094,11 +2094,11 @@ Updates a file area configuration by ID. Requires admin authentication. Accepts 
 
 **Request Body** _(JSON)_
 
-File area configuration fields to update
+File area configuration updates
 
 **Response** _(JSON)_
 
-Success response confirming update
+Success response
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2109,15 +2109,15 @@ Success response confirming update
 
 | Status | Description |
 |--------|-------------|
-| 400 | Failed to update file area (invalid data or not found) |
+| 400 | Failed to update file area (invalid data or database error) |
 
 ---
 
-#### `DELETE /api/fileareas/{id}` {#delete-apifileareasid}
+#### `DELETE /api/fileareas/{id}`
 
-Public
+**Requires authentication**
 
-Permanently deletes a file area by ID. Requires admin authentication. This operation removes the file area record and associated data.
+Permanently deletes a file area and all associated data. Requires admin authentication. This operation cannot be undone.
 
 **Path Parameters**
 
@@ -2127,7 +2127,7 @@ Permanently deletes a file area by ID. Requires admin authentication. This opera
 
 **Response** _(JSON)_
 
-Success response confirming deletion
+Success response
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2138,15 +2138,15 @@ Success response confirming deletion
 
 | Status | Description |
 |--------|-------------|
-| 400 | Failed to delete file area (not found or database error) |
+| 400 | Failed to delete file area (database error) |
 
 ---
 
-#### `GET /api/fileareas/stats` {#get-apifileareasstats}
+#### `GET /api/fileareas/stats`
 
 **Requires authentication**
 
-Retrieves aggregated statistics for all file areas. Requires authentication. Returns stats filtered based on user permissions (guest users see limited data).
+Retrieves aggregated statistics for all file areas. Requires authentication. Returns different data based on user privilege level (guest vs. authenticated users).
 
 **Response** _(JSON)_
 
@@ -2154,11 +2154,11 @@ File area statistics object
 
 ---
 
-#### `GET /api/fileareas/{id}/preview-iso` {#get-apifileareasidpreview-iso}
+#### `GET /api/fileareas/{id}/preview-iso`
 
-Public
+**Requires authentication**
 
-Performs a dry-run scan of an ISO file area, returning directory entries with descriptions and import status. Requires admin authentication. Supports flat listing and catalogue-only modes via query parameters.
+Performs a dry-run scan of an ISO file area, returning directory entries with descriptions and import status. Requires admin authentication. Supports flat listing and catalogue-only modes via query parameters. Does not modify the database.
 
 **Path Parameters**
 
@@ -2170,31 +2170,30 @@ Performs a dry-run scan of an ISO file area, returning directory entries with de
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `flat` | boolean | No | If set, return flat file list instead of hierarchical |
-| `catalogue_only` | boolean | No | If set, only include catalogue entries |
+| `flat` | boolean | No | If set, return flat file list instead of hierarchical structure |
+| `catalogue_only` | boolean | No | If set, only include catalogued entries |
 
 **Response** _(JSON)_
 
-Preview data with directory entries and metadata
+Preview data with success flag and directory entries
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true on success |
-| `entries` | array | Directory entries with descriptions and status |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 500 | ISO preview failed (file read or parse error) |
+| 500 | ISO preview failed (file read or parsing error) |
 
 ---
 
-#### `POST /api/fileareas/{id}/reindex-iso` {#post-apifileareasidreindex-iso}
+#### `POST /api/fileareas/{id}/reindex-iso`
 
-Public
+**Requires authentication**
 
-Triggers re-indexing of an ISO file area, importing files into the database. Requires admin authentication. Supports flat mode, catalogue-only mode, and per-file overrides (description/skip). Returns import counters on completion.
+Triggers a re-index of an ISO file area, importing or updating file entries. Requires admin authentication. Supports per-file overrides for descriptions and skip flags. Returns import counters (added, updated, skipped, etc.).
 
 **Path Parameters**
 
@@ -2204,34 +2203,34 @@ Triggers re-indexing of an ISO file area, importing files into the database. Req
 
 **Request Body** _(JSON)_
 
-ISO import configuration and overrides
+ISO import configuration
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `flat` | boolean | No | Use flat file listing |
-| `catalogue_only` | boolean | No | Only import catalogue entries |
-| `overrides` | array | No | Array of {rel_path, description, skip} objects for per-file customization |
+| `flat` | boolean | No | Use flat import structure |
+| `catalogue_only` | boolean | No | Only import catalogued files |
+| `overrides` | array | No | Array of per-file overrides with rel_path, description, and skip flag |
 
 **Response** _(JSON)_
 
-Import completion with counters
+Import result with counters
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true on success |
-| `counters` | object | Import statistics (files added, updated, skipped, etc.) |
+| `counters` | object | Import statistics (added, updated, skipped, etc.) |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 500 | ISO re-index failed (file read, parse, or database error) |
+| 500 | ISO re-index failed (file processing or database error) |
 
 ---
 
-#### `DELETE /api/fileareas/{id}/subfolder` {#delete-apifileareasidsubfolder}
+#### `DELETE /api/fileareas/{id}/subfolder`
 
-Public
+**Requires authentication**
 
 Removes all files and iso_subdir records belonging to a specified subfolder path, including nested subfolders. Requires admin authentication. Returns count of deleted files.
 
@@ -2243,15 +2242,15 @@ Removes all files and iso_subdir records belonging to a specified subfolder path
 
 **Request Body** _(JSON)_
 
-Subfolder path to delete
+Subfolder deletion request
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `subfolder` | string | Yes | Relative subfolder path (e.g., 'incoming') |
+| `subfolder` | string | Yes | Subfolder path to delete (cannot be empty) |
 
 **Response** _(JSON)_
 
-Deletion confirmation with count
+Deletion result
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2262,16 +2261,16 @@ Deletion confirmation with count
 
 | Status | Description |
 |--------|-------------|
-| 400 | Subfolder parameter missing or empty |
-| 500 | Subfolder deletion failed (database error) |
+| 400 | Subfolder parameter is required or empty |
+| 500 | Failed to delete subfolder (database error) |
 
 ---
 
-#### `POST /api/fileareas/{id}/comment-area` {#post-apifileareasidcomment-area}
+#### `POST /api/fileareas/{id}/comment-area`
 
-Public
+**Requires authentication**
 
-Manages the comment echo area association for a file area. Supports three actions: 'link' (attach existing echo area), 'create' (create new echo area with tag), or 'unlink' (remove association). Tag validation enforces FidoNet naming conventions. Requires admin authentication.
+Manages the comment echo area association for a file area. Supports three actions: 'link' to attach an existing echo area, 'create' to generate a new echo area, or 'unlink' to remove the association. Tag validation enforces FidoNet naming conventions. Admin-only endpoint.
 
 **Path Parameters**
 
@@ -2281,7 +2280,7 @@ Manages the comment echo area association for a file area. Supports three action
 
 **Request Body** _(JSON)_
 
-Comment area action
+Comment area action configuration
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -2292,23 +2291,23 @@ Comment area action
 
 **Response** _(JSON)_
 
-Updated file area with comment_echoarea_id
+Updated file area with comment area configuration
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | File area ID |
-| `comment_echoarea_id` | integer|null | Linked echo area ID or null if unlinked |
+| `success` | boolean | Operation success status |
+| `comment_echoarea_id` | integer|null | ID of linked echo area, or null if unlinked |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Missing required field or invalid tag format |
+| 400 | Missing required field (echoarea_id for link, tag for create) or invalid tag format |
 | 404 | File area or echo area not found |
 
 ---
 
-### Files
+### Files {#public-api-files}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -2316,66 +2315,66 @@ Updated file area with comment_echoarea_id
 | `GET` | [`/api/files/recent`](#get-apifilesrecent) | Yes | Retrieve recently uploaded files across all accessible areas. |
 | `GET` | [`/api/files/my-uploads`](#get-apifilesmy-uploads) | Yes | List all files uploaded by the authenticated user. |
 | `GET` | [`/api/files/search`](#get-apifilessearch) | Yes | Search files by name and description across accessible areas. |
-| `GET` | [`/api/files/{id}`](#get-apifilesid) | Yes | Retrieve metadata for a specific file by ID. |
-| `POST` | [`/api/files/{id}/rehatch`](#post-apifilesidrehatch) | No | Re-hatch a file via the admin daemon (admin only). |
-| `GET` | [`/api/files/{id}/download`](#get-apifilesiddownload) | Yes | Download a file with optional credit deduction. |
+| `GET` | [`/api/files/{id}`](#get-apifilesid) | Yes | Retrieve detailed metadata for a specific file. |
+| `POST` | [`/api/files/{id}/rehatch`](#post-apifilesidrehatch) | Yes | Re-hatch a file via the admin daemon (admin only). |
+| `GET` | [`/api/files/{id}/download`](#get-apifilesiddownload) | Yes | Download a file with access control and credit deduction. |
 | `GET` | [`/api/files/{id}/preview`](#get-apifilesidpreview) | Yes | Preview a file inline (images, video, audio, text). |
 | `GET` | [`/api/files/{id}/prgs`](#get-apifilesidprgs) | Yes | Extract and return PRG files from archives as base64-encoded JSON. |
 | `GET` | [`/api/files/{id}/zip-contents`](#get-apifilesidzip-contents) | Yes | List non-directory entries inside a .zip file. |
 | `GET` | [`/api/files/{id}/zip-entry`](#get-apifilesidzip-entry) | Yes | Serve a single entry from a .zip file for inline preview. |
-| `GET` | [`/api/files/{id}/archive-contents`](#get-apifilesidarchive-contents) | Yes | List entries in any supported archive format (detected by magic bytes). |
-| `GET` | [`/api/files/{id}/archive-entry`](#get-apifilesidarchive-entry) | Yes | Serve a single entry from any supported archive format. |
+| `GET` | [`/api/files/{id}/archive-contents`](#get-apifilesidarchive-contents) | Yes | List entries in any supported archive format. |
+| `GET` | [`/api/files/{id}/archive-entry`](#get-apifilesidarchive-entry) | Yes | Serve a single entry from any supported archive. |
 | `POST` | [`/api/files/{id}/share`](#post-apifilesidshare) | Yes | Create a share link for a file. |
-| `GET` | [`/api/files/shared/check/{fileId}`](#get-apifilessharedcheckfileid) | Yes | Check if current user has an active share for a file. |
+| `GET` | [`/api/files/shared/check/{fileId}`](#get-apifilessharedcheckfileid) | Yes | Check if user has an active share for a file. |
 | `GET` | [`/api/files/shared/{area}/{filename}`](#get-apifilessharedareafilename) | Yes | Get shared file info by area tag and filename. |
 | `DELETE` | [`/api/files/shares/{shareId}`](#delete-apifilessharesshareid) | Yes | Revoke a file share link. |
 | `POST` | [`/api/files/upload`](#post-apifilesupload) | Yes | Upload a file to a file area with descriptions and optional cost deduction. |
 | `POST` | [`/api/files/add-link`](#post-apifilesadd-link) | Yes | Add an external URL link to a file area as a file entry. |
-| `POST` | [`/api/files/fetch-url-meta`](#post-apifilesfetch-url-meta) | Yes | Fetch page title and metadata from a URL to pre-fill file descriptions. |
-| `DELETE` | [`/api/files/{id}/delete`](#delete-apifilesiddelete) | Yes | Delete a file from a file area (owner or admin only). |
-| `PUT` | [`/api/files/{id}/rename`](#put-apifilesidrename) | Yes | Edit file name and/or descriptions (owner or admin only). |
+| `POST` | [`/api/files/fetch-url-meta`](#post-apifilesfetch-url-meta) | Yes | Fetch page title and metadata from a URL for link preview. |
+| `DELETE` | [`/api/files/{id}/delete`](#delete-apifilesiddelete) | Yes | Delete a file from a file area (owner or admin). |
+| `PUT` | [`/api/files/{id}/rename`](#put-apifilesidrename) | Yes | Edit file name and/or descriptions (owner or admin). |
 | `POST` | [`/api/files/{id}/scan`](#post-apifilesidscan) | Yes | Trigger on-demand ClamAV virus scan for a file (admin only). |
 | `PUT` | [`/api/files/{id}/scan-status`](#put-apifilesidscan-status) | Yes | Manually override virus scan status for a file (admin only). |
-| `GET` | [`/api/files/{id}/comments`](#get-apifilesidcomments) | Yes | Fetch threaded echomail comments for a file. |
+| `GET` | [`/api/files/{id}/comments`](#get-apifilesidcomments) | Yes | Fetch threaded echomail comments linked to a file. |
 | `POST` | [`/api/files/{id}/comments`](#post-apifilesidcomments) | Yes | Post a comment on a file, creating a thread root if needed. |
 
-#### `GET /api/files` {#get-apifiles}
+#### `GET /api/files`
 
 **Requires authentication**
 
-Retrieves files and subfolders from a file area. Requires authentication (guest access allowed for public areas). Supports optional subfolder filtering. Returns access-controlled results based on user permissions and area visibility settings.
+Retrieves files and subfolders from a specified file area. Supports public areas (guest access) and private areas (authenticated users only). Requires area_id query parameter. Optional subfolder parameter filters results; empty string or missing parameter returns root level. Returns subfolders, files, and breadcrumb navigation.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `area_id` | integer | Yes | File area ID to list |
-| `subfolder` | string | No | Optional subfolder path (empty string or omitted = root) |
+| `subfolder` | string | No | Subfolder path to list (omit or empty for root) |
 
 **Response** _(JSON)_
 
-Files and subfolders in the requested area/path
+Files and subfolders in the area
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `subfolders` | array | List of subdirectories |
-| `files` | array | List of files with metadata |
+| `files` | array | List of files in current folder |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 404 | File areas feature is disabled |
-| 400 | area_id query parameter is missing |
-| 403 | User lacks access to this file area |
+| 400 | File area ID is required |
+| 403 | User does not have access to this file area |
 
 ---
 
-#### `GET /api/files/recent` {#get-apifilesrecent}
+#### `GET /api/files/recent`
 
 **Requires authentication**
 
-Returns a paginated list of the most recently uploaded files visible to the authenticated user. Guests see only public files. The limit parameter is capped at 50 results. File areas feature must be enabled.
+Returns a paginated list of the most recently uploaded files visible to the authenticated user. Guests see only public files. The limit parameter is capped at 50 to prevent abuse. File areas must be enabled.
 
 **Query Parameters**
 
@@ -2385,11 +2384,11 @@ Returns a paginated list of the most recently uploaded files visible to the auth
 
 **Response** _(JSON)_
 
-Array of recent file objects with metadata
+Array of recent file objects
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `files` | array | List of file objects including filename, size, creation date, and area tag |
+| `files` | array | List of file objects with metadata |
 
 **Error Responses**
 
@@ -2399,15 +2398,15 @@ Array of recent file objects with metadata
 
 ---
 
-#### `GET /api/files/my-uploads` {#get-apifilesmy-uploads}
+#### `GET /api/files/my-uploads`
 
 **Requires authentication**
 
-Returns the current user's uploaded files along with a summary of their upload statistics. Requires authentication. File areas feature must be enabled.
+Returns the authenticated user's uploaded files along with a summary of their upload statistics. Requires authentication. File areas must be enabled.
 
 **Response** _(JSON)_
 
-User's uploads and aggregate statistics
+User's uploads and summary statistics
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2422,11 +2421,11 @@ User's uploads and aggregate statistics
 
 ---
 
-#### `GET /api/files/search` {#get-apifilessearch}
+#### `GET /api/files/search`
 
 **Requires authentication**
 
-Full-text search across filenames and short descriptions in all accessible file areas. Query must be at least 2 characters. Returns up to 100 results ordered by area tag and filename. Respects area access controls: guests see only public areas, users see public and their own private areas, admins see all active non-private areas.
+Full-text search across filenames and short descriptions in approved files. Query must be at least 2 characters. Returns up to 100 results ordered by area tag and filename. Respects area access controls: guests see only public areas, users see public + their private areas, admins see all active non-private areas.
 
 **Query Parameters**
 
@@ -2436,11 +2435,11 @@ Full-text search across filenames and short descriptions in all accessible file 
 
 **Response** _(JSON)_
 
-Search results with file metadata and area information
+Search results with file metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `results` | array | Array of matching files with id, filename, description, filesize, created_at, area_tag, and subfolder |
+| `results` | array | Array of matching files with id, filename, description, size, area_tag, and timestamps |
 
 **Error Responses**
 
@@ -2450,11 +2449,11 @@ Search results with file metadata and area information
 
 ---
 
-#### `GET /api/files/{id}` {#get-apifilesid}
+#### `GET /api/files/{id}`
 
 **Requires authentication**
 
-Returns detailed file information including metadata, area details, and access information. Guests can access files in public areas; authenticated users can access files in areas they have permission for. Admins and file owners can view unapproved uploads. File must be approved or owned by the requesting user.
+Returns full file details including metadata, area info, and access status. Guests can access files in public areas only. Authenticated users see approved files and their own pending/rejected uploads. Admins see all files. File must be approved or belong to the requesting user.
 
 **Path Parameters**
 
@@ -2464,7 +2463,7 @@ Returns detailed file information including metadata, area details, and access i
 
 **Response** _(JSON)_
 
-Complete file metadata and area information
+Complete file metadata object
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2478,15 +2477,15 @@ Complete file metadata and area information
 | Status | Description |
 |--------|-------------|
 | 404 | File not found or not accessible |
-| 401 | Authentication required for non-public areas |
+| 404 | File areas feature is disabled |
 
 ---
 
-#### `POST /api/files/{id}/rehatch` {#post-apifilesidrehatch}
+#### `POST /api/files/{id}/rehatch`
 
-Public
+**Requires authentication**
 
-Triggers a rehatch operation on a file by invoking file_hatch.php through the admin daemon. Cannot rehatch files in local-only or private areas. Admin-only endpoint.
+Triggers file_hatch.php to re-process a file's metadata and hatch information. Admin-only operation. Cannot rehatch files in local-only or private areas. Communicates with the admin daemon to perform the operation.
 
 **Path Parameters**
 
@@ -2500,25 +2499,26 @@ Rehatch operation result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether rehatch succeeded |
-| `result` | object | Rehatch operation output |
+| `success` | boolean | Whether rehatch completed successfully |
+| `result` | object | Daemon output and results |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | Admin access required |
+| 403 | Not an admin |
 | 404 | File not found |
-| 400 | Cannot rehatch local-only or private area files |
+| 400 | Cannot rehatch file in local-only area |
+| 400 | Cannot rehatch file in private area |
 | 500 | Rehatch operation failed |
 
 ---
 
-#### `GET /api/files/{id}/download` {#get-apifilesiddownload}
+#### `GET /api/files/{id}/download`
 
 **Requires authentication**
 
-Serves a file for download. Guests can download from public areas; authenticated users can download from accessible areas. Checks file approval status and user permissions. Supports netmail attachment senders downloading from recipient's private areas. File areas feature must be enabled.
+Serves a file for download with proper access control. Guests can download from public areas. Authenticated users can download approved files and their own unapprovedUploads. Admins bypass most restrictions. Senders of netmail attachments can always download their attachments. Download credits are deducted if configured.
 
 **Path Parameters**
 
@@ -2528,22 +2528,28 @@ Serves a file for download. Guests can download from public areas; authenticated
 
 **Response** _(JSON)_
 
-File binary content with appropriate Content-Type and Content-Disposition headers
+Binary file content with appropriate headers
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Content-Type` | string | MIME type of the file |
+| `Content-Disposition` | string | Attachment header with filename |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | File not found, not approved, or not accessible |
-| 401 | Authentication required for non-public areas |
+| 404 | File not found or not accessible |
+| 404 | File areas feature is disabled |
+| 403 | Insufficient download credits |
 
 ---
 
-#### `GET /api/files/{id}/preview` {#get-apifilesidpreview}
+#### `GET /api/files/{id}/preview`
 
 **Requires authentication**
 
-Serves a file for in-browser preview without charging download credits. Supports images, video, audio, and text files. Unknown types are served as attachments. Allows unauthenticated access via valid file shares or public areas. File must be approved.
+Serves a file for in-browser preview without charging download credits. Supports images, video, audio, and text files. Unknown types are served as attachments. Allows unauthenticated access via valid file shares or public areas. No credit deduction occurs.
 
 **Path Parameters**
 
@@ -2555,27 +2561,33 @@ Serves a file for in-browser preview without charging download credits. Supports
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `share_area` | string | No | File area tag for share-based access (unauthenticated) |
-| `share_filename` | string | No | Filename for share-based access (unauthenticated) |
+| `share_area` | string | No | File area tag for shared file access |
+| `share_filename` | string | No | Filename for shared file access |
 
 **Response** _(JSON)_
 
-File binary content with appropriate Content-Type for preview or attachment
+File content with inline Content-Disposition header
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Content-Type` | string | MIME type (image/*, video/*, audio/*, text/*, etc.) |
+| `Content-Disposition` | string | Inline header for browser preview |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 404 | File not found or not approved |
-| 401 | Authentication required (unless via valid share or public area) |
+| 404 | File areas feature is disabled |
+| 403 | Access denied to file area |
 
 ---
 
-#### `GET /api/files/{id}/prgs` {#get-apifilesidprgs}
+#### `GET /api/files/{id}/prgs`
 
 **Requires authentication**
 
-Extracts all PRG files from .prg, .zip, or .d64 archives and returns them as base64-encoded data with load addresses. Used for rendering PETSCII art in the file preview modal. The 2-byte PRG load address header is stripped before encoding. Allows unauthenticated access via valid file shares.
+Extracts all PRG files from .prg, .zip, or .d64 archives and returns them as base64-encoded data with load addresses. Used by the file preview modal to render PETSCII art. The 2-byte PRG load address header is stripped before encoding. Allows unauthenticated access via valid file shares.
 
 **Path Parameters**
 
@@ -2587,12 +2599,12 @@ Extracts all PRG files from .prg, .zip, or .d64 archives and returns them as bas
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `share_area` | string | No | File area tag for share-based access (unauthenticated) |
-| `share_filename` | string | No | Filename for share-based access (unauthenticated) |
+| `share_area` | string | No | File area tag for shared file access |
+| `share_filename` | string | No | Filename for shared file access |
 
 **Response** _(JSON)_
 
-Extracted PRG files with load addresses and disk metadata
+Extracted PRG files with metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2603,88 +2615,90 @@ Extracted PRG files with load addresses and disk metadata
 
 | Status | Description |
 |--------|-------------|
-| 404 | File not found, not approved, or feature disabled |
+| 404 | File not found or not approved |
+| 404 | File areas feature is disabled |
 | 403 | Access denied to file area |
 
 ---
 
-#### `GET /api/files/{id}/zip-contents` {#get-apifilesidzip-contents}
+#### `GET /api/files/{id}/zip-contents`
 
 **Requires authentication**
 
-Returns a JSON array of file entries (non-directories) contained within an approved .zip file. Accessible to authenticated users, file owners, admins, users with share links, and guests on public areas. The file must be approved and the feature must be enabled.
+Retrieves a list of all non-directory entries contained within a ZIP archive. Accessible to authenticated users, file owners via share links, or guests accessing public file areas. Returns entry metadata including path, name, and size. Requires the file to be approved and the file areas feature to be enabled.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | File ID of the .zip archive |
+| `id` | integer | File ID of the ZIP archive |
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `share_area` | string | No | File area tag for share link validation |
-| `share_filename` | string | No | Filename for share link validation |
+| `share_area` | string | No | File area tag for share link access |
+| `share_filename` | string | No | Filename for share link access |
 
 **Response** _(JSON)_
 
-JSON object containing archive entries
+JSON object containing array of ZIP entries
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `entries` | array | Array of file entries with path, name, and size |
-| `entries[].path` | string | Full path within the archive |
-| `entries[].name` | string | Filename only |
-| `entries[].size` | integer | File size in bytes |
+| `entries` | array | Array of entry objects with path, name, and size |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 401 | Authentication required and no valid access (not authenticated, shared, or public) |
-| 404 | Feature disabled, file not found, or file not approved |
+| 401 | Authentication required and no valid auth/share/public access provided |
+| 404 | File not found, not approved, or feature disabled |
 
 ---
 
-#### `GET /api/files/{id}/zip-entry` {#get-apifilesidzip-entry}
+#### `GET /api/files/{id}/zip-entry`
 
 **Requires authentication**
 
-Extracts and serves a single file from within a .zip archive. Content-Type and encoding are determined by file type; known text/media types are previewed inline, unknown types are served as attachments. Respects the same access controls as zip-contents.
+Extracts and serves a single file entry from within a ZIP archive. Applies content-type detection and encoding logic for known file types to enable inline preview; unknown types are served as attachments for download. Accessible via authentication, share links, or public file areas. The file must be approved.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | File ID of the .zip archive |
+| `id` | integer | File ID of the ZIP archive |
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `path` | string | Yes | Path to the entry within the archive (e.g., 'subdir/file.txt') |
-| `share_area` | string | No | File area tag for share link validation |
-| `share_filename` | string | No | Filename for share link validation |
+| `path` | string | Yes | Path to the entry within the ZIP (e.g., 'subdir/file.txt') |
+| `share_area` | string | No | File area tag for share link access |
+| `share_filename` | string | No | Filename for share link access |
 
 **Response** _(JSON)_
 
 Raw file content with appropriate Content-Type header
 
+| Field | Type | Description |
+|-------|------|-------------|
+| `body` | binary | File entry content |
+
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 401 | Authentication required and no valid access |
-| 404 | Feature disabled, file not found, file not approved, or entry not found in archive |
+| 401 | Authentication required and no valid auth/share/public access provided |
+| 404 | File not found, not approved, feature disabled, or entry not found in archive |
 
 ---
 
-#### `GET /api/files/{id}/archive-contents` {#get-apifilesidarchive-contents}
+#### `GET /api/files/{id}/archive-contents`
 
 **Requires authentication**
 
-Returns archive contents for ZIP, TAR, TAR.GZ, RAR, 7Z, and other supported formats. Format is auto-detected from file magic bytes rather than extension. Includes archive type, label, entry list, and total count. Accessible to authenticated users, file owners, admins, users with share links, and guests on public areas.
+Retrieves a list of all entries from an archive file (ZIP, TAR, RAR, 7Z, etc.), auto-detected by magic bytes. Returns archive type, human-readable label, entry list, and total count. Accessible to authenticated users, share link holders, or guests on public file areas. File must be approved.
 
 **Path Parameters**
 
@@ -2696,8 +2710,8 @@ Returns archive contents for ZIP, TAR, TAR.GZ, RAR, 7Z, and other supported form
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `share_area` | string | No | File area tag for share link validation |
-| `share_filename` | string | No | Filename for share link validation |
+| `share_area` | string | No | File area tag for share link access |
+| `share_filename` | string | No | Filename for share link access |
 
 **Response** _(JSON)_
 
@@ -2707,23 +2721,23 @@ JSON object with archive metadata and entry list
 |-------|------|-------------|
 | `type` | string | Archive format code (e.g., 'zip', 'tar', 'rar') |
 | `label` | string | Human-readable archive type label |
-| `entries` | array | Array of archive entries |
+| `entries` | array | Array of entry objects |
 | `total` | integer | Total number of entries |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 401 | Authentication required and no valid access |
-| 404 | Feature disabled, file not found, file not approved, or unsupported archive format |
+| 401 | Authentication required and no valid auth/share/public access provided |
+| 404 | File not found, not approved, feature disabled, or unsupported archive format |
 
 ---
 
-#### `GET /api/files/{id}/archive-entry` {#get-apifilesidarchive-entry}
+#### `GET /api/files/{id}/archive-entry`
 
 **Requires authentication**
 
-Extracts and serves a file from any supported archive (ZIP, TAR, TAR.GZ, RAR, 7Z, etc.) detected by magic bytes. Content-Type and encoding follow the same logic as zip-entry. Respects the same access controls as archive-contents.
+Extracts and serves a single file entry from any supported archive format (auto-detected by magic bytes). Applies content-type detection for inline preview or download based on file type. Accessible via authentication, share links, or public file areas.
 
 **Path Parameters**
 
@@ -2736,27 +2750,31 @@ Extracts and serves a file from any supported archive (ZIP, TAR, TAR.GZ, RAR, 7Z
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `path` | string | Yes | Path to the entry within the archive |
-| `share_area` | string | No | File area tag for share link validation |
-| `share_filename` | string | No | Filename for share link validation |
+| `share_area` | string | No | File area tag for share link access |
+| `share_filename` | string | No | Filename for share link access |
 
 **Response** _(JSON)_
 
 Raw file content with appropriate Content-Type header
 
+| Field | Type | Description |
+|-------|------|-------------|
+| `body` | binary | File entry content |
+
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 401 | Authentication required and no valid access |
-| 404 | Feature disabled, file not found, file not approved, unsupported format, or entry not found |
+| 401 | Authentication required and no valid auth/share/public access provided |
+| 404 | File not found, not approved, feature disabled, or entry not found in archive |
 
 ---
 
-#### `POST /api/files/{id}/share` {#post-apifilesidshare}
+#### `POST /api/files/{id}/share`
 
 **Requires authentication**
 
-Generates a shareable link for an approved file. Returns an existing share if one already exists. Requires authentication. Supports optional expiration time and frequency-accessible flag. Returns share metadata including the share URL.
+Generates a shareable link for a file, allowing unauthenticated access. If a share already exists, returns the existing share. Supports optional expiration in hours and frequency-accessible flag. Returns share metadata including ID and access tracking info.
 
 **Path Parameters**
 
@@ -2766,7 +2784,7 @@ Generates a shareable link for an approved file. Returns an existing share if on
 
 **Request Body** _(JSON)_
 
-JSON object with share options
+Share creation parameters
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -2775,29 +2793,27 @@ JSON object with share options
 
 **Response** _(JSON)_
 
-JSON object with share creation result
+Share creation result with share details
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether share was created or already exists |
-| `share_id` | integer | ID of the share |
-| `share_url` | string | Full URL to access the shared file |
+| `success` | boolean | Operation success status |
+| `share_id` | integer | ID of the created or existing share |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 401 | Authentication required |
-| 404 | Feature disabled or file not found |
-| 400 | Invalid input or share creation failed |
+| 400 | Invalid file ID, file not found, or access denied |
+| 404 | Feature disabled |
 
 ---
 
-#### `GET /api/files/shared/check/{fileId}` {#get-apifilessharedcheckfileid}
+#### `GET /api/files/shared/check/{fileId}`
 
 **Requires authentication**
 
-Verifies whether the authenticated user has an existing share link for a file. Returns share metadata including the share URL, access count, and revocation permissions. Useful for UI to show share status and allow revocation.
+Verifies whether the authenticated user has an active share link for a specific file. Returns the share URL in area/filename format, access count, last access timestamp, and revocation permission. Useful for UI to show existing shares.
 
 **Path Parameters**
 
@@ -2807,32 +2823,31 @@ Verifies whether the authenticated user has an existing share link for a file. R
 
 **Response** _(JSON)_
 
-JSON object with share status
+Share existence and details
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Request succeeded |
-| `exists` | boolean | Whether a share exists (if success=true and exists=false, no share found) |
-| `share_id` | integer | ID of the share (if exists) |
-| `share_url` | string | Full URL to access the shared file (if exists) |
-| `access_count` | integer | Number of times share has been accessed (if exists) |
-| `last_accessed_at` | string | ISO timestamp of last access (if exists) |
-| `can_revoke` | boolean | Whether current user can revoke this share (if exists) |
+| `success` | boolean | Query success status |
+| `exists` | boolean | Whether a share exists (if false, other fields omitted) |
+| `share_id` | integer | Share ID (if exists) |
+| `share_url` | string | Full share URL (if exists) |
+| `access_count` | integer | Number of times share has been accessed |
+| `last_accessed_at` | string | ISO timestamp of last access |
+| `can_revoke` | boolean | Whether user can revoke this share |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 401 | Authentication required |
 | 404 | Feature disabled |
 
 ---
 
-#### `GET /api/files/shared/{area}/{filename}` {#get-apifilessharedareafilename}
+#### `GET /api/files/shared/{area}/{filename}`
 
 **Requires authentication**
 
-Retrieves metadata for a shared file using its area tag and filename. No authentication required for access, but validates that a valid share link exists. Returns file details and share information. Used by share link recipients to access file metadata.
+Retrieves metadata for a shared file using its file area tag and filename. No authentication required for accessing shared files. Returns file details if the share is active and valid. Used by share link endpoints to serve files.
 
 **Path Parameters**
 
@@ -2843,56 +2858,55 @@ Retrieves metadata for a shared file using its area tag and filename. No authent
 
 **Response** _(JSON)_
 
-JSON object with shared file metadata
+Shared file metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether file was found and share is valid |
-| `file` | object | File metadata (if success=true) |
+| `success` | boolean | Query success status |
+| `file` | object | File object with id, filename, size, and other metadata |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Feature disabled, file not found, or share link invalid/expired |
+| 404 | Share not found, expired, or feature disabled |
 
 ---
 
-#### `DELETE /api/files/shares/{shareId}` {#delete-apifilessharesshareid}
+#### `DELETE /api/files/shares/{shareId}`
 
 **Requires authentication**
 
-Deletes a share link, preventing further access via that link. Only the share creator or an admin can revoke. Requires authentication. Returns success message on revocation.
+Deletes a share link, preventing further access via that share. Only the share creator or admins can revoke. Returns success confirmation with localized message code.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `shareId` | integer | ID of the share to revoke |
+| `shareId` | integer | Share ID to revoke |
 
 **Response** _(JSON)_
 
-JSON object with revocation result
+Revocation result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether share was revoked |
+| `success` | boolean | Revocation success status |
 | `message_code` | string | Localization key for success message |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 401 | Authentication required |
-| 404 | Feature disabled, share not found, or user not permitted to revoke |
+| 404 | Share not found or user lacks permission to revoke |
 
 ---
 
-#### `POST /api/files/upload` {#post-apifilesupload}
+#### `POST /api/files/upload`
 
 **Requires authentication**
 
-Accepts multipart form data to upload a file to a specified file area. Requires file_area_id, short_description, and optionally long_description. Validates file area access permissions, upload permissions (read-only areas rejected), and may deduct upload costs from user account. Returns file metadata including ID, hash, and size on success.
+Accepts multipart form data to upload a file to a specified file area. Requires file_area_id, short_description, and optionally long_description. Validates file area access permissions, upload permissions (read-only areas rejected), and user quotas. May deduct upload costs from user account if configured. Returns file metadata including ID, hash, and size on success.
 
 **Request Body** _(JSON)_
 
@@ -2900,62 +2914,64 @@ Multipart form data with file and metadata
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `file` | file | Yes | The file to upload |
+| `file` | file | Yes | Binary file to upload |
 | `file_area_id` | integer | Yes | Target file area ID |
 | `short_description` | string | Yes | Brief file description (max 255 chars) |
-| `long_description` | string | No | Extended file description |
+| `long_description` | string | No | Extended description |
 
 **Response** _(JSON)_
 
-File upload result with metadata
+Uploaded file metadata and transaction details
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Upload success status |
-| `file_id` | integer | Newly created file ID |
+| `success` | boolean | Operation success flag |
+| `file_id` | integer | ID of uploaded file |
 | `filename` | string | Stored filename |
-| `file_hash` | string | SHA-256 hash of uploaded file |
+| `file_hash` | string | SHA-256 hash of file |
 | `file_size` | integer | File size in bytes |
-| `upload_cost_charged` | boolean | Whether upload cost was deducted |
+| `upload_cost_charged` | boolean | Whether cost was deducted |
+| `upload_cost` | integer | Cost deducted (if any) |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 404 | File areas feature disabled |
-| 400 | Missing required fields (file, file_area_id, short_description) |
-| 403 | Access denied to file area or read-only area |
-| 413 | File exceeds size limit |
+| 400 | Missing required fields or invalid file area ID |
+| 403 | Access denied, read-only area, or quota exceeded |
+| 413 | File too large |
 
 ---
 
-#### `POST /api/files/add-link` {#post-apifilesadd-link}
+#### `POST /api/files/add-link`
 
 **Requires authentication**
 
-Creates a file area entry pointing to an external URL instead of uploading binary data. Requires valid URL, file_area_id, and short_description. Validates file area access and upload permissions. May deduct upload costs. Useful for cataloging external resources within file areas.
+Creates a file entry pointing to an external URL instead of uploading binary data. Requires file_area_id, valid URL, and short_description. Validates file area access and upload permissions. Optionally deducts link-creation costs. URL must pass FILTER_VALIDATE_URL validation.
 
 **Request Body** _(JSON)_
 
-JSON body with link metadata
+JSON object with link metadata
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `file_area_id` | integer | Yes | Target file area ID |
-| `url` | string | Yes | Valid external URL |
-| `file_name` | string | No | Display name for the link |
+| `url` | string | Yes | External URL (must be valid) |
+| `file_name` | string | No | Display name for link |
 | `short_description` | string | Yes | Brief description (max 255 chars) |
 | `long_description` | string | No | Extended description |
 
 **Response** _(JSON)_
 
-Link creation result
+Created link entry metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Link creation success |
-| `file_id` | integer | Newly created file entry ID |
+| `success` | boolean | Operation success flag |
+| `file_id` | integer | ID of created link entry |
 | `url` | string | Stored URL |
+| `upload_cost_charged` | boolean | Whether cost was deducted |
 
 **Error Responses**
 
@@ -2967,15 +2983,15 @@ Link creation result
 
 ---
 
-#### `POST /api/files/fetch-url-meta` {#post-apifilesfetch-url-meta}
+#### `POST /api/files/fetch-url-meta`
 
 **Requires authentication**
 
-Server-side metadata scraper to avoid CORS issues. Extracts page title (short_description) and og:description (long_description) from HTML. Special handling for YouTube via oEmbed API. Returns extracted metadata or empty strings if unavailable. Useful for auto-populating file link descriptions.
+Server-side metadata scraper to avoid CORS issues. Extracts page title (short_description) and og:description (long_description) from HTML. Special handling for YouTube via oEmbed API. Returns empty strings if metadata unavailable. Timeout: 8 seconds per request.
 
 **Request Body** _(JSON)_
 
-JSON body with URL
+JSON object with URL
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -2987,8 +3003,8 @@ Extracted metadata from URL
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `short_description` | string | Page title or YouTube video title (max 255 chars) |
-| `long_description` | string | og:description meta tag content |
+| `short_description` | string | Page title (max 255 chars) |
+| `long_description` | string | og:description or meta description |
 | `og_image_url` | string | og:image URL if available |
 
 **Error Responses**
@@ -3000,11 +3016,11 @@ Extracted metadata from URL
 
 ---
 
-#### `DELETE /api/files/{id}/delete` {#delete-apifilesiddelete}
+#### `DELETE /api/files/{id}/delete`
 
 **Requires authentication**
 
-Removes a file entry and associated data. Owner or admin required. ISO-backed files (from ISO imports) cannot be deleted by non-admins. Returns success message on deletion.
+Removes a file entry and associated data. Owner or admin required. ISO-backed files (source_type='iso_import') cannot be deleted by non-admins. Returns success message on deletion.
 
 **Path Parameters**
 
@@ -3018,7 +3034,7 @@ Deletion confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Deletion success |
+| `success` | boolean | Deletion successful |
 | `message_code` | string | Localization key for success message |
 
 **Error Responses**
@@ -3026,15 +3042,15 @@ Deletion confirmation
 | Status | Description |
 |--------|-------------|
 | 404 | File areas feature disabled |
-| 403 | ISO-backed file cannot be deleted or insufficient permissions |
+| 403 | Access denied or ISO-backed file cannot be deleted |
 
 ---
 
-#### `PUT /api/files/{id}/rename` {#put-apifilesidrename}
+#### `PUT /api/files/{id}/rename`
 
 **Requires authentication**
 
-Updates file metadata: filename, short_description, long_description, and optionally file_area_id (admin only). All fields optional; omit to skip update. Filename and short_description must be non-empty if provided. ISO-backed files cannot be renamed or moved. Returns updated file metadata.
+Updates file metadata. filename, short_description, long_description, url, and file_area_id are all optional; omit to skip update. If provided, filename and short_description must be non-empty. Only admins may move files (file_area_id). ISO-backed files cannot be renamed or moved, but descriptions may be edited.
 
 **Path Parameters**
 
@@ -3044,15 +3060,15 @@ Updates file metadata: filename, short_description, long_description, and option
 
 **Request Body** _(JSON)_
 
-JSON body with optional file updates
+JSON object with optional fields to update
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `filename` | string | No | New filename (non-empty if provided) |
 | `short_description` | string | No | New short description (non-empty if provided) |
-| `long_description` | string | No | New long description |
-| `file_area_id` | integer | No | Move file to different area (admin only) |
-| `url` | string | No | Update URL for link-type files |
+| `long_description` | string | No | New long description (empty string clears it) |
+| `url` | string | No | New URL for link entries |
+| `file_area_id` | integer | No | Move to different area (admin only) |
 
 **Response** _(JSON)_
 
@@ -3060,8 +3076,8 @@ Updated file metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Update success |
-| `file` | object | Updated file record with id, filename, descriptions, etc. |
+| `success` | boolean | Update successful |
+| `file` | object | Updated file record |
 
 **Error Responses**
 
@@ -3069,15 +3085,15 @@ Updated file metadata
 |--------|-------------|
 | 404 | File areas feature disabled or file not found |
 | 400 | Filename or short_description empty when provided |
-| 403 | ISO-backed file cannot be renamed/moved, or insufficient permissions |
+| 403 | Access denied, non-admin move attempt, or ISO-backed file rename/move |
 
 ---
 
-#### `POST /api/files/{id}/scan` {#post-apifilesidscan}
+#### `POST /api/files/{id}/scan`
 
 **Requires authentication**
 
-Initiates an immediate virus scan via ClamAV daemon. Admin-only. Requires virus scanning to be enabled. Returns scan result (clean/infected), detected signature if infected, and scanned flag.
+Initiates asynchronous virus scan via admin daemon. Admin-only endpoint. Returns scan result (clean/infected), signature if infected, and scanned flag. Requires VIRUS_SCAN_DISABLED != 'true' in config.
 
 **Path Parameters**
 
@@ -3087,14 +3103,14 @@ Initiates an immediate virus scan via ClamAV daemon. Admin-only. Requires virus 
 
 **Response** _(JSON)_
 
-Virus scan result
+Scan result from ClamAV
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Scan execution success |
-| `result` | string | Scan result: 'clean' or 'infected' |
+| `success` | boolean | Scan initiated successfully |
+| `result` | string | Scan result: 'clean', 'infected', or null |
 | `signature` | string | Malware signature if infected |
-| `scanned` | boolean | Whether file was scanned |
+| `scanned` | boolean | Whether scan completed |
 
 **Error Responses**
 
@@ -3102,15 +3118,15 @@ Virus scan result
 |--------|-------------|
 | 404 | File areas feature disabled |
 | 403 | Admin access required or virus scanning disabled |
-| 500 | Scan failed (daemon error) |
+| 500 | Scan daemon communication failed |
 
 ---
 
-#### `PUT /api/files/{id}/scan-status` {#put-apifilesidscan-status}
+#### `PUT /api/files/{id}/scan-status`
 
 **Requires authentication**
 
-Allows admins to set scan status without running ClamAV. Accepts 'not_scanned', 'clean', or 'infected'. If infected, optionally include signature. Updates virus_scanned, virus_scan_result, virus_signature, and virus_scanned_at fields.
+Sets scan status to not_scanned, clean, or infected without running ClamAV. Admin-only. Optionally stores signature for infected status. Updates virus_scanned, virus_scan_result, virus_signature, and virus_scanned_at fields.
 
 **Path Parameters**
 
@@ -3120,12 +3136,12 @@ Allows admins to set scan status without running ClamAV. Accepts 'not_scanned', 
 
 **Request Body** _(JSON)_
 
-JSON body with scan status override
+JSON object with scan status override
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `status` | string | Yes | Scan status: 'not_scanned', 'clean', or 'infected' |
-| `signature` | string | No | Malware signature (required if status='infected') |
+| `status` | string | Yes | One of: 'not_scanned', 'clean', 'infected' |
+| `signature` | string | No | Malware signature (used if status='infected') |
 
 **Response** _(JSON)_
 
@@ -3133,7 +3149,7 @@ Status update confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Update success |
+| `success` | boolean | Status updated successfully |
 
 **Error Responses**
 
@@ -3145,11 +3161,11 @@ Status update confirmation
 
 ---
 
-#### `GET /api/files/{id}/comments` {#get-apifilesidcomments}
+#### `GET /api/files/{id}/comments`
 
 **Requires authentication**
 
-Retrieves all comments posted about a file via its linked comment echo area. Uses FILEREF kludge (new and legacy formats) and subject matching to identify thread root, then recursively fetches all replies. Returns threaded comment structure with from_name, subject, message_text, and date_written. Returns empty if no comment echo area linked.
+Retrieves all comments for a file via its file area's linked comment echoarea. Uses FILEREF kludge (new and legacy formats) and subject matching to build thread tree. Returns empty array if no comment echoarea linked. Includes from_name, subject, message_text, and date_written for each comment.
 
 **Path Parameters**
 
@@ -3159,7 +3175,7 @@ Retrieves all comments posted about a file via its linked comment echo area. Use
 
 **Response** _(JSON)_
 
-Threaded comments for file
+Threaded comment messages
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -3175,17 +3191,17 @@ Threaded comments for file
 
 ---
 
-#### `POST /api/files/{id}/comments` {#post-apifilesidcomments}
+#### `POST /api/files/{id}/comments`
 
 **Requires authentication**
 
-Creates a comment on a file in its linked comment echo area. If no comment thread exists, one is created automatically. The comment body is required and non-empty. Respects sysop-only restrictions on the comment echo area. Requires authentication.
+Creates a comment on a file in its linked comment echo area. If no comment thread exists, one is created automatically. The file area must have a comment echo area configured. Respects sysop-only restrictions on the comment area. Supports optional reply threading via reply_to_id.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | File ID to comment on |
+| `id` | integer | File ID |
 
 **Request Body** _(JSON)_
 
@@ -3194,48 +3210,46 @@ Comment data
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `body` | string | Yes | Comment text (non-empty) |
-| `reply_to_id` | integer | No | ID of comment to reply to (creates nested reply) |
+| `reply_to_id` | integer | No | ID of message to reply to within the comment thread |
 
 **Response** _(JSON)_
 
-Created comment object with ID and metadata
+Comment creation result with message details
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | Comment ID |
-| `body` | string | Comment text |
-| `author` | string | Commenter username |
-| `created_at` | string | ISO 8601 timestamp |
+| `success` | boolean | Operation success status |
+| `message_id` | integer | ID of created comment message |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Comment body is empty |
-| 403 | Comments disabled for file area or user lacks sysop permission |
+| 400 | Comment body is required or empty |
+| 403 | Comments not enabled for file area, or user lacks permission (sysop-only area) |
 | 404 | File not found |
 
 ---
 
-### Freq Log
+### Freq Log {#public-api-freq-log}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/admin/api/freq-log`](#get-adminapifreq-log) | No | Retrieve paginated file request frequency log (admin). |
+| `GET` | [`/admin/api/freq-log`](#get-adminapifreq-log) | Yes | Query file request frequency log with filtering. |
 
-#### `GET /admin/api/freq-log` {#get-adminapifreq-log}
+#### `GET /admin/api/freq-log`
 
-Public
+**Requires authentication**
 
-Admin endpoint for viewing file request history with pagination and filtering. Supports filtering by requesting node, filename, served status, and source. Returns paginated results ordered by request timestamp descending.
+Paginated admin endpoint for viewing file request logs. Supports filtering by requesting node, filename, served status, and source. Returns paginated results with total count. Requires admin authentication.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `page` | integer | No | Page number (default 1, minimum 1) |
-| `node` | string | No | Filter by requesting node (case-insensitive substring match) |
-| `filename` | string | No | Filter by filename (case-insensitive substring match) |
+| `page` | integer | No | Page number (default 1) |
+| `node` | string | No | Filter by requesting node (partial match) |
+| `filename` | string | No | Filter by filename (partial match) |
 | `served` | string | No | Filter by served status ('0' or '1') |
 | `source` | string | No | Filter by request source |
 
@@ -3245,8 +3259,8 @@ Paginated frequency log entries
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Always true on success |
-| `entries` | array | Array of log entries with id, requested_at, requesting_node, filename, served, deny_reason, file_size, source |
+| `success` | boolean | Operation success indicator |
+| `entries` | array | Log entries with id, requested_at, requesting_node, filename, served, deny_reason, file_size, source |
 | `total` | integer | Total matching entries across all pages |
 | `page` | integer | Current page number |
 | `per_page` | integer | Entries per page (50) |
@@ -3255,39 +3269,40 @@ Paginated frequency log entries
 
 | Status | Description |
 |--------|-------------|
-| 403 | Admin authentication required |
+| 401 | Authentication required |
+| 403 | Admin privileges required |
 
 ---
 
-### I18n
+### I18n {#public-api-i18n}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/i18n/catalog`](#get-apii18ncatalog) | Yes | Retrieve i18n translation catalogs for client-side use. |
+| `GET` | [`/api/i18n/catalog`](#get-apii18ncatalog) | Yes | Fetch i18n translation catalogs for specified namespaces. |
 
-#### `GET /api/i18n/catalog` {#get-apii18ncatalog}
+#### `GET /api/i18n/catalog`
 
 **Requires authentication**
 
-Loads translation catalogs for specified namespaces and locale. Supports lazy namespace loading via comma-separated query parameter. Resolves locale from request parameter, user preferences, or system default. Persists resolved locale for future requests.
+Returns localized translation catalogs for one or more namespaces. Supports lazy loading of specific namespaces and locale resolution based on query parameter, user preferences, or system default. Persists resolved locale for the session.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `locale` | string | No | Requested locale code (e.g., 'en', 'de'). Falls back to user preference or default if not provided |
-| `ns` | string | No | Comma-separated list of namespace names to load (default: 'common') |
+| `locale` | string | No | Requested locale code (e.g., 'en', 'de'). Falls back to user preference or system default if not provided |
+| `ns` | string | No | Comma-separated list of namespace names to load (default: 'common'). Example: 'common,errors,admin' |
 
 **Response** _(JSON)_
 
-Translation catalogs for requested namespaces and locale
+Localized translation catalogs
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether catalogs were loaded |
-| `locale` | string | The resolved locale code |
+| `success` | boolean | Whether catalogs were successfully loaded |
+| `locale` | string | The resolved locale code used for translations |
 | `default_locale` | string | The system default locale |
-| `catalogs` | object | Object mapping namespace names to translation key-value pairs |
+| `catalogs` | object | Object mapping namespace names to their translation key-value pairs |
 
 **Error Responses**
 
@@ -3297,48 +3312,47 @@ Translation catalogs for requested namespaces and locale
 
 ---
 
-### Interests
+### Interests {#public-api-interests}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/interests/`](#get-apiinterests) | No | List all active interests with subscription status. |
+| `GET` | [`/api/interests/`](#get-apiinterests) | No | Retrieve all active interests with subscription status. |
 | `POST` | [`/api/interests/{id}/subscribe`](#post-apiinterestsidsubscribe) | Yes | Subscribe authenticated user to an interest with optional echo area selection. |
 | `POST` | [`/api/interests/{id}/unsubscribe`](#post-apiinterestsidunsubscribe) | Yes | Unsubscribe authenticated user from an interest or specific echo areas. |
 | `POST` | [`/api/interests/{id}/manage-areas`](#post-apiinterestsidmanage-areas) | Yes | Replace user's subscribed echo areas within an interest. |
 | `GET` | [`/api/interests/{id}/echoareas`](#get-apiinterestsidechoareas) | No | List echo areas belonging to an interest with optional subscription status. |
-| `GET` | [`/api/interests/{id}/stats`](#get-apiinterestsidstats) | Yes | Get message statistics for an interest's subscribed echo areas. |
+| `GET` | [`/api/interests/{id}/stats`](#get-apiinterestsidstats) | Yes | Get message statistics for an interest's echo areas. |
 | `GET` | [`/api/interests/{id}/messages`](#get-apiinterestsidmessages) | Yes | Get paginated echomail messages from an interest's echo areas. |
 
-#### `GET /api/interests/` {#get-apiinterests}
+#### `GET /api/interests/`
 
 Public
 
-Returns all active interests in the system. When the request is authenticated, each interest includes a 'subscribed' boolean indicating whether the current user is subscribed. When unauthenticated, all interests are returned with subscribed=false. Returns 404 if the ENABLE_INTERESTS feature is disabled.
+Returns a list of all active interests. When the request is authenticated, each interest includes a `subscribed` boolean indicating whether the current user is subscribed. When unauthenticated, all interests have `subscribed: false`. Feature can be disabled via ENABLE_INTERESTS environment variable.
 
 **Response** _(JSON)_
 
-List of active interests with subscription status
+List of active interests
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `interests` | array | Array of interest objects |
-| `interests[].id` | integer | Interest ID |
-| `interests[].name` | string | Interest name/title |
-| `interests[].subscribed` | boolean | Whether the current user is subscribed (false if unauthenticated) |
+| `interests` | array | Array of interest objects with subscription status |
+| `id` | integer | Interest ID (nested in interests array) |
+| `subscribed` | boolean | True if authenticated user is subscribed to this interest |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Interests feature is disabled (ENABLE_INTERESTS != true) |
+| 404 | Interests feature is disabled (ENABLE_INTERESTS != 'true') |
 
 ---
 
-#### `POST /api/interests/{id}/subscribe` {#post-apiinterestsidsubscribe}
+#### `POST /api/interests/{id}/subscribe`
 
 **Requires authentication**
 
-Subscribes the authenticated user to an interest. If `echoarea_ids` array is provided in the request body, subscribes only to those specific echo areas within the interest; otherwise subscribes to all echo areas. Returns success status and subscription confirmation. Requires ENABLE_INTERESTS feature flag.
+Subscribes the authenticated user to an interest. If `echoarea_ids` array is provided in the request body, subscribes only to those specific echo areas within the interest; otherwise subscribes to all echo areas. Requires the interests feature to be enabled. Returns success status and subscription confirmation.
 
 **Path Parameters**
 
@@ -3352,7 +3366,7 @@ Optional echo area selection
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `echoarea_ids` | integer[] | No | Array of echo area IDs to subscribe to. If omitted, subscribes to all areas in the interest. |
+| `echoarea_ids` | integer[] | No | Array of echo area IDs to subscribe to within this interest. If omitted, subscribes to all areas. |
 
 **Response** _(JSON)_
 
@@ -3360,22 +3374,22 @@ Subscription confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success flag |
-| `subscribed` | boolean | User subscription status after operation |
+| `success` | boolean | Operation succeeded |
+| `subscribed` | boolean | User is now subscribed to the interest |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Interest not found or ENABLE_INTERESTS feature disabled |
+| 404 | Interest not found or interests feature disabled |
 
 ---
 
-#### `POST /api/interests/{id}/unsubscribe` {#post-apiinterestsidunsubscribe}
+#### `POST /api/interests/{id}/unsubscribe`
 
 **Requires authentication**
 
-Unsubscribes the authenticated user from an interest. If `echoarea_ids` array is provided, removes only those specific echo areas; otherwise removes all subscriptions to the interest. Returns success status and remaining subscription state. Requires ENABLE_INTERESTS feature flag.
+Unsubscribes the authenticated user from an interest. If `echoarea_ids` array is provided, removes subscription only from those specific echo areas; otherwise removes all subscriptions to the interest. Returns success status and whether user remains subscribed to any areas in the interest.
 
 **Path Parameters**
 
@@ -3397,22 +3411,22 @@ Unsubscription confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success flag |
-| `subscribed` | boolean | Whether user remains subscribed to any areas in the interest |
+| `success` | boolean | Operation succeeded |
+| `subscribed` | boolean | User still has active subscriptions in this interest |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Interest not found or ENABLE_INTERESTS feature disabled |
+| 404 | Interest not found or interests feature disabled |
 
 ---
 
-#### `POST /api/interests/{id}/manage-areas` {#post-apiinterestsidmanage-areas}
+#### `POST /api/interests/{id}/manage-areas`
 
 **Requires authentication**
 
-Replaces the user's entire set of subscribed echo areas for an interest with the provided list. Passing an empty array fully unsubscribes from the interest. This is an atomic replace operation, not additive. Returns success status and remaining subscription state. Requires ENABLE_INTERESTS feature flag.
+Replaces the user's entire set of subscribed echo areas for an interest with the provided list. Passing an empty array fully unsubscribes the user from the interest. This is an atomic replace operation, not additive.
 
 **Path Parameters**
 
@@ -3422,7 +3436,7 @@ Replaces the user's entire set of subscribed echo areas for an interest with the
 
 **Request Body** _(JSON)_
 
-New echo area subscription set
+New set of echo area subscriptions
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -3434,22 +3448,22 @@ Management confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success flag |
-| `subscribed` | boolean | Whether user remains subscribed to any areas in the interest |
+| `success` | boolean | Operation succeeded |
+| `subscribed` | boolean | User still has active subscriptions in this interest |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Interest not found or ENABLE_INTERESTS feature disabled |
+| 404 | Interest not found or interests feature disabled |
 
 ---
 
-#### `GET /api/interests/{id}/echoareas` {#get-apiinterestsidechoareas}
+#### `GET /api/interests/{id}/echoareas`
 
 Public
 
-Returns all echo areas associated with an interest, including tag, domain, description, and message count. If authenticated, includes a `subscribed` boolean for each area indicating user's subscription status. Public endpoint respecting ENABLE_INTERESTS feature flag. Results ordered by message count descending, then tag ascending.
+Returns all echo areas associated with an interest, including tag, domain, description, and message count. If authenticated, includes a `subscribed` boolean for each area indicating the user's subscription status. Public endpoint respecting the interests feature flag.
 
 **Path Parameters**
 
@@ -3459,7 +3473,7 @@ Returns all echo areas associated with an interest, including tag, domain, descr
 
 **Response** _(JSON)_
 
-Echo areas in the interest
+List of echo areas in the interest
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -3469,15 +3483,15 @@ Echo areas in the interest
 
 | Status | Description |
 |--------|-------------|
-| 404 | Interest not found or ENABLE_INTERESTS feature disabled |
+| 404 | Interest not found or interests feature disabled |
 
 ---
 
-#### `GET /api/interests/{id}/stats` {#get-apiinterestsidstats}
+#### `GET /api/interests/{id}/stats`
 
 **Requires authentication**
 
-Returns aggregated message counts across all echo areas the authenticated user is subscribed to within an interest. Includes total, recent (last 24h), unread, area count, and filter-specific counts (all, unread, read, tome, saved, drafts). Respects sysop-only area restrictions unless user is admin. Returns zero counts if user has no subscriptions.
+Returns aggregated message counts across all echo areas in an interest that the user is subscribed to. Includes total, recent (last 24h), unread, area count, and filter-specific counts (all, unread, read, to_me, saved, drafts). Respects sysop-only area restrictions for non-admin users.
 
 **Path Parameters**
 
@@ -3501,15 +3515,15 @@ Aggregated message statistics
 
 | Status | Description |
 |--------|-------------|
-| 404 | Interest not found, inactive, or ENABLE_INTERESTS disabled |
+| 404 | Interest not found, inactive, or user has no subscriptions |
 
 ---
 
-#### `GET /api/interests/{id}/messages` {#get-apiinterestsidmessages}
+#### `GET /api/interests/{id}/messages`
 
 **Requires authentication**
 
-Returns paginated echomail messages from all echo areas belonging to an interest that the user is subscribed to. Supports sorting (date_desc, date_asc, subject, author) and filtering (all, unread, read, tome, saved, drafts). Requires ENABLE_INTERESTS feature flag and authentication.
+Returns paginated echomail messages from all echo areas belonging to the interest that the user is subscribed to. Supports sorting (date_desc, date_asc, subject, author) and filtering (all, unread, read, tome, saved, drafts). Pagination defaults to page 1.
 
 **Path Parameters**
 
@@ -3521,7 +3535,7 @@ Returns paginated echomail messages from all echo areas belonging to an interest
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `page` | integer | No | Page number (default: 1, minimum: 1) |
+| `page` | integer | No | Page number (default: 1) |
 | `sort` | string | No | Sort order: date_desc, date_asc, subject, author (default: date_desc) |
 | `filter` | string | No | Message filter: all, unread, read, tome, saved, drafts (default: all) |
 
@@ -3532,24 +3546,24 @@ Paginated message results
 | Field | Type | Description |
 |-------|------|-------------|
 | `messages` | object[] | Array of echomail message objects |
-| `pagination` | object | Pagination metadata (page, total_pages, total_messages) |
+| `pagination` | object | Pagination metadata (page, total_pages, total_count) |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Interest not found, inactive, or ENABLE_INTERESTS disabled |
+| 404 | Interest not found, inactive, or interests feature disabled |
 
 ---
 
-### Markdown Images
+### Markdown Images {#public-api-markdown-images}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/markdown-images`](#get-apimarkdown-images) | Yes | List markdown images uploaded by the authenticated user. |
 | `POST` | [`/api/markdown-images`](#post-apimarkdown-images) | Yes | Upload a markdown image for the authenticated user. |
 
-#### `GET /api/markdown-images` {#get-apimarkdown-images}
+#### `GET /api/markdown-images`
 
 **Requires authentication**
 
@@ -3572,11 +3586,11 @@ JSON object containing success flag and array of image objects.
 
 ---
 
-#### `POST /api/markdown-images` {#post-apimarkdown-images}
+#### `POST /api/markdown-images`
 
 **Requires authentication**
 
-Accepts multipart image upload (JPEG, PNG, GIF, WebP) up to 5MB (configurable via MARKDOWN_IMAGE_MAX_BYTES). Stores image and returns accessible URL with user-specific slug. Validates MIME type and file size before storage. Requires authentication.
+Accepts multipart image upload (JPEG, PNG, GIF, WebP) up to 5MB (configurable). Stores image and generates a user-specific URL slug. Returns the public URL for embedding in markdown. Validates MIME type and file size before storage. Requires authentication.
 
 **Request Body** _(JSON)_
 
@@ -3588,31 +3602,31 @@ Multipart form data with image file.
 
 **Response** _(JSON)_
 
-JSON object with success flag, accessible URL, and original filename.
+JSON object with upload success, public URL, and original filename.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True if upload succeeded |
-| `url` | string | Accessible URL to the uploaded image |
-| `filename` | string | Original uploaded filename |
+| `url` | string | Public URL for accessing the uploaded image |
+| `filename` | string | Original filename as provided by client |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Upload failed, invalid MIME type, or file exceeds size limit |
+| 400 | Upload failed, unsupported MIME type, or file exceeds size limit |
 | 500 | Failed to store image to filesystem |
 
 ---
 
-### Media
+### Media {#public-api-media}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/media/raw`](#get-apimediaraw) | No | Proxy and stream raw media files from external URLs. |
 | `GET` | [`/api/media/embed`](#get-apimediaembed) | No | Resolve media URLs to embeddable HTML for supported providers. |
 
-#### `GET /api/media/raw` {#get-apimediaraw}
+#### `GET /api/media/raw`
 
 Public
 
@@ -3632,15 +3646,15 @@ Raw media file stream with appropriate Content-Type header.
 
 | Status | Description |
 |--------|-------------|
-| 404 | Media not found, invalid URL, or CURL unavailable |
+| 404 | Invalid URL, disallowed extension, private host, or media not found |
 
 ---
 
-#### `GET /api/media/embed` {#get-apimediaembed}
+#### `GET /api/media/embed`
 
 Public
 
-Detects media provider (YouTube, Vimeo, etc.) from URL and returns embed HTML if provider is enabled. Respects global media player configuration and per-provider settings. Returns unknown type with empty embed_html if URL is invalid, provider disabled, or resolution fails.
+Detects media provider (YouTube, Vimeo, etc.) from URL and returns embed HTML if provider is enabled. Respects global media player configuration and per-provider settings. Returns unknown type with empty embed_html if URL is invalid, provider disabled, or resolution fails. No authentication required.
 
 **Query Parameters**
 
@@ -3655,33 +3669,33 @@ JSON object with media type, provider name, and embed HTML.
 | Field | Type | Description |
 |-------|------|-------------|
 | `type` | string | Media type (e.g., 'video', 'audio') or 'unknown' |
-| `provider` | string|null | Provider name (e.g., 'youtube') or null |
-| `embed_html` | string | HTML embed code or empty string if unresolvable |
+| `provider` | string|null | Provider name (e.g., 'youtube') or null if unrecognized |
+| `embed_html` | string | HTML embed code or empty string if unavailable |
 
 ---
 
-### Messages
+### Messages {#public-api-messages}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/messages/recent`](#get-apimessagesrecent) | Yes | Retrieve recent netmail and echomail messages for the user. |
-| `GET` | [`/api/messages/netmail`](#get-apimessagesnetmail) | Yes | Retrieve paginated netmail messages with filtering and sorting. |
+| `GET` | [`/api/messages/netmail`](#get-apimessagesnetmail) | Yes | Retrieve paginated netmail messages for the authenticated user. |
 | `GET` | [`/api/messages/netmail/stats`](#get-apimessagesnetmailstats) | Yes | Get netmail statistics (total and unread message counts). |
-| `GET` | [`/api/messages/netmail/{id}`](#get-apimessagesnetmailid) | Yes | Retrieve a single netmail message with attachments and reply-to info. |
-| `GET` | [`/api/messages/netmail/{id}/conversation`](#get-apimessagesnetmailidconversation) | Yes | Retrieve a netmail conversation thread by message ID. |
+| `GET` | [`/api/messages/netmail/{id}`](#get-apimessagesnetmailid) | Yes | Retrieve a single netmail message by ID with full details. |
+| `GET` | [`/api/messages/netmail/{id}/conversation`](#get-apimessagesnetmailidconversation) | Yes | Retrieve a conversation thread containing a specific netmail message. |
 | `DELETE` | [`/api/messages/netmail/{id}`](#delete-apimessagesnetmailid) | Yes | Delete a netmail message by ID. |
 | `GET` | [`/api/messages/netmail/{id}/download`](#get-apimessagesnetmailiddownload) | Yes | Download a netmail message as a plain text file with headers. |
 | `POST` | [`/api/messages/netmail/{id}/edit`](#post-apimessagesnetmailidedit) | Yes | Edit netmail message metadata (art format, charset). |
-| `POST` | [`/api/messages/netmail/bulk-delete`](#post-apimessagesnetmailbulk-delete) | Yes | Delete multiple netmail messages in one request. |
-| `GET` | [`/api/messages/echomail`](#get-apimessagesechomail) | Yes | List echomail messages from user's subscribed areas. |
-| `POST` | [`/api/messages/echomail/read`](#post-apimessagesechomailread) | Yes | Mark multiple echomail messages as read. |
+| `POST` | [`/api/messages/netmail/bulk-delete`](#post-apimessagesnetmailbulk-delete) | Yes | Delete multiple netmail messages in bulk. |
+| `GET` | [`/api/messages/echomail`](#get-apimessagesechomail) | Yes | List echomail messages from subscribed areas with filtering. |
+| `POST` | [`/api/messages/echomail/read`](#post-apimessagesechomailread) | Yes | Mark multiple echomail messages as read in bulk. |
 | `POST` | [`/api/messages/echomail/delete`](#post-apimessagesechomaildelete) | Yes | Delete multiple echomail messages (admin only). |
-| `POST` | [`/api/messages/echomail/ignore-rules`](#post-apimessagesechomailignore-rules) | Yes | Create an echomail ignore rule for the user. |
+| `POST` | [`/api/messages/echomail/ignore-rules`](#post-apimessagesechomailignore-rules) | Yes | Create an echomail ignore rule for the authenticated user. |
 | `GET` | [`/api/messages/echomail/stats`](#get-apimessagesechomailstats) | Yes | Get aggregate echomail statistics for all areas. |
 | `GET` | [`/api/messages/echomail/stats/{echoarea}`](#get-apimessagesechomailstatsechoarea) | Yes | Get echomail statistics for a specific echo area. |
 | `GET` | [`/api/messages/echomail/message/{id}`](#get-apimessagesechomailmessageid) | Yes | Retrieve a specific echomail message by ID. |
 | `GET` | [`/api/messages/echomail/message/{id}/conversation`](#get-apimessagesechomailmessageidconversation) | Yes | Get conversation thread for an echomail message. |
-| `POST` | [`/api/messages/echomail/{id}/save-ad`](#post-apimessagesechomailidsave-ad) | Yes | Save an echomail message as an advertisement (admin only). |
+| `POST` | [`/api/messages/echomail/{id}/save-ad`](#post-apimessagesechomailidsave-ad) | Yes | Save an ANSI echomail message to the ad library (admin only). |
 | `GET` | [`/api/messages/echomail/{id}/download`](#get-apimessagesechomailiddownload) | Yes | Download an echomail message as a text file. |
 | `POST` | [`/api/messages/echomail/{id}/edit`](#post-apimessagesechomailidedit) | Yes | Edit echomail message metadata (admin only). |
 | `GET` | [`/api/messages/echomail/{echoarea}`](#get-apimessagesechomailechoarea) | Yes | Retrieve echomail messages from a specific echo area with pagination and filtering. |
@@ -3697,76 +3711,69 @@ JSON object with media type, provider name, and embed HTML.
 | `GET` | [`/api/messages/templates/{id}`](#get-apimessagestemplatesid) | Yes | Retrieve a single message template with full body. |
 | `POST` | [`/api/messages/templates`](#post-apimessagestemplates) | Yes | Create or update a message template. |
 | `DELETE` | [`/api/messages/templates/{id}`](#delete-apimessagestemplatesid) | Yes | Delete a message template. |
-| `GET` | [`/api/messages/search`](#get-apimessagessearch) | Yes | Search messages with advanced filtering. |
+| `GET` | [`/api/messages/search`](#get-apimessagessearch) | Yes | Search messages with optional field-specific and date filters. |
 | `POST` | [`/api/messages/{type}/{id}/read`](#post-apimessagestypeidread) | Yes | Mark a message as read for the authenticated user. |
 | `POST` | [`/api/messages/{type}/{id}/save`](#post-apimessagestypeidsave) | Yes | Save a message for later viewing. |
 | `DELETE` | [`/api/messages/{type}/{id}/save`](#delete-apimessagestypeidsave) | Yes | Remove a message from the authenticated user's saved collection. |
 | `POST` | [`/api/messages/{type}/{id}/forward-email`](#post-apimessagestypeidforward-email) | Yes | Forward a message to user's email address. |
-| `GET` | [`/api/messages/echomail/delete-test`](#get-apimessagesechomaildelete-test) | No | Test endpoint for delete functionality accessibility. |
-| `POST` | [`/api/messages/echomail/{id}/share`](#post-apimessagesechomailidshare) | Yes | Create a shareable link for an echomail message. |
-| `GET` | [`/api/messages/echomail/{id}/shares`](#get-apimessagesechomailidshares) | Yes | Retrieve all share links for an echomail message. |
+| `GET` | [`/api/messages/echomail/delete-test`](#get-apimessagesechomaildelete-test) | No | Test endpoint for message delete functionality. |
+| `POST` | [`/api/messages/echomail/{id}/share`](#post-apimessagesechomailidshare) | Yes | Create a share link for an echomail message. |
+| `GET` | [`/api/messages/echomail/{id}/shares`](#get-apimessagesechomailidshares) | Yes | List share links for an echomail message. |
 | `DELETE` | [`/api/messages/echomail/{id}/share`](#delete-apimessagesechomailidshare) | Yes | Revoke a shared echomail message link. |
-| `POST` | [`/api/messages/echomail/{id}/share/friendly-url`](#post-apimessagesechomailidsharefriendly-url) | Yes | Generate a friendly URL slug for an existing echomail share. |
+| `POST` | [`/api/messages/echomail/{id}/share/friendly-url`](#post-apimessagesechomailidsharefriendly-url) | Yes | Generate a friendly URL slug for an existing message share. |
 | `POST` | [`/api/messages/echomail/{id}/share-summary`](#post-apimessagesechomailidshare-summary) | Yes | Generate an AI summary for a shared echomail message. |
 | `GET` | [`/api/messages/shared/{area}/{slug}`](#get-apimessagessharedareaslug) | Yes | Retrieve a shared echomail message by friendly URL slug. |
 | `GET` | [`/api/messages/shared/{shareKey}`](#get-apimessagessharedsharekey) | Yes | Retrieve a shared message by share key. |
-| `POST` | [`/api/messages/ai-assist`](#post-apimessagesai-assist) | Yes | Get AI-assisted response for message composition. |
+| `POST` | [`/api/messages/ai-assist`](#post-apimessagesai-assist) | Yes | Generate AI-assisted response for echomail or netmail messages. |
 
-#### `GET /api/messages/recent` {#get-apimessagesrecent}
+#### `GET /api/messages/recent`
 
 **Requires authentication**
 
-Fetches the 10 most recent messages for the authenticated user, combining netmail (direct messages) and echomail (echo area messages from subscribed areas). Returns messages ordered by date written (newest first) with type, sender, subject, and echo area info.
+Fetches the 10 most recent messages for the authenticated user, combining netmail (direct messages) and echomail (echo area messages). Only includes echomail from areas the user is subscribed to. Results are ordered by date written (newest first). Includes echoarea tag and color for echomail messages.
 
 **Response** _(JSON)_
 
-List of recent netmail and echomail messages
+JSON object containing array of recent messages
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array of objects | Array of message objects with id, type (netmail/echomail), from_name, subject, date_written, echoarea (null for netmail), and echoarea_color |
-
-**Error Responses**
-
-| Status | Description |
-|--------|-------------|
-| 401 | Authentication required |
+| `messages` | array of objects | Array of message objects with id, type (netmail/echomail), from_name, subject, date_written, echoarea (null for netmail), and echoarea_color (null for netmail) |
 
 ---
 
-#### `GET /api/messages/netmail` {#get-apimessagesnetmail}
+#### `GET /api/messages/netmail`
 
 **Requires authentication**
 
-Fetches user's netmail with pagination, filtering, and sorting options. Supports threaded view mode. Filter options include 'all', 'unread', 'sent', etc. Sort options: date_desc (default), date_asc, subject, author. Requires authentication.
+Fetches netmail messages with support for pagination, filtering, sorting, and optional thread grouping. Supports multiple sort orders (date_desc, date_asc, subject, author) and filters (all, unread, etc.). Returns localized error messages.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `page` | integer | No | Page number (default: 1) |
-| `filter` | string | No | Filter type: 'all', 'unread', 'sent', etc. (default: 'all') |
-| `threaded` | boolean | No | Enable threaded view (default: false) |
-| `sort` | string | No | Sort order: 'date_desc', 'date_asc', 'subject', 'author' (default: 'date_desc') |
+| `filter` | string | No | Filter type, e.g. 'all', 'unread' (default: 'all') |
+| `threaded` | boolean | No | Group messages by thread (default: false) |
+| `sort` | string | No | Sort order: date_desc, date_asc, subject, author (default: date_desc) |
 
 **Response** _(JSON)_
 
-Paginated netmail list with metadata
+Paginated netmail message list
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `messages` | array | Array of netmail message objects |
 | `page` | integer | Current page number |
 | `total` | integer | Total message count |
-| `pages` | integer | Total pages available |
 
 ---
 
-#### `GET /api/messages/netmail/stats` {#get-apimessagesnetmailstats}
+#### `GET /api/messages/netmail/stats`
 
 **Requires authentication**
 
-Returns aggregate netmail statistics for the authenticated user, including total message count and unread count. Accounts for both received and sent messages, respecting FidoNet system addresses. Requires authentication.
+Returns aggregate netmail statistics for the authenticated user, including total messages and unread count. Accounts for both received messages and sent messages (via system address). Uses message_read_status table to track read state. Handles cases where FidoNet address configuration is unavailable.
 
 **Response** _(JSON)_
 
@@ -3775,15 +3782,15 @@ Netmail statistics
 | Field | Type | Description |
 |-------|------|-------------|
 | `total` | integer | Total netmail messages (received + sent) |
-| `unread` | integer | Unread message count |
+| `unread` | integer | Count of unread messages |
 
 ---
 
-#### `GET /api/messages/netmail/{id}` {#get-apimessagesnetmailid}
+#### `GET /api/messages/netmail/{id}`
 
 **Requires authentication**
 
-Fetches a complete netmail message by ID, including parsed REPLYTO kludge data, file attachments (if file areas enabled), and edit permissions. Marks message as read via activity tracking. Requires authentication and message access.
+Fetches a complete netmail message including kludge lines, REPLYTO header parsing, file attachments (if enabled), and edit permissions. Marks message as read via activity tracking. Includes parsed reply-to address and name extracted from message headers.
 
 **Path Parameters**
 
@@ -3793,22 +3800,17 @@ Fetches a complete netmail message by ID, including parsed REPLYTO kludge data, 
 
 **Response** _(JSON)_
 
-Complete netmail message object
+Complete netmail message with metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | integer | Message ID |
-| `from_name` | string | Sender name |
-| `from_address` | string | Sender FidoNet address |
-| `to_name` | string | Recipient name |
-| `to_address` | string | Recipient FidoNet address |
-| `subject` | string | Message subject |
 | `message_text` | string | Message body |
-| `replyto_address` | string | Parsed REPLYTO kludge address (if present) |
-| `replyto_name` | string | Parsed REPLYTO kludge name (if present) |
-| `attachments` | array | File attachments (empty if feature disabled) |
-| `can_edit` | boolean | Whether user can edit this message |
-| `created_at` | string | ISO 8601 timestamp |
+| `kludge_lines` | string | FidoNet kludge lines |
+| `replyto_address` | string | Parsed REPLYTO FidoNet address |
+| `replyto_name` | string | Parsed REPLYTO recipient name |
+| `attachments` | array | File attachments (empty array if feature disabled) |
+| `can_edit` | boolean | Whether current user can edit this message |
 
 **Error Responses**
 
@@ -3818,43 +3820,39 @@ Complete netmail message object
 
 ---
 
-#### `GET /api/messages/netmail/{id}/conversation` {#get-apimessagesnetmailidconversation}
+#### `GET /api/messages/netmail/{id}/conversation`
 
 **Requires authentication**
 
-Fetches all messages in a conversation thread starting from a given message ID. Returns threaded message structure with replies nested. Requires authentication and message access.
+Fetches all messages in a conversation thread anchored by the specified message ID. Returns the full thread context including related messages. Useful for displaying message conversations in a threaded view.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | Netmail message ID (thread root or any message in thread) |
+| `id` | integer | Netmail message ID to anchor conversation |
 
 **Response** _(JSON)_
 
-Conversation thread with nested messages
+Conversation thread containing the message
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array | Array of message objects in thread order |
-| `messages[].id` | integer | Message ID |
-| `messages[].subject` | string | Message subject |
-| `messages[].from_name` | string | Sender name |
-| `messages[].replies` | array | Nested reply messages |
+| `messages` | array | Array of messages in the conversation thread |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Message not found or conversation is empty |
+| 404 | Message not found or conversation has no messages |
 
 ---
 
-#### `DELETE /api/messages/netmail/{id}` {#delete-apimessagesnetmailid}
+#### `DELETE /api/messages/netmail/{id}`
 
 **Requires authentication**
 
-Soft-deletes a netmail message. Only the message owner can delete their own messages. Requires authentication.
+Removes a netmail message. Only the message owner (user_id) can delete their own messages. Returns success confirmation or error if deletion fails or message not found.
 
 **Path Parameters**
 
@@ -3864,11 +3862,11 @@ Soft-deletes a netmail message. Only the message owner can delete their own mess
 
 **Response** _(JSON)_
 
-Deletion confirmation
+Deletion result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Deletion successful |
+| `success` | boolean | Deletion success status |
 | `message_code` | string | Localization key for success message |
 
 **Error Responses**
@@ -3879,11 +3877,11 @@ Deletion confirmation
 
 ---
 
-#### `GET /api/messages/netmail/{id}/download` {#get-apimessagesnetmailiddownload}
+#### `GET /api/messages/netmail/{id}/download`
 
 **Requires authentication**
 
-Retrieves a netmail message by ID and streams it as a downloadable .txt file. The file includes RFC-style headers (From, To, Subject, Date) followed by the message body. Access is restricted to the message owner or admins. Line endings are normalized to CRLF for Windows compatibility.
+Retrieves a netmail message by ID and streams it as a downloadable .txt file. The message is formatted with standard email headers (From, To, Subject, Date) followed by the message body. Access is restricted to the message owner or admins. The filename is derived from the message subject and sanitized for Windows compatibility.
 
 **Path Parameters**
 
@@ -3893,11 +3891,11 @@ Retrieves a netmail message by ID and streams it as a downloadable .txt file. Th
 
 **Response** _(JSON)_
 
-Plain text file download with Content-Disposition attachment header
+Plain text file download with CRLF line endings
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `body` | string | RFC-formatted message (headers + body) |
+| `body` | string | Email headers (From, To, Subject, Date) followed by message body |
 
 **Error Responses**
 
@@ -3907,11 +3905,11 @@ Plain text file download with Content-Disposition attachment header
 
 ---
 
-#### `POST /api/messages/netmail/{id}/edit` {#post-apimessagesnetmailidedit}
+#### `POST /api/messages/netmail/{id}/edit`
 
 **Requires authentication**
 
-Updates display metadata for a netmail message. Only the message owner or admins may edit. Supports setting art_format (ansi, amiga_ansi, petscii, plain, or empty) and message_charset. Returns 400 if no valid fields provided, 403 if unauthorized, 404 if message not found.
+Updates display metadata for a netmail message. Only the message owner or admins can edit. Supports setting art_format (ansi, amiga_ansi, petscii, plain, or empty) and message_charset (uppercase). At least one field must be provided. Returns 403 if user lacks permission.
 
 **Path Parameters**
 
@@ -3921,21 +3919,20 @@ Updates display metadata for a netmail message. Only the message owner or admins
 
 **Request Body** _(JSON)_
 
-Metadata fields to update
+Message metadata updates
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `art_format` | string | No | Display format: '', 'ansi', 'amiga_ansi', 'petscii', or 'plain' |
-| `message_charset` | string | No | Character encoding (uppercase, e.g., 'UTF-8') |
+| `art_format` | string | No | Display format: 'ansi', 'amiga_ansi', 'petscii', 'plain', or empty string to clear |
+| `message_charset` | string | No | Character set (e.g., 'UTF-8', 'CP437'). Empty string clears it. |
 
 **Response** _(JSON)_
 
-JSON success response with updated message data
+JSON success response with update confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Operation succeeded |
-| `message` | object | Updated message object with new metadata |
 
 **Error Responses**
 
@@ -3947,11 +3944,11 @@ JSON success response with updated message data
 
 ---
 
-#### `POST /api/messages/netmail/bulk-delete` {#post-apimessagesnetmailbulk-delete}
+#### `POST /api/messages/netmail/bulk-delete`
 
 **Requires authentication**
 
-Bulk deletes netmail messages owned by the authenticated user. Only messages belonging to the user are deleted; others are silently skipped. Returns count of successfully deleted messages.
+Deletes one or more netmail messages owned by the authenticated user. Only the message owner can delete their own messages. Returns count of successfully deleted messages. Requires non-empty message_ids array.
 
 **Request Body** _(JSON)_
 
@@ -3963,15 +3960,14 @@ List of message IDs to delete
 
 **Response** _(JSON)_
 
-Deletion summary with localization keys
+Deletion summary with localization support
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation completed |
-| `deleted` | integer | Count of successfully deleted messages |
-| `total` | integer | Total message IDs submitted |
+| `success` | boolean | Operation succeeded |
+| `deleted` | integer | Number of messages successfully deleted |
+| `total` | integer | Total messages requested for deletion |
 | `message_code` | string | Localization key for UI message |
-| `message_params` | object | Parameters for localized message (count) |
 
 **Error Responses**
 
@@ -3981,11 +3977,11 @@ Deletion summary with localization keys
 
 ---
 
-#### `GET /api/messages/echomail` {#get-apimessagesechomail}
+#### `GET /api/messages/echomail`
 
 **Requires authentication**
 
-Retrieves paginated echomail messages from echoareas the user is subscribed to. Supports filtering (all, unread, etc.), sorting (date_desc, date_asc, subject, author), and optional threaded view. Returns localized error payloads on failure.
+Retrieves paginated echomail messages from areas the user is subscribed to. Supports filtering (all, unread, etc.), sorting (date_desc, date_asc, subject, author), and optional threaded view. Returns localized error payloads on failure.
 
 **Query Parameters**
 
@@ -3998,11 +3994,11 @@ Retrieves paginated echomail messages from echoareas the user is subscribed to. 
 
 **Response** _(JSON)_
 
-Paginated echomail message list with metadata
+Paginated echomail message list
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array<object> | Array of echomail message objects |
+| `messages` | array | Array of echomail message objects |
 | `page` | integer | Current page number |
 | `total` | integer | Total message count |
 
@@ -4010,15 +4006,15 @@ Paginated echomail message list with metadata
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid filter or sort parameter |
+| 401 | Authentication required |
 
 ---
 
-#### `POST /api/messages/echomail/read` {#post-apimessagesechomailread}
+#### `POST /api/messages/echomail/read`
 
 **Requires authentication**
 
-Bulk marks echomail messages as read for the authenticated user. Updates message_read_status table and advances last_read_id watermarks per echoarea to the highest message ID in the batch. Uses transaction for consistency.
+Marks specified echomail messages as read for the authenticated user and advances last_read_id watermarks per echoarea. Uses database transactions for consistency. Updates message_read_status table and user_echoarea_subscriptions watermarks.
 
 **Request Body** _(JSON)_
 
@@ -4034,8 +4030,8 @@ Read status update summary
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation completed |
-| `marked` | integer | Count of messages marked as read |
+| `success` | boolean | Operation succeeded |
+| `marked` | integer | Number of messages marked as read |
 
 **Error Responses**
 
@@ -4045,11 +4041,11 @@ Read status update summary
 
 ---
 
-#### `POST /api/messages/echomail/delete` {#post-apimessagesechomaildelete}
+#### `POST /api/messages/echomail/delete`
 
 **Requires authentication**
 
-Bulk deletes echomail messages from the database. Admin privileges required. Clears reply_to_id references and recalculates message_count for affected echoareas. Returns count of deleted messages.
+Permanently deletes echomail messages from the database. Admin privileges required. Clears reply_to_id references and recalculates message_count for affected echoareas. Requires non-empty messageIds array.
 
 **Request Body** _(JSON)_
 
@@ -4061,12 +4057,12 @@ List of message IDs to delete
 
 **Response** _(JSON)_
 
-Deletion summary with localization keys
+Deletion summary with localization support
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation completed |
-| `deleted` | integer | Count of deleted messages |
+| `success` | boolean | Operation succeeded |
+| `deleted` | integer | Number of messages deleted |
 
 **Error Responses**
 
@@ -4077,11 +4073,11 @@ Deletion summary with localization keys
 
 ---
 
-#### `POST /api/messages/echomail/ignore-rules` {#post-apimessagesechomailignore-rules}
+#### `POST /api/messages/echomail/ignore-rules`
 
 **Requires authentication**
 
-Adds a filter rule to ignore echomail messages matching sender name, sender address, and/or subject keywords. Sender name is required; other fields optional. Max 255 chars per field. Returns localization keys for UI display.
+Adds a filter rule to automatically ignore echomail messages matching sender name, sender address, and/or subject keywords. Sender name is required; other fields optional. Validates field lengths (max 255 chars). Returns localized success message with sender name.
 
 **Request Body** _(JSON)_
 
@@ -4101,26 +4097,26 @@ Rule creation confirmation with localization
 |-------|------|-------------|
 | `success` | boolean | Rule saved successfully |
 | `message_code` | string | Localization key for UI message |
-| `message_params` | object | Parameters for localized message (sender) |
+| `message_params` | object | Localization parameters (sender name) |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | sender_name empty or field exceeds 255 chars |
+| 400 | sender_name empty or field length exceeds 255 chars |
 | 500 | Failed to save rule to database |
 
 ---
 
-#### `GET /api/messages/echomail/stats` {#get-apimessagesechomailstats}
+#### `GET /api/messages/echomail/stats`
 
 **Requires authentication**
 
-Returns overall echomail statistics for the authenticated user across all subscribed echo areas. Includes message counts and activity metrics aggregated from all areas.
+Returns overall echomail statistics for the authenticated user across all subscribed echo areas. Statistics include message counts and activity metrics. This endpoint must be called before area-specific stats endpoints.
 
 **Response** _(JSON)_
 
-Aggregated echomail statistics object
+Aggregate echomail statistics object
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -4128,17 +4124,17 @@ Aggregated echomail statistics object
 
 ---
 
-#### `GET /api/messages/echomail/stats/{echoarea}` {#get-apimessagesechomailstatsechoarea}
+#### `GET /api/messages/echomail/stats/{echoarea}`
 
 **Requires authentication**
 
-Returns statistics for a single echo area. Non-admin users must be subscribed to the area. The echoarea parameter supports domain notation (tag@domain) and is URL-decoded. Admin users bypass subscription checks.
+Returns statistics for a single echo area. Non-admin users must be subscribed to the area. The echoarea parameter supports URL encoding and optional domain suffix (format: `tag@domain`). Admin users bypass subscription checks.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `echoarea` | string | Echo area tag, optionally with domain (e.g., 'GENERAL' or 'GENERAL@FIDONET') |
+| `echoarea` | string | Echo area tag, optionally with domain (e.g., 'GENERAL' or 'GENERAL@fidonet.org'). URL-encoded. |
 
 **Response** _(JSON)_
 
@@ -4156,11 +4152,11 @@ Statistics for the specified echo area
 
 ---
 
-#### `GET /api/messages/echomail/message/{id}` {#get-apimessagesechomailmessageid}
+#### `GET /api/messages/echomail/message/{id}`
 
 **Requires authentication**
 
-Fetches a single echomail message by its ID. Parses REPLYTO kludge lines from message text and adds replyto_address and replyto_name fields to the response. Includes media permission resolution.
+Fetches a single echomail message by its ID. Parses REPLYTO kludge lines from message text and includes reply-to address and name in response. Applies media permission resolution. Returns 404 if message not found.
 
 **Path Parameters**
 
@@ -4174,6 +4170,7 @@ Complete echomail message object with parsed metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `id` | integer | Message ID |
 | `replyto_address` | string | Parsed REPLYTO address from kludge lines (if present) |
 | `replyto_name` | string | Parsed REPLYTO name from kludge lines (if present) |
 
@@ -4185,11 +4182,11 @@ Complete echomail message object with parsed metadata
 
 ---
 
-#### `GET /api/messages/echomail/message/{id}/conversation` {#get-apimessagesechomailmessageidconversation}
+#### `GET /api/messages/echomail/message/{id}/conversation`
 
 **Requires authentication**
 
-Retrieves the full conversation thread containing the specified message, including all related messages in the thread. Returns empty result if message not found.
+Retrieves the full conversation thread containing the specified message, including all related messages in the thread. Returns 404 if the message is not found or has no conversation data.
 
 **Path Parameters**
 
@@ -4209,15 +4206,15 @@ Conversation thread data
 
 | Status | Description |
 |--------|-------------|
-| 404 | Message not found or no conversation available |
+| 404 | Message not found or no conversation data available |
 
 ---
 
-#### `POST /api/messages/echomail/{id}/save-ad` {#post-apimessagesechomailidsave-ad}
+#### `POST /api/messages/echomail/{id}/save-ad`
 
 **Requires authentication**
 
-Converts an ANSI echomail message to an advertisement and saves it to the ad library. Admin privileges required. Validates that the message is ANSI-capable and extracts metadata for the ad. Creates an inactive ad with source tracking.
+Converts an ANSI-formatted echomail message into an advertisement and saves it to the ad library. Admin privileges required. Validates that the message is ANSI-capable before saving. Creates an inactive ad with metadata extracted from the message.
 
 **Path Parameters**
 
@@ -4227,11 +4224,11 @@ Converts an ANSI echomail message to an advertisement and saves it to the ad lib
 
 **Response** _(JSON)_
 
-Created advertisement object with metadata
+Confirmation of ad creation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | The new advertisement ID |
+| `success` | boolean | True if ad was created |
 
 **Error Responses**
 
@@ -4239,11 +4236,11 @@ Created advertisement object with metadata
 |--------|-------------|
 | 403 | Admin privileges required |
 | 404 | Message not found |
-| 400 | Message is not ANSI or not ANSI-capable for ad library |
+| 400 | Message is not ANSI-formatted or not suitable for ad library |
 
 ---
 
-#### `GET /api/messages/echomail/{id}/download` {#get-apimessagesechomailiddownload}
+#### `GET /api/messages/echomail/{id}/download`
 
 **Requires authentication**
 
@@ -4257,12 +4254,12 @@ Exports an echomail message as a downloadable text file with RFC-style headers (
 
 **Response** _(JSON)_
 
-Text file download with message content and headers
+Message content as plain text file attachment
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `Content-Type` | string | text/plain; charset=utf-8 or charset=cp437 |
-| `Content-Disposition` | string | attachment; filename=<subject>.txt |
+| `Content-Type` | header | text/plain; charset=utf-8 or charset=cp437 |
+| `Content-Disposition` | header | attachment; filename=<sanitized_subject>.txt |
 
 **Error Responses**
 
@@ -4272,11 +4269,11 @@ Text file download with message content and headers
 
 ---
 
-#### `POST /api/messages/echomail/{id}/edit` {#post-apimessagesechomailidedit}
+#### `POST /api/messages/echomail/{id}/edit`
 
 **Requires authentication**
 
-Updates message metadata fields (art_format, message_charset) for an echomail message. Admin privileges required. Validates art_format against allowed values (ansi, amiga_ansi, petscii, plain, or empty). Returns 404 if message not found or no rows affected.
+Updates message metadata fields (art_format, message_charset) for an echomail message. Admin privileges required. Accepts JSON body with optional art_format and message_charset fields. Valid art formats: '', 'ansi', 'amiga_ansi', 'petscii', 'plain'. Returns 404 if message not found.
 
 **Path Parameters**
 
@@ -4286,16 +4283,16 @@ Updates message metadata fields (art_format, message_charset) for an echomail me
 
 **Request Body** _(JSON)_
 
-Metadata fields to update
+Message metadata updates
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `art_format` | string | No | Art format: 'ansi', 'amiga_ansi', 'petscii', 'plain', or empty string to clear |
-| `message_charset` | string | No | Character set name (uppercase), or empty string to clear |
+| `art_format` | string | No | Art format: '', 'ansi', 'amiga_ansi', 'petscii', or 'plain' |
+| `message_charset` | string | No | Character set (uppercase, e.g., 'UTF-8', 'CP437') |
 
 **Response** _(JSON)_
 
-Confirmation of successful update
+Confirmation of metadata update
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -4306,12 +4303,12 @@ Confirmation of successful update
 | Status | Description |
 |--------|-------------|
 | 403 | Admin access required |
-| 400 | Invalid art_format or no fields provided to update |
+| 400 | Invalid art_format or no fields to update |
 | 404 | Message not found |
 
 ---
 
-#### `GET /api/messages/echomail/{echoarea}` {#get-apimessagesechomailechoarea}
+#### `GET /api/messages/echomail/{echoarea}`
 
 **Requires authentication**
 
@@ -4350,11 +4347,11 @@ Paginated list of echomail messages with metadata
 
 ---
 
-#### `GET /api/messages/echomail/{echoarea}/{id}` {#get-apimessagesechomailechoareaid}
+#### `GET /api/messages/echomail/{echoarea}/{id}`
 
 **Requires authentication**
 
-Fetches a complete echomail message including headers, body, kludge lines, and parsed REPLYTO information. Validates that the requested message belongs to the specified echo area and domain (case-insensitive). Resolves media permissions and extracts REPLYTO kludge data from both message text and kludge_lines fields.
+Fetches a complete echomail message including headers, body, kludge lines, and parsed REPLYTO information. Validates that the requested message belongs to the specified echo area and domain (case-insensitive). Extracts REPLYTO kludge data from both message text and kludge_lines fields. Applies media permission resolution for attachments.
 
 **Path Parameters**
 
@@ -4374,8 +4371,8 @@ Complete echomail message object
 | `domain` | string | Domain name |
 | `message_text` | string | Message body |
 | `kludge_lines` | string | FidoNet kludge lines |
-| `replyto_address` | string | Parsed REPLYTO address from kludge (if present) |
-| `replyto_name` | string | Parsed REPLYTO name from kludge (if present) |
+| `replyto_address` | string | Parsed REPLYTO address (if present) |
+| `replyto_name` | string | Parsed REPLYTO name (if present) |
 
 **Error Responses**
 
@@ -4386,11 +4383,11 @@ Complete echomail message object
 
 ---
 
-#### `POST /api/messages/send` {#post-apimessagessend}
+#### `POST /api/messages/send`
 
 **Requires authentication**
 
-Sends either a netmail or echomail message. Supports multiple character encodings, markdown/plaintext markup, and optional file attachments via token. Enforces 16 KB FidoNet message body limit. For netmail, defaults to system address if none provided. Supports crashmail flag and file request (FREQ) mode. Validates charset against a whitelist of safe encodings.
+Sends a message (netmail or echomail) with support for multiple charsets, markdown/plaintext markup, and file attachments. Enforces 16 KB FidoNet message body limit. For netmail, resolves attachment tokens to file paths. Supports crashmail flag and file request (FREQ) mode. Validates charset against a whitelist of safe values. Defaults to system address if no recipient specified for netmail.
 
 **Request Body** _(JSON)_
 
@@ -4403,7 +4400,7 @@ Message composition payload
 | `markup_type` | string | No | 'markdown' or null for plaintext (legacy: send_markdown boolean) |
 | `charset` | string | No | Target charset (UTF-8, CP437, CP850, ISO-8859-1, etc.; default: UTF-8) |
 | `to_address` | string | No | Netmail recipient address (defaults to system address if empty) |
-| `attachment_token` | string | No | Token from /api/netmail/attachment/upload to attach file |
+| `attachment_token` | string | No | 32-character hex token from attachment upload endpoint |
 | `crashmail` | boolean | No | Send as crashmail (netmail only) |
 | `is_freq` | boolean | No | Mark as file request (netmail only) |
 
@@ -4413,24 +4410,24 @@ Send result with message ID or error details
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether message was sent successfully |
+| `success` | boolean | Send status |
 | `message_id` | integer | ID of sent message (if successful) |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Message body exceeds 16 KB limit or invalid charset |
+| 400 | Message body exceeds 16 KB limit |
 | 401 | Authentication required |
 | 500 | Send failed (validation or database error) |
 
 ---
 
-#### `GET /api/messages/markdown-support` {#get-apimessagesmarkdown-support}
+#### `GET /api/messages/markdown-support`
 
 **Requires authentication**
 
-Determines whether markdown is allowed for a given netmail address or echomail area, and returns the posting name policy (real_name or username). Local echo areas always allow markdown. For remote areas, checks domain-level configuration. Returns both the markdown allowance and the applicable posting name policy.
+Determines whether markdown is allowed for a given netmail address, domain, or echomail area. Local echo areas always allow markdown. For remote areas, checks domain-level markdown configuration. Returns posting name policy (real_name or username) for the destination. Handles both local areas (NULL/empty domain) and remote areas with explicit domains.
 
 **Response** _(JSON)_
 
@@ -4438,8 +4435,8 @@ Markdown support and posting policy for destination
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `allowed` | boolean | Whether markdown is allowed for this destination |
-| `posting_name_policy` | string | 'real_name' or 'username' — which name field to use when posting |
+| `allowed` | boolean | Whether markdown is permitted for this destination |
+| `posting_name_policy` | string | 'real_name' or 'username' — policy for sender name in message |
 
 **Error Responses**
 
@@ -4449,7 +4446,7 @@ Markdown support and posting policy for destination
 
 ---
 
-#### `POST /api/messages/markdown-preview` {#post-apimessagesmarkdown-preview}
+#### `POST /api/messages/markdown-preview`
 
 **Requires authentication**
 
@@ -4469,7 +4466,7 @@ Rendered HTML output
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `html` | string | HTML-formatted preview (empty string if input was empty) |
+| `html` | string | HTML representation of markdown input |
 
 **Error Responses**
 
@@ -4479,22 +4476,22 @@ Rendered HTML output
 
 ---
 
-#### `POST /api/messages/draft` {#post-apimessagesdraft}
+#### `POST /api/messages/draft`
 
 **Requires authentication**
 
-Persists a partially-composed message as a draft. Requires valid user session. Returns success status and a message code for UI feedback. Drafts are stored per-user and can be retrieved and resumed later.
+Persists a partially-composed message as a draft. Accepts the same payload structure as the send endpoint but stores it for retrieval and editing later. Returns success status with a message code for UI feedback. Requires valid user session to associate draft with user account.
 
 **Request Body** _(JSON)_
 
-Draft message payload
+Draft message payload (same as send endpoint)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | string | Yes | 'netmail' or 'echomail' |
 | `message_text` | string | Yes | Draft message body |
-| `to_address` | string | No | Netmail recipient (if applicable) |
-| `echoarea` | string | No | Echo area tag (if applicable) |
+| `to_address` | string | No | Recipient address (netmail) |
+| `echoarea` | string | No | Target echo area (echomail) |
 
 **Response** _(JSON)_
 
@@ -4502,7 +4499,7 @@ Draft save result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether draft was saved successfully |
+| `success` | boolean | Save status |
 | `draft_id` | integer | ID of saved draft |
 | `message_code` | string | UI message code (default: 'ui.compose.draft.saved_success') |
 
@@ -4516,17 +4513,17 @@ Draft save result
 
 ---
 
-#### `GET /api/messages/drafts` {#get-apimessagesdrafts}
+#### `GET /api/messages/drafts`
 
 **Requires authentication**
 
-Fetches all draft messages for the authenticated user, with optional filtering by message type (netmail/echomail). Returns an array of draft metadata. Requires valid user session with either 'user_id' or 'id' field.
+Fetches all draft messages for the authenticated user, optionally filtered by message type (netmail or echomail). Returns a list of draft metadata. Requires valid user session with either 'user_id' or 'id' field.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `type` | string | No | Filter drafts by type: 'netmail' or 'echomail'. Omit for all drafts. |
+| `type` | string | No | Filter drafts by type: 'netmail' or 'echomail'. If omitted, returns all drafts. |
 
 **Response** _(JSON)_
 
@@ -4534,28 +4531,28 @@ Array of draft objects with metadata.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success flag. |
-| `drafts` | array | Array of draft message objects. |
+| `success` | boolean | Indicates successful retrieval. |
+| `drafts` | array | List of draft message objects. |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 500 | User ID resolution failed or draft retrieval exception. |
+| 500 | User ID cannot be resolved from session or draft retrieval failed. |
 
 ---
 
-#### `GET /api/messages/drafts/{id}` {#get-apimessagesdraftsid}
+#### `GET /api/messages/drafts/{id}`
 
 **Requires authentication**
 
-Fetches full details of a single draft message owned by the authenticated user. Verifies ownership before returning. Returns 404 if draft does not exist or belongs to another user.
+Fetches the full content of a single draft message for the authenticated user. Verifies ownership before returning. Returns 404 if draft does not exist or does not belong to the user.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | Draft message ID. |
+| `id` | integer | The draft message ID. |
 
 **Response** _(JSON)_
 
@@ -4563,58 +4560,58 @@ Single draft object with full content.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success flag. |
+| `success` | boolean | Indicates successful retrieval. |
 | `draft` | object | Complete draft message object. |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 404 | Draft not found or does not belong to user. |
-| 500 | User ID resolution failed or retrieval exception. |
+| 404 | Draft not found or does not belong to authenticated user. |
+| 500 | User ID cannot be resolved or draft retrieval failed. |
 
 ---
 
-#### `DELETE /api/messages/drafts/{id}` {#delete-apimessagesdraftsid}
+#### `DELETE /api/messages/drafts/{id}`
 
 **Requires authentication**
 
-Permanently removes a draft message owned by the authenticated user. Verifies ownership before deletion. Returns success with localized message code on completion.
+Permanently deletes a draft message belonging to the authenticated user. Verifies ownership before deletion. Returns success with localized message code on successful deletion.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | Draft message ID to delete. |
+| `id` | integer | The draft message ID to delete. |
 
 **Response** _(JSON)_
 
-Deletion result with localized message code.
+Deletion result with success status and message code.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Deletion success flag. |
+| `success` | boolean | Indicates successful deletion. |
 | `message_code` | string | Localization key for UI message (e.g., 'ui.drafts.deleted_success'). |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 500 | User ID resolution failed or deletion exception. |
+| 500 | User ID cannot be resolved or deletion failed. |
 
 ---
 
-#### `GET /api/messages/templates` {#get-apimessagestemplates}
+#### `GET /api/messages/templates`
 
 **Requires authentication**
 
-Retrieves all message templates owned by the user, optionally filtered by type. Requires valid license. Returns template metadata (id, name, type, subject, created_at) sorted by name.
+Retrieves all message templates owned by the authenticated user, optionally filtered by type. Requires valid license. Returns template metadata (id, name, type, subject, created_at) sorted by name.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `type` | string | No | Filter by type: 'netmail' or 'echomail'. Templates with type='both' always included. |
+| `type` | string | No | Filter templates by type: 'netmail' or 'echomail'. Templates with type='both' are always included. |
 
 **Response** _(JSON)_
 
@@ -4622,27 +4619,27 @@ Array of template metadata objects.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `templates` | array | Array of template objects with id, name, type, subject, created_at. |
+| `templates` | array | List of template objects with id, name, type, subject, created_at. |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | License not valid. Message templates require registered license. |
+| 403 | Message templates require a valid registered license. |
 
 ---
 
-#### `GET /api/messages/templates/{id}` {#get-apimessagestemplatesid}
+#### `GET /api/messages/templates/{id}`
 
 **Requires authentication**
 
-Fetches complete template details including body content for the authenticated user. Verifies ownership. Requires valid license.
+Fetches complete template content including body for the authenticated user. Verifies ownership and license validity. Returns 404 if template does not exist or does not belong to user.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | Template ID. |
+| `id` | integer | The template ID. |
 
 **Response** _(JSON)_
 
@@ -4650,126 +4647,127 @@ Complete template object with all fields.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `template` | object | Template object including id, name, type, subject, body, user_id, created_at, updated_at. |
+| `template` | object | Template object including id, name, type, subject, body, created_at, updated_at. |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | License not valid. |
-| 404 | Template not found or does not belong to user. |
+| 403 | Message templates require a valid registered license. |
+| 404 | Template not found or does not belong to authenticated user. |
 
 ---
 
-#### `POST /api/messages/templates` {#post-apimessagestemplates}
+#### `POST /api/messages/templates`
 
 **Requires authentication**
 
-Creates a new template or updates an existing one (if 'id' provided in body). Validates name (required, max 100 chars), type (netmail/echomail/both), subject, and body. Requires valid license. Returns template ID and success message code.
+Creates a new template or updates an existing one (if 'id' is provided). Validates name (required, max 100 chars), type (netmail/echomail/both), subject, and body. Requires valid license. Returns template ID and success message code.
 
 **Request Body** _(JSON)_
 
-Template data object.
+Template data to create or update.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Template name (1-100 characters). |
+| `name` | string | Yes | Template name (1–100 characters). |
 | `type` | string | No | Template type: 'netmail', 'echomail', or 'both' (default: 'both'). |
 | `subject` | string | No | Template subject line. |
 | `body` | string | No | Template message body. |
-| `id` | integer | No | Template ID to update. Omit to create new template. |
+| `id` | integer | No | If provided, updates existing template; otherwise creates new one. |
 
 **Response** _(JSON)_
 
-Creation/update result with template ID.
+Created or updated template with ID and success message.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success flag. |
-| `id` | integer | Template ID (new or updated). |
+| `success` | boolean | Indicates successful creation or update. |
+| `id` | integer | Template ID (new or existing). |
 | `message_code` | string | Localization key (e.g., 'ui.compose.templates.saved'). |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Name required, name exceeds 100 chars, or invalid type. |
-| 403 | License not valid. |
+| 400 | Name is required, exceeds 100 characters, or validation failed. |
+| 403 | Message templates require a valid registered license. |
 | 404 | Template ID provided but not found or does not belong to user. |
 
 ---
 
-#### `DELETE /api/messages/templates/{id}` {#delete-apimessagestemplatesid}
+#### `DELETE /api/messages/templates/{id}`
 
 **Requires authentication**
 
-Permanently removes a template owned by the authenticated user. Verifies ownership before deletion. Requires valid license. Returns success with localized message code.
+Permanently deletes a template belonging to the authenticated user. Requires valid license. Verifies ownership before deletion. Returns 404 if template does not exist.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | Template ID to delete. |
+| `id` | integer | The template ID to delete. |
 
 **Response** _(JSON)_
 
-Deletion result with localized message code.
+Deletion confirmation with success status.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Deletion success flag. |
+| `success` | boolean | Indicates successful deletion. |
 | `message_code` | string | Localization key (e.g., 'ui.compose.templates.deleted'). |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | License not valid. |
-| 404 | Template not found or does not belong to user. |
+| 403 | Message templates require a valid registered license. |
+| 404 | Template not found or does not belong to authenticated user. |
 
 ---
 
-#### `GET /api/messages/search` {#get-apimessagessearch}
+#### `GET /api/messages/search`
 
 **Requires authentication**
 
-Searches messages across drafts and received messages with optional field-specific and date-range filters. Requires either a general query (2+ chars) or at least one valid text/date field. Supports filtering by from_name, subject, body, message_id, echoarea, type, and date range (YYYY-MM-DD format).
+Searches messages across drafts, netmail, and echomail. Supports general query (2+ chars) or advanced field-specific searches (from_name, subject, body, message_id, date_from, date_to). Date parameters must be YYYY-MM-DD format. Returns paginated results with message metadata.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `q` | string | No | General search query (2+ characters for full-text search). |
-| `type` | string | No | Filter by message type: 'netmail' or 'echomail'. |
+| `q` | string | No | General search query (minimum 2 characters if used alone). |
+| `type` | string | No | Filter by message type: 'netmail', 'echomail', or 'draft'. |
 | `echoarea` | string | No | Filter by echo area name (URL-encoded). |
-| `from_name` | string | No | Search sender name (2+ characters). |
-| `subject` | string | No | Search subject line (2+ characters). |
-| `body` | string | No | Search message body (2+ characters). |
-| `message_id` | string | No | Search by FidoNet message ID (2+ characters). |
-| `date_from` | string | No | Start date for range filter (YYYY-MM-DD format). |
-| `date_to` | string | No | End date for range filter (YYYY-MM-DD format). |
+| `from_name` | string | No | Search sender name (minimum 2 characters). |
+| `subject` | string | No | Search subject line (minimum 2 characters). |
+| `body` | string | No | Search message body (minimum 2 characters). |
+| `message_id` | string | No | Search by FidoNet message ID (minimum 2 characters). |
+| `date_from` | string | No | Start date filter (YYYY-MM-DD format). |
+| `date_to` | string | No | End date filter (YYYY-MM-DD format). |
 
 **Response** _(JSON)_
 
-Search results array (structure truncated in snippet).
+Paginated search results with message metadata.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `results` | array | Array of matching message objects. |
+| `total` | integer | Total number of matching messages. |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Query too short (< 2 chars) or text field search term < 2 chars with no general query. |
+| 400 | Search query or field-specific search is less than 2 characters, or date format is invalid. |
 
 ---
 
-#### `POST /api/messages/{type}/{id}/read` {#post-apimessagestypeidread}
+#### `POST /api/messages/{type}/{id}/read`
 
 **Requires authentication**
 
-Records that the authenticated user has read a specific message (echomail or netmail). Inserts or updates the read status in the database with the current timestamp. Emits a real-time notification via BinkStream to notify other tabs of the same user. Returns 400 if message type is invalid, 500 if user session cannot be resolved or database operation fails.
+Records that the authenticated user has read a specific message (echomail or netmail). Uses upsert logic to handle duplicate reads gracefully. Emits a real-time notification via BinkStream to sync read status across user tabs. Message type must be 'echomail' or 'netmail'.
 
 **Path Parameters**
 
@@ -4791,15 +4789,15 @@ Success response with optional real-time notification status
 | Status | Description |
 |--------|-------------|
 | 400 | Invalid message type (not 'echomail' or 'netmail') |
-| 500 | User session resolution failed or database operation failed |
+| 500 | Failed to mark message as read or unable to resolve user session |
 
 ---
 
-#### `POST /api/messages/{type}/{id}/save` {#post-apimessagestypeidsave}
+#### `POST /api/messages/{type}/{id}/save`
 
 **Requires authentication**
 
-Adds a message to the authenticated user's saved messages collection. Uses INSERT...ON CONFLICT to idempotently handle duplicate saves. Returns 400 if message type is invalid, 500 if user session cannot be resolved or database operation fails.
+Adds a message to the authenticated user's saved messages collection. Idempotent—saving an already-saved message has no effect. Supports both echomail and netmail types.
 
 **Path Parameters**
 
@@ -4810,7 +4808,7 @@ Adds a message to the authenticated user's saved messages collection. Uses INSER
 
 **Response** _(JSON)_
 
-Success response with localization code
+Success response with localized message code
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -4821,16 +4819,16 @@ Success response with localization code
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid message type (not 'echomail' or 'netmail') |
-| 500 | User session resolution failed or database operation failed |
+| 400 | Invalid message type |
+| 500 | Failed to save message or unable to resolve user session |
 
 ---
 
-#### `DELETE /api/messages/{type}/{id}/save` {#delete-apimessagestypeidsave}
+#### `DELETE /api/messages/{type}/{id}/save`
 
 **Requires authentication**
 
-Deletes a message from the authenticated user's saved messages. Returns success if the message was saved and removed, or a non-error response if the message was not saved. Returns 400 if message type is invalid, 500 if user session cannot be resolved or database operation fails.
+Deletes a saved message entry for the authenticated user. Returns success even if the message was not previously saved (idempotent). Supports both echomail and netmail types.
 
 **Path Parameters**
 
@@ -4841,11 +4839,11 @@ Deletes a message from the authenticated user's saved messages. Returns success 
 
 **Response** _(JSON)_
 
-Success or not-saved response with localization code
+Success or not-saved status with localization key
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | True if message was removed, false if not saved |
+| `success` | boolean | True if unsaved; false if message was not saved |
 | `message_code` | string | Localization key: 'ui.api.messages.unsaved' on success |
 | `error_code` | string | Localization key on failure: 'errors.messages.unsave.not_saved' |
 
@@ -4853,32 +4851,31 @@ Success or not-saved response with localization code
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid message type (not 'echomail' or 'netmail') |
-| 500 | User session resolution failed or database operation failed |
+| 400 | Invalid message type |
+| 500 | Failed to unsave message or unable to resolve user session |
 
 ---
 
-#### `POST /api/messages/{type}/{id}/forward-email` {#post-apimessagestypeidforward-email}
+#### `POST /api/messages/{type}/{id}/forward-email`
 
 **Requires authentication**
 
-Sends a copy of an echomail or netmail message to the authenticated user's registered email address. Validates message ownership, email configuration, and message type. Constructs email with message headers, body, and area information (for echomails). Requires valid email address on user account.
+Converts and sends an echomail or netmail message to the authenticated user's registered email address. Validates message ownership, email configuration, and message type. Requires user to have a valid email address on file. Supports both echomail (with area/domain context) and netmail types.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
 | `type` | string | Message type: 'echomail' or 'netmail' |
-| `id` | integer | Message ID |
+| `id` | integer | Message ID to forward |
 
 **Response** _(JSON)_
 
-Email forwarding result.
+Email forwarding confirmation.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether email was sent successfully |
-| `message_code` | string | Localization key for result message |
+| `success` | boolean | Email sent successfully |
 
 **Error Responses**
 
@@ -4886,15 +4883,15 @@ Email forwarding result.
 |--------|-------------|
 | 400 | User has no email address or invalid message type |
 | 404 | Message not found or user lacks access |
-| 503 | Email sending not configured |
+| 503 | Email sending not configured on system |
 
 ---
 
-#### `GET /api/messages/echomail/delete-test` {#get-apimessagesechomaildelete-test}
+#### `GET /api/messages/echomail/delete-test`
 
 Public
 
-Debug endpoint that verifies the delete endpoint is accessible and responding. Returns a simple success response with a message code. No authentication required.
+Debug endpoint that verifies the delete endpoint is accessible. Returns success status with a message code. No authentication required.
 
 **Response** _(JSON)_
 
@@ -4907,11 +4904,11 @@ Success confirmation with message code
 
 ---
 
-#### `POST /api/messages/echomail/{id}/share` {#post-apimessagesechomailidshare}
+#### `POST /api/messages/echomail/{id}/share`
 
 **Requires authentication**
 
-Generates a share link for an echomail message with optional public visibility, expiration, and AI-generated OG summary. Requires authentication. Returns share metadata including the generated share token/URL.
+Creates a shareable link for an echomail message with optional expiration and public/private visibility. Supports custom OpenGraph summaries for AI-generated previews. Returns share metadata including the generated share token.
 
 **Path Parameters**
 
@@ -4926,12 +4923,12 @@ Share configuration
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `public` | boolean | No | Whether share is publicly accessible (default: false) |
-| `expires_hours` | integer | No | Hours until share expires; null/0/negative means no expiration |
-| `ai_og_summary` | string | No | AI-generated summary for Open Graph metadata |
+| `expires_hours` | integer | No | Hours until share expires; null or ≤0 means no expiration |
+| `ai_og_summary` | string | No | Custom OpenGraph summary for preview |
 
 **Response** _(JSON)_
 
-Share creation result with share details
+Share creation result with token and metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -4941,16 +4938,16 @@ Share creation result with share details
 
 | Status | Description |
 |--------|-------------|
-| 400 | Share creation failed (localized error in response) |
-| 500 | Unexpected error during share creation |
+| 400 | Invalid input or share creation failed |
+| 500 | Server error during share creation |
 
 ---
 
-#### `GET /api/messages/echomail/{id}/shares` {#get-apimessagesechomailidshares}
+#### `GET /api/messages/echomail/{id}/shares`
 
 **Requires authentication**
 
-Lists all active share links for a specific echomail message. Requires authentication. Returns array of share metadata including expiration and visibility settings.
+Retrieves all active share links for a specific echomail message. Requires authentication. Returns array of shares with metadata including expiration and visibility settings.
 
 **Path Parameters**
 
@@ -4960,7 +4957,7 @@ Lists all active share links for a specific echomail message. Requires authentic
 
 **Response** _(JSON)_
 
-Array of share link objects with metadata
+Array of share links with metadata
 
 **Error Responses**
 
@@ -4970,11 +4967,11 @@ Array of share link objects with metadata
 
 ---
 
-#### `DELETE /api/messages/echomail/{id}/share` {#delete-apimessagesechomailidshare}
+#### `DELETE /api/messages/echomail/{id}/share`
 
 **Requires authentication**
 
-Deletes the share record for an echomail message, preventing further access via the share link. The authenticated user must own the message. Returns success status or 404 if the message or share does not exist.
+Deletes the share link for an echomail message, preventing further access via the share URL. The authenticated user must own the message. Returns success status or 404 if the message or share does not exist.
 
 **Path Parameters**
 
@@ -4984,7 +4981,7 @@ Deletes the share record for an echomail message, preventing further access via 
 
 **Response** _(JSON)_
 
-Success confirmation with share revocation details
+Share revocation result
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -4994,16 +4991,16 @@ Success confirmation with share revocation details
 
 | Status | Description |
 |--------|-------------|
-| 404 | Message not found or share does not exist |
+| 404 | Message or share not found |
 | 500 | Failed to revoke share link |
 
 ---
 
-#### `POST /api/messages/echomail/{id}/share/friendly-url` {#post-apimessagesechomailidsharefriendly-url}
+#### `POST /api/messages/echomail/{id}/share/friendly-url`
 
 **Requires authentication**
 
-Creates a human-readable slug for an already-shared echomail message. The share must exist before calling this endpoint. Returns the generated slug or 404 if the message or share is not found.
+Creates a human-readable slug for an already-shared echomail message, enabling access via `/api/messages/shared/{area}/{slug}` instead of the share key. The authenticated user must own the message.
 
 **Path Parameters**
 
@@ -5013,12 +5010,12 @@ Creates a human-readable slug for an already-shared echomail message. The share 
 
 **Response** _(JSON)_
 
-Generated slug and share details
+Slug generation result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether slug generation succeeded |
-| `slug` | string | The newly generated friendly URL slug |
+| `success` | boolean | Whether the slug was successfully generated |
+| `slug` | string | The generated friendly URL slug |
 
 **Error Responses**
 
@@ -5029,11 +5026,11 @@ Generated slug and share details
 
 ---
 
-#### `POST /api/messages/echomail/{id}/share-summary` {#post-apimessagesechomailidshare-summary}
+#### `POST /api/messages/echomail/{id}/share-summary`
 
 **Requires authentication**
 
-Creates an AI-generated summary of an echomail message for sharing purposes. Requires the AI share summary feature to be enabled in BBS config. Returns the generated summary text or 403 if the feature is disabled.
+Uses AI to generate a concise summary of an echomail message for sharing purposes. Requires the AI share summary feature to be enabled in BBS config. Returns the generated summary text or 403 if the feature is disabled.
 
 **Path Parameters**
 
@@ -5043,28 +5040,28 @@ Creates an AI-generated summary of an echomail message for sharing purposes. Req
 
 **Response** _(JSON)_
 
-AI-generated summary of the message
+AI-generated summary result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether summary generation succeeded |
+| `success` | boolean | Whether the summary was successfully generated |
 | `summary` | string | The AI-generated summary text |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | AI share summaries are not enabled in BBS config |
+| 403 | AI share summaries are not enabled |
 | 404 | Message not found |
 | 500 | Failed to generate summary |
 
 ---
 
-#### `GET /api/messages/shared/{area}/{slug}` {#get-apimessagessharedareaslug}
+#### `GET /api/messages/shared/{area}/{slug}`
 
 **Requires authentication**
 
-Fetches a shared echomail message using its friendly URL slug and area. Authentication is optional but may be required depending on share permissions. Returns 401 if login is required, 404 if not found.
+Fetches a shared echomail message using its friendly URL slug and area. Authentication is required if the share has login restrictions. Returns 401 if login is required but user is not authenticated, or 404 if the share does not exist.
 
 **Path Parameters**
 
@@ -5075,12 +5072,12 @@ Fetches a shared echomail message using its friendly URL slug and area. Authenti
 
 **Response** _(JSON)_
 
-The shared message content and metadata
+Shared message data
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether the message was retrieved |
-| `message` | object | The message object with content, headers, and metadata |
+| `success` | boolean | Whether the message was successfully retrieved |
+| `message` | object | The shared message content and metadata |
 
 **Error Responses**
 
@@ -5092,11 +5089,11 @@ The shared message content and metadata
 
 ---
 
-#### `GET /api/messages/shared/{shareKey}` {#get-apimessagessharedsharekey}
+#### `GET /api/messages/shared/{shareKey}`
 
 **Requires authentication**
 
-Fetches a shared message using its unique share key. Authentication is optional but may be required depending on share permissions. Returns 401 if login is required, 404 if the share key is invalid.
+Fetches a shared message using its unique share key. Authentication is optional; if provided, the user context is used for access control. Returns 401 if the share requires login but user is not authenticated, or 404 if the share key is invalid.
 
 **Path Parameters**
 
@@ -5106,12 +5103,12 @@ Fetches a shared message using its unique share key. Authentication is optional 
 
 **Response** _(JSON)_
 
-The shared message content and metadata
+Shared message data
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether the message was retrieved |
-| `message` | object | The message object with content, headers, and metadata |
+| `success` | boolean | Whether the message was successfully retrieved |
+| `message` | object | The shared message content and metadata |
 
 **Error Responses**
 
@@ -5123,30 +5120,25 @@ The shared message content and metadata
 
 ---
 
-#### `POST /api/messages/ai-assist` {#post-apimessagesai-assist}
+#### `POST /api/messages/ai-assist`
 
 **Requires authentication**
 
-Generates AI-assisted text for echomail or netmail composition using OpenAI or Anthropic APIs. Requires AI assistant to be enabled and configured via environment variables. Accepts a user prompt (max 500 chars) and optional message context. Returns AI-generated response text suitable for message body.
+Calls an AI assistant (OpenAI or Anthropic) to generate a response based on a user prompt and optional message context. Requires AI assistant to be enabled and configured via environment variables. Prompt is limited to 500 characters. Supports both echomail and netmail message types.
 
 **Request Body** _(JSON)_
 
-AI assistance request with prompt and optional context
+AI assistance request
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `prompt` | string | Yes | User prompt (1-500 characters) |
+| `prompt` | string | Yes | User prompt (max 500 chars) |
 | `message_id` | integer | No | Optional message ID for context |
 | `message_type` | string | No | Message type: 'echomail' or 'netmail' (default: 'echomail') |
 
 **Response** _(JSON)_
 
-AI-generated assistance response
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `success` | boolean | True if generation succeeded |
-| `response` | string | AI-generated text |
+AI-generated response (truncated in snippet)
 
 **Error Responses**
 
@@ -5158,17 +5150,17 @@ AI-generated assistance response
 
 ---
 
-### Netmail
+### Netmail {#public-api-netmail}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/netmail/attachment/upload`](#post-apinetmailattachmentupload) | Yes | Upload a file for attachment to an outbound netmail message. |
 
-#### `POST /api/netmail/attachment/upload` {#post-apinetmailattachmentupload}
+#### `POST /api/netmail/attachment/upload`
 
 **Requires authentication**
 
-Accepts a multipart file upload and stores it temporarily with a unique token. The token is returned and must be provided when sending the netmail. Enforces a configurable maximum file size (default 10 MB). Sanitizes filenames to contain only safe characters. Files are stored in data/netmail_attachments with token-prefixed names.
+Accepts a multipart file upload and stores it temporarily with a unique token. The token is returned and must be provided when sending the netmail. Enforces file size limits (default 10 MB, configurable via NETMAIL_ATTACHMENT_MAX_SIZE). Sanitizes filenames to alphanumeric characters, dots, hyphens, and underscores. Files are stored in data/netmail_attachments with token prefix.
 
 **Request Body** _(JSON)_
 
@@ -5176,7 +5168,7 @@ Multipart form data with file upload
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `file` | file | Yes | File to upload (max size configured by NETMAIL_ATTACHMENT_MAX_SIZE env var) |
+| `file` | file | Yes | File to upload (max size configurable, default 10 MB) |
 
 **Response** _(JSON)_
 
@@ -5184,31 +5176,32 @@ Upload success with attachment token
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `token` | string | 32-character hex token to reference this attachment when sending netmail |
+| `success` | boolean | Upload status |
+| `token` | string | 32-character hex token to reference file in send request |
 | `filename` | string | Sanitized original filename |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | No file provided, PHP upload error, or file exceeds size limit |
+| 400 | No file provided, upload error, or file exceeds size limit |
 | 401 | Authentication required |
-| 500 | Failed to create attachment directory or move uploaded file |
+| 500 | Server error creating attachment directory or moving file |
 
 ---
 
-### Nodelist
+### Nodelist {#public-api-nodelist}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/nodelist/node`](#get-apinodelistnode) | Yes | Look up a nodelist entry by FTN address. |
+| `GET` | [`/api/nodelist/node`](#get-apinodelistnode) | Yes | Look up a nodelist entry by exact FTN address. |
 | `GET` | [`/api/nodelist/search`](#get-apinodelistsearch) | Yes | Search nodelist nodes by name, sysop, or location. |
 
-#### `GET /api/nodelist/node` {#get-apinodelistnode}
+#### `GET /api/nodelist/node`
 
 **Requires authentication**
 
-Retrieves nodelist information for an exact FTN address. If a point address is not found, automatically falls back to the parent node. Returns null if no match is found. Useful for validating recipient addresses.
+Retrieves nodelist information for a given FTN address. If the exact address is not found and it is a point address (contains a dot), falls back to searching for the parent node. Returns null if no match found. Requires exact address match.
 
 **Query Parameters**
 
@@ -5222,22 +5215,22 @@ Nodelist entry or null if not found
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Operation success status |
+| `success` | boolean | Always true; check node field for null |
 | `node` | object|null | Node object with address, system_name, location, domain; null if not found |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Missing required 'address' query parameter |
+| 400 | Missing or empty address parameter |
 
 ---
 
-#### `GET /api/nodelist/search` {#get-apinodelistsearch}
+#### `GET /api/nodelist/search`
 
 **Requires authentication**
 
-Searches the nodelist for nodes matching a query string across system name, sysop name, and location fields. Returns up to 10 results suitable for autocomplete interfaces. Requires a minimum query length of 2 characters; shorter queries return an empty result set.
+Searches the nodelist for nodes matching a query term against system name, sysop name, or location. Returns up to 10 results suitable for autocomplete interfaces. Requires a minimum query length of 2 characters; shorter queries return an empty result set.
 
 **Query Parameters**
 
@@ -5251,8 +5244,8 @@ JSON object containing search results
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Always true on success |
-| `nodes` | array | Array of up to 10 matching nodes with address, system_name, location, and domain |
+| `success` | boolean | Always true on successful request |
+| `nodes` | array | Array of matching nodes (max 10 items), each with address, system_name, location, and domain |
 
 **Error Responses**
 
@@ -5262,7 +5255,7 @@ JSON object containing search results
 
 ---
 
-### Notify
+### Notify {#public-api-notify}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5270,11 +5263,11 @@ JSON object containing search results
 | `POST` | [`/api/notify/state`](#post-apinotifystate) | Yes | Update notification state for authenticated user. |
 | `POST` | [`/api/notify/seen`](#post-apinotifyseen) | Yes | Mark notification target as seen up to a given count. |
 
-#### `GET /api/notify/state` {#get-apinotifystate}
+#### `GET /api/notify/state`
 
 **Requires authentication**
 
-Returns the user's saved notification tracking state including last-seen counts/IDs for netmail, echomail, chat, and files. Used by clients to determine which content is new since last visit. Returns default state if none previously saved.
+Returns the user's stored notification tracking state including mail counts, unread flags, and last-seen IDs for chat, files, and approvals. Returns sensible defaults if no state has been saved yet.
 
 **Response** _(JSON)_
 
@@ -5282,7 +5275,7 @@ Notification state object
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `state` | object | Notification tracking state with mailLastCounts, mailUnread, chatLastTotal, chatUnread, filesLastMaxId, filesUnread |
+| `state` | object | Notification state with mailLastCounts, mailUnread, chatLastTotal, chatUnread, filesLastMaxId, filesUnread |
 
 **Error Responses**
 
@@ -5292,15 +5285,15 @@ Notification state object
 
 ---
 
-#### `POST /api/notify/state` {#post-apinotifystate}
+#### `POST /api/notify/state`
 
 **Requires authentication**
 
-Persists the user's notification tracking state. Normalizes and validates all state fields (counts as non-negative integers, unread flags as booleans). Used by clients to track which content has been viewed.
+Persists notification tracking state (mail counts, unread flags, last-seen IDs). Normalizes and validates all numeric values (non-negative integers) and boolean flags before storage.
 
 **Request Body** _(JSON)_
 
-Notification state to save
+Notification state to persist
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -5323,11 +5316,11 @@ Update confirmation with normalized state
 
 ---
 
-#### `POST /api/notify/seen` {#post-apinotifyseen}
+#### `POST /api/notify/seen`
 
 **Requires authentication**
 
-Updates the user's last-seen marker for a specific content type (netmail, echomail, chat, files, or file-approvals). File-approvals target requires admin privileges. Stores either a count (netmail) or max row ID (other targets) to track what content is new.
+Updates the user's last-seen marker for a specific notification target (netmail, echomail, chat, files, or file-approvals). File-approvals is admin-only. Stores either a count (netmail) or max row ID (others) depending on target type.
 
 **Request Body** _(JSON)_
 
@@ -5335,8 +5328,8 @@ Seen notification data
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `target` | string | Yes | Content type: 'netmail', 'echomail', 'chat', 'files', or 'file-approvals' |
-| `current_count` | integer | Yes | Count or max ID to mark as seen |
+| `target` | string | Yes | Notification target: 'netmail', 'echomail', 'chat', 'files', or 'file-approvals' |
+| `current_count` | integer | Yes | Count (netmail) or max row ID (others) to mark as seen |
 
 **Response** _(JSON)_
 
@@ -5345,8 +5338,8 @@ Confirmation of seen marker update
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether marker was updated |
-| `target` | string | The target that was updated |
-| `count` | integer | The count/ID that was stored |
+| `target` | string | Target that was updated |
+| `count` | integer | Count/ID that was stored |
 
 **Error Responses**
 
@@ -5357,20 +5350,20 @@ Confirmation of seen marker update
 
 ---
 
-### Pending Users
+### Pending Users {#public-api-pending-users}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/admin/pending-users`](#get-apiadminpending-users) | Yes | List all pending user registrations (admin only). |
-| `GET` | [`/api/admin/pending-users/{id}`](#get-apiadminpending-usersid) | Yes | Retrieve a single pending user registration by ID. |
-| `POST` | [`/api/admin/pending-users/{id}/approve`](#post-apiadminpending-usersidapprove) | Yes | Approve a pending user registration and create active user. |
-| `POST` | [`/api/admin/pending-users/{id}/reject`](#post-apiadminpending-usersidreject) | Yes | Reject a pending user registration. |
+| `GET` | [`/api/admin/pending-users/{id}`](#get-apiadminpending-usersid) | Yes | Retrieve single pending user registration details. |
+| `POST` | [`/api/admin/pending-users/{id}/approve`](#post-apiadminpending-usersidapprove) | Yes | Approve pending user registration and create active account. |
+| `POST` | [`/api/admin/pending-users/{id}/reject`](#post-apiadminpending-usersidreject) | Yes | Reject pending user registration. |
 
-#### `GET /api/admin/pending-users` {#get-apiadminpending-users}
+#### `GET /api/admin/pending-users`
 
 **Requires authentication**
 
-Retrieves all users awaiting admin approval. Requires admin privileges. Returns full pending user records with referrer information if available. Used for registration queue management.
+Retrieves all users awaiting admin approval. Requires admin privileges. Returns array of pending user records with application details. Throws 500 on database errors.
 
 **Response** _(JSON)_
 
@@ -5379,22 +5372,23 @@ List of pending user registrations
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `users` | array | Array of pending user objects with referrer details |
+| `users` | array | Array of pending user objects |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 403 | User is not an admin |
-| 500 | Database or handler error |
+| 401 | Authentication required |
+| 500 | Database error |
 
 ---
 
-#### `GET /api/admin/pending-users/{id}` {#get-apiadminpending-usersid}
+#### `GET /api/admin/pending-users/{id}`
 
 **Requires authentication**
 
-Fetches detailed pending user record including referrer username and real name. Admin-only endpoint. Returns 404 if pending user not found.
+Fetches a specific pending user record by ID, including referrer information (username and real name). Admin-only endpoint. Returns 404 if pending user not found.
 
 **Path Parameters**
 
@@ -5404,12 +5398,12 @@ Fetches detailed pending user record including referrer username and real name. 
 
 **Response** _(JSON)_
 
-Single pending user record with referrer info
+Pending user registration details
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `user` | object | Pending user object including referrer_username and referrer_real_name |
+| `user` | object | Pending user record with referrer details |
 
 **Error Responses**
 
@@ -5417,15 +5411,16 @@ Single pending user record with referrer info
 |--------|-------------|
 | 403 | User is not an admin |
 | 404 | Pending user not found |
+| 401 | Authentication required |
 | 500 | Database error |
 
 ---
 
-#### `POST /api/admin/pending-users/{id}/approve` {#post-apiadminpending-usersidapprove}
+#### `POST /api/admin/pending-users/{id}/approve`
 
 **Requires authentication**
 
-Converts pending user to active user account. Admin-only. Optionally records approval notes. Returns new user ID on success. Throws 400 if approval fails (e.g., duplicate username).
+Converts a pending user to an active user account. Admin-only. Accepts optional notes field. Returns newly created user ID on success. Throws 400 if approval fails (e.g., duplicate username, invalid state).
 
 **Path Parameters**
 
@@ -5439,7 +5434,7 @@ Approval details
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `notes` | string | No | Optional admin notes for approval record |
+| `notes` | string | No | Optional admin notes for approval |
 
 **Response** _(JSON)_
 
@@ -5455,16 +5450,17 @@ Approval confirmation with new user ID
 
 | Status | Description |
 |--------|-------------|
-| 400 | Approval failed (duplicate username, validation error, etc.) |
+| 400 | Approval failed (invalid state, duplicate username, etc.) |
 | 403 | User is not an admin |
+| 401 | Authentication required |
 
 ---
 
-#### `POST /api/admin/pending-users/{id}/reject` {#post-apiadminpending-usersidreject}
+#### `POST /api/admin/pending-users/{id}/reject`
 
 **Requires authentication**
 
-Denies pending user registration and removes from queue. Admin-only. Optionally records rejection reason in notes. Pending user record is deleted.
+Denies a pending user registration. Admin-only. Accepts optional notes field. Removes the pending user record. Throws 400 if rejection fails.
 
 **Path Parameters**
 
@@ -5478,7 +5474,7 @@ Rejection details
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `notes` | string | No | Optional admin notes for rejection reason |
+| `notes` | string | No | Optional admin notes for rejection |
 
 **Response** _(JSON)_
 
@@ -5495,44 +5491,39 @@ Rejection confirmation
 |--------|-------------|
 | 400 | Rejection failed |
 | 403 | User is not an admin |
+| 401 | Authentication required |
 
 ---
 
-### Polls
+### Polls {#public-api-polls}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/polls/active`](#get-apipollsactive) | Yes | Retrieve all active polls with options and user vote status. |
 | `POST` | [`/api/polls/{id}/vote`](#post-apipollsidvote) | Yes | Submit a vote for a specific poll option. |
-| `POST` | [`/api/polls/create`](#post-apipollscreate) | Yes | Create a new poll with question and multiple options. |
+| `POST` | [`/api/polls/create`](#post-apipollscreate) | Yes | Create a new poll with question and multiple choice options. |
 
-#### `GET /api/polls/active` {#get-apipollsactive}
+#### `GET /api/polls/active`
 
 **Requires authentication**
 
-Fetches active polls from the database with their options and indicates which polls the authenticated user has already voted on. Polls are ordered by creation date (newest first). Returns empty array if no active polls exist.
+Fetches active polls from the database with their options and indicates which polls the authenticated user has already voted on. Returns an empty array if no active polls exist. Polls are ordered by creation date (newest first).
 
 **Response** _(JSON)_
 
-List of active polls with options and vote status
+JSON object containing array of active polls
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `polls` | array of objects | Array of poll objects, each containing id, question, options array, and user_has_voted boolean |
-
-**Error Responses**
-
-| Status | Description |
-|--------|-------------|
-| 401 | Authentication required |
+| `polls` | array of objects | Array of poll objects with id, question, options array, and has_voted boolean |
 
 ---
 
-#### `POST /api/polls/{id}/vote` {#post-apipollsidvote}
+#### `POST /api/polls/{id}/vote`
 
 **Requires authentication**
 
-Records a vote from the authenticated user for a specified poll option. Validates that the poll is active and the option belongs to the poll. Prevents duplicate votes via database constraint. Returns success or appropriate error if poll/option invalid or vote fails.
+Records a vote for the authenticated user on an active poll. Validates that the poll exists and is active, and that the option belongs to the poll. Prevents duplicate votes via database constraint. Returns success or appropriate error with localized message.
 
 **Path Parameters**
 
@@ -5542,7 +5533,7 @@ Records a vote from the authenticated user for a specified poll option. Validate
 
 **Request Body** _(JSON)_
 
-JSON payload containing the poll option to vote for
+JSON object with poll option selection
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -5550,72 +5541,69 @@ JSON payload containing the poll option to vote for
 
 **Response** _(JSON)_
 
-Confirmation that the vote was recorded
+JSON object with success status
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Always true on success |
+| `success` | boolean | True when vote is recorded |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 400 | Missing or invalid option_id, invalid option for poll, or vote recording failed |
-| 404 | Poll not found or not active |
-| 401 | Authentication required |
+| 404 | Poll not found or is not active |
 
 ---
 
-#### `POST /api/polls/create` {#post-apipollscreate}
+#### `POST /api/polls/create`
 
 **Requires authentication**
 
-Creates a new poll with validation for question length (10–500 chars), option count (2–10), and option length (max 200 chars each). Prevents duplicate options. Requires moderator/admin permissions. Returns the created poll ID or validation error.
+Creates a new poll with validation for question length (10-500 chars) and option count (2-10 options, each max 200 chars). Prevents duplicate options. Requires authenticated user. Returns created poll details or validation error.
 
 **Request Body** _(JSON)_
 
-JSON payload with poll question and options
+JSON object with poll details
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `question` | string | Yes | Poll question (10–500 characters) |
-| `options` | array of strings | Yes | Array of 2–10 poll options (each max 200 characters, no duplicates) |
+| `question` | string | Yes | Poll question (10-500 characters) |
+| `options` | array of strings | Yes | Array of 2-10 poll options (each max 200 characters, no duplicates) |
 
 **Response** _(JSON)_
 
-Confirmation with the created poll ID
+JSON object with created poll ID and details
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | True if poll created |
-| `poll_id` | integer | ID of the newly created poll |
+| `id` | integer | The newly created poll ID |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 400 | Missing question, invalid question length, invalid option count, empty option, option too long, or duplicate options |
-| 401 | Authentication required or insufficient permissions |
 
 ---
 
-### Qwk
+### Qwk {#public-api-qwk}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `POST` | [`/api/qwk/upload`](#post-apiqwkupload) | Yes | Upload and process a QWK REP packet for offline mail. |
-| `GET` | [`/api/qwk/status`](#get-apiqwkstatus) | Yes | Retrieve user's QWK subscription status and pending messages. |
-| `POST` | [`/api/qwk/format`](#post-apiqwkformat) | Yes | Set user's preferred QWK packet format (QWK or QWKE). |
-| `POST` | [`/api/qwk/reset`](#post-apiqwkreset) | Yes | Dev-only: Reset all QWK state for the current user. |
+| `POST` | [`/api/qwk/upload`](#post-apiqwkupload) | Yes | Upload and process a QWK REP packet for offline mail import. |
+| `GET` | [`/api/qwk/status`](#get-apiqwkstatus) | Yes | Retrieve user's QWK subscription status and pending message counts. |
+| `POST` | [`/api/qwk/format`](#post-apiqwkformat) | Yes | Save user's preferred QWK packet format (QWK or QWKE). |
+| `POST` | [`/api/qwk/reset`](#post-apiqwkreset) | Yes | Dev-only: reset all QWK state for the current user. |
 | `GET` | [`/api/qwk/area-selections`](#get-apiqwkarea-selections) | Yes | Retrieve user's QWK area selections and available subscriptions. |
-| `POST` | [`/api/qwk/area-selections`](#post-apiqwkarea-selections) | Yes | Save user's QWK area selection preferences. |
-| `GET` | [`/api/qwk/area-search`](#get-apiqwkarea-search) | Yes | Search echo areas by tag or description. |
+| `POST` | [`/api/qwk/area-selections`](#post-apiqwkarea-selections) | Yes | Save user's QWK area selection for packet generation. |
+| `GET` | [`/api/qwk/area-search`](#get-apiqwkarea-search) | Yes | Search echo areas by tag or description for QWK selection. |
 
-#### `POST /api/qwk/upload` {#post-apiqwkupload}
+#### `POST /api/qwk/upload`
 
 **Requires authentication**
 
-Accepts a multipart file upload containing a REP (reply) packet and processes it for the authenticated user. The endpoint validates that QWK is enabled, extracts the uploaded file from the 'rep' form field, and imports messages into the user's mailbox. Returns counts of imported and skipped messages along with any processing errors.
+Accepts a multipart form upload containing a REP packet (field name: "rep") and processes it for the authenticated user. Returns import statistics including message counts and any processing errors. QWK feature must be enabled on the system. Validates file type and handles various upload/processing failures with specific error codes.
 
 **Request Body** _(JSON)_
 
@@ -5623,18 +5611,18 @@ Multipart form data with REP packet file
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `rep` | file | Yes | QWK REP packet file (.rep extension) |
+| `rep` | file | Yes | REP packet file (QWK reply packet) |
 
 **Response** _(JSON)_
 
-Processing result with import statistics
+Import result with message statistics
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether processing completed successfully |
-| `imported` | integer | Number of messages successfully imported |
-| `skipped` | integer | Number of messages skipped (duplicates, invalid, etc.) |
-| `errors` | array | List of error messages encountered during processing |
+| `imported` | integer | Number of messages imported from the packet |
+| `skipped` | integer | Number of messages skipped (duplicates, errors) |
+| `errors` | array | Array of error messages encountered during processing |
 
 **Error Responses**
 
@@ -5642,42 +5630,40 @@ Processing result with import statistics
 |--------|-------------|
 | 400 | No file uploaded, invalid file extension, or upload error |
 | 403 | QWK feature is disabled on this system |
-| 500 | Server error during REP packet processing |
+| 500 | REP packet processing failed |
 
 ---
 
-#### `GET /api/qwk/status` {#get-apiqwkstatus}
+#### `GET /api/qwk/status`
 
 **Requires authentication**
 
-Returns the user's current QWK configuration including subscribed conference areas and the count of new messages waiting since the last download. Respects custom area selections if enabled, otherwise uses the user's standard echo area subscriptions. Includes per-area message counts and last-seen message IDs for tracking new content.
+Returns the user's current QWK configuration including subscribed conferences and the number of new messages waiting since the last download. Respects custom area selections if enabled; otherwise uses all subscribed echoareas. Includes netmail status and per-area message counts.
 
 **Response** _(JSON)_
 
-User's QWK state with subscribed areas and message counts
+QWK status with subscriptions and message counts
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `areas` | array | List of subscribed echo areas with message counts |
-| `areas[].id` | integer | Echo area ID |
-| `areas[].tag` | string | Echo area tag/name |
-| `areas[].new_messages` | integer | Count of new messages since last download |
-| `netmail_count` | integer | Count of new netmail messages for the user |
-| `using_custom_areas` | boolean | Whether user has custom area selection active |
+| `has_custom_areas` | boolean | Whether user has custom area selection active |
+| `areas` | array | Array of subscribed/selected echoareas with message counts |
+| `netmail_count` | integer | Number of new netmail messages |
+| `total_new` | integer | Total new messages across all areas |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | QWK feature is disabled on this system |
+| 403 | QWK feature is disabled |
 
 ---
 
-#### `POST /api/qwk/format` {#post-apiqwkformat}
+#### `POST /api/qwk/format`
 
 **Requires authentication**
 
-Saves the user's packet format preference to their user metadata. Accepts either 'qwk' (standard format) or 'qwke' (extended format with MIME support). This preference is used when generating download packets.
+Persists the user's packet format preference to UserMeta. Accepts either 'qwk' (standard) or 'qwke' (extended) format. Used by the client to request the appropriate packet type on download.
 
 **Request Body** _(JSON)_
 
@@ -5693,7 +5679,7 @@ Confirmation of saved format
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether the format was saved |
+| `success` | boolean | Always true on success |
 | `format` | string | The saved format value |
 
 **Error Responses**
@@ -5701,75 +5687,71 @@ Confirmation of saved format
 | Status | Description |
 |--------|-------------|
 | 400 | Invalid format value (must be 'qwk' or 'qwke') |
-| 403 | QWK feature is disabled on this system |
+| 403 | QWK feature is disabled |
 
 ---
 
-#### `POST /api/qwk/reset` {#post-apiqwkreset}
+#### `POST /api/qwk/reset`
 
 **Requires authentication**
 
-Purges all QWK-related state (conference state, download logs, message indices, imported hashes) for the authenticated user, allowing packets to be re-downloaded from scratch. Only available when IS_DEV=true in environment configuration. Useful for testing and development.
+Purges all QWK-related database records (conference state, download log, message index, imported hashes) for the authenticated user, allowing packets to be re-downloaded from scratch. Only available when IS_DEV=true in environment configuration.
 
 **Response** _(JSON)_
 
-Reset operation result
+Reset confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether the reset completed successfully |
+| `success` | boolean | True if reset completed |
 | `error` | string | Error message if reset failed |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | Not available outside dev mode (IS_DEV != true) |
-| 500 | Database error during reset |
+| 403 | Not in dev mode (IS_DEV != 'true') |
+| 500 | Database operation failed |
 
 ---
 
-#### `GET /api/qwk/area-selections` {#get-apiqwkarea-selections}
+#### `GET /api/qwk/area-selections`
 
 **Requires authentication**
 
-Returns the user's current QWK area selection configuration along with their full list of subscribed echo areas. Indicates whether custom area selection is active. When custom selection is inactive, the user receives all subscribed areas in their QWK packets.
+Returns the user's current QWK area selection (if custom mode is active) plus the full list of areas they are subscribed to. Used by the UI to render the area picker. When custom selection is inactive, the selections array is empty (indicating all subscribed areas are used).
 
 **Response** _(JSON)_
 
-User's area selection state and available areas
+Area selection state and available areas
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `has_custom` | boolean | True if user has explicit custom area selection active |
+| `has_custom` | boolean | True if user has an explicit custom selection active |
 | `selections` | array | Currently selected areas (empty if has_custom is false) |
-| `selections[].id` | integer | Echo area ID |
-| `selections[].tag` | string | Echo area tag |
-| `selections[].domain` | string | Echo area domain |
-| `selections[].description` | string | Echo area description |
-| `subscribed` | array | All areas the user is subscribed to (same structure as selections) |
+| `subscribed` | array | All areas user is subscribed to |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | QWK feature is disabled on this system |
+| 403 | QWK feature is disabled |
 
 ---
 
-#### `POST /api/qwk/area-selections` {#post-apiqwkarea-selections}
+#### `POST /api/qwk/area-selections`
 
 **Requires authentication**
 
-Replaces the user's QWK area selection with the provided list of echo area IDs. An empty array clears custom selection and reverts to using all subscribed areas. Validates that each area ID is active and accessible to the user (respects sysop-only restrictions). Activates custom selection mode when areas are provided.
+Replaces the user's QWK area selection with the provided list of echoarea IDs. An empty array clears custom selection and reverts to using all subscribed areas. Validates that each area is active and accessible (respects sysop-only restrictions). Atomically updates the selection and toggles custom mode flag.
 
 **Request Body** _(JSON)_
 
-New area selection
+Area selection update
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `echoarea_ids` | array | Yes | Array of echo area IDs to select (empty array clears custom selection) |
+| `echoarea_ids` | array | Yes | Array of echoarea IDs to select (empty array clears custom selection) |
 | `reset` | boolean | No | If true, clears custom mode and reverts to all-subscribed behavior |
 
 **Response** _(JSON)_
@@ -5778,73 +5760,69 @@ Confirmation of saved selection
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether the selection was saved |
-| `selections` | array | The saved area selections |
+| `success` | boolean | True if selection was saved |
+| `selections` | array | The validated and saved area IDs |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 400 | Missing or invalid echoarea_ids array |
-| 403 | QWK feature is disabled on this system |
+| 403 | QWK feature is disabled or user lacks access to specified areas |
 
 ---
 
-#### `GET /api/qwk/area-search` {#get-apiqwkarea-search}
+#### `GET /api/qwk/area-search`
 
 **Requires authentication**
 
-Searches active echo areas by tag or description text. Returns up to 20 matching results. Respects sysop-only area restrictions for non-admin users. Requires a minimum 2-character search term. Used by the QWK area picker UI to help users discover and add areas.
+Full-text search across active echoareas by tag or description. Returns up to 20 matching results. Respects sysop-only restrictions for non-admin users. Requires minimum 2-character search term. Used by the area picker UI to help users discover and add areas.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `q` | string | Yes | Search term (minimum 2 characters, searches tag and description) |
+| `q` | string | Yes | Search term (minimum 2 characters) |
 
 **Response** _(JSON)_
 
-Matching echo areas
+Search results
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `areas` | array | List of matching areas (up to 20 results) |
-| `areas[].id` | integer | Echo area ID |
-| `areas[].tag` | string | Echo area tag |
-| `areas[].domain` | string | Echo area domain |
-| `areas[].description` | string | Echo area description |
+| `areas` | array | Matching echoareas (up to 20 results) |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 403 | QWK feature is disabled on this system |
+| 403 | QWK feature is disabled |
 
 ---
 
-### Referrals
+### Referrals {#public-api-referrals}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/referrals/my-stats`](#get-apireferralsmy-stats) | Yes | Get authenticated user's referral statistics and earnings. |
-| `GET` | [`/api/referrals/admin/stats`](#get-apireferralsadminstats) | No | Get system-wide referral statistics (admin only). |
+| `GET` | [`/api/referrals/my-stats`](#get-apireferralsmy-stats) | Yes | Get authenticated user's referral statistics. |
+| `GET` | [`/api/referrals/admin/stats`](#get-apireferralsadminstats) | Yes | Get system-wide referral statistics (admin only). |
 
-#### `GET /api/referrals/my-stats` {#get-apireferralsmy-stats}
+#### `GET /api/referrals/my-stats`
 
 **Requires authentication**
 
-Returns the user's referral code, shareable referral URL, list of users referred by this account, total referral count, and total credits earned from referrals. Includes the per-referral bonus amount for display purposes.
+Returns the user's referral code, shareable referral URL, list of users they've referred, total referral count, earnings from referrals, and the per-referral bonus amount. Requires authentication and returns 404 if user has no referral code.
 
 **Response** _(JSON)_
 
-User referral statistics and earnings
+User's referral statistics and earnings
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `referral_code` | string | Unique referral code for this user |
-| `referral_url` | string | Complete shareable registration URL with referral code |
+| `referral_url` | string | Full URL for sharing referral link |
 | `referrals` | array | List of referred users with username, real_name, and created_at |
-| `total_count` | integer | Total number of users referred by this account |
+| `total_count` | integer | Total number of users referred |
 | `total_earned` | integer | Total credits earned from referral bonuses |
 | `referral_bonus` | integer | Credits awarded per successful referral |
 
@@ -5857,11 +5835,11 @@ User referral statistics and earnings
 
 ---
 
-#### `GET /api/referrals/admin/stats` {#get-apireferralsadminstats}
+#### `GET /api/referrals/admin/stats`
 
-Public
+**Requires authentication**
 
-Admin endpoint returning aggregate referral metrics including total referrals, top 10 referrers with counts, 10 most recent referrals, and total credits awarded system-wide. Requires admin authentication.
+Returns aggregated referral metrics including total referrals, top 10 referrers with counts, 10 most recent referrals, and total credits awarded system-wide. Requires admin authentication.
 
 **Response** _(JSON)_
 
@@ -5869,8 +5847,8 @@ System-wide referral statistics
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `total_referrals` | integer | Total number of referred user accounts |
-| `top_referrers` | array | Top 10 users by referral count with username, real_name, and referral_count |
+| `total_referrals` | integer | Total number of users referred across system |
+| `top_referrers` | array | Top 10 referrers with username, real_name, and referral_count |
 | `recent_referrals` | array | 10 most recent referrals with username, created_at, and referrer username |
 | `total_credits_awarded` | integer | Total credits distributed as referral bonuses |
 
@@ -5878,21 +5856,22 @@ System-wide referral statistics
 
 | Status | Description |
 |--------|-------------|
-| 403 | Admin authentication required |
+| 401 | Authentication required |
+| 403 | Admin privileges required |
 
 ---
 
-### Register
+### Register {#public-api-register}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/register`](#post-apiregister) | No | Register a new user account with anti-spam protections. |
 
-#### `POST /api/register` {#post-apiregister}
+#### `POST /api/register`
 
 Public
 
-Creates a new user account with support for both web and terminal (telnet/SSH) registration sources. Implements multi-layer anti-spam validation including honeypot fields and time-based checks. Terminal clients can bypass browser-specific anti-spam challenges by providing a valid registration token via X-Binkterm-Registration-Token header. Accepts both JSON and form-encoded request bodies.
+Creates a new user account with built-in anti-spam validation (honeypot, timing checks). Supports both JSON and form-encoded requests. Terminal clients (telnet/SSH) can bypass browser-only anti-spam checks by providing a valid X-Binkterm-Registration-Token header. Accepts optional X-Binkterm-Registration-Source and X-Binkterm-Client-IP headers for terminal registrations.
 
 **Request Body** _(JSON)_
 
@@ -5902,107 +5881,100 @@ User registration data (JSON or form-encoded)
 |-------|------|----------|-------------|
 | `username` | string | Yes | Desired username |
 | `password` | string | Yes | Account password |
-| `email` | string | Yes | Email address for account recovery |
-| `website` | string | No | Honeypot field—must be empty (bot detection) |
+| `email` | string | Yes | Email address |
+| `website` | string | No | Honeypot field—must be empty or request fails silently |
 
 **Response** _(JSON)_
 
-Registration result with success status and optional user data
+Registration result with success status and optional email confirmation details
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether registration succeeded |
-| `user_id` | integer | New user ID (on success) |
+| `message_code` | string | Localization key for success message |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 400 | Invalid submission (honeypot triggered, too fast, missing fields, or validation failed) |
-| 409 | Username or email already exists |
+| 429 | Rate limit exceeded |
 | 500 | Server error during registration |
 
 ---
 
-### Shoutbox
+### Shoutbox {#public-api-shoutbox}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/shoutbox`](#get-apishoutbox) | Yes | Retrieve recent shoutbox messages with pagination. |
 | `POST` | [`/api/shoutbox`](#post-apishoutbox) | Yes | Post a new message to the shoutbox. |
 
-#### `GET /api/shoutbox` {#get-apishoutbox}
+#### `GET /api/shoutbox`
 
 **Requires authentication**
 
-Fetches non-hidden shoutbox messages ordered by creation date (newest first). Supports pagination via limit and offset query parameters. Limit is capped at 100 and defaults to 20. Returns messages with user info and timestamps.
+Fetches non-hidden shoutbox messages ordered by creation date (newest first). Supports pagination via limit and offset query parameters. Limit is capped at 100 and defaults to 20. Includes username and timestamp for each message.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `limit` | integer | No | Number of messages to return (default 20, max 100) |
-| `offset` | integer | No | Number of messages to skip (default 0) |
+| `offset` | integer | No | Number of messages to skip for pagination (default 0) |
 
 **Response** _(JSON)_
 
-List of recent shoutbox messages
+JSON object containing array of shoutbox messages
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `messages` | array of objects | Array of message objects with id, message text, created_at timestamp, and username |
 
-**Error Responses**
-
-| Status | Description |
-|--------|-------------|
-| 401 | Authentication required |
-
 ---
 
-#### `POST /api/shoutbox` {#post-apishoutbox}
+#### `POST /api/shoutbox`
 
 **Requires authentication**
 
-Submits a new message to the shoutbox for the authenticated user. Validates that the message is non-empty and does not exceed 280 characters. Returns success or validation error.
+Adds a new message to the shoutbox for the authenticated user. Validates message is not empty and does not exceed 280 characters. Returns success confirmation or validation error with localized message.
 
 **Request Body** _(JSON)_
 
-JSON payload containing the shoutbox message
+JSON object with shoutbox message
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `message` | string | Yes | Message text (1–280 characters) |
+| `message` | string | Yes | Message text (1-280 characters) |
 
 **Response** _(JSON)_
 
-Confirmation that the message was posted
+JSON object with success status
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Always true on success |
+| `success` | boolean | True when message is posted |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 400 | Message is empty or exceeds 280 characters |
-| 401 | Authentication required |
 
 ---
 
-### Stream
+### Stream {#public-api-stream}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/stream`](#get-apistream) | No | Server-Sent Events stream for real-time updates. |
-| `POST` | [`/api/stream`](#post-apistream) | Yes | Execute a real-time command (chat, notifications, etc.). |
+| `POST` | [`/api/stream`](#post-apistream) | Yes | Execute a real-time command (e.g., presence, notifications). |
 
-#### `GET /api/stream` {#get-apistream}
+#### `GET /api/stream`
 
 Public
 
-Establishes a short-lived SSE connection to deliver real-time events (chat, notifications, etc.) to the client. Uses Last-Event-ID header for cursor-based resumption. Connection intentionally closes after event delivery to prevent long-lived connections; client reconnects via SharedWorker. No admin daemon required.
+Establishes a short-lived SSE connection that pushes events newer than the client's Last-Event-ID cursor. Connection closes after sending buffered events with a 'reconnect' event, allowing clients to reconnect without hammering the server. No authentication required; user context determined from session if available.
 
 **Response** _(JSON)_
 
@@ -6010,143 +5982,150 @@ Server-Sent Events stream
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | string | Event ID for cursor tracking |
-| `event` | string | Event type (e.g., 'message', 'notification') |
+| `id` | string | Event ID (numeric cursor for reconnection) |
+| `event` | string | Event type (e.g., 'message', 'user_online', 'reconnect') |
 | `data` | string | JSON-encoded event payload |
-| `reconnect` | string | Final event signals client to reconnect after pause |
 
 ---
 
-#### `POST /api/stream` {#post-apistream}
+#### `POST /api/stream`
 
 **Requires authentication**
 
-Dispatches authenticated real-time commands to the CommandDispatcher. Command and payload are validated; unknown commands return 400. Used for triggering server-side actions that emit SSE events.
+Dispatches real-time commands to the CommandDispatcher for actions like updating presence, triggering notifications, or other real-time state changes. Command and payload structure depend on registered command handlers.
 
 **Request Body** _(JSON)_
 
-Real-time command request
+Real-time command
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `command` | string | Yes | Command name (case-insensitive) |
-| `payload` | object | Yes | Command-specific payload object |
+| `payload` | object | Yes | Command-specific payload |
 
 **Response** _(JSON)_
 
-Command result from dispatcher
+Command execution result
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Command executed successfully |
+| `success` | boolean | Whether command executed successfully |
+| `*` | mixed | Command-specific response fields |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid payload JSON or unknown command |
+| 400 | Invalid payload (not JSON or missing command/payload) |
+| 400 | Unknown real-time command |
 
 ---
 
-### Subscriptions
+### Subscriptions {#public-api-subscriptions}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/subscriptions/user`](#get-apisubscriptionsuser) | No | Retrieve user subscription information. |
-| `POST` | [`/api/subscriptions/user`](#post-apisubscriptionsuser) | No | Modify user subscription settings. |
-| `GET` | [`/api/subscriptions/admin`](#get-apisubscriptionsadmin) | No | Retrieve system-wide subscription statistics. |
-| `POST` | [`/api/subscriptions/admin`](#post-apisubscriptionsadmin) | No | Manage system-wide subscription settings. |
+| `POST` | [`/api/subscriptions/user`](#post-apisubscriptionsuser) | No | Create or update user subscription. |
+| `GET` | [`/api/subscriptions/admin`](#get-apisubscriptionsadmin) | No | Retrieve admin subscription statistics. |
+| `POST` | [`/api/subscriptions/admin`](#post-apisubscriptionsadmin) | No | Manage admin subscription settings. |
 
-#### `GET /api/subscriptions/user` {#get-apisubscriptionsuser}
+#### `GET /api/subscriptions/user`
 
 Public
 
-Fetches subscription data for the authenticated user. Delegates to SubscriptionController for handling subscription queries and state management.
+Fetches subscription data for the authenticated user. Delegates to SubscriptionController for handling. Exact response structure depends on controller implementation.
 
 **Response** _(JSON)_
 
-User subscription details (controller-determined)
+User subscription details (structure determined by SubscriptionController)
 
 ---
 
-#### `POST /api/subscriptions/user` {#post-apisubscriptionsuser}
+#### `POST /api/subscriptions/user`
 
 Public
 
-Updates subscription preferences or state for the authenticated user. Delegates to SubscriptionController for processing subscription changes.
+Manages user subscription creation or modification. Delegates to SubscriptionController for handling. Exact request/response structure depends on controller implementation.
 
 **Request Body** _(JSON)_
 
-Subscription update payload (controller-determined)
+Subscription data (structure determined by SubscriptionController)
 
 **Response** _(JSON)_
 
-Updated subscription state (controller-determined)
+Subscription operation result (structure determined by SubscriptionController)
 
 ---
 
-#### `GET /api/subscriptions/admin` {#get-apisubscriptionsadmin}
+#### `GET /api/subscriptions/admin`
 
 Public
 
-Admin endpoint for viewing aggregate subscription data across all users. Delegates to SubscriptionController for admin-level subscription analytics.
+Fetches system-wide subscription data for administrative review. Delegates to SubscriptionController for handling. Exact response structure depends on controller implementation.
 
 **Response** _(JSON)_
 
-System subscription statistics (controller-determined)
+Admin subscription statistics (structure determined by SubscriptionController)
 
 ---
 
-#### `POST /api/subscriptions/admin` {#post-apisubscriptionsadmin}
+#### `POST /api/subscriptions/admin`
 
 Public
 
-Admin endpoint for modifying global subscription configuration and policies. Delegates to SubscriptionController for admin subscription management.
+Allows administrators to create or modify subscription configurations. Delegates to SubscriptionController for handling. Exact request/response structure depends on controller implementation.
 
 **Request Body** _(JSON)_
 
-Admin subscription configuration (controller-determined)
+Subscription configuration data (structure determined by SubscriptionController)
 
 **Response** _(JSON)_
 
-Updated subscription configuration (controller-determined)
+Subscription management result (structure determined by SubscriptionController)
 
 ---
 
-### System
+### System {#public-api-system}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/system/status`](#get-apisystemstatus) | Yes | Get basic system status and statistics. |
+| `GET` | [`/api/system/status`](#get-apisystemstatus) | Yes | Get basic system status information. |
 
-#### `GET /api/system/status` {#get-apisystemstatus}
+#### `GET /api/system/status`
 
 **Requires authentication**
 
-Returns system-level information including message count for the current day. Currently incomplete; last_poll tracking is not yet implemented. Intended for dashboard/status displays.
+Returns system-level statistics including message count for the current day. The last_poll field is not yet implemented. This endpoint provides minimal status info; more comprehensive monitoring may require additional endpoints.
 
 **Response** _(JSON)_
 
-System status snapshot
+System status metrics
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `last_poll` | null | Last BinkP poll timestamp (not yet implemented) |
 | `messages_today` | integer | Count of echomail messages received today |
 
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+
 ---
 
-### Taglines
+### Taglines {#public-api-taglines}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/taglines`](#get-apitaglines) | Yes | Retrieve all available BBS taglines. |
+| `GET` | [`/api/taglines`](#get-apitaglines) | Yes | Retrieve all configured BBS taglines. |
 
-#### `GET /api/taglines` {#get-apitaglines}
+#### `GET /api/taglines`
 
 **Requires authentication**
 
-Loads the taglines list from the BBS config file (taglines.txt). Each line is treated as a separate tagline. Returns an empty array if the file does not exist or is empty.
+Loads and returns all taglines from the BBS taglines configuration file. Taglines are parsed from newline-separated entries and empty lines are filtered out. Useful for displaying random taglines in the UI.
 
 **Response** _(JSON)_
 
@@ -6154,7 +6133,7 @@ List of available taglines
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether taglines were loaded |
+| `success` | boolean | Whether taglines were successfully loaded |
 | `taglines` | array | Array of tagline strings |
 
 **Error Responses**
@@ -6165,40 +6144,40 @@ List of available taglines
 
 ---
 
-### Test
+### Test {#public-api-test}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/test`](#get-apitest) | No | Simple health check endpoint returning server timestamp. |
+| `GET` | [`/api/test`](#get-apitest) | No | Simple health check endpoint. |
 
-#### `GET /api/test` {#get-apitest}
+#### `GET /api/test`
 
 Public
 
-Public endpoint for testing API connectivity and server time. No authentication required. Returns a JSON object with a success indicator and current server timestamp in 'Y-m-d H:i:s' format.
+Returns a basic success response with current server timestamp. Useful for verifying API availability and connectivity.
 
 **Response** _(JSON)_
 
-Test response with timestamp
+Test success response with timestamp
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `test` | string | Always 'success' |
-| `timestamp` | string | Current server time in 'Y-m-d H:i:s' format |
+| `timestamp` | string | Current server time (Y-m-d H:i:s format) |
 
 ---
 
-### Url Preview
+### Url Preview {#public-api-url-preview}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/url-preview`](#get-apiurl-preview) | Yes | Fetch Open Graph metadata from a URL for link preview. |
+| `GET` | [`/api/url-preview`](#get-apiurl-preview) | Yes | Fetch Open Graph metadata from a URL for preview unfurling. |
 
-#### `GET /api/url-preview` {#get-apiurl-preview}
+#### `GET /api/url-preview`
 
 **Requires authentication**
 
-Retrieves Open Graph and meta tags from a URL to generate a rich preview. Includes SSRF protection blocking private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16). Follows redirects up to 5 hops with 8-second timeout. Returns title, description, image, and other metadata if available.
+Retrieves Open Graph and meta tags from a given URL for rich preview display in the compose UI. Includes SSRF protection: blocks requests to private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16). Follows redirects (max 5) with 8-second timeout. Validates URL format and protocol (http/https only).
 
 **Query Parameters**
 
@@ -6208,29 +6187,30 @@ Retrieves Open Graph and meta tags from a URL to generate a rich preview. Includ
 
 **Response** _(JSON)_
 
-Open Graph metadata and preview data
+Open Graph metadata or error
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether metadata was successfully retrieved |
-| `title` | string | Page title or og:title |
-| `description` | string | Page description or og:description |
-| `image` | string | og:image URL if available |
+| `success` | boolean | Fetch status |
+| `title` | string | og:title or page title |
+| `description` | string | og:description or meta description |
+| `image` | string | og:image URL |
+| `error_code` | string | Error code if fetch failed |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid URL format, private IP range, or fetch failed |
+| 400 | Invalid URL format, private IP range, or fetch timeout |
 | 401 | Authentication required |
 
 ---
 
-### User
+### User {#public-api-user}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/user/echomail-ignore-rules`](#get-apiuserechomail-ignore-rules) | Yes | Retrieve all echomail ignore rules for the user. |
+| `GET` | [`/api/user/echomail-ignore-rules`](#get-apiuserechomail-ignore-rules) | Yes | Retrieve all echomail ignore rules for the authenticated user. |
 | `DELETE` | [`/api/user/echomail-ignore-rules/{id}`](#delete-apiuserechomail-ignore-rulesid) | Yes | Delete an echomail ignore rule for the authenticated user. |
 | `GET` | [`/api/user/profile`](#get-apiuserprofile) | Yes | Retrieve the authenticated user's profile information. |
 | `POST` | [`/api/user/change-password`](#post-apiuserchange-password) | Yes | Change the authenticated user's password. |
@@ -6240,12 +6220,12 @@ Open Graph metadata and preview data
 | `GET` | [`/api/user/transactions/{userId}`](#get-apiusertransactionsuserid) | Yes | Retrieve paginated transaction history for a user. |
 | `GET` | [`/api/user/activity/{userId}`](#get-apiuseractivityuserid) | Yes | Retrieve paginated activity log for a user. |
 | `GET` | [`/api/user/credits`](#get-apiusercredits) | Yes | Get current user's credit balance. |
-| `GET` | [`/api/user/sessions`](#get-apiusersessions) | Yes | List all active sessions for the authenticated user. |
+| `GET` | [`/api/user/sessions`](#get-apiusersessions) | Yes | List all active sessions for authenticated user. |
 | `DELETE` | [`/api/user/sessions/{sessionId}`](#delete-apiusersessionssessionid) | Yes | Revoke a specific user session. |
-| `DELETE` | [`/api/user/sessions/all`](#delete-apiusersessionsall) | Yes | Revoke all sessions for the authenticated user. |
+| `DELETE` | [`/api/user/sessions/all`](#delete-apiusersessionsall) | Yes | Revoke all sessions for authenticated user. |
 | `GET` | [`/api/user/echolist-preference`](#get-apiuserecholist-preference) | Yes | Retrieve echolist filter preferences for authenticated user. |
 | `POST` | [`/api/user/echolist-preference`](#post-apiuserecholist-preference) | Yes | Update echolist filter preferences for authenticated user. |
-| `POST` | [`/api/user/activity`](#post-apiuseractivity) | Yes | Update current user's activity status. |
+| `POST` | [`/api/user/activity`](#post-apiuseractivity) | Yes | Update user's current activity status. |
 | `GET` | [`/api/user/shares`](#get-apiusershares) | Yes | List all message shares created by the authenticated user. |
 | `GET` | [`/api/user/settings`](#get-apiusersettings) | Yes | Retrieve authenticated user's settings and preferences. |
 | `POST` | [`/api/user/settings`](#post-apiusersettings) | Yes | Update authenticated user's settings and preferences. |
@@ -6264,28 +6244,34 @@ Open Graph metadata and preview data
 | `GET` | [`/api/user/web-mail-state`](#get-apiuserweb-mail-state) | Yes | Retrieve web-specific mail pagination state for authenticated user. |
 | `POST` | [`/api/user/web-mail-state`](#post-apiuserweb-mail-state) | Yes | Update web mail pagination state for authenticated user. |
 
-#### `GET /api/user/echomail-ignore-rules` {#get-apiuserechomail-ignore-rules}
+#### `GET /api/user/echomail-ignore-rules`
 
 **Requires authentication**
 
-Fetches the authenticated user's echomail ignore rules. Returns an array of rule objects with sender name, address, and subject criteria.
+Fetches the complete list of echomail ignore rules created by the authenticated user. Returns array of rule objects with sender name, address, and subject criteria.
 
 **Response** _(JSON)_
 
-User's ignore rules list
+User's echomail ignore rules
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Query succeeded |
-| `rules` | array<object> | Array of ignore rule objects (id, sender_name, sender_address, subject_contains, created_at) |
+| `success` | boolean | Operation succeeded |
+| `rules` | array<object> | Array of ignore rule objects with sender_name, sender_address, subject_contains |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
 
 ---
 
-#### `DELETE /api/user/echomail-ignore-rules/{id}` {#delete-apiuserechomail-ignore-rulesid}
+#### `DELETE /api/user/echomail-ignore-rules/{id}`
 
 **Requires authentication**
 
-Removes a specific ignore rule belonging to the authenticated user. The rule ID must be a positive integer. Returns success confirmation or 404 if the rule does not exist or does not belong to the user.
+Removes a specific ignore rule belonging to the authenticated user. The rule ID must be a positive integer. Returns 404 if the rule does not exist or does not belong to the user. Returns 400 if the rule ID is invalid.
 
 **Path Parameters**
 
@@ -6300,7 +6286,7 @@ Confirmation of successful deletion
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true on success |
-| `message_code` | string | Localization key for UI message (ui.echomail.ignore.removed) |
+| `message_code` | string | Localization key for the success message |
 
 **Error Responses**
 
@@ -6311,11 +6297,11 @@ Confirmation of successful deletion
 
 ---
 
-#### `GET /api/user/profile` {#get-apiuserprofile}
+#### `GET /api/user/profile`
 
 **Requires authentication**
 
-Returns the authenticated user's profile data including email, location, and about_me biography. All fields are returned as strings, with empty strings for missing values. No parameters required.
+Returns basic profile fields for the authenticated user: email, location, and about_me bio. All fields are strings and may be empty.
 
 **Response** _(JSON)_
 
@@ -6324,18 +6310,18 @@ User profile data
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
-| `profile` | object | Profile object containing user details |
+| `profile` | object | Profile object containing email, location, about_me |
 | `profile.email` | string | User email address |
 | `profile.location` | string | User location |
-| `profile.about_me` | string | User biography |
+| `profile.about_me` | string | User bio/about section |
 
 ---
 
-#### `POST /api/user/change-password` {#post-apiuserchange-password}
+#### `POST /api/user/change-password`
 
 **Requires authentication**
 
-Updates the user's password after verifying the current password. Requires both old_password and new_password in the JSON request body. New password must be at least 6 characters. Returns 400 if current password is incorrect, password is too short, or input is missing. Returns 500 on database failure.
+Updates the user's password after verifying the current password. New password must be at least 6 characters. Accepts JSON request body with old_password and new_password fields.
 
 **Request Body** _(JSON)_
 
@@ -6348,7 +6334,7 @@ Password change request
 
 **Response** _(JSON)_
 
-Success response with localization code
+Success response with localization key
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -6360,15 +6346,15 @@ Success response with localization code
 | Status | Description |
 |--------|-------------|
 | 400 | Invalid input, current password incorrect, or new password too short |
-| 500 | Database update failed |
+| 500 | Failed to update password |
 
 ---
 
-#### `POST /api/user/profile` {#post-apiuserprofile}
+#### `POST /api/user/profile`
 
 **Requires authentication**
 
-Updates user profile fields (email, location, about_me) and optionally changes password if current_password and new_password are provided. Accepts both JSON and form-encoded input. User cannot change their real_name. Returns 400 if current password is incorrect or new password is too short. Returns 500 on database failure.
+Updates email, location, and about_me fields. Optionally changes password if current_password and new_password are provided. Real name cannot be changed. Accepts JSON or form-encoded input.
 
 **Request Body** _(JSON)_
 
@@ -6376,16 +6362,16 @@ Profile update request
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `real_name` | string | No | Real name (read-only, cannot be changed) |
+| `real_name` | string | No | Real name (read-only, ignored) |
 | `email` | string | No | Email address |
 | `location` | string | No | User location |
-| `about_me` | string | No | User biography |
+| `about_me` | string | No | Bio/about section |
 | `current_password` | string | No | Current password (required if changing password) |
-| `new_password` | string | No | New password (minimum 6 characters, requires current_password) |
+| `new_password` | string | No | New password (minimum 6 characters) |
 
 **Response** _(JSON)_
 
-Success response with profile data
+Success response with updated real name and localization key
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -6398,15 +6384,15 @@ Success response with profile data
 | Status | Description |
 |--------|-------------|
 | 400 | Current password incorrect, new password too short, or other validation error |
-| 500 | Database update failed |
+| 500 | Failed to update profile |
 
 ---
 
-#### `GET /api/user/stats` {#get-apiuserstats}
+#### `GET /api/user/stats`
 
 **Requires authentication**
 
-Returns counts of netmail composed, echomail posted, and file transfers (downloads/uploads) by the authenticated user. Netmail count matches messages by username or real_name from local system addresses. Echomail count is based on user_id. File counts are aggregated from activity log entries (type 6=download, 7=upload).
+Returns counts of netmail composed, echomail posted, and file downloads/uploads. Netmail count matches messages by username or real_name and local system addresses (includes pending/unspooled). Echomail count is user_id-based. File counts come from activity log (types 6=download, 7=upload).
 
 **Response** _(JSON)_
 
@@ -6421,11 +6407,11 @@ User activity statistics
 
 ---
 
-#### `GET /api/user/stats/{userId}` {#get-apiuserstatsuserid}
+#### `GET /api/user/stats/{userId}`
 
 **Requires authentication**
 
-Fetches aggregated statistics for a specific user including netmail and echomail message counts. Admin-only endpoint that verifies the target user exists and is active. Counts netmail by matching sender name (username or real name) against local system addresses to include pending/unspooled messages.
+Fetches aggregated statistics for a specific user including netmail and echomail counts. Admin-only endpoint that verifies the target user exists and is active. Counts netmail by matching sender name (username or real name) and local system addresses to include pending/unspooled messages.
 
 **Path Parameters**
 
@@ -6439,9 +6425,6 @@ User statistics object with message counts
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | User ID |
-| `username` | string | User's login name |
-| `real_name` | string | User's real name |
 | `netmail_count` | integer | Total netmail messages composed by user |
 | `echomail_count` | integer | Total echomail messages composed by user |
 
@@ -6454,11 +6437,11 @@ User statistics object with message counts
 
 ---
 
-#### `GET /api/user/transactions/{userId}` {#get-apiusertransactionsuserid}
+#### `GET /api/user/transactions/{userId}`
 
 **Requires authentication**
 
-Returns financial transaction records for a specific user with pagination support. Admin-only endpoint. Transactions are ordered by creation date descending. Limit is capped at 50 records per request.
+Returns transaction records for a specific user with pagination support. Admin-only endpoint. Transactions are ordered by creation date descending. Limit is capped at 50 records per request.
 
 **Path Parameters**
 
@@ -6480,9 +6463,9 @@ Paginated transaction list
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Operation success flag |
-| `transactions` | array | Array of transaction objects |
-| `offset` | integer | Current pagination offset |
-| `limit` | integer | Current pagination limit |
+| `transactions` | array | Array of transaction objects with id, user_id, other_party_id, amount, balance_after, description, transaction_type, created_at |
+| `offset` | integer | Current offset used in query |
+| `limit` | integer | Current limit used in query |
 
 **Error Responses**
 
@@ -6493,17 +6476,17 @@ Paginated transaction list
 
 ---
 
-#### `GET /api/user/activity/{userId}` {#get-apiuseractivityuserid}
+#### `GET /api/user/activity/{userId}`
 
 **Requires authentication**
 
-Returns categorized activity log entries for a specific user with pagination. Admin-only endpoint. Activities are joined with activity types and categories for detailed classification. Limit is capped at 100 records per request.
+Returns user activity log entries with category and activity type information. Admin-only endpoint. Activities are ordered by creation date descending. Limit is capped at 100 records per request.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `userId` | integer | ID of the user to retrieve activity for |
+| `userId` | integer | ID of the user to retrieve activity log for |
 
 **Query Parameters**
 
@@ -6534,11 +6517,11 @@ Paginated activity log entries
 
 ---
 
-#### `GET /api/user/credits` {#get-apiusercredits}
+#### `GET /api/user/credits`
 
 **Requires authentication**
 
-Returns the authenticated user's current credit balance along with basic user information. Simple read-only endpoint for checking account credits.
+Returns the authenticated user's current credit balance and basic user information. No admin privileges required.
 
 **Response** _(JSON)_
 
@@ -6547,16 +6530,16 @@ User credit information
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | integer | User ID |
-| `username` | string | User's login name |
+| `username` | string | Username |
 | `credit_balance` | integer | Current credit balance |
 
 ---
 
-#### `GET /api/user/sessions` {#get-apiusersessions}
+#### `GET /api/user/sessions`
 
 **Requires authentication**
 
-Returns all non-expired sessions for the current user with IP addresses and creation timestamps. Marks the current session with an is_current flag. Useful for session management and security auditing.
+Returns all non-expired sessions for the authenticated user with IP addresses and creation timestamps. Marks the current session. Useful for session management and security monitoring.
 
 **Response** _(JSON)_
 
@@ -6564,26 +6547,21 @@ List of active sessions
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `sessions` | array | Array of session objects |
-| `id` | string | Session ID |
-| `ip_address` | string | IP address of session origin |
-| `created_at` | string | Session creation timestamp |
-| `expires_at` | string | Session expiration timestamp |
-| `is_current` | boolean | Whether this is the current session |
+| `sessions` | array | Array of session objects with id, ip_address, created_at, expires_at, is_current |
 
 ---
 
-#### `DELETE /api/user/sessions/{sessionId}` {#delete-apiusersessionssessionid}
+#### `DELETE /api/user/sessions/{sessionId}`
 
 **Requires authentication**
 
-Deletes a single session by ID. Users can only revoke their own sessions. Returns success message on deletion or 404 if session not found or belongs to another user.
+Deletes a single session belonging to the authenticated user. Users can only revoke their own sessions. Returns success message on deletion or 404 if session not found.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `sessionId` | string | ID of the session to revoke |
+| `sessionId` | string | Session ID to revoke |
 
 **Response** _(JSON)_
 
@@ -6602,11 +6580,11 @@ Revocation confirmation
 
 ---
 
-#### `DELETE /api/user/sessions/all` {#delete-apiusersessionsall}
+#### `DELETE /api/user/sessions/all`
 
 **Requires authentication**
 
-Deletes all active sessions for the current user and clears the session cookie, effectively logging out from all devices. Returns success message or 500 on database error.
+Deletes all sessions for the authenticated user and clears the session cookie, effectively logging out from all devices. Returns success message or 500 on failure.
 
 **Response** _(JSON)_
 
@@ -6625,11 +6603,11 @@ Logout confirmation
 
 ---
 
-#### `GET /api/user/echolist-preference` {#get-apiuserecholist-preference}
+#### `GET /api/user/echolist-preference`
 
 **Requires authentication**
 
-Returns the user's echolist display preferences, including whether to show only subscribed echoes and/or only unread messages. Preferences are stored per-user in the user_settings table and default to false if not previously set.
+Returns the user's echolist display preferences including whether to show only subscribed echoes and/or only unread messages. Preferences are stored per-user in the user_settings table and default to false if not previously set.
 
 **Response** _(JSON)_
 
@@ -6640,9 +6618,15 @@ User's echolist filter preferences
 | `subscribed_only` | boolean | If true, display only subscribed echoes |
 | `unread_only` | boolean | If true, display only echoes with unread messages |
 
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+
 ---
 
-#### `POST /api/user/echolist-preference` {#post-apiuserecholist-preference}
+#### `POST /api/user/echolist-preference`
 
 **Requires authentication**
 
@@ -6665,13 +6649,19 @@ Confirmation of preference update
 |-------|------|-------------|
 | `success` | boolean | Always true on successful update |
 
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+
 ---
 
-#### `POST /api/user/activity` {#post-apiuseractivity}
+#### `POST /api/user/activity`
 
 **Requires authentication**
 
-Records the user's current activity (e.g., 'reading messages', 'composing reply') in their active session. Requires a valid session cookie. Activity is used for presence tracking and admin monitoring.
+Records the user's current activity in their active session. Requires a valid session cookie. The activity string is stored and visible to admins in the whosonline endpoint.
 
 **Request Body** _(JSON)_
 
@@ -6679,7 +6669,7 @@ Activity status to record
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `activity` | string | No | Human-readable activity description |
+| `activity` | string | No | Description of current activity (e.g., 'Reading messages', 'Composing reply') |
 
 **Response** _(JSON)_
 
@@ -6693,24 +6683,25 @@ Confirmation of activity update
 
 | Status | Description |
 |--------|-------------|
-| 400 | No active session found (missing or invalid session cookie) |
+| 400 | No active session found (missing session cookie) |
+| 401 | Authentication required |
 
 ---
 
-#### `GET /api/user/shares` {#get-apiusershares}
+#### `GET /api/user/shares`
 
 **Requires authentication**
 
-Retrieves all active shares created by the current user, including share keys, slugs, and associated message metadata. Useful for managing and tracking shared messages.
+Retrieves all active message shares owned by the authenticated user, including share keys, slugs, and metadata. Useful for managing and tracking shared messages.
 
 **Response** _(JSON)_
 
-Array of user's active message shares
+User's message shares
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether the shares were retrieved |
-| `shares` | array | Array of share objects with keys, slugs, and message details |
+| `success` | boolean | Whether the shares were successfully retrieved |
+| `shares` | array | Array of share objects with keys, slugs, and metadata |
 
 **Error Responses**
 
@@ -6720,20 +6711,20 @@ Array of user's active message shares
 
 ---
 
-#### `GET /api/user/settings` {#get-apiusersettings}
+#### `GET /api/user/settings`
 
 **Requires authentication**
 
-Fetches user settings including locale, notification sounds, shell preference, compose options, and media rendering mode. Resolves and persists locale based on user preferences. Returns license validity status. Settings are aggregated from both user_settings table and UserMeta storage.
+Fetches user settings including locale, shell preference, notification sounds, and composition options. Resolves and persists locale based on user preferences. Returns license validity status. Settings are merged from both user_settings table and UserMeta storage.
 
 **Response** _(JSON)_
 
-User settings object with locale resolution applied
+User settings object with locale, shell, notification preferences, and license status.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Operation success flag |
-| `settings` | object | Settings object containing locale, shell, notification_sounds, compose options, media_render_mode, and license_valid |
+| `settings` | object | Settings object containing locale, shell, chat_notification_sound, echomail_notification_sound, netmail_notification_sound, file_notification_sound, compose_advanced_open, compose_hard_wrap, media_render_mode, license_valid |
 
 **Error Responses**
 
@@ -6743,11 +6734,11 @@ User settings object with locale resolution applied
 
 ---
 
-#### `POST /api/user/settings` {#post-apiusersettings}
+#### `POST /api/user/settings`
 
 **Requires authentication**
 
-Updates user settings including locale, notification sounds, shell preference, compose options, and media rendering mode. Validates notification sound values against whitelist. Shell changes respect AppearanceConfig lock. Locale changes are persisted. Returns updated settings on success.
+Updates user settings including locale, shell preference, and notification sounds. Validates notification sound values against allowed set (disabled, notify1-5). Shell changes respect AppearanceConfig lock. Locale changes are persisted. Composition settings (hard wrap, advanced mode) are stored in UserMeta.
 
 **Request Body** _(JSON)_
 
@@ -6755,16 +6746,15 @@ Settings update payload
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `settings` | object | Yes | Object with settings to update (locale, shell, notification sounds, compose options, media_render_mode) |
+| `settings` | object | Yes | Object containing settings to update: locale, shell, chat_notification_sound, echomail_notification_sound, netmail_notification_sound, file_notification_sound, compose_advanced_open, compose_hard_wrap, media_render_mode |
 
 **Response** _(JSON)_
 
-Confirmation of updated settings
+Confirmation of successful settings update.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Operation success flag |
-| `settings` | object | Updated settings object |
 
 **Error Responses**
 
@@ -6775,15 +6765,15 @@ Confirmation of updated settings
 
 ---
 
-#### `POST /api/user/reset-onboarding` {#post-apiuserreset-onboarding}
+#### `POST /api/user/reset-onboarding`
 
 **Requires authentication**
 
-Clears the interests_onboarded flag in UserMeta, allowing the user to be guided through the echomail onboarding process again. Useful for re-introducing users to interest selection.
+Clears the interests_onboarded flag in UserMeta, allowing the user to be guided through the echomail onboarding process again.
 
 **Response** _(JSON)_
 
-Confirmation of onboarding reset
+Confirmation of successful reset.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -6797,21 +6787,21 @@ Confirmation of onboarding reset
 
 ---
 
-#### `GET /api/user/mcp-key` {#get-apiusermcp-key}
+#### `GET /api/user/mcp-key`
 
 **Requires authentication**
 
-Returns whether the user has an MCP server key enrolled. Shows only a preview of the key (first 8 chars + asterisks) for security. Requires MCP_SERVER_URL environment variable and valid license.
+Returns whether the user has an MCP server key enrolled. Shows only a preview (first 8 chars + asterisks) if key exists. Requires MCP_SERVER_URL environment variable and valid license.
 
 **Response** _(JSON)_
 
-MCP key enrollment status
+MCP key enrollment status.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Operation success flag |
 | `has_key` | boolean | Whether user has an MCP key enrolled |
-| `key_preview` | string | Preview of key (first 8 chars + asterisks) if enrolled |
+| `key_preview` | string | First 8 characters of key followed by asterisks (only if has_key is true) |
 
 **Error Responses**
 
@@ -6821,20 +6811,20 @@ MCP key enrollment status
 
 ---
 
-#### `POST /api/user/mcp-key/generate` {#post-apiusermcp-keygenerate}
+#### `POST /api/user/mcp-key/generate`
 
 **Requires authentication**
 
-Creates a new 64-character hex MCP server key and stores it in UserMeta. Returns the full key only at generation time; subsequent retrievals show preview only. Requires MCP_SERVER_URL and valid license.
+Creates a new 64-character hex-encoded MCP server key and stores it in UserMeta. Returns the full key only at generation time; subsequent retrievals show preview only. Requires MCP_SERVER_URL and valid license.
 
 **Response** _(JSON)_
 
-Generated MCP key
+Newly generated MCP server key.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Operation success flag |
-| `key` | string | Full 64-character hex MCP server key (only returned at generation) |
+| `key` | string | Full 64-character hex-encoded MCP server key |
 
 **Error Responses**
 
@@ -6845,15 +6835,15 @@ Generated MCP key
 
 ---
 
-#### `DELETE /api/user/mcp-key` {#delete-apiusermcp-key}
+#### `DELETE /api/user/mcp-key`
 
 **Requires authentication**
 
-Deletes the user's MCP server key from UserMeta, effectively revoking access. Requires MCP_SERVER_URL and valid license.
+Deletes the user's MCP server key by setting it to null in UserMeta. Requires MCP_SERVER_URL and valid license.
 
 **Response** _(JSON)_
 
-Confirmation of key revocation
+Confirmation of successful key revocation.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -6868,15 +6858,15 @@ Confirmation of key revocation
 
 ---
 
-#### `GET /api/user/packetbbs-totp/status` {#get-apiuserpacketbbs-totpstatus}
+#### `GET /api/user/packetbbs-totp/status`
 
 **Requires authentication**
 
-Returns whether the user has PacketBBS TOTP (time-based one-time password) authentication enabled. Checks the packet_bbs_totp_enabled flag in UserMeta.
+Returns whether the user has PacketBBS TOTP (time-based one-time password) authentication enabled. Status is stored in UserMeta.
 
 **Response** _(JSON)_
 
-PacketBBS TOTP enrollment status
+PacketBBS TOTP enrollment status.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -6885,7 +6875,7 @@ PacketBBS TOTP enrollment status
 
 ---
 
-#### `POST /api/user/packetbbs-totp/setup` {#post-apiuserpacketbbs-totpsetup}
+#### `POST /api/user/packetbbs-totp/setup`
 
 **Requires authentication**
 
@@ -6906,15 +6896,15 @@ TOTP setup data including secret and QR code
 
 | Status | Description |
 |--------|-------------|
-| 500 | Setup failed (e.g., metadata storage error) |
+| 500 | Setup failed (e.g., metadata write error) |
 
 ---
 
-#### `POST /api/user/packetbbs-totp/verify-enrollment` {#post-apiuserpacketbbs-totpverify-enrollment}
+#### `POST /api/user/packetbbs-totp/verify-enrollment`
 
 **Requires authentication**
 
-Validates a 6-digit TOTP code against the pending secret. On success, promotes the pending secret to active, sets enrollment as enabled, and clears the pending secret. Code must be exactly 6 digits. Returns error if no pending secret exists or code is invalid.
+Validates a 6-digit code against the pending TOTP secret. On success, promotes the pending secret to active, sets enrollment state to enabled, and clears the pending secret. Code must be exactly 6 digits. Fails if no pending secret exists or code is invalid.
 
 **Request Body** _(JSON)_
 
@@ -6938,11 +6928,11 @@ Confirmation of successful enrollment
 |--------|-------------|
 | 400 | Invalid code format (not 6 digits) or code verification failed |
 | 400 | No pending secret found; setup must be initiated first |
-| 500 | Failed to activate secret (metadata storage error) |
+| 500 | Failed to activate secret (metadata write error) |
 
 ---
 
-#### `POST /api/user/packetbbs-totp/disable` {#post-apiuserpacketbbs-totpdisable}
+#### `POST /api/user/packetbbs-totp/disable`
 
 **Requires authentication**
 
@@ -6960,15 +6950,15 @@ Confirmation of successful disabling
 
 | Status | Description |
 |--------|-------------|
-| 500 | Failed to disable authenticator (metadata storage error) |
+| 500 | Failed to disable authenticator (metadata write error) |
 
 ---
 
-#### `GET /api/user/terminal-settings` {#get-apiuserterminal-settings}
+#### `GET /api/user/terminal-settings`
 
 **Requires authentication**
 
-Fetches the authenticated user's terminal configuration including character set and ANSI color preferences. Returns current values from user metadata; null values indicate defaults.
+Fetches terminal configuration preferences for the authenticated user, including character set and ANSI color support. Returns current values from user metadata.
 
 **Response** _(JSON)_
 
@@ -6977,15 +6967,15 @@ User terminal settings
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
-| `settings` | object | Terminal settings object |
+| `settings` | object | Terminal settings object containing terminal_charset and terminal_ansi_color |
 
 ---
 
-#### `POST /api/user/terminal-settings` {#post-apiuserterminal-settings}
+#### `POST /api/user/terminal-settings`
 
 **Requires authentication**
 
-Updates terminal configuration for the authenticated user. Accepts settings as either wrapped in a 'settings' object or flat in the request body. Validates values against allowed options before persisting to metadata.
+Updates terminal configuration preferences for the authenticated user. Accepts both wrapped (settings object) and flat request formats. Validates values against allowed options: terminal_charset (utf8, cp437, ascii) and terminal_ansi_color (yes, no).
 
 **Request Body** _(JSON)_
 
@@ -6993,13 +6983,13 @@ Terminal settings to update (wrapped or flat)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `settings` | object | No | Optional wrapper object containing settings |
-| `terminal_charset` | string | No | Character set: 'utf8', 'cp437', or 'ascii' |
-| `terminal_ansi_color` | string | No | ANSI color support: 'yes' or 'no' |
+| `settings` | object | No | Wrapped settings object (alternative to flat format) |
+| `terminal_charset` | string | No | Character set: utf8, cp437, or ascii |
+| `terminal_ansi_color` | string | No | ANSI color support: yes or no |
 
 **Response** _(JSON)_
 
-Confirmation of settings update
+Confirmation of update
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -7009,32 +6999,32 @@ Confirmation of settings update
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid value for a setting (not in allowed list) |
+| 400 | Invalid value for terminal_charset or terminal_ansi_color |
 
 ---
 
-#### `GET /api/user/terminal-mail-state` {#get-apiuserterminal-mail-state}
+#### `GET /api/user/terminal-mail-state`
 
 **Requires authentication**
 
-Fetches the authenticated user's saved mail reader state including current page numbers, selected message IDs, and area positions. Used to restore UI state across sessions.
+Fetches saved mail reader state for the authenticated user, including current page numbers, selected message IDs, and area positions. Used to restore UI state across sessions.
 
 **Response** _(JSON)_
 
-User terminal mail state
+User mail navigation state
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
-| `settings` | object | Mail state object |
+| `settings` | object | State object with terminal_netmail_page, terminal_netmail_selected_message_id, terminal_echomail_areas_page, and terminal_echomail_positions |
 
 ---
 
-#### `POST /api/user/terminal-mail-state` {#post-apiuserterminal-mail-state}
+#### `POST /api/user/terminal-mail-state`
 
 **Requires authentication**
 
-Persists the authenticated user's mail reader state including pagination, selected messages, and area positions. Accepts settings wrapped or flat. Validates integer fields are positive; terminal_echomail_positions accepts JSON string or object.
+Persists mail reader state for the authenticated user, including pagination, selected messages, and area positions. Accepts both wrapped and flat request formats. Integer fields must be positive or null; terminal_echomail_positions accepts JSON string or object.
 
 **Request Body** _(JSON)_
 
@@ -7042,15 +7032,15 @@ Mail state to update (wrapped or flat)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `settings` | object | No | Optional wrapper object |
-| `terminal_netmail_page` | integer | No | Netmail page number (≥1 or null) |
-| `terminal_netmail_selected_message_id` | integer | No | Selected message ID (≥1 or null) |
-| `terminal_echomail_areas_page` | integer | No | Echomail areas page (≥1 or null) |
+| `settings` | object | No | Wrapped settings object (alternative to flat format) |
+| `terminal_netmail_page` | integer | No | Current netmail page (≥1 or null) |
+| `terminal_netmail_selected_message_id` | integer | No | Selected netmail message ID (≥1 or null) |
+| `terminal_echomail_areas_page` | integer | No | Current echomail areas page (≥1 or null) |
 | `terminal_echomail_positions` | object|string | No | Area positions as JSON object or string |
 
 **Response** _(JSON)_
 
-Confirmation of state update
+Confirmation of update
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -7060,16 +7050,15 @@ Confirmation of state update
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid value for integer field (not numeric or < 1) |
-| 400 | Invalid JSON in terminal_echomail_positions |
+| 400 | Invalid value for integer field (not numeric or < 1) or invalid terminal_echomail_positions JSON |
 
 ---
 
-#### `GET /api/user/web-mail-state` {#get-apiuserweb-mail-state}
+#### `GET /api/user/web-mail-state`
 
 **Requires authentication**
 
-Fetches user metadata for web interface mail positions, including netmail page number and per-area echomail page positions. This state is separate from telnet-based navigation and persists user's browsing position across sessions. Returns null values if not previously set.
+Fetches user metadata for web interface mail positions, including netmail page number and per-area echomail page positions. This state is separate from telnet-based navigation and persists user's browsing position across web sessions. Returns null values if not previously set.
 
 **Response** _(JSON)_
 
@@ -7079,8 +7068,8 @@ User's web mail state settings
 |-------|------|-------------|
 | `success` | boolean | Always true on success |
 | `settings` | object | Mail state object containing web_netmail_page and web_echomail_positions |
-| `settings.web_netmail_page` | integer|null | Current page number in netmail view (1-indexed) |
-| `settings.web_echomail_positions` | object|null | Map of area tags to {page: N} objects for echomail pagination |
+| `settings.web_netmail_page` | string|null | Current page number in netmail view |
+| `settings.web_echomail_positions` | string|null | JSON-encoded object mapping area tags to {page: N} objects |
 
 **Error Responses**
 
@@ -7090,11 +7079,11 @@ User's web mail state settings
 
 ---
 
-#### `POST /api/user/web-mail-state` {#post-apiuserweb-mail-state}
+#### `POST /api/user/web-mail-state`
 
 **Requires authentication**
 
-Persists user's web interface mail positions. Validates web_netmail_page as positive integer (≥1) and web_echomail_positions as JSON object mapping area tags (max 128 chars) to page numbers. Null values clear stored state. Rejects invalid formats with 400 error.
+Persists user's web interface mail positions. Validates web_netmail_page as positive integer and web_echomail_positions as JSON object with area tags (max 128 chars) mapping to page numbers (minimum 1). Null values clear stored state. Rejects invalid formats with 400 error.
 
 **Request Body** _(JSON)_
 
@@ -7104,7 +7093,7 @@ Mail state update payload
 |-------|------|----------|-------------|
 | `settings` | object | No | Object containing web_netmail_page and/or web_echomail_positions to update |
 | `web_netmail_page` | integer|null | No | Page number (≥1) or null to clear |
-| `web_echomail_positions` | object|string | No | JSON object or string mapping area tags to {page: N}; invalid pages default to 1 |
+| `web_echomail_positions` | object|string | No | Object or JSON string mapping area tags to {page: N}; pages <1 reset to 1 |
 
 **Response** _(JSON)_
 
@@ -7123,68 +7112,69 @@ Confirmation of state update
 
 ---
 
-### Users
+### Users {#public-api-users}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/admin/users`](#get-apiadminusers) | Yes | List all active users with pagination and search. |
-| `GET` | [`/api/admin/users/{id}`](#get-apiadminusersid) | Yes | Retrieve a single user account for editing. |
+| `GET` | [`/api/admin/users/{id}`](#get-apiadminusersid) | Yes | Retrieve single user details for admin editing. |
 | `POST` | [`/api/admin/users/{id}/credits`](#post-apiadminusersidcredits) | Yes | Grant credits to a user account |
-| `POST` | [`/api/admin/users/{id}`](#post-apiadminusersid) | Yes | Update user profile and account settings |
+| `POST` | [`/api/admin/users/{id}`](#post-apiadminusersid) | Yes | Update user account details |
 | `POST` | [`/api/admin/users/{id}/toggle-status`](#post-apiadminusersidtoggle-status) | Yes | Toggle user active/inactive status |
 | `POST` | [`/api/admin/users/create`](#post-apiadminuserscreate) | Yes | Create a new user account |
 | `POST` | [`/api/admin/users/cleanup`](#post-apiadminuserscleanup) | Yes | Clean up old pending registrations |
 | `POST` | [`/api/admin/users/{userId}/send-reminder`](#post-apiadminusersuseridsend-reminder) | Yes | Send account reminder to a user |
 | `GET` | [`/api/admin/users/need-reminders`](#get-apiadminusersneed-reminders) | Yes | List users eligible for account reminders |
 
-#### `GET /api/admin/users` {#get-apiadminusers}
+#### `GET /api/admin/users`
 
 **Requires authentication**
 
-Retrieves paginated list of active user accounts. Admin-only. Supports full-text search by username/email and configurable page size (max 100). Returns user list with pagination metadata.
+Retrieves paginated list of active user accounts. Admin-only. Supports full-text search by username/email and configurable page size (max 100). Default limit is 25 per page.
 
 **Query Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `page` | integer | No | Page number (1-indexed, default 1) |
-| `limit` | integer | No | Results per page (1-100, default 25) |
+| `page` | integer | No | Page number (default 1, minimum 1) |
+| `limit` | integer | No | Results per page (default 25, max 100) |
 | `search` | string | No | Search term for username/email filtering |
 
 **Response** _(JSON)_
 
-Paginated user list with metadata
+Paginated user list
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `users` | array | Array of user objects for current page |
-| `pagination` | object | Pagination metadata (total, page, limit, pages) |
+| `users` | array | Array of user objects |
+| `pagination` | object | Pagination metadata (page, limit, total, pages) |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 403 | User is not an admin |
+| 401 | Authentication required |
 | 500 | Database error |
 
 ---
 
-#### `GET /api/admin/users/{id}` {#get-apiadminusersid}
+#### `GET /api/admin/users/{id}`
 
 **Requires authentication**
 
-Fetches user details including username, email, credit balance, admin/system flags, and moderation settings. Admin-only. Returns 404 if user not found. Used for user edit forms.
+Fetches a specific active user's editable fields including username, real name, email, credit balance, status flags, and timestamps. Admin-only. Returns 404 if user not found.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | User ID to retrieve |
+| `id` | integer | User ID |
 
 **Response** _(JSON)_
 
-Single user account details
+User details for editing
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -7197,15 +7187,16 @@ Single user account details
 |--------|-------------|
 | 403 | User is not an admin |
 | 404 | User not found |
+| 401 | Authentication required |
 | 500 | Database error |
 
 ---
 
-#### `POST /api/admin/users/{id}/credits` {#post-apiadminusersidcredits}
+#### `POST /api/admin/users/{id}/credits`
 
 **Requires authentication**
 
-Allows admins to manually grant credits to a user with a required note for audit purposes. The credits system must be enabled. Amount must be positive and a descriptive note is mandatory. Credits are recorded with admin adjustment type for tracking.
+Allows admins to manually grant credits to a user with a required note for audit purposes. The credits system must be enabled. Amount must be positive and a descriptive note is mandatory. Credits are recorded with admin adjustment type and include the granting admin's ID.
 
 **Path Parameters**
 
@@ -7228,7 +7219,7 @@ Credit grant result with success status
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Whether credit was granted |
+| `success` | boolean | Whether credits were granted |
 | `new_balance` | integer | User's updated credit balance |
 
 **Error Responses**
@@ -7241,11 +7232,11 @@ Credit grant result with success status
 
 ---
 
-#### `POST /api/admin/users/{id}` {#post-apiadminusersid}
+#### `POST /api/admin/users/{id}`
 
 **Requires authentication**
 
-Allows admins to modify user details including name, email, password, and account flags (active, admin, system, moderation). Real name is required. Password is optional; if provided, it will be updated.
+Allows admins to modify user properties including name, email, status flags, and password. Real name is required. Password is optional; if provided, it replaces the current password. Moderation enforcement and system/admin flags can be toggled.
 
 **Path Parameters**
 
@@ -7261,15 +7252,15 @@ User update fields
 |-------|------|----------|-------------|
 | `real_name` | string | Yes | User's real name |
 | `email` | string | No | User's email address |
-| `password` | string | No | New password (if provided, will be hashed) |
-| `is_active` | integer | No | Account active status (0 or 1) |
-| `is_admin` | integer | No | Admin privilege flag (0 or 1) |
-| `is_system` | integer | No | System account flag (0 or 1) |
-| `echomail_moderation_forced` | integer | No | Force echomail moderation flag (0 or 1) |
+| `is_active` | integer | No | 1 for active, 0 for inactive (default: 1) |
+| `is_admin` | integer | No | 1 to grant admin, 0 to revoke (default: 0) |
+| `is_system` | integer | No | 1 for system account, 0 otherwise (default: 0) |
+| `echomail_moderation_forced` | integer | No | 1 to force moderation, 0 to allow (default: 0) |
+| `password` | string | No | New password (if provided, updates user's password) |
 
 **Response** _(JSON)_
 
-Update confirmation with success status
+Update confirmation
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -7285,11 +7276,11 @@ Update confirmation with success status
 
 ---
 
-#### `POST /api/admin/users/{id}/toggle-status` {#post-apiadminusersidtoggle-status}
+#### `POST /api/admin/users/{id}/toggle-status`
 
 **Requires authentication**
 
-Quickly enable or disable a user account. Accepts is_active flag (0 or 1) to set the desired status. Returns success message with action taken.
+Quickly enable or disable a user account. Accepts is_active flag (1 for active, 0 for inactive). Returns success message with action description.
 
 **Path Parameters**
 
@@ -7299,21 +7290,21 @@ Quickly enable or disable a user account. Accepts is_active flag (0 or 1) to set
 
 **Request Body** _(JSON)_
 
-Status toggle request
+Status toggle
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `is_active` | integer | No | Target status: 1 for active, 0 for inactive (defaults to 1) |
+| `is_active` | integer | No | 1 to enable, 0 to disable (default: 1) |
 
 **Response** _(JSON)_
 
-Toggle confirmation with localized message
+Toggle result with localized message
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether toggle succeeded |
 | `message_code` | string | Localization key for success message |
-| `message_params` | object | Parameters for localized message (action: 'enable' or 'disable') |
+| `message_params` | object | Parameters for message (action: 'enable' or 'disable') |
 
 **Error Responses**
 
@@ -7324,15 +7315,15 @@ Toggle confirmation with localized message
 
 ---
 
-#### `POST /api/admin/users/create` {#post-apiadminuserscreate}
+#### `POST /api/admin/users/create`
 
 **Requires authentication**
 
-Admin endpoint to create user accounts with validation of username format, restricted names, and password strength (minimum 8 chars). Username is normalized per config. Returns new user ID on success.
+Admin endpoint to create user accounts with validation of username format, restricted names, and password strength. Username is normalized per config. Password must be at least 8 characters. Supports setting admin and system flags at creation.
 
 **Request Body** _(JSON)_
 
-New user account details
+New user details
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -7340,9 +7331,9 @@ New user account details
 | `real_name` | string | Yes | User's real name (validated against restrictions) |
 | `password` | string | Yes | Password (minimum 8 characters) |
 | `email` | string | No | User's email address |
-| `is_active` | integer | No | Account active status (defaults to 1) |
-| `is_admin` | integer | No | Admin privilege flag (defaults to 0) |
-| `is_system` | integer | No | System account flag (defaults to 0) |
+| `is_active` | integer | No | 1 for active, 0 for inactive (default: 1) |
+| `is_admin` | integer | No | 1 to create as admin, 0 otherwise (default: 0) |
+| `is_system` | integer | No | 1 for system account, 0 otherwise (default: 0) |
 
 **Response** _(JSON)_
 
@@ -7358,15 +7349,16 @@ New user creation result
 | Status | Description |
 |--------|-------------|
 | 403 | Requester is not an admin |
-| 400 | Missing required fields, invalid username format, restricted name, password too short, or username already exists |
+| 400 | Missing required fields, invalid username format, restricted name, or password too short |
+| 409 | Username already exists |
 
 ---
 
-#### `POST /api/admin/users/cleanup` {#post-apiadminuserscleanup}
+#### `POST /api/admin/users/cleanup`
 
 **Requires authentication**
 
-Performs full cleanup of old registration records including approved and rejected pending accounts. Returns counts of records removed by category.
+Performs full cleanup of old registration records including approved and rejected entries. Returns counts of removed records. Useful for maintenance and database hygiene.
 
 **Response** _(JSON)_
 
@@ -7388,11 +7380,11 @@ Cleanup operation results
 
 ---
 
-#### `POST /api/admin/users/{userId}/send-reminder` {#post-apiadminusersuseridsend-reminder}
+#### `POST /api/admin/users/{userId}/send-reminder`
 
 **Requires authentication**
 
-Sends an account reminder message to a specific user. Checks if user is eligible for reminders before sending. May include email notification if configured.
+Sends an account reminder message to a specific user. Checks if user is eligible for reminders before sending. Can send email notification if configured. Returns success status and email delivery confirmation.
 
 **Path Parameters**
 
@@ -7408,7 +7400,7 @@ Reminder send result
 |-------|------|-------------|
 | `success` | boolean | Whether reminder was sent |
 | `message_code` | string | Localization key for result message |
-| `email_sent` | boolean | Whether email notification was also sent |
+| `email_sent` | boolean | Whether email notification was delivered |
 
 **Error Responses**
 
@@ -7421,11 +7413,11 @@ Reminder send result
 
 ---
 
-#### `GET /api/admin/users/need-reminders` {#get-apiadminusersneed-reminders}
+#### `GET /api/admin/users/need-reminders`
 
 **Requires authentication**
 
-Retrieves list of users who need account reminders sent. Used by admin to identify inactive or pending accounts requiring follow-up.
+Retrieves list of users who need account reminders sent. Useful for admin dashboard to identify inactive or at-risk accounts.
 
 **Response** _(JSON)_
 
@@ -7445,17 +7437,17 @@ List of users needing reminders
 
 ---
 
-### Verify
+### Verify {#public-api-verify}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| `GET` | [`/api/verify`](#get-apiverify) | No | Public endpoint returning system name and software version for registry verification. |
+| `GET` | [`/api/verify`](#get-apiverify) | No | Public endpoint returning system name and software version for network registry verification. |
 
-#### `GET /api/verify` {#get-apiverify}
+#### `GET /api/verify`
 
 Public
 
-Returns identifying information about the BBS system for network registry verification (e.g., LovlyNet). No authentication required. Used by external registries to confirm site ownership and software version.
+Returns identifying information about the BBS system without requiring authentication. Used by network registries like LovlyNet to verify site ownership and confirm the software in use. Response includes the configured system name and full software version string.
 
 **Response** _(JSON)_
 
@@ -7468,17 +7460,17 @@ System identification data
 
 ---
 
-### Whosonline
+### Whosonline {#public-api-whosonline}
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/whosonline`](#get-apiwhosonline) | Yes | Get list of users currently online (last 15 minutes). |
 
-#### `GET /api/whosonline` {#get-apiwhosonline}
+#### `GET /api/whosonline`
 
 **Requires authentication**
 
-Returns active sessions from the past 15 minutes with user details. Admins receive additional fields including activity description, service type, and last activity timestamp. Non-admins see only basic user info (id, username, location).
+Returns active sessions from the past 15 minutes with user details. Admins receive additional fields including activity description, service type, and last activity timestamp. Non-admin users see only basic user info (id, username, location).
 
 **Response** _(JSON)_
 
@@ -7486,9 +7478,21 @@ Online users and session count
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `users` | array | Array of online user objects with id, username, location; admins also receive activity, service, and last_activity_ts |
-| `online_user_count` | integer | Total count of unique online users |
+| `users` | array | Array of online user objects |
+| `users[].user_id` | integer | User ID |
+| `users[].username` | string | Username |
+| `users[].location` | string | User's location (may be empty) |
+| `users[].activity` | string | Current activity description (admin only) |
+| `users[].service` | string | Service type (e.g., 'web', 'binkp') (admin only) |
+| `users[].last_activity_ts` | integer | Unix timestamp of last activity (admin only) |
+| `online_user_count` | integer | Total count of online users |
 | `online_minutes` | integer | Time window for online status (always 15) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
 
 ---
 
