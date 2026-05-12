@@ -14,6 +14,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Markdown Editor](#markdown-editor)
 - [Terminal Server](#terminal-server)
 - [Documentation](#documentation)
+- [Developer Tools](#developer-tools)
 - [Realtime Chat Delivery](#realtime-chat-delivery)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -69,6 +70,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Documentation
 
 - Expanded the user guide with a dedicated message reader section that explains the web reader interface and lists the supported keyboard shortcuts for both echomail and netmail readers. The translated user guide variants were updated to include the same section.
+
+### Developer Tools
+
+- Added `scripts/generate_api_docs.php`, a CLI utility that generates developer-facing API reference documentation directly from the route files. It produces Markdown or OpenAPI 3.0 YAML and can optionally call a configured AI provider (Anthropic or OpenAI) to enrich each endpoint with a description, parameter tables, request body schema, and response fields. No migration or configuration change is required; the script is a standalone developer tool.
 
 ### Realtime Chat Delivery
 
@@ -179,6 +184,29 @@ Examples include `telnet/screens/login.ans`, `telnet/screens/login1.ans`, `telne
 The user guide now includes a dedicated message reader section. It explains that the web message reader is shared by echomail and netmail and documents the supported keyboard shortcuts for navigation, viewer mode changes, downloads, full-screen mode, shortcut help, and closing the reader.
 
 The localized user guide files were updated alongside the main English guide so the same message reader guidance is available across the translated variants.
+
+## Developer Tools
+
+A new CLI script, `scripts/generate_api_docs.php`, generates developer-facing API reference documentation from the SimpleRouter route files. It uses PHP's built-in tokenizer to walk the route file structure, resolve nested group prefixes, extract PHPDoc comments, and detect authentication requirements — producing output that covers all endpoints in a given route set without requiring a running server.
+
+Two output formats are supported:
+
+- **Markdown** (default) — a structured document with a table of contents, per-section endpoint tables, and per-endpoint detail blocks. Suitable for `docs/API.md`, a GitHub wiki, or any Markdown renderer.
+- **OpenAPI 3.0 YAML** — a spec file compatible with Swagger UI, Postman, and API code-generation tools.
+
+Four route sets can be selected individually or together: `api` (the public API, selected by default), `admin`, `door`, and `webdoor`. Pass `--routes=all` to document every route file in one run.
+
+Without any AI flags the output is static: HTTP method, path, auth flag, and any comment immediately above the route definition in the source. Passing `--ai` activates enrichment: the script sends batches of route code snippets to a configured Anthropic or OpenAI provider and back-fills a one-sentence summary, a fuller description, path and query parameter tables, a request body schema, a response field list, and common error codes for each endpoint.
+
+```bash
+# Static Markdown for the public API
+php scripts/generate_api_docs.php --output=docs/API.md
+
+# AI-enriched OpenAPI spec for all routes
+php scripts/generate_api_docs.php --routes=all --ai --format=openapi --output=docs/openapi.yaml
+```
+
+Full usage is documented in `docs/DEVELOPER_GUIDE.md` under **API Documentation Generator**. No migration or configuration change is required to use the script.
 
 ## Realtime Chat Delivery
 

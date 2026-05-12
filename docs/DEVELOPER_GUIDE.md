@@ -6,6 +6,7 @@
 - [Project Architecture](#project-architecture)
 - [Directory Structure](#directory-structure)
 - [Development Workflow](#development-workflow)
+- [API Documentation Generator](#api-documentation-generator)
 - [Localization (i18n)](#localization-i18n)
 - [Credits System](#credits-system-overview)
 - [Optional Components & Daemons](#optional-components--daemons)
@@ -216,6 +217,79 @@ Use `AdminDaemonClient::log($level, $message, $context)` for application-level l
 
 ```php
 \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'Something happened', ['key' => 'value']);
+```
+
+---
+
+## API Documentation Generator
+
+`scripts/generate_api_docs.php` parses the SimpleRouter route files and produces developer-facing API reference documentation. It uses PHP's built-in tokenizer (not regex) so it correctly handles nested group prefixes, string-interpolation braces, and PHPDoc comment extraction.
+
+### Output formats
+
+| Format | Flag | Use case |
+|--------|------|----------|
+| Markdown | `--format=markdown` (default) | GitHub wiki, `docs/API.md`, readable reference |
+| OpenAPI 3.0 YAML | `--format=openapi` | Swagger UI, Postman, code-gen tooling |
+
+### Route sets
+
+| Set | File | Contents |
+|-----|------|----------|
+| `api` | `routes/api-routes.php` | Public API (default) |
+| `admin` | `routes/admin-routes.php` | Admin-only endpoints |
+| `door` | `routes/door-routes.php` | Door / terminal session endpoints |
+| `webdoor` | `routes/webdoor-routes.php` | WebDoor game API |
+| `all` | all of the above | Full surface area |
+
+### Basic usage
+
+Generate static Markdown for the public API (no AI, no cost):
+
+```bash
+php scripts/generate_api_docs.php --output=docs/API.md
+```
+
+Generate OpenAPI YAML for all routes:
+
+```bash
+php scripts/generate_api_docs.php --routes=all --format=openapi --output=docs/openapi.yaml
+```
+
+### AI-enriched documentation
+
+Without `--ai`, the output contains only what the tokenizer can extract statically: HTTP method, path, auth requirement, and any PHPDoc or inline comment directly above the route definition. With `--ai`, the script sends batches of route code snippets to a configured AI provider and back-fills:
+
+- One-sentence summary
+- 2–4 sentence developer description
+- Path, query, and request-body parameter tables
+- Response field schema
+- Notable error responses
+
+Requirements: at least one of `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` must be set in `.env`. The script defaults to `claude-haiku-4-5-20251001` (Anthropic) or `gpt-4o-mini` (OpenAI) to keep costs low; override with `--model`.
+
+```bash
+# AI-enriched public API docs using Anthropic
+php scripts/generate_api_docs.php --ai --provider=anthropic --output=docs/API.md
+
+# AI-enriched admin API as OpenAPI YAML
+php scripts/generate_api_docs.php --routes=admin --ai --format=openapi --output=docs/openapi.yaml
+
+# Larger batch size to reduce API calls (at the cost of longer prompts)
+php scripts/generate_api_docs.php --routes=all --ai --ai-batch-size=15 --output=docs/API.md
+```
+
+### All options
+
+```
+--routes=SETS         Comma-separated sets to document (default: api)
+--format=FORMAT       markdown or openapi (default: markdown)
+--output=FILE         Write to FILE instead of stdout
+--ai                  Enable AI enrichment
+--provider=NAME       anthropic or openai (default: whichever is configured)
+--model=MODEL         Override AI model
+--ai-batch-size=N     Routes per AI request (default: 8)
+--help                Show usage
 ```
 
 ---
