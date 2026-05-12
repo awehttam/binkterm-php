@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [Messaging](#messaging)
 - [Shared Pages](#shared-pages)
+- [Markdown Editor](#markdown-editor)
 - [Documentation](#documentation)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -23,6 +24,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Fixed shared message pages so they no longer emit two `og:description` tags. Social previews now use the shared message subject/body excerpt instead of also including the site-wide description from the global appearance settings.
 - Applied the same metadata override pattern to shared file pages so file shares also emit a single page-specific `og:description` value.
+
+### Markdown Editor
+
+- Fixed the Markdown editor inserting unnecessary backslash escapes before underscores and hyphens when composing messages in WYSIWYG mode. Characters typed in plain text (for example underscores in usernames or filenames, and hyphen runs used as dividers) were being stored with backslash prefixes such as `\_` or `\-\-\-`, which could appear as literal backslash sequences in some renderers.
 
 ### Documentation
 
@@ -48,6 +53,10 @@ Shared message pages now override the default description metadata provided by t
 The page now emits only the message-specific description metadata when a shared message is being viewed. This keeps the Open Graph preview aligned with the shared message subject and excerpt.
 
 The same override structure is also applied to shared file pages. Shared files continue to use their own file description or fallback text, but they no longer risk combining that description with a second site-wide Open Graph description tag.
+
+## Markdown Editor
+
+The Markdown composer in WYSIWYG mode was inserting unnecessary backslash escapes before underscores. This happened because the underlying Toast UI editor serializes WYSIWYG content to Markdown and defensively escapes characters that carry special meaning in Markdown syntax, including underscores. The post-processing step that already stripped similar unnecessary escapes from `.`, `~`, and `|` was extended to cover `_` and `-` as well. Underscores and hyphens typed in plain prose are now stored without backslash prefixes.
 
 ## Documentation
 
