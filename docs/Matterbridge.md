@@ -79,12 +79,12 @@ channel = "api"
 
 [[gateway.inout]]
 account = "discord.mydiscord"
-channel = "your-channel-id"
+channel = "your-channel-name"
 ```
 
 Key points:
 
-- The Discord `channel` value is the **channel ID** (a numeric snowflake), not the channel name. In Discord, enable Developer Mode under User Settings → Advanced, then right-click the channel and choose **Copy Channel ID**.
+- The Discord `channel` value is the **channel name**, not the channel ID. 
 - The `[API.binktermphp]` section name must match the `account` value used in `[[gateway.inout]]` (`api.binktermphp`).
 - `channel = "api"` is required on the API side — it is a fixed value for Matterbridge's API protocol.
 - The `Token` here must match `api.token` in `config/matterbridge.json`.

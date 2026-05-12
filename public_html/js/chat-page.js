@@ -501,6 +501,14 @@
         const key = threadKey(thread);
 
         const isActive = state.active.type === thread.type && state.active.id === thread.id;
+        console.debug('[chat] handleIncoming decision', {
+            msgId,
+            thread_type: thread.type, thread_id: thread.id,
+            active_type: state.active.type, active_id: state.active.id,
+            isActive,
+            already_displayed: state.displayedMessageIds.has(msgId),
+            lastSeenId: state.lastSeenIds[key] || 0
+        });
         if (isActive) {
             // appendMessage() renders and adds the id to displayedMessageIds.
             appendMessage(payload);
@@ -710,12 +718,12 @@
                 payload._source = (typeof window.BinkStream.getMode === 'function')
                     ? window.BinkStream.getMode()
                     : 'binkstream';
-                // Diagnostic: uncomment to trace delivery failures
+                // Diagnostic: remove when delivery issues are resolved
                 console.debug('[chat] BinkStream chat_message arrived', {
                     id: payload.id, type: payload.type,
                     room_id: payload.room_id, from_user_id: payload.from_user_id,
                     loadingHistory: state.loadingHistory,
-                    active: state.active
+                    active_type: state.active.type, active_id: state.active.id
                 });
                 // Buffer messages that arrive while a loadMessages fetch is in flight.
                 // Without this, a message delivered between the API request being sent
