@@ -710,6 +710,12 @@
                 payload._source = (typeof window.BinkStream.getMode === 'function')
                     ? window.BinkStream.getMode()
                     : 'binkstream';
+                console.debug('[chat] BinkStream chat_message arrived', {
+                    id: payload.id, type: payload.type,
+                    room_id: payload.room_id, from_user_id: payload.from_user_id,
+                    loadingHistory: state.loadingHistory,
+                    active: state.active
+                });
                 // Buffer messages that arrive while a loadMessages fetch is in flight.
                 // Without this, a message delivered between the API request being sent
                 // and renderThread() clearing the DOM would be lost permanently.
