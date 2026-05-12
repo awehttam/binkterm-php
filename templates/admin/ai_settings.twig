@@ -84,7 +84,7 @@ function loadAiSettings() {
             if (!data.success) throw new Error(apiError(data, uiT('ui.admin.bbs_settings.load_failed', 'Failed to load settings')));
             const ai = data.config?.ai_assistant || {};
             document.getElementById('aiAssistantEnabled').checked = ai.enabled === true;
-            document.getElementById('aiShareSummaryEnabled').checked = ai.share_summary_enabled !== false;
+            document.getElementById('aiShareSummaryEnabled').checked = ai.share_summary_enabled === true;
             document.getElementById('aiShareSummaryPrompt').value = ai.share_summary_prompt || '';
         })
         .catch(err => showAiSettingsAlert(err.message || uiT('ui.admin.bbs_settings.load_failed', 'Failed to load settings'), 'danger'));
