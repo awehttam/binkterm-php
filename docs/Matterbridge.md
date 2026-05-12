@@ -82,13 +82,43 @@ account = "discord.mydiscord"
 channel = "your-channel-name"
 ```
 
+To bridge multiple rooms, add a `[[gateway]]` block for each one. Each gateway maps one local BinktermPHP room to one Discord channel (or channel on any other platform):
+
+```toml
+[[gateway]]
+name   = "binkterm-testing"
+enable = true
+
+[[gateway.inout]]
+account = "api.binktermphp"
+channel = "testing"
+
+[[gateway.inout]]
+account = "discord.mydiscord"
+channel = "claudes-testing"
+
+[[gateway]]
+name   = "binkterm-lobby"
+enable = true
+
+[[gateway.inout]]
+account = "api.binktermphp"
+channel = "lobby"
+
+[[gateway.inout]]
+account = "discord.mydiscord"
+channel = "claudes-lobby"
+```
+
+Each gateway's `name` must be unique and must match the **Matterbridge gateway** field set on the corresponding BinktermPHP chat room in the admin. The API `channel` value can be anything — it is a label Matterbridge uses internally to distinguish which gateway a message belongs to; use something descriptive that matches the room.
+
 Key points:
 
-- The Discord `channel` value is the **channel name**, not the channel ID. 
+- The Discord `channel` value is the **channel name**, not the channel ID.
 - The `[API.binktermphp]` section name must match the `account` value used in `[[gateway.inout]]` (`api.binktermphp`).
-- `channel = "api"` is required on the API side — it is a fixed value for Matterbridge's API protocol.
+- `channel = "api"` works for a single-gateway setup, but when bridging multiple rooms give each API channel a unique name (e.g. `"lobby"`, `"testing"`) so Matterbridge can route inbound messages to the right gateway.
 - The `Token` here must match `api.token` in `config/matterbridge.json`.
-- The gateway `name` (`my-room` above) must match the **Matterbridge gateway** field set on the local chat room in the BinktermPHP admin.
+- The gateway `name` must match the **Matterbridge gateway** field set on the local chat room in the BinktermPHP admin.
 
 ## Run Matterbridge
 
