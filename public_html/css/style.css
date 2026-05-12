@@ -1088,3 +1088,52 @@ a.file-preview-link:hover {
 .ai-response-text pre { background: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 4px; overflow-x: auto; }
 .ai-response-text code { font-size: 0.85em; }
 .ai-response-text h1, .ai-response-text h2, .ai-response-text h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+
+/* Keep share dialog inputs readable in all themes, including readonly URL fields. */
+.share-message-modal .form-control,
+.share-message-modal .form-select {
+    background-color: var(--message-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.share-message-modal .form-control:focus,
+.share-message-modal .form-select:focus {
+    background-color: var(--message-bg);
+    color: var(--text-color);
+}
+
+.share-message-modal .form-control::placeholder {
+    color: var(--text-color-muted);
+    opacity: 1;
+}
+
+.share-message-modal .form-control[readonly] {
+    background-color: var(--message-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+    opacity: 1;
+}
+
+.share-message-modal .text-muted {
+    color: var(--text-color-muted) !important;
+}
+
+.share-message-modal .alert-secondary {
+    background-color: var(--bg-secondary, var(--message-bg, #f8f9fa));
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.share-message-modal .copy-other-share-btn {
+    background-color: transparent;
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.share-message-modal .copy-other-share-btn:hover,
+.share-message-modal .copy-other-share-btn:focus {
+    background-color: var(--message-quote-bg, rgba(0, 0, 0, 0.05));
+    color: var(--text-color);
+    border-color: var(--fidonet-blue, var(--border-color));
+}

@@ -399,6 +399,54 @@ body {
     opacity: 0.7;
 }
 
+.share-message-modal .form-control,
+.share-message-modal .form-select {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.share-message-modal .form-control:focus,
+.share-message-modal .form-select:focus {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+}
+
+.share-message-modal .form-control::placeholder {
+    color: var(--text-color-muted);
+    opacity: 1;
+}
+
+.share-message-modal .form-control[readonly] {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border-color: var(--border-color);
+    opacity: 1;
+}
+
+.share-message-modal .text-muted {
+    color: var(--text-color-muted) !important;
+}
+
+.share-message-modal .alert-secondary {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.share-message-modal .copy-other-share-btn {
+    background-color: transparent;
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.share-message-modal .copy-other-share-btn:hover,
+.share-message-modal .copy-other-share-btn:focus {
+    background-color: var(--bg-primary);
+    color: var(--text-color);
+    border-color: var(--fidonet-blue);
+}
+
 /* Buttons */
 .btn-fidonet {
     background-color: var(--fidonet-blue);

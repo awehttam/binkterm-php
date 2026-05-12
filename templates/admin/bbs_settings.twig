@@ -179,12 +179,6 @@
                             </select>
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.outgoing_charset_help', {}, locale, ['common']) }}</small>
                         </div>
-                        <hr>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="bbsAiAssistantEnabled">
-                            <label class="form-check-label" for="bbsAiAssistantEnabled">{{ t('ui.admin.bbs_settings.features.enable_ai_assistant', {}, locale, ['common']) }}</label>
-                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.ai_assistant_help', {}, locale, ['common']) }}</small></div>
-                        </div>
                         <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">{{ t('ui.admin.bbs_settings.features.save', {}, locale, ['common']) }}</button>
                     </form>
                 </div>
@@ -375,7 +369,6 @@ function loadBbsSettings() {
             const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
-            document.getElementById('bbsAiAssistantEnabled').checked = data.config?.ai_assistant?.enabled === true;
             const packetBbs = data.config?.packet_bbs || {};
             const sessionTimeout = parseInt(packetBbs.session_timeout_minutes, 10);
             document.getElementById('bbsPacketBbsSessionTimeout').value = Number.isNaN(sessionTimeout) ? 15 : sessionTimeout;
@@ -475,9 +468,6 @@ function saveBbsSettings() {
                 default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value,
                 bulletin_display_mode: document.getElementById('bbsBulletinDisplayMode').value,
                 outgoing_charset: document.getElementById('bbsOutgoingCharset').value,
-                ai_assistant: {
-                    enabled: document.getElementById('bbsAiAssistantEnabled').checked
-                }
             };
 
             return fetch('/admin/api/bbs-settings', {

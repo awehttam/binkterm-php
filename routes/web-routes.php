@@ -552,6 +552,7 @@ SimpleRouter::get('/echomail', function() {
     $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
     $bbsConfig = BbsConfig::getConfig();
     $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
+    $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);
 
     $hasInterests = false;
     if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
@@ -573,11 +574,12 @@ SimpleRouter::get('/echomail', function() {
 
     $template = new Template();
     $template->renderResponse('echomail.twig', [
-        'echoarea' => $echoarea,
-        'domain' => $domainParam,
-        'echomail_date_field' => $echoDateOrder,
-        'has_interests' => $hasInterests,
-        'ai_assistant_enabled' => $aiAssistantEnabled,
+        'echoarea'               => $echoarea,
+        'domain'                 => $domainParam,
+        'echomail_date_field'    => $echoDateOrder,
+        'has_interests'          => $hasInterests,
+        'ai_assistant_enabled'   => $aiAssistantEnabled,
+        'ai_share_summary_enabled' => $aiShareSummaryEnabled,
     ]);
 });
 
@@ -595,7 +597,8 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $isAdmin = !empty($user['is_admin']);
     $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
     $bbsConfig = BbsConfig::getConfig();
-    $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
+    $aiAssistantEnabled    = !empty($bbsConfig['ai_assistant']['enabled']);
+    $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);
 
     $hasInterests = false;
     if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
@@ -605,10 +608,11 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
 
     $template = new Template();
     $template->renderResponse('echomail.twig', [
-        'echoarea' => $echoarea,
-        'echomail_date_field' => $echoDateOrder,
-        'has_interests' => $hasInterests,
-        'ai_assistant_enabled' => $aiAssistantEnabled,
+        'echoarea'               => $echoarea,
+        'echomail_date_field'    => $echoDateOrder,
+        'has_interests'          => $hasInterests,
+        'ai_assistant_enabled'   => $aiAssistantEnabled,
+        'ai_share_summary_enabled' => $aiShareSummaryEnabled,
     ]);
 })->where(['echoarea' => "[-A-Za-z0-9@._'!%]+"]);
 
@@ -638,12 +642,13 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
-        'shareKey'   => $shareKey,
-        'shareArea'  => $area,
-        'shareSlug'  => $slug,
-        'message'    => $messageData,
-        'share_info' => $shareInfo,
-        'share_url'  => $shareUrl
+        'shareKey'      => $shareKey,
+        'shareArea'     => $area,
+        'shareSlug'     => $slug,
+        'message'       => $messageData,
+        'share_info'    => $shareInfo,
+        'share_url'     => $shareUrl,
+        'ai_og_summary' => $shareInfo['ai_og_summary'] ?? null,
     ]);
 })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
 
@@ -675,10 +680,11 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
-        'shareKey' => $shareKey,
-        'message' => $messageData,
-        'share_info' => $shareInfo,
-        'share_url' => $shareUrl
+        'shareKey'      => $shareKey,
+        'message'       => $messageData,
+        'share_info'    => $shareInfo,
+        'share_url'     => $shareUrl,
+        'ai_og_summary' => $shareInfo['ai_og_summary'] ?? null,
     ]);
 })->where(['shareKey' => '[a-f0-9]{32}']);
 

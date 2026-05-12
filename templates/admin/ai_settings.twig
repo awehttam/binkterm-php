@@ -1,0 +1,124 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.bbs_settings.ai.page_title', {}, 'common') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.bbs_settings.ai.heading', {}, 'common') }}</h1>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.ai.features_title', {}, 'common') }}</h6>
+                </div>
+                <div class="card-body">
+                    {% if not ai_available %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>{{ t('ui.admin.bbs_settings.ai.no_provider_warning', {}, 'common') }}
+                    </div>
+                    {% endif %}
+
+                    <div id="aiSettingsAlert"></div>
+
+                    <form id="aiSettingsForm">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="aiAssistantEnabled">
+                            <label class="form-check-label" for="aiAssistantEnabled">{{ t('ui.admin.bbs_settings.features.enable_ai_assistant', {}, 'common') }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.ai_assistant_help', {}, 'common') }}</small></div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="aiShareSummaryEnabled">
+                            <label class="form-check-label" for="aiShareSummaryEnabled">{{ t('ui.admin.bbs_settings.ai.enable_share_summary', {}, 'common') }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.ai.share_summary_help', {}, 'common') }}</small></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="aiShareSummaryPrompt" class="form-label">{{ t('ui.admin.bbs_settings.ai.share_summary_prompt_label', {}, 'common') }}</label>
+                            <textarea class="form-control" id="aiShareSummaryPrompt" rows="5" placeholder="{{ share_summary_default_prompt }}"></textarea>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.ai.share_summary_prompt_help', {}, 'common') }}</small>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="saveAiSettings()">{{ t('ui.admin.bbs_settings.ai.save', {}, 'common') }}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+function showAiSettingsAlert(message, type) {
+    const container = document.getElementById('aiSettingsAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function loadAiSettings() {
+    fetch('/admin/api/bbs-settings')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) throw new Error(apiError(data, uiT('ui.admin.bbs_settings.load_failed', 'Failed to load settings')));
+            const ai = data.config?.ai_assistant || {};
+            document.getElementById('aiAssistantEnabled').checked = ai.enabled === true;
+            document.getElementById('aiShareSummaryEnabled').checked = ai.share_summary_enabled !== false;
+            document.getElementById('aiShareSummaryPrompt').value = ai.share_summary_prompt || '';
+        })
+        .catch(err => showAiSettingsAlert(err.message || uiT('ui.admin.bbs_settings.load_failed', 'Failed to load settings'), 'danger'));
+}
+
+function saveAiSettings() {
+    const payload = {
+        ai_assistant: {
+            enabled: document.getElementById('aiAssistantEnabled').checked,
+            share_summary_enabled: document.getElementById('aiShareSummaryEnabled').checked,
+            share_summary_prompt: document.getElementById('aiShareSummaryPrompt').value,
+        }
+    };
+
+    fetch('/admin/api/ai-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) throw new Error(apiError(data, uiT('ui.admin.bbs_settings.ai.save_failed', 'Failed to save AI settings')));
+        const msg = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.ai.saved_success', 'AI settings saved.'))
+            : uiT('ui.admin.bbs_settings.ai.saved_success', 'AI settings saved.');
+        showAiSettingsAlert(msg, 'success');
+    })
+    .catch(err => showAiSettingsAlert(err.message || uiT('ui.admin.bbs_settings.ai.save_failed', 'Failed to save AI settings'), 'danger'));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadAiSettings();
+    });
+});
+</script>
+{% endblock %}

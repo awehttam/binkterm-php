@@ -8874,12 +8874,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        // Debug logging
-        //error_log("Share API - isPublic: " . var_export($isPublic, true) . ", expiresHours: " . var_export($expiresHours, true));
+        $aiOgSummary = isset($input['ai_og_summary']) ? (string)$input['ai_og_summary'] : null;
 
         try {
             $handler = new MessageHandler();
-            $result = $handler->createMessageShare($id, 'echomail', $userId, $isPublic, $expiresHours);
+            $result = $handler->createMessageShare($id, 'echomail', $userId, $isPublic, $expiresHours, $aiOgSummary);
 
             if ($result['success']) {
                 echo json_encode($result);
@@ -8950,6 +8949,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         } catch (Exception $e) {
             apiError('errors.messages.shared.slug_generation_failed', apiLocalizedText('errors.messages.shared.slug_generation_failed', 'Cannot generate share slug for this message'), 500);
+        }
+    });
+
+    SimpleRouter::post('/messages/echomail/{id}/share-summary', function($id) {
+        header('Content-Type: application/json');
+
+        $user   = RouteHelper::requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+        if (empty($bbsConfig['ai_assistant']['share_summary_enabled'])) {
+            http_response_code(403);
+            apiError('errors.admin.ai_settings.share_summary_disabled', apiLocalizedText('errors.admin.ai_settings.share_summary_disabled', 'AI share summaries are not enabled'));
+            return;
+        }
+
+        try {
+            $handler = new MessageHandler();
+            $message = $handler->getMessage((int)$id, 'echomail', $userId);
+
+            if (!$message) {
+                http_response_code(404);
+                apiError('errors.messages.not_found', apiLocalizedText('errors.messages.not_found', 'Message not found'));
+                return;
+            }
+
+            $localeResolver = new \BinktermPHP\I18n\LocaleResolver(new \BinktermPHP\I18n\Translator());
+            $locale = $localeResolver->resolveLocale(null, $user);
+
+            $summary = \BinktermPHP\AI\ShareSummaryGenerator::generate($message, $locale);
+
+            echo json_encode(['success' => true, 'summary' => $summary]);
+        } catch (\Throwable $e) {
+            getServerLogger()->error('Share summary generation failed: ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.admin.ai_settings.share_summary_failed', apiLocalizedText('errors.admin.ai_settings.share_summary_failed', 'Failed to generate summary'));
         }
     });
 

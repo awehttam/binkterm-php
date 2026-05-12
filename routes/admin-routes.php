@@ -495,6 +495,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // AI settings page
+    SimpleRouter::get('/ai-settings', function() {
+        RouteHelper::requireAdmin();
+
+        $ai_available = !empty(\BinktermPHP\AI\AiService::create()->getConfiguredProviders());
+
+        $template = new Template();
+        $template->renderResponse('admin/ai_settings.twig', [
+            'ai_available'                => $ai_available,
+            'share_summary_default_prompt' => \BinktermPHP\AI\ShareSummaryGenerator::DEFAULT_SYSTEM_PROMPT,
+        ]);
+    });
+
     // Appearance & Content settings page
     SimpleRouter::get('/appearance', function() {
         $user = RouteHelper::requireAdmin();
@@ -1761,7 +1774,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
                 if (array_key_exists('ai_assistant', $config)) {
                     $config['ai_assistant'] = [
-                        'enabled' => !empty($config['ai_assistant']['enabled']),
+                        'enabled'               => !empty($config['ai_assistant']['enabled']),
+                        'share_summary_enabled' => !empty($config['ai_assistant']['share_summary_enabled']),
                     ];
                 }
 
@@ -1802,6 +1816,51 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 } else {
                     apiError('errors.admin.bbs_settings.save_failed', apiLocalizedText('errors.admin.bbs_settings.save_failed', 'Failed to save BBS settings'));
                 }
+            }
+        });
+
+        // ---------------------------------------------------------------
+        // AI Settings API
+        // ---------------------------------------------------------------
+
+        SimpleRouter::post('/ai-settings', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $input = json_decode(file_get_contents('php://input'), true);
+                if (!is_array($input)) {
+                    throw new Exception('Invalid payload');
+                }
+
+                $aiAssistant = $input['ai_assistant'] ?? [];
+                if (!is_array($aiAssistant)) {
+                    throw new Exception('Invalid payload');
+                }
+
+                $prompt = isset($aiAssistant['share_summary_prompt'])
+                    ? trim((string)$aiAssistant['share_summary_prompt'])
+                    : null;
+
+                $config = [
+                    'ai_assistant' => [
+                        'enabled'                => !empty($aiAssistant['enabled']),
+                        'share_summary_enabled'  => !empty($aiAssistant['share_summary_enabled']),
+                        'share_summary_prompt'   => $prompt !== null ? $prompt : '',
+                    ],
+                ];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->setBbsConfig($config);
+
+                echo json_encode([
+                    'success'      => true,
+                    'config'       => $updated,
+                    'message_code' => 'ui.admin.bbs_settings.ai.saved_success',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ai_settings.save_failed', apiLocalizedText('errors.admin.ai_settings.save_failed', 'Failed to save AI settings'));
             }
         });
 
