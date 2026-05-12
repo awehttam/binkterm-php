@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [AI Share Summarizer](#ai-share-summarizer)
 - [Messaging](#messaging)
 - [Shared Pages](#shared-pages)
+- [Sharing Analytics](#sharing-analytics)
 - [Markdown Editor](#markdown-editor)
 - [Documentation](#documentation)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -39,6 +40,12 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Fixed shared message pages so they no longer emit two `og:description` tags. Social previews now use the shared message subject/body excerpt instead of also including the site-wide description from the global appearance settings.
 - Applied the same metadata override pattern to shared file pages so file shares also emit a single page-specific `og:description` value.
+
+### Sharing Analytics
+
+- Shared message and shared file page visits now record external HTTP referrers, allowing the system to show which outside sites are sending traffic to shared links.
+- **Admin → Analytics → Sharing** now includes a **Top Referrers** column for each active shared message and shared file, listing the most common external URLs that led visitors to that share.
+- Shared message page loads no longer count twice when the browser fetches the page shell and then loads the message JSON. View totals for shared messages now reflect one counted access per page visit.
 
 ### Markdown Editor
 
@@ -91,6 +98,14 @@ Shared message pages now override the default description metadata provided by t
 The page now emits only the message-specific description metadata when a shared message is being viewed. This keeps the Open Graph preview aligned with the shared message subject and excerpt.
 
 The same override structure is also applied to shared file pages. Shared files continue to use their own file description or fallback text, but they no longer risk combining that description with a second site-wide Open Graph description tag.
+
+## Sharing Analytics
+
+Shared links now capture the external HTTP referrer that led a visitor to the page when the browser provides one. This applies to both public shared message pages and public shared file pages. Internal links from the same BBS are ignored so the analytics focus on outside traffic sources rather than normal in-site navigation.
+
+The **Admin → Analytics → Sharing** page now shows a **Top Referrers** column beside each active share. For each shared message or file, the page lists up to ten of the most frequent external referring URLs along with the number of visits attributed to each one. This gives the sysop a direct view of which forums, social posts, directories, or websites are driving traffic to individual shared links.
+
+Shared message access counting has also been tightened up. The public shared message page renders server-side and then loads its message content through the API. Previously, that could increment the share's view counter twice for a single human visit. The count is now recorded only on the page request itself, so the displayed totals better match real page visits.
 
 ## Markdown Editor
 

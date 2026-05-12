@@ -4273,7 +4273,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $requestingUserId = $currentUser ? ($currentUser['user_id'] ?? $currentUser['id'] ?? null) : null;
 
         $manager = new \BinktermPHP\FileAreaManager();
-        $result  = $manager->getSharedFile($area, $filename, $requestingUserId);
+        $result  = $manager->getSharedFile($area, $filename, $requestingUserId, false);
         $result = apiLocalizeErrorPayload($result, $user);
 
         if (!$result['success']) {
@@ -8997,7 +8997,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $handler = new MessageHandler();
-            $result  = $handler->getSharedMessageBySlug($area, $slug, $userId);
+            $result  = $handler->getSharedMessageBySlug($area, $slug, $userId, false);
 
             if ($result['success']) {
                 echo json_encode($result);
@@ -9023,7 +9023,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $handler = new MessageHandler();
-            $result = $handler->getSharedMessage($shareKey, $userId);
+            $result = $handler->getSharedMessage($shareKey, $userId, false);
 
             if ($result['success']) {
                 echo json_encode($result);

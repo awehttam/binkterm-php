@@ -2122,6 +2122,7 @@ return [
     'ui.admin.sharing.area' => 'Area',
     'ui.admin.sharing.shared_by' => 'Shared By',
     'ui.admin.sharing.views' => 'Views',
+    'ui.admin.sharing.top_referrers' => 'Top Referrers',
     'ui.admin.sharing.last_accessed' => 'Last Accessed',
     'ui.admin.sharing.access' => 'Access',
     'ui.admin.sharing.open' => 'Open',
@@ -2132,6 +2133,7 @@ return [
     'ui.admin.sharing.never' => 'Never',
     'ui.admin.sharing.no_messages' => 'No active shared messages',
     'ui.admin.sharing.no_files' => 'No active shared files',
+    'ui.admin.sharing.no_referrers' => 'No external referrers yet',
     'ui.admin.sharing.load_failed' => 'Failed to load sharing data',
 
     // Admin Economy Viewer

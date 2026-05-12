@@ -2120,6 +2120,7 @@ return [
     'ui.admin.sharing.area' => 'Area',
     'ui.admin.sharing.shared_by' => 'Compartido por',
     'ui.admin.sharing.views' => 'Vistas',
+    'ui.admin.sharing.top_referrers' => 'Principales referentes',
     'ui.admin.sharing.last_accessed' => 'Ultimo acceso',
     'ui.admin.sharing.access' => 'Acceso',
     'ui.admin.sharing.open' => 'Abrir',
@@ -2130,6 +2131,7 @@ return [
     'ui.admin.sharing.never' => 'Nunca',
     'ui.admin.sharing.no_messages' => 'No hay mensajes compartidos activos',
     'ui.admin.sharing.no_files' => 'No hay archivos compartidos activos',
+    'ui.admin.sharing.no_referrers' => 'Aun no hay referentes externos',
     'ui.admin.sharing.load_failed' => 'No se pudieron cargar los datos de compartidos',
 
     // Admin Referral Analytics

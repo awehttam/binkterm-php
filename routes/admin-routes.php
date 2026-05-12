@@ -5888,7 +5888,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $baseUrl = \BinktermPHP\Config::getSiteUrl();
 
         $messageStmt = $db->query("
-            SELECT sm.message_type,
+            SELECT sm.id AS share_id,
+                   sm.message_type,
                    sm.share_key,
                    sm.area_identifier,
                    sm.slug,
@@ -5914,9 +5915,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             ORDER BY sm.access_count DESC, sm.created_at DESC
         ");
         $messageRows = $messageStmt->fetchAll(\PDO::FETCH_ASSOC);
+        $tracker = new \BinktermPHP\ShareReferralTracker($db);
+        $messageReferrers = $tracker->getTopReferrersForMessageShares(array_map(static function ($row) {
+            return (int)$row['share_id'];
+        }, $messageRows), 10);
 
         $messages = [];
         foreach ($messageRows as $row) {
+            $shareId = (int)$row['share_id'];
             $areaIdentifier = $row['area_identifier'] ?? null;
             $slug = $row['slug'] ?? null;
             $shareUrl = (!empty($areaIdentifier) && !empty($slug))
@@ -5934,11 +5940,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'last_accessed_at' => $row['last_accessed_at'],
                 'is_public' => filter_var($row['is_public'], FILTER_VALIDATE_BOOLEAN),
                 'share_url' => $shareUrl,
+                'top_referrers' => $messageReferrers[$shareId] ?? [],
             ];
         }
 
         $fileStmt = $db->query("
-            SELECT sf.created_at,
+            SELECT sf.id AS share_id,
+                   sf.created_at,
                    sf.expires_at,
                    sf.access_count,
                    sf.last_accessed_at,
@@ -5957,9 +5965,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             ORDER BY sf.access_count DESC, sf.created_at DESC
         ");
         $fileRows = $fileStmt->fetchAll(\PDO::FETCH_ASSOC);
+        $fileReferrers = $tracker->getTopReferrersForFileShares(array_map(static function ($row) {
+            return (int)$row['share_id'];
+        }, $fileRows), 10);
 
         $files = [];
         foreach ($fileRows as $row) {
+            $shareId = (int)$row['share_id'];
             $files[] = [
                 'filename' => $row['filename'],
                 'area_tag' => $row['area_tag'],
@@ -5974,6 +5986,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     . rawurlencode($row['area_tag'])
                     . '/'
                     . rawurlencode($row['filename']),
+                'top_referrers' => $fileReferrers[$shareId] ?? [],
             ];
         }
 

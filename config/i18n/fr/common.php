@@ -3924,6 +3924,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.sharing.never' => 'Jamais',
     'ui.admin.sharing.no_files' => 'Aucun fichier partagé actif',
     'ui.admin.sharing.no_messages' => 'Aucun message partagé actif',
+    'ui.admin.sharing.no_referrers' => 'Aucun référent externe pour le moment',
     'ui.admin.sharing.open' => 'Ouvrir',
     'ui.admin.ai_usage.page_title' => 'Utilisation IA',
     'ui.admin.ai_usage.heading' => 'Utilisation IA',
@@ -3962,6 +3963,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.sharing.public' => 'Public',
     'ui.admin.sharing.shared_by' => 'Partagé par',
     'ui.admin.sharing.subject' => 'Objet',
+    'ui.admin.sharing.top_referrers' => 'Principaux référents',
     'ui.admin.sharing.views' => 'Vues',
     'ui.admin.sharing.web_only' => 'Web uniquement',
 

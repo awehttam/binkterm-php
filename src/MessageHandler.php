@@ -4290,7 +4290,7 @@ class MessageHandler
     /**
      * Get shared message by share key
      */
-    public function getSharedMessage($shareKey, $requestingUserId = null)
+    public function getSharedMessage($shareKey, $requestingUserId = null, bool $recordAccess = true, ?string $referrerUrl = null)
     {
         // Clean up expired shares first
         $this->cleanupExpiredShares();
@@ -4352,8 +4352,11 @@ class MessageHandler
             ];
         }
 
-        // Update access statistics
-        $this->updateShareAccess($share['id']);
+        if ($recordAccess) {
+            $this->updateShareAccess($share['id'], $referrerUrl);
+            $share['access_count'] = (int)$share['access_count'] + 1;
+            $share['last_accessed_at'] = gmdate('c');
+        }
 
         // Clean message for JSON encoding
         $message = $this->cleanMessageForJson($message);
@@ -4372,7 +4375,7 @@ class MessageHandler
                 'created_at'    => $share['created_at'],
                 'expires_at'    => $share['expires_at'],
                 'is_public'     => $share['is_public'],
-                'access_count'  => $share['access_count'],
+                'access_count'  => (int)$share['access_count'],
             ]
         ];
     }
@@ -4463,7 +4466,7 @@ class MessageHandler
      * @param string   $slug            e.g. "hello-world"
      * @param int|null $requestingUserId
      */
-    public function getSharedMessageBySlug(string $areaIdentifier, string $slug, ?int $requestingUserId = null): array
+    public function getSharedMessageBySlug(string $areaIdentifier, string $slug, ?int $requestingUserId = null, bool $recordAccess = true, ?string $referrerUrl = null): array
     {
         $this->cleanupExpiredShares();
 
@@ -4488,7 +4491,7 @@ class MessageHandler
         }
 
         // Delegate to the core lookup logic via share_key
-        return $this->getSharedMessage($share['share_key'], $requestingUserId);
+        return $this->getSharedMessage($share['share_key'], $requestingUserId, $recordAccess, $referrerUrl);
     }
 
     /**
@@ -4530,7 +4533,8 @@ class MessageHandler
                 'expires_at'       => $share['expires_at'],
                 'is_public'        => $share['is_public'],
                 'access_count'     => $share['access_count'],
-                'last_accessed_at' => $share['last_accessed_at']
+                'last_accessed_at' => $share['last_accessed_at'],
+                'top_referrers'    => []
             ];
         }
 
@@ -4543,6 +4547,7 @@ class MessageHandler
                 'shared_by_username' => $share['shared_by_username'],
                 'created_at'         => $share['created_at'],
                 'is_public'          => $share['is_public'],
+                'top_referrers'      => [],
             ];
         }
 
@@ -4677,7 +4682,7 @@ class MessageHandler
     /**
      * Update share access statistics
      */
-    private function updateShareAccess($shareId)
+    private function updateShareAccess($shareId, ?string $referrerUrl = null)
     {
         $stmt = $this->db->prepare("
             UPDATE shared_messages 
@@ -4685,6 +4690,9 @@ class MessageHandler
             WHERE id = ?
         ");
         $stmt->execute([$shareId]);
+
+        $tracker = new ShareReferralTracker($this->db);
+        $tracker->recordMessageShareAccess((int)$shareId, $referrerUrl);
     }
 
     /**

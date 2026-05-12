@@ -45,6 +45,7 @@
                                         <th>{{ t('ui.admin.sharing.area', {}, 'common') }}</th>
                                         <th>{{ t('ui.admin.sharing.shared_by', {}, 'common') }}</th>
                                         <th class="text-end">{{ t('ui.admin.sharing.views', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.top_referrers', {}, 'common') }}</th>
                                         <th>{{ t('ui.admin.sharing.last_accessed', {}, 'common') }}</th>
                                         <th>{{ t('ui.admin.sharing.access', {}, 'common') }}</th>
                                         <th class="text-end">{{ t('ui.admin.sharing.open', {}, 'common') }}</th>
@@ -69,6 +70,7 @@
                                         <th>{{ t('ui.admin.sharing.area', {}, 'common') }}</th>
                                         <th>{{ t('ui.admin.sharing.shared_by', {}, 'common') }}</th>
                                         <th class="text-end">{{ t('ui.admin.sharing.views', {}, 'common') }}</th>
+                                        <th>{{ t('ui.admin.sharing.top_referrers', {}, 'common') }}</th>
                                         <th>{{ t('ui.admin.sharing.last_accessed', {}, 'common') }}</th>
                                         <th>{{ t('ui.admin.sharing.access', {}, 'common') }}</th>
                                         <th class="text-end">{{ t('ui.admin.sharing.open', {}, 'common') }}</th>
@@ -137,10 +139,26 @@
         return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
     }
 
+    function renderTopReferrers(referrers) {
+        if (!Array.isArray(referrers) || referrers.length === 0) {
+            return `<span class="text-muted">${escapeHtml(uiT('ui.admin.sharing.no_referrers', 'No external referrers yet'))}</span>`;
+        }
+
+        return referrers.map(referrer => {
+            const count = Number(referrer.access_count || 0).toLocaleString();
+            return `
+                <div class="small mb-1">
+                    <a href="${escapeHtml(referrer.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(referrer.url)}</a>
+                    <span class="badge bg-light text-body border ms-1">${count}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
     function renderMessageRows(items) {
         const tbody = document.getElementById('shared-message-rows');
         if (!items || items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-muted text-center py-3">${uiT('ui.admin.sharing.no_messages', 'No active shared messages')}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-muted text-center py-3">${uiT('ui.admin.sharing.no_messages', 'No active shared messages')}</td></tr>`;
             return;
         }
 
@@ -149,6 +167,7 @@
             <td>${escapeHtml(item.area_tag)}</td>
             <td>${escapeHtml(item.shared_by)}</td>
             <td class="text-end fw-semibold">${(item.access_count || 0).toLocaleString()}</td>
+            <td style="min-width:320px">${renderTopReferrers(item.top_referrers)}</td>
             <td>${escapeHtml(formatDate(item.last_accessed_at))}</td>
             <td>${renderAccessBadge(item.is_public, uiT('ui.admin.sharing.public', 'Public'), uiT('ui.admin.sharing.private', 'Private'), 'bg-success', 'bg-secondary')}</td>
             <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="${escapeHtml(item.share_url)}" target="_blank" rel="noopener noreferrer">${uiT('ui.admin.sharing.open', 'Open')}</a></td>
@@ -158,7 +177,7 @@
     function renderFileRows(items) {
         const tbody = document.getElementById('shared-file-rows');
         if (!items || items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-muted text-center py-3">${uiT('ui.admin.sharing.no_files', 'No active shared files')}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-muted text-center py-3">${uiT('ui.admin.sharing.no_files', 'No active shared files')}</td></tr>`;
             return;
         }
 
@@ -167,6 +186,7 @@
             <td>${escapeHtml(item.area_tag)}</td>
             <td>${escapeHtml(item.shared_by)}</td>
             <td class="text-end fw-semibold">${(item.access_count || 0).toLocaleString()}</td>
+            <td style="min-width:320px">${renderTopReferrers(item.top_referrers)}</td>
             <td>${escapeHtml(formatDate(item.last_accessed_at))}</td>
             <td>${renderAccessBadge(item.freq_accessible, uiT('ui.admin.sharing.freq_enabled', 'FREQ'), uiT('ui.admin.sharing.web_only', 'Web only'), 'bg-info', 'bg-secondary')}</td>
             <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="${escapeHtml(item.share_url)}" target="_blank" rel="noopener noreferrer">${uiT('ui.admin.sharing.open', 'Open')}</a></td>

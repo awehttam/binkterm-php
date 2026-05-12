@@ -627,7 +627,7 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
 
     try {
         $handler = new MessageHandler();
-        $result  = $handler->getSharedMessageBySlug($area, $slug, $userId);
+        $result  = $handler->getSharedMessageBySlug($area, $slug, $userId, true, $_SERVER['HTTP_REFERER'] ?? null);
 
         if ($result['success']) {
             $messageData = $result['message'];
@@ -664,7 +664,7 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
 
     try {
         $handler = new MessageHandler();
-        $result = $handler->getSharedMessage($shareKey, $userId);
+        $result = $handler->getSharedMessage($shareKey, $userId, true, $_SERVER['HTTP_REFERER'] ?? null);
 
         if ($result['success']) {
             $messageData = $result['message'];
@@ -699,7 +699,7 @@ SimpleRouter::get('/shared/file/{area}/{filename}', function($area, $filename) {
 
     try {
         $manager = new \BinktermPHP\FileAreaManager();
-        $result  = $manager->getSharedFile($area, $filename, $userId);
+        $result  = $manager->getSharedFile($area, $filename, $userId, true, $_SERVER['HTTP_REFERER'] ?? null);
 
         if ($result['success']) {
             $fileData  = $result['file'];

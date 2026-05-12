@@ -2123,6 +2123,7 @@ return [
     'ui.admin.sharing.area' => 'Area',
     'ui.admin.sharing.shared_by' => 'Condiviso da',
     'ui.admin.sharing.views' => 'Visualizzazioni',
+    'ui.admin.sharing.top_referrers' => 'Referrer principali',
     'ui.admin.sharing.last_accessed' => 'Ultimo accesso',
     'ui.admin.sharing.access' => 'Accesso',
     'ui.admin.sharing.open' => 'Apri',
@@ -2133,6 +2134,7 @@ return [
     'ui.admin.sharing.never' => 'Mai',
     'ui.admin.sharing.no_messages' => 'Nessun messaggio condiviso attivo',
     'ui.admin.sharing.no_files' => 'Nessun file condiviso attivo',
+    'ui.admin.sharing.no_referrers' => 'Nessun referrer esterno ancora',
     'ui.admin.sharing.load_failed' => 'Impossibile caricare i dati di condivisione',
 
     // Admin Economy Viewer
