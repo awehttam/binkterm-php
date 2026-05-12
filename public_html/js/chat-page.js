@@ -92,6 +92,9 @@
         const stored = await idbGet(CHAT_STORAGE_KEY);
         if (stored && typeof stored === 'object') {
             state.active = stored.active || state.active;
+            if (state.active.id !== null && state.active.id !== undefined) {
+                state.active.id = parseInt(state.active.id, 10) || state.active.id;
+            }
             state.unreadCounts = stored.unreadCounts || {};
             state.lastChatId = stored.lastChatId || stored.lastEventId || 0;
         }

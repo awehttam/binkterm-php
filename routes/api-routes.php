@@ -1174,7 +1174,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ORDER BY name
         ");
         $stmt->execute();
-        $rooms = $stmt->fetchAll();
+        $rooms = array_map(function(array $r): array {
+            $r['id'] = (int)$r['id'];
+            return $r;
+        }, $stmt->fetchAll());
 
         echo json_encode(['rooms' => $rooms]);
     });
