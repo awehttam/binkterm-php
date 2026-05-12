@@ -519,6 +519,16 @@ class AdminDaemonClient
         return $this->sendCommand('get_mrc_config');
     }
 
+    public function getMatterbridgeConfig(): array
+    {
+        return $this->sendCommand('get_matterbridge_config');
+    }
+
+    public function setMatterbridgeConfig(array $config): array
+    {
+        return $this->sendCommand('set_matterbridge_config', ['config' => $config]);
+    }
+
     public function setMrcConfig(array $config): array
     {
         return $this->sendCommand('set_mrc_config', ['config' => $config]);

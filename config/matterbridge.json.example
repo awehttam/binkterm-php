@@ -1,0 +1,12 @@
+{
+    "enabled": false,
+    "api": {
+        "base_url": "http://127.0.0.1:4240",
+        "token": "",
+        "timeout_seconds": 10,
+        "skip_tls_verify": false
+    },
+    "defaults": {
+        "username_suffix": " @ BinktermPHP"
+    }
+}

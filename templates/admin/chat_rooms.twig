@@ -11,6 +11,51 @@
         </button>
     </div>
 
+    <div class="card shadow mb-3">
+        <div class="card-header">
+            <i class="fas fa-bridge-water me-2"></i>{{ t('ui.admin.matterbridge_settings.heading', {}, locale, ['common']) }}
+        </div>
+        <div class="card-body">
+            <div id="matterbridgeAlert"></div>
+            <form id="matterbridgeSettingsForm">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="matterbridgeEnabled">
+                    <label class="form-check-label" for="matterbridgeEnabled">{{ t('ui.admin.matterbridge_settings.enabled', {}, locale, ['common']) }}</label>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="matterbridgeBaseUrl" class="form-label">{{ t('ui.admin.matterbridge_settings.base_url', {}, locale, ['common']) }}</label>
+                        <input type="url" class="form-control" id="matterbridgeBaseUrl" placeholder="http://127.0.0.1:4240">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="matterbridgeTimeout" class="form-label">{{ t('ui.admin.matterbridge_settings.timeout_seconds', {}, locale, ['common']) }}</label>
+                        <input type="number" min="1" max="120" class="form-control" id="matterbridgeTimeout" value="10">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="matterbridgeUsernameSuffix" class="form-label">{{ t('ui.admin.matterbridge_settings.username_suffix', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="matterbridgeUsernameSuffix" placeholder=" @ BinktermPHP">
+                    </div>
+                    <div class="col-md-8">
+                        <label for="matterbridgeToken" class="form-label">{{ t('ui.admin.matterbridge_settings.token', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="matterbridgeToken">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="matterbridgeSkipTlsVerify">
+                            <label class="form-check-label" for="matterbridgeSkipTlsVerify">{{ t('ui.admin.matterbridge_settings.skip_tls_verify', {}, locale, ['common']) }}</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-text mt-2">{{ t('ui.admin.matterbridge_settings.help', {}, locale, ['common']) }}</div>
+                <div class="mt-3">
+                    <button type="button" class="btn btn-primary" onclick="saveMatterbridgeSettings()">
+                        {{ t('ui.admin.matterbridge_settings.save', {}, locale, ['common']) }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="card shadow">
         <div class="card-body">
             <div class="table-responsive">
@@ -20,6 +65,7 @@
                             <th>{{ t('ui.common.id', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.common.name', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.common.description', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.chat_rooms.bridge', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.chat_rooms.status', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.chat_rooms.created', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.chat_rooms.actions', {}, locale, ['common']) }}</th>
@@ -58,6 +104,23 @@
                             {{ t('ui.admin.chat_rooms.active_room', {}, locale, ['common']) }}
                         </label>
                     </div>
+                    <hr>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="chatRoomMatterbridgeEnabled" name="matterbridge_enabled">
+                        <label class="form-check-label" for="chatRoomMatterbridgeEnabled">
+                            {{ t('ui.admin.chat_rooms.matterbridge_enabled', {}, locale, ['common']) }}
+                        </label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="chatRoomMatterbridgeGateway" class="form-label">{{ t('ui.admin.chat_rooms.matterbridge_gateway', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="chatRoomMatterbridgeGateway" name="matterbridge_gateway">
+                        <div class="form-text">{{ t('ui.admin.chat_rooms.matterbridge_gateway_help', {}, locale, ['common']) }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="chatRoomMatterbridgeUsernameTemplate" class="form-label">{{ t('ui.admin.chat_rooms.matterbridge_username_template', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="chatRoomMatterbridgeUsernameTemplate" name="matterbridge_username_template" placeholder="{username} @ BinktermPHP">
+                        <div class="form-text">{{ t('ui.admin.chat_rooms.matterbridge_username_template_help', {}, locale, ['common']) }}</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -85,11 +148,83 @@ function uiT(key, fallback, params = {}) {
     }
     return fallback;
 }
+
+function escapeHtml(text) {
+    if (window.escapeHtml) {
+        return window.escapeHtml(text);
+    }
+    return String(text).replace(/[&<>"']/g, function(m) {
+        return ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        })[m];
+    });
+}
 document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadMatterbridgeSettings();
         loadChatRooms();
     });
 });
+
+function loadMatterbridgeSettings() {
+    fetch('/admin/api/matterbridge-settings')
+        .then(response => response.json())
+        .then(data => {
+            const config = data.config || {};
+            document.getElementById('matterbridgeEnabled').checked = !!config.enabled;
+            document.getElementById('matterbridgeBaseUrl').value = config.api?.base_url || 'http://127.0.0.1:4240';
+            document.getElementById('matterbridgeToken').value = config.api?.token || '';
+            document.getElementById('matterbridgeTimeout').value = config.api?.timeout_seconds || 10;
+            document.getElementById('matterbridgeSkipTlsVerify').checked = !!config.api?.skip_tls_verify;
+            document.getElementById('matterbridgeUsernameSuffix').value = config.defaults?.username_suffix || ' @ BinktermPHP';
+        })
+        .catch(error => {
+            console.error(uiT('ui.admin.matterbridge_settings.load_failed', 'Error loading Matterbridge settings') + ':', error);
+            showInlineAlert('matterbridgeAlert', uiT('ui.admin.matterbridge_settings.load_failed', 'Error loading Matterbridge settings'), 'danger');
+        });
+}
+
+function saveMatterbridgeSettings() {
+    const payload = {
+        config: {
+            enabled: document.getElementById('matterbridgeEnabled').checked,
+            api: {
+                base_url: document.getElementById('matterbridgeBaseUrl').value.trim(),
+                token: document.getElementById('matterbridgeToken').value,
+                timeout_seconds: parseInt(document.getElementById('matterbridgeTimeout').value || '10', 10),
+                skip_tls_verify: document.getElementById('matterbridgeSkipTlsVerify').checked
+            },
+            defaults: {
+                username_suffix: document.getElementById('matterbridgeUsernameSuffix').value
+            }
+        }
+    };
+
+    fetch('/admin/api/matterbridge-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const message = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.matterbridge_settings.saved_success', 'Matterbridge settings saved successfully'))
+                : uiT('ui.admin.matterbridge_settings.saved_success', 'Matterbridge settings saved successfully');
+            showInlineAlert('matterbridgeAlert', message, 'success');
+        } else {
+            showInlineAlert('matterbridgeAlert', apiError(data, uiT('ui.admin.matterbridge_settings.save_failed', 'Error saving Matterbridge settings')), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error(uiT('ui.admin.matterbridge_settings.save_failed', 'Error saving Matterbridge settings') + ':', error);
+        showInlineAlert('matterbridgeAlert', uiT('ui.admin.matterbridge_settings.save_failed', 'Error saving Matterbridge settings'), 'danger');
+    });
+}
 
 function loadChatRooms() {
     fetch('/admin/api/chat-rooms')
@@ -114,6 +249,11 @@ function displayChatRooms(rooms) {
             <td>${room.id}</td>
             <td>${room.name}</td>
             <td>${room.description || uiT('ui.admin.chat_rooms.no_description', '-')}</td>
+            <td>
+                ${room.matterbridge_enabled
+                    ? `<span class="badge bg-info text-dark">${escapeHtml(room.matterbridge_gateway || uiT('ui.admin.chat_rooms.bridge_enabled', 'Enabled'))}</span>`
+                    : `<span class="badge bg-secondary">${uiT('ui.admin.chat_rooms.bridge_disabled', 'Disabled')}</span>`}
+            </td>
             <td>
                 <span class="badge bg-${room.is_active ? 'success' : 'secondary'}">
                     ${room.is_active ? uiT('ui.admin.chat_rooms.active', 'Active') : uiT('ui.admin.chat_rooms.inactive', 'Inactive')}
@@ -141,6 +281,9 @@ function showCreateRoomModal() {
     document.getElementById('chatRoomId').value = '';
     document.getElementById('chatRoomName').disabled = false;
     document.getElementById('chatRoomActive').checked = true;
+    document.getElementById('chatRoomMatterbridgeEnabled').checked = false;
+    document.getElementById('chatRoomMatterbridgeGateway').value = '';
+    document.getElementById('chatRoomMatterbridgeUsernameTemplate').value = '';
     new bootstrap.Modal(document.getElementById('chatRoomModal')).show();
 }
 
@@ -160,6 +303,9 @@ function editChatRoom(roomId) {
             document.getElementById('chatRoomName').disabled = room.name === 'Lobby';
             document.getElementById('chatRoomDescription').value = room.description || '';
             document.getElementById('chatRoomActive').checked = !!room.is_active;
+            document.getElementById('chatRoomMatterbridgeEnabled').checked = !!room.matterbridge_enabled;
+            document.getElementById('chatRoomMatterbridgeGateway').value = room.matterbridge_gateway || '';
+            document.getElementById('chatRoomMatterbridgeUsernameTemplate').value = room.matterbridge_options?.username_template || '';
 
             new bootstrap.Modal(document.getElementById('chatRoomModal')).show();
         })
@@ -177,7 +323,12 @@ function saveChatRoom() {
     const payload = {
         name: formData.get('name'),
         description: formData.get('description'),
-        is_active: formData.has('is_active')
+        is_active: formData.has('is_active'),
+        matterbridge_enabled: formData.has('matterbridge_enabled'),
+        matterbridge_gateway: formData.get('matterbridge_gateway'),
+        matterbridge_options: {
+            username_template: formData.get('matterbridge_username_template')
+        }
     };
 
     const url = roomId ? `/admin/api/chat-rooms/${roomId}` : '/admin/api/chat-rooms';
@@ -252,6 +403,20 @@ function showAlert(message, type) {
     setTimeout(() => {
         alertDiv.remove();
     }, 5000);
+}
+
+function showInlineAlert(elementId, message, type) {
+    const container = document.getElementById(elementId);
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
 }
 </script>
 {% endblock %}

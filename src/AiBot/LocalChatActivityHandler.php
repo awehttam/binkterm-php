@@ -5,6 +5,7 @@ namespace BinktermPHP\AiBot;
 use BinktermPHP\AI\AiRequest;
 use BinktermPHP\AI\AiService;
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Chat\ChatMessageService;
 use BinktermPHP\Database;
 
 /**
@@ -23,12 +24,14 @@ class LocalChatActivityHandler implements BotActivityHandler
     private \PDO $db;
     private AiService $ai;
     private Logger $logger;
+    private ChatMessageService $chatMessageService;
 
-    public function __construct(\PDO $db, AiService $ai, Logger $logger)
+    public function __construct(\PDO $db, AiService $ai, Logger $logger, ?ChatMessageService $chatMessageService = null)
     {
         $this->db     = $db;
         $this->ai     = $ai;
         $this->logger = $logger;
+        $this->chatMessageService = $chatMessageService ?? new ChatMessageService($db, null, $logger);
     }
 
     public function getActivityType(): string
@@ -266,31 +269,6 @@ class LocalChatActivityHandler implements BotActivityHandler
      */
     private function postBotMessage(int $botUserId, ?int $roomId, ?int $toUserId, string $body): void
     {
-        $this->db->beginTransaction();
-        try {
-            $stmt = $this->db->prepare("
-                INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
-                VALUES (?, ?, ?, ?)
-                RETURNING id
-            ");
-            $stmt->execute([$roomId, $botUserId, $toUserId, $body]);
-            $chatId = (int)$stmt->fetchColumn();
-
-            // Enrich the sse_events row the trigger just created with pre-rendered HTML.
-            // This must happen before COMMIT so the payload is ready when pg_notify fires.
-            $markupHtml = \BinktermPHP\MarkdownRenderer::toHtml($body);
-            $enrichStmt = $this->db->prepare("
-                UPDATE sse_events
-                SET payload = payload || jsonb_build_object('markup_html', ?::text)
-                WHERE event_type = 'chat_message'
-                  AND (payload->>'id')::bigint = ?
-            ");
-            $enrichStmt->execute([$markupHtml, $chatId]);
-
-            $this->db->commit();
-        } catch (\Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
+        $this->chatMessageService->sendMessage($botUserId, $roomId, $toUserId, $body);
     }
 }

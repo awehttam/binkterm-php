@@ -40,6 +40,7 @@ bash scripts/restart_daemons.sh
 | Database `networks` table | FTN network metadata and network-level message policy flags | Admin UI → Networks |
 | `config/bbs.json` | BBS features (credits, file areas, registration, etc.) | Admin UI → BBS Settings |
 | `config/nodelists.json` | Nodelist download sources | Admin UI → Nodelists |
+| `config/matterbridge.json` | Matterbridge API bridge settings for local chat | Admin UI → Chat Rooms |
 | `config/mrc.json` | MRC chat relay server | Admin UI or text editor |
 | `config/webdoors.json` | WebDoor game configuration | Admin UI → WebDoors |
 | `config/dosdoors.json` | DOS door game configuration | Admin UI → DOS Doors |

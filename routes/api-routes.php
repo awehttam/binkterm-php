@@ -1535,35 +1535,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        if ($roomId) {
-            $stmt = $db->prepare("
-                INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
-                SELECT ?, ?, ?, ?
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM chat_room_bans
-                    WHERE room_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > NOW())
-                )
-                RETURNING id, created_at
-            ");
-            $stmt->execute([$roomId, $userId, $toUserId, $body, $roomId, $userId]);
-        } else {
-            $stmt = $db->prepare("
-                INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
-                VALUES (?, ?, ?, ?)
-                RETURNING id, created_at
-            ");
-            $stmt->execute([$roomId, $userId, $toUserId, $body]);
-        }
-        $result = $stmt->fetch();
-        if (!$result) {
-            getServerLogger()->info('[CHAT SEND] insert blocked by ban');
-            http_response_code(403);
+        try {
+            $chatService = new \BinktermPHP\Chat\ChatMessageService($db);
+            $result = $chatService->sendMessage((int)$userId, $roomId, $toUserId, $body);
+        } catch (\Throwable $e) {
+            if ($e->getMessage() === 'Chat message insert blocked') {
+                http_response_code(403);
+                apiError('errors.chat.send_blocked', apiLocalizedText('errors.chat.send_blocked', 'Message could not be sent', $user));
+                return;
+            }
+            getServerLogger()->error('[CHAT SEND] insert failed: ' . $e->getMessage());
+            http_response_code(500);
             apiError('errors.chat.send_blocked', apiLocalizedText('errors.chat.send_blocked', 'Message could not be sent', $user));
             return;
         }
-
-        ActivityTracker::track((int)$userId, ActivityTracker::TYPE_CHAT_SEND, $roomId);
 
         echo json_encode([
             'success'       => true,
