@@ -2,8 +2,6 @@
 
 This index lists documents in operational priority order — essentials first, advanced features and optional components toward the end.
 
-> **Note:** This index is maintained by Claude and updated as features are added.
-
 ---
 
 ## Essential Setup & Operations
