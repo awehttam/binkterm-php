@@ -142,8 +142,11 @@
     }
 
     function setActiveThread(thread) {
-        state.active = thread;
-        state.unreadCounts[threadKey(thread)] = 0;
+        // Normalize id to integer so === comparisons against SSE payload ids
+        // (always integers from json_build_object) work regardless of whether
+        // the API returned a numeric string or an actual number.
+        state.active = { type: thread.type, id: thread.id != null ? (parseInt(thread.id, 10) || thread.id) : thread.id };
+        state.unreadCounts[threadKey(state.active)] = 0;
         // Clear displayed message IDs when switching threads
         state.displayedMessageIds.clear();
         saveState();
@@ -467,13 +470,13 @@
         // Guard against duplicate delivery (BinkStream catch-up + poll overlap).
         if (state.displayedMessageIds.has(payload.id)) return;
 
+        const fromId = parseInt(payload.from_user_id, 10);
+        const meId   = parseInt(window.currentUserId, 10);
         const thread = payload.type === 'room'
-            ? { type: 'room', id: payload.room_id }
+            ? { type: 'room', id: parseInt(payload.room_id, 10) }
             : {
                 type: 'dm',
-                id: (payload.from_user_id === window.currentUserId)
-                    ? payload.to_user_id
-                    : payload.from_user_id
+                id: fromId === meId ? parseInt(payload.to_user_id, 10) : fromId
             };
         const key = threadKey(thread);
 
@@ -481,7 +484,7 @@
         if (isActive) {
             // appendMessage() renders and adds the id to displayedMessageIds.
             appendMessage(payload);
-        } else if (payload.from_user_id !== window.currentUserId) {
+        } else if (fromId !== meId) {
             // Inactive thread — track as processed so re-delivery doesn't
             // double-count the unread badge.
             state.displayedMessageIds.add(payload.id);
