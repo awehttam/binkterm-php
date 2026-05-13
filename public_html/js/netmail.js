@@ -372,8 +372,7 @@ function displayMessages(messages, isThreaded = false) {
 
         messages.forEach(function(msg) {
             const isUnread = !msg.is_read;
-            const currentUserId = window.currentUser ? window.currentUser.id : null;
-            const isSent = (msg.user_id && currentUserId && msg.user_id == currentUserId);
+            const isSent = !!msg.is_sent;
             const rowClass = '';    //isUnread ? 'table-light' : '';
 
             // Threading support
@@ -814,9 +813,7 @@ function printMessage() {
 }
 
 function displayMessageContent(message) {
-    // Check if current user is the sender - use user_id comparison instead of address
-    const currentUserId = window.currentUser ? window.currentUser.id : null;
-    const isSent = (message.user_id && currentUserId && message.user_id == currentUserId);
+    const isSent = !!message.is_sent;
 
     $('#messageSubject').text(message.subject || uiT('messages.no_subject', '(No Subject)'));
 

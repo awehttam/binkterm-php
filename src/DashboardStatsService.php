@@ -42,9 +42,14 @@ class DashboardStatsService
                 WHERE mrs.read_at IS NULL
                   AND (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
                   AND n.to_address IN ($addressPlaceholders)
+                  AND NOT (n.user_id = ? AND n.deleted_by_sender = TRUE)
+                  AND NOT ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE)
             ");
             $params = [$userId, $user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses);
+            $params[] = $userId;
+            $params[] = $user['username'];
+            $params[] = $user['real_name'];
             $unreadStmt->execute($params);
         } else {
             $unreadStmt = $this->db->prepare("
@@ -53,8 +58,10 @@ class DashboardStatsService
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
                 WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
                   AND mrs.read_at IS NULL
+                  AND NOT (n.user_id = ? AND n.deleted_by_sender = TRUE)
+                  AND NOT ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE)
             ");
-            $unreadStmt->execute([$userId, $user['username'], $user['real_name']]);
+            $unreadStmt->execute([$userId, $user['username'], $user['real_name'], $userId, $user['username'], $user['real_name']]);
         }
         $unreadNetmail = (int)($unreadStmt->fetch()['count'] ?? 0);
 
