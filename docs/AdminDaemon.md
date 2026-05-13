@@ -348,7 +348,7 @@ The client automatically closes after each `sendCommand()` call. Call `close()` 
 
 Any admin setting that writes a config file follows the same flow. The web process cannot write config files directly — it delegates the write to the daemon and then triggers a reload.
 
-![Admin UI → AdminDaemon → Config-Reload flow](images/BinktermPHP-Flow_UI-Config-Reload.png)
+![Admin UI → AdminDaemon → Config-Reload flow](images/BinktermPHP-Flow_UI-Config-Reload.webp)
 
 ### GET: loading settings into the admin UI
 
