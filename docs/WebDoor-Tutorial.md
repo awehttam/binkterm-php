@@ -9,14 +9,15 @@ For the full WebDoor specification and manifest reference, see [WebDoors.md](Web
 ## Table of Contents
 
 1. [What You're Building](#what-youre-building)
-2. [Prerequisites](#prerequisites)
-3. [Step 1: Create the Directory](#step-1-create-the-directory)
-4. [Step 2: Write the Manifest](#step-2-write-the-manifest)
-5. [Step 3: Write the Entry Point](#step-3-write-the-entry-point)
-6. [Step 4: Write the Game API](#step-4-write-the-game-api)
-7. [Step 5: Enable in Admin](#step-5-enable-in-admin)
-8. [Step 6: Test It](#step-6-test-it)
-9. [Going Further](#going-further)
+2. [Warning: Credits with Monetary Value](#warning-credits-with-monetary-value)
+3. [Prerequisites](#prerequisites)
+4. [Step 1: Create the Directory](#step-1-create-the-directory)
+5. [Step 2: Write the Manifest](#step-2-write-the-manifest)
+6. [Step 3: Write the Entry Point](#step-3-write-the-entry-point)
+7. [Step 4: Write the Game API](#step-4-write-the-game-api)
+8. [Step 5: Enable in Admin](#step-5-enable-in-admin)
+9. [Step 6: Test It](#step-6-test-it)
+10. [Going Further](#going-further)
 
 ---
 
@@ -30,6 +31,16 @@ For the full WebDoor specification and manifest reference, see [WebDoors.md](Web
 - The current credit balance is shown before and after each flip.
 
 The game uses a PHP entry point (so the server handles credit logic) and a minimal HTML/JavaScript frontend.
+
+---
+
+## Warning: Credits with Monetary Value
+
+> **If credits on your BBS have real monetary value** (e.g. they are purchased with money, redeemable for prizes, or equivalent to currency), awarding or wagering them in games may constitute gambling under applicable laws. Regulations vary widely by jurisdiction.
+>
+> Before deploying any WebDoor that awards credits based on chance or skill, consult a legal professional in your jurisdiction to determine whether your BBS and its games comply with local gambling, prize, and sweepstakes laws.
+>
+> This tutorial is provided for educational purposes. The BinktermPHP project makes no representations about the legality of credit-based game mechanics on your system.
 
 ---
 
