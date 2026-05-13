@@ -214,10 +214,14 @@ class MessageHandler
         }
 
         if ($filter === 'unread') {
-            // Show only unread messages TO this user (not FROM this user)
-            $whereClause .= " AND mrs.read_at IS NULL AND LOWER(n.from_name) != LOWER(?) AND LOWER(n.from_name) != LOWER(?)";
-            $params[] = $user['username'];
-            $params[] = $user['real_name'];
+            if (!empty($myAddresses)) {
+                $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND mrs.read_at IS NULL";
+                $params = [$user['username'], $user['real_name']];
+                $params = array_merge($params, $myAddresses);
+            } else {
+                $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND mrs.read_at IS NULL";
+                $params = [$user['username'], $user['real_name']];
+            }
         } elseif ($filter === 'sent') {
             // Show only messages sent by this user from this system (check from_name AND from_address)
             if (!empty($myAddresses)) {
@@ -6123,10 +6127,14 @@ class MessageHandler
         }
 
         if ($filter === 'unread') {
-            // Show only unread messages TO this user (not FROM this user)
-            $whereClause .= " AND mrs.read_at IS NULL AND LOWER(n.from_name) != LOWER(?) AND LOWER(n.from_name) != LOWER(?)";
-            $params[] = $user['username'];
-            $params[] = $user['real_name'];
+            if (!empty($myAddresses)) {
+                $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND mrs.read_at IS NULL";
+                $params = [$user['username'], $user['real_name']];
+                $params = array_merge($params, $myAddresses);
+            } else {
+                $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND mrs.read_at IS NULL";
+                $params = [$user['username'], $user['real_name']];
+            }
         } elseif ($filter === 'sent') {
             // Show only messages sent by this user from this system (check from_name AND from_address)
             if (!empty($myAddresses)) {
