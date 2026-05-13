@@ -149,7 +149,7 @@ The assistant must also be enabled in BBS configuration:
 
 You can manage this from:
 
-- **Admin → BBS Settings → Features**
+- **Admin → BBS Settings → AI Settings**
 
 The default BBS setting is disabled until you turn it on.
 

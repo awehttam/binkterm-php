@@ -222,6 +222,7 @@ class DocsController
             'FAQ'      => $this->repoRoot . DIRECTORY_SEPARATOR . 'FAQ',
             'README'   => $this->repoRoot . DIRECTORY_SEPARATOR . 'README',
             'REGISTER' => $this->repoRoot . DIRECTORY_SEPARATOR . 'REGISTER',
+            'CONTRIBUTING' => $this->repoRoot . DIRECTORY_SEPARATOR . 'CONTRIBUTING',
         ];
 
         if (isset($specialBases[$name])) {
