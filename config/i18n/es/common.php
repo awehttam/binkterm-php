@@ -3454,6 +3454,7 @@ return [
     // Dashboard
     'ui.dashboard.title' => 'Panel',
     'ui.dashboard.unread_netmail' => 'Netmail sin leer',
+    'ui.dashboard.unread_netmail_tooltip' => 'Netmail no leído enviado a usted',
     'ui.dashboard.unread_echomail' => 'Echomail nuevo',
     'ui.dashboard.total_unread_echomail' => 'Echomail no leido',
     'ui.dashboard.mail_and_areas' => 'Correo y areas',

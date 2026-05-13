@@ -40,12 +40,10 @@ class DashboardStatsService
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
                 WHERE mrs.read_at IS NULL
-                  AND (
-                    n.user_id = ?
-                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
-                  )
+                  AND (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                  AND n.to_address IN ($addressPlaceholders)
             ");
-            $params = [$userId, $userId, $user['username'], $user['real_name']];
+            $params = [$userId, $user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses);
             $unreadStmt->execute($params);
         } else {
@@ -53,9 +51,10 @@ class DashboardStatsService
                 SELECT COUNT(*) as count
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE n.user_id = ? AND mrs.read_at IS NULL
+                WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                  AND mrs.read_at IS NULL
             ");
-            $unreadStmt->execute([$userId, $userId]);
+            $unreadStmt->execute([$userId, $user['username'], $user['real_name']]);
         }
         $unreadNetmail = (int)($unreadStmt->fetch()['count'] ?? 0);
 

@@ -2773,6 +2773,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.rules.item_5' => 'Les décisions du Sysop sont définitives.',
     'ui.dashboard.title' => 'Tableau de bord',
     'ui.dashboard.unread_netmail' => 'Netmail non lu',
+    'ui.dashboard.unread_netmail_tooltip' => 'Netmail non lu qui vous est adressé',
     'ui.dashboard.unread_echomail' => 'Nouvel Echomail',
     'ui.dashboard.total_unread_echomail' => 'Echomail non lu',
     'ui.dashboard.mail_and_areas' => 'Courrier et zones',

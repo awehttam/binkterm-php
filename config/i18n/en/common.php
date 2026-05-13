@@ -3452,6 +3452,7 @@ return [
     // Dashboard
     'ui.dashboard.title' => 'Dashboard',
     'ui.dashboard.unread_netmail' => 'Unread Netmail',
+    'ui.dashboard.unread_netmail_tooltip' => 'Unread netmail sent to you',
     'ui.dashboard.unread_echomail' => 'New Echomail',
     'ui.dashboard.total_unread_echomail' => 'Unread Echomail',
     'ui.dashboard.mail_and_areas' => 'Mail & Areas',

@@ -3453,6 +3453,7 @@ return [
     // Dashboard
     'ui.dashboard.title' => 'Dashboard',
     'ui.dashboard.unread_netmail' => 'Netmail non lette',
+    'ui.dashboard.unread_netmail_tooltip' => 'Netmail non lette inviate a te',
     'ui.dashboard.unread_echomail' => 'Nuovi Echomail',
     'ui.dashboard.total_unread_echomail' => 'Echomail non letti',
     'ui.dashboard.mail_and_areas' => 'Posta e aree',

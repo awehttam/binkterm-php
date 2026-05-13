@@ -3451,6 +3451,7 @@ Dies ist eine **eigene Splash-Nachricht**.',
     // Dashboard
     'ui.dashboard.title' => 'Dashboard',
     'ui.dashboard.unread_netmail' => 'Ungelesene Netmail',
+    'ui.dashboard.unread_netmail_tooltip' => 'Ungelesene Netmail an Sie',
     'ui.dashboard.unread_echomail' => 'Neue Echomail',
     'ui.dashboard.total_unread_echomail' => 'Unread Echomail',
     'ui.dashboard.mail_and_areas' => 'Mail und Bereiche',
