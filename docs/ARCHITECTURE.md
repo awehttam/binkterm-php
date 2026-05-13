@@ -206,7 +206,7 @@ No changes to transport code are needed when adding a new event type — only an
 ```
 Browser
     │
-    │  WebSocket to /ws-doors (via reverse proxy)
+    │  WebSocket to /dosdoor (via reverse proxy)
     ▼
 multiplexing-server.js (Node.js)
     │

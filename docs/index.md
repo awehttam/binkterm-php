@@ -107,7 +107,7 @@
 - [API Reference](API.md) — HTTP endpoint reference for the public API
 - [BinkStream Back-Channel](BinkStreamChannel.md) — Real-time push architecture: sse_events table, SharedWorker, and how to add new event types
 - [Admin Terminal](AdminTerminal.md) — Floating xterm.js terminal for admins: live event stream, wall/msg commands, command history, and state persistence
-- Contributing (`CONTRIBUTING.md` in the project root) — Git workflow, PR process, coding standards, and pre-commit checklist
+- [Contributing](../CONTRIBUTING.md) — Git workflow, PR process, coding standards, and pre-commit checklist
 
 ---
 
