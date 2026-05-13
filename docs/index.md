@@ -104,6 +104,7 @@
 - [Architecture](ARCHITECTURE.md) — System architecture: component diagram, FTN packet lifecycle, daemon IPC model, door and AI pipelines
 - [Data Model](DATA_MODEL.md) — Key database tables, their relationships, and conceptual model for developers
 - [Developer Guide](DEVELOPER_GUIDE.md) — Coding conventions, database migrations, and project structure
+- [Admin Daemon](AdminDaemon.md) — Wire protocol, command reference, and how to add new daemon commands
 - [API Reference](API.md) — HTTP endpoint reference for the public API
 - [BinkStream Back-Channel](BinkStreamChannel.md) — Real-time push architecture: sse_events table, SharedWorker, and how to add new event types
 - [Admin Terminal](AdminTerminal.md) — Floating xterm.js terminal for admins: live event stream, wall/msg commands, command history, and state persistence

@@ -118,7 +118,7 @@ class DocsController
         // HTML pass-through is enabled only for README.md, which is trusted
         // sysop-maintained content. All other docs are rendered with HTML escaped.
         $allowHtml = ($name === 'README');
-        $html = MarkdownRenderer::toHtml($raw, allowHtml: $allowHtml);
+        $html = MarkdownRenderer::toHtml($raw, allowHtml: $allowHtml, allowImages: true);
 
         $template = new Template();
         $template->renderResponse('admin/docs.twig', [
@@ -205,6 +205,16 @@ class DocsController
             function (array $m): string {
                 $assetPath = substr($m[1], strlen('docs/'));
                 return 'src="/admin/docs/asset/' . $assetPath . '"';
+            },
+            $markdown
+        );
+
+        // Rewrite Markdown image syntax with relative paths (e.g. ![alt](images/foo.png))
+        // to the docs asset route so the browser can fetch them.
+        $markdown = preg_replace_callback(
+            '/!\[([^\]]*)\]\((?!https?:\/\/)([A-Za-z0-9_.\-\/]+\.(png|jpg|jpeg|gif|webp))\)/',
+            function (array $m): string {
+                return '![' . $m[1] . '](/admin/docs/asset/' . $m[2] . ')';
             },
             $markdown
         );
