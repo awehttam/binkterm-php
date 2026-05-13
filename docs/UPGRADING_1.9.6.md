@@ -45,6 +45,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Messaging
 
+- The unread netmail count shown on the dashboard, the netmail sidebar, and the unread filter list now reflects only messages addressed to the logged-in user. Previously the count included outbound messages composed by the user, causing the badge to show a higher number than the unread inbox actually contained.
 - Added a new web-reader **Re-Post** action for echomail and netmail. Re-post opens the composer with the original message body, preserves the original message charset and markup format, prefixes the subject with `FWD:`, and leaves the recipient or target area unset so the user must choose where to send it.
 - Added a new echomail reader action to **Forward by Netmail**. This opens the netmail composer using the selected echomail message as the source, keeps the original charset and markup mode, prefixes the subject with `FWD:`, and leaves the netmail recipient unset so the user can choose where to forward it.
 
@@ -155,6 +156,12 @@ To enable this feature:
 2. Go to **Admin → AI Settings** and enable **AI summaries for shared message links**.
 
 ## Messaging
+
+### Unread Netmail Count Correction
+
+The unread netmail count displayed on the dashboard card, the netmail page sidebar, and the unread filter list has been corrected to count only messages addressed to the logged-in user — that is, messages where the recipient name and FTN destination address match the user's account. Previously, the count included outbound messages the user had composed, causing the badge number to exceed what the unread inbox actually contained. The unread filter in the netmail message list has been updated to match, so the count and the list now agree. No action is required; the corrected counts take effect immediately on the next page load.
+
+### Forwarding and Re-Posting
 
 The web message readers for echomail and netmail now include a **Re-Post** action alongside the existing reply tools. Re-post is intended for taking an existing message and sending it again as a new message rather than as a threaded reply.
 
