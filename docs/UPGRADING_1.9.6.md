@@ -71,6 +71,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Documentation
 
+- Moved installation instructions from `README.md` into a dedicated `docs/INSTALL.md` and overhauled it: restructured around a clear two-user model (admin account vs. dedicated `binktermphp` system account), added a BBS user creation section, moved PostgreSQL setup into its own section, added `SITE_URL` configuration guidance with common scenario examples, added a firewall rules preface to the network ports section, grouped unsupported web servers under a single heading, added a PHP built-in server safety warning, and added a Next Steps section pointing to the getting-started guide.
 - Expanded the user guide with a dedicated message reader section that explains the web reader interface and lists the supported keyboard shortcuts for both echomail and netmail readers. The translated user guide variants were updated to include the same section.
 - Added `docs/ARCHITECTURE.md` — a new system architecture reference covering the full daemon map, component diagram, FTN packet lifecycle (inbound and outbound), daemon IPC model, door game subsystem, and AI pipeline.
 - Added `docs/DATA_MODEL.md` — a conceptual overview of the key database tables and their relationships, written as a mental model for developers rather than a schema dump.
@@ -199,6 +200,25 @@ The terminal server now supports rotating custom screen families for login, main
 Examples include `telnet/screens/login.ans`, `telnet/screens/login1.ans`, `telnet/screens/login2.ans`, `telnet/screens/mainmenu.sixel`, `telnet/screens/mainmenu1.sixel`, and `telnet/screens/bye1.ans`. Matching is done per file type, so Sixel-capable clients randomize across matching `.sixel` files and ANSI-capable clients randomize across matching `.ans` files.
 
 ## Documentation
+
+### Installation Guide Overhaul
+
+Installation instructions have been moved out of `README.md` into a dedicated `docs/INSTALL.md`, which has also been significantly restructured to make the installation process clearer for sysops of all experience levels. The previous guide mixed steps that must be run as a privileged admin user with steps that must be run as the BBS service account, without distinguishing between them.
+
+The revised guide introduces a two-user model throughout: an admin account (your normal login with `sudo` access) for system-level tasks, and a dedicated `binktermphp` service account for everything BinktermPHP-specific. Each section is labelled with which account should be used, and the guide walks through creating the `binktermphp` account explicitly before any install steps.
+
+Other changes to `docs/INSTALL.md`:
+
+- PostgreSQL setup is now its own top-level section, clearly framed as an admin-user task separate from the BinkTermPHP install.
+- Web server configuration is positioned after the install methods, since sysops need the install path before they can fill in the config.
+- A `SITE_URL` configuration section has been added to Step 3 of the Git install path, with a table covering the common scenarios: public domain, IP-only, local machine, and PHP built-in server. The installer section notes that `SITE_URL` will be prompted during the install run.
+- Nginx and Apache configurations are grouped under an "Other web servers (unsupported)" sub-heading to make Caddy's recommended status more visible.
+- The PHP built-in server entry now carries an explicit warning that it is not safe for production use.
+- The Network Ports section now opens with a plain-language explanation of the table and includes a `ufw` example showing the most common firewall rules for inbound and outbound services.
+- A Next Steps section at the end of the guide directs sysops to `docs/GettingStarted.md` once installation is complete.
+- The Database Management reference (scripts and migration system) has been moved from `docs/INSTALL.md` to `README.md` under the Operation section, where it is more naturally discoverable during day-to-day administration.
+
+### Other Documentation Changes
 
 The user guide now includes a dedicated message reader section. It explains that the web message reader is shared by echomail and netmail and documents the supported keyboard shortcuts for navigation, viewer mode changes, downloads, full-screen mode, shortcut help, and closing the reader.
 

@@ -2,6 +2,8 @@
 
 BinktermPHP can be installed using two methods: the automated installer (recommended for most sysops) or from Git (recommended for developers and contributors).
 
+BinktermPHP is developed and tested on Debian-based Linux distributions, including Debian, Ubuntu, and Linux Mint. The instructions in this guide assume a Debian-based system. Other distributions can run BinktermPHP, but package names, paths, and service management commands will differ and you will need to adapt the instructions accordingly.
+
 ## Table of Contents
 
 - [Requirements](#requirements)
@@ -19,6 +21,8 @@ BinktermPHP can be installed using two methods: the automated installer (recomme
 - [Common System Daemon Locations (Caddy, PHP, etc)](#common-system-daemon-locations-caddy-php-etc)
 - [Set Up Cron Jobs](#set-up-cron-jobs-recommended)
 - [Network Ports](#network-ports)
+- [Getting Help](#getting-help)
+- [Next Steps](#next-steps)
 
 ---
 
@@ -139,6 +143,8 @@ The installer will:
 - Set up the initial admin user
 - Configure initial BinkP and BBS settings
 
+The installer will prompt for your `SITE_URL` — the URL your BBS will be accessed from. Have it ready before you begin. See the [SITE_URL examples in Method 2](#step-3-configure-environment) if you are unsure what value to use.
+
 ---
 
 ## Method 2: From Git
@@ -169,7 +175,22 @@ cp .env.example .env
 cp config/binkp.json.example config/binkp.json
 ```
 
-Edit `.env` and set at minimum your PostgreSQL database credentials (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`) to match what you created in the PostgreSQL setup step. See [CONFIGURATION.md](CONFIGURATION.md) for all available options. Once the system is running you can adjust BBS settings and BinkP configuration through the administration interface.
+Edit `.env` and set at minimum your PostgreSQL database credentials (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`) to match what you created in the PostgreSQL setup step.
+
+Also set `SITE_URL` to the URL your BBS will be accessed from. This is used for share links, password-reset emails, and any absolute URL the server generates. The right value depends on your setup:
+
+| Scenario | Example `SITE_URL` |
+|---|---|
+| Public server with a domain name | `https://mybbs.example.com` |
+| Public server, no domain yet (IP only) | `http://123.45.67.89` |
+| Local machine, testing only | `http://localhost` |
+| Local machine, PHP built-in server | `http://localhost:8080` |
+
+```bash
+SITE_URL=https://mybbs.example.com
+```
+
+See [CONFIGURATION.md](CONFIGURATION.md) for all available options. Once the system is running you can adjust BBS settings and BinkP configuration through the administration interface.
 
 ### Step 4: Install the database schema and create the initial admin user
 
@@ -360,6 +381,9 @@ Requires `mod_proxy`, `mod_proxy_fcgi`, and `mod_proxy_wstunnel`. The two WebSoc
 Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
 
 ### PHP Built-in Server (Development)
+
+> **Warning:** The PHP built-in web server is intended for local development only. It is single-threaded, has no access controls, and is **not safe for use in a production environment**. Do not expose it to the internet.
+
 ```bash
 cd public_html
 php -S localhost:8080
@@ -469,6 +493,23 @@ sudo ufw allow 2022/tcp      # SSH (if enabled)
 - Expose only the services you actually run.
 - Bind internal services (admin daemon, DOSBox bridge, PostgreSQL) to `127.0.0.1`.
 - Publish user-facing services through a reverse proxy with TLS.
+
+---
+
+## Getting Help
+
+If you run into trouble during installation:
+
+- Check [FAQ.md](FAQ.md) for common installation issues and solutions.
+- Review the relevant log file under `data/logs/` — `server.log` for general errors, `binkp_server.log` for BinkP connection issues.
+- Search or open an issue on the [GitHub repository](https://github.com/awehttam/binkterm-php/issues). Include your OS and PHP version, the full error message, and any relevant log excerpts (remove passwords and private keys before posting).
+- Visit the support BBS at [claudes.lovelybits.org](https://claudes.lovelybits.org) and post in the BinktermPHP support area.
+
+---
+
+## Next Steps
+
+With BinktermPHP installed and your web server configured, head to [GettingStarted.md](GettingStarted.md) to log in for the first time, configure your BBS settings, and connect to a FidoNet-style network.
 
 ---
 
