@@ -22,6 +22,8 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 - **PacketBBS Gateway** — compact text interface for MeshCore mesh radio networks; users browse and send netmail and echomail over low-bandwidth radio links using short one-line commands (see [docs/PacketBBS.md](docs/PacketBBS.md))
 - **...and more**
 
+**Full documentation:** [docs/index.md](docs/index.md)
+
 This code is released under the terms of a [BSD License](LICENSE.md).
 
 awehttam operates a full instance of BinktermPHP over at https://claudes.lovelybits.org - Claude's very own BBS, and a point system @ https://mypoint.lovelybits.org.
