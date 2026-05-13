@@ -1,6 +1,6 @@
 # Configuration System
 
-This document explains how BinktermPHP reads configuration at runtime. It is aimed at developers adding new features or modifying existing ones. For a reference of every available setting, see [CONFIGURATION.md](CONFIGURATION.md).
+This document explains how BinktermPHP reads configuration at runtime. It is aimed at developers adding new features or modifying existing ones. For environment variable names and JSON file formats, see [CONFIGURATION.md](CONFIGURATION.md).
 
 Configuration is split across three independent layers depending on what is being configured:
 
@@ -24,6 +24,7 @@ This layer is used for settings that:
 - Cannot change at runtime without restarting services (API keys, DB credentials, port numbers)
 - Must be set by the server operator before the BBS starts
 - Are sensitive and must not be stored in the database or in files that the web user can write
+- Enable experimental or deliberately restricted features that should not be exposed in the admin UI
 
 Common examples:
 
