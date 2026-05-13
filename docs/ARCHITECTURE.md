@@ -15,6 +15,11 @@ For the real-time event subsystem specifically, see [BinkStreamChannel.md](BinkS
 5. [Real-Time Event System](#real-time-event-system)
 6. [Door Game Subsystem](#door-game-subsystem)
 7. [AI Pipeline](#ai-pipeline)
+   - [Provider Abstraction Layer](#provider-abstraction-layer)
+   - [Message AI Assistant](#message-ai-assistant)
+   - [AI Bot System](#ai-bot-system)
+   - [Usage Tracking & Analytics](#usage-tracking--analytics)
+   - [Cost Estimation & Budget Management](#cost-estimation--budget-management)
 
 ---
 
@@ -230,6 +235,66 @@ The bridge allocates node numbers, generates drop files (`DOOR.SYS`), and manage
 
 ## AI Pipeline
 
+All AI features share a common provider abstraction and usage-tracking layer. The sections below describe the abstraction, the individual feature pipelines, the bot system, and the analytics infrastructure.
+
+### Provider Abstraction Layer
+
+`src/AI/AiProviderInterface.php` defines the contract every provider adapter must implement. `src/AI/AiService.php` is the entry point for all AI calls; it resolves the provider and model for a given request and delegates to the appropriate adapter.
+
+**Supported providers**
+
+| Provider | Adapter | Default model |
+|---|---|---|
+| OpenAI | `src/AI/Providers/OpenAIProvider.php` | `gpt-4o-mini` |
+| Anthropic | `src/AI/Providers/AnthropicProvider.php` | `claude-sonnet-4-6` |
+
+**Provider and model resolution** (`AiService::resolveProviderAndModel`)
+
+Resolution walks this hierarchy, stopping at the first match:
+
+1. Explicit provider/model on the `AiRequest` object
+2. Feature-specific env var — `AI_<FEATURE>_PROVIDER` / `AI_<FEATURE>_MODEL`
+3. Global default — `AI_DEFAULT_PROVIDER` / `AI_DEFAULT_MODEL`
+4. First configured provider (OpenAI checked before Anthropic)
+
+This means per-feature overrides are possible without touching defaults, and adding a second provider does not require code changes.
+
+**Request / Response objects**
+
+- `AiRequest` (`src/AI/AiRequest.php`) — carries provider, model, feature key, prompts, temperature, token limit, user ID, bot ID, and optional conversation history.
+- `AiResponse` (`src/AI/AiResponse.php`) — carries the final text content, parsed JSON (for JSON-mode calls), provider request ID, finish reason, and an `AiUsage` object.
+- `AiUsage` (`src/AI/AiUsage.php`) — input tokens, output tokens, cached input tokens, cache-write tokens, total tokens, and estimated cost in USD.
+
+Both provider adapters normalize their wire responses to the same internal structure before returning an `AiResponse`, so callers never inspect provider-specific fields.
+
+**Tool-use loop** (`src/AI/AgentService.php`)
+
+For agentic features the loop runs up to five rounds:
+
+```
+AgentService::run()
+    │
+    ├─ provider->generateWithTools(messages, tools, systemPrompt, model)
+    │       │
+    │       └── returns {content, stop_reason, usage}
+    │
+    ├─ UsageRecorder::recordAgentRound()   ← metrics per round
+    │
+    ├─ extract tool_use blocks
+    │       │
+    │       └── McpClient::callTool() for each
+    │
+    ├─ append tool results to message history
+    │
+    └─ repeat until stop_reason == 'end_turn' or max rounds reached
+```
+
+`AgentResult` accumulates token counts and cost across all rounds and returns the final text, total usage, round count, and tool-call count.
+
+---
+
+### Message AI Assistant
+
 ```
 User (echomail reader)
     │
@@ -244,7 +309,7 @@ src/AI/MessageAiAssistant.php
     ▼
 mcp-server/server.js
     │
-    │  agentic tool-use loop
+    │  agentic tool-use loop (AgentService)
     │  ├── list_echoareas
     │  ├── get_echomail_message
     │  ├── get_echomail_thread
@@ -253,11 +318,106 @@ mcp-server/server.js
     ▼
 AI provider (Anthropic / OpenAI)
     │
-    │  final answer streamed back
+    │  final answer returned
     ▼
 Browser (rendered in assistant modal)
     │
-    └── credits debited if AI credit charging is configured
+    └── BBS credits debited if ai_credits_per_milli_usd is configured
 ```
 
-The system prompt instructs the model to fetch actual message content via MCP tools before answering, preventing hallucinated message content. The same MCP server used by the in-reader assistant is the one users can connect external AI clients to via [MCPServer.md](MCPServer.md).
+The system prompt instructs the model to fetch actual message content via MCP tools before answering, preventing hallucinated message content. The same MCP server used by the in-reader assistant is the one users can connect external AI clients to — see [MCPServer.md](MCPServer.md).
+
+Other features that call AiService directly (without the MCP tool-use loop):
+
+| Feature key | Class | Purpose |
+|---|---|---|
+| `interest_generation` | `src/InterestGenerator.php` | Classifies messages into interest topics |
+| `share_summary` | `src/AI/ShareSummaryGenerator.php` | Generates Open Graph descriptions for shared messages |
+| `translation_catalog` | `scripts/create_translation_catalog.php` | Batch JSON translation of i18n catalogs |
+
+---
+
+### AI Bot System
+
+AI bots are persistent, database-configured agents that respond to BBS events (currently local chat messages). Each bot runs as a separate system user and has its own provider, model, system prompt, context window size, and weekly spend budget.
+
+```
+ai_bot_daemon.php  (scripts/ai_bot_daemon.php)
+    │
+    │  listens on PostgreSQL NOTIFY channel
+    │  refreshes bot list from ai_bots table every 60 s
+    │
+    ▼
+LocalChatActivityHandler
+    │
+    │  BotMiddlewarePipeline::run()
+    │  ├── SlashCommandMiddleware      (static /command replies)
+    │  ├── FilePromptInjectorMiddleware (inject file content)
+    │  ├── UrlPromptInjectorMiddleware  (fetch + inject URL, cached)
+    │  ├── RegexFilterMiddleware        (pattern-based rewriting)
+    │  └── RagPromptInjectorMiddleware  (sqlite-vec knowledge base)
+    │
+    ▼
+AiBot::isUnderBudget()  →  AiService::generateText()
+    │
+    └── response posted as bot user's chat message
+```
+
+**Key tables**
+
+- `ai_bots` — bot identity, system prompt, provider/model override, weekly budget, active flag
+- `ai_bot_activities` — per-bot activity types (`local_chat`) with JSONB config
+- `ai_requests.bot_id` — links every AI call back to the bot that made it
+
+Weekly budget (`ai_bots.weekly_budget_usd`) resets Sunday 00:00 UTC. When the budget is exhausted the bot stops responding until the next reset; no AI call is made.
+
+See [AIBots.md](AIBots.md) for configuration and middleware authoring.
+
+---
+
+### Usage Tracking & Analytics
+
+Every AI call — whether from a feature or a bot — is recorded in `ai_requests` before the result is returned to the caller.
+
+**`ai_requests` columns**
+
+| Column | Purpose |
+|---|---|
+| `provider`, `model` | Which provider and model handled the request |
+| `feature` | Feature key (e.g. `message_ai_assistant`, `interest_generation`) |
+| `operation` | `generate_text`, `generate_json`, or `generate_with_tools` |
+| `status` | `success` or `error` |
+| `user_id`, `bot_id` | Who initiated the request (nullable) |
+| `input_tokens`, `output_tokens`, `cached_input_tokens`, `cache_write_tokens` | Token accounting per request |
+| `estimated_cost_usd` | Computed from `AiPricing` at call time |
+| `duration_ms` | Wall-clock time for the provider call |
+| `http_status`, `error_code`, `error_message` | Populated on error |
+| `metadata_json` | JSONB extras (agent round, tool-call count, stop reason) |
+
+**Recording** (`src/AI/UsageRecorder.php`)
+
+- `recordSuccess()` — called after every successful provider response
+- `recordFailure()` — called on any `AiException`; captures HTTP status and provider error code
+- `recordAgentRound()` — called once per agentic loop round, storing per-round metadata in `metadata_json`
+
+**Admin dashboard** (`GET /admin/ai-usage`)
+
+`src/AI/AiUsageReport.php` aggregates `ai_requests` for periods of 1 day, 7 days, 30 days, or all time:
+
+- Summary — total requests, total cost, failure count, aggregate token counts
+- By feature — cost and request count ordered by spend
+- By provider/model — cost and request count per provider+model combination
+- Recent failures — last 20 errors with provider, model, error code, and message
+- Recent requests — last 20 requests with status, tokens, and cost
+
+See [AIProviders.md](AIProviders.md) for provider setup and dashboard usage.
+
+---
+
+### Cost Estimation & Budget Management
+
+**Pricing** (`src/AI/AiPricing.php`) reads token rates from environment variables (USD per 1,000,000 tokens). Model-specific rates take priority over provider-wide fallbacks. Four rate buckets are supported: `INPUT`, `OUTPUT`, `CACHED_INPUT`, `CACHE_WRITE`. Models with no configured rate default to zero cost until rates are added.
+
+**BBS credit integration** — The message AI assistant converts estimated cost to BBS credits using `credits.ai_credits_per_milli_usd` (credits per $0.001 USD). Credits are debited server-side via `UserCredit::debit()` after the AI call succeeds. If the user has insufficient credits the request returns 402 before the AI call is made.
+
+**Bot weekly budgets** — Each bot has a `weekly_budget_usd` cap. `AiBot::isUnderBudget()` sums `estimated_cost_usd` from `ai_requests` for the current Sunday–Saturday UTC week and aborts the AI call if the cap is reached.
