@@ -1,12 +1,12 @@
 # BinktermPHP
 
-[BinktermPHP](https://www.lovelybits.org/binktermphp) is a modern web-based BBS that combines classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail across multiple simultaneous FTN networks, while delivering a browser-accessible bulletin board where users can read and post messages, chat, play door games, and earn credits — just like on a traditional BBS, no terminal client required. For those who prefer the authentic experience, BinktermPHP also includes a built-in telnet and SSH server.
+[BinktermPHP](https://www.lovelybits.org/binktermphp) is a multi-protocol BBS platform built on FTN networking. It delivers a full bulletin board experience through web, telnet, SSH, and AI interfaces — all sharing the same message database and real-time event system. It supports native BinkP connectivity for echomail and netmail across multiple simultaneous FTN networks, while remaining accessible through any browser with no terminal client required. For those who prefer the authentic experience, a built-in telnet and SSH server is included.
 
 BinktermPHP's mobile-responsive interface makes netmail and echomail comfortably accessible from phones and tablets while preserving the familiar feel of a classic BBS. ANSI art renders inline, links are detected and hyperlinked automatically, messages are full-text searchable, and built-in address books help users track their contacts. Users can also share individual messages via secure, expiring web links — with public or private access controls and revocation — making it easy to point someone at a great thread without requiring a login. The result is a Fidonet messaging experience that blends traditional FTN communication with practical modern conveniences, even on modest hardware.
 
 Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loaded with the features sysops care about:
 
-- **Built-in BinkP mailer** — connect to multiple Fidonet-style networks simultaneously, sending and receiving echomail and netmail without third-party software
+- **Built-in BinkP mailer** — connect to multiple FidoNet-style networks simultaneously, sending and receiving echomail and netmail without third-party software
 - **Full door support** — native Linux/Windows programs, classic DOS doors via DOSBox, and browser-based doors with auto-discovery
 - **Telnet & SSH server** — offer classic terminal access alongside the web interface
 - **Credits economy** — reward logins and participation, or charge for door games and premium features
@@ -21,8 +21,6 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 - **MCP server** — lets AI assistants (Claude Code, etc.) read echomail and echo areas directly via the Model Context Protocol; each user generates their own personal bearer key
 - **PacketBBS Gateway** — compact text interface for MeshCore mesh radio networks; users browse and send netmail and echomail over low-bandwidth radio links using short one-line commands (see [docs/PacketBBS.md](docs/PacketBBS.md))
 - **...and more**
-
-binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
 
 This code is released under the terms of a [BSD License](LICENSE.md).
 

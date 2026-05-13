@@ -1,7 +1,5 @@
 # BinktermPHP Documentation
 
-This index lists documents in operational priority order — essentials first, advanced features and optional components toward the end.
-
 ---
 
 ## Essential Setup & Operations
@@ -24,14 +22,25 @@ This index lists documents in operational priority order — essentials first, a
 
 ---
 
-## Access Methods (Terminal & SSH)
+## Access Methods
 
-- [PacketBBS Gateway](PacketBBS.md) — Packet radio / MeshCore text gateway setup, node configuration, and user commands
 - [Terminal Server](TerminalServer.md) — Telnet/TCP terminal server setup and configuration
 - [Telnet Daemon](TelnetServer.md) — Telnet daemon setup, configuration, and troubleshooting
 - [SSH Server](SSHServer.md) — SSH server setup for secure terminal access
+- [PacketBBS Gateway](PacketBBS.md) — Packet radio / MeshCore text gateway setup, node configuration, and user commands
+- [FTP Server](FTPServer.md) — Standalone passive FTP daemon for QWK exchange and file-area transfers
+- [Gemini Capsule](GeminiCapsule.md) — Gemini protocol capsule support
 
-- [FTP Server](FTPServer.md) - Standalone passive FTP daemon for QWK exchange and file-area transfers
+---
+
+## AI & Integrations
+
+- [AI Assistant](AIAssistant.md) — Web message-reader assistant for echomail and netmail, including enablement, MCP usage, and credit charging
+- [AI Providers and Usage](AIProviders.md) — AI provider setup, request accounting, and the admin usage dashboard
+- [AI Bots](AIBots.md) — Configuring AI chat bots, the middleware pipeline, writing custom middleware, and cost management
+- [MCP Server](MCPServer.md) — Model Context Protocol server for AI assistant access to echomail
+- [MCP Client Help](MCPClientHelp.md) — Configure Claude, Anything LLM, OpenAI, and other MCP clients
+- [Matterbridge](Matterbridge.md) — Bidirectional bridge between local chat rooms and external platforms (Discord, Slack, IRC, etc.)
 
 ---
 
@@ -40,7 +49,8 @@ This index lists documents in operational priority order — essentials first, a
 - [Doors Overview](Doors.md) — Overview of door types and how to install them
 - [DOS Doors](DOSDoors.md) — Running classic DOS door games
 - [Native Doors](NativeDoors.md) — Native Linux/Unix door games
-- [Web Doors](WebDoors.md) — HTML5/JavaScript web-based door games
+- [WebDoors](WebDoors.md) — HTML5/JavaScript web-based door games
+- [WebDoor Tutorial](WebDoor-Tutorial.md) — Step-by-step guide to building your first WebDoor
 - [JS-DOS Doors](JSDOSDoors.md) — Browser-side DOS game emulation via js-dos/DOSBox WASM
 - [C64 Doors](C64Doors.md) — Commodore 64 door games
 - [DOSBox Headless Mode](DOSBox_Headless_Mode.md) — Running DOSBox without a display for DOS doors
@@ -49,13 +59,11 @@ This index lists documents in operational priority order — essentials first, a
 
 ## Communication & Chat
 
-- [Matterbridge](Matterbridge.md) — Bidirectional bridge between local chat rooms and external platforms (Discord, Slack, IRC, etc.) via Matterbridge
 - [MRC Chat](MRC_Chat.md) — Multi-Relay Chat protocol integration
-- [Gemini Capsule](GeminiCapsule.md) — Gemini protocol capsule support
 
 ---
 
-## Content & Display
+## Content & Media
 
 - [Media in Messages](MediaInMessages.md) — Inline images, video, audio, platform embeds, retro audio, and text art in echomail and netmail
 - [ANSI Support](ANSI_Support.md) — ANSI art rendering in messages and files
@@ -91,22 +99,15 @@ This index lists documents in operational priority order — essentials first, a
 
 ---
 
-## AI & Integrations
-
-- [AI Assistant](AIAssistant.md) — Web message-reader assistant for echomail and netmail, including enablement, MCP usage, and credit charging
-- [AI Providers and Usage](AIProviders.md) — AI provider setup, request accounting, and the admin usage dashboard
-- [AI Bots](AIBots.md) — Configuring AI chat bots, the middleware pipeline, writing custom middleware, and cost management
-- [MCP Server](MCPServer.md) — Model Context Protocol server for AI assistant access to echomail
-- [MCP Client Help](MCPClientHelp.md) — configure Claude, Anything LLM, OpenAI, and other MCP clients
-
----
-
 ## Developer Reference
 
-- [Developer Guide](DEVELOPER_GUIDE.md) — Architecture overview, coding conventions, contribution guide
+- [Architecture](ARCHITECTURE.md) — System architecture: component diagram, FTN packet lifecycle, daemon IPC model, door and AI pipelines
+- [Data Model](DATA_MODEL.md) — Key database tables, their relationships, and conceptual model for developers
+- [Developer Guide](DEVELOPER_GUIDE.md) — Coding conventions, database migrations, and project structure
 - [API Reference](API.md) — HTTP endpoint reference for the public API
-- [BinkStream Back-Channel](BinkStreamChannel.md) — Real-time push architecture: sse_events table, admin daemon, SharedWorker, and how to add new event types
+- [BinkStream Back-Channel](BinkStreamChannel.md) — Real-time push architecture: sse_events table, SharedWorker, and how to add new event types
 - [Admin Terminal](AdminTerminal.md) — Floating xterm.js terminal for admins: live event stream, wall/msg commands, command history, and state persistence
+- Contributing (`CONTRIBUTING.md` in the project root) — Git workflow, PR process, coding standards, and pre-commit checklist
 
 ---
 

@@ -26,21 +26,79 @@ FidoNet is a worldwide network of BBSs that exchange mail and files using store-
 
 ## Project Architecture
 
-BinktermPHP is built around several cooperating components:
+BinktermPHP is a multi-layered platform. A PHP web application sits at the center, surrounded by a constellation of cooperating daemons that handle FTN networking, real-time event delivery, terminal access, AI integration, and door games.
 
-1. **Web Interface**: A PHP-based web application that users interact with via browser
-2. **Binkp Mailer**: Background daemon processes that handle FidoNet packet transmission
-3. **Telnet Daemon**: Background daemon that provides a Telnet BBS interface
-4. **SSH Daemon**: Background daemon that provides an SSH-2 BBS interface (`ssh/ssh_daemon.php`)
-5. **Admin Daemon**: Background daemon that manages configuration, logging, and triggered tasks (`scripts/admin_daemon.php`)
+### System Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                          CLIENT LAYER                            │
+│  Browser (WebSocket / SSE)                                       │
+│  Telnet / SSH terminals                                          │
+│  PacketBBS / Mesh Radio nodes                                    │
+│  AI clients via MCP                                              │
+│  QWK offline readers                                             │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────┐
+│                         ACCESS LAYER                             │
+│  PHP web application  (public_html/index.php)                    │
+│  realtime_server      BinkStream WebSocket daemon                │
+│  telnet_daemon / ssh_daemon                                      │
+│  mcp-server           (Node.js)                                  │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────┐
+│                         SERVICE LAYER                            │
+│  admin_daemon         logging relay, config writes, triggers     │
+│  mrc_daemon           MRC chat relay                             │
+│  gemini_daemon        Gemini protocol capsule                    │
+│  multiplexing-server  door PTY / DOSBox-X bridge  (Node.js)     │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────┐
+│                      FTN NETWORKING LAYER                        │
+│  binkp_server         accepts incoming binkp connections         │
+│  binkp_scheduler      manages polling schedule                   │
+│  binkp_poll           polls a single uplink on demand            │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────┐
+│                          DATA LAYER                              │
+│  PostgreSQL           all persistent data                        │
+│  data/inbound/        received FTN packets (pre-processing)      │
+│  data/outbound/       queued FTN packets (post-processing)       │
+│  data/logs/           structured log files per subsystem         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Daemon Reference
+
+All daemons write PID files to `data/run/` and logs to `data/logs/`. Use `restart_daemons.sh` (Linux) or `start_daemons_windows.ps1` (Windows) to start them all at once.
+
+| Daemon | Script | Purpose | Required |
+|--------|--------|---------|----------|
+| Admin Daemon | `scripts/admin_daemon.php` | Logging relay, config writes, post-session triggers. Other daemons depend on it for structured logging. | Yes |
+| Binkp Server | `scripts/binkp_server.php` | Accepts incoming binkp connections from uplinks | If receiving mail |
+| Binkp Scheduler | `scripts/binkp_scheduler.php` | Schedules automatic uplink polling | If polling uplinks |
+| Realtime Server | `scripts/realtime_server.php` | WebSocket server for BinkStream; browsers fall back to SSE if not running | Optional |
+| Telnet Daemon | `scripts/telnet_daemon.php` | Telnet BBS terminal interface | Optional |
+| SSH Daemon | `ssh/ssh_daemon.php` | SSH-2 BBS terminal interface | Optional |
+| MRC Daemon | `scripts/mrc_daemon.php` | MRC multi-relay chat protocol relay | Optional |
+| Gemini Daemon | `scripts/gemini_daemon.php` | Gemini protocol capsule server | Optional |
+| Multiplexing Bridge | `scripts/dosbox-bridge/multiplexing-server.js` | PTY / DOSBox-X bridge for DOS and native door games (Node.js) | Optional |
+| MCP Server | `mcp-server/server.js` | MCP protocol server for AI assistant access (Node.js) | Optional |
 
 ### Key Components
 
 - **Frontend**: jQuery + Bootstrap 5 for responsive, modern UI
 - **Backend**: PHP with SimpleRouter for routing, Twig for templating
 - **Database**: PostgreSQL for persistent storage
-- **Mailer**: Custom PHP binkp protocol implementation for FidoNet connectivity
+- **Mailer**: Custom PHP binkp protocol implementation for FTN connectivity
 - **Authentication**: Simple username/password with long-lived cookies
+- **Real-time**: BinkStream — WebSocket with SSE fallback, SharedWorker fan-out across tabs. See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
+
+For full data-flow diagrams including the FTN packet lifecycle, daemon IPC model, door game subsystem, and AI pipeline, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### Core Concepts
 
@@ -53,7 +111,7 @@ BinktermPHP is built around several cooperating components:
 #### Message Types
 
 - **Netmail**: Private point-to-point messages between FidoNet users
-- **Echomail**: Public messages posted to echoareas (forums/conferences)
+- **Echomail**: Public messages posted to echo areas (forums/conferences)
 - Messages use FTN-standard formats with kludge lines (@msgid, @reply, etc.)
 
 #### Network Routing
@@ -92,35 +150,57 @@ Prefer `AdminDaemonClient::log()` over `error_log()` for application-level log m
 
 ```
 binkterm-php/
-├── config/              Configuration files (bbs.json, database, uplinks, i18n overrides)
+├── config/              Configuration files (bbs.json, binkp.json, lovlynet.json, etc.)
 │   └── i18n/            Translation catalogs (en/, es/, fr/)
-├── data/                Runtime data (logs, packets, nodelists)
-│   ├── inbound/         Received FTN packets
+├── data/                Runtime data (written at run time, not in git)
+│   ├── inbound/         Received FTN packets (pre-processing)
 │   ├── outbound/        Packets queued for transmission
-│   └── logs/            Application and packet logs
+│   ├── logs/            Structured log files per subsystem
+│   ├── nodelists/       Imported FTN nodelist files
+│   ├── run/             PID files for all daemons
+│   └── webdoors/        Per-door persistent data (save files, state)
 ├── database/
 │   └── migrations/      Database migrations (vYYYYMMDDHHMMSS_description.sql or .php)
+├── docker/              Docker entrypoint and supervisord config
 ├── docs/                Documentation
+├── dosbox-bridge/       DOSBox-X production configs and maintenance scripts
+├── mcp-server/          MCP protocol server (Node.js) for AI assistant access
 ├── native-doors/        Native door installations and drop files
-├── public_html/         Web root (index.php, CSS, JS, webdoors)
-│   └── webdoors/        WebDoor game installations
-├── routes/              HTTP route definitions (web, API, admin)
-├── scripts/             CLI tools (binkp server, poller, maintenance)
+├── public_html/         Web root
+│   ├── css/             Stylesheets (style.css + theme files)
+│   ├── js/              JavaScript (app.js, binkstream-client.js, etc.)
+│   ├── webdoors/        WebDoor game installations
+│   │   └── _doorsdk/    Shared WebDoor PHP/JS SDK
+│   └── index.php        Front controller
+├── routes/              HTTP route definitions (web, API, admin, door, webdoor)
+├── scripts/             CLI tools (binkp server, poller, daemons, maintenance)
+│   └── dosbox-bridge/   Multiplexing bridge server (Node.js) for DOS/native doors
 ├── src/                 Core PHP classes
-│   ├── Admin/           Admin interface controllers and AdminDaemonClient
+│   ├── AI/              AI provider abstraction and assistant logic
+│   ├── Admin/           Admin controllers and AdminDaemonClient
 │   ├── Antivirus/       Pluggable antivirus scanner backends
-│   ├── Binkp/           BinkP protocol implementation
-│   ├── FileArea/        File area rule processing
+│   ├── Binkp/           BinkP protocol implementation and logging
+│   ├── Chat/            Shoutbox and Matterbridge integration
+│   ├── FileArea/        File area rule processing and TIC handling
+│   ├── I18n/            Internationalization / translation support
+│   ├── Mrc/             MRC multi-relay chat protocol
+│   ├── PacketBbs/       PacketBBS / mesh radio gateway
+│   ├── Qwk/             QWK offline mail reader support
+│   ├── Realtime/        BinkStream WebSocket / SSE event delivery
+│   ├── Robots/          Echomail robot processors (AREAS.BBS, BBS directory)
 │   ├── Database.php     PDO connection singleton
 │   ├── MessageHandler.php  Message processing and storage
 │   ├── Template.php     Twig template wrapper
 │   ├── UserCredit.php   Credits/currency system
-│   └── Version.php      Application version management
-├── ssh/                 SSH-2 daemon
-├── telnet/              Telnet BBS server
+│   ├── Version.php      Application version constant
+│   └── functions.php    Global helper functions (getServerLogger, etc.)
+├── ssh/                 SSH-2 daemon (ssh_daemon.php + src/)
+├── telnet/              Telnet BBS daemon (telnet_daemon.php + src/)
 ├── templates/           Twig templates
+│   ├── custom/          Local overrides (not in git — highest priority)
 │   └── shells/          Shell-specific base templates (web/, bbs-menu/)
-├── tests/               Debug/test scripts
+├── tests/               PHPUnit unit tests and Playwright browser tests
+├── tools/               Developer utilities (support-bot, etc.)
 └── vendor/              Composer dependencies (DO NOT EDIT)
 ```
 
@@ -505,9 +585,13 @@ The `restart_daemons.sh` (Linux) and `start_daemons_windows.cmd` / `start_daemon
 
 ## Getting Help
 
-- **FAQ**: See `FAQ.md` for common questions and troubleshooting
-- **Antivirus**: See `docs/AntiVirus.md` for virus scanning setup and configuration
-- **WebDoor API**: See `docs/WebDoors.md` for game integration
-- **Door Games**: See `docs/Doors.md` for the multiplexing bridge and door types
-- **Localization**: See `docs/Localization.md` for the full i18n workflow
-- **Upgrade Guides**: Check `docs/UPGRADING_x.x.x.md` files for version-specific changes
+- **FAQ**: See [FAQ.md](../FAQ.md) for common questions and troubleshooting
+- **Architecture**: See [ARCHITECTURE.md](ARCHITECTURE.md) for system diagrams and data-flow documentation
+- **Data Model**: See [DATA_MODEL.md](DATA_MODEL.md) for a conceptual overview of key database tables
+- **Contributing**: See `CONTRIBUTING.md` in the project root for git workflow, PR process, and the pre-commit checklist
+- **Antivirus**: See [AntiVirus.md](AntiVirus.md) for virus scanning setup and configuration
+- **WebDoor Tutorial**: See [WebDoor-Tutorial.md](WebDoor-Tutorial.md) to build your first WebDoor end-to-end
+- **WebDoor API**: See [WebDoors.md](WebDoors.md) for the full WebDoor specification
+- **Door Games**: See [Doors.md](Doors.md) for the multiplexing bridge and door types
+- **Localization**: See [Localization.md](Localization.md) for the full i18n workflow
+- **Upgrade Guides**: Check the `docs/UPGRADING_x.x.x.md` files for version-specific changes
