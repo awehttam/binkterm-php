@@ -176,7 +176,7 @@ Uplink node → FTN network
 
 ## Daemon IPC Model
 
-Daemons are independent processes that communicate through shared infrastructure rather than direct peer connections.
+Daemons are independent processes. Currently they coordinate through shared infrastructure (the database and admin daemon) rather than direct peer connections; future daemons may add direct IPC channels.
 
 **Shared database** — All daemons read and write PostgreSQL. The `sse_events` table is the primary inter-process event bus: any daemon or web request can insert a row, and BinkStream delivers it to connected browsers without any additional coordination.
 
