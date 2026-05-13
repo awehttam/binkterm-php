@@ -162,8 +162,13 @@ When adding a new log file that needs UDP fallback support, add its basename to 
 $client = new \BinktermPHP\Admin\AdminDaemonClient();
 // Uses ADMIN_DAEMON_SOCKET and ADMIN_DAEMON_SECRET from environment.
 
-// Or override:
+$client->serverLog('INFO', 'Packet processed', ['packet_id' => $packetId]);
+$client->close();
+
+// Or override socket/secret:
 $client = new \BinktermPHP\Admin\AdminDaemonClient('tcp://127.0.0.1:9065', 'mysecret');
+$client->serverLog('WARNING', 'Unexpected state', ['context' => 'value']);
+$client->close();
 ```
 
 ### One-shot logging shortcut
