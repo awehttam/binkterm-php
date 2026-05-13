@@ -47,7 +47,26 @@ AI_MESSAGE_AI_ASSISTANT_PROVIDER  →  AI_DEFAULT_PROVIDER  →  first configure
 AI_MESSAGE_AI_ASSISTANT_MODEL     →  AI_DEFAULT_MODEL      →  provider default model
 ```
 
-The feature key is derived from `AiRequest::getFeature()` by uppercasing and replacing non-alphanumeric runs with underscores.
+The feature key is derived from `AiRequest::getFeature()` by uppercasing and replacing non-alphanumeric runs with underscores. For example, a request with feature `echo_digest`:
+
+```php
+$request = new AiRequest(
+    feature: 'echo_digest',     // normalised → 'ECHO_DIGEST'
+    systemPrompt: $systemPrompt,
+    userPrompt: $userPrompt,
+    // provider/model omitted — resolved from env by AiService
+);
+$service  = AiService::create();
+$response = $service->generateText($request);
+// Reads: Config::env('AI_ECHO_DIGEST_PROVIDER') → 'anthropic'
+//        Config::env('AI_ECHO_DIGEST_MODEL')     → 'claude-haiku-4-5-20251001'
+```
+
+```bash
+# .env
+AI_ECHO_DIGEST_PROVIDER=anthropic
+AI_ECHO_DIGEST_MODEL=claude-haiku-4-5-20251001
+```
 
 ---
 
@@ -176,7 +195,7 @@ DoorConfig::isEnabled('lordii')          // bool
 DoorConfig::getDoorConfig('lordii')      // array|null
 ```
 
-Unlike most other config files, `DoorConfig` and `GameConfig` include a direct `saveConfig()` method that writes the file from the web process. This works because these files are typically owned by the web user.
+Written via: Admin UI → Admin Daemon (`saveDosdoorsConfig`, `saveWebdoorsConfig`, `saveNativeDoorsConfig`, `saveJsdosdoorsConfig` commands).
 
 ---
 
@@ -208,9 +227,7 @@ Reading from any config layer is always a direct operation — the config class 
 
 Writing is a different story:
 
-- **Config files owned by `root` or a privileged user** — must be written via AdminDaemonClient so the Admin Daemon (which owns the files) performs the write. This applies to `config/binkp.json`, `config/bbs.json`, `config/lovlynet.json`, and most others under `config/`.
-- **Files owned by the web user** — can be written directly. Door configs (`config/dosdoors.json`, `config/webdoors.json`) fall into this category when managed through the web admin UI.
-- **`data/appearance.json`** — owned by the web user on most deployments; still written through the Admin Daemon in practice to keep write paths consistent and to ensure the in-process cache is invalidated correctly.
+- **Config files** — must be written via AdminDaemonClient so the Admin Daemon (which owns the files) performs the write. This applies to all files under `config/` and `data/appearance.json`.
 - **Database** — written directly via PDO from routes and service classes; no daemon involved.
 
 For details on the Admin Daemon wire protocol and how to add new daemon commands, see [AdminDaemon.md](AdminDaemon.md).
@@ -226,9 +243,9 @@ For details on the Admin Daemon wire protocol and how to add new daemon commands
 | BBS features, credits, AI assistant | `config/bbs.json` | `BbsConfig::getConfig()` / `isFeatureEnabled()` | Admin UI → Admin Daemon |
 | Appearance, branding, shell, menus | `data/appearance.json` | `AppearanceConfig::getConfig()` and typed accessors | Admin UI → Admin Daemon |
 | LovlyNet credentials | `config/lovlynet.json` | `LovlyNetClient` constructor | Registration flow → Admin Daemon |
-| WebDoors | `config/webdoors.json` | `GameConfig` | Admin UI (direct write) |
-| DOS Doors | `config/dosdoors.json` | `DoorConfig` | Admin UI (direct write) |
-| Native Doors | `config/nativedoors.json` | `NativeDoorConfig` | Admin UI (direct write) |
-| JS-DOS Doors | `config/jsdosdoors.json` | `JsdosDoorConfig` | Admin UI (direct write) |
+| WebDoors | `config/webdoors.json` | `GameConfig` | Admin UI → Admin Daemon |
+| DOS Doors | `config/dosdoors.json` | `DoorConfig` | Admin UI → Admin Daemon |
+| Native Doors | `config/nativedoors.json` | `NativeDoorConfig` | Admin UI → Admin Daemon |
+| JS-DOS Doors | `config/jsdosdoors.json` | `JsdosDoorConfig` | Admin UI → Admin Daemon |
 | User preferences | `user_settings` table | SQL / `MessageHandler` | Settings API routes |
 | User metadata | `users_meta` table | `UserMeta::getValue()` | `UserMeta::setValue()` |
