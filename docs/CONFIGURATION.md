@@ -57,6 +57,8 @@ Examples for most files are provided as `config/*.example` — copy and edit as 
 
 The `.env` file is the primary low-level configuration file.  Copy `.env.example` to `.env` and fill in values before running setup.
 
+**`.env.example` is the authoritative list of all supported environment variables**, each with its default value and a brief comment. The sections below highlight the most important options, but consult `.env.example` directly for the complete set.
+
 ### Database
 
 ```bash
