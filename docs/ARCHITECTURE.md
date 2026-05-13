@@ -134,7 +134,7 @@ Packet processor
     │  unpacks .pkt files
     │  extracts echomail and netmail messages
     │  validates MSGID, deduplicates
-    │  resolves echo area subscriptions
+    │  maps AREA: tag to echoareas row (auto-creates if unknown)
     │  stores messages in echomail / netmail tables
     │
     ▼
@@ -160,12 +160,7 @@ src/MessageHandler.php
     │  validates and stores message in echomail / netmail table
     │  marks message for outbound delivery to uplink(s)
     │
-    ▼
-Packet bundler
-    │
-    │  bundles pending messages into .pkt files
-    │  compresses into FTN bundles
-    │  writes to data/outbound/<uplink>/
+    │  writes outbound .pkt file to data/outbound/ via BinkdProcessor::createOutboundPacket()
     │
     ▼
 scripts/binkp_poll.php  (scheduled by binkp_scheduler or triggered post-session)
