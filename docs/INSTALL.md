@@ -6,16 +6,18 @@ BinktermPHP can be installed using two methods: the automated installer (recomme
 
 - [Requirements](#requirements)
   - [Ubuntu/Debian package requirements](#ubuntudebian-package-requirements)
-  - [PostgreSQL database setup](#postgres-database-setup)
+- [Create BBS User Account](#create-bbs-user-account)
+- [PostgreSQL Database Setup](#postgresql-database-setup)
 - [Method 1: Using the Installer (Recommended)](#method-1-using-the-installer-recommended)
 - [Method 2: From Git](#method-2-from-git)
 - [Configure Web Server](#configure-web-server)
   - [Caddy](#caddy)
-  - [Nginx](#nginx)
-  - [Apache](#apache-libapache2-php)
+  - [Other web servers (unsupported)](#other-web-servers-unsupported)
+    - [Nginx](#nginx)
+    - [Apache](#apache-libapache2-php)
   - [PHP Built-in Server (Development)](#php-built-in-server-development)
+- [Common System Daemon Locations (Caddy, PHP, etc)](#common-system-daemon-locations-caddy-php-etc)
 - [Set Up Cron Jobs](#set-up-cron-jobs-recommended)
-- [Database Management](#database-management)
 - [Network Ports](#network-ports)
 
 ---
@@ -31,31 +33,59 @@ BinktermPHP can be installed using two methods: the automated installer (recomme
 - **Hardware Recommendation** - If you are running all services, we recommend at least 2 GB of RAM and 2 CPU cores
 - **Sizing Note** - Running fewer services generally requires less RAM
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
-- **Operating User** - It is recommended to run BinktermPHP out of its own user account
+- **Operating User** - BinktermPHP should run under its own dedicated user account, not as root or your personal login. See [Create BBS User Account](#create-bbs-user-account) below.
 
 ### Ubuntu/Debian package requirements
+
+> **Run as your admin user** — the account you log in with that has `sudo` access.
+
 ```bash
 sudo apt-get update
 
 # Choose a web server and PHP runner (recommended)
-#  If caddy is not available in your distro, see https://caddyserver.com/download downloads
+#  If caddy is not available in your distro, see https://caddyserver.com/download
 sudo apt-get install caddy php-fpm
 
-# -or - Apache and PHP runner (not recommended)
+# -or- Apache and PHP runner (not recommended)
 sudo apt-get install libapache2-mod-php apache2
 
 # Install required packages
-sudo apt-get install  php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom php-gmp postgresql composer  
+sudo apt-get install php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom php-gmp postgresql composer
 sudo apt-get install -y unzip p7zip-full
 
 # Optional: Sixel image rendering in telnet/SSH terminal reader
 sudo apt-get install -y libsixel-bin
 ```
+
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
 
-### Postgres Database setup
+---
 
-First, decide on a database name, username, and password. These will be used in your `.env` file later.
+## Create BBS User Account
+
+> **Run as your admin user.**
+
+BinktermPHP should run under its own dedicated user account. This keeps its files and processes isolated from the rest of the system. The account does not need sudo access.
+
+```bash
+sudo adduser binktermphp
+```
+
+`adduser` will prompt you to set a password and fill in optional details. Once created, you can switch to this account at any time with:
+
+```bash
+sudo su - binktermphp
+```
+
+BinktermPHP will be installed into this user's home directory (e.g. `/home/binktermphp/binkterm-php`). Make note of this path — you will need it when configuring the web server and cron jobs.
+
+---
+
+## PostgreSQL Database Setup
+
+> **Run as your admin user.**
+
+This creates a dedicated PostgreSQL user and database for BinktermPHP. These are database credentials, separate from the system user account created earlier. Choose a strong, unguessable password — a random string of at least 20 characters is recommended.
 
 Connect to PostgreSQL as the superuser:
 
@@ -63,25 +93,30 @@ Connect to PostgreSQL as the superuser:
 sudo -u postgres psql
 ```
 
-Then run the following commands, replacing `your_username`, `your_password`, and `your_database` with your chosen values:
+The example below uses `binktermphp` for both the database user and database name. Replace `changeme` with a strong password of your choosing:
 
 ```sql
-CREATE USER your_username WITH PASSWORD 'your_password';
-CREATE DATABASE your_database OWNER your_username;
+CREATE USER binktermphp WITH PASSWORD 'changeme';
+CREATE DATABASE binktermphp OWNER binktermphp;
 \q
 ```
 
-Verify the connection works with the new credentials:
+Verify the connection works:
 
 ```bash
-psql -U your_username -d your_database -h 127.0.0.1
+psql -U binktermphp -d binktermphp -h 127.0.0.1
 ```
 
-Make note of your database name, username, and password as you may need to update `.env` later.
+Make note of the database name, username, and password — you will need them during install or when configuring `.env`.
 
 ---
 
 ## Method 1: Using the Installer (Recommended)
+
+> **Run as the `binktermphp` user.** Switch accounts first if you have not already:
+> ```bash
+> sudo su - binktermphp
+> ```
 
 The installer is the recommended method for most sysops. It provides a fully automated setup process that downloads, configures, and installs BinktermPHP — including handling upgrades when you re-run it on an existing installation.
 
@@ -90,23 +125,28 @@ The installer is the recommended method for most sysops. It provides a fully aut
 wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/binkterm-installer.phar
 
 # Run the installer
-php binkterm-installer.phar [options]
+php binkterm-installer.phar
 
-# Or make it executable (Linux/macOS)
+# Or make it executable and run directly
 chmod +x binkterm-installer.phar
-./binkterm-installer.phar [options]
+./binkterm-installer.phar
 ```
 
 The installer will:
 - Check system requirements (PHP version, extensions)
 - Download the latest release from GitHub
-- Configure the database and environment
-- Set up initial admin user
-- Configure FidoNet settings
+- Configure the `.env` file with your database credentials and environment settings
+- Set up the initial admin user
+- Configure initial BinkP and BBS settings
 
 ---
 
 ## Method 2: From Git
+
+> **Run as the `binktermphp` user.** Switch accounts first if you have not already:
+> ```bash
+> sudo su - binktermphp
+> ```
 
 This method is recommended for developers, contributors, and advanced users who want to track the latest changes or submit patches. Most sysops should use the installer instead.
 
@@ -122,31 +162,26 @@ composer install
 ```
 
 ### Step 3: Configure Environment
-Copy the example environment file and configure your settings:
+
+Copy the example environment and BinkP config files:
 ```bash
 cp .env.example .env
-cp binkp.json.example binkp.json
+cp config/binkp.json.example config/binkp.json
 ```
 
-Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials. Once the system is up you can adjust your BBS settings and BinkP configuration through the administration interface.
+Edit `.env` and set at minimum your PostgreSQL database credentials (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`) to match what you created in the PostgreSQL setup step. See [CONFIGURATION.md](CONFIGURATION.md) for all available options. Once the system is running you can adjust BBS settings and BinkP configuration through the administration interface.
 
-### Step 4: Install the database schema and configure the initial Admin user
+### Step 4: Install the database schema and create the initial admin user
 
-First, use the installation script for automated setup:
 ```bash
-# Interactive installation (prompts for admin credentials)
+# Interactive installation (prompts for admin username and password)
 php scripts/install.php
 
-# Non-interactive installation (creates admin/admin123 - CHANGE IMMEDIATELY!)
+# Non-interactive installation (creates admin/admin123 — change this immediately)
 php scripts/install.php --non-interactive
 ```
 
-Alternatively, use the setup script which auto-detects whether to install or upgrade:
-```bash
-php scripts/setup.php
-```
-
-Then run the schema upgrader to ensure all schemas are up to date:
+Then run the schema upgrader to apply any pending migrations:
 
 ```bash
 php scripts/upgrade.php
@@ -156,10 +191,18 @@ php scripts/upgrade.php
 
 ## Configure Web Server
 
+> **Return to your admin user** for this section. If you are still in the `binktermphp` session, exit it first:
+> ```bash
+> exit
+> ```
+
+Replace `/home/binktermphp/binkterm-php` in the examples below with the actual path where BinktermPHP was installed.
+
 ### Caddy
+
 Caddy has been tested with BinktermPHP and works well. It handles HTTPS automatically and does not buffer SSE responses by default. The example config below excludes the SSE endpoint from compression, which would otherwise buffer the stream.
 
- * Update the php8.2-fpm.sock location in the configuration below to match your version of PHP
+Update the `php8.2-fpm.sock` path to match your installed PHP version.
 
 ```caddyfile
 # /etc/caddy/Caddyfile
@@ -167,7 +210,7 @@ Caddy has been tested with BinktermPHP and works well. It handles HTTPS automati
 yourdomain.com {
     bind 0.0.0.0
 
-    root * /path/to/binkterm-php/public_html
+    root * /home/binktermphp/binkterm-php/public_html
 
     # Compress normal pages and API responses.
     # Exclude SSE so the event stream is not buffered or delayed.
@@ -242,15 +285,17 @@ yourdomain.com {
 
 Replace `yourdomain.com`, the `bind` address, `root` path, and php-fpm socket path to match your installation. Caddy obtains and renews TLS certificates automatically. Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
 
-### Nginx
+### Other web servers (unsupported)
 
-(untested)
+The configurations below are provided as a starting point but are untested and not officially supported. Caddy is strongly recommended.
+
+#### Nginx
 
 ```nginx
 server {
     listen 443 ssl;
     server_name yourdomain.com;
-    root /path/to/binktest/public_html;
+    root /home/binktermphp/binkterm-php/public_html;
     index index.php;
 
     # Realtime WebSocket daemon (scripts/realtime_server.php)
@@ -288,16 +333,14 @@ server {
 
 Set `BINKSTREAM_WS_PUBLIC_URL=/ws` and `DOSDOOR_WS_URL=wss://yourdomain.com/dosdoor` in `.env`.
 
-### Apache (libapache2-php)
-
-BinktermPHP recommends Caddy.
+#### Apache (libapache2-php)
 
 Requires `mod_proxy`, `mod_proxy_fcgi`, and `mod_proxy_wstunnel`. The two WebSocket proxies must appear before the PHP handler.
 
 ```apache
 <VirtualHost *:443>
     ServerName yourdomain.com
-    DocumentRoot /path/to/binktest/public_html
+    DocumentRoot /home/binktermphp/binkterm-php/public_html
 
     # Realtime WebSocket daemon (scripts/realtime_server.php)
     ProxyPass        /ws      ws://127.0.0.1:6010/
@@ -307,7 +350,7 @@ Requires `mod_proxy`, `mod_proxy_fcgi`, and `mod_proxy_wstunnel`. The two WebSoc
     ProxyPass        /dosdoor ws://127.0.0.1:6001/
     ProxyPassReverse /dosdoor ws://127.0.0.1:6001/
 
-    <Directory /path/to/binktest/public_html>
+    <Directory /home/binktermphp/binkterm-php/public_html>
         AllowOverride All
         Require all granted
     </Directory>
@@ -324,70 +367,87 @@ php -S localhost:8080
 
 ---
 
-## Set Up Cron Jobs (Recommended)
-Start the core long-running services at boot and keep cron for periodic maintenance tasks. If you enable optional features such as FTP, telnet, Gemini, or DOS doors, see the [Operation section in README.md](../README.md#operation) for the additional `@reboot` entries for those daemons.
+## Common System Daemon Locations (Caddy, PHP, etc)
 
-```cron
-# Start admin daemon on boot
-@reboot /usr/bin/php /path/to/binkterm/scripts/admin_daemon.php --daemon
+Paths use `<version>` as a placeholder for the installed version number (e.g. `8.2` for PHP, `16` for PostgreSQL).
 
-# Start scheduler on boot
-@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_scheduler.php --daemon
+### Caddy
 
-# Start binkp server on boot (Linux/macOS)
-@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
+| File / Path | Purpose |
+|---|---|
+| `/etc/caddy/Caddyfile` | Main site configuration (virtual hosts, TLS, FastCGI) |
+| `/var/lib/caddy/.local/share/caddy/` | Automatic TLS certificate storage |
+| `/var/log/caddy/` | Access and error logs |
+| `/etc/systemd/system/caddy.service` | Systemd unit override (if customised) |
 
-# Start realtime WebSocket server on boot
-@reboot /usr/bin/php /path/to/binkterm/scripts/realtime_server.php --daemon
+### php-fpm
 
-# Optional: start FTP daemon on boot
-@reboot /usr/bin/php /path/to/binkterm/scripts/ftp_daemon.php --daemon
+| File / Path | Purpose |
+|---|---|
+| `/etc/php/<version>/fpm/php-fpm.conf` | Master php-fpm configuration (global settings, pid file) |
+| `/etc/php/<version>/fpm/pool.d/www.conf` | Default worker pool (user, socket path, process limits) |
+| `/etc/php/<version>/fpm/php.ini` | PHP runtime settings for FPM requests |
+| `/run/php/php<version>-fpm.sock` | Unix socket used by the web server (must match Caddyfile/vhost) |
+| `/var/log/php<version>-fpm.log` | php-fpm startup and worker error log |
 
-# Update nodelists daily at 3am
-#0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
-```
+### PostgreSQL
 
-Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation section in README.md](../README.md#operation) for the full daemon list and additional cron examples.
-
-`update_nodelists` can be used if you have URLs configured to update from. Otherwise nodelists can be updated using file area actions.
+| File / Path | Purpose |
+|---|---|
+| `/etc/postgresql/<version>/main/postgresql.conf` | Server tuning (memory, connections, logging) |
+| `/etc/postgresql/<version>/main/pg_hba.conf` | Client authentication rules (local trust, md5, scram-sha-256) |
+| `/etc/postgresql/<version>/main/pg_ident.conf` | OS-to-database username mapping (rarely needed) |
+| `/var/lib/postgresql/<version>/main/` | Data directory (tablespace, WAL) |
+| `/var/log/postgresql/` | Server log files |
 
 ---
 
-## Database Management
+## Set Up Cron Jobs (Recommended)
 
-### Database Scripts
+> **Run as the `binktermphp` user.** Switch accounts if you are not already there, then open the crontab editor:
+> ```bash
+> sudo su - binktermphp
+> crontab -e
+> ```
 
-```bash
-# Fresh installation with admin user
-php scripts/install.php                    # Interactive mode
-php scripts/install.php --non-interactive  # Uses defaults (admin/admin123)
+Add the following entries. Replace `/home/binktermphp/binkterm-php` with your actual install path if it differs.
 
-# Auto-detect install vs upgrade
-php scripts/setup.php                      # Smart setup
-php scripts/setup.php status               # Show system status
+```cron
+# Start admin daemon on boot
+@reboot /usr/bin/php /home/binktermphp/binkterm-php/scripts/admin_daemon.php --daemon
 
-# Apply pending migrations
-php scripts/upgrade.php                    # Run migrations
-php scripts/upgrade.php status             # Show migration status
+# Start scheduler on boot
+@reboot /usr/bin/php /home/binktermphp/binkterm-php/scripts/binkp_scheduler.php --daemon
 
-# Create a new migration (for developers)
-php scripts/migration.php create "add feature"
-php scripts/migration.php create "backfill feature data" php
+# Start binkp server on boot
+@reboot /usr/bin/php /home/binktermphp/binkterm-php/scripts/binkp_server.php --daemon
+
+# Start realtime WebSocket server on boot
+@reboot /usr/bin/php /home/binktermphp/binkterm-php/scripts/realtime_server.php --daemon
+
+# Optional: start FTP daemon on boot (remove the leading # to enable)
+# @reboot /usr/bin/php /home/binktermphp/binkterm-php/scripts/ftp_daemon.php --daemon
+
+# Optional: update nodelists daily at 3am (requires nodelist URLs to be configured)
+# 0 3 * * * /usr/bin/php /home/binktermphp/binkterm-php/scripts/update_nodelists.php --quiet
 ```
 
-### Migration System
-Database changes are managed through timestamped SQL or PHP migration files stored in `database/migrations/`:
-
-- **Filename format**: `vYYYYMMDDHHMMSS_description.sql` or `.php` (e.g., `v20260503143000_add_user_preferences.sql`)
-- **Creation utility**: Use `php scripts/migration.php create "description"` so new migration IDs are generated consistently in UTC
-- **Legacy support**: Existing `vX.Y.Z_description.sql` and `.php` migrations are still supported, but new migrations should use timestamp IDs
-- **Automatic tracking**: Migration status is recorded in `database_migrations` table
-- **Safe execution**: Each migration runs in a transaction with rollback on failure
-- **Comment support**: SQL comments are automatically stripped during execution
+If you enable optional features such as telnet, SSH, Gemini, or DOS doors, add their daemon `@reboot` entries to this crontab as well.
 
 ---
 
 ## Network Ports
+
+The table below lists every port BinktermPHP may use. Most are optional — only open what you actually run. For each inbound service you enable, add a firewall rule to allow that port. BinkP (`24554`) requires both inbound and outbound rules since it connects to and receives connections from other nodes. Internal services (PostgreSQL, admin daemon, DOSBox bridge) should never be exposed to the network — bind them to `127.0.0.1` and leave their ports firewalled.
+
+On Ubuntu/Debian with `ufw`, for example:
+```bash
+sudo ufw allow 80/tcp        # HTTP
+sudo ufw allow 443/tcp       # HTTPS
+sudo ufw allow 24554/tcp     # BinkP (in + out)
+sudo ufw allow 2323/tcp      # Telnet (if enabled)
+sudo ufw allow 2022/tcp      # SSH (if enabled)
+```
 
 | Service | Default Port | Protocol | Direction | Configured In |
 |---------|-------------|----------|-----------|---------------|

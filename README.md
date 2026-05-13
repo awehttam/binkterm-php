@@ -53,6 +53,7 @@ BinktermPHP was featured in the *Calling All Nodes* YouTube video: [CALLING ALL 
   - [Starting the System](#starting-the-system)
   - [Daily Operations](#daily-operations)
   - [Cron Job Setup](#cron-job-setup)
+  - [Database Management](#database-management)
   - [Performance Tuning](#performance-tuning)
 - [Joining LovlyNet Network](#joining-lovlynet-network)
 - [Customization](#customization)
@@ -545,6 +546,40 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 # */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
 # */5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php --all
 ```
+
+## Database Management
+
+### Database Scripts
+
+```bash
+# Fresh installation with admin user
+php scripts/install.php                    # Interactive mode
+php scripts/install.php --non-interactive  # Uses defaults (admin/admin123)
+
+# Auto-detect install vs upgrade
+php scripts/setup.php                      # Smart setup
+php scripts/setup.php status               # Show system status
+
+# Apply pending migrations
+php scripts/upgrade.php                    # Run migrations
+php scripts/upgrade.php status             # Show migration status
+
+# Create a new migration (for developers)
+php scripts/migration.php create "add feature"
+php scripts/migration.php create "backfill feature data" php
+```
+
+### Migration System
+Database changes are managed through timestamped SQL or PHP migration files stored in `database/migrations/`:
+
+- **Filename format**: `vYYYYMMDDHHMMSS_description.sql` or `.php` (e.g., `v20260503143000_add_user_preferences.sql`)
+- **Creation utility**: Use `php scripts/migration.php create "description"` so new migration IDs are generated consistently in UTC
+- **Legacy support**: Existing `vX.Y.Z_description.sql` and `.php` migrations are still supported, but new migrations should use timestamp IDs
+- **Automatic tracking**: Migration status is recorded in `database_migrations` table
+- **Safe execution**: Each migration runs in a transaction with rollback on failure
+- **Comment support**: SQL comments are automatically stripped during execution
+
+---
 
 ## Performance Tuning
 
