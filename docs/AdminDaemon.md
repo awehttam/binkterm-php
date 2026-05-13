@@ -4,6 +4,22 @@ The Admin Daemon (`scripts/admin_daemon.php`) is a long-running privileged proce
 
 ---
 
+## Role in the Configuration System
+
+The Admin Daemon is the **write path** for privileged config files. It plays no role in how application code reads configuration at runtime.
+
+When a feature needs to check a setting — for example, whether the AI assistant is enabled — it reads the relevant config class directly (`BbsConfig::getConfig()`, `AppearanceConfig::getConfig()`, etc.). Those classes load their JSON files on first access and cache the result in a static property. The Admin Daemon is not involved in any of this.
+
+The daemon becomes involved only when a value needs to be changed:
+
+- The admin UI sends a POST to an admin API route.
+- The route calls an `AdminDaemonClient` setter, which delivers the new value to the daemon over the local socket.
+- The daemon writes the config file (which it owns) and, where needed, signals the affected service to reload.
+
+For a full description of how all configuration layers are read at runtime, see [ConfigurationSystem.md](ConfigurationSystem.md).
+
+---
+
 ## Why It Exists
 
 php-fpm web workers run as an unprivileged user with restricted filesystem access. They cannot write config files, write to log files managed by other processes, send signals to other daemons, or fork subprocesses safely. The Admin Daemon solves this by:
@@ -335,6 +351,8 @@ Any admin setting that writes a config file follows the same flow. The web proce
 ![Admin UI → AdminDaemon → Config-Reload flow](images/BinktermPHP-Flow_UI-Config-Reload.png)
 
 ### GET: loading settings into the admin UI
+
+This path is specific to populating admin forms. It is not how application features read configuration at runtime — feature code reads config classes directly (see [ConfigurationSystem.md](ConfigurationSystem.md)).
 
 1. The browser requests an admin page (e.g. `/admin/binkp-config`).
 2. The PHP route calls the appropriate `AdminDaemonClient` getter (e.g. `getBinkpConfig()`).
