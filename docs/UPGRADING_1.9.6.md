@@ -16,6 +16,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Documentation](#documentation)
 - [Developer Tools](#developer-tools)
 - [Realtime Chat Delivery](#realtime-chat-delivery)
+- [Networks](#networks)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -81,6 +82,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Developer Tools
 
 - Added `scripts/generate_api_docs.php`, a CLI utility that generates developer-facing API reference documentation directly from the route files. It produces Markdown or OpenAPI 3.0 YAML and can optionally call a configured AI provider (Anthropic or OpenAI) to enrich each endpoint with a description, parameter tables, request body schema, and response fields. No migration or configuration change is required; the script is a standalone developer tool.
+
+### Networks
+
+- Corrected the website URL for the DoveNet built-in network entry. The entry now links to the active DoveNet listing at `https://clrghouz.bbs.dege.au/domain/view/34`.
 
 ### Realtime Chat Delivery
 
@@ -238,6 +243,14 @@ Three fixes address WebSocket reliability and event delivery performance for ins
 **BinkStream cursor sync.** The BinkStream event stream delivers different event types to different pages. The `sse_events` table accumulates rows for all event types: `chat_message`, `dashboard_stats` (triggered by incoming FTN mail), `binkp_session`, and others. The WebSocket server advances its internal cursor past every row it fetches — including rows for event types the current client is not subscribed to — but only sends the subscribed events to the client. Because the client's stored cursor was only updated when a subscribed event was received, a gap of unsubscribed rows between two chat messages would leave the stored cursor pointing before that gap. On reconnect, the client would replay the entire gap before receiving anything new. The server now sends a `__cursor_sync` message after each polling batch that contains unsubscribed trailing rows, so the client's stored position always matches the server's.
 
 **Catch-up replay cap.** Even with the cursor sync fix in place, clients that reconnect after a prolonged disconnection (such as a suspended laptop waking from sleep) could arrive with a very stale cursor. The replay window is now capped at 5,000 events from the current position. If the stored cursor is further back than that, the client starts from `maxId − 5000` instead of the stored value. Chat history is unaffected because it is loaded through the `/api/chat/messages` endpoint on page load; BinkStream is only responsible for delivering events that arrive after the page has finished loading.
+
+## Networks
+
+The built-in DoveNet network record has been updated with a corrected website URL. The `networks` table entry for DoveNet now points to `https://clrghouz.bbs.dege.au/domain/view/34`, which is the active DoveNet listing.
+
+This is applied automatically by the migration when you run `php scripts/setup.php`.
+
+---
 
 ## Upgrade Instructions
 
