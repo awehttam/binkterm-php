@@ -4,6 +4,8 @@
 
 ## Essential Setup & Operations
 
+- [Getting Started](GettingStarted.md) — New sysop walkthrough: installation through first working FTN connection
+- [Installation](INSTALL.md) — System requirements, web server configuration (Caddy, Nginx, Apache), cron setup, and network port reference
 - [Configuration Reference](CONFIGURATION.md) — Environment variables, .env settings, and core configuration options
 - [Command Line Interface](CLI.md) — All CLI scripts: binkp_server, binkp_poll, maintenance tools
 - [Maintenance](MAINTENANCE.md) — Routine maintenance procedures, log rotation, database cleanup
