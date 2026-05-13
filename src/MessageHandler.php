@@ -231,10 +231,11 @@ class MessageHandler
                 $params = [$user['username'], $user['real_name']];
             }
         } elseif ($filter === 'received' && !empty($myAddresses)) {
-            // Show only messages received by this user (must match name AND to_address must be one of our addresses)
-            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
+            // Show only messages received by this user (must match name AND to_address must be one of our addresses).
+            // Note: for inbound messages user_id IS the recipient, so n.user_id != ? would wrongly exclude them.
+            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders)";
             $params = [$user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses, [$userId]);
+            $params = array_merge($params, $myAddresses);
         } elseif ($filter === 'saved') {
             // Show only messages saved by this user
             $whereClause .= " AND sav.id IS NOT NULL";
@@ -6139,10 +6140,11 @@ class MessageHandler
                 $params = [$user['username'], $user['real_name']];
             }
         } elseif ($filter === 'received' && !empty($myAddresses)) {
-            // Show only messages received by this user (must match name AND to_address must be one of our addresses)
-            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
+            // Show only messages received by this user (must match name AND to_address must be one of our addresses).
+            // Note: for inbound messages user_id IS the recipient, so n.user_id != ? would wrongly exclude them.
+            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders)";
             $params = [$user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses, [$userId]);
+            $params = array_merge($params, $myAddresses);
         } elseif ($filter === 'saved') {
             // Show only messages saved by this user
             $whereClause .= " AND sav.id IS NOT NULL";
