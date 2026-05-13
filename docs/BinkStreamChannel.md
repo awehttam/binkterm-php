@@ -23,7 +23,7 @@ The business logic is shared. `GET /api/stream`, `POST /api/stream`, and the sta
 9. [SharedWorker (`binkstream-worker-v2.js`)](#sharedworker-binkstream-worker-v2js)
 10. [Client Library (`binkstream-client.js`)](#client-library-binkstream-clientjs)
 11. [Subscribing to Events in JavaScript](#subscribing-to-events-in-javascript)
-12. [Adding a New Event Type](#adding-a-new-event-type)
+12. [Publishing a New Event](#publishing-a-new-event)
 13. [Connection Lifecycle](#connection-lifecycle)
 14. [Debugging](#debugging)
     - [Check the active transport mode](#check-the-active-transport-mode)
@@ -171,7 +171,7 @@ LIMIT 200
 
 The `admin_only` check uses an inlined SQL literal (`TRUE` or `FALSE`) rather than a bound parameter to avoid PostgreSQL boolean/text type issues with PDO.
 
-For new event types, no changes to the delivery query are needed. Set `user_id` and `admin_only` when inserting into `sse_events` and targeting is enforced automatically.
+For new events, no changes to the delivery query are needed. Set `user_id` and `admin_only` when inserting into `sse_events` and targeting is enforced automatically.
 
 ---
 
@@ -346,7 +346,7 @@ window.BinkStream.on('chat_message', function (payload) {
 
 ---
 
-## Adding a New Event Type
+## Publishing a New Event
 
 ### Step 1: insert a fat payload into `sse_events`
 
@@ -386,7 +386,7 @@ $stmt->execute([
 
 ### Step 2: delivery is automatic
 
-No transport code changes are needed. The shared event fetch query already returns all event types from `sse_events`.
+No transport code changes are needed. The shared event fetch query delivers every row from `sse_events` regardless of its `event_type` value.
 
 ### Step 3: subscribe in JavaScript
 
@@ -396,7 +396,7 @@ window.BinkStream.on('user_online', function (payload) {
 });
 ```
 
-No changes to `binkstream-worker-v2.js` or `binkstream-client.js` are required for a new event type.
+No changes to `binkstream-worker-v2.js` or `binkstream-client.js` are required.
 
 ### Step 4: bump the service worker cache
 
