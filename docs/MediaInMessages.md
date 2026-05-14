@@ -133,6 +133,8 @@ Supported formats declared via the kludge:
 
 The pre-rendered HTML is returned in the `markup_html` field of the message API response. The client uses this HTML directly when available.
 
+See [Markdown and Markup Formatting](Markdown.md) for the full compose editor reference, StyleCodes syntax, the MARKUP kludge specification, and rendering details.
+
 ---
 
 ## Message Attachments
