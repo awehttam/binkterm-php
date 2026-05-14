@@ -107,6 +107,8 @@ Si vous préférez utiliser le clavier, le lecteur de messages prend en charge c
 - **?** ou **H** — Afficher ou masquer l'aide des raccourcis clavier
 - **Esc** — Fermer le lecteur de messages
 
+Sur les appareils tactiles, vous pouvez aussi **glisser vers la gauche** pour passer au message suivant et **glisser vers la droite** pour revenir au précédent. Si vous glissez sur un contenu qui défile horizontalement (comme l'art ANSI), le contenu défile en premier ; le geste de navigation ne se déclenche que lorsque le contenu est déjà en bout de course.
+
 > **Conseil :** Les mêmes raccourcis fonctionnent dans le lecteur Echomail et dans le lecteur Netmail.
 
 ---

@@ -107,6 +107,8 @@ If you prefer using the keyboard, the message reader supports these shortcuts:
 - **?** or **H** — Show or hide the keyboard shortcuts help overlay
 - **Esc** — Close the message reader
 
+On touch devices, you can also **swipe left** to move to the next message and **swipe right** to move to the previous message. If you swipe within content that scrolls horizontally (such as ANSI art), the content scrolls first; the navigation gesture only triggers when the content is already at its edge.
+
 > **Tip:** The same shortcuts work in both the echomail reader and the netmail reader.
 
 ---

@@ -107,6 +107,8 @@ Si prefieres usar el teclado, el lector de mensajes admite estos atajos:
 - **?** o **H** — Mostrar u ocultar la ayuda de atajos de teclado
 - **Esc** — Cerrar el lector de mensajes
 
+En dispositivos tactiles, tambien puedes **deslizar hacia la izquierda** para ir al mensaje siguiente y **deslizar hacia la derecha** para ir al anterior. Si deslizas sobre contenido que se desplaza horizontalmente (como el arte ANSI), el contenido se mueve primero; el gesto de navegacion solo se activa cuando el contenido ya esta en su borde.
+
 > **Consejo:** Los mismos atajos funcionan tanto en el lector de echomail como en el de netmail.
 
 ---

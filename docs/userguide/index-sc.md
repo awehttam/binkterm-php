@@ -120,6 +120,8 @@ If you prefer using the keyboard, the message reader supports these shortcuts:
 - **?** or **H** — Show or hide the keyboard shortcuts help overlay
 - **Esc** — Close the message reader
 
+On touch devices, you can also **swipe left** to move to the next message and **swipe right** to move to the previous message. If you swipe within content that scrolls horizontally (such as ANSI art), the content scrolls first; the navigation gesture only triggers when the content is already at its edge.
+
 <div class="screenshot-placeholder">
   <i class="fas fa-camera me-2"></i><strong>Screenshot:</strong> Message reader modal with previous and next buttons, fullscreen toggle, and keyboard shortcut help overlay
 </div>

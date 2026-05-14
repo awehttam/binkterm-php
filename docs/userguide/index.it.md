@@ -107,6 +107,8 @@ Se preferisci usare la tastiera, il lettore messaggi supporta queste scorciatoie
 - **?** o **H** — Mostra o nasconde l'aiuto delle scorciatoie da tastiera
 - **Esc** — Chiude il lettore messaggi
 
+Sui dispositivi touch, puoi anche **scorrere verso sinistra** per passare al messaggio successivo e **scorrere verso destra** per tornare al precedente. Se scorri su un contenuto che si sposta orizzontalmente (come le immagini ANSI), il contenuto scorre per primo; il gesto di navigazione si attiva solo quando il contenuto ha raggiunto il bordo.
+
 > **Suggerimento:** Le stesse scorciatoie funzionano sia nel lettore echomail sia in quello netmail.
 
 ---

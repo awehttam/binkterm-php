@@ -107,6 +107,8 @@ Wenn du lieber die Tastatur verwendest, unterstützt der Nachrichtenleser diese 
 - **?** oder **H** — Die Hilfe zu den Tastaturkürzeln ein- oder ausblenden
 - **Esc** — Den Nachrichtenleser schließen
 
+Auf Touch-Geräten kannst du außerdem **nach links wischen**, um zur nächsten Nachricht zu gelangen, und **nach rechts wischen**, um zur vorherigen zurückzukehren. Wenn du über einen Inhalt wischst, der sich horizontal scrollen lässt (z. B. ANSI-Grafiken), wird zuerst der Inhalt gescrollt; die Navigationsgeste greift erst, wenn der Rand des Inhalts erreicht ist.
+
 > **Tipp:** Dieselben Kürzel funktionieren sowohl im Echomail- als auch im Netmail-Leser.
 
 ---
