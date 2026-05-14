@@ -38,6 +38,8 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 - **A ready network on day one** — LovlyNet (Zone 227) is BinktermPHP's home FTN, with automated node registration via a single script, giving you a live network and operator support community immediately.
 - **Doors for every era** — classic DOS games via DOSBox-X, native PTY doors, HTML5 WebDoors, browser WASM, and C64 emulation, with credit charging built in across all types.
 - **Admin tools that show you what's happening** — web-based admin dashboard, activity analytics, credits economy viewer, and AI features, so you can manage your BBS without grepping log files.
+- **Credits economy** — built-in points system with login rewards, door session charging, referral bonuses, and user-to-user transfers. Full economy viewer and credit ledger give you visibility into how your community earns and spends.
+- **AI integration** — expose echo areas to AI assistants via MCP, give users an in-reader AI assistant, and deploy chatbots to any chat room. Personal bearer keys keep each user's AI access scoped to their own account.
 
 ---
 
