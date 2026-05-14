@@ -108,6 +108,7 @@ If you introduce a new log file (e.g., `myfeature.log`):
  - **CREDITS.md must be kept up to date**: When merging commits from a new contributor, add them to the Contributors table. When adding a new vendor library via composer, add it to the Third-Party Libraries section with its license and authors.
 
 ## Important Notes
+ - **Admin UI over config files**: In documentation and user-facing instructions, always direct users to configure settings through the BBS admin web interface rather than by manually editing JSON config files (`binkp.json`, `bbs.json`, `webdoors.json`, etc.). Only fall back to describing direct file edits when the feature genuinely has no admin UI, or when writing developer/contributor documentation where direct file access is appropriate. Some settings that were historically configured in `binkp.json` per-uplink (e.g. `allow_markup`, `allow_media`, `default_charset`, `posting_name_policy`) have since moved to **Admin → Networks**; the uplink-level flags are kept only for backwards compatibility. Always document the Networks UI as the current path.
  - User authentication is simple username and password with long lived cookie
  - Both usernames and Real Names are considered unique. Two users cannot have the same username or real name
  - The web interface should use ajax requests by api for queries

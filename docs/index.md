@@ -9,6 +9,8 @@
 - [Configuration Reference](CONFIGURATION.md) — Environment variables, .env settings, and core configuration options
 - [Command Line Interface](CLI.md) — All CLI scripts: binkp_server, binkp_poll, maintenance tools
 - [Maintenance](MAINTENANCE.md) — Routine maintenance procedures, log rotation, database cleanup
+- [Dashboard](Dashboard.md) — User dashboard: cards, echomail badge mode, layout customization, and sysop defaults
+- [Analytics](Analytics.md) — Activity stats, AI usage, ad analytics, and content sharing reports
 
 ---
 
@@ -24,6 +26,13 @@
 
 ---
 
+## Network Directories
+
+- [Nodelist](Nodelist.md) — Importing and searching the FTN nodelist: file area rules, URL downloader, node browser, map view, and crashmail routing
+- [BBS Directory](BBSDirectory.md) — Public BBS listing: echomail robot, scheduled imports, file area rules, admin management, and geocoding
+
+---
+
 ## Access Methods
 
 - [Terminal Server](TerminalServer.md) — Telnet/TCP terminal server setup and configuration
@@ -31,6 +40,7 @@
 - [SSH Server](SSHServer.md) — SSH server setup for secure terminal access
 - [PacketBBS Gateway](PacketBBS.md) — Packet radio / MeshCore text gateway setup, node configuration, and user commands
 - [FTP Server](FTPServer.md) — Standalone passive FTP daemon for QWK exchange and file-area transfers
+- [QWK Offline Mail](QWK.md) — Download and upload QWK/QWKE packets for offline message reading in external readers
 - [Gemini Capsule](GeminiCapsule.md) — Gemini protocol capsule support
 
 ---
@@ -62,12 +72,16 @@
 ## Communication & Chat
 
 - [MRC Chat](MRC_Chat.md) — Multi-Relay Chat protocol integration
+- [Shoutbox](Shoutbox.md) — Public message wall: posting, moderation, and dashboard card
+- [Bulletins](Bulletins.md) — Sysop notices shown at login and on demand: scheduling, display modes, and terminal rendering
+- [Voting Booth](VotingBooth.md) — User polls: creating, voting, results, and terminal access
 
 ---
 
 ## Content & Media
 
 - [Media in Messages](MediaInMessages.md) — Inline images, video, audio, platform embeds, retro audio, and text art in echomail and netmail
+- [Markdown and Markup Formatting](Markdown.md) — Markdown and StyleCodes compose editor, MARKUP kludge, LSC-001 reference, and rendering details
 - [ANSI Support](ANSI_Support.md) — ANSI art rendering in messages and files
 - [ANSI Ads Generator](ANSI_Ads_Generator.md) — Generating ANSI-art advertisements
 - [RIPScrip Support](RIPScrip_Support.md) — RIPscrip vector graphics rendering in echomail and file areas
@@ -96,8 +110,10 @@
 ## Deployment & Infrastructure
 
 - [Docker](DOCKER.md) — Docker and docker-compose deployment
+- [Performance Tuning](PerformanceTuning.md) — php-fpm sizing, PostgreSQL tuning, BinkStream transport selection, opcache, and capacity planning
 - [Customizing](CUSTOMIZING.md) — Themes, shells, and appearance customization
 - [Localization](Localization.md) — Internationalization (i18n) and locale configuration
+- [PWA and Service Worker Caching](PWA.md) — Installable PWA, asset caching, cache invalidation, and developer bump rules
 
 ---
 
@@ -111,6 +127,7 @@
 - [API Reference](API.md) — HTTP endpoint reference for the public API
 - [BinkStream Back-Channel](BinkStreamChannel.md) — Real-time push architecture: sse_events table, SharedWorker, and how to add new event types
 - [Admin Terminal](AdminTerminal.md) — Floating xterm.js terminal for admins: live event stream, wall/msg commands, command history, and state persistence
+- [Gateway Token Authentication](GatewayTokenAuth.md) — Server-to-server token verification for remote door servers and third-party integrations
 - [Contributing](CONTRIBUTING.md) — Git workflow, PR process, coding standards, and pre-commit checklist
 
 ---

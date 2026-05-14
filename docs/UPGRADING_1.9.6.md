@@ -79,6 +79,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Added an authentication quickstart to `docs/API.md` with a complete login request/response example and a follow-up authenticated request, generated as part of the API doc build so it is preserved on regeneration.
 - Restructured `docs/index.md`: AI & Integrations promoted above Doors & Games; Access Methods section now includes Gemini and PacketBBS; "Content & Display" renamed to "Content & Media"; new documents added throughout.
 - Expanded the `docs/DEVELOPER_GUIDE.md` architecture section with a full system diagram and a daemon reference table listing all processes, their purposes, and whether they are required or optional.
+- Added new reference pages to `docs/`: Gateway Token Authentication, Markdown and StyleCodes, Nodelist, Performance Tuning, Shoutbox, Bulletins, Voting Booth, Dashboard, and Analytics.
 - Updated the README opening paragraph to describe the platform's multi-protocol nature rather than framing it as a web-based BBS.
 
 ### Developer Tools
