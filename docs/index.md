@@ -74,6 +74,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 ## Communication & Chat
 
+- [Local Chat](LocalChat.md) — Real-time room chat and direct messages: rooms, moderation, Matterbridge bridging, and AI bots
 - [MRC Chat](MRC_Chat.md) — Multi-Relay Chat protocol integration
 - [Shoutbox](Shoutbox.md) — Public message wall: posting, moderation, and dashboard card
 - [Bulletins](Bulletins.md) — Sysop notices shown at login and on demand: scheduling, display modes, and terminal rendering
