@@ -187,7 +187,7 @@ The general steps:
 
 # Joining LovlyNet Network
 
-LovlyNet is a FidoNet Technology Network (FTN) operating in Zone 227 with automated registration:
+LovlyNet is the home FTN for BinktermPHP: a FidoNet Technology Network built specifically for BinktermPHP systems, with automated registration and echo areas for operators sharing knowledge, troubleshooting, and community. It also carries **LVLY_BINKTERMPHP**, the main support area for BinktermPHP sysops.
 
 ```bash
 php scripts/lovlynet_setup.php
