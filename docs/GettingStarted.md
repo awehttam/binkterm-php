@@ -26,7 +26,7 @@ By the end you will have:
 
 ## Step 1: Install the Software
 
-Install BinktermPHP using the installer script, which handles PHP, PostgreSQL, and the web server. See [INSTALL.md](INSTALL.md) for full instructions including system requirements, web server configuration, and cron job setup.
+Install BinktermPHP using the installer script, which verifies system requirements, sets up the database, and generates a starter `.env`. See [INSTALL.md](INSTALL.md) for full instructions including system requirements, web server configuration, and cron job setup.
 
 Come back here once all four daemons are running and you can reach the web interface at your domain.
 
@@ -34,7 +34,7 @@ Come back here once all four daemons are running and you can reach the web inter
 
 ## Step 2: First Login and the Admin Panel
 
-Open your browser and navigate to your BBS URL. Log in with the administrator account you created during installation.
+Open your browser and navigate to your BBS URL. Log in with the administrator account you created during installation. If you were not prompted to set credentials, the default login is **admin / admin123** — change it immediately from **Admin → Users**.
 
 Click **Admin** in the top navigation bar to open the Admin panel.
 
