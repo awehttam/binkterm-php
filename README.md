@@ -93,6 +93,7 @@ BinktermPHP runs in any modern browser across different features and themes.
 - **SSH** — built-in SSH server for secure terminal access
 - **Gemini** — capsule hosting for Gemini-protocol clients
 - **QWK** — packet download/upload via built-in passive FTP daemon
+- **MCP** — Model Context Protocol access for AI assistants and automation clients
 - **PacketBBS** — compact one-line command interface for MeshCore mesh radio nodes
 - **FTP** — standalone passive FTP daemon for file area transfers
 
@@ -121,6 +122,7 @@ BinktermPHP runs in any modern browser across different features and themes.
 - **MCP server** — AI assistants read echo areas and messages via Model Context Protocol; personal bearer keys per user
 - **AI message assistant** — in-reader AI assistant for echomail and netmail with credit charging
 - **AI bots** — configurable per-room chatbot middleware with a custom middleware pipeline
+- **Broadcast/Advertising** — scheduled postings, ad rotation, bulletins, weather reports, and related content workflows
 - **Echomail robots** — automated response bots for designated echo areas
 - **Weather reports** — automated weather data posted to echo areas on a schedule
 - **Share summarizer** — AI-generated `og:description` for shared message links
