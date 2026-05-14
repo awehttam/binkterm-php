@@ -9,12 +9,14 @@ For the real-time event subsystem specifically, see [BinkStreamChannel.md](BinkS
 ## Table of Contents
 
 1. [System Overview](#system-overview)
-2. [Component Descriptions](#component-descriptions)
-3. [FTN Packet Lifecycle](#ftn-packet-lifecycle)
-4. [Daemon IPC Model](#daemon-ipc-model)
-5. [Real-Time Event System](#real-time-event-system)
-6. [Door Game Subsystem](#door-game-subsystem)
-7. [AI Pipeline](#ai-pipeline)
+2. [Ecosystem Map](#ecosystem-map)
+3. [Platform Relationships](#platform-relationships)
+4. [Component Descriptions](#component-descriptions)
+5. [FTN Packet Lifecycle](#ftn-packet-lifecycle)
+6. [Daemon IPC Model](#daemon-ipc-model)
+7. [Real-Time Event System](#real-time-event-system)
+8. [Door Game Subsystem](#door-game-subsystem)
+9. [AI Pipeline](#ai-pipeline)
    - [Provider Abstraction Layer](#provider-abstraction-layer)
    - [Message AI Assistant](#message-ai-assistant)
    - [AI Bot System](#ai-bot-system)
@@ -69,6 +71,57 @@ BinktermPHP is a multi-layered platform. A PHP web application sits at the cente
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## Ecosystem Map
+
+```text
+Clients
+├── Browser UI
+├── Telnet / SSH
+├── Gemini
+├── QWK
+├── AI / MCP Clients
+└── Packet / Mesh Nodes
+
+        │
+
+Access & Realtime Layer
+├── Web UI
+├── Terminal Services
+├── BinkStream
+└── API / MCP
+
+        │
+
+Core Platform
+├── FTN Networking
+├── Message Areas
+├── Netmail / Echomail
+├── Doors Runtime
+├── Chat
+├── File Areas
+├── User / Session System
+├── Automation
+└── AI Assistant
+
+        │
+
+External Networks
+├── FidoNet / FTN Networks
+├── Packet / Mesh Networks
+├── Door Processes
+└── External APIs
+```
+
+This map is intentionally simple: access methods vary, but they all feed the same platform. Browser UI, terminal sessions, PacketBBS bridges, and MCP clients are different ways into the same node rather than separate products bolted together later.
+
+## Platform Relationships
+
+- FTN networking feeds message areas, netmail, and file areas that are then surfaced through browser and terminal access methods.
+- BinkStream is the shared realtime event infrastructure used by chat, notifications, admin widgets, and other live UI updates.
+- WebDoors use platform identity, session, credits, and API services instead of acting like isolated browser games.
+- MCP exposes selected platform capabilities to AI and automation clients without handing them unrestricted database access.
+- PacketBBS extends the platform into low-bandwidth or mesh-style environments through a compact gateway instead of the full-screen UI.
+
 ---
 
 ## Component Descriptions
@@ -95,6 +148,8 @@ Three processes handle FTN packet exchange:
 - `scripts/binkp_poll.php` — connects outbound to a single uplink to exchange queued mail
 - `scripts/binkp_scheduler.php` — manages the polling schedule and triggers `binkp_poll.php` at configured intervals
 
+These services make the node an FTN participant. Once packets are processed, the resulting messages land in the same message tables used by the browser UI, Telnet/SSH sessions, QWK exports, and the AI assistant.
+
 ### Terminal Access
 
 `scripts/telnet_daemon.php` and `ssh/ssh_daemon.php` share the same session logic (`BbsSession`) and deliver identical BBS features. Both use the internal REST APIs for login, message retrieval, and other operations — they are the terminal UI layer and do not duplicate business logic. The web interface is considered first-class; terminal feature parity is desirable but not always required.
@@ -103,13 +158,19 @@ Three processes handle FTN packet exchange:
 
 `scripts/realtime_server.php` is the BinkStream WebSocket daemon. It shares the same event core (`src/Realtime/`) with the SSE endpoint at `GET /api/stream`. Browsers connect via a SharedWorker (`public_html/js/binkstream-worker-v2.js`) and receive events over whichever transport is available — WebSocket when the daemon is running, SSE as a fallback. See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 
+BinkStream is not just for chat. It is the browser-side live-update layer for notifications, dashboard state, admin tools, and any other feature that needs the UI to react to platform activity in near real time.
+
 ### MCP Server
 
 `mcp-server/server.js` is a Node.js process that implements the Model Context Protocol, giving AI assistants read-only access to echo areas and echomail. Authentication is per-user via bearer keys stored in `users_meta`. Access control mirrors the web interface: inactive areas and sysop-only areas are hidden for non-admin users. See [MCPServer.md](MCPServer.md).
 
+The MCP server sits beside the web app, not above it. It is an access layer for selected capabilities, used by the built-in AI assistant as well as external MCP-compatible clients.
+
 ### Door Subsystem
 
 The multiplexing bridge (`scripts/dosbox-bridge/multiplexing-server.js`) is a Node.js process that manages PTY sessions for native doors and DOSBox-X processes for DOS doors. Browser clients connect via WebSocket; the bridge multiplexes terminal I/O. WebDoors, JS-DOS Doors, and C64 Doors run entirely in the browser and require no bridge process. See [Doors.md](Doors.md).
+
+WebDoors are the browser-native side of the door runtime. They reuse platform sessions and APIs directly, while classic DOS and native doors rely on the bridge for process execution and terminal transport.
 
 ---
 
@@ -147,6 +208,8 @@ BinkStream → browser notification
 ```
 
 Packets that reference an echo area that does not yet exist are handled by auto-creating the area. TIC files (for file areas) are processed separately, validated, and stored under the appropriate file area directory.
+
+Once a message is stored, it becomes ordinary platform content. The browser UI, terminal services, digests, search, exports, and MCP tools all read from the same underlying message data.
 
 ### Outbound (sending mail)
 
@@ -199,6 +262,14 @@ BinkStream is the browser-facing real-time channel. The full architecture is doc
 
 No changes to transport code are needed when adding a new event type — only an insert into `sse_events` and a client-side subscription.
 
+### Workflow: how realtime updates move through BinkStream
+
+1. A platform event happens, such as an inbound FTN message, a chat post, or an admin action.
+2. PHP code, a trigger, or a daemon inserts a fat payload into `sse_events`.
+3. `StreamService` fetches the new row and hands it to SSE or WebSocket delivery.
+4. The SharedWorker receives the event once for the whole origin and fans it out to open tabs.
+5. Page code updates the visible UI, notification state, or live widget.
+
 ---
 
 ## Door Game Subsystem
@@ -225,6 +296,13 @@ multiplexing-server.js (Node.js)
 The bridge allocates node numbers, generates drop files (`DOOR.SYS`), and manages the process pool. Each concurrent door session is one entry in the bridge's active session table. Because all DOSBox-X instances mount the same real host directories, multi-player door games (LORD, TradeWars 2002) work exactly as on a physical BBS — no special synchronization layer needed.
 
 **Browser-side doors** (WebDoors, JS-DOS Doors, C64 Doors) run entirely in the browser via `<iframe>` or canvas emulation. No server process is spawned. The server handles only session tracking, credit accounting, and (for JS-DOS) save-file sync.
+
+### Workflow: how a WebDoor fits into the platform
+
+1. A user opens `/games` and launches a WebDoor inside an authenticated browser session.
+2. The platform resolves the WebDoor manifest, applies sysop configuration, and serves the entry point.
+3. The WebDoor uses platform-provided user, session, storage, credits, or leaderboard services as needed.
+4. Any state it writes becomes part of the same node users and admins already manage through the rest of the platform.
 
 ---
 
@@ -321,6 +399,23 @@ Browser (rendered in assistant modal)
 ```
 
 The system prompt instructs the model to fetch actual message content via MCP tools before answering, preventing hallucinated message content. The same MCP server used by the in-reader assistant is the one users can connect external AI clients to — see [MCPServer.md](MCPServer.md).
+
+### Workflow: how MCP and the AI assistant interact with the platform
+
+1. A user opens the reader assistant or an external client connects through MCP.
+2. The request is authenticated with that user's MCP bearer key.
+3. MCP tools read echo areas, messages, and threads using the same access rules as the web UI.
+4. The model answers from fetched platform data instead of raw guesswork.
+5. The final result returns to the browser assistant or external MCP client.
+
+## Related Systems
+
+- [BinkStream Back-Channel](BinkStreamChannel.md) — browser-facing realtime delivery
+- [Joining and Configuring an FTN](FTNGuide.md) — node and uplink setup
+- [WebDoors](WebDoors.md) — browser-native door runtime
+- [PacketBBS Gateway](PacketBBS.md) — packet/mesh access method
+- [MCP Server](MCPServer.md) — AI and automation integration layer
+- [AI Assistant](AIAssistant.md) — reader-side AI workflow
 
 Other features that call AiService directly (without the MCP tool-use loop):
 

@@ -23,6 +23,8 @@ WebDoors is BinktermPHP's system for integrating external web-based games, appli
 
 WebDoors are displayed to users through the `/games` interface and can integrate with BBS features like storage, leaderboards, and the credits system.
 
+The key idea is that a WebDoor is not just an isolated browser game in an iframe. It runs as part of the platform, reusing BinktermPHP identity, session, and API services so it can behave like a real BBS subsystem instead of a disconnected sidecar.
+
 ## Directory Structure
 
 WebDoors are installed in the `public_html/webdoors/` directory. Each WebDoor resides in its own subdirectory:
@@ -344,6 +346,14 @@ Games can submit high scores to the BBS leaderboard system for display on the ma
 
 Games can integrate with the BBS credits/economy system to charge for plays or award winnings.
 
+## Workflow: how a WebDoor interacts with the platform
+
+1. A user launches a WebDoor from `/games` using an authenticated browser session.
+2. BinktermPHP discovers the WebDoor, loads its manifest, and applies sysop overrides.
+3. The WebDoor entry point runs inside the user's existing platform identity and session context.
+4. The WebDoor calls platform APIs for storage, leaderboards, credits, or user-facing data instead of implementing its own separate account system.
+5. Results show up back in the platform, whether that means saved progress, credit changes, or a shared leaderboard.
+
 ## Example: Simple HTML5 Game
 
 ```json
@@ -500,3 +510,11 @@ To install a new WebDoor:
 - Verify `entry_point` path is correct relative to WebDoor directory
 - Check file permissions on the entry point file
 - Look for PHP errors in web server error log
+
+## Related Systems
+
+- [Architecture](ARCHITECTURE.md) — where WebDoors fit into the platform
+- [Doors Overview](Doors.md) — the broader door runtime and other door types
+- [API Reference](API.md) — authenticated platform APIs used by browser features
+- [BinkStream Back-Channel](BinkStreamChannel.md) — realtime events for live browser updates
+- [Credit System](CreditSystem.md) — credits and economy integration

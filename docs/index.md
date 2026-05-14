@@ -11,16 +11,16 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 - [Configuration Reference](CONFIGURATION.md) — Environment variables, .env settings, and core configuration options
 - [Command Line Interface](CLI.md) — All CLI scripts: binkp_server, binkp_poll, maintenance tools
 - [Maintenance](MAINTENANCE.md) — Routine maintenance procedures, log rotation, database cleanup
-- [Dashboard](Dashboard.md) — User dashboard: cards, echomail badge mode, layout customization, and sysop defaults
-- [Analytics](Analytics.md) — Activity stats, AI usage, ad analytics, and content sharing reports
+- [Dashboard](Dashboard.md) — User dashboard, activity cards, and quick access to platform features
+- [Analytics](Analytics.md) — Activity stats, AI usage, ad analytics, and content-sharing reports
 - [Registration](../REGISTER.md) — How to register, premium features, and license installation
 
 ---
 
 ## FTN Networking
 
-- [Echo Areas](EchoAreas.md) — Creating, managing, and subscribing to echomail areas
-- [Joining and Configuring an FTN](FTNGuide.md) — Joining an FTN, configuring a binkp uplink, and subscribing to areas
+- [Joining and Configuring an FTN](FTNGuide.md) — Connect a node to an FTN, configure its uplink, and bring network mail into the platform
+- [Echo Areas](EchoAreas.md) — Message areas where inbound FTN echomail becomes visible to web and terminal users
 - [Echo Digests](EchoDigests.md) — Scheduled email digests of echomail areas
 - [File Areas](FileAreas.md) — File area configuration, uploads, and management
 - [FREQ](FREQ.md) — File request (FREQ) serving and requesting: modes, magic names, routing, and CLI tools
@@ -38,22 +38,22 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 ## Access Methods
 
-- [Terminal Server](TerminalServer.md) — Telnet/TCP terminal server setup and configuration
-- [Telnet Daemon](TelnetServer.md) — Telnet daemon setup, configuration, and troubleshooting
-- [SSH Server](SSHServer.md) — SSH server setup for secure terminal access
-- [PacketBBS Gateway](PacketBBS.md) — Packet radio / MeshCore text gateway setup, node configuration, and user commands
+- [Terminal Server](TerminalServer.md) — Terminal access layer for BBS-style sessions over text protocols
+- [Telnet Daemon](TelnetServer.md) — Telnet access method setup, configuration, and troubleshooting
+- [SSH Server](SSHServer.md) — Secure shell access method for terminal users
+- [PacketBBS Gateway](PacketBBS.md) — Packet/mesh access method for low-bandwidth nodes using compact text commands
 - [FTP Server](FTPServer.md) — Standalone passive FTP daemon for QWK exchange and file-area transfers
 - [QWK Offline Mail](QWK.md) — Download and upload QWK/QWKE packets for offline message reading in external readers
-- [Gemini Capsule](GeminiCapsule.md) — Gemini protocol capsule support
+- [Gemini Capsule](GeminiCapsule.md) — Gemini access method for lightweight capsule browsing
 
 ---
 
 ## AI & Integrations
 
-- [AI Assistant](AIAssistant.md) — Web message-reader assistant for echomail and netmail, including enablement, MCP usage, and credit charging
+- [AI Assistant](AIAssistant.md) — Reader-side helper that uses MCP-backed tool access to explain, summarize, and navigate message content
 - [AI Providers and Usage](AIProviders.md) — AI provider setup, request accounting, and the admin usage dashboard
 - [AI Bots](AIBots.md) — Configuring AI chat bots, the middleware pipeline, writing custom middleware, and cost management
-- [MCP Server](MCPServer.md) — Model Context Protocol server for AI assistant access to echomail
+- [MCP Server](MCPServer.md) — AI and automation integration layer exposing selected platform capabilities to MCP-compatible clients
 - [MCP Client Help](MCPClientHelp.md) — Configure Claude, Anything LLM, OpenAI, and other MCP clients
 - [Matterbridge](Matterbridge.md) — Bidirectional bridge between local chat rooms and external platforms (Discord, Slack, IRC, etc.)
 
@@ -64,7 +64,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 - [Doors Overview](Doors.md) — Overview of door types and how to install them
 - [DOS Doors](DOSDoors.md) — Running classic DOS door games
 - [Native Doors](NativeDoors.md) — Native Linux/Unix door games
-- [WebDoors](WebDoors.md) — HTML5/JavaScript web-based door games
+- [WebDoors](WebDoors.md) — Browser-native door runtime that connects games and utilities to BinktermPHP users, sessions, and APIs
 - [WebDoor Tutorial](WebDoor-Tutorial.md) — Step-by-step guide to building your first WebDoor
 - [JS-DOS Doors](JSDOSDoors.md) — Browser-side DOS game emulation via js-dos/DOSBox WASM
 - [C64 Doors](C64Doors.md) — Commodore 64 door games
@@ -106,7 +106,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 - [Robots](Robots.md) — Echomail robot automation and response bots
 - [File Area Rules](FileAreas.md#file-area-rules) — Automated processing rules for incoming files
-- [Anti-Virus](AntiVirus.md) — File scanning integration for uploaded files
+- [Anti-Virus](Antivirus.md) — File scanning integration for uploaded files
 
 ---
 
@@ -122,16 +122,16 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 ## Developer Reference
 
-- [Architecture](ARCHITECTURE.md) — System architecture: component diagram, FTN packet lifecycle, daemon IPC model, door and AI pipelines
+- [Architecture](ARCHITECTURE.md) — Ecosystem map showing how access methods, realtime delivery, FTN networking, doors, MCP, and AI fit together
 - [Data Model](DATA_MODEL.md) — Key database tables, their relationships, and conceptual model for developers
 - [Developer Guide](DEVELOPER_GUIDE.md) — Coding conventions, database migrations, and project structure
 - [Configuration System](ConfigurationSystem.md) — How features read configuration at runtime: Config::env(), BbsConfig, AppearanceConfig, BinkpConfig, door configs, and per-user settings
 - [Admin Daemon](AdminDaemon.md) — Wire protocol, command reference, and how to add new daemon commands
 - [API Reference](API.md) — HTTP endpoint reference for the public API
-- [BinkStream Back-Channel](BinkStreamChannel.md) — Real-time push architecture: sse_events table, SharedWorker, and how to add new event types
+- [BinkStream Back-Channel](BinkStreamChannel.md) — BinkStream shared realtime event infrastructure used by chat, notifications, doors, and live UI updates
 - [Admin Terminal](AdminTerminal.md) — Floating xterm.js terminal for admins: live event stream, wall/msg commands, command history, and state persistence
 - [Gateway Token Authentication](GatewayTokenAuth.md) — Server-to-server token verification for remote door servers and third-party integrations
-- [Contributing](CONTRIBUTING.md) — Git workflow, PR process, coding standards, and pre-commit checklist
+- [Contributing](../CONTRIBUTING.md) — Git workflow, PR process, coding standards, and pre-commit checklist
 
 ---
 

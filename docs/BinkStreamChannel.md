@@ -66,6 +66,8 @@ window.BinkStream.on(...) / off(...) / send(...)
 
 The important design rule is that WebSocket is not a separate realtime subsystem. It is another transport over the same command/event core used by `/api/stream`.
 
+BinkStream is a platform service, not a chat-only add-on. It is the common live-update path for notifications, chat, dashboards, admin tools, and other browser features that need near-real-time state.
+
 ---
 
 ## Current Transport Model
@@ -344,6 +346,14 @@ window.BinkStream.on('chat_message', function (payload) {
 
 `payload.id` is the domain ID such as `chat_messages.id`, not the stream cursor. The cursor is internal to the worker.
 
+## Workflow: how realtime updates flow
+
+1. A platform subsystem inserts a targeted event into `sse_events`.
+2. `StreamService` reads the event and exposes it through SSE or WebSocket.
+3. The SharedWorker keeps one active connection for the origin and tracks the stream cursor.
+4. Open tabs subscribe to event types through `window.BinkStream.on(...)`.
+5. UI code updates page state, notifications, or live widgets when the payload arrives.
+
 ---
 
 ## Publishing a New Event
@@ -593,3 +603,10 @@ FROM sse_events
 WHERE created_at > NOW() - INTERVAL '1 hour'
 GROUP BY event_type;
 ```
+
+## Related Systems
+
+- [Architecture](ARCHITECTURE.md) — where BinkStream sits in the platform
+- [API Reference](API.md) — `/api/stream` and related HTTP APIs
+- [Admin Terminal](AdminTerminal.md) — one of the live consumers of realtime events
+- [WebDoors](WebDoors.md) — browser-native doors that can reuse live platform APIs

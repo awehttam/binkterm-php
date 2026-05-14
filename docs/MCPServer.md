@@ -28,6 +28,8 @@ The MCP server exposes a set of tools over HTTP that AI assistants can call to q
 
 Authentication is per-user, not per-installation. There are no shared static API keys.
 
+MCP is the platform's AI and automation access layer. It does not replace the web UI or FTN stack; it exposes carefully selected capabilities from the same node to compatible clients and internal AI features.
+
 ---
 
 ## Setup
@@ -129,6 +131,14 @@ X-API-Key: <key>
 ```
 
 The MCP endpoint is `POST /mcp` (and `GET /mcp` for SSE streaming). On a default direct setup, the full URL is typically `https://your-bbs-hostname:3740/mcp`. A health check with no authentication is available at `GET /health`.
+
+## Workflow: how MCP clients interact with the platform
+
+1. A user generates a personal MCP bearer key from **Settings -> AI**.
+2. An MCP-compatible client connects to `/mcp` using that key.
+3. The MCP server resolves the user identity from the key and applies normal platform visibility rules.
+4. Tool calls query echo areas, message threads, or searches against the same data the node exposes to its browser readers.
+5. Results return to the AI or automation client without granting raw database access.
 
 ---
 
@@ -405,3 +415,10 @@ The server logs to `data/logs/mcp-server.log`. Each line is timestamped and tagg
 ```
 
 Every HTTP request is logged with method, path, status code, response time, and client IP. Each MCP tool invocation is also logged with the resolved user ID, username, optional real name, tool name, and client IP. Database errors are logged at `ERROR` level with the PostgreSQL error message. Log output is also written to stdout when running in the foreground.
+
+## Related Systems
+
+- [Architecture](ARCHITECTURE.md) — where MCP sits in the platform
+- [AI Assistant](AIAssistant.md) — built-in reader assistant that uses this MCP layer
+- [MCP Client Help](MCPClientHelp.md) — client-side setup examples
+- [AI Providers and Usage](AIProviders.md) — provider selection, pricing, and reporting

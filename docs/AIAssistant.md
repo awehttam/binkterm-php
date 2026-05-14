@@ -4,6 +4,8 @@ BinktermPHP includes an optional AI assistant for the web message readers. It ap
 
 The assistant is designed as a reader-side helper, not an unattended poster. It works by giving the model controlled read-only tool access to your message data through the built-in MCP server layer, then returning the result inside the web UI.
 
+That makes it a platform feature layered on top of existing message access, not a separate chat bot with private data paths.
+
 ---
 
 ## What It Does
@@ -45,6 +47,15 @@ The request flow is:
 8. If AI credit charging is configured, the request cost is converted into BBS credits and debited from the user's balance.
 
 The system prompt explicitly tells the model to fetch actual message data before answering and not invent message content.
+
+## Workflow: how the reader assistant works
+
+1. A user opens the assistant while reading echomail or netmail in the browser UI.
+2. The browser sends the prompt and optional message context to `POST /api/messages/ai-assist`.
+3. The platform verifies feature flags, provider availability, and user credit state.
+4. `MessageAiAssistant` uses the user's MCP identity to fetch relevant message data through MCP tools.
+5. The selected provider returns a response grounded in fetched platform content.
+6. The answer is rendered back into the reader UI, and usage is recorded for analytics and optional credit charging.
 
 ---
 
@@ -245,9 +256,9 @@ Typical failure cases:
 
 ---
 
-## Related Documentation
+## Related Systems
 
-- [docs/AIProviders.md](AIProviders.md) — provider keys, pricing, and usage accounting
-- [docs/MCPServer.md](MCPServer.md) — MCP server setup and authentication model
-- [docs/CreditSystem.md](CreditSystem.md) — BBS credit economy and charging model
-- [docs/UPGRADING_1.9.2.md](UPGRADING_1.9.2.md) — release notes for the reader assistant introduction
+- [Architecture](ARCHITECTURE.md) — where the assistant fits into the platform
+- [AIProviders.md](AIProviders.md) — provider keys, pricing, and usage accounting
+- [MCPServer.md](MCPServer.md) — MCP server setup and authentication model
+- [CreditSystem.md](CreditSystem.md) — BBS credit economy and charging model

@@ -6,6 +6,8 @@ Most FTNs are coordinated by a hub or network coordinator. You generally request
 
 > **LovlyNet note:** LovelyNet uses its own joining and registration workflow. If you are joining LovelyNet, follow [LovlyNet Network Integration](LovlyNet.md) instead of the generic process below.
 
+In platform terms, this is the point where a standalone installation becomes an FTN-connected node. Once the connection is up, inbound network mail feeds the same message areas later read through the browser UI, terminal access methods, digests, exports, and AI tools.
+
 ---
 
 ## Before You Join
@@ -180,6 +182,14 @@ After the uplink and subscriptions are configured:
 
 For netmail testing, send a message to the coordinator or to a test address the network provides.
 
+## Workflow: how FTN mail becomes visible in the platform
+
+1. A remote FTN node exchanges packets with your uplink over binkp.
+2. BinktermPHP receives, unpacks, and routes inbound netmail, echomail, and files.
+3. Echomail is stored in message areas scoped by the network domain.
+4. Those message areas then become visible through browser readers, terminal access methods, PacketBBS, QWK exports, and MCP tools according to user permissions.
+5. Outbound replies reverse the path: user action creates platform content, packet generation queues it, and the poller delivers it upstream.
+
 ---
 
 ## Operating Multiple FTNs
@@ -233,9 +243,11 @@ The domain is important because it keeps echo areas, file areas, and routing dis
 
 ## Related Documentation
 
+- [Architecture](ARCHITECTURE.md) — ecosystem view of FTN networking inside the platform
 - [LovlyNet Network Integration](LovlyNet.md) — LovelyNet's self-service joining and management workflow.
 - [Configuration Reference](CONFIGURATION.md) — Core environment and application configuration.
 - [Echo Areas](EchoAreas.md) — Echomail area management.
 - [File Areas](FileAreas.md) — File area management.
 - [AreaFix / FileFix](AreaFix.md) — Subscription management by netmail.
 - [FREQ](FREQ.md) — File request serving and requesting.
+- [PacketBBS Gateway](PacketBBS.md) — low-bandwidth access to the same message areas
