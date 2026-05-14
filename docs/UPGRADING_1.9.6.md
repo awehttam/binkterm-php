@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [AI Settings](#ai-settings)
 - [AI Share Summarizer](#ai-share-summarizer)
 - [Messaging](#messaging)
+- [Echomail](#echomail)
 - [Shared Pages](#shared-pages)
 - [Sharing Analytics](#sharing-analytics)
 - [Markdown Editor](#markdown-editor)
@@ -18,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Realtime Chat Delivery](#realtime-chat-delivery)
 - [Networks](#networks)
 - [Local Chat](#local-chat)
+- [Navigation](#navigation)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -46,14 +48,22 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Messaging
 
-- The unread netmail count shown on the dashboard, the netmail sidebar, and the unread filter list now reflects only messages addressed to the logged-in user. Previously the count included outbound messages composed by the user, causing the badge to show a higher number than the unread inbox actually contained.
+- The unread netmail count shown on the dashboard, the netmail sidebar, and the unread filter list now reflects only messages addressed to the logged-in user. Previously the count included outbound messages composed by the user, causing the badge to show a higher number than the unread inbox actually contained. Soft-deleted messages are also excluded from the unread sync so the count and the visible list always agree.
 - Added a new web-reader **Re-Post** action for echomail and netmail. Re-post opens the composer with the original message body, preserves the original message charset and markup format, prefixes the subject with `FWD:`, and leaves the recipient or target area unset so the user must choose where to send it.
 - Added a new echomail reader action to **Forward by Netmail**. This opens the netmail composer using the selected echomail message as the source, keeps the original charset and markup mode, prefixes the subject with `FWD:`, and leaves the netmail recipient unset so the user can choose where to forward it.
+
+### Echomail
+
+- The dashboard now includes a **New Echoareas** summary section listing echoareas that are available to subscribe to but haven't been subscribed to yet. The section can be collapsed and its state is remembered between page loads.
+- The subscriptions page now shows a **New** badge beside echoareas that were recently added to the system, making it easier to discover areas added since the last visit.
+- The subscriptions list now supports sorting by name, unread count, last-activity date, or subscription date.
 
 ### Shared Pages
 
 - Fixed shared message pages so they no longer emit two `og:description` tags. Social previews now use the shared message's AI-generated summary (if one has been created) or subject/body excerpt, instead of also including the site-wide description from the global appearance settings.
 - Applied the same metadata override pattern to shared file pages so file shares also emit a single page-specific `og:description` value.
+- The echomail share dialog now displays any existing share links for the same message, including links created by other users. Each link shows the sharer's username and a one-click copy button, so users can copy an existing link without creating a duplicate.
+- The sharing icon in the echomail message list now appears whenever any user has an active share for a message, not just the currently logged-in user.
 
 ### Sharing Analytics
 
@@ -94,6 +104,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Local Chat
 
 - When opening a direct chat with an AI bot, the bot's description now appears in the chat header beside the bot's name, using the same styling as a chat room description. Previously the header showed only the bot's username.
+
+### Navigation
+
+- When the **About** page is enabled in **Admin → Appearance**, a link to that page now appears in the top navigation bar for visitors who are not logged in. Previously the link only appeared in the footer.
 
 ### Realtime Chat Delivery
 
@@ -180,6 +194,20 @@ The echomail reader also now includes a **Forward by Netmail** action in its mes
 For echomail, the send flow now keeps track of which area the user started from. After either an echomail repost or an echomail-to-netmail forward is sent, the browser returns to that original area view instead of navigating into the newly selected destination or leaving the user in the netmail section. This keeps the user in their previous reading context after forwarding or cross-posting content.
 
 
+## Echomail
+
+### New Echoarea Discovery
+
+The dashboard now surfaces echoareas that exist on the system but haven't been subscribed to yet. A **New Echoareas** section lists these available areas so sysops and users can discover new forums without navigating to the full echoarea browser. The section can be collapsed using a toggle button at the top; the collapsed or expanded state is remembered per-user between page loads.
+
+The subscriptions page (accessible from the navigation menu) now shows a **New** badge beside echoareas that were recently added to the system. This gives subscribers a clear visual signal when new areas appear without having to compare the full list against memory.
+
+### Subscription Sorting
+
+The subscriptions list now supports sorting by multiple criteria — echoarea name, unread message count, date of last activity, and subscription date. The sort preference is preserved for the session.
+
+---
+
 ## Shared Pages
 
 Shared message pages now override the default description metadata provided by the site shell templates. Previously, a shared message page could output both the global site description from **Admin -> Appearance** and a second message-specific `og:description` tag based on the shared post content. Link preview crawlers that saw both tags could pick the wrong one, causing the preview text to describe the BBS in general rather than the shared message itself.
@@ -187,6 +215,12 @@ Shared message pages now override the default description metadata provided by t
 The page now emits only the message-specific description metadata when a shared message is being viewed. This keeps the Open Graph preview aligned with the shared message's AI-generated summary (if one has been created) or subject and excerpt.
 
 The same override structure is also applied to shared file pages. Shared files continue to use their own file description or fallback text, but they no longer risk combining that description with a second site-wide Open Graph description tag.
+
+### Share Dialog Improvements
+
+The echomail share dialog now queries for existing active share links on the same message before displaying the creation form. If other users have already shared the message, their links are listed above the form, each with the sharer's username and a copy button. This prevents accidental duplicate shares and lets anyone quickly reuse an existing public link.
+
+The sharing icon shown beside messages in the echomail message list has also been updated. Previously the icon only appeared when the currently logged-in user had an active share for that message. It now appears whenever any user on the system has an active share, giving readers a clearer signal that the message is publicly accessible.
 
 ## Sharing Analytics
 
@@ -287,6 +321,10 @@ This is applied automatically by the migration when you run `php scripts/setup.p
 ## Local Chat
 
 When a user opens a direct message thread with an AI bot, the bot's configured description is now displayed in the chat header beside the bot's username. The description uses the same formatting as a chat room description, so the header reads as "BOTNAME description text" in the same visual style as "ROOM NAME room description" for room threads. Previously the bot header showed only the bot's username with no additional context about what the bot does.
+
+## Navigation
+
+When the **About** page is enabled (via **Admin → Appearance → About Page**), a link to `/about` now appears in the top navigation bar for visitors who are not logged in. Previously the link only appeared in the page footer. No configuration change is required; the nav link appears automatically if the About page is already enabled.
 
 ---
 
