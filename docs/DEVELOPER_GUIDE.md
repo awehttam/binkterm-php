@@ -291,6 +291,29 @@ When changing CSS, JavaScript files, or i18n catalog strings, increment the `CAC
 
 Template resolution order is `templates/custom/` → `templates/shells/<activeShell>/` → `templates/`. When adding nav links or modifying shared layout, update **both** `templates/base.twig` **and** `templates/shells/web/base.twig` (and `bbs-menu` if applicable).
 
+### In-App Documentation Browser
+
+The admin panel includes a Markdown doc viewer served by `src/Web/DocsController.php`. It renders files from `docs/` and a hardcoded allowlist of root-level Markdown files (`FAQ.md`, `README.md`, `REGISTER.md`, `CONTRIBUTING.md`, `CREDITS.md`). Files outside `docs/` that are not in this allowlist cannot be served — this is intentional to prevent arbitrary file reads.
+
+**Linking from `docs/` to a root-level file**
+
+Use a `../` relative path, which renders correctly on GitHub and in the doc viewer:
+
+```markdown
+See [REGISTER.md](../REGISTER.md) for registration details.
+```
+
+For the doc viewer to follow such a link, the bare filename must appear in **two places** in `DocsController.php`:
+
+1. **`$specialBases` in `resolveDocPath()`** — maps the name to the real filesystem path so the viewer can read the file.
+2. **The `in_array` list in `rewriteLinks()`** — rewrites `../NAME.md` links to `/admin/docs/view/NAME` so they route through the viewer instead of producing a broken link.
+
+Both lists must be updated together when adding a new root-level file to the allowlist. Only add files that are safe to expose to all authenticated users.
+
+**Linking from root-level files into `docs/`**
+
+Links in root-level files (e.g. `README.md`) that point into `docs/` use normal `docs/Foo.md`-style paths. `rewriteLinks()` strips the `docs/` prefix automatically and routes them through the viewer.
+
 ### Logging
 
 Use `AdminDaemonClient::log($level, $message, $context)` for application-level log messages from web-context PHP code. This routes messages through the admin daemon's structured log rather than the PHP error log. The static method handles connection, logging, and cleanup in one call:

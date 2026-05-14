@@ -13,6 +13,7 @@ Complete reference for sysops, users, and developers. New here? Start with [Gett
 - [Maintenance](MAINTENANCE.md) — Routine maintenance procedures, log rotation, database cleanup
 - [Dashboard](Dashboard.md) — User dashboard: cards, echomail badge mode, layout customization, and sysop defaults
 - [Analytics](Analytics.md) — Activity stats, AI usage, ad analytics, and content sharing reports
+- [Registration](../REGISTER.md) — How to register, premium features, and license installation
 
 ---
 

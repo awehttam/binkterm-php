@@ -181,7 +181,12 @@ class DocsController
                 $target = str_replace('\\', '/', $m[2]);
                 $anchor = $m[3] ?? '';
 
-                if (str_contains($target, '../')) {
+                if (str_starts_with($target, '../')) {
+                    // Allow known root-level docs (must match keys in $specialBases).
+                    $basename = basename($target);
+                    if (in_array($basename, ['FAQ', 'README', 'REGISTER', 'CONTRIBUTING', 'CREDITS'], true)) {
+                        return '[' . $label . '](/admin/docs/view/' . $basename . $anchor . ')';
+                    }
                     return $m[0];
                 }
 
@@ -232,6 +237,7 @@ class DocsController
             'FAQ'      => $this->repoRoot . DIRECTORY_SEPARATOR . 'FAQ',
             'README'   => $this->repoRoot . DIRECTORY_SEPARATOR . 'README',
             'REGISTER' => $this->repoRoot . DIRECTORY_SEPARATOR . 'REGISTER',
+            
             'CONTRIBUTING' => $this->repoRoot . DIRECTORY_SEPARATOR . 'CONTRIBUTING',
             'CREDITS' => $this->repoRoot . DIRECTORY_SEPARATOR . 'CREDITS',
         ];

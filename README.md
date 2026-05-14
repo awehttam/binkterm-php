@@ -24,6 +24,7 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 - [For Developers](#for-developers)
 - [Contributors Wanted](#contributors-wanted)
 - [Contributing](#contributing)
+- [Registration](#registration)
 - [License](#license)
 - [Support](#support)
 - [Acknowledgments](#acknowledgments)
@@ -262,6 +263,12 @@ Before contributing, review:
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — PR workflow, coding standards, and testing guidelines
 
 All contributions must be submitted via pull request and will be reviewed by project maintainers.
+
+# Registration
+
+BinktermPHP is open source and fully functional without registration. Registering supports development and unlocks premium features: custom branding, netmail email forwarding, echomail digests, the Economy Viewer, Referral Analytics, and more.
+
+See **[REGISTER.md](REGISTER.md)** for how to register.
 
 # License
 
