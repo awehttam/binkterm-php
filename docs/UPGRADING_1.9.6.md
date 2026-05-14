@@ -51,7 +51,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Shared Pages
 
-- Fixed shared message pages so they no longer emit two `og:description` tags. Social previews now use the shared message subject/body excerpt instead of also including the site-wide description from the global appearance settings.
+- Fixed shared message pages so they no longer emit two `og:description` tags. Social previews now use the shared message's AI-generated summary (if one has been created) or subject/body excerpt, instead of also including the site-wide description from the global appearance settings.
 - Applied the same metadata override pattern to shared file pages so file shares also emit a single page-specific `og:description` value.
 
 ### Sharing Analytics
@@ -178,7 +178,7 @@ For echomail, the send flow now keeps track of which area the user started from.
 
 Shared message pages now override the default description metadata provided by the site shell templates. Previously, a shared message page could output both the global site description from **Admin -> Appearance** and a second message-specific `og:description` tag based on the shared post content. Link preview crawlers that saw both tags could pick the wrong one, causing the preview text to describe the BBS in general rather than the shared message itself.
 
-The page now emits only the message-specific description metadata when a shared message is being viewed. This keeps the Open Graph preview aligned with the shared message subject and excerpt.
+The page now emits only the message-specific description metadata when a shared message is being viewed. This keeps the Open Graph preview aligned with the shared message's AI-generated summary (if one has been created) or subject and excerpt.
 
 The same override structure is also applied to shared file pages. Shared files continue to use their own file description or fallback text, but they no longer risk combining that description with a second site-wide Open Graph description tag.
 
