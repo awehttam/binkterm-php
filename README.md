@@ -80,11 +80,11 @@ BinktermPHP runs in any modern browser across different features and themes.
 ### Core Platform
 - Browser-based echomail and netmail with full-text search, inline ANSI rendering, Markdown/StyleCodes authoring, and message sharing via expiring web links
 - Mobile-responsive UI; installable as a PWA; multiple themes including ANSI-inspired, cyberpunk, and amber terminal styles
-- Credits economy: reward logins and participation, charge for features and door games, referral bonuses and transfers
+- **Credits economy** — reward logins and participation, charge for features and door games, referral bonuses and transfers
 - Bulletins, shoutbox, polls, interests-based echo area discovery, and user profiles
-- QWK offline mail: download and upload packets for external readers
+- **QWK offline mail** — download and upload packets for external readers
 - Echomail digests via email (daily or weekly)
-- BBS Directory: community-maintained node listing with geocoded map view
+- **BBS Directory** — community-maintained node listing with geocoded map view
 
 ### Access Methods
 - **Web** — full HTML5 interface, installable as a PWA
@@ -96,11 +96,11 @@ BinktermPHP runs in any modern browser across different features and themes.
 - **FTP** — standalone passive FTP daemon for file area transfers
 
 ### FTN / Networking
-- Native BinkP mailer: inbound server, polling scheduler, and on-demand poll
+- **Native BinkP mailer** — inbound server, polling scheduler, and on-demand poll
 - Multiple simultaneous FTN network connections (FidoNet, fsxnet, DoveNet, LovlyNet, and others)
 - AreaFix and FileFix for automated subscription management with hub uplinks
 - Nodelist browser with text/address/flag search, map view, and crashmail routing
-- LovlyNet: Zone 227 FTN with automated node registration (`scripts/lovlynet_setup.php`)
+- **LovlyNet** — Zone 227 FTN with automated node registration (`scripts/lovlynet_setup.php`)
 - File areas with automated rules, FREQ serving, and anti-virus integration
 
 ### Doors & Games
@@ -125,13 +125,13 @@ BinktermPHP runs in any modern browser across different features and themes.
 - **Share summarizer** — AI-generated `og:description` for shared message links
 
 ### Sysop / Admin Tools
-- Full admin web interface — no config file editing required for day-to-day operations
-- Activity analytics: logins by source, echomail, netmail, doors, files, nodelist, hourly distribution
-- Economy viewer: credit ledger, balance distribution, top earners and spenders
-- Ad analytics: impressions, clicks, and CTR per ad (licensed feature)
-- Advertising manager: rotate ANSI, RIPscrip, Sixel, or plain-text ads; Broadcast Manager for automated postings
-- Customizable appearance: shells, themes, announcements, and template overrides
-- Localization: i18n support with English, French, Spanish, Italian, and more
+- **Full admin web interface** — no config file editing required for day-to-day operations
+- **Activity analytics** — logins by source, echomail, netmail, doors, files, nodelist, hourly distribution
+- **Economy viewer** — credit ledger, balance distribution, top earners and spenders
+- **Ad analytics** — impressions, clicks, and CTR per ad (licensed feature)
+- **Advertising manager** — rotate ANSI, RIPscrip, Sixel, or plain-text ads; Broadcast Manager for automated postings
+- **Customizable appearance** — shells, themes, announcements, and template overrides
+- **Localization** — i18n support with English, French, Spanish, Italian, and more
 
 ---
 
