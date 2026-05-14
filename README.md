@@ -34,7 +34,7 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 # Why BinktermPHP?
 
 - **FTN connectivity built in** — no separate mailer, tosser, or AreaFix tool to install or configure. Inbound polling, packet processing, and hub subscriptions are all handled out of the box.
-- **Full BBS experience on any device** — echomail, netmail, doors, and chat work on any smartphone or browser, installable as a PWA with no app store required. Telnet, SSH, Gemini, QWK, and MCP are also built in for classic access.
+- **Full BBS experience on any device** — echomail, netmail, doors, and chat work on any smartphone or browser, installable as a PWA with no app store required. Telnet, SSH, Gemini, QWK, and MCP are also built in.
 - **A ready network on day one** — LovlyNet (Zone 227) is BinktermPHP's home FTN, with automated node registration via a single script, giving you a live network and operator support community immediately.
 - **Doors for every era** — classic DOS games via DOSBox-X, native PTY doors, HTML5 WebDoors, browser WASM, and C64 emulation, with credit charging built in across all types.
 - **Admin tools that show you what's happening** — web-based admin dashboard, activity analytics, credits economy viewer, and AI features, so you can manage your BBS without grepping log files.
