@@ -1,6 +1,6 @@
 # BinktermPHP
 
-BinktermPHP is a multi-protocol BBS platform built around FTN messaging. It provides a full browser-based community experience with a native BinkP mailer, a real-time event bus, and a door game framework — accessible from any modern browser, a Telnet or SSH terminal, a Gemini client, or a mesh radio node. No third-party mailer required.
+BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. It provides a full browser-based community interface with a native BinkP mailer, a real-time event bus, and a door game framework — accessible from browsers, Telnet/SSH terminals, Gemini clients, QWK readers, AI assistants, and mesh radio nodes. No third-party mailer required.
 
 awehttam operates a live instance at [claudes.lovelybits.org](https://claudes.lovelybits.org) — Claude's own BBS, and a point system at [mypoint.lovelybits.org](https://mypoint.lovelybits.org).
 
@@ -33,11 +33,11 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 
 # Why BinktermPHP?
 
-- **FTN-native** — ships its own BinkP mailer; connect to FidoNet-style networks without Binkd, Makenl, or any other external software
-- **Multi-protocol access** — browser, Telnet, SSH, Gemini, PacketBBS over mesh radio, QWK offline readers, and MCP for AI assistants, all served from one installation
-- **Real-time architecture** — BinkStream delivers live events (new mail, chat messages, dashboard updates) via WebSocket or SSE; incoming FTN mail triggers notifications without polling
-- **Complete door support** — native Linux programs, classic DOS doors via DOSBox-X, HTML5 WebDoors with credit integration, browser-side JS-DOS emulation, and C64 emulated doors
-- **MCP server** — expose your echo areas directly to AI assistants via the Model Context Protocol; each user generates their own personal bearer key
+- **FTN-native** — built-in BinkP mailer; no Binkd, Makenl, or external mailer required
+- **Multi-protocol access** — one install serves browsers, Telnet, SSH, Gemini, mesh radio, QWK readers, and AI assistants
+- **Real-time architecture** — BinkStream pushes live events (new mail, chat, dashboard) via WebSocket and SSE; no polling
+- **Complete door support** — classic DOS via DOSBox-X, native Linux/Windows, HTML5 WebDoors, browser WASM, and C64 emulation, all with optional credit integration
+- **MCP server** — expose your echo areas to AI assistants via Model Context Protocol; each user gets a personal bearer key
 
 ---
 
@@ -79,7 +79,8 @@ BinktermPHP runs in any modern browser across different features and themes.
 
 ### Core Platform
 - Browser-based echomail and netmail with full-text search, inline ANSI rendering, Markdown/StyleCodes authoring, and message sharing via expiring web links
-- Mobile-responsive UI; installable as a PWA; multiple themes including ANSI-inspired, cyberpunk, and amber terminal styles
+- Mobile-responsive UI, installable as a PWA
+- Multiple themes — ANSI-inspired, cyberpunk, amber terminal, and more
 - **Credits economy** — reward logins and participation, charge for features and door games, referral bonuses and transfers
 - Bulletins, shoutbox, polls, interests-based echo area discovery, and user profiles
 - **QWK offline mail** — download and upload packets for external readers
@@ -170,6 +171,8 @@ BinktermPHP supports two installation methods:
 
 For complete installation instructions — system requirements, Ubuntu/Debian package setup, PostgreSQL configuration, web server configuration (Caddy, Nginx, Apache), cron job setup, and a network port reference — see **[docs/INSTALL.md](docs/INSTALL.md)**.
 
+---
+
 # Configuration
 
 Two files must be configured before first run. If you use the installer, it creates and populates these for you during setup:
@@ -180,6 +183,8 @@ Two files must be configured before first run. If you use the installer, it crea
 After first run, ongoing BBS settings are managed through the **Admin web interface** (Admin → BBS Settings). After editing any config file, restart services with `bash scripts/restart_daemons.sh`.
 
 Full configuration reference: **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**
+
+---
 
 # Upgrading
 
@@ -194,6 +199,8 @@ The general steps:
 
 **Using the installer:** Re-run `binkterm-installer.phar` to upgrade.
 
+---
+
 # Joining LovlyNet Network
 
 LovlyNet is a FidoNet Technology Network (FTN) operating in Zone 227 with automated registration:
@@ -204,11 +211,15 @@ php scripts/lovlynet_setup.php
 
 See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete guide including public vs passive node setup, AreaFix configuration, and troubleshooting.
 
+---
+
 # Customization
 
 The easiest way to customize your BBS is through **Admin → Appearance**: shells, branding, announcements, navigation links, and SEO. Manual options include template overrides in `templates/custom/`, custom stylesheets, and local route files — all upgrade-safe.
 
 See **[docs/CUSTOMIZING.md](docs/CUSTOMIZING.md)** for the full reference.
+
+---
 
 # Optional Features
 
@@ -254,6 +265,8 @@ BinktermPHP is developed using modern AI-assisted workflows alongside traditiona
 
 We're looking for experienced PHP developers interested in contributing to BinktermPHP. Areas include FTN networking, WebDoors game development, themes, telnet, real-time features, and more. See **[HELP_WANTED.md](HELP_WANTED.md)** for details.
 
+---
+
 # Contributing
 
 Before contributing, review:
@@ -264,15 +277,21 @@ Before contributing, review:
 
 All contributions must be submitted via pull request and will be reviewed by project maintainers.
 
+---
+
 # Registration
 
 BinktermPHP is open source and fully functional without registration. Registering supports development and unlocks premium features: custom branding, netmail email forwarding, echomail digests, the Economy Viewer, Referral Analytics, and more.
 
 See **[REGISTER.md](REGISTER.md)** for how to register.
 
+---
+
 # License
 
 This project is licensed under a BSD License. See [LICENSE.md](LICENSE.md) for more information.
+
+---
 
 # Support
 
@@ -280,6 +299,8 @@ This project is licensed under a BSD License. See [LICENSE.md](LICENSE.md) for m
 - **FAQ**: [FAQ.md](FAQ.md)
 - **Issues**: GitHub issue tracker
 - **Community**: [claudes.lovelybits.org](https://claudes.lovelybits.org) — live BBS; Fidonet echo areas
+
+---
 
 # Acknowledgments
 
