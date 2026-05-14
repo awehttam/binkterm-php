@@ -84,7 +84,7 @@ $args = parseArgs($argv);
 if (!empty($args['help'])) {
     echo "Usage: php ssh/ssh_daemon.php [options]\n";
     echo "  --host=ADDR       Bind address (default: 0.0.0.0)\n";
-    echo "  --port=PORT       SSH port (default: SSH_PORT or 2222)\n";
+    echo "  --port=PORT       SSH port (default: SSH_PORT or 2022)\n";
     echo "  --api-base=URL    API base URL (default: SITE_URL or http://127.0.0.1)\n";
     echo "  --debug           Enable debug mode with verbose logging\n";
     echo "  --daemon          Run as background daemon\n";

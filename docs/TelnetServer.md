@@ -13,8 +13,9 @@ troubleshooting.
 
 - **Telnet option negotiation** — IAC-based negotiation for NAWS (terminal size),
   echo control, and suppress-go-ahead
-- **Pre-login ESC anti-bot challenge** — filters automated scanners before the
-  login prompt is shown
+- **Dual listener (plain + TLS)** — listens on a plain-text port (default 2323)
+  and a TLS-encrypted port (default 8023) simultaneously; TLS cert is auto-generated
+  on first run if not provided
 - **Optional ANSI login screen** — place an ANSI art file at
   `telnet/screens/login.ans` to display it instead of the default login banner
   (sent as raw ANSI with CRLF normalization)
@@ -71,10 +72,62 @@ php telnet/telnet_daemon.php --debug
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--host` | `0.0.0.0` | IP address to bind to (use `127.0.0.1` for localhost only) |
-| `--port` | `2323` | TCP port to listen on |
+| `--port` | `2323` | Plain-text TCP port to listen on |
+| `--no-tls` | (off) | Disable the TLS listener (TLS is enabled by default) |
+| `--tls-port` | `8023` | TCP port for the TLS listener |
+| `--tls-cert` | auto-generated | Path to TLS certificate PEM file |
+| `--tls-key` | auto-generated | Path to TLS private key PEM file |
 | `--api-base` | `SITE_URL` | Base URL for API requests (e.g., `http://localhost`) |
 | `--insecure` | (off) | Accept self-signed SSL certificates for API calls |
 | `--debug` | (off) | Enable verbose debug logging to console |
+| `--daemon` | (off) | Run as a background daemon process |
+| `--pid-file` | `data/run/telnetd.pid` | Path to write the daemon PID file |
+
+### Environment Variable Equivalents
+
+Command-line options take precedence over `.env` values.
+
+| `.env` variable | Default | Description |
+|---|---|---|
+| `TELNET_BIND_HOST` | `0.0.0.0` | Bind address (equivalent to `--host`) |
+| `TELNET_PORT` | `2323` | Plain-text port (equivalent to `--port`) |
+| `TELNET_TLS` | `true` | Set to `false` to disable TLS entirely |
+| `TELNET_TLS_PORT` | `8023` | TLS listener port (equivalent to `--tls-port`) |
+| `TELNET_TLS_CERT` | (empty) | Path to TLS cert PEM (equivalent to `--tls-cert`) |
+| `TELNET_TLS_KEY` | (empty) | Path to TLS key PEM (equivalent to `--tls-key`) |
+
+## TLS Support
+
+The Telnet daemon runs two listeners simultaneously by default: a plain-text listener on port 2323 and a TLS-encrypted listener on port 8023. Both listeners expose the same BBS session.
+
+On first start the daemon checks for a certificate and key at `data/telnetd.crt` and `data/telnetd.key`. If they do not exist, a self-signed certificate is generated automatically (using `ext-openssl` or the `openssl` CLI as a fallback) and stored there.
+
+To disable TLS:
+
+```bash
+php telnet/telnet_daemon.php --no-tls
+```
+
+Or in `.env`:
+
+```ini
+TELNET_TLS=false
+```
+
+To use your own certificate instead of the auto-generated one:
+
+```bash
+php telnet/telnet_daemon.php --tls-cert=/etc/ssl/mycert.pem --tls-key=/etc/ssl/mykey.pem
+```
+
+Or in `.env`:
+
+```ini
+TELNET_TLS_CERT=/etc/ssl/mycert.pem
+TELNET_TLS_KEY=/etc/ssl/mykey.pem
+```
+
+TLS connections are logged with the cipher suite and key size (e.g., `TLS connection from 1.2.3.4 [TLSv1.2 AES128-GCM-SHA256 128-bit]`).
 
 ## Running as a Service
 
@@ -193,27 +246,31 @@ active floods, or set it to `0` on private/LAN-only installs.
 ### Fail2ban
 
 The telnet daemon writes to `data/logs/telnetd.log`. Example fail2ban
-configuration files are included for banning IPs that repeatedly fail the
-pre-login ESC anti-bot challenge:
+configuration files are provided in `docs/fail2ban/` for banning IPs that
+trigger the connection rate limiter:
 
-- `docs/fail2ban/filter.d/binkterm-telnet-esc.conf`
-- `docs/fail2ban/jail.d/binkterm-telnet-esc.local.example`
+- `docs/fail2ban/filter.d/binkterm-telnet-ratelimit.conf`
+- `docs/fail2ban/jail.d/binkterm-telnet-ratelimit.local.example`
 
 Example install steps on Linux:
 
 ```bash
-sudo cp docs/fail2ban/filter.d/binkterm-telnet-esc.conf /etc/fail2ban/filter.d/
-sudo cp docs/fail2ban/jail.d/binkterm-telnet-esc.local.example /etc/fail2ban/jail.d/binkterm-telnet-esc.local
-sudo sed -i 's#/path/to/binkterm#/var/www/binkterm-php#' /etc/fail2ban/jail.d/binkterm-telnet-esc.local
+sudo cp docs/fail2ban/filter.d/binkterm-telnet-ratelimit.conf /etc/fail2ban/filter.d/
+sudo cp docs/fail2ban/jail.d/binkterm-telnet-ratelimit.local.example /etc/fail2ban/jail.d/binkterm-telnet-ratelimit.local
+sudo sed -i 's#/path/to/binkterm#/var/www/binkterm-php#' /etc/fail2ban/jail.d/binkterm-telnet-ratelimit.local
 sudo systemctl restart fail2ban
-sudo fail2ban-client status binkterm-telnet-esc
+sudo fail2ban-client status binkterm-telnet-ratelimit
 ```
 
-The provided filter matches log lines like:
+The filter matches log lines like:
 
 ```text
-[2026-03-19 02:12:09] [1441153] [INFO] Bot/timeout on ESC challenge from 66.205.238.49:45072 — connection dropped
+[2026-03-19 02:12:09] [1441153] [INFO] Rate limit exceeded for 66.205.238.49 - connection rejected
 ```
+
+The daemon suppresses duplicate log lines within a rate-limit window, so only
+one line is written per offending IP per window. The provided jail uses
+`maxretry = 1` so fail2ban bans immediately on the first logged rejection.
 
 ## Troubleshooting
 
@@ -298,17 +355,19 @@ request/response details.
 
 ### Connection Flow
 
-1. Client connects to daemon socket
+1. Client connects to the plain-text or TLS listener
 2. Parent checks per-IP connection rate limit — closes socket immediately if exceeded
 3. Daemon forks child process (Linux/macOS) or handles directly (Windows)
-4. Child performs telnet negotiation (NAWS, echo control)
-5. Child displays ANSI login screen (`telnet/screens/login.ans`) or default banner
-6. Pre-login ESC anti-bot challenge is presented
-7. User authenticates via API
-8. Main menu displayed with message counts
-9. User navigates menus and performs actions
-10. Connection closed and child exits
-11. Parent reaps zombie process via SIGCHLD
+4. If TLS: child performs TLS handshake; on failure, connection is dropped
+5. Child performs telnet option negotiation (NAWS, TTYPE, echo control)
+6. Child probes for ANSI color support via TTYPE; enables color automatically if supported
+7. Child displays ANSI/Sixel login screen or default banner
+8. User sees pre-login menu (Login / Register / Reset password / QWK / Quit)
+9. User authenticates via API (up to 3 attempts)
+10. Main menu displayed with message counts
+11. User navigates menus and performs actions
+12. Connection closed and child exits
+13. Parent reaps zombie process via SIGCHLD
 
 ### Code Structure
 

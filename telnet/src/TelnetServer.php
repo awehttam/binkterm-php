@@ -338,7 +338,7 @@ class TelnetServer
                 $rl = $peerIp !== null ? $this->isRateLimited($peerIp) : 0;
                 if ($rl > 0) {
                     if ($rl === 1) {
-                        $this->log("Rate limit exceeded for {$peerIp} — connection rejected");
+                        $this->log("Rate limit exceeded for {$peerIp} - connection rejected");
                     }
                     @fwrite($conn, "Too many connections from your IP. Please try again later.\r\n");
                     fclose($conn);
