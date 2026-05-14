@@ -33,7 +33,7 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 
 # Why BinktermPHP?
 
-- **No external mailer needed** — most FTN setups bolt together Binkd, Makenl, and a separate tosser. BinktermPHP includes its own BinkP mailer: inbound server, polling scheduler, AreaFix, and packet processing all in one install.
+- **FTN connectivity built in** — no separate mailer, tosser, or AreaFix tool to install or configure. Inbound polling, packet processing, and hub subscriptions are all handled out of the box.
 - **Web-first, but not web-only** — users connect from any browser or smartphone without installing anything. Telnet, SSH, Gemini, QWK, and MCP are also built in for those who want the classic experience.
 - **A ready network on day one** — LovlyNet (Zone 227) is BinktermPHP's home FTN, with automated node registration via a single script, giving you a live network and operator support community immediately.
 - **Doors for every era** — classic DOS games via DOSBox-X, native PTY doors, HTML5 WebDoors, browser WASM, and C64 emulation, with credit charging built in across all types.
