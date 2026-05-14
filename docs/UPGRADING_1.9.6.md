@@ -109,7 +109,8 @@ Two processes are required beyond the web server:
 1. **The Matterbridge binary** — a separate Go program you download and run. It maintains connections to external platforms and exposes a local HTTP API. BinktermPHP sends outbound messages to it and polls it for inbound ones.
 2. **`scripts/matterbridge_daemon.php`** — a BinktermPHP background daemon that polls the Matterbridge API every few seconds, matches incoming messages to local rooms by gateway name, and inserts them into `chat_messages` under a configured bridge user account.
 
-Neither process is started 
+Neither process is started automatically — you must run the Matterbridge binary yourself and start `matterbridge_daemon.php` as described below.
+
 ### Configuration
 
 Configure it through the admin panel, or copy `config/matterbridge.json.example` to `config/matterbridge.json` and fill in your values.
