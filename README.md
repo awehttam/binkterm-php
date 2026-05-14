@@ -33,11 +33,11 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 
 # Why BinktermPHP?
 
-- **FTN-native** — built-in BinkP mailer for FidoNet-style echomail networks; no Binkd, Makenl, or external mailer required
-- **Multi-protocol access** — one install serves browsers, Telnet, SSH, Gemini, mesh radio, QWK readers, and AI assistants
-- **Real-time architecture** — BinkStream pushes live events (new mail, chat, dashboard) via WebSocket and SSE; no polling
-- **Broad door support** — classic DOS via DOSBox-X, native Linux/Windows, HTML5 WebDoors, browser WASM, and C64 browser emulation, all with optional credit integration
-- **Analytics** — activity statistics, AI usage, ad sharing analytics, economy viewer, and more
+- **No external mailer needed** — most FTN setups bolt together Binkd, Makenl, and a separate tosser. BinktermPHP includes its own BinkP mailer: inbound server, polling scheduler, AreaFix, and packet processing all in one install.
+- **Web-first, but not web-only** — users connect from any browser or smartphone without installing anything. Telnet, SSH, Gemini, QWK, and MCP are also built in for those who want the classic experience.
+- **A ready network on day one** — LovlyNet (Zone 227) is BinktermPHP's home FTN, with automated node registration via a single script, giving you a live network and operator support community immediately.
+- **Doors for every era** — classic DOS games via DOSBox-X, native PTY doors, HTML5 WebDoors, browser WASM, and C64 emulation, with credit charging built in across all types.
+- **Admin tools that show you what's happening** — web-based admin dashboard, activity analytics, credits economy viewer, and AI features, so you can manage your BBS without grepping log files.
 
 ---
 
