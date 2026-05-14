@@ -140,24 +140,6 @@ BinktermPHP runs in any modern browser across different features and themes.
 
 BinktermPHP is structured in layers. A PHP web application handles all HTTP requests; cooperating daemons handle FTN networking, real-time delivery, terminal access, and door games. All processes share a single PostgreSQL database.
 
-```
-Clients
-  Browser (WebSocket/SSE) · Telnet/SSH terminals · PacketBBS/mesh radio
-  AI clients via MCP · QWK offline readers · Gemini clients
-
-Access Layer
-  PHP web app · BinkStream (WebSocket daemon) · telnet_daemon · ssh_daemon · mcp-server
-
-Service Layer
-  admin_daemon · mrc_daemon · gemini_daemon · multiplexing-server (door PTY/DOSBox bridge)
-
-FTN Networking Layer
-  binkp_server · binkp_scheduler · binkp_poll
-
-Data Layer
-  PostgreSQL · data/inbound/ · data/outbound/ · data/logs/
-```
-
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full component diagram, FTN packet lifecycle, daemon IPC model, door subsystem, and AI pipeline.
 
 ---
