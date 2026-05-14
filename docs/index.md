@@ -106,6 +106,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 ## Automation
 
 - [Robots](Robots.md) — Echomail robot automation and response bots
+- [Auto Feed](Autofeed.md) — RSS/Atom and Bluesky auto feeder: posts new items to echo areas on a cron schedule
 - [File Area Rules](FileAreas.md#file-area-rules) — Automated processing rules for incoming files
 - [Anti-Virus](Antivirus.md) — File scanning integration for uploaded files
 

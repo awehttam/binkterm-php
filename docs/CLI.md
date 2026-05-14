@@ -35,6 +35,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [RAM Usage Report](#ram-usage-report)
 - [Who](#who)
 - [Fix Date Received](#fix-date-received)
+- [Auto Feed Poster](#auto-feed-poster)
 - [Import BBS List](#import-bbs-list)
 
 ## Message Posting Tool
@@ -1085,6 +1086,37 @@ You can trigger this script automatically whenever a matching ZIP arrives in a f
     "fail_action": "keep+notify"
   }
 ]
+```
+
+## Auto Feed Poster
+
+Checks active auto feed sources (RSS/Atom and Bluesky) and posts new items to their configured echo areas. See [Auto Feed](Autofeed.md) for full setup and configuration details.
+
+```bash
+# Check all active feeds
+php scripts/rss_poster.php
+
+# Check a specific feed by ID
+php scripts/rss_poster.php --feed-id=3
+
+# Force a check even if the feed was recently checked
+php scripts/rss_poster.php --force
+
+# Show detailed output
+php scripts/rss_poster.php --verbose
+```
+
+| Flag | Description |
+|---|---|
+| `--feed-id=N` | Check only the feed with this database ID. |
+| `--force` | Bypass the 5-minute per-feed rate-limit window. |
+| `--verbose` | Print item titles and post results to stdout. |
+| `--help` | Show usage information. |
+
+Typical cron setup:
+
+```cron
+*/30 * * * * www-data php /path/to/binkterm-php/scripts/rss_poster.php >> /path/to/binkterm-php/data/logs/auto_feed.log 2>&1
 ```
 
 ## Admin Client
