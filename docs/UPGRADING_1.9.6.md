@@ -213,7 +213,7 @@ Other changes to `docs/INSTALL.md`:
 
 - PostgreSQL setup is now its own top-level section, clearly framed as an admin-user task separate from the BinkTermPHP install.
 - Web server configuration is positioned after the install methods, since sysops need the install path before they can fill in the config.
-- A `SITE_URL` configuration section has been added to Step 3 of the Git install path, with a table covering the common scenarios: public domain, IP-only, local machine, and PHP built-in server. The installer section notes that `SITE_URL` will be prompted during the install run.
+- A `SITE_URL` configuration section has been added to Step 3 of the Git install path, with a table covering the common scenarios: public domain, IP-only, local machine, and PHP built-in server.
 - Nginx and Apache configurations are grouped under an "Other web servers (unsupported)" sub-heading to make Caddy's recommended status more visible.
 - The PHP built-in server entry now carries an explicit warning that it is not safe for production use.
 - The Network Ports section now opens with a plain-language explanation of the table and includes a `ufw` example showing the most common firewall rules for inbound and outbound services.
