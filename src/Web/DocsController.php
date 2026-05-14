@@ -114,7 +114,7 @@ class DocsController
         }
 
         $raw  = file_get_contents($realPath);
-        $raw  = $this->rewriteLinks($raw);
+        $raw  = self::rewriteLinks($raw);
         // HTML pass-through is enabled only for README.md, which is trusted
         // sysop-maintained content. All other docs are rendered with HTML escaped.
         $allowHtml = ($name === 'README');
@@ -171,7 +171,7 @@ class DocsController
      *
      * External https:// links and anchor (#) links are left unchanged.
      */
-    private function rewriteLinks(string $markdown): string
+    public static function rewriteLinks(string $markdown): string
     {
         // Rewrite relative .md links to /admin/docs/view/{name}
         $markdown = preg_replace_callback(

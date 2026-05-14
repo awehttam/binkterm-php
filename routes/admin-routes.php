@@ -573,7 +573,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             return;
         }
 
-        $raw = file_get_contents($docPath);
+        $raw = \BinktermPHP\Web\DocsController::rewriteLinks(file_get_contents($docPath));
         $html = \BinktermPHP\MarkdownRenderer::toHtml($raw);
 
         $template = new Template();
