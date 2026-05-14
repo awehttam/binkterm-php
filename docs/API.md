@@ -57,51 +57,51 @@ Content-Type: application/json
 ## Contents
 
 - [Public API](#public-api)
-  - [Account](#public-api-account) (1)
-  - [Address Book](#public-api-address-book) (7)
-  - [Ads](#public-api-ads) (2)
-  - [Auth](#public-api-auth) (7)
-  - [Binkp](#public-api-binkp) (23)
-  - [Bulletins](#public-api-bulletins) (3)
-  - [Chat](#public-api-chat) (6)
-  - [Credits](#public-api-credits) (1)
-  - [Dashboard](#public-api-dashboard) (2)
-  - [Debug](#public-api-debug) (1)
-  - [Docs](#public-api-docs) (1)
-  - [Echoareas](#public-api-echoareas) (7)
-  - [Fileareas](#public-api-fileareas) (10)
-  - [Files](#public-api-files) (26)
-  - [Freq Log](#public-api-freq-log) (1)
-  - [I18n](#public-api-i18n) (1)
-  - [Interests](#public-api-interests) (7)
-  - [Markdown Images](#public-api-markdown-images) (2)
-  - [Media](#public-api-media) (2)
-  - [Messages](#public-api-messages) (47)
-  - [Netmail](#public-api-netmail) (1)
-  - [Nodelist](#public-api-nodelist) (2)
-  - [Notify](#public-api-notify) (3)
-  - [Pending Users](#public-api-pending-users) (4)
-  - [Polls](#public-api-polls) (3)
-  - [Qwk](#public-api-qwk) (7)
-  - [Referrals](#public-api-referrals) (2)
-  - [Register](#public-api-register) (1)
-  - [Shoutbox](#public-api-shoutbox) (2)
-  - [Stream](#public-api-stream) (2)
-  - [Subscriptions](#public-api-subscriptions) (4)
-  - [System](#public-api-system) (1)
-  - [Taglines](#public-api-taglines) (1)
-  - [Test](#public-api-test) (1)
-  - [Url Preview](#public-api-url-preview) (1)
-  - [User](#public-api-user) (33)
-  - [Users](#public-api-users) (9)
-  - [Verify](#public-api-verify) (1)
-  - [Whosonline](#public-api-whosonline) (1)
+  - [Account](#account) (1)
+  - [Address Book](#address-book) (7)
+  - [Ads](#ads) (2)
+  - [Auth](#auth) (7)
+  - [Binkp](#binkp) (23)
+  - [Bulletins](#bulletins) (3)
+  - [Chat](#chat) (6)
+  - [Credits](#credits) (1)
+  - [Dashboard](#dashboard) (2)
+  - [Debug](#debug) (1)
+  - [Docs](#docs) (1)
+  - [Echoareas](#echoareas) (7)
+  - [Fileareas](#fileareas) (10)
+  - [Files](#files) (26)
+  - [Freq Log](#freq-log) (1)
+  - [I18n](#i18n) (1)
+  - [Interests](#interests) (7)
+  - [Markdown Images](#markdown-images) (2)
+  - [Media](#media) (2)
+  - [Messages](#messages) (47)
+  - [Netmail](#netmail) (1)
+  - [Nodelist](#nodelist) (2)
+  - [Notify](#notify) (3)
+  - [Pending Users](#pending-users) (4)
+  - [Polls](#polls) (3)
+  - [Qwk](#qwk) (7)
+  - [Referrals](#referrals) (2)
+  - [Register](#register) (1)
+  - [Shoutbox](#shoutbox) (2)
+  - [Stream](#stream) (2)
+  - [Subscriptions](#subscriptions) (4)
+  - [System](#system) (1)
+  - [Taglines](#taglines) (1)
+  - [Test](#test) (1)
+  - [Url Preview](#url-preview) (1)
+  - [User](#user) (33)
+  - [Users](#users) (9)
+  - [Verify](#verify) (1)
+  - [Whosonline](#whosonline) (1)
 
 ---
 
 ## Public API
 
-### Account {#public-api-account}
+### Account
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -141,7 +141,7 @@ Reminder send result
 
 ---
 
-### Address Book {#public-api-address-book}
+### Address Book
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -372,7 +372,7 @@ Address book statistics object
 
 ---
 
-### Ads {#public-api-ads}
+### Ads
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -437,7 +437,7 @@ Click recording confirmation with redirect URL
 
 ---
 
-### Auth {#public-api-auth}
+### Auth
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -657,7 +657,7 @@ Password reset result
 
 ---
 
-### Binkp {#public-api-binkp}
+### Binkp
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -1304,7 +1304,7 @@ Array of matching log entries
 
 ---
 
-### Bulletins {#public-api-bulletins}
+### Bulletins
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -1389,7 +1389,7 @@ JSON object with success status
 
 ---
 
-### Chat {#public-api-chat}
+### Chat
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -1604,7 +1604,7 @@ Array of new messages since cursor
 
 ---
 
-### Credits {#public-api-credits}
+### Credits
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -1645,7 +1645,7 @@ Transfer confirmation with updated balances
 
 ---
 
-### Dashboard {#public-api-dashboard}
+### Dashboard
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -1705,7 +1705,7 @@ Layout save confirmation
 
 ---
 
-### Debug {#public-api-debug}
+### Debug
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -1736,7 +1736,7 @@ Current authentication state
 
 ---
 
-### Docs {#public-api-docs}
+### Docs
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -1765,7 +1765,7 @@ Rendered help documentation in HTML format.
 
 ---
 
-### Echoareas {#public-api-echoareas}
+### Echoareas
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -2021,7 +2021,7 @@ Array of echo areas
 
 ---
 
-### Fileareas {#public-api-fileareas}
+### Fileareas
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -2355,7 +2355,7 @@ Updated file area with comment area configuration
 
 ---
 
-### Files {#public-api-files}
+### Files
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -3279,7 +3279,7 @@ Comment creation result with message details
 
 ---
 
-### Freq Log {#public-api-freq-log}
+### Freq Log
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -3322,7 +3322,7 @@ Paginated frequency log entries
 
 ---
 
-### I18n {#public-api-i18n}
+### I18n
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -3360,7 +3360,7 @@ Localized translation catalogs
 
 ---
 
-### Interests {#public-api-interests}
+### Interests
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -3604,7 +3604,7 @@ Paginated message results
 
 ---
 
-### Markdown Images {#public-api-markdown-images}
+### Markdown Images
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -3667,7 +3667,7 @@ JSON object with upload success, public URL, and original filename.
 
 ---
 
-### Media {#public-api-media}
+### Media
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -3722,7 +3722,7 @@ JSON object with media type, provider name, and embed HTML.
 
 ---
 
-### Messages {#public-api-messages}
+### Messages
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5198,7 +5198,7 @@ AI-generated response (truncated in snippet)
 
 ---
 
-### Netmail {#public-api-netmail}
+### Netmail
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5238,7 +5238,7 @@ Upload success with attachment token
 
 ---
 
-### Nodelist {#public-api-nodelist}
+### Nodelist
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5303,7 +5303,7 @@ JSON object containing search results
 
 ---
 
-### Notify {#public-api-notify}
+### Notify
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5398,7 +5398,7 @@ Confirmation of seen marker update
 
 ---
 
-### Pending Users {#public-api-pending-users}
+### Pending Users
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5543,7 +5543,7 @@ Rejection confirmation
 
 ---
 
-### Polls {#public-api-polls}
+### Polls
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5635,7 +5635,7 @@ JSON object with created poll ID and details
 
 ---
 
-### Qwk {#public-api-qwk}
+### Qwk
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5848,7 +5848,7 @@ Search results
 
 ---
 
-### Referrals {#public-api-referrals}
+### Referrals
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5909,7 +5909,7 @@ System-wide referral statistics
 
 ---
 
-### Register {#public-api-register}
+### Register
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -5951,7 +5951,7 @@ Registration result with success status and optional email confirmation details
 
 ---
 
-### Shoutbox {#public-api-shoutbox}
+### Shoutbox
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -6011,7 +6011,7 @@ JSON object with success status
 
 ---
 
-### Stream {#public-api-stream}
+### Stream
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -6069,7 +6069,7 @@ Command execution result
 
 ---
 
-### Subscriptions {#public-api-subscriptions}
+### Subscriptions
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -6134,7 +6134,7 @@ Subscription management result (structure determined by SubscriptionController)
 
 ---
 
-### System {#public-api-system}
+### System
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -6163,7 +6163,7 @@ System status metrics
 
 ---
 
-### Taglines {#public-api-taglines}
+### Taglines
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -6192,7 +6192,7 @@ List of available taglines
 
 ---
 
-### Test {#public-api-test}
+### Test
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -6215,7 +6215,7 @@ Test success response with timestamp
 
 ---
 
-### Url Preview {#public-api-url-preview}
+### Url Preview
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -6254,7 +6254,7 @@ Open Graph metadata or error
 
 ---
 
-### User {#public-api-user}
+### User
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -7160,7 +7160,7 @@ Confirmation of state update
 
 ---
 
-### Users {#public-api-users}
+### Users
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -7485,7 +7485,7 @@ List of users needing reminders
 
 ---
 
-### Verify {#public-api-verify}
+### Verify
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -7508,7 +7508,7 @@ System identification data
 
 ---
 
-### Whosonline {#public-api-whosonline}
+### Whosonline
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -7543,4 +7543,3 @@ Online users and session count
 | 401 | Authentication required |
 
 ---
-
