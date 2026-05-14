@@ -233,6 +233,7 @@ class DocsController
             'README'   => $this->repoRoot . DIRECTORY_SEPARATOR . 'README',
             'REGISTER' => $this->repoRoot . DIRECTORY_SEPARATOR . 'REGISTER',
             'CONTRIBUTING' => $this->repoRoot . DIRECTORY_SEPARATOR . 'CONTRIBUTING',
+            'CREDITS' => $this->repoRoot . DIRECTORY_SEPARATOR . 'CREDITS',
         ];
 
         if (isset($specialBases[$name])) {
