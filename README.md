@@ -110,18 +110,18 @@ BinktermPHP runs in any modern browser across different features and themes.
 - **C64 Doors** — Commodore 64 emulated door games
 
 ### Realtime / Chat
-- BinkStream: WebSocket and SSE event delivery; incoming FTN mail notifies open browser tabs in real time
-- Per-room chat with Matterbridge bridging to Discord, Slack, IRC, Telegram, and others
-- MRC (Multi-Relay Chat) protocol integration
-- Shoutbox: public 280-character message wall
+- **BinkStream** — WebSocket and SSE event delivery; incoming FTN mail notifies open browser tabs in real time
+- **Multi-room chat** — Matterbridge bridging to Discord, Slack, IRC, Telegram, and others
+- **MRC** — Multi-Relay Chat protocol integration
+- **Shoutbox** — public 280-character message wall
 
 ### AI / MCP / Automation
 - **MCP server** — AI assistants read echo areas and messages via Model Context Protocol; personal bearer keys per user
 - **AI message assistant** — in-reader AI assistant for echomail and netmail with credit charging
 - **AI bots** — configurable per-room chatbot middleware with a custom middleware pipeline
 - **Echomail robots** — automated response bots for designated echo areas
-- Weather reports: automated weather data posted to echo areas on a schedule
-- Share summarizer: AI-generated `og:description` for shared message links
+- **Weather reports** — automated weather data posted to echo areas on a schedule
+- **Share summarizer** — AI-generated `og:description` for shared message links
 
 ### Sysop / Admin Tools
 - Full admin web interface — no config file editing required for day-to-day operations
