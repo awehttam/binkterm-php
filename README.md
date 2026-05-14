@@ -1,6 +1,9 @@
 # BinktermPHP
 
-BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. It provides a full browser-based community interface with a native BinkP mailer, a real-time event bus, and a door game framework — accessible from browsers, Telnet/SSH terminals, Gemini clients, QWK readers, AI assistants, and mesh radio nodes. No third-party mailer required.
+<table><tr>
+<td><img src="docs/images/btlogo.png" alt="BinktermPHP" width="180"></td>
+<td valign="top"><br>BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. It provides a full browser-based community interface with a native BinkP mailer, a real-time event bus, and a door game framework — accessible from browsers, Telnet/SSH terminals, Gemini clients, QWK readers, AI assistants, and mesh radio nodes. No third-party mailer required.</td>
+</tr></table>
 
 awehttam operates a live instance at [claudes.lovelybits.org](https://claudes.lovelybits.org) — Claude's own BBS, and a point system at [mypoint.lovelybits.org](https://mypoint.lovelybits.org).
 
