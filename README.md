@@ -1,44 +1,27 @@
 # BinktermPHP
 
-BinktermPHP is a modern web-based BBS that combines classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail across multiple simultaneous FTN networks, while delivering a browser-accessible bulletin board where users can read and post messages, chat, play door games, and earn credits — just like on a traditional BBS, no terminal client required. For those who prefer the authentic experience, BinktermPHP also includes a built-in telnet and SSH server.
+BinktermPHP is a multi-protocol BBS platform built around FTN messaging. It provides a full browser-based community experience with a native BinkP mailer, a real-time event bus, and a door game framework — accessible from any modern browser, a Telnet or SSH terminal, a Gemini client, or a mesh radio node. No third-party mailer required.
 
-BinktermPHP's mobile-responsive interface makes netmail and echomail comfortably accessible from phones and tablets while preserving the familiar feel of a classic BBS. ANSI art renders inline, links are detected and hyperlinked automatically, messages are full-text searchable, and built-in address books help users track their contacts. Users can also share individual messages via secure, expiring web links — with public or private access controls and revocation — making it easy to point someone at a great thread without requiring a login. The result is a Fidonet messaging experience that blends traditional FTN communication with practical modern conveniences, even on modest hardware.
-
-Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loaded with the features sysops care about:
-
-- **Built-in BinkP mailer** — connect to multiple FidoNet-style networks simultaneously, sending and receiving echomail and netmail without third-party software
-- **Full door support** — native Linux/Windows programs, classic DOS doors via DOSBox, and browser-based doors with auto-discovery
-- **Telnet & SSH server** — offer classic terminal access alongside the web interface
-- **Credits economy** — reward logins and participation, or charge for door games and premium features
-- **Message webshare** — let users share posts via secure, expiring links with public or private access
-- **Nodelist browser** — search and reference FTN nodes without leaving the interface
-- **Offline mail reading** — QWK packet support lets users download and reply to messages in their favourite offline reader
-- **Echomail digests** — users can receive a periodic email digest summarising new activity in their subscribed areas (daily or weekly)
-- **Advertising manager** — create and rotate ANSI, RIPscrip, Sixel, or plain-text ads on the dashboard, and manage automated postings
-- **System analytics** — activity stats, login source breakdown, and a full activity viewer for monitoring usage
-- **Full admin interface** — manage users, echo areas, doors, credits, and system settings from the browser
-- **Themeable UI** — ships with multiple themes including ANSI-inspired and cyberpunk styles
-- **MCP server** — lets AI assistants (Claude Code, etc.) read echomail and echo areas directly via the Model Context Protocol; each user generates their own personal bearer key
-- **PacketBBS Gateway** — compact text interface for MeshCore mesh radio networks; users browse and send netmail and echomail over low-bandwidth radio links using short one-line commands (see [docs/PacketBBS.md](docs/PacketBBS.md))
-- **...and more**
-
-**Full documentation:** [docs/index.md](docs/index.md)
-
-This code is released under the terms of a [BSD License](LICENSE.md).
-
-awehttam operates a full instance of BinktermPHP over at https://claudes.lovelybits.org - Claude's very own BBS, and a point system @ https://mypoint.lovelybits.org.
+awehttam operates a live instance at [claudes.lovelybits.org](https://claudes.lovelybits.org) — Claude's own BBS, and a point system at [mypoint.lovelybits.org](https://mypoint.lovelybits.org).
 
 BinktermPHP was featured in the *Calling All Nodes* YouTube video: [CALLING ALL NODES — BinktermPHP](https://www.youtube.com/watch?v=I_s8X2O7Lmk)
 
+**Full documentation:** [docs/index.md](docs/index.md)  
+This code is released under the terms of a [BSD License](LICENSE.md).
+
 ---
 
+- [Why BinktermPHP?](#why-binktermphp)
 - [Screenshots](#screenshots)
+- [Features](#features)
+- [Architecture](#architecture)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Upgrading](#upgrading)
 - [Joining LovlyNet Network](#joining-lovlynet-network)
 - [Customization](#customization)
 - [Optional Features](#optional-features)
+- [For Developers](#for-developers)
 - [Contributors Wanted](#contributors-wanted)
 - [Contributing](#contributing)
 - [License](#license)
@@ -47,9 +30,19 @@ BinktermPHP was featured in the *Calling All Nodes* YouTube video: [CALLING ALL 
 
 ---
 
+# Why BinktermPHP?
+
+- **FTN-native** — ships its own BinkP mailer; connect to FidoNet-style networks without Binkd, Makenl, or any other external software
+- **Multi-protocol access** — browser, Telnet, SSH, Gemini, PacketBBS over mesh radio, QWK offline readers, and MCP for AI assistants, all served from one installation
+- **Real-time architecture** — BinkStream delivers live events (new mail, chat messages, dashboard updates) via WebSocket or SSE; incoming FTN mail triggers notifications without polling
+- **Complete door support** — native Linux programs, classic DOS doors via DOSBox-X, HTML5 WebDoors with credit integration, browser-side JS-DOS emulation, and C64 emulated doors
+- **MCP server** — expose your echo areas directly to AI assistants via the Model Context Protocol; each user generates their own personal bearer key
+
+---
+
 # Screenshots
 
-BinktermPHP runs beautifully in any browser — here's a look at the interface across different features and themes.
+BinktermPHP runs in any modern browser across different features and themes.
 
 <table>
   <tr>
@@ -78,6 +71,94 @@ BinktermPHP runs beautifully in any browser — here's a look at the interface a
     <td align="center"><b>Markdown</b><br><img src="docs/screenshots/markdown.png" width="260"></td>
   </tr>
 </table>
+
+---
+
+# Features
+
+### Core Platform
+- Browser-based echomail and netmail with full-text search, inline ANSI rendering, Markdown/StyleCodes authoring, and message sharing via expiring web links
+- Mobile-responsive UI; installable as a PWA; multiple themes including ANSI-inspired, cyberpunk, and amber terminal styles
+- Credits economy: reward logins and participation, charge for features and door games, referral bonuses and transfers
+- Bulletins, shoutbox, polls, interests-based echo area discovery, and user profiles
+- QWK offline mail: download and upload packets for external readers
+- Echomail digests via email (daily or weekly)
+- BBS Directory: community-maintained node listing with geocoded map view
+
+### Access Methods
+- **Web** — full HTML5 interface, installable as a PWA
+- **Telnet** — built-in server with ANSI art, Sixel graphics, and screen rotation
+- **SSH** — built-in SSH server for secure terminal access
+- **Gemini** — capsule hosting for Gemini-protocol clients
+- **QWK** — packet download/upload via built-in passive FTP daemon
+- **PacketBBS** — compact one-line command interface for MeshCore mesh radio nodes
+- **FTP** — standalone passive FTP daemon for file area transfers
+
+### FTN / Networking
+- Native BinkP mailer: inbound server, polling scheduler, and on-demand poll
+- Multiple simultaneous FTN network connections (FidoNet, fsxnet, DoveNet, LovlyNet, and others)
+- AreaFix and FileFix for automated subscription management with hub uplinks
+- Nodelist browser with text/address/flag search, map view, and crashmail routing
+- LovlyNet: Zone 227 FTN with automated node registration (`scripts/lovlynet_setup.php`)
+- File areas with automated rules, FREQ serving, and anti-virus integration
+
+### Doors & Games
+- **DOS Doors** — classic door games via DOSBox-X (headless, no display required)
+- **Native Doors** — Linux/Windows programs via PTY
+- **WebDoors** — HTML5/JavaScript games embedded in the browser, with credit integration and a full SDK
+- **JS-DOS Doors** — browser-side DOS emulation via js-dos/DOSBox WASM (no server process)
+- **C64 Doors** — Commodore 64 emulated door games
+
+### Realtime / Chat
+- BinkStream: WebSocket and SSE event delivery; incoming FTN mail notifies open browser tabs in real time
+- Per-room chat with Matterbridge bridging to Discord, Slack, IRC, Telegram, and others
+- MRC (Multi-Relay Chat) protocol integration
+- Shoutbox: public 280-character message wall
+
+### AI / MCP / Automation
+- **MCP server** — AI assistants read echo areas and messages via Model Context Protocol; personal bearer keys per user
+- **AI message assistant** — in-reader AI assistant for echomail and netmail with credit charging
+- **AI bots** — configurable per-room chatbot middleware with a custom middleware pipeline
+- **Echomail robots** — automated response bots for designated echo areas
+- Weather reports: automated weather data posted to echo areas on a schedule
+- Share summarizer: AI-generated `og:description` for shared message links
+
+### Sysop / Admin Tools
+- Full admin web interface — no config file editing required for day-to-day operations
+- Activity analytics: logins by source, echomail, netmail, doors, files, nodelist, hourly distribution
+- Economy viewer: credit ledger, balance distribution, top earners and spenders
+- Ad analytics: impressions, clicks, and CTR per ad (licensed feature)
+- Advertising manager: rotate ANSI, RIPscrip, Sixel, or plain-text ads; Broadcast Manager for automated postings
+- Customizable appearance: shells, themes, announcements, and template overrides
+- Localization: i18n support with English, French, Spanish, Italian, and more
+
+---
+
+# Architecture
+
+BinktermPHP is structured in layers. A PHP web application handles all HTTP requests; cooperating daemons handle FTN networking, real-time delivery, terminal access, and door games. All processes share a single PostgreSQL database.
+
+```
+Clients
+  Browser (WebSocket/SSE) · Telnet/SSH terminals · PacketBBS/mesh radio
+  AI clients via MCP · QWK offline readers · Gemini clients
+
+Access Layer
+  PHP web app · BinkStream (WebSocket daemon) · telnet_daemon · ssh_daemon · mcp-server
+
+Service Layer
+  admin_daemon · mrc_daemon · gemini_daemon · multiplexing-server (door PTY/DOSBox bridge)
+
+FTN Networking Layer
+  binkp_server · binkp_scheduler · binkp_poll
+
+Data Layer
+  PostgreSQL · data/inbound/ · data/outbound/ · data/logs/
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full component diagram, FTN packet lifecycle, daemon IPC model, door subsystem, and AI pipeline.
+
+---
 
 # Installation
 
@@ -145,8 +226,28 @@ These features are disabled by default and require additional setup:
 | Telnet Server | [docs/TelnetServer.md](docs/TelnetServer.md) |
 | SSH Server | [docs/SSHServer.md](docs/SSHServer.md) |
 | FTP Server | [docs/FTPServer.md](docs/FTPServer.md) |
+| Matterbridge Chat Bridge | [docs/Matterbridge.md](docs/Matterbridge.md) |
 
 See **[docs/index.md](docs/index.md)** for the full documentation index.
+
+---
+
+# For Developers
+
+| Topic | Guide |
+|-------|-------|
+| Codebase architecture & conventions | [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) |
+| System architecture diagram | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Database model | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) |
+| HTTP API reference | [docs/API.md](docs/API.md) |
+| Building a WebDoor | [docs/WebDoor-Tutorial.md](docs/WebDoor-Tutorial.md) |
+| MCP server & client setup | [docs/MCPServer.md](docs/MCPServer.md) · [docs/MCPClientHelp.md](docs/MCPClientHelp.md) |
+| BinkStream real-time events | [docs/BinkStreamChannel.md](docs/BinkStreamChannel.md) |
+| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
+
+BinktermPHP is developed using modern AI-assisted workflows alongside traditional software engineering and systems administration practices.
+
+---
 
 # Contributors Wanted
 

@@ -1,5 +1,7 @@
 # BinktermPHP Documentation
 
+Complete reference for sysops, users, and developers. New here? Start with [Getting Started](GettingStarted.md) or [Installation](INSTALL.md). Developers should begin at [Architecture](ARCHITECTURE.md) and [Developer Guide](DEVELOPER_GUIDE.md).
+
 ---
 
 ## Essential Setup & Operations
