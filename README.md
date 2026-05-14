@@ -6,8 +6,8 @@ awehttam operates a live instance at [claudes.lovelybits.org](https://claudes.lo
 
 BinktermPHP was featured in the *Calling All Nodes* YouTube video: [CALLING ALL NODES — BinktermPHP](https://www.youtube.com/watch?v=I_s8X2O7Lmk)
 
-**Full documentation:** [docs/index.md](docs/index.md)  
-This code is released under the terms of a [BSD License](LICENSE.md).
+This code is released under the terms of a [BSD License](LICENSE.md).  
+**Full documentation:** [docs/index.md](docs/index.md)
 
 ---
 
