@@ -17,6 +17,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Developer Tools](#developer-tools)
 - [Realtime Chat Delivery](#realtime-chat-delivery)
 - [Networks](#networks)
+- [Local Chat](#local-chat)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -89,6 +90,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Networks
 
 - Corrected the website URL for the DoveNet built-in network entry. The entry now links to the active DoveNet listing at `https://clrghouz.bbs.dege.au/domain/view/34`.
+
+### Local Chat
+
+- When opening a direct chat with an AI bot, the bot's description now appears in the chat header beside the bot's name, using the same styling as a chat room description. Previously the header showed only the bot's username.
 
 ### Realtime Chat Delivery
 
@@ -278,6 +283,10 @@ Three fixes address WebSocket reliability and event delivery performance for ins
 The built-in DoveNet network record has been updated with a corrected website URL. The `networks` table entry for DoveNet now points to `https://clrghouz.bbs.dege.au/domain/view/34`, which is the active DoveNet listing.
 
 This is applied automatically by the migration when you run `php scripts/setup.php`.
+
+## Local Chat
+
+When a user opens a direct message thread with an AI bot, the bot's configured description is now displayed in the chat header beside the bot's username. The description uses the same formatting as a chat room description, so the header reads as "BOTNAME description text" in the same visual style as "ROOM NAME room description" for room threads. Previously the bot header showed only the bot's username with no additional context about what the bot does.
 
 ---
 

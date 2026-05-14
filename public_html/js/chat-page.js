@@ -244,7 +244,11 @@
         } else {
             const user = state.users.find(u => u.user_id === state.active.id);
             titleEl.textContent = user ? user.username : uiT('ui.chat.direct', 'Direct');
-            metaEl.textContent = user && user.location ? user.location : '';
+            if (user && user.is_bot && user.description) {
+                metaEl.textContent = user.description;
+            } else {
+                metaEl.textContent = user && user.location ? user.location : '';
+            }
         }
     }
 

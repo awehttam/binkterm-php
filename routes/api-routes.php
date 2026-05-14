@@ -1213,7 +1213,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Active bots are always present regardless of session state
         $db = \BinktermPHP\Database::getInstance()->getPdo();
         $botStmt = $db->prepare("
-            SELECT b.user_id, u.username
+            SELECT b.user_id, b.description, u.username
             FROM   ai_bots b
             JOIN   users u ON u.id = b.user_id
             WHERE  b.is_active = TRUE
@@ -1227,10 +1227,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 continue;
             }
             $filtered[] = [
-                'user_id'  => $botUserId,
-                'username' => $bot['username'],
-                'location' => '',
-                'is_bot'   => true,
+                'user_id'     => $botUserId,
+                'username'    => $bot['username'],
+                'description' => $bot['description'] ?? '',
+                'location'    => '',
+                'is_bot'      => true,
             ];
         }
 
