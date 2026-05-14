@@ -33,11 +33,11 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 
 # Why BinktermPHP?
 
-- **FTN-native** — built-in BinkP mailer; no Binkd, Makenl, or external mailer required
+- **FTN-native** — built-in BinkP mailer for FidoNet-style echomail networks; no Binkd, Makenl, or external mailer required
 - **Multi-protocol access** — one install serves browsers, Telnet, SSH, Gemini, mesh radio, QWK readers, and AI assistants
 - **Real-time architecture** — BinkStream pushes live events (new mail, chat, dashboard) via WebSocket and SSE; no polling
-- **Complete door support** — classic DOS via DOSBox-X, native Linux/Windows, HTML5 WebDoors, browser WASM, and C64 emulation, all with optional credit integration
-- **MCP server** — expose your echo areas to AI assistants via Model Context Protocol; each user gets a personal bearer key
+- **Broad door support** — classic DOS via DOSBox-X, native Linux/Windows, HTML5 WebDoors, browser WASM, and C64 browser emulation, all with optional credit integration
+- **Analytics** — activity statistics, AI usage, ad sharing analytics, economy viewer, and more
 
 ---
 
