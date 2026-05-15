@@ -19,6 +19,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Realtime Chat Delivery](#realtime-chat-delivery)
 - [Networks](#networks)
 - [MeshCore Contact Management](#meshcore-contact-management)
+  - [Companion radio bridge association](#companion-radio-bridge-association)
+  - [Device auto-add policy](#device-auto-add-policy)
+  - [MeshCore bridge update](#meshcore-bridge-update-1)
 - [Local Chat](#local-chat)
 - [Navigation](#navigation)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -111,6 +114,13 @@ Make sure you have a current backup of your database and files before upgrading.
 - BinktermPHP now mirrors the companion contact list from MeshCore bridge devices. When a bridge connects, it fetches the full contact list from the radio and reports each contact to the BBS, where they are stored and displayed in a new per-node **Contact Manager** on the **Admin → Packet BBS Nodes** page.
 - Contacts can be viewed, edited (display name, linked BBS account, notes), and deleted individually or in bulk from the admin Contact Manager. Deleting a contact that has a known full public key queues a `remove_contact` command that the bridge sends to the radio on its next poll, removing the contact from the device's companion list as well.
 - Users can register their own MeshCore radio node under **Settings → MeshCore Radio**. A registration accepts either the 12-character node ID prefix (visible in the MeshCore app) or the full 64-character public key. When the bridge next reports a contact whose prefix matches, the registration row is claimed automatically and the user becomes the owner of that contact.
+- When a user registers a radio contact, they now select which companion radio (bridge device) should relay messages to and from that contact. Registering a contact with a known full public key immediately queues an `add_contact` device command so the selected bridge pushes the contact to its radio.
+- Contact sync from the bridge is now limited to companion-type (`chat`) nodes. Repeaters and sensors are no longer reported to the BBS contact store.
+- Sysops can now configure the MeshCore device's auto-add contact policy from the node edit modal in **Admin → Packet BBS Nodes**. The policy controls which node types (companions, repeaters, room servers, sensors) the radio automatically adds to its contact list when heard over the air. A "Read from Device" button queues a read request; the bridge reports the current device value back to the BBS the next time it polls.
+
+### MeshCore Bridge Update Required
+
+The changes above require an updated version of the [MeshCore Bridge](https://github.com/awehttam/binktermphp-meshcorebridge). See [MeshCore bridge update](#meshcore-bridge-update-1) in the detailed section below.
 
 ### Navigation
 
@@ -369,22 +379,53 @@ Users can register their own MeshCore radio node under **Settings → MeshCore R
 
 Once a registration row is claimed, the user becomes the owner of that radio contact. Users can rename or delete their registered radios from the same settings tab. Deleting a user-registered contact follows the same device command queue logic as an admin deletion.
 
+### Companion radio bridge association
+
+When a user registers a radio contact under **Settings → MeshCore Radio**, the registration form now includes a **Companion Radio** selector. The user picks which bridge device should relay messages between the BBS and that contact.
+
+Selecting a companion radio does two things:
+
+1. The contact record is stored with a reference to that bridge node, so the BBS knows which device is responsible for it.
+2. If the full 64-character public key is already known at registration time, an `add_contact` device command is queued immediately. The bridge picks up the command on its next poll and sends `CMD_ADD_UPDATE_CONTACT` to the radio, adding the contact to the device's companion list without requiring the operator to manually add it through the MeshCore app.
+
+If a companion radio is later changed (via the edit form), a new `add_contact` command is queued for the newly selected bridge.
+
+### Device auto-add policy
+
+MeshCore devices can be configured to automatically add nodes they hear over the air to their local contact list. In the default firmware configuration this is often enabled for all node types, which can fill the contact list with repeaters and sensors the operator does not need.
+
+The node edit modal in **Admin → Packet BBS Nodes** now includes an **Auto-Add Contact Policy** section (visible when editing MeshCore nodes). It presents individual checkboxes for each auto-add type the device supports:
+
+| Checkbox | Device flag | Recommended |
+|---|---|---|
+| Auto-add companions (chat) | `AUTO_ADD_CHAT` | Operator preference |
+| Auto-add repeaters | `AUTO_ADD_REPEATER` | Off (recommended) |
+| Auto-add room servers | `AUTO_ADD_ROOM_SERVER` | Off (recommended) |
+| Auto-add sensors | `AUTO_ADD_SENSOR` | Off (recommended) |
+| Overwrite oldest when full | `AUTO_ADD_OVERWRITE_OLDEST` | Operator preference |
+
+Saving the node with these checkboxes queues a `set_autoadd_config` device command. The bridge picks up the command on its next poll and sends `CMD_SET_AUTOADD_CONFIG` to the radio, which takes effect immediately and persists across device restarts.
+
+The **Read from Device** button queues a `get_autoadd_config` command. After the bridge polls, the device's actual current setting is stored in the BBS database. Refresh the page to see the updated values. This is useful when the device has been configured through another tool (such as the MeshCore app) and the BBS record is out of date or not yet known.
+
 ### Database migrations
 
-Two new migrations are applied automatically when you run `php scripts/setup.php`:
+Three migrations are applied automatically when you run `php scripts/setup.php`:
 
 | Migration | Adds |
 |---|---|
 | `v20260514120000_meshcore_contacts` | `meshcore_contacts` table with partial unique index on `pub_key_full` |
 | `v20260514130000_meshcore_device_commands` | `meshcore_device_commands` table with index on pending commands per node |
+| `v20260515041402_add_autoadd_config_to_packet_bbs_nodes` | `autoadd_config` column on `packet_bbs_nodes` to store the last known auto-add bitmask |
 
-### MeshCore bridge update
+### MeshCore bridge update {#meshcore-bridge-update-1}
 
-If you are running the [MeshCore Bridge](https://github.com/awehttam/binktermphp-meshcorebridge), update it alongside BinktermPHP. The updated bridge adds:
+If you are running the [MeshCore Bridge](https://github.com/awehttam/binktermphp-meshcorebridge), update it alongside BinktermPHP. The updated bridge adds and changes:
 
 - Startup contact poll — sends `CMD_GET_CONTACTS` to the radio immediately after the handshake so the BBS receives the full contact list on each bridge connection.
-- Contact reporting — forwards every contact advertisement to the BBS as the radio reports them during normal operation.
-- Device command polling — checks for pending `remove_contact` commands from the BBS and forwards them to the radio.
+- Contact reporting — forwards companion (`chat`) contact advertisements to the BBS as the radio reports them. Repeaters and sensors are no longer forwarded.
+- Device command polling — checks for pending commands from the BBS and forwards them to the radio. Supported command types: `remove_contact`, `add_contact`, `set_autoadd_config`, `get_autoadd_config`.
+- Auto-add config reporting — when `get_autoadd_config` is executed, the bridge reads the device's current policy and posts it back to the BBS so the admin panel stays in sync.
 
 ---
 

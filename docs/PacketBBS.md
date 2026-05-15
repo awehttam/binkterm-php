@@ -568,23 +568,74 @@ Once the bridge reports a contact whose prefix matches a user's pre-registered r
 
 Users can rename or delete their registered radios from the same settings tab. Deleting a user-registered contact follows the same device command queue logic as admin deletion.
 
+### Companion Radio Association
+
+When a user registers a radio contact under **Settings → MeshCore Radio**, the registration form includes a **Companion Radio** selector. The user picks which bridge device should relay messages between the BBS and that contact.
+
+Selecting a companion radio does two things:
+
+1. The contact record is linked to that bridge node so the BBS knows which device is responsible for it.
+2. If the full 64-character public key is already known at registration time, an `add_contact` device command is queued immediately. The bridge picks up the command on its next poll and sends `CMD_ADD_UPDATE_CONTACT` to the radio, adding the contact to the device's companion list. This happens without requiring the operator to add the contact manually through the MeshCore app.
+
+If a companion radio is later changed through the edit form, a fresh `add_contact` command is queued for the newly selected bridge.
+
+Users who have no full public key yet (registered by 12-character prefix only) must wait for the bridge to report the full key before the device push can happen.
+
+### Device Auto-Add Policy
+
+MeshCore devices can be configured to automatically add nodes they hear over the air to their local contact list. By default this is often enabled for all node types, which can fill the contact list with repeaters and sensors the operator does not care about.
+
+The **Admin → Packet BBS Nodes** node edit modal includes an **Auto-Add Contact Policy** section for MeshCore nodes. Individual checkboxes control each auto-add type:
+
+| Checkbox | Bit | Notes |
+|---|---|---|
+| Auto-add companions (chat) | `0x02` | Covers companion radios running the MeshCore companion firmware |
+| Auto-add repeaters | `0x04` | Recommended: off |
+| Auto-add room servers | `0x08` | Recommended: off |
+| Auto-add sensors | `0x10` | Recommended: off |
+| Overwrite oldest when full | `0x01` | When the contact list is at capacity, replaces the oldest non-favourite entry |
+
+Saving the node queues a `set_autoadd_config` device command. The bridge sends `CMD_SET_AUTOADD_CONFIG` to the radio on its next poll cycle; the setting takes effect immediately and persists across device restarts.
+
+**Read from Device:** clicking this button queues a `get_autoadd_config` command. The bridge reads the device's actual current value and reports it back to the BBS. Refresh the admin page after the bridge next polls to see the result. This is useful when the device was configured through another tool and the BBS record does not yet match the device state.
+
+The `autoadd_config` bitmask is stored in the `autoadd_config` column of `packet_bbs_nodes`. A `NULL` value means the config has not yet been read from or written to the device.
+
 ### Device Command Queue
 
-When a contact is deleted (by a sysop or by the owning user), BinktermPHP records a pending `remove_contact` command in `meshcore_device_commands`. The bridge polls for pending commands at the same interval as outbound messages:
+BinktermPHP records commands for the radio device in `meshcore_device_commands`. The bridge polls for pending commands on each poll cycle:
 
 ```text
 GET /api/meshcore/pending-commands?bridge_node_id=<hex>
 Authorization: Bearer <node-api-key>
 ```
 
-For each `remove_contact` command, the bridge sends the radio a remove frame addressed to the contact's full 32-byte public key, then acknowledges the command:
+After executing each command the bridge acknowledges it:
 
 ```text
 POST /api/meshcore/commands/{id}/ack
 Authorization: Bearer <node-api-key>
 ```
 
-If the bridge is offline when the delete happens, the command stays queued until the bridge reconnects and polls again.
+If the bridge is offline when a command is queued, it stays pending until the bridge reconnects and polls again.
+
+Supported command types:
+
+| Command type | Triggered by | Radio frame sent |
+|---|---|---|
+| `remove_contact` | Contact deleted by sysop or user | `CMD_REMOVE_CONTACT` |
+| `add_contact` | User registers a contact with full public key | `CMD_ADD_UPDATE_CONTACT` |
+| `set_autoadd_config` | Sysop saves auto-add policy in node edit modal | `CMD_SET_AUTOADD_CONFIG` |
+| `get_autoadd_config` | Sysop clicks "Read from Device" in node edit modal | `CMD_GET_AUTOADD_CONFIG` |
+
+When the radio responds to `CMD_GET_AUTOADD_CONFIG`, the bridge posts the result back to the BBS:
+
+```text
+POST /api/meshcore/autoadd-config
+Authorization: Bearer <node-api-key>
+```
+
+The BBS stores the value in `packet_bbs_nodes.autoadd_config` so the admin panel can display the current device state without querying the radio on every page load.
 
 ## Troubleshooting
 
