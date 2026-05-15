@@ -161,13 +161,16 @@
                             <input class="form-check-input" type="checkbox" id="autoaddOverwriteOldest" value="1">
                             <label class="form-check-label" for="autoaddOverwriteOldest">{{ t('ui.admin.meshcore.autoadd_overwrite_oldest') }}</label>
                         </div>
+                        <div id="nodeAutoaddPendingSync" class="alert alert-warning py-1 px-2 small mt-2 d-none">
+                            <i class="fas fa-clock me-1"></i>{{ t('ui.admin.meshcore.autoadd_pending_sync') }}
+                        </div>
                     </div>
                 </form>
                 <div id="nodeModalError" class="alert alert-danger d-none"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="saveNode()">Save</button>
+                <button type="button" class="btn btn-primary" id="nodeSaveBtn" onclick="saveNode()">Save</button>
             </div>
         </div>
     </div>
@@ -295,11 +298,42 @@ let nodeModal, keyModal, contactsModal, contactEditModal;
 let activeContactNodeDbId = null;
 let contactOwnerSearchTimer = null;
 let selectedContactOwner = null;
+let autoaddPollTimer = null;
+let autoaddConfirmed = false;
+const AUTOADD_POLL_INTERVAL = 4000;
+
+function updateSaveBtn(mode) {
+    const btn = document.getElementById('nodeSaveBtn');
+    if (mode === 'close') {
+        btn.textContent = window.t('ui.common.close', {}, 'Close');
+        btn.classList.replace('btn-primary', 'btn-secondary');
+    } else {
+        btn.textContent = window.t('ui.common.save', {}, 'Save');
+        btn.classList.replace('btn-secondary', 'btn-primary');
+    }
+}
+const AUTOADD_POLL_TIMEOUT  = 90000;
 
 document.addEventListener('DOMContentLoaded', function() {
     nodeModal        = new bootstrap.Modal(document.getElementById('nodeModal'));
     contactsModal    = new bootstrap.Modal(document.getElementById('contactsModal'));
     contactEditModal = new bootstrap.Modal(document.getElementById('contactEditModal'));
+
+    document.getElementById('nodeModal').addEventListener('hidden.bs.modal', function() {
+        stopAutoaddPoll();
+        document.getElementById('nodeAutoaddReadBtn').disabled = false;
+        autoaddConfirmed = false;
+        updateSaveBtn('save');
+    });
+
+    // Any form change after a confirmed save marks the form dirty again.
+    document.getElementById('nodeModal').addEventListener('input', function() {
+        if (autoaddConfirmed) { autoaddConfirmed = false; updateSaveBtn('save'); }
+    });
+    document.getElementById('nodeModal').addEventListener('change', function() {
+        if (autoaddConfirmed) { autoaddConfirmed = false; updateSaveBtn('save'); }
+    });
+
     loadNodes();
     loadSessions();
     loadQueue();
@@ -429,6 +463,8 @@ function getAutoaddConfigByte() {
 }
 
 function showAddNodeModal() {
+    autoaddConfirmed = false;
+    updateSaveBtn('save');
     document.getElementById('nodeModalLabel').textContent = 'Add Node';
     document.getElementById('nodeDbId').value = '';
     document.getElementById('nodeId').value = '';
@@ -442,6 +478,8 @@ function showAddNodeModal() {
 }
 
 function editNode(n) {
+    autoaddConfirmed = false;
+    updateSaveBtn('save');
     document.getElementById('nodeModalLabel').textContent = 'Edit Node';
     document.getElementById('nodeDbId').value = n.id;
     document.getElementById('nodeId').value = n.node_id;
@@ -461,6 +499,7 @@ function editNode(n) {
             document.getElementById('nodeAutoaddUnknown').classList.remove('d-none');
             setAutoaddCheckboxes(0);
         }
+        document.getElementById('nodeAutoaddPendingSync').classList.toggle('d-none', !n.autoadd_pending_sync);
     }
 
     nodeModal.show();
@@ -469,20 +508,70 @@ function editNode(n) {
 function readAutoaddConfig() {
     const dbId = document.getElementById('nodeDbId').value;
     if (!dbId) return;
-    document.getElementById('nodeAutoaddReadBtn').disabled = true;
+    const btn = document.getElementById('nodeAutoaddReadBtn');
+    btn.disabled = true;
     fetch(`/admin/api/packet-bbs/nodes/${dbId}/read-autoadd-config`, { method: 'POST' })
         .then(r => r.json())
         .then(data => {
             if (data.queued) {
-                alert(window.t('ui.admin.meshcore.autoadd_read_queued', {}, 'Read request queued. Refresh after the bridge next polls.'));
+                startAutoaddPoll(parseInt(dbId, 10));
+            } else {
+                btn.disabled = false;
             }
         })
-        .finally(() => {
-            document.getElementById('nodeAutoaddReadBtn').disabled = false;
-        });
+        .catch(() => { btn.disabled = false; });
+}
+
+function startAutoaddPoll(nodeDbId) {
+    const unknownEl = document.getElementById('nodeAutoaddUnknown');
+    const btn = document.getElementById('nodeAutoaddReadBtn');
+    unknownEl.textContent = window.t('ui.admin.meshcore.autoadd_read_waiting', {}, 'Waiting for device response…');
+    unknownEl.classList.remove('d-none');
+
+    let elapsed = 0;
+    stopAutoaddPoll();
+    autoaddPollTimer = setInterval(function() {
+        elapsed += AUTOADD_POLL_INTERVAL;
+        fetch('/admin/api/packet-bbs/nodes')
+            .then(r => r.json())
+            .then(data => {
+                const node = (data.nodes || []).find(n => n.id === nodeDbId);
+                if (node && node.autoadd_config !== null && node.autoadd_config !== undefined && node.autoadd_config !== '') {
+                    stopAutoaddPoll();
+                    btn.disabled = false;
+                    unknownEl.classList.add('d-none');
+                    document.getElementById('nodeAutoaddPendingSync').classList.add('d-none');
+                    setAutoaddCheckboxes(parseInt(node.autoadd_config, 10));
+                    autoaddConfirmed = true;
+                    updateSaveBtn('close');
+                    loadNodes();
+                } else if (elapsed >= AUTOADD_POLL_TIMEOUT) {
+                    stopAutoaddPoll();
+                    btn.disabled = false;
+                    unknownEl.textContent = window.t('ui.admin.meshcore.autoadd_read_timeout', {}, 'Device did not respond. Try again.');
+                }
+            })
+            .catch(() => {
+                if (elapsed >= AUTOADD_POLL_TIMEOUT) {
+                    stopAutoaddPoll();
+                    btn.disabled = false;
+                }
+            });
+    }, AUTOADD_POLL_INTERVAL);
+}
+
+function stopAutoaddPoll() {
+    if (autoaddPollTimer !== null) {
+        clearInterval(autoaddPollTimer);
+        autoaddPollTimer = null;
+    }
 }
 
 function saveNode() {
+    if (autoaddConfirmed) {
+        nodeModal.hide();
+        return;
+    }
     const dbId    = document.getElementById('nodeDbId').value;
     const isEdit  = dbId !== '';
     const isMeshcore = document.getElementById('nodeInterface').value === 'meshcore';
@@ -503,8 +592,15 @@ function saveNode() {
         .then(r => r.json())
         .then(data => {
             if (data.success || data.id) {
-                nodeModal.hide();
-                loadNodes();
+                if (isEdit && isMeshcore) {
+                    // Keep the modal open and auto-read back from the device to
+                    // confirm the setting was applied, clearing the pending badge.
+                    loadNodes();
+                    readAutoaddConfig();
+                } else {
+                    nodeModal.hide();
+                    loadNodes();
+                }
             } else {
                 showNodeError(data.error || 'Save failed.');
             }

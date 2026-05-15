@@ -4539,12 +4539,23 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 "SELECT n.id, n.node_id, n.handle, n.interface_type, n.user_id,
                         n.last_seen_at, n.created_at, n.autoadd_config,
                         u.username,
-                        (n.api_key_hash IS NOT NULL) AS has_api_key
+                        (n.api_key_hash IS NOT NULL) AS has_api_key,
+                        EXISTS (
+                            SELECT 1 FROM meshcore_device_commands c
+                            WHERE c.bridge_node_id = n.id
+                              AND c.command_type = 'set_autoadd_config'
+                              AND c.executed_at IS NULL
+                        ) AS autoadd_pending_sync
                  FROM packet_bbs_nodes n
                  LEFT JOIN users u ON u.id = n.user_id
                  ORDER BY n.created_at DESC"
             );
-            echo json_encode(['nodes' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+            $nodes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($nodes as &$node) {
+                $node['autoadd_pending_sync'] = (bool)$node['autoadd_pending_sync'];
+            }
+            unset($node);
+            echo json_encode(['nodes' => $nodes]);
         });
 
         SimpleRouter::post('/packet-bbs/nodes', function() {
@@ -4642,6 +4653,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => false, 'error' => 'Node not found']);
                 return;
             }
+            // Clear the cached value so the UI poll waits for a genuinely fresh read.
+            $db->prepare('UPDATE packet_bbs_nodes SET autoadd_config = NULL WHERE id = ?')
+               ->execute([(int)$id]);
             $cmdStmt = $db->prepare(
                 'INSERT INTO meshcore_device_commands (bridge_node_id, command_type, payload)
                  VALUES (?, ?, ?)'
