@@ -18,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Developer Tools](#developer-tools)
 - [Realtime Chat Delivery](#realtime-chat-delivery)
 - [Networks](#networks)
+- [MeshCore Contact Management](#meshcore-contact-management)
 - [Local Chat](#local-chat)
 - [Navigation](#navigation)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -104,6 +105,12 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Local Chat
 
 - When opening a direct chat with an AI bot, the bot's description now appears in the chat header beside the bot's name, using the same styling as a chat room description. Previously the header showed only the bot's username.
+
+### MeshCore Contact Management
+
+- BinktermPHP now mirrors the companion contact list from MeshCore bridge devices. When a bridge connects, it fetches the full contact list from the radio and reports each contact to the BBS, where they are stored and displayed in a new per-node **Contact Manager** on the **Admin → Packet BBS Nodes** page.
+- Contacts can be viewed, edited (display name, linked BBS account, notes), and deleted individually or in bulk from the admin Contact Manager. Deleting a contact that has a known full public key queues a `remove_contact` command that the bridge sends to the radio on its next poll, removing the contact from the device's companion list as well.
+- Users can register their own MeshCore radio node under **Settings → MeshCore Radio**. A registration accepts either the 12-character node ID prefix (visible in the MeshCore app) or the full 64-character public key. When the bridge next reports a contact whose prefix matches, the registration row is claimed automatically and the user becomes the owner of that contact.
 
 ### Navigation
 
@@ -317,6 +324,69 @@ Three fixes address WebSocket reliability and event delivery performance for ins
 The built-in DoveNet network record has been updated with a corrected website URL. The `networks` table entry for DoveNet now points to `https://clrghouz.bbs.dege.au/domain/view/34`, which is the active DoveNet listing.
 
 This is applied automatically by the migration when you run `php scripts/setup.php`.
+
+## MeshCore Contact Management
+
+MeshCore bridge devices maintain a local companion contact list — the set of radio nodes the device has heard or been told about. BinktermPHP now mirrors this list into a new `meshcore_contacts` database table so sysops and users can manage radio contacts from the web interface.
+
+### How contact sync works
+
+When a MeshCore bridge connects to BinktermPHP, the bridge firmware is asked for its full contact list. The radio responds with every contact it knows, and the bridge forwards each one to the BBS via `POST /api/meshcore/contact`. During normal operation, newly discovered contacts are also reported as the radio hears them. The BBS upserts each contact on its full 64-character public key.
+
+A contact identified only by its 12-character node ID prefix (the short form shown in the MeshCore app) is stored without a full key until the bridge reports the matching full-key entry — at which point the two records are merged into one.
+
+### Admin Contact Manager
+
+On the **Admin → Packet BBS Nodes** page, each MeshCore node row now has a contacts button (address book icon). Clicking it opens the Contact Manager for that node, which shows all contacts synced from that bridge device.
+
+From the Contact Manager, a sysop can:
+
+- **Edit** a contact's display name, linked BBS user account, and admin notes. The display name overrides the name broadcast by the radio. The linked account associates that radio node with a specific BBS user.
+- **Delete a single contact** by clicking the trash icon on a row and confirming. If the contact has a known full public key and a known bridge node, a `remove_contact` device command is queued and sent to the radio on the bridge's next poll cycle.
+- **Bulk delete** by selecting any combination of rows with the checkboxes (or using Select All), then clicking **Delete Selected**. All selected contacts are deleted in a single database operation. Device commands are queued for each contact that has a full public key.
+
+Contacts that have only a 12-character prefix and no full public key are removed from the BBS database only. The radio cannot be told to remove them because the full key needed to address the device command is not known.
+
+### Device command propagation
+
+When a contact is deleted, BinktermPHP records a pending `remove_contact` entry in the new `meshcore_device_commands` table. The bridge polls for pending commands at the same interval it checks for outbound messages:
+
+```
+GET /api/meshcore/pending-commands?bridge_node_id=<hex>
+```
+
+For each `remove_contact` command, the bridge sends the radio a remove frame addressed to the contact's full 32-byte public key, then acknowledges the command:
+
+```
+POST /api/meshcore/commands/{id}/ack
+```
+
+If the bridge is offline when the delete happens, the command stays queued until the bridge reconnects.
+
+### User radio registration
+
+Users can register their own MeshCore radio node under **Settings → MeshCore Radio**. The tab accepts either the 12-character node ID prefix shown in the MeshCore app or the full 64-character public key. Registering by prefix creates a placeholder row; the full key is filled in automatically when the bridge next reports a contact whose prefix matches. Registering by full key matches immediately.
+
+Once a registration row is claimed, the user becomes the owner of that radio contact. Users can rename or delete their registered radios from the same settings tab. Deleting a user-registered contact follows the same device command queue logic as an admin deletion.
+
+### Database migrations
+
+Two new migrations are applied automatically when you run `php scripts/setup.php`:
+
+| Migration | Adds |
+|---|---|
+| `v20260514120000_meshcore_contacts` | `meshcore_contacts` table with partial unique index on `pub_key_full` |
+| `v20260514130000_meshcore_device_commands` | `meshcore_device_commands` table with index on pending commands per node |
+
+### MeshCore bridge update
+
+If you are running the [MeshCore Bridge](https://github.com/awehttam/binktermphp-meshcorebridge), update it alongside BinktermPHP. The updated bridge adds:
+
+- Startup contact poll — sends `CMD_GET_CONTACTS` to the radio immediately after the handshake so the BBS receives the full contact list on each bridge connection.
+- Contact reporting — forwards every contact advertisement to the BBS as the radio reports them during normal operation.
+- Device command polling — checks for pending `remove_contact` commands from the BBS and forwards them to the radio.
+
+---
 
 ## Local Chat
 

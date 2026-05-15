@@ -39,6 +39,11 @@
                     type="button" role="tab">
                 <i class="fas fa-robot me-2"></i>{{ t('ui.settings.tab.ai', {}, locale, ['common']) }}
             </button>
+            <button class="nav-link text-start" id="tab-meshcore-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-meshcore"
+                    type="button" role="tab">
+                <i class="fas fa-broadcast-tower me-2"></i>{{ t('ui.settings.tab.meshcore', {}, locale, ['common']) }}
+            </button>
         </div>
     </div>
 
@@ -603,6 +608,28 @@
                 </div>
             </div>
 
+            {# ------------------------------------------------------------------ #}
+            {# MeshCore tab                                                        #}
+            {# ------------------------------------------------------------------ #}
+            <div class="tab-pane fade" id="tab-meshcore" role="tabpanel">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ t('ui.settings.meshcore.my_radios', {}, locale, ['common']) }}</h5>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="showAddMeshcoreRadioModal()">
+                            <i class="fas fa-plus me-1"></i>{{ t('ui.settings.meshcore.add_radio', {}, locale, ['common']) }}
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="meshcoreContactsContainer">
+                            <div class="text-center py-3 text-muted">
+                                <i class="fas fa-spinner fa-spin me-2"></i>{{ t('ui.common.loading', {}, locale, ['common']) }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <p class="form-text mt-2">{{ t('ui.settings.meshcore.help', {}, locale, ['common']) }}</p>
+            </div>
+
         </div>{# /tab-content #}
         </form>
 
@@ -653,6 +680,49 @@
         </div>
     </div>
 </div>
+<!-- MeshCore Radio Add/Edit Modal -->
+<div class="modal fade" id="meshcoreRadioModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="meshcoreRadioModalTitle">
+                    {{ t('ui.settings.meshcore.add_radio_title', {}, locale, ['common']) }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="meshcoreRadioDbId">
+                <div class="mb-3" id="meshcoreNodeIdGroup">
+                    <label class="form-label fw-semibold">
+                        {{ t('ui.settings.meshcore.node_id', {}, locale, ['common']) }}
+                        <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control font-monospace" id="meshcoreNodeId"
+                           maxlength="64" autocomplete="off"
+                           placeholder="{{ t('ui.settings.meshcore.node_id_placeholder', {}, locale, ['common']) }}">
+                    <div class="form-text">{{ t('ui.settings.meshcore.node_id_help', {}, locale, ['common']) }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">{{ t('ui.settings.meshcore.display_name', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="meshcoreRadioName"
+                           maxlength="64"
+                           placeholder="{{ t('ui.settings.meshcore.display_name_placeholder', {}, locale, ['common']) }}">
+                    <div class="form-text">{{ t('ui.settings.meshcore.display_name_help', {}, locale, ['common']) }}</div>
+                </div>
+                <div id="meshcoreRadioError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{ t('ui.common.cancel', {}, locale, ['common']) }}
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveMeshcoreRadio()">
+                    {{ t('ui.common.save', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -684,12 +754,14 @@ $(document).ready(function() {
         btn.addEventListener('shown.bs.tab', function(e) {
             const target = e.target.getAttribute('data-bs-target');
             UserStorage.setItem('settingsActiveTab', target);
-            $('#saveButtonRow').toggle(target !== '#tab-account' && target !== '#tab-ai');
+            $('#saveButtonRow').toggle(
+                target !== '#tab-account' && target !== '#tab-ai' && target !== '#tab-meshcore'
+            );
         });
     });
 
-    // Hide Save button if Account or AI tab was restored
-    if (savedTab === '#tab-account' || savedTab === '#tab-ai') {
+    // Hide Save button if Account, AI, or MeshCore tab was restored
+    if (savedTab === '#tab-account' || savedTab === '#tab-ai' || savedTab === '#tab-meshcore') {
         $('#saveButtonRow').hide();
     }
 
@@ -707,6 +779,14 @@ $(document).ready(function() {
     });
     if (savedTab === '#tab-ai') {
         loadMcpKeyStatus();
+    }
+
+    // Load MeshCore contacts when the MeshCore tab is shown
+    document.getElementById('tab-meshcore-btn')?.addEventListener('shown.bs.tab', function() {
+        loadMeshcoreContacts();
+    });
+    if (savedTab === '#tab-meshcore') {
+        loadMeshcoreContacts();
     }
 
     // Apply theme immediately when changed
@@ -1308,6 +1388,160 @@ function pollUplinks() {
                 : uiT('errors.binkp.poll_failed', 'Poll failed');
             showError(uiT('ui.settings.poll_failed_prefix', 'Poll failed: ') + error);
         });
+}
+
+// ---- MeshCore Radio management ----
+
+let meshcoreRadioModal;
+let meshcoreRadioDbId = null;
+
+function loadMeshcoreContacts() {
+    const container = document.getElementById('meshcoreContactsContainer');
+    if (!container) return;
+    container.innerHTML = `<div class="text-center py-3 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.common.loading', 'Loading…')}</div>`;
+
+    $.get('/api/user/meshcore/contacts')
+        .done(function(data) {
+            const contacts = data.contacts || [];
+            if (!contacts.length) {
+                container.innerHTML = `<p class="text-muted text-center py-3 mb-0">${uiT('ui.settings.meshcore.no_radios', 'No radios registered.')}</p>`;
+                return;
+            }
+            let html = `<div class="table-responsive"><table class="table table-hover mb-0">
+                <thead><tr>
+                    <th>${uiT('ui.settings.meshcore.col_node_id', 'Node ID')}</th>
+                    <th>${uiT('ui.settings.meshcore.col_name', 'Name')}</th>
+                    <th>${uiT('ui.settings.meshcore.col_type', 'Type')}</th>
+                    <th>${uiT('ui.settings.meshcore.col_last_seen', 'Last Seen')}</th>
+                    <th>${uiT('ui.settings.meshcore.col_actions', 'Actions')}</th>
+                </tr></thead><tbody>`;
+            contacts.forEach(function(c) {
+                const keyDisplay = c.pub_key_full
+                    ? `<code title="${escHtmlSettings(c.pub_key_full)}">${escHtmlSettings(c.pub_key_prefix)}</code>`
+                    : `<code>${escHtmlSettings(c.pub_key_prefix)}</code> <small class="text-muted">(prefix only)</small>`;
+                const lastSeen = c.last_seen_at
+                    ? new Date(c.last_seen_at).toLocaleString()
+                    : `<span class="text-muted">${uiT('ui.settings.meshcore.never', 'Never')}</span>`;
+                const typeCell = c.adv_type
+                    ? `<span class="badge bg-secondary">${escHtmlSettings(c.adv_type)}</span>`
+                    : '<span class="text-muted">—</span>';
+                html += `<tr>
+                    <td>${keyDisplay}</td>
+                    <td>${escHtmlSettings(c.name || '—')}</td>
+                    <td>${typeCell}</td>
+                    <td>${lastSeen}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                onclick='editMeshcoreRadio(${JSON.stringify(c)})'
+                                title="${uiT('ui.common.edit', 'Edit')}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                onclick="deleteMeshcoreRadio(${c.id})"
+                                title="${uiT('ui.common.delete', 'Delete')}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        })
+        .fail(function() {
+            container.innerHTML = `<p class="text-danger text-center py-3 mb-0">${uiT('errors.generic.load_failed', 'Failed to load.')}</p>`;
+        });
+}
+
+function showAddMeshcoreRadioModal() {
+    meshcoreRadioDbId = null;
+    if (!meshcoreRadioModal) meshcoreRadioModal = new bootstrap.Modal(document.getElementById('meshcoreRadioModal'));
+    document.getElementById('meshcoreRadioModalTitle').textContent =
+        uiT('ui.settings.meshcore.add_radio_title', 'Add Radio');
+    document.getElementById('meshcoreRadioDbId').value = '';
+    document.getElementById('meshcoreNodeId').value    = '';
+    document.getElementById('meshcoreRadioName').value = '';
+    document.getElementById('meshcoreRadioError').classList.add('d-none');
+    document.getElementById('meshcoreNodeIdGroup').style.display = '';
+    meshcoreRadioModal.show();
+}
+
+function editMeshcoreRadio(c) {
+    meshcoreRadioDbId = c.id;
+    if (!meshcoreRadioModal) meshcoreRadioModal = new bootstrap.Modal(document.getElementById('meshcoreRadioModal'));
+    document.getElementById('meshcoreRadioModalTitle').textContent =
+        uiT('ui.settings.meshcore.edit_radio_title', 'Edit Radio');
+    document.getElementById('meshcoreRadioDbId').value = c.id;
+    document.getElementById('meshcoreNodeId').value    = c.pub_key_full || c.pub_key_prefix;
+    document.getElementById('meshcoreRadioName').value = c.name || '';
+    document.getElementById('meshcoreRadioError').classList.add('d-none');
+    // Hide node ID field when editing — the key cannot be changed
+    document.getElementById('meshcoreNodeIdGroup').style.display = 'none';
+    meshcoreRadioModal.show();
+}
+
+function saveMeshcoreRadio() {
+    const dbId  = document.getElementById('meshcoreRadioDbId').value;
+    const isEdit = dbId !== '';
+    const name   = document.getElementById('meshcoreRadioName').value.trim();
+
+    if (!isEdit) {
+        const nodeId = document.getElementById('meshcoreNodeId').value.trim();
+        if (!nodeId) {
+            showMeshcoreRadioError(uiT('errors.meshcore.invalid_node_id', 'Node ID is required.'));
+            return;
+        }
+        $.ajax({
+            url: '/api/user/meshcore/contacts',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ node_id: nodeId, name }),
+            success: function() {
+                meshcoreRadioModal.hide();
+                loadMeshcoreContacts();
+            },
+            error: function(xhr) {
+                showMeshcoreRadioError(window.getApiErrorMessage
+                    ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.meshcore.contact_exists', 'Save failed.'))
+                    : (xhr.responseJSON && xhr.responseJSON.error) || uiT('errors.meshcore.contact_exists', 'Save failed.'));
+            }
+        });
+    } else {
+        $.ajax({
+            url: `/api/user/meshcore/contacts/${dbId}`,
+            method: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify({ name }),
+            success: function() {
+                meshcoreRadioModal.hide();
+                loadMeshcoreContacts();
+            },
+            error: function(xhr) {
+                showMeshcoreRadioError(window.getApiErrorMessage
+                    ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.generic.save_failed', 'Save failed.'))
+                    : (xhr.responseJSON && xhr.responseJSON.error) || uiT('errors.generic.save_failed', 'Save failed.'));
+            }
+        });
+    }
+}
+
+function deleteMeshcoreRadio(id) {
+    if (!confirm(uiT('ui.settings.meshcore.delete_confirm', 'Remove this radio from your account?'))) return;
+    $.ajax({
+        url: `/api/user/meshcore/contacts/${id}`,
+        method: 'DELETE',
+        success: function() { loadMeshcoreContacts(); },
+        error: function() { alert(uiT('errors.generic.delete_failed', 'Delete failed.')); }
+    });
+}
+
+function showMeshcoreRadioError(msg) {
+    const el = document.getElementById('meshcoreRadioError');
+    el.textContent = msg;
+    el.classList.remove('d-none');
+}
+
+function escHtmlSettings(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
 {% endblock %}

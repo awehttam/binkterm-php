@@ -174,14 +174,122 @@
     </div>
 </div>
 
+<!-- Contacts Modal -->
+<div class="modal fade" id="contactsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-address-book me-2"></i>Contacts — <code id="contactsModalNodeId"></code>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th style="width:1px"><input type="checkbox" id="contactSelectAll" onchange="toggleSelectAll(this.checked)" title="Select all"></th>
+                                <th>Node ID (prefix)</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Owner</th>
+                                <th>Location</th>
+                                <th>Last Seen</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactsBody">
+                            <tr><td colspan="8" class="text-center text-muted py-3">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger me-auto d-none" id="bulkDeleteBtn" onclick="deleteSelectedContacts()">
+                    {{ t('ui.admin.meshcore.delete_selected') }}
+                    <span class="badge bg-light text-danger ms-1" id="bulkDeleteCount">0</span>
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contact Edit Modal -->
+<div class="modal fade" id="contactEditModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Contact — <code id="contactEditKey"></code></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="contactEditId">
+                <input type="hidden" id="contactEditNodeDbId">
+                <div class="mb-3">
+                    <label class="form-label">Display Name</label>
+                    <input type="text" class="form-control" id="contactEditName" maxlength="64" placeholder="Leave blank to use name from radio">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Owner</label>
+                    <input type="hidden" id="contactEditUserId">
+                    <div class="position-relative">
+                        <input type="text" class="form-control" id="contactOwnerSearch" autocomplete="off"
+                               placeholder="Search username…">
+                        <div id="contactOwnerResults" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index:1070;"></div>
+                    </div>
+                    <div class="form-text">The BBS user who owns this radio. Leave blank to leave unowned.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control" id="contactEditNotes" rows="2" maxlength="500" placeholder="Optional admin notes"></textarea>
+                </div>
+                <div id="contactEditError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveContact()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-let nodeModal;
+const currentAdminUser = {{ current_admin_user | json_encode | raw }};
+
+let nodeModal, keyModal, contactsModal, contactEditModal;
+let activeContactNodeDbId = null;
+let contactOwnerSearchTimer = null;
+let selectedContactOwner = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    nodeModal = new bootstrap.Modal(document.getElementById('nodeModal'));
+    nodeModal        = new bootstrap.Modal(document.getElementById('nodeModal'));
+    contactsModal    = new bootstrap.Modal(document.getElementById('contactsModal'));
+    contactEditModal = new bootstrap.Modal(document.getElementById('contactEditModal'));
     loadNodes();
     loadSessions();
     loadQueue();
+
+    document.getElementById('contactOwnerSearch').addEventListener('input', function() {
+        selectedContactOwner = null;
+        document.getElementById('contactEditUserId').value = '';
+        clearTimeout(contactOwnerSearchTimer);
+        contactOwnerSearchTimer = setTimeout(() => searchContactOwner(this.value), 200);
+    });
+    document.getElementById('contactOwnerSearch').addEventListener('blur', function() {
+        setTimeout(() => {
+            document.getElementById('contactOwnerResults').classList.add('d-none');
+        }, 150);
+    });
+    document.getElementById('contactOwnerSearch').addEventListener('focus', function() {
+        searchContactOwner(this.value);
+    });
+
+    document.getElementById('contactsModal').addEventListener('hidden.bs.modal', function() {
+        activeContactNodeDbId = null;
+        resetBulkSelect();
+    });
 });
 
 function loadNodes() {
@@ -201,6 +309,12 @@ function loadNodes() {
                     <td>${n.username ? escHtml(n.username) : '<span class="text-muted">none</span>'}</td>
                     <td>${n.last_seen_at ? new Date(n.last_seen_at).toLocaleString() : '<span class="text-muted">never</span>'}</td>
                     <td>
+                        ${n.interface_type === 'meshcore' ? `
+                        <button class="btn btn-sm btn-outline-info me-1"
+                                onclick="showContactsModal(${n.id}, '${escHtml(n.node_id)}')"
+                                title="Manage Contacts">
+                            <i class="fas fa-address-book"></i>
+                        </button>` : ''}
                         <button class="btn btn-sm btn-outline-secondary me-1" onclick='editNode(${JSON.stringify(n)})'>
                             <i class="fas fa-edit"></i>
                         </button>
@@ -332,7 +446,6 @@ function flushQueue() {
         .then(() => loadQueue());
 }
 
-let keyModal;
 let keyModalNodeId = 0;
 
 function showKeyModal(nodeDbId, nodeId, hasKey) {
@@ -370,6 +483,216 @@ function copyKey() {
         setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 1500);
     });
 }
+
+// ---- Contacts ----
+
+function showContactsModal(nodeDbId, nodeId) {
+    activeContactNodeDbId = nodeDbId;
+    document.getElementById('contactsModalNodeId').textContent = nodeId;
+    document.getElementById('contactsBody').innerHTML =
+        '<tr><td colspan="7" class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</td></tr>';
+    contactsModal.show();
+    loadContacts(nodeDbId);
+}
+
+function loadContacts(nodeDbId) {
+    resetBulkSelect();
+    fetch(`/admin/api/packet-bbs/nodes/${nodeDbId}/contacts`)
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('contactsBody');
+            if (!data.contacts || data.contacts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No contacts found for this node. The bridge will populate contacts when it syncs.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.contacts.map(c => {
+                const keyDisplay = c.pub_key_full
+                    ? `<code title="${escHtml(c.pub_key_full)}">${escHtml(c.pub_key_prefix)}</code>`
+                    : `<code>${escHtml(c.pub_key_prefix)}</code>`;
+                const loc = (c.lat && c.lon)
+                    ? `<small class="text-muted">${parseFloat(c.lat).toFixed(4)}, ${parseFloat(c.lon).toFixed(4)}</small>`
+                    : '<span class="text-muted">—</span>';
+                const lastSeen = c.last_seen_at
+                    ? new Date(c.last_seen_at).toLocaleString()
+                    : '<span class="text-muted">—</span>';
+                return `
+                <tr>
+                    <td><input type="checkbox" class="contact-select" value="${c.id}" onchange="updateBulkDeleteButton()"></td>
+                    <td>${keyDisplay}</td>
+                    <td>${escHtml(c.name || '—')}</td>
+                    <td>${c.adv_type ? `<span class="badge bg-secondary">${escHtml(c.adv_type)}</span>` : '<span class="text-muted">—</span>'}</td>
+                    <td>${c.username ? escHtml(c.username) : '<span class="text-muted">unowned</span>'}</td>
+                    <td>${loc}</td>
+                    <td>${lastSeen}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                onclick='editContact(${JSON.stringify(c)})'>
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                onclick="deleteContact(${c.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            }).join('');
+        });
+}
+
+function editContact(c) {
+    document.getElementById('contactEditId').value      = c.id;
+    document.getElementById('contactEditNodeDbId').value = activeContactNodeDbId;
+    document.getElementById('contactEditKey').textContent = c.pub_key_prefix + (c.pub_key_full ? '…' : ' (prefix only)');
+    document.getElementById('contactEditName').value    = c.name || '';
+    document.getElementById('contactEditNotes').value   = c.notes || '';
+    document.getElementById('contactEditError').classList.add('d-none');
+
+    // Pre-populate owner: use existing owner if any, otherwise default to current admin
+    if (c.user_id && c.username) {
+        setSelectedContactOwner({ id: c.user_id, username: c.username });
+    } else {
+        setSelectedContactOwner(currentAdminUser && currentAdminUser.id ? currentAdminUser : null);
+    }
+
+    contactEditModal.show();
+}
+
+function saveContact() {
+    const id = document.getElementById('contactEditId').value;
+    const nodeDbId = document.getElementById('contactEditNodeDbId').value;
+    const payload = {
+        name:    document.getElementById('contactEditName').value.trim(),
+        user_id: document.getElementById('contactEditUserId').value || null,
+        notes:   document.getElementById('contactEditNotes').value.trim(),
+    };
+
+    fetch(`/admin/api/packet-bbs/contacts/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                contactEditModal.hide();
+                loadContacts(nodeDbId);
+            } else {
+                document.getElementById('contactEditError').textContent = data.error || 'Save failed.';
+                document.getElementById('contactEditError').classList.remove('d-none');
+            }
+        })
+        .catch(() => {
+            document.getElementById('contactEditError').textContent = 'Request failed.';
+            document.getElementById('contactEditError').classList.remove('d-none');
+        });
+}
+
+function deleteContact(id) {
+    if (!confirm(window.t('ui.admin.meshcore.delete_contact_confirm', {}, 'Delete this contact?'))) return;
+    fetch(`/admin/api/packet-bbs/contacts/${id}`, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(() => loadContacts(activeContactNodeDbId));
+}
+
+// ---- Bulk select / delete ----
+
+function resetBulkSelect() {
+    const selectAll = document.getElementById('contactSelectAll');
+    if (selectAll) selectAll.checked = false;
+    document.getElementById('bulkDeleteBtn').classList.add('d-none');
+    document.getElementById('bulkDeleteCount').textContent = '0';
+}
+
+function toggleSelectAll(checked) {
+    document.querySelectorAll('.contact-select').forEach(cb => { cb.checked = checked; });
+    updateBulkDeleteButton();
+}
+
+function updateBulkDeleteButton() {
+    const checked = document.querySelectorAll('.contact-select:checked');
+    const btn = document.getElementById('bulkDeleteBtn');
+    document.getElementById('bulkDeleteCount').textContent = checked.length;
+    btn.classList.toggle('d-none', checked.length === 0);
+    // Keep select-all in sync
+    const all = document.querySelectorAll('.contact-select');
+    document.getElementById('contactSelectAll').checked = all.length > 0 && checked.length === all.length;
+    document.getElementById('contactSelectAll').indeterminate = checked.length > 0 && checked.length < all.length;
+}
+
+function deleteSelectedContacts() {
+    const ids = Array.from(document.querySelectorAll('.contact-select:checked')).map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    const msg = window.t('ui.admin.meshcore.delete_selected_confirm', {count: ids.length}, 'Delete {count} selected contacts?').replace('{count}', ids.length);
+    if (!confirm(msg)) return;
+    fetch('/admin/api/packet-bbs/contacts/bulk-delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids}),
+    })
+        .then(r => r.json())
+        .then(() => loadContacts(activeContactNodeDbId));
+}
+
+// ---- Contact owner autocomplete ----
+
+function searchContactOwner(query) {
+    const search = (query || '').trim();
+    const results = document.getElementById('contactOwnerResults');
+
+    if (search.length < 2) {
+        results.classList.add('d-none');
+        results.innerHTML = '';
+        return;
+    }
+
+    results.classList.remove('d-none');
+    results.innerHTML = '<button type="button" class="list-group-item text-muted">Searching…</button>';
+
+    fetch('/admin/api/users?' + new URLSearchParams({ search, limit: 10 }))
+        .then(r => r.json())
+        .then(data => {
+            const users = data && data.users ? data.users : [];
+            results.innerHTML = '';
+            if (!users.length) {
+                results.innerHTML = '<button type="button" class="list-group-item text-muted">No users found</button>';
+                results.classList.remove('d-none');
+                return;
+            }
+            users.forEach(u => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'list-group-item list-group-item-action';
+                btn.innerHTML = `<div class="fw-semibold">${escHtml(u.username || '')}</div>
+                                 <small class="text-muted">${escHtml(u.real_name || '')}</small>`;
+                btn.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    setSelectedContactOwner(u);
+                    results.classList.add('d-none');
+                });
+                results.appendChild(btn);
+            });
+            results.classList.remove('d-none');
+        })
+        .catch(() => {
+            results.innerHTML = '<button type="button" class="list-group-item text-danger">Search failed</button>';
+        });
+}
+
+function setSelectedContactOwner(user) {
+    selectedContactOwner = user && user.id ? user : null;
+    if (!selectedContactOwner) {
+        document.getElementById('contactEditUserId').value    = '';
+        document.getElementById('contactOwnerSearch').value  = '';
+        return;
+    }
+    document.getElementById('contactEditUserId').value   = selectedContactOwner.id;
+    document.getElementById('contactOwnerSearch').value  =
+        selectedContactOwner.real_name
+            ? `${selectedContactOwner.username} (${selectedContactOwner.real_name})`
+            : selectedContactOwner.username;
+}
+
+// ---- Shared helpers ----
 
 function showNodeError(msg) {
     const el = document.getElementById('nodeModalError');

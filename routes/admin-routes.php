@@ -4688,6 +4688,135 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         // ---- end Packet BBS ----
 
+        // ---- MeshCore Contact management ----
+
+        SimpleRouter::get('/packet-bbs/nodes/{nodeId}/contacts', function($nodeId) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db   = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare(
+                "SELECT c.id, c.pub_key_full, c.pub_key_prefix, c.name, c.adv_type,
+                        c.user_id, u.username, c.lat, c.lon, c.last_seen_at, c.notes, c.created_at
+                 FROM meshcore_contacts c
+                 LEFT JOIN users u ON u.id = c.user_id
+                 WHERE c.bridge_node_id = ?
+                 ORDER BY c.last_seen_at DESC NULLS LAST, c.created_at DESC"
+            );
+            $stmt->execute([(int)$nodeId]);
+            echo json_encode(['contacts' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+        });
+
+        SimpleRouter::put('/packet-bbs/contacts/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+            $name   = isset($input['name'])    ? trim((string)$input['name'])  : null;
+            $userId = !empty($input['user_id']) ? (int)$input['user_id']       : null;
+            $notes  = isset($input['notes'])   ? trim((string)$input['notes']) : null;
+            $db   = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare(
+                'UPDATE meshcore_contacts
+                 SET name = ?, user_id = ?, notes = ?, updated_at = NOW()
+                 WHERE id = ?'
+            );
+            $stmt->execute([$name !== '' ? $name : null, $userId, $notes !== '' ? $notes : null, (int)$id]);
+            echo json_encode(['success' => $stmt->rowCount() > 0]);
+        });
+
+        SimpleRouter::delete('/packet-bbs/contacts/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            $contact = $db->prepare(
+                'SELECT bridge_node_id, pub_key_full FROM meshcore_contacts WHERE id = ?'
+            );
+            $contact->execute([(int)$id]);
+            $row = $contact->fetch(\PDO::FETCH_ASSOC);
+
+            $stmt = $db->prepare('DELETE FROM meshcore_contacts WHERE id = ?');
+            $stmt->execute([(int)$id]);
+
+            if ($stmt->rowCount() > 0 && $row
+                && $row['bridge_node_id'] !== null && $row['pub_key_full'] !== null) {
+                $cmd = $db->prepare(
+                    'INSERT INTO meshcore_device_commands (bridge_node_id, command_type, payload)
+                     VALUES (?, ?, ?)'
+                );
+                $cmd->execute([
+                    (int)$row['bridge_node_id'],
+                    'remove_contact',
+                    json_encode(['pub_key_full' => $row['pub_key_full']]),
+                ]);
+            }
+
+            echo json_encode(['success' => $stmt->rowCount() > 0]);
+        });
+
+        SimpleRouter::post('/packet-bbs/contacts/bulk-delete', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+
+            $body = json_decode(file_get_contents('php://input'), true);
+            $ids  = array_values(array_filter(
+                array_map('intval', (array)($body['ids'] ?? [])),
+                fn($id) => $id > 0
+            ));
+
+            if (empty($ids)) {
+                echo json_encode(['success' => true, 'deleted' => 0]);
+                return;
+            }
+
+            $db          = \BinktermPHP\Database::getInstance()->getPdo();
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+            // Fetch bridge-linked contacts before deletion so we can queue device commands.
+            $fetch = $db->prepare(
+                "SELECT id, bridge_node_id, pub_key_full
+                   FROM meshcore_contacts
+                  WHERE id IN ({$placeholders})
+                    AND bridge_node_id IS NOT NULL
+                    AND pub_key_full IS NOT NULL"
+            );
+            $fetch->execute($ids);
+            $bridged = $fetch->fetchAll(\PDO::FETCH_ASSOC);
+
+            $del = $db->prepare("DELETE FROM meshcore_contacts WHERE id IN ({$placeholders})");
+            $del->execute($ids);
+            $deleted = $del->rowCount();
+
+            if ($deleted > 0 && !empty($bridged)) {
+                $cmdStmt = $db->prepare(
+                    'INSERT INTO meshcore_device_commands (bridge_node_id, command_type, payload)
+                     VALUES (?, ?, ?)'
+                );
+                foreach ($bridged as $row) {
+                    $cmdStmt->execute([
+                        (int)$row['bridge_node_id'],
+                        'remove_contact',
+                        json_encode(['pub_key_full' => $row['pub_key_full']]),
+                    ]);
+                }
+            }
+
+            echo json_encode(['success' => true, 'deleted' => $deleted]);
+        });
+
+        // ---- end MeshCore Contact management ----
+
         SimpleRouter::get('/insecure-nodes', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
@@ -6136,7 +6265,12 @@ SimpleRouter::get('/admin/packet-bbs', function() {
     $adminController->requireAdmin($user);
 
     $template = new Template();
-    $template->renderResponse('admin/packet_bbs.twig');
+    $template->renderResponse('admin/packet_bbs.twig', [
+        'current_admin_user' => [
+            'id'       => (int)($user['user_id'] ?? $user['id'] ?? 0),
+            'username' => (string)($user['username'] ?? ''),
+        ],
+    ]);
 });
 
 // Insecure Nodes page

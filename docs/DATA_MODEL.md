@@ -167,6 +167,8 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 | `ai_requests` | Per-request AI usage accounting |
 | `ai_bots` / `ai_bot_activities` | AI bot definitions and activity log |
 | `packet_bbs_nodes` / `packet_bbs_sessions` | PacketBBS node registrations and radio sessions |
+| `meshcore_contacts` | MeshCore companion contact list; rows are created by the bridge or pre-registered by users; `pub_key_full` is unique when known (partial unique index); `user_id` links to the owning BBS user |
+| `meshcore_device_commands` | Queue of pending commands to be executed on a MeshCore radio by the bridge (e.g. `remove_contact`); populated on contact deletion; bridge polls and ACKs each row |
 | `bulletins` / `bulletin_reads` | Sysop bulletin board |
 | `bbs_directory` | Network BBS directory populated by echomail robots |
 | `gateway_tokens` | SSO tokens for external service authentication |
@@ -197,6 +199,8 @@ users ────────────────────────�
   ├── saved_messages                                                 │
   │                                                                  │
   ├── door_sessions ──── dosbox_doors                                │
+  │                                                                  │
+  ├── meshcore_contacts (user_id optional; bridge_node_id → packet_bbs_nodes)
   │                                                                  │
   └── ai_requests                                                    │
                                                                      │

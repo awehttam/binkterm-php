@@ -494,6 +494,98 @@ Common operations:
 
 Regenerating a node API key invalidates the old bridge key immediately.
 
+## MeshCore Companion Contacts
+
+MeshCore radio devices maintain a local contact list (the "companion" list) of nodes they have heard or been manually told about. BinktermPHP mirrors this list into the `meshcore_contacts` database table so sysops and users can associate radio contacts with BBS accounts and manage them from the web interface.
+
+### How Contact Sync Works
+
+At startup, the bridge sends `CMD_GET_CONTACTS` to the radio immediately after the handshake completes. The radio responds with its full contact list (`CONTACT_START` → N × `CONTACT` → `CONTACT_END`). The bridge reports each contact to the BBS via:
+
+```text
+POST /api/meshcore/contact
+Authorization: Bearer <node-api-key>
+```
+
+During normal operation, the bridge also reports contacts pushed by the radio in real time (for example, when a new node is heard and automatically added to the companion list).
+
+The BBS upserts on the contact's full 64-character public key. If a user has already pre-registered a contact by its 12-character prefix (see [User Radio Registration](#user-radio-registration) below), the incoming full-key report claims that row and fills in the complete key.
+
+### Contact Identifiers
+
+Each MeshCore contact has two key identifiers:
+
+| Field | Length | Description |
+|---|---|---|
+| Node ID prefix | 12 hex chars | The first 6 bytes of the public key, shown in the MeshCore app |
+| Full public key | 64 hex chars | The complete 32-byte public key; globally unique |
+
+Two contacts can share the same 12-character prefix (the prefix space is 2^48, collisions are possible). Uniqueness is enforced only on the full key. The prefix is used for display and initial lookup; the full key is used for identity and for sending remove commands to the device.
+
+### Admin Contact Manager
+
+On the **Admin → Packet BBS Nodes** page, each MeshCore node row has a contacts button (address book icon). Clicking it opens the Contact Manager for that node.
+
+The Contact Manager shows all contacts synced from that bridge node:
+
+| Column | Description |
+|---|---|
+| Node ID (prefix) | 12-char hex prefix; hover for full key tooltip when known |
+| Name | Display name, either from the radio or set by the sysop |
+| Type | Advertisement type reported by the radio (chat, repeater, etc.) |
+| Owner | BBS user account linked to this radio contact |
+| Location | GPS coordinates, if broadcast by the contact |
+| Last Seen | Timestamp of the most recent bridge sync |
+
+#### Editing a Contact
+
+Click the edit button on any row to open the edit modal. Fields:
+
+- **Display Name** — overrides the name broadcast by the radio; leave blank to use the radio name.
+- **Owner** — BBS user account to associate with this radio node. Uses the same username autocomplete as the Auto Feed Manager. Defaults to the currently logged-in sysop.
+- **Notes** — free-form admin notes.
+
+#### Deleting Contacts
+
+**Single delete:** click the trash icon on any row and confirm.
+
+**Bulk delete:** check one or more rows (or use the Select All checkbox in the header), then click **Delete Selected** in the modal footer. A single request deletes all selected contacts at once.
+
+When a contact has both a known bridge node and a full public key, deletion queues a `remove_contact` device command. The bridge picks up this command on its next poll interval and sends the remove command to the radio, removing the contact from the device's companion list as well.
+
+Contacts that only have a 12-character prefix (no full key) are deleted from the BBS database only — the device cannot be told to remove them because the full key needed to address the command is not known.
+
+### User Radio Registration
+
+Users can register their own MeshCore radio node under **Settings → MeshCore Radio**. This creates a pre-registration row in `meshcore_contacts` owned by that user.
+
+Registration accepts either:
+
+- **12-character node ID** — the prefix shown in the MeshCore app. The full key will be filled in automatically when the bridge next reports this contact.
+- **64-character public key** — the full key. Preferred if known, as it matches immediately without waiting for a bridge sync.
+
+Once the bridge reports a contact whose prefix matches a user's pre-registered row (and the full key is not yet known), the row is claimed and updated. The user's BBS account becomes the owner of that radio contact.
+
+Users can rename or delete their registered radios from the same settings tab. Deleting a user-registered contact follows the same device command queue logic as admin deletion.
+
+### Device Command Queue
+
+When a contact is deleted (by a sysop or by the owning user), BinktermPHP records a pending `remove_contact` command in `meshcore_device_commands`. The bridge polls for pending commands at the same interval as outbound messages:
+
+```text
+GET /api/meshcore/pending-commands?bridge_node_id=<hex>
+Authorization: Bearer <node-api-key>
+```
+
+For each `remove_contact` command, the bridge sends the radio a remove frame addressed to the contact's full 32-byte public key, then acknowledges the command:
+
+```text
+POST /api/meshcore/commands/{id}/ack
+Authorization: Bearer <node-api-key>
+```
+
+If the bridge is offline when the delete happens, the command stays queued until the bridge reconnects and polls again.
+
 ## Troubleshooting
 
 ### Unknown Bridge Node

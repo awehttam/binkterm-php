@@ -12072,4 +12072,119 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // ---- MeshCore user contact management ----
+
+    SimpleRouter::get('/user/meshcore/contacts', function() {
+        $auth   = new Auth();
+        $user   = $auth->requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare(
+            "SELECT c.id, c.pub_key_full, c.pub_key_prefix, c.name, c.adv_type,
+                    c.last_seen_at, c.created_at
+             FROM meshcore_contacts c
+             WHERE c.user_id = ?
+             ORDER BY c.created_at DESC"
+        );
+        $stmt->execute([$userId]);
+        echo json_encode(['success' => true, 'contacts' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+    });
+
+    SimpleRouter::post('/user/meshcore/contacts', function() {
+        $auth   = new Auth();
+        $user   = $auth->requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $rawKey = strtolower(trim((string)($input['node_id'] ?? '')));
+        $name   = trim((string)($input['name'] ?? ''));
+
+        if (preg_match('/^[0-9a-f]{64}$/', $rawKey)) {
+            $prefix  = substr($rawKey, 0, 12);
+            $fullKey = $rawKey;
+        } elseif (preg_match('/^[0-9a-f]{12}$/', $rawKey)) {
+            $prefix  = $rawKey;
+            $fullKey = null;
+        } else {
+            http_response_code(400);
+            apiError('errors.meshcore.invalid_node_id', 'Node ID must be 12 or 64 lowercase hex characters.');
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        try {
+            $stmt = $db->prepare(
+                'INSERT INTO meshcore_contacts (pub_key_prefix, pub_key_full, name, user_id)
+                 VALUES (?, ?, ?, ?) RETURNING id'
+            );
+            $stmt->execute([$prefix, $fullKey, $name !== '' ? $name : null, $userId]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            echo json_encode(['success' => true, 'id' => (int)$row['id']]);
+        } catch (\Exception $e) {
+            http_response_code(409);
+            apiError('errors.meshcore.contact_exists', 'A contact with this node ID already exists.');
+        }
+    });
+
+    SimpleRouter::put('/user/meshcore/contacts/{id}', function($id) {
+        $auth   = new Auth();
+        $user   = $auth->requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $name  = trim((string)($input['name'] ?? ''));
+        $db    = \BinktermPHP\Database::getInstance()->getPdo();
+        $check = $db->prepare('SELECT id FROM meshcore_contacts WHERE id = ? AND user_id = ?');
+        $check->execute([(int)$id, $userId]);
+        if (!$check->fetch()) {
+            http_response_code(404);
+            apiError('errors.meshcore.not_found', 'Contact not found.');
+            return;
+        }
+        $stmt = $db->prepare(
+            'UPDATE meshcore_contacts SET name = ?, updated_at = NOW() WHERE id = ? AND user_id = ?'
+        );
+        $stmt->execute([$name !== '' ? $name : null, (int)$id, $userId]);
+        echo json_encode(['success' => true]);
+    });
+
+    SimpleRouter::delete('/user/meshcore/contacts/{id}', function($id) {
+        $auth   = new Auth();
+        $user   = $auth->requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        $contact = $db->prepare(
+            'SELECT bridge_node_id, pub_key_full FROM meshcore_contacts WHERE id = ? AND user_id = ?'
+        );
+        $contact->execute([(int)$id, $userId]);
+        $row = $contact->fetch(\PDO::FETCH_ASSOC);
+
+        $stmt = $db->prepare('DELETE FROM meshcore_contacts WHERE id = ? AND user_id = ?');
+        $stmt->execute([(int)$id, $userId]);
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            apiError('errors.meshcore.not_found', 'Contact not found.');
+            return;
+        }
+
+        if ($row && $row['bridge_node_id'] !== null && $row['pub_key_full'] !== null) {
+            $cmd = $db->prepare(
+                'INSERT INTO meshcore_device_commands (bridge_node_id, command_type, payload)
+                 VALUES (?, ?, ?)'
+            );
+            $cmd->execute([
+                (int)$row['bridge_node_id'],
+                'remove_contact',
+                json_encode(['pub_key_full' => $row['pub_key_full']]),
+            ]);
+        }
+
+        echo json_encode(['success' => true]);
+    });
+
+    // ---- end MeshCore user contact management ----
+
 });
