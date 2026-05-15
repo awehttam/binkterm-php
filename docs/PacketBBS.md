@@ -1,5 +1,45 @@
 # PacketBBS Gateway
 
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Bridge Adapters](#bridge-adapters)
+  - [Bridge Node vs Sender Node](#bridge-node-vs-sender-node)
+- [Workflow: how PacketBBS fits into low-bandwidth access](#workflow-how-packetbbs-fits-into-low-bandwidth-access)
+- [Sysop Setup](#sysop-setup)
+  - [1. Configure PacketBBS Defaults](#1-configure-packetbbs-defaults)
+  - [2. Register a Bridge Node](#2-register-a-bridge-node)
+  - [3. Configure the Bridge](#3-configure-the-bridge)
+- [User Enrollment](#user-enrollment)
+- [End-User Command Guide](#end-user-command-guide)
+  - [Login](#login)
+  - [Online Users](#online-users)
+  - [Netmail](#netmail)
+  - [Echomail](#echomail)
+    - [Area Search](#area-search)
+  - [Compose Mode](#compose-mode)
+  - [Paging](#paging)
+  - [Quit](#quit)
+- [Output Profiles](#output-profiles)
+- [Admin Operations](#admin-operations)
+- [MeshCore Companion Contacts](#meshcore-companion-contacts)
+  - [How Contact Sync Works](#how-contact-sync-works)
+  - [Contact Identifiers](#contact-identifiers)
+  - [Admin Contact Manager](#admin-contact-manager)
+    - [Editing a Contact](#editing-a-contact)
+    - [Deleting Contacts](#deleting-contacts)
+  - [User Radio Registration](#user-radio-registration)
+  - [Companion Radio Association](#companion-radio-association)
+  - [Device Auto-Add Policy](#device-auto-add-policy)
+  - [Device Command Queue](#device-command-queue)
+- [Troubleshooting](#troubleshooting)
+  - [Unknown Bridge Node](#unknown-bridge-node)
+  - [Unauthorized HTTP Response](#unauthorized-http-response)
+  - [User Cannot Log In](#user-cannot-log-in)
+  - [Echomail Post Goes to the Wrong Area or Fails](#echomail-post-goes-to-the-wrong-area-or-fails)
+  - [Logs](#logs)
+- [Related Systems](#related-systems)
+
 PacketBBS is BinktermPHP's compact text gateway for PacketBBS, MeshCore, and similar packet radio or mesh text bridges. It exposes BBS mail functions through short command/response messages instead of a full-screen terminal UI.
 
 The gateway is designed for low-bandwidth radio links:
