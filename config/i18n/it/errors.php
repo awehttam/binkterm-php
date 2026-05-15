@@ -704,4 +704,9 @@ return [
     'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
     'errors.admin.networks.delete_in_use' => 'Network is in use',
     'errors.admin.networks.delete_failed' => 'Failed to delete network',
+
+    // MeshCore
+    'errors.meshcore.invalid_node_id' => 'L\'ID nodo deve essere composto da 12 o 64 caratteri esadecimali minuscoli.',
+    'errors.meshcore.contact_exists' => 'Esiste già un contatto con questo ID nodo.',
+    'errors.meshcore.not_found' => 'Contatto non trovato.',
 ];

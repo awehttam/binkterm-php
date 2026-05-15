@@ -661,6 +661,9 @@ return [
     'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
     'errors.admin.networks.delete_in_use' => 'Network is in use',
     'errors.admin.networks.delete_failed' => 'Failed to delete network',
+    'errors.meshcore.invalid_node_id' => 'L\'ID de noeud doit comporter 12 ou 64 caractères hexadécimaux minuscules.',
+    'errors.meshcore.contact_exists' => 'Un contact avec cet ID de noeud existe déjà.',
+    'errors.meshcore.not_found' => 'Contact introuvable.',
 ];
 
 

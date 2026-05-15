@@ -704,4 +704,7 @@ return [
     'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
     'errors.admin.networks.delete_in_use' => 'Network is in use',
     'errors.admin.networks.delete_failed' => 'Failed to delete network',
+    'errors.meshcore.invalid_node_id' => 'Node ID must be 12 or 64 lowercase hex characters.',
+    'errors.meshcore.contact_exists' => 'A contact with this node ID already exists.',
+    'errors.meshcore.not_found' => 'Contact not found.',
 ];

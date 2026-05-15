@@ -12072,4 +12072,208 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // ---- MeshCore user contact management ----
+
+    SimpleRouter::get('/user/meshcore/bridges', function() {
+        $auth = new Auth();
+        $auth->requireAuth();
+        header('Content-Type: application/json');
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->query(
+            "SELECT id, node_id, handle
+             FROM packet_bbs_nodes
+             WHERE interface_type = 'meshcore'
+             ORDER BY handle NULLS LAST, node_id"
+        );
+        echo json_encode(['bridges' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+    });
+
+    SimpleRouter::get('/user/meshcore/contacts', function() {
+        $auth   = new Auth();
+        $user   = $auth->requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+        $db   = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare(
+            "SELECT c.id, c.pub_key_full, c.pub_key_prefix, c.name, c.adv_type,
+                    c.bridge_node_id, c.last_seen_at, c.created_at,
+                    n.node_id AS bridge_node_str, n.handle AS bridge_handle
+             FROM meshcore_contacts c
+             LEFT JOIN packet_bbs_nodes n ON n.id = c.bridge_node_id
+             WHERE c.user_id = ?
+             ORDER BY c.created_at DESC"
+        );
+        $stmt->execute([$userId]);
+        echo json_encode(['success' => true, 'contacts' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+    });
+
+    SimpleRouter::post('/user/meshcore/contacts', function() {
+        $auth   = new Auth();
+        $user   = $auth->requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $rawKey = strtolower(trim((string)($input['node_id'] ?? '')));
+        $name   = trim((string)($input['name'] ?? ''));
+
+        if (preg_match('/^[0-9a-f]{64}$/', $rawKey)) {
+            $prefix  = substr($rawKey, 0, 12);
+            $fullKey = $rawKey;
+        } elseif (preg_match('/^[0-9a-f]{12}$/', $rawKey)) {
+            $prefix  = $rawKey;
+            $fullKey = null;
+        } else {
+            http_response_code(400);
+            apiError('errors.meshcore.invalid_node_id', 'Node ID must be 12 or 64 lowercase hex characters.');
+            return;
+        }
+
+        $bridgeId = !empty($input['bridge_id']) ? (int)$input['bridge_id'] : null;
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Validate bridge if provided
+        if ($bridgeId !== null) {
+            $bCheck = $db->prepare('SELECT id FROM packet_bbs_nodes WHERE id = ?');
+            $bCheck->execute([$bridgeId]);
+            if (!$bCheck->fetch()) {
+                $bridgeId = null;
+            }
+        }
+
+        try {
+            $stmt = $db->prepare(
+                'INSERT INTO meshcore_contacts (pub_key_prefix, pub_key_full, name, user_id, bridge_node_id)
+                 VALUES (?, ?, ?, ?, ?) RETURNING id'
+            );
+            $stmt->execute([$prefix, $fullKey, $name !== '' ? $name : null, $userId, $bridgeId]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($fullKey !== null && $bridgeId !== null) {
+                $cmdStmt = $db->prepare(
+                    'INSERT INTO meshcore_device_commands (bridge_node_id, command_type, payload)
+                     VALUES (?, ?, ?)'
+                );
+                $cmdStmt->execute([
+                    $bridgeId,
+                    'add_contact',
+                    json_encode([
+                        'pub_key_full' => $fullKey,
+                        'name'         => $name !== '' ? $name : null,
+                        'adv_type'     => 1,
+                    ]),
+                ]);
+            }
+
+            echo json_encode(['success' => true, 'id' => (int)$row['id']]);
+        } catch (\Exception $e) {
+            http_response_code(409);
+            apiError('errors.meshcore.contact_exists', 'A contact with this node ID already exists.');
+        }
+    });
+
+    SimpleRouter::put('/user/meshcore/contacts/{id}', function($id) {
+        $auth   = new Auth();
+        $user   = $auth->requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+        $input    = json_decode(file_get_contents('php://input'), true) ?? [];
+        $name     = trim((string)($input['name'] ?? ''));
+        $bridgeId = array_key_exists('bridge_id', $input)
+            ? (!empty($input['bridge_id']) ? (int)$input['bridge_id'] : null)
+            : false; // false = not provided, don't change
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        $check = $db->prepare(
+            'SELECT id, pub_key_full, bridge_node_id FROM meshcore_contacts WHERE id = ? AND user_id = ?'
+        );
+        $check->execute([(int)$id, $userId]);
+        $existing = $check->fetch(\PDO::FETCH_ASSOC);
+        if (!$existing) {
+            http_response_code(404);
+            apiError('errors.meshcore.not_found', 'Contact not found.');
+            return;
+        }
+
+        if ($bridgeId !== false) {
+            // Validate bridge if provided
+            if ($bridgeId !== null) {
+                $bCheck = $db->prepare('SELECT id FROM packet_bbs_nodes WHERE id = ?');
+                $bCheck->execute([$bridgeId]);
+                if (!$bCheck->fetch()) {
+                    $bridgeId = null;
+                }
+            }
+            $stmt = $db->prepare(
+                'UPDATE meshcore_contacts
+                 SET name = ?, bridge_node_id = ?, updated_at = NOW()
+                 WHERE id = ? AND user_id = ?'
+            );
+            $stmt->execute([$name !== '' ? $name : null, $bridgeId, (int)$id, $userId]);
+
+            // Queue add_contact if bridge changed to a valid bridge and we have a full key
+            $prevBridge = $existing['bridge_node_id'] !== null ? (int)$existing['bridge_node_id'] : null;
+            if ($bridgeId !== null && $bridgeId !== $prevBridge && $existing['pub_key_full'] !== null) {
+                $cmdStmt = $db->prepare(
+                    'INSERT INTO meshcore_device_commands (bridge_node_id, command_type, payload)
+                     VALUES (?, ?, ?)'
+                );
+                $cmdStmt->execute([
+                    $bridgeId,
+                    'add_contact',
+                    json_encode([
+                        'pub_key_full' => $existing['pub_key_full'],
+                        'name'         => $name !== '' ? $name : null,
+                        'adv_type'     => 1,
+                    ]),
+                ]);
+            }
+        } else {
+            $stmt = $db->prepare(
+                'UPDATE meshcore_contacts SET name = ?, updated_at = NOW() WHERE id = ? AND user_id = ?'
+            );
+            $stmt->execute([$name !== '' ? $name : null, (int)$id, $userId]);
+        }
+
+        echo json_encode(['success' => true]);
+    });
+
+    SimpleRouter::delete('/user/meshcore/contacts/{id}', function($id) {
+        $auth   = new Auth();
+        $user   = $auth->requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        header('Content-Type: application/json');
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        $contact = $db->prepare(
+            'SELECT bridge_node_id, pub_key_full FROM meshcore_contacts WHERE id = ? AND user_id = ?'
+        );
+        $contact->execute([(int)$id, $userId]);
+        $row = $contact->fetch(\PDO::FETCH_ASSOC);
+
+        $stmt = $db->prepare('DELETE FROM meshcore_contacts WHERE id = ? AND user_id = ?');
+        $stmt->execute([(int)$id, $userId]);
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            apiError('errors.meshcore.not_found', 'Contact not found.');
+            return;
+        }
+
+        if ($row && $row['bridge_node_id'] !== null && $row['pub_key_full'] !== null) {
+            $cmd = $db->prepare(
+                'INSERT INTO meshcore_device_commands (bridge_node_id, command_type, payload)
+                 VALUES (?, ?, ?)'
+            );
+            $cmd->execute([
+                (int)$row['bridge_node_id'],
+                'remove_contact',
+                json_encode(['pub_key_full' => $row['pub_key_full']]),
+            ]);
+        }
+
+        echo json_encode(['success' => true]);
+    });
+
+    // ---- end MeshCore user contact management ----
+
 });

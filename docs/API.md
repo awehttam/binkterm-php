@@ -76,6 +76,7 @@ Content-Type: application/json
   - [Interests](#interests) (7)
   - [Markdown Images](#markdown-images) (2)
   - [Media](#media) (2)
+  - [MeshCore](#meshcore) (3)
   - [Messages](#messages) (47)
   - [Netmail](#netmail) (1)
   - [Nodelist](#nodelist) (2)
@@ -92,7 +93,7 @@ Content-Type: application/json
   - [Taglines](#taglines) (1)
   - [Test](#test) (1)
   - [Url Preview](#url-preview) (1)
-  - [User](#user) (33)
+  - [User](#user) (37)
   - [Users](#users) (9)
   - [Verify](#verify) (1)
   - [Whosonline](#whosonline) (1)
@@ -3722,6 +3723,101 @@ JSON object with media type, provider name, and embed HTML.
 
 ---
 
+### MeshCore
+
+Bridge-facing endpoints authenticated with a per-node Bearer token (`Authorization: Bearer <api_key>`).
+
+| Method | Path | Auth | Summary |
+|--------|------|------|---------|
+| `POST` | [`/api/meshcore/contact`](#post-apimeshcorecontact) | Bearer | Report a companion contact from a MeshCore bridge. |
+| `GET` | [`/api/meshcore/pending-commands`](#get-apimeshocorepending-commands) | Bearer | Poll for device commands queued for this bridge (e.g. remove_contact). |
+| `POST` | [`/api/meshcore/commands/{id}/ack`](#post-apimeshcorecommandsidack) | Bearer | Acknowledge that a device command has been sent to the radio. |
+
+---
+
+#### `POST /api/meshcore/contact`
+
+**Requires Bearer token** (packet-BBS node API key)
+
+Called by the MeshCore bridge when a stored companion contact is received from the radio. Creates or updates a `meshcore_contacts` row. If a user has already registered a prefix-only contact matching this key, that row is claimed and updated with the full key.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `pub_key_hex` | string | Yes | Full 64-char lowercase hex public key |
+| `bridge_node_id` | string | Yes | Bridge node ID (from `SelfInfo`) |
+| `name` | string | No | Contact name from radio |
+| `adv_type` | string | No | Advertisement type |
+| `latitude` | float\|null | No | GPS latitude |
+| `longitude` | float\|null | No | GPS longitude |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `id` | integer | Contact record ID |
+| `action` | string | `inserted`, `updated`, or `claimed` |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing or invalid `pub_key_hex` |
+| 401 | Missing or invalid Bearer token |
+
+---
+
+#### `GET /api/meshcore/pending-commands`
+
+**Requires Bearer token** (packet-BBS node API key)
+
+Returns unexecuted device commands queued for this bridge node. The bridge polls this endpoint on the same interval as pending messages and executes each command against the radio.
+
+**Query Parameters**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `bridge_node_id` | Yes | Full 64-char hex public key of the bridge node |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `commands` | array | List of pending command objects |
+| `commands[].id` | integer | Command record ID (used for ACK) |
+| `commands[].command_type` | string | Command type, e.g. `remove_contact` |
+| `commands[].payload` | object | Command-specific data (see below) |
+
+**`remove_contact` payload fields**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pub_key_full` | string | Full 64-char hex public key of the contact to remove |
+
+---
+
+#### `POST /api/meshcore/commands/{id}/ack`
+
+**Requires Bearer token** (packet-BBS node API key)
+
+Marks a device command as executed. The bridge calls this after dispatching the command to the radio, regardless of whether the radio acknowledged it.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `bridge_node_id` | string | Yes | Full 64-char hex public key of the bridge node |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the command was found and marked executed |
+
+---
+
 ### Messages
 
 | Method | Path | Auth | Summary |
@@ -6285,6 +6381,10 @@ Open Graph metadata or error
 | `POST` | [`/api/user/packetbbs-totp/setup`](#post-apiuserpacketbbs-totpsetup) | Yes | Generate a new pending TOTP secret for PacketBBS authenticator enrollment. |
 | `POST` | [`/api/user/packetbbs-totp/verify-enrollment`](#post-apiuserpacketbbs-totpverify-enrollment) | Yes | Verify TOTP code and activate the pending secret. |
 | `POST` | [`/api/user/packetbbs-totp/disable`](#post-apiuserpacketbbs-totpdisable) | Yes | Disable and clear the user's PacketBBS TOTP secret. |
+| `GET` | [`/api/user/meshcore/contacts`](#get-apiusermeshcorecontacts) | Yes | List the current user's registered MeshCore radio contacts. |
+| `POST` | [`/api/user/meshcore/contacts`](#post-apiusermeshcorecontacts) | Yes | Register a MeshCore radio contact for the current user. |
+| `PUT` | [`/api/user/meshcore/contacts/{id}`](#put-apiusermeshcorecontactsid) | Yes | Update a user's MeshCore contact name. |
+| `DELETE` | [`/api/user/meshcore/contacts/{id}`](#delete-apiusermeshcorecontactsid) | Yes | Delete a user's MeshCore contact. |
 | `GET` | [`/api/user/terminal-settings`](#get-apiuserterminal-settings) | Yes | Retrieve user's terminal display settings. |
 | `POST` | [`/api/user/terminal-settings`](#post-apiuserterminal-settings) | Yes | Update user's terminal display settings. |
 | `GET` | [`/api/user/terminal-mail-state`](#get-apiuserterminal-mail-state) | Yes | Retrieve user's terminal mail navigation state. |
@@ -6999,6 +7099,102 @@ Confirmation of successful disabling
 | Status | Description |
 |--------|-------------|
 | 500 | Failed to disable authenticator (metadata write error) |
+
+---
+
+#### `GET /api/user/meshcore/contacts`
+
+**Requires authentication**
+
+Returns all MeshCore radio contacts registered by the current user.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `contacts` | array | List of contact objects |
+| `contacts[].id` | integer | Contact record ID |
+| `contacts[].pub_key_prefix` | string | 12-char hex node ID prefix |
+| `contacts[].pub_key_full` | string\|null | Full 64-char public key, if known |
+| `contacts[].name` | string\|null | Display name |
+| `contacts[].adv_type` | string\|null | Advertisement type reported by the radio |
+| `contacts[].last_seen_at` | string\|null | ISO 8601 timestamp of last bridge contact |
+
+---
+
+#### `POST /api/user/meshcore/contacts`
+
+**Requires authentication**
+
+Registers a MeshCore radio contact for the current user. Accepts either a 12-character node ID prefix or a full 64-character public key hex string.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `node_id` | string | Yes | 12-char or 64-char lowercase hex node ID |
+| `name` | string | No | Optional display name |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `id` | integer | Newly created contact record ID |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | `errors.meshcore.invalid_node_id` — node_id must be 12 or 64 lowercase hex chars |
+| 409 | `errors.meshcore.contact_exists` — a contact with this key already exists for the user |
+
+---
+
+#### `PUT /api/user/meshcore/contacts/{id}`
+
+**Requires authentication**
+
+Updates the display name of a MeshCore contact owned by the current user.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | New display name (empty string clears the name) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 404 | `errors.meshcore.not_found` — contact not found or not owned by this user |
+
+---
+
+#### `DELETE /api/user/meshcore/contacts/{id}`
+
+**Requires authentication**
+
+Deletes a MeshCore contact owned by the current user.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 404 | `errors.meshcore.not_found` — contact not found or not owned by this user |
 
 ---
 
