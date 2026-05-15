@@ -31,7 +31,7 @@
 
 ---
 
-BinktermPHP has a provider-agnostic AI layer in `src/AI/` that lets features call OpenAI, Anthropic, or Ollama through a shared interface. The system also records every AI request in a local accounting ledger so you can estimate usage and cost from the admin UI. For local inference providers such as Ollama, cost estimates are based on power consumption rather than per-token billing.
+BinktermPHP has a provider-agnostic AI layer in `src/AI/` that lets features call OpenAI, Anthropic, or Ollama through a shared interface. The system also records every AI request in a local accounting ledger so you can estimate usage and cost from the admin UI. For local inference providers such as Ollama, cost estimates can be based on power consumption rather than per-token billing.
 
 When a feature makes an AI request, the provider is selected in this order: a feature-specific override (e.g. `AI_TRANSLATION_CATALOG_PROVIDER`), then the system-wide default (`AI_DEFAULT_PROVIDER`), then OpenAI if configured, then the first available configured provider. Each feature can be pointed at a different provider and model, or left to use the system-wide default.
 
@@ -45,6 +45,7 @@ The current AI system is used by:
 - `scripts/create_translation_catalog.php` for AI-assisted i18n catalog translation
 - `src/AI/MessageAiAssistant.php` for the message-reader assistant
 - `src/AI/ShareSummaryGenerator.php` for generating Open Graph description summaries of shared echomail messages
+- `src/AiBot/LocalChatActivityHandler.php` for AI chat bots that respond in local chat rooms
 
 The shared layer supports:
 
