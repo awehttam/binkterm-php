@@ -514,7 +514,9 @@ function startAutoaddPoll(nodeDbId) {
                     stopAutoaddPoll();
                     btn.disabled = false;
                     unknownEl.classList.add('d-none');
+                    document.getElementById('nodeAutoaddPendingSync').classList.add('d-none');
                     setAutoaddCheckboxes(parseInt(node.autoadd_config, 10));
+                    loadNodes();
                 } else if (elapsed >= AUTOADD_POLL_TIMEOUT) {
                     stopAutoaddPoll();
                     btn.disabled = false;
@@ -558,8 +560,15 @@ function saveNode() {
         .then(r => r.json())
         .then(data => {
             if (data.success || data.id) {
-                nodeModal.hide();
-                loadNodes();
+                if (isEdit && isMeshcore) {
+                    // Keep the modal open and auto-read back from the device to
+                    // confirm the setting was applied, clearing the pending badge.
+                    loadNodes();
+                    readAutoaddConfig();
+                } else {
+                    nodeModal.hide();
+                    loadNodes();
+                }
             } else {
                 showNodeError(data.error || 'Save failed.');
             }
