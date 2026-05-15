@@ -709,4 +709,6 @@ return [
     'errors.meshcore.invalid_node_id' => 'El ID de nodo debe tener 12 o 64 caracteres hexadecimales en minusculas.',
     'errors.meshcore.contact_exists' => 'Ya existe un contacto con este ID de nodo.',
     'errors.meshcore.not_found' => 'Contacto no encontrado.',
+    'errors.meshcore.qr_unrecognized' => 'Formato de código QR no reconocido.',
+    'errors.meshcore.qr_camera_denied' => 'Acceso a la cámara denegado.',
 ];

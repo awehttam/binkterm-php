@@ -707,4 +707,6 @@ return [
     'errors.meshcore.invalid_node_id' => 'Node ID must be 12 or 64 lowercase hex characters.',
     'errors.meshcore.contact_exists' => 'A contact with this node ID already exists.',
     'errors.meshcore.not_found' => 'Contact not found.',
+    'errors.meshcore.qr_unrecognized' => 'Unrecognized QR code format.',
+    'errors.meshcore.qr_camera_denied' => 'Camera access denied.',
 ];

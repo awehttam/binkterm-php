@@ -664,6 +664,8 @@ return [
     'errors.meshcore.invalid_node_id' => 'L\'ID de noeud doit comporter 12 ou 64 caractères hexadécimaux minuscules.',
     'errors.meshcore.contact_exists' => 'Un contact avec cet ID de noeud existe déjà.',
     'errors.meshcore.not_found' => 'Contact introuvable.',
+    'errors.meshcore.qr_unrecognized' => 'Format de QR code non reconnu.',
+    'errors.meshcore.qr_camera_denied' => 'Accès à la caméra refusé.',
 ];
 
 
