@@ -109,6 +109,9 @@ def chunk_markdown(text: str, source: str) -> list[dict]:
         block_text = "\n".join(lines).strip()
         if not block_text:
             return
+        non_empty_lines = [line.strip() for line in block_text.splitlines() if line.strip()]
+        if non_empty_lines and all(re.match(r"^#{1,6}\s+", line) for line in non_empty_lines):
+            return
 
         i = 0
         while i < len(block_text):

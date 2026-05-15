@@ -8,12 +8,13 @@ Welcome aboard! This guide will walk you through everything this BBS has to offe
 
 1. [Your Dashboard](#your-dashboard)
 2. [Echomail: Global Forums](#echomail-global-forums)
-3. [Netmail: Private Messages](#netmail-private-messages)
-4. [Doors: Games & Applications](#doors-games-applications)
-5. [File Areas](#file-areas)
-6. [Exploring the BBS Networks](#exploring-the-bbs-networks)
-7. [Your Profile & Settings](#your-profile-settings)
-8. [Getting Help](#getting-help)
+3. [Message Reader](#message-reader)
+4. [Netmail: Private Messages](#netmail-private-messages)
+5. [Doors: Games & Applications](#doors-games-applications)
+6. [File Areas](#file-areas)
+7. [Exploring the BBS Networks](#exploring-the-bbs-networks)
+8. [Your Profile & Settings](#your-profile-settings)
+9. [Getting Help](#getting-help)
 
 ---
 
@@ -103,6 +104,29 @@ If your BBS has **Interests** configured, you can also set topic interests from 
 <div class="screenshot-placeholder">
   <i class="fas fa-camera me-2"></i><strong>Screenshot:</strong> User menu Subscriptions page with area list and follow toggles
 </div>
+
+---
+
+## Message Reader
+
+The web message reader is used in both **Echomail** and **Netmail**. When you open a message, it appears in a pop-up reader with buttons for moving to the previous or next message, changing the display mode, downloading the message, and replying.
+
+If you prefer using the keyboard, the message reader supports these shortcuts:
+
+- **Left Arrow / Right Arrow** — Move to the previous or next message
+- **A** — Cycle through available viewer modes such as Auto, ANSI, Amiga ANSI, PETSCII, and Plain Text
+- **D** — Download the current message
+- **F** — Toggle full-screen mode for the reader
+- **?** or **H** — Show or hide the keyboard shortcuts help overlay
+- **Esc** — Close the message reader
+
+On touch devices, you can also **swipe left** to move to the next message and **swipe right** to move to the previous message. If you swipe within content that scrolls horizontally (such as ANSI art), the content scrolls first; the navigation gesture only triggers when the content is already at its edge.
+
+<div class="screenshot-placeholder">
+  <i class="fas fa-camera me-2"></i><strong>Screenshot:</strong> Message reader modal with previous and next buttons, fullscreen toggle, and keyboard shortcut help overlay
+</div>
+
+> **Tip:** The same shortcuts work in both the echomail reader and the netmail reader.
 
 ---
 

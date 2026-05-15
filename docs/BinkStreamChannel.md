@@ -23,7 +23,7 @@ The business logic is shared. `GET /api/stream`, `POST /api/stream`, and the sta
 9. [SharedWorker (`binkstream-worker-v2.js`)](#sharedworker-binkstream-worker-v2js)
 10. [Client Library (`binkstream-client.js`)](#client-library-binkstream-clientjs)
 11. [Subscribing to Events in JavaScript](#subscribing-to-events-in-javascript)
-12. [Adding a New Event Type](#adding-a-new-event-type)
+12. [Publishing a New Event](#publishing-a-new-event)
 13. [Connection Lifecycle](#connection-lifecycle)
 14. [Debugging](#debugging)
     - [Check the active transport mode](#check-the-active-transport-mode)
@@ -65,6 +65,8 @@ window.BinkStream.on(...) / off(...) / send(...)
 ```
 
 The important design rule is that WebSocket is not a separate realtime subsystem. It is another transport over the same command/event core used by `/api/stream`.
+
+BinkStream is a platform service, not a chat-only add-on. It is the common live-update path for notifications, chat, dashboards, admin tools, and other browser features that need near-real-time state.
 
 ---
 
@@ -171,7 +173,7 @@ LIMIT 200
 
 The `admin_only` check uses an inlined SQL literal (`TRUE` or `FALSE`) rather than a bound parameter to avoid PostgreSQL boolean/text type issues with PDO.
 
-For new event types, no changes to the delivery query are needed. Set `user_id` and `admin_only` when inserting into `sse_events` and targeting is enforced automatically.
+For new events, no changes to the delivery query are needed. Set `user_id` and `admin_only` when inserting into `sse_events` and targeting is enforced automatically.
 
 ---
 
@@ -344,9 +346,17 @@ window.BinkStream.on('chat_message', function (payload) {
 
 `payload.id` is the domain ID such as `chat_messages.id`, not the stream cursor. The cursor is internal to the worker.
 
+## Workflow: how realtime updates flow
+
+1. A platform subsystem inserts a targeted event into `sse_events`.
+2. `StreamService` reads the event and exposes it through SSE or WebSocket.
+3. The SharedWorker keeps one active connection for the origin and tracks the stream cursor.
+4. Open tabs subscribe to event types through `window.BinkStream.on(...)`.
+5. UI code updates page state, notifications, or live widgets when the payload arrives.
+
 ---
 
-## Adding a New Event Type
+## Publishing a New Event
 
 ### Step 1: insert a fat payload into `sse_events`
 
@@ -386,7 +396,7 @@ $stmt->execute([
 
 ### Step 2: delivery is automatic
 
-No transport code changes are needed. The shared event fetch query already returns all event types from `sse_events`.
+No transport code changes are needed. The shared event fetch query delivers every row from `sse_events` regardless of its `event_type` value.
 
 ### Step 3: subscribe in JavaScript
 
@@ -396,7 +406,7 @@ window.BinkStream.on('user_online', function (payload) {
 });
 ```
 
-No changes to `binkstream-worker-v2.js` or `binkstream-client.js` are required for a new event type.
+No changes to `binkstream-worker-v2.js` or `binkstream-client.js` are required.
 
 ### Step 4: bump the service worker cache
 
@@ -593,3 +603,10 @@ FROM sse_events
 WHERE created_at > NOW() - INTERVAL '1 hour'
 GROUP BY event_type;
 ```
+
+## Related Systems
+
+- [Architecture](ARCHITECTURE.md) — where BinkStream sits in the platform
+- [API Reference](API.md) — `/api/stream` and related HTTP APIs
+- [Admin Terminal](AdminTerminal.md) — one of the live consumers of realtime events
+- [WebDoors](WebDoors.md) — browser-native doors that can reuse live platform APIs

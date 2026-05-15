@@ -99,6 +99,8 @@ return [
     'ui.common.show_password' => 'Mostra password',
     'ui.common.hide_password' => 'Nascondi password',
     'ui.common.reply' => 'Rispondi',
+    'ui.common.repost' => 'Ripubblica',
+    'ui.common.forward_by_netmail' => 'Inoltra via netmail',
     'ui.common.username' => 'Nome utente',
     'ui.common.real_name' => 'Nome reale',
     'ui.common.email' => 'Email',
@@ -316,6 +318,7 @@ return [
     'ui.base.admin.sse_test' => 'Test BinkStream',
     'ui.base.admin.ai_usage' => 'Utilizzo AI',
     'ui.base.admin.ai_bots' => 'Bot AI',
+    'ui.base.admin.ai_settings' => 'Impostazioni AI',
     'ui.base.admin.sharing' => 'Condivisione',
     'ui.base.admin.economy_viewer' => 'Visualizzatore economia',
     'ui.base.admin.referrals' => 'Analisi referral',
@@ -1223,6 +1226,14 @@ return [
     'ui.admin.chat_rooms.no_description' => '-',
     'ui.admin.chat_rooms.active' => 'Attiva',
     'ui.admin.chat_rooms.inactive' => 'Inattiva',
+    'ui.admin.chat_rooms.bridge' => 'Bridge',
+    'ui.admin.chat_rooms.bridge_enabled' => 'Enabled',
+    'ui.admin.chat_rooms.bridge_disabled' => 'Disabled',
+    'ui.admin.chat_rooms.matterbridge_enabled' => 'Bridge this room through Matterbridge',
+    'ui.admin.chat_rooms.matterbridge_gateway' => 'Matterbridge gateway',
+    'ui.admin.chat_rooms.matterbridge_gateway_help' => 'Matches the Matterbridge API gateway name used by this local room.',
+    'ui.admin.chat_rooms.matterbridge_username_template' => 'Remote username template',
+    'ui.admin.chat_rooms.matterbridge_username_template_help' => 'Optional. Use {username} and {room_name}. Leave blank to use the global suffix.',
 
     // Admin AI Bots
     'ui.admin.ai_bots.page_title' => 'Bot AI',
@@ -1905,6 +1916,21 @@ return [
     'ui.admin.mrc_settings.use_ssl_connection' => 'Usa connessione SSL',
     'ui.admin.mrc_settings.use_ssl_help' => 'Consigliato per comunicazioni sicure',
     'ui.admin.mrc_settings.save_general_settings' => 'Salva impostazioni generali',
+    'ui.admin.matterbridge_settings.heading' => 'Matterbridge Bridge Settings',
+    'ui.admin.matterbridge_settings.enabled' => 'Enable Matterbridge relay',
+    'ui.admin.matterbridge_settings.base_url' => 'Matterbridge API URL',
+    'ui.admin.matterbridge_settings.token' => 'API token',
+    'ui.admin.matterbridge_settings.timeout_seconds' => 'Timeout (seconds)',
+    'ui.admin.matterbridge_settings.username_suffix' => 'Default username suffix',
+    'ui.admin.matterbridge_settings.skip_tls_verify' => 'Skip TLS verification',
+    'ui.admin.matterbridge_settings.bridge_user_id' => 'Utente ponte',
+    'ui.admin.matterbridge_settings.bridge_user_search_placeholder' => 'Cerca per nome utente...',
+    'ui.admin.matterbridge_settings.bridge_user_id_help' => 'Account utilizzato per pubblicare i messaggi in entrata dalle piattaforme remote nella chat locale. Crea un utente ponte dedicato e selezionalo qui. Necessario per il bridging in entrata.',
+    'ui.admin.matterbridge_settings.help' => 'Local chat rooms can each point at a Matterbridge gateway below. Outbound room messages are relayed through the configured API endpoint. Inbound messages require the bridge user ID to be set and matterbridge_daemon.php to be running.',
+    'ui.admin.matterbridge_settings.save' => 'Save Matterbridge Settings',
+    'ui.admin.matterbridge_settings.load_failed' => 'Error loading Matterbridge settings',
+    'ui.admin.matterbridge_settings.saved_success' => 'Matterbridge settings saved successfully',
+    'ui.admin.matterbridge_settings.save_failed' => 'Error saving Matterbridge settings',
     'ui.admin.mrc_settings.bbs_identity' => 'Identità BBS',
     'ui.admin.mrc_settings.bbs_name' => 'Nome BBS',
     'ui.admin.mrc_settings.bbs_name_help' => 'Massimo 64 caratteri',
@@ -2120,6 +2146,7 @@ return [
     'ui.admin.sharing.area' => 'Area',
     'ui.admin.sharing.shared_by' => 'Condiviso da',
     'ui.admin.sharing.views' => 'Visualizzazioni',
+    'ui.admin.sharing.top_referrers' => 'Referrer principali',
     'ui.admin.sharing.last_accessed' => 'Ultimo accesso',
     'ui.admin.sharing.access' => 'Accesso',
     'ui.admin.sharing.open' => 'Apri',
@@ -2130,6 +2157,7 @@ return [
     'ui.admin.sharing.never' => 'Mai',
     'ui.admin.sharing.no_messages' => 'Nessun messaggio condiviso attivo',
     'ui.admin.sharing.no_files' => 'Nessun file condiviso attivo',
+    'ui.admin.sharing.no_referrers' => 'Nessun referrer esterno ancora',
     'ui.admin.sharing.load_failed' => 'Impossibile caricare i dati di condivisione',
 
     // Admin Economy Viewer
@@ -2772,6 +2800,8 @@ return [
     'ui.echomail.shares.friendly_url_generated' => 'URL leggibile generato!',
     'ui.echomail.shares.revoked' => 'Link di condivisione revocato',
     'ui.echomail.shares.url_copied' => 'URL di condivisione copiato negli appunti!',
+    'ui.echomail.shares.existing_links' => 'Condiviso da altri:',
+    'ui.echomail.shares.by_user' => 'da {username}',
 
     // Files Page
     'ui.files.title' => 'Aree file',
@@ -3423,6 +3453,7 @@ return [
     // Dashboard
     'ui.dashboard.title' => 'Dashboard',
     'ui.dashboard.unread_netmail' => 'Netmail non lette',
+    'ui.dashboard.unread_netmail_tooltip' => 'Netmail non lette inviate a te',
     'ui.dashboard.unread_echomail' => 'Nuovi Echomail',
     'ui.dashboard.total_unread_echomail' => 'Echomail non letti',
     'ui.dashboard.mail_and_areas' => 'Posta e aree',
@@ -4668,6 +4699,26 @@ return [
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Abilita assistente AI',
     'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Mostra il pulsante Assistente AI nei lettori echomail e netmail. Richiede una chiave API Anthropic configurata.',
+
+    // AI Settings page
+    'ui.admin.bbs_settings.ai.page_title'           => 'Impostazioni AI',
+    'ui.admin.bbs_settings.ai.heading'              => 'Impostazioni AI',
+    'ui.admin.bbs_settings.ai.features_title'       => 'Funzionalita AI',
+    'ui.admin.bbs_settings.ai.configure_link'       => 'Impostazioni AI',
+    'ui.admin.bbs_settings.ai.no_provider_warning'  => 'Nessun fornitore AI configurato. Aggiungi una chiave API OpenAI o Anthropic nel file .env per abilitare queste funzionalita.',
+    'ui.admin.bbs_settings.ai.enable_share_summary' => 'Abilita riepiloghi AI per i link ai messaggi condivisi',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Se abilitato, nel dialogo di condivisione appare un pulsante AI per generare una descrizione di anteprima. Richiede un fornitore AI configurato.',
+    'ui.admin.bbs_settings.ai.save'                 => 'Salva impostazioni AI',
+    'ui.admin.bbs_settings.ai.save_failed'          => 'Impossibile salvare le impostazioni AI.',
+    'ui.admin.bbs_settings.ai.saved_success'                  => 'Impostazioni AI salvate.',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_label'    => 'Prompt di sistema per il riepilogo condivisione',
+    'ui.admin.bbs_settings.ai.share_summary_prompt_help'     => 'Prompt di sistema inviato all\'AI durante la generazione delle descrizioni di anteprima. Lasciare vuoto per usare il valore predefinito integrato.',
+
+    // Share modal - description field and AI summary
+    'ui.share.description_label'       => 'Descrizione anteprima link',
+    'ui.share.description_placeholder' => 'Facoltativo — descrivi di cosa tratta questo messaggio',
+    'ui.share.ai_summary_button_title' => 'Genera riepilogo AI',
+    'ui.share.ai_summary_failed'       => 'Impossibile generare un riepilogo. Riprova.',
 
     // AI Assistant (echomail + netmail readers)
     'ui.ai_assistant.button'             => 'Assistente AI',

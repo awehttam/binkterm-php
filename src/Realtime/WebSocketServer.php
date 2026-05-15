@@ -9,6 +9,9 @@ use BinktermPHP\Database;
 
 class WebSocketServer implements LoopServiceInterface
 {
+    /** Interval between server-initiated WebSocket pings — keeps the connection alive through proxies. */
+    private const PING_INTERVAL_SECONDS = 20;
+
     private string $bindHost;
     private int $port;
     private Logger $logger;
@@ -19,6 +22,7 @@ class WebSocketServer implements LoopServiceInterface
     private StreamService $streamService;
     private CommandDispatcher $commandDispatcher;
     private int $lastActiveConnectionsLogAt = 0;
+    private int $lastPingAt = 0;
     /** @var array<string, true> */
     private array $trustedProxies = [];
 
@@ -80,6 +84,7 @@ class WebSocketServer implements LoopServiceInterface
     public function tick(): void
     {
         $this->pollAndDispatchEvents();
+        $this->sendPingsIfDue();
         $this->logActiveConnectionsIfDue();
     }
 
@@ -341,6 +346,7 @@ class WebSocketServer implements LoopServiceInterface
             }
 
             $highestSeen = $cursor;
+            $lastDeliveredId = $cursor;
             foreach ($this->streamService->fetchEventsSince($this->clients[$clientId]['user'], $cursor) as $event) {
                 $highestSeen = max($highestSeen, (int)$event['id']);
                 if (!isset($this->clients[$clientId]['subscriptions'][$event['event']])) {
@@ -352,8 +358,18 @@ class WebSocketServer implements LoopServiceInterface
                     'id' => (int)$event['id'],
                     'data' => $this->tryParseJson($event['data']),
                 ]);
+                $lastDeliveredId = (int)$event['id'];
             }
             $this->clients[$clientId]['cursor'] = $highestSeen;
+
+            // If the batch contained unsubscribed events after the last delivered
+            // event (e.g. dashboard_stats trailing a chat_message, or an entire
+            // batch of unsubscribed rows), the client's cursor lags behind the
+            // server's.  A lightweight sync message carries the true position so
+            // the client doesn't replay these rows on the next reconnect.
+            if ($highestSeen > $lastDeliveredId) {
+                $this->sendJson($clientId, ['type' => '__cursor_sync', 'id' => $highestSeen]);
+            }
         }
     }
 
@@ -397,6 +413,21 @@ class WebSocketServer implements LoopServiceInterface
         $socket = $this->clients[$clientId]['socket'];
         @fclose($socket);
         unset($this->clients[$clientId]);
+    }
+
+    private function sendPingsIfDue(): void
+    {
+        $now = time();
+        if (($now - $this->lastPingAt) < self::PING_INTERVAL_SECONDS) {
+            return;
+        }
+        $this->lastPingAt = $now;
+        foreach (array_keys($this->clients) as $clientId) {
+            if (empty($this->clients[$clientId]['handshake_complete'])) {
+                continue;
+            }
+            $this->sendControlFrame($clientId, 0x9);
+        }
     }
 
     private function logActiveConnectionsIfDue(): void

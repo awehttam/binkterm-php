@@ -12,6 +12,8 @@ The gateway is designed for low-bandwidth radio links:
 
 PacketBBS is not a web frontend and is not an ANSI terminal shell. A separate radio bridge sends HTTP requests to BinktermPHP and relays the plain-text response back to the radio network.
 
+That makes PacketBBS an access method, not a separate mini-BBS. It reaches into the same platform data as the browser UI and terminal services, but does so through terse command/response exchanges that fit radio and mesh conditions.
+
 ## Architecture
 
 The bridge talks to BinktermPHP through:
@@ -47,6 +49,14 @@ PacketBBS supports a bridge device serving more than one radio sender.
 If `bridge_node_id` is omitted, PacketBBS uses `node_id` for both authorization and the user session.
 
 Sessions are keyed by `node_id`, so multiple radio users behind one bridge can have separate login and compose state as long as the bridge sends their distinct sender IDs.
+
+## Workflow: how PacketBBS fits into low-bandwidth access
+
+1. A bridge node receives a radio or mesh message from a remote operator.
+2. The bridge translates that short command into an authenticated HTTP request to BinktermPHP.
+3. PacketBBS reads or updates the same platform mail and session state used by the browser and terminal access methods.
+4. BinktermPHP returns a compact plain-text reply sized for low-bandwidth transport.
+5. The bridge relays that reply back across the packet or mesh network.
 
 ## Sysop Setup
 
@@ -546,3 +556,10 @@ data/logs/packetbbs.log
 ```
 
 This log includes command routing and high-level errors. TOTP codes are never logged.
+
+## Related Systems
+
+- [Architecture](ARCHITECTURE.md) — where PacketBBS sits among other access methods
+- [Joining and Configuring an FTN](FTNGuide.md) — how network mail reaches the node
+- [Echo Areas](EchoAreas.md) — the message areas PacketBBS users read and post into
+- [QWK Offline Mail](QWK.md) — another compact, non-live access path

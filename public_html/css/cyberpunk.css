@@ -474,6 +474,54 @@ a:hover {
     opacity: 0.7;
 }
 
+.share-message-modal .form-control,
+.share-message-modal .form-select {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+    border-color: var(--cyber-purple-dim);
+}
+
+.share-message-modal .form-control:focus,
+.share-message-modal .form-select:focus {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+}
+
+.share-message-modal .form-control::placeholder {
+    color: var(--text-color-muted);
+    opacity: 1;
+}
+
+.share-message-modal .form-control[readonly] {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+    border-color: var(--cyber-purple-dim);
+    opacity: 1;
+}
+
+.share-message-modal .text-muted {
+    color: var(--text-color-muted) !important;
+}
+
+.share-message-modal .alert-secondary {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+    border-color: var(--cyber-purple-dim);
+}
+
+.share-message-modal .copy-other-share-btn {
+    background-color: transparent;
+    color: var(--text-color);
+    border-color: var(--cyber-purple-dim);
+}
+
+.share-message-modal .copy-other-share-btn:hover,
+.share-message-modal .copy-other-share-btn:focus {
+    background-color: var(--cyber-dark);
+    color: var(--cyber-cyan);
+    border-color: var(--cyber-cyan);
+}
+
 .btn-fidonet {
     background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-purple));
     border: none;

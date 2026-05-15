@@ -11,6 +11,7 @@ The current AI system is used by:
 - `src/InterestGenerator.php` for AI-assisted interest suggestion generation
 - `scripts/create_translation_catalog.php` for AI-assisted i18n catalog translation
 - `src/AI/MessageAiAssistant.php` for the message-reader assistant
+- `src/AI/ShareSummaryGenerator.php` for generating Open Graph description summaries of shared echomail messages
 
 The shared layer supports:
 
@@ -102,6 +103,9 @@ AI_TRANSLATION_CATALOG_MODEL=gpt-4o-mini
 
 AI_INTEREST_GENERATION_PROVIDER=anthropic
 AI_INTEREST_GENERATION_MODEL=claude-haiku-4-5-20251001
+
+AI_SHARE_SUMMARY_PROVIDER=anthropic
+AI_SHARE_SUMMARY_MODEL=claude-haiku-4-5-20251001
 ```
 
 These match the current consumers:
@@ -109,6 +113,7 @@ These match the current consumers:
 - `message_ai_assistant`
 - `translation_catalog`
 - `interest_generation`
+- `share_summary`
 
 ---
 

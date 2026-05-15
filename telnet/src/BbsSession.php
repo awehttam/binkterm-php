@@ -244,7 +244,7 @@ class BbsSession
         $this->showLoginBanner($conn, $state);
 
         // if (!$this->isSsh && !$this->requireEscapeKey($conn, $state)) {
-        //     $this->log("Bot/timeout on ESC challenge from {$peerName} — connection dropped");
+        //     $this->log("Bot/timeout on ESC challenge from {$peerName} - connection dropped");
         //     fclose($conn);
         //     if ($forked) { exit(0); }
         //     return;
@@ -680,8 +680,8 @@ class BbsSession
                 $this->log("Menu: {$username} -> Settings");
                 $settingsHandler->show($conn, $state, $session);
             } elseif ($choice === 'q') {
-                if (!($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("bye.sixel", $this, $conn))) {
-                    TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
+                if (!($this->sixelSupported && TelnetUtils::showSixelScreenIfExists('bye.sixel', $this, $conn))) {
+                    TelnetUtils::showScreenIfExists('bye.ans', $this, $conn);
                 }
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $this->colorize(

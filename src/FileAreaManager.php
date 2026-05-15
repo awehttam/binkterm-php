@@ -3462,7 +3462,7 @@ class FileAreaManager
      * @return array ['success'=>bool, 'file'=>array, 'share_info'=>array]
      *               or ['success'=>false, 'error_code'=>string, 'error'=>string]
      */
-    public function getSharedFile(string $areaTag, string $filename, ?int $requestingUserId = null): array
+    public function getSharedFile(string $areaTag, string $filename, ?int $requestingUserId = null, bool $recordAccess = true, ?string $referrerUrl = null): array
     {
         $this->cleanupExpiredFileShares();
 
@@ -3510,13 +3510,17 @@ class FileAreaManager
             ];
         }
 
-        // Update access statistics
-        $upd = $this->db->prepare("
-            UPDATE shared_files
-            SET access_count = access_count + 1, last_accessed_at = NOW()
-            WHERE id = ?
-        ");
-        $upd->execute([$row['share_id']]);
+        if ($recordAccess) {
+            $upd = $this->db->prepare("
+                UPDATE shared_files
+                SET access_count = access_count + 1, last_accessed_at = NOW()
+                WHERE id = ?
+            ");
+            $upd->execute([$row['share_id']]);
+
+            $tracker = new ShareReferralTracker($this->db);
+            $tracker->recordFileShareAccess((int)$row['share_id'], $referrerUrl);
+        }
 
         $file = [
             'id'               => (int)$row['file_id'],
@@ -3538,9 +3542,10 @@ class FileAreaManager
             'shared_by'    => $row['shared_by_username'],
             'created_at'   => $row['share_created_at'],
             'expires_at'   => $row['expires_at'],
-            'access_count' => (int)$row['access_count'] + 1,
+            'access_count' => (int)$row['access_count'] + ($recordAccess ? 1 : 0),
             'share_url'    => $this->buildFileShareUrl($row['area_tag'], $row['filename']),
             'is_logged_in' => $requestingUserId !== null,
+            'top_referrers'=> [],
         ];
 
         return ['success' => true, 'file' => $file, 'share_info' => $shareInfo];

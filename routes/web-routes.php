@@ -552,6 +552,7 @@ SimpleRouter::get('/echomail', function() {
     $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
     $bbsConfig = BbsConfig::getConfig();
     $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
+    $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);
 
     $hasInterests = false;
     if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
@@ -573,11 +574,12 @@ SimpleRouter::get('/echomail', function() {
 
     $template = new Template();
     $template->renderResponse('echomail.twig', [
-        'echoarea' => $echoarea,
-        'domain' => $domainParam,
-        'echomail_date_field' => $echoDateOrder,
-        'has_interests' => $hasInterests,
-        'ai_assistant_enabled' => $aiAssistantEnabled,
+        'echoarea'               => $echoarea,
+        'domain'                 => $domainParam,
+        'echomail_date_field'    => $echoDateOrder,
+        'has_interests'          => $hasInterests,
+        'ai_assistant_enabled'   => $aiAssistantEnabled,
+        'ai_share_summary_enabled' => $aiShareSummaryEnabled,
     ]);
 });
 
@@ -595,7 +597,8 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $isAdmin = !empty($user['is_admin']);
     $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
     $bbsConfig = BbsConfig::getConfig();
-    $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
+    $aiAssistantEnabled    = !empty($bbsConfig['ai_assistant']['enabled']);
+    $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);
 
     $hasInterests = false;
     if (\BinktermPHP\Config::env('ENABLE_INTERESTS', 'true') === 'true') {
@@ -605,10 +608,11 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
 
     $template = new Template();
     $template->renderResponse('echomail.twig', [
-        'echoarea' => $echoarea,
-        'echomail_date_field' => $echoDateOrder,
-        'has_interests' => $hasInterests,
-        'ai_assistant_enabled' => $aiAssistantEnabled,
+        'echoarea'               => $echoarea,
+        'echomail_date_field'    => $echoDateOrder,
+        'has_interests'          => $hasInterests,
+        'ai_assistant_enabled'   => $aiAssistantEnabled,
+        'ai_share_summary_enabled' => $aiShareSummaryEnabled,
     ]);
 })->where(['echoarea' => "[-A-Za-z0-9@._'!%]+"]);
 
@@ -623,7 +627,7 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
 
     try {
         $handler = new MessageHandler();
-        $result  = $handler->getSharedMessageBySlug($area, $slug, $userId);
+        $result  = $handler->getSharedMessageBySlug($area, $slug, $userId, true, $_SERVER['HTTP_REFERER'] ?? null);
 
         if ($result['success']) {
             $messageData = $result['message'];
@@ -638,12 +642,13 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
-        'shareKey'   => $shareKey,
-        'shareArea'  => $area,
-        'shareSlug'  => $slug,
-        'message'    => $messageData,
-        'share_info' => $shareInfo,
-        'share_url'  => $shareUrl
+        'shareKey'      => $shareKey,
+        'shareArea'     => $area,
+        'shareSlug'     => $slug,
+        'message'       => $messageData,
+        'share_info'    => $shareInfo,
+        'share_url'     => $shareUrl,
+        'ai_og_summary' => $shareInfo['ai_og_summary'] ?? null,
     ]);
 })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
 
@@ -659,7 +664,7 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
 
     try {
         $handler = new MessageHandler();
-        $result = $handler->getSharedMessage($shareKey, $userId);
+        $result = $handler->getSharedMessage($shareKey, $userId, true, $_SERVER['HTTP_REFERER'] ?? null);
 
         if ($result['success']) {
             $messageData = $result['message'];
@@ -675,10 +680,11 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
-        'shareKey' => $shareKey,
-        'message' => $messageData,
-        'share_info' => $shareInfo,
-        'share_url' => $shareUrl
+        'shareKey'      => $shareKey,
+        'message'       => $messageData,
+        'share_info'    => $shareInfo,
+        'share_url'     => $shareUrl,
+        'ai_og_summary' => $shareInfo['ai_og_summary'] ?? null,
     ]);
 })->where(['shareKey' => '[a-f0-9]{32}']);
 
@@ -693,7 +699,7 @@ SimpleRouter::get('/shared/file/{area}/{filename}', function($area, $filename) {
 
     try {
         $manager = new \BinktermPHP\FileAreaManager();
-        $result  = $manager->getSharedFile($area, $filename, $userId);
+        $result  = $manager->getSharedFile($area, $filename, $userId, true, $_SERVER['HTTP_REFERER'] ?? null);
 
         if ($result['success']) {
             $fileData  = $result['file'];
@@ -1270,10 +1276,17 @@ SimpleRouter::get('/compose/{type}', function($type) {
         return;
     }
 
-    // Handle reply and echoarea parameters
+    // Handle reply/re-post and echoarea parameters
     $replyId = $_GET['reply'] ?? null;
+    $repostId = $_GET['repost'] ?? null;
+    $prefillMessageId = $replyId ?: $repostId;
+    $sourceType = $_GET['source_type'] ?? $type;
     $echoarea = $_GET['echoarea'] ?? null;
     $domainParam = $_GET['domain'] ?? null;
+    $returnTo = $_GET['return_to'] ?? null;
+    if (!in_array($sourceType, ['netmail', 'echomail'], true)) {
+        $sourceType = $type;
+    }
 
     // Interest context: restrict echo area list and cross-post list to interest areas
     $interestSlug = $_GET['interest'] ?? null;
@@ -1370,7 +1383,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
         // For netmail with a pre-filled destination address, resolve the uplink at render time
         // so the charset selector is correct on page load without waiting for the JS to call
         // the markdown-support API.
-        if ($type === 'netmail' && !empty($toAddress) && !$replyId) {
+        if ($type === 'netmail' && !empty($toAddress) && !$prefillMessageId) {
             if ($binkpCfg->isMyAddress(trim((string)$toAddress))) {
                 $defaultCharset = 'UTF-8';
             } else {
@@ -1405,92 +1418,99 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'interest_echoareas' => $interestEchoareas,
         'default_charset' => $defaultCharset,
         'domain_charsets' => $domainCharsets,
+        'return_to' => is_string($returnTo) ? $returnTo : '',
     ];
 
-      if ($replyId) {
-          $handler = new MessageHandler();
-          $userId = $user['user_id'] ?? $user['id'] ?? null;
-          $originalMessage = $handler->getMessage($replyId, $type, $userId);
-  
-          if ($originalMessage) {
-              $templateVars['reply_markup_type'] = getMessageMarkupType($originalMessage) ?? '';
-              $rawCharset = (string)($originalMessage['message_charset'] ?? 'UTF-8');
-              $templateVars['reply_charset'] = \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset($rawCharset) ?: 'UTF-8';
-              if ($type === 'netmail') {
-                  $templateVars['reply_to_id'] = $replyId;
+    if ($prefillMessageId) {
+        $handler = new MessageHandler();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $originalMessage = $handler->getMessage($prefillMessageId, $sourceType, $userId);
 
-                // Try to parse REPLYTO kludge from the original message text
-                $replyToData = parseReplyToKludge($originalMessage['message_text']);
+        if ($originalMessage) {
+            $templateVars['reply_markup_type'] = getMessageMarkupType($originalMessage) ?? '';
+            $rawCharset = (string)($originalMessage['message_charset'] ?? 'UTF-8');
+            $templateVars['reply_charset'] = \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset($rawCharset) ?: 'UTF-8';
 
-                if ($replyToData) {
-                    // Use REPLYTO address and name if valid FidoNet address found
-                    $templateVars['reply_to_address'] = $replyToData['address'];
-                    $templateVars['reply_to_name'] = $replyToData['name'] ?: $originalMessage['from_name'];
+            if ($replyId) {
+                if ($type === 'netmail') {
+                    $templateVars['reply_to_id'] = $replyId;
+
+                    // Try to parse REPLYTO kludge from the original message text
+                    $replyToData = parseReplyToKludge($originalMessage['message_text']);
+
+                    if ($replyToData) {
+                        // Use REPLYTO address and name if valid FidoNet address found
+                        $templateVars['reply_to_address'] = $replyToData['address'];
+                        $templateVars['reply_to_name'] = $replyToData['name'] ?: $originalMessage['from_name'];
+                    } else {
+                        // Fallback to existing logic if no valid REPLYTO found
+                        $templateVars['reply_to_address'] = $originalMessage['reply_address'] ?: ($originalMessage['original_author_address'] ?: $originalMessage['from_address']);
+                        $templateVars['reply_to_name'] = $originalMessage['from_name'];
+                    }
+
+                    $subject = $originalMessage['subject'] ?? '';
+                    // Remove "Re: " prefix if it exists (case insensitive)
+                    $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
+                    $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
+
+                    // Filter out kludge lines but preserve blank lines so quoted structure is intact
+                    $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
+
+                    if (($templateVars['reply_markup_type'] ?? '') === 'markdown') {
+                        $quotedText = quoteMarkdownMessage($cleanMessageText);
+                    } else {
+                        // Quote using FSC-0032 style for plain/stylecoded messages
+                        $initials = generateInitials($originalMessage['from_name']);
+                        $quotedText = quoteMessageText($cleanMessageText, $initials);
+                    }
+
+                    $replyDate = date('F j Y', strtotime($originalMessage['date_written']));
+                    $attribution = webLocalizedText('ui.compose.reply_attribution', 'On {date}, {name} wrote:', $user, [
+                        'date' => $replyDate,
+                        'name' => $originalMessage['from_name'],
+                    ]);
+                    $separator = (($templateVars['reply_markup_type'] ?? '') === 'markdown') ? "\n\n" : "\n";
+                    $templateVars['reply_text'] = "\n" . $attribution . $separator . $quotedText;
                 } else {
-                    // Fallback to existing logic if no valid REPLYTO found
-                    $templateVars['reply_to_address'] = $originalMessage['reply_address'] ?: ($originalMessage['original_author_address'] ?: $originalMessage['from_address']);
+                    $templateVars['reply_to_id'] = $replyId;
                     $templateVars['reply_to_name'] = $originalMessage['from_name'];
+                    $subject = $originalMessage['subject'] ?? '';
+                    // Remove "Re: " prefix if it exists (case insensitive)
+                    $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
+                    $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
+                    // Set echoarea for proper select matching — only append @domain when
+                    // domain is non-empty, matching the JS option format: tag@domain or tag
+                    $echoarea = $originalMessage['echoarea'];
+                    if (!empty($originalMessage['domain'])) {
+                        $echoarea .= '@' . $originalMessage['domain'];
+                    }
+                    $templateVars['domain'] = $originalMessage['domain'];
+                    // Filter out kludge lines but preserve blank lines so quoted structure is intact
+                    $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
+
+                    if (($templateVars['reply_markup_type'] ?? '') === 'markdown') {
+                        $quotedText = quoteMarkdownMessage($cleanMessageText);
+                    } else {
+                        // Quote the message intelligently - only quote original lines, not existing quotes
+                        $initials = generateInitials($originalMessage['from_name']);
+                        $quotedText = quoteMessageText($cleanMessageText, $initials);
+                    }
+
+                    $replyDate = date('F j Y', strtotime($originalMessage['date_written']));
+                    $attribution = webLocalizedText('ui.compose.reply_attribution', 'On {date}, {name} wrote:', $user, [
+                        'date' => $replyDate,
+                        'name' => $originalMessage['from_name'],
+                    ]);
+                    $separator = (($templateVars['reply_markup_type'] ?? '') === 'markdown') ? "\n\n" : "\n";
+                    $templateVars['reply_text'] = "\n" . $attribution . $separator . $quotedText;
                 }
-
-                $subject = $originalMessage['subject'] ?? '';
-                // Remove "Re: " prefix if it exists (case insensitive)
-                $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
-                $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
-
-                // Filter out kludge lines but preserve blank lines so quoted structure is intact
-                $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
-                $replyToAddress = $templateVars['reply_to_address']; // Use the address we determined above
-
-                if (($templateVars['reply_markup_type'] ?? '') === 'markdown') {
-                    $quotedText = quoteMarkdownMessage($cleanMessageText);
-                } else {
-                    // Quote using FSC-0032 style for plain/stylecoded messages
-                    $initials = generateInitials($originalMessage['from_name']);
-                    $quotedText = quoteMessageText($cleanMessageText, $initials);
-                }
-
-                $replyDate = date('F j Y', strtotime($originalMessage['date_written']));
-                $attribution = webLocalizedText('ui.compose.reply_attribution', 'On {date}, {name} wrote:', $user, [
-                    'date' => $replyDate,
-                    'name' => $originalMessage['from_name'],
-                ]);
-                $separator = (($templateVars['reply_markup_type'] ?? '') === 'markdown') ? "\n\n" : "\n";
-                $templateVars['reply_text'] = "\n" . $attribution . $separator . $quotedText;
-              } else {
-                  $templateVars['reply_to_id'] = $replyId;
-                  $templateVars['reply_to_name'] = $originalMessage['from_name'];
-                $subject = $originalMessage['subject'] ?? '';
-                // Remove "Re: " prefix if it exists (case insensitive)
-                $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
-                $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
-                // Set echoarea for proper select matching — only append @domain when
-                // domain is non-empty, matching the JS option format: tag@domain or tag
-                $echoarea = $originalMessage['echoarea'];
-                if (!empty($originalMessage['domain'])) {
-                    $echoarea .= '@' . $originalMessage['domain'];
-                }
-                $templateVars['domain'] = $originalMessage['domain'];
-                // Filter out kludge lines but preserve blank lines so quoted structure is intact
-                $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
-
-                if (($templateVars['reply_markup_type'] ?? '') === 'markdown') {
-                    $quotedText = quoteMarkdownMessage($cleanMessageText);
-                } else {
-                    // Quote the message intelligently - only quote original lines, not existing quotes
-                    $initials = generateInitials($originalMessage['from_name']);
-                    $quotedText = quoteMessageText($cleanMessageText, $initials);
-                }
-
-                $replyDate = date('F j Y', strtotime($originalMessage['date_written']));
-                $attribution = webLocalizedText('ui.compose.reply_attribution', 'On {date}, {name} wrote:', $user, [
-                    'date' => $replyDate,
-                    'name' => $originalMessage['from_name'],
-                ]);
-                $separator = (($templateVars['reply_markup_type'] ?? '') === 'markdown') ? "\n\n" : "\n";
-                $templateVars['reply_text'] = "\n" . $attribution . $separator . $quotedText;
-              }
-          }
-      }
+            } else {
+                $subject = trim((string)($originalMessage['subject'] ?? ''));
+                $templateVars['reply_subject'] = 'FWD: ' . $subject;
+                $templateVars['reply_text'] = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
+            }
+        }
+    }
 
     if ($echoarea) {
         // Combine echoarea with domain if provided separately and not already in tag@domain format
@@ -1501,7 +1521,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
     }
 
     // Handle new message parameters (from nodelist)
-    if ($toAddress && $type === 'netmail' && !$replyId) {
+    if ($toAddress && $type === 'netmail' && !$prefillMessageId) {
         $templateVars['reply_to_address'] = $toAddress;
         if ($toName) {
             $templateVars['reply_to_name'] = $toName;
@@ -1509,7 +1529,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
     }
 
     // Handle subject parameter independently (for user-click-to-compose functionality)
-    if ($subject && $type === 'netmail' && !$replyId) {
+    if ($subject && $type === 'netmail' && !$prefillMessageId) {
         $templateVars['reply_subject'] = $subject;
     }
 

@@ -495,6 +495,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // AI settings page
+    SimpleRouter::get('/ai-settings', function() {
+        RouteHelper::requireAdmin();
+
+        $ai_available = !empty(\BinktermPHP\AI\AiService::create()->getConfiguredProviders());
+
+        $template = new Template();
+        $template->renderResponse('admin/ai_settings.twig', [
+            'ai_available'                => $ai_available,
+            'share_summary_default_prompt' => \BinktermPHP\AI\ShareSummaryGenerator::DEFAULT_SYSTEM_PROMPT,
+        ]);
+    });
+
     // Appearance & Content settings page
     SimpleRouter::get('/appearance', function() {
         $user = RouteHelper::requireAdmin();
@@ -560,7 +573,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             return;
         }
 
-        $raw = file_get_contents($docPath);
+        $raw = \BinktermPHP\Web\DocsController::rewriteLinks(file_get_contents($docPath));
         $html = \BinktermPHP\MarkdownRenderer::toHtml($raw);
 
         $template = new Template();
@@ -1201,12 +1214,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare("
-                SELECT id, name, description, is_active, created_at
+                SELECT id, name, description, is_active, created_at,
+                       matterbridge_enabled, matterbridge_gateway, matterbridge_options::text AS matterbridge_options
                 FROM chat_rooms
                 ORDER BY name
             ");
             $stmt->execute();
             $rooms = $stmt->fetchAll();
+            foreach ($rooms as &$room) {
+                $room['matterbridge_enabled'] = !empty($room['matterbridge_enabled']);
+                $decoded = json_decode((string)($room['matterbridge_options'] ?? '{}'), true);
+                $room['matterbridge_options'] = is_array($decoded) ? $decoded : [];
+            }
+            unset($room);
 
             echo json_encode(['rooms' => $rooms]);
         });
@@ -1761,7 +1781,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
                 if (array_key_exists('ai_assistant', $config)) {
                     $config['ai_assistant'] = [
-                        'enabled' => !empty($config['ai_assistant']['enabled']),
+                        'enabled'               => !empty($config['ai_assistant']['enabled']),
+                        'share_summary_enabled' => !empty($config['ai_assistant']['share_summary_enabled']),
                     ];
                 }
 
@@ -1802,6 +1823,51 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 } else {
                     apiError('errors.admin.bbs_settings.save_failed', apiLocalizedText('errors.admin.bbs_settings.save_failed', 'Failed to save BBS settings'));
                 }
+            }
+        });
+
+        // ---------------------------------------------------------------
+        // AI Settings API
+        // ---------------------------------------------------------------
+
+        SimpleRouter::post('/ai-settings', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $input = json_decode(file_get_contents('php://input'), true);
+                if (!is_array($input)) {
+                    throw new Exception('Invalid payload');
+                }
+
+                $aiAssistant = $input['ai_assistant'] ?? [];
+                if (!is_array($aiAssistant)) {
+                    throw new Exception('Invalid payload');
+                }
+
+                $prompt = isset($aiAssistant['share_summary_prompt'])
+                    ? trim((string)$aiAssistant['share_summary_prompt'])
+                    : null;
+
+                $config = [
+                    'ai_assistant' => [
+                        'enabled'                => !empty($aiAssistant['enabled']),
+                        'share_summary_enabled'  => !empty($aiAssistant['share_summary_enabled']),
+                        'share_summary_prompt'   => $prompt !== null ? $prompt : '',
+                    ],
+                ];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->setBbsConfig($config);
+
+                echo json_encode([
+                    'success'      => true,
+                    'config'       => $updated,
+                    'message_code' => 'ui.admin.bbs_settings.ai.saved_success',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.ai_settings.save_failed', apiLocalizedText('errors.admin.ai_settings.save_failed', 'Failed to save AI settings'));
             }
         });
 
@@ -2609,6 +2675,63 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         });
 
         // MRC settings
+        SimpleRouter::get('/matterbridge-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getMatterbridgeConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.matterbridge_settings.load_failed', apiLocalizedText('errors.admin.matterbridge_settings.load_failed', 'Failed to load Matterbridge settings'));
+            }
+        });
+
+        SimpleRouter::post('/matterbridge-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? [];
+
+                if (!is_array($config)) {
+                    throw new Exception('Invalid configuration payload');
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $savedConfig = $client->setMatterbridgeConfig($config);
+
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'matterbridge_settings_updated', [
+                        'enabled' => $config['enabled'] ?? null
+                    ]);
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $savedConfig,
+                    'message_code' => 'ui.admin.matterbridge_settings.saved_success'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.matterbridge_settings.save_failed', apiLocalizedText('errors.admin.matterbridge_settings.save_failed', 'Failed to save Matterbridge settings'));
+            }
+        });
+
         SimpleRouter::get('/mrc-settings', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
@@ -4225,18 +4348,34 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $name = trim($input['name'] ?? '');
                 $description = trim($input['description'] ?? '');
                 $isActive = !empty($input['is_active']);
+                $matterbridgeEnabled = !empty($input['matterbridge_enabled']);
+                $matterbridgeGateway = trim((string)($input['matterbridge_gateway'] ?? ''));
+                $matterbridgeOptions = $input['matterbridge_options'] ?? [];
 
                 if ($name === '' || strlen($name) > 64) {
                     throw new Exception('Room name must be 1-64 characters');
                 }
+                if ($matterbridgeEnabled && $matterbridgeGateway === '') {
+                    throw new Exception('Matterbridge gateway is required');
+                }
+                if (!is_array($matterbridgeOptions)) {
+                    throw new Exception('Matterbridge options must be an object');
+                }
 
                 $db = \BinktermPHP\Database::getInstance()->getPdo();
                 $stmt = $db->prepare("
-                    INSERT INTO chat_rooms (name, description, is_active)
-                    VALUES (?, ?, ?)
+                    INSERT INTO chat_rooms (name, description, is_active, matterbridge_enabled, matterbridge_gateway, matterbridge_options)
+                    VALUES (?, ?, ?, ?, ?, ?::jsonb)
                     RETURNING id
                 ");
-                $stmt->execute([$name, $description ?: null, $isActive ? 1 : 0]);
+                $stmt->execute([
+                    $name,
+                    $description ?: null,
+                    $isActive ? 'true' : 'false',
+                    $matterbridgeEnabled ? 'true' : 'false',
+                    $matterbridgeGateway !== '' ? $matterbridgeGateway : null,
+                    json_encode($matterbridgeOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ]);
                 $roomId = $stmt->fetchColumn();
 
                 echo json_encode([
@@ -4249,6 +4388,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $message = $e->getMessage();
                 if ($message === 'Room name must be 1-64 characters') {
                     apiError('errors.admin.chat_rooms.invalid_name_length', apiLocalizedText('errors.admin.chat_rooms.invalid_name_length', 'Room name must be 1-64 characters'));
+                } elseif ($message === 'Matterbridge gateway is required') {
+                    apiError('errors.admin.chat_rooms.matterbridge_gateway_required', apiLocalizedText('errors.admin.chat_rooms.matterbridge_gateway_required', 'Matterbridge gateway is required when bridging is enabled'));
+                } elseif ($message === 'Matterbridge options must be an object') {
+                    apiError('errors.admin.chat_rooms.matterbridge_options_invalid', apiLocalizedText('errors.admin.chat_rooms.matterbridge_options_invalid', 'Matterbridge channel options must be valid'));
                 } else {
                     apiError('errors.admin.chat_rooms.create_failed', apiLocalizedText('errors.admin.chat_rooms.create_failed', 'Failed to create chat room'));
                 }
@@ -4269,6 +4412,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $name = trim($input['name'] ?? '');
                 $description = trim($input['description'] ?? '');
                 $isActive = !empty($input['is_active']);
+                $matterbridgeEnabled = !empty($input['matterbridge_enabled']);
+                $matterbridgeGateway = trim((string)($input['matterbridge_gateway'] ?? ''));
+                $matterbridgeOptions = $input['matterbridge_options'] ?? [];
 
                 $db = \BinktermPHP\Database::getInstance()->getPdo();
                 $existingStmt = $db->prepare("SELECT name FROM chat_rooms WHERE id = ?");
@@ -4287,13 +4433,27 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if (strlen($finalName) > 64) {
                     throw new Exception('Room name must be 1-64 characters');
                 }
+                if ($matterbridgeEnabled && $matterbridgeGateway === '') {
+                    throw new Exception('Matterbridge gateway is required');
+                }
+                if (!is_array($matterbridgeOptions)) {
+                    throw new Exception('Matterbridge options must be an object');
+                }
 
                 $stmt = $db->prepare("
                     UPDATE chat_rooms
-                    SET name = ?, description = ?, is_active = ?
+                    SET name = ?, description = ?, is_active = ?, matterbridge_enabled = ?, matterbridge_gateway = ?, matterbridge_options = ?::jsonb
                     WHERE id = ?
                 ");
-                $stmt->execute([$finalName, $description ?: null, $isActive ? 1 : 0, $id]);
+                $stmt->execute([
+                    $finalName,
+                    $description ?: null,
+                    $isActive ? 'true' : 'false',
+                    $matterbridgeEnabled ? 'true' : 'false',
+                    $matterbridgeGateway !== '' ? $matterbridgeGateway : null,
+                    json_encode($matterbridgeOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    $id
+                ]);
 
                 echo json_encode([
                     'success' => true,
@@ -4308,6 +4468,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     apiError('errors.admin.chat_rooms.lobby_name_locked', apiLocalizedText('errors.admin.chat_rooms.lobby_name_locked', 'Lobby name cannot be changed'));
                 } elseif ($message === 'Room name must be 1-64 characters') {
                     apiError('errors.admin.chat_rooms.invalid_name_length', apiLocalizedText('errors.admin.chat_rooms.invalid_name_length', 'Room name must be 1-64 characters'));
+                } elseif ($message === 'Matterbridge gateway is required') {
+                    apiError('errors.admin.chat_rooms.matterbridge_gateway_required', apiLocalizedText('errors.admin.chat_rooms.matterbridge_gateway_required', 'Matterbridge gateway is required when bridging is enabled'));
+                } elseif ($message === 'Matterbridge options must be an object') {
+                    apiError('errors.admin.chat_rooms.matterbridge_options_invalid', apiLocalizedText('errors.admin.chat_rooms.matterbridge_options_invalid', 'Matterbridge channel options must be valid'));
                 } else {
                     apiError('errors.admin.chat_rooms.update_failed', apiLocalizedText('errors.admin.chat_rooms.update_failed', 'Failed to update chat room'));
                 }
@@ -5829,7 +5993,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $baseUrl = \BinktermPHP\Config::getSiteUrl();
 
         $messageStmt = $db->query("
-            SELECT sm.message_type,
+            SELECT sm.id AS share_id,
+                   sm.message_type,
                    sm.share_key,
                    sm.area_identifier,
                    sm.slug,
@@ -5855,9 +6020,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             ORDER BY sm.access_count DESC, sm.created_at DESC
         ");
         $messageRows = $messageStmt->fetchAll(\PDO::FETCH_ASSOC);
+        $tracker = new \BinktermPHP\ShareReferralTracker($db);
+        $messageReferrers = $tracker->getTopReferrersForMessageShares(array_map(static function ($row) {
+            return (int)$row['share_id'];
+        }, $messageRows), 10);
 
         $messages = [];
         foreach ($messageRows as $row) {
+            $shareId = (int)$row['share_id'];
             $areaIdentifier = $row['area_identifier'] ?? null;
             $slug = $row['slug'] ?? null;
             $shareUrl = (!empty($areaIdentifier) && !empty($slug))
@@ -5875,11 +6045,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'last_accessed_at' => $row['last_accessed_at'],
                 'is_public' => filter_var($row['is_public'], FILTER_VALIDATE_BOOLEAN),
                 'share_url' => $shareUrl,
+                'top_referrers' => $messageReferrers[$shareId] ?? [],
             ];
         }
 
         $fileStmt = $db->query("
-            SELECT sf.created_at,
+            SELECT sf.id AS share_id,
+                   sf.created_at,
                    sf.expires_at,
                    sf.access_count,
                    sf.last_accessed_at,
@@ -5898,9 +6070,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             ORDER BY sf.access_count DESC, sf.created_at DESC
         ");
         $fileRows = $fileStmt->fetchAll(\PDO::FETCH_ASSOC);
+        $fileReferrers = $tracker->getTopReferrersForFileShares(array_map(static function ($row) {
+            return (int)$row['share_id'];
+        }, $fileRows), 10);
 
         $files = [];
         foreach ($fileRows as $row) {
+            $shareId = (int)$row['share_id'];
             $files[] = [
                 'filename' => $row['filename'],
                 'area_tag' => $row['area_tag'],
@@ -5915,6 +6091,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     . rawurlencode($row['area_tag'])
                     . '/'
                     . rawurlencode($row['filename']),
+                'top_referrers' => $fileReferrers[$shareId] ?? [],
             ];
         }
 

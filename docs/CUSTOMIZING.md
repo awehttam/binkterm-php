@@ -206,28 +206,29 @@ When set, logged-in users will see an **E-mail** item in the **Messaging** menu,
 
 ### File Areas
 
-The **Admin → Appearance → File Areas** tab lets you add custom HTML content to the file area pages — useful for upload ratio policies, DMCA contact information, or any other notices you want visible to users browsing files.
+The **Admin → Appearance → File Areas** tab lets you add custom content to the file area pages — useful for upload ratio policies, DMCA contact information, or any other notices you want visible to users browsing files.
 
 | Setting | Description |
 |---------|-------------|
 | Panel title | Optional heading displayed at the top of the sidebar info panel. Leave blank for no heading. |
-| Sidebar content (HTML) | HTML rendered in a card on the right-hand sidebar of the file area. Leave blank to hide the panel entirely. |
-| Footer content (HTML) | HTML rendered in a card below the file list. Useful for DMCA notices, ratio policies, or other notices. Leave blank to hide the footer entirely. |
+| Sidebar content (Markdown) | Markdown rendered in a card on the right-hand sidebar of the file area. Leave blank to hide the panel entirely. |
+| Footer content (Markdown) | Markdown rendered in a card below the file list. Useful for DMCA notices, ratio policies, or other notices. Leave blank to hide the footer entirely. |
 
 Example sidebar content:
 
-```html
-<p>Upload ratio: 1:3 — for every 1 MB uploaded you may download 3 MB.</p>
-<p>Questions? Contact <a href="mailto:sysop@example.com">sysop@example.com</a>.</p>
+```markdown
+**Upload ratio:** 1:3 — for every 1 MB uploaded you may download 3 MB.
+
+Questions? Contact <sysop@example.com>.
 ```
 
 Example footer content:
 
-```html
-<p><strong>DMCA Notice:</strong> To file a takedown request, e-mail <a href="mailto:dmca@example.com">dmca@example.com</a>.</p>
+```markdown
+**DMCA Notice:** To file a takedown request, e-mail <dmca@example.com>.
 ```
 
-Both fields accept arbitrary HTML. Changes take effect immediately after saving.
+Both fields accept Markdown. Changes take effect immediately after saving.
 
 ---
 

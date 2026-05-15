@@ -114,11 +114,11 @@ class DocsController
         }
 
         $raw  = file_get_contents($realPath);
-        $raw  = $this->rewriteLinks($raw);
+        $raw  = self::rewriteLinks($raw);
         // HTML pass-through is enabled only for README.md, which is trusted
         // sysop-maintained content. All other docs are rendered with HTML escaped.
         $allowHtml = ($name === 'README');
-        $html = MarkdownRenderer::toHtml($raw, allowHtml: $allowHtml);
+        $html = MarkdownRenderer::toHtml($raw, allowHtml: $allowHtml, allowImages: true);
 
         $template = new Template();
         $template->renderResponse('admin/docs.twig', [
@@ -171,7 +171,7 @@ class DocsController
      *
      * External https:// links and anchor (#) links are left unchanged.
      */
-    private function rewriteLinks(string $markdown): string
+    public static function rewriteLinks(string $markdown): string
     {
         // Rewrite relative .md links to /admin/docs/view/{name}
         $markdown = preg_replace_callback(
@@ -181,7 +181,12 @@ class DocsController
                 $target = str_replace('\\', '/', $m[2]);
                 $anchor = $m[3] ?? '';
 
-                if (str_contains($target, '../')) {
+                if (str_starts_with($target, '../')) {
+                    // Allow known root-level docs (must match keys in $specialBases).
+                    $basename = basename($target);
+                    if (in_array($basename, ['FAQ', 'README', 'REGISTER', 'CONTRIBUTING', 'CREDITS'], true)) {
+                        return '[' . $label . '](/admin/docs/view/' . $basename . $anchor . ')';
+                    }
                     return $m[0];
                 }
 
@@ -209,6 +214,16 @@ class DocsController
             $markdown
         );
 
+        // Rewrite Markdown image syntax with relative paths (e.g. ![alt](images/foo.png))
+        // to the docs asset route so the browser can fetch them.
+        $markdown = preg_replace_callback(
+            '/!\[([^\]]*)\]\((?!https?:\/\/)([A-Za-z0-9_.\-\/]+\.(png|jpg|jpeg|gif|webp))\)/',
+            function (array $m): string {
+                return '![' . $m[1] . '](/admin/docs/asset/' . $m[2] . ')';
+            },
+            $markdown
+        );
+
         return $markdown;
     }
 
@@ -222,6 +237,9 @@ class DocsController
             'FAQ'      => $this->repoRoot . DIRECTORY_SEPARATOR . 'FAQ',
             'README'   => $this->repoRoot . DIRECTORY_SEPARATOR . 'README',
             'REGISTER' => $this->repoRoot . DIRECTORY_SEPARATOR . 'REGISTER',
+            
+            'CONTRIBUTING' => $this->repoRoot . DIRECTORY_SEPARATOR . 'CONTRIBUTING',
+            'CREDITS' => $this->repoRoot . DIRECTORY_SEPARATOR . 'CREDITS',
         ];
 
         if (isset($specialBases[$name])) {

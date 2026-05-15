@@ -66,6 +66,7 @@
                 <input type="hidden" id="messageType" value="{{ type }}">
                 <input type="hidden" id="replyToId" value="{{ reply_to_id }}">
                 <input type="hidden" id="domain" value="{{ domain }}">
+                <input type="hidden" id="returnTo" value="{{ return_to }}">
                 
                 {% if type == 'netmail' %}
                     <div class="row mb-3">
@@ -1951,9 +1952,12 @@ function sendMessage() {
 
                 setTimeout(function() {
                     let returnUrl = `/${messageType}`;
-                    if (messageType === 'echomail') {
-                        const areaVal = $('#echoarea').val() || '';
-                        if (areaVal) returnUrl = `/echomail/${encodeURIComponent(areaVal)}`;
+                    const explicitReturnTo = ($('#returnTo').val() || '').trim();
+                    if (explicitReturnTo.startsWith('/')) {
+                        returnUrl = explicitReturnTo;
+                    } else if (messageType === 'echomail') {
+                            const areaVal = $('#echoarea').val() || '';
+                            if (areaVal) returnUrl = `/echomail/${encodeURIComponent(areaVal)}`;
                     }
                     window.location.href = returnUrl;
                 }, 2000);

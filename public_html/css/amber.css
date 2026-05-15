@@ -436,6 +436,54 @@ a:hover {
     opacity: 0.6;
 }
 
+.share-message-modal .form-control,
+.share-message-modal .form-select {
+    background-color: var(--term-black);
+    color: var(--term-amber);
+    border-color: var(--term-amber-dark);
+}
+
+.share-message-modal .form-control:focus,
+.share-message-modal .form-select:focus {
+    background-color: var(--term-black);
+    color: var(--term-amber);
+}
+
+.share-message-modal .form-control::placeholder {
+    color: var(--term-amber-dark);
+    opacity: 1;
+}
+
+.share-message-modal .form-control[readonly] {
+    background-color: var(--term-black);
+    color: var(--term-amber);
+    border-color: var(--term-amber-dark);
+    opacity: 1;
+}
+
+.share-message-modal .text-muted {
+    color: var(--text-color-muted) !important;
+}
+
+.share-message-modal .alert-secondary {
+    background-color: var(--term-black);
+    color: var(--term-amber);
+    border-color: var(--term-amber-dark);
+}
+
+.share-message-modal .copy-other-share-btn {
+    background-color: transparent;
+    color: var(--term-amber);
+    border-color: var(--term-amber-dark);
+}
+
+.share-message-modal .copy-other-share-btn:hover,
+.share-message-modal .copy-other-share-btn:focus {
+    background-color: var(--term-black);
+    color: var(--term-amber);
+    border-color: var(--term-amber);
+}
+
 .btn-fidonet {
     background-color: var(--term-amber);
     border-color: var(--term-amber);

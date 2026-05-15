@@ -689,6 +689,21 @@ class AdminDaemonServer
                     $mrcConfig->reloadConfig();
                     $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
                     break;
+                case 'get_matterbridge_config':
+                    $matterbridgeConfig = \BinktermPHP\Chat\MatterbridgeConfig::getInstance();
+                    $matterbridgeConfig->reloadConfig();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $matterbridgeConfig->getFullConfig()]);
+                    break;
+                case 'set_matterbridge_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    if (!is_array($payload)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_config']);
+                        break;
+                    }
+                    $matterbridgeConfig = \BinktermPHP\Chat\MatterbridgeConfig::getInstance();
+                    $matterbridgeConfig->setFullConfig($payload);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $matterbridgeConfig->getFullConfig()]);
+                    break;
                 case 'set_mrc_config':
                     $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
                     if (!is_array($payload)) {

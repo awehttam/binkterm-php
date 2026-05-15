@@ -214,10 +214,14 @@ class MessageHandler
         }
 
         if ($filter === 'unread') {
-            // Show only unread messages TO this user (not FROM this user)
-            $whereClause .= " AND mrs.read_at IS NULL AND LOWER(n.from_name) != LOWER(?) AND LOWER(n.from_name) != LOWER(?)";
-            $params[] = $user['username'];
-            $params[] = $user['real_name'];
+            if (!empty($myAddresses)) {
+                $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND mrs.read_at IS NULL";
+                $params = [$user['username'], $user['real_name']];
+                $params = array_merge($params, $myAddresses);
+            } else {
+                $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND mrs.read_at IS NULL";
+                $params = [$user['username'], $user['real_name']];
+            }
         } elseif ($filter === 'sent') {
             // Show only messages sent by this user from this system (check from_name AND from_address)
             if (!empty($myAddresses)) {
@@ -231,10 +235,11 @@ class MessageHandler
                 $params = [$user['username'], $user['real_name']];
             }
         } elseif ($filter === 'received' && !empty($myAddresses)) {
-            // Show only messages received by this user (must match name AND to_address must be one of our addresses)
-            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
+            // Show only messages received by this user (must match name AND to_address must be one of our addresses).
+            // Note: for inbound messages user_id IS the recipient, so n.user_id != ? would wrongly exclude them.
+            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders)";
             $params = [$user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses, [$userId]);
+            $params = array_merge($params, $myAddresses);
         } elseif ($filter === 'saved') {
             // Show only messages saved by this user
             $whereClause .= " AND sav.id IS NOT NULL";
@@ -447,18 +452,17 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND {$domainCondition}
                 ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $userId, $echoareaTag];
+            $params = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -499,18 +503,17 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
                 ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $userId];
+            $params = [$userId, $userId];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -677,19 +680,18 @@ class MessageHandler
                    ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                   CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                   CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
             ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
 
-        $params = [$userId, $userId, $userId];
+        $params = [$userId, $userId];
         $params = array_merge($params, $echoareaIds);
         foreach ($filterParams as $param) {
             $params[] = $param;
@@ -878,7 +880,7 @@ class MessageHandler
                         ea.domain AS area_domain,
                         COALESCE(NULLIF(em.art_format,''), NULLIF(ea.art_format_hint,'')) AS art_format,
                         CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END AS is_read,
-                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END AS is_shared,
+                        CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END AS is_shared,
                         CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END AS is_saved,
                         NULL::text AS filename,
                         NULL::bigint AS filesize,
@@ -889,7 +891,6 @@ class MessageHandler
                     FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                     LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                     WHERE ea.id IN ({$echoPH}) AND ea.is_active = TRUE{$sysopClause}{$ignoreFilter['sql']}{$moderationFilter['sql']}
 
@@ -931,7 +932,7 @@ class MessageHandler
                 LIMIT ? OFFSET ?
             ");
 
-            $params = [$userId, $userId, $userId];
+            $params = [$userId, $userId];
             $params = array_merge($params, $echoareaIds);
             foreach ($ignoreFilter['params'] as $param) {
                 $params[] = $param;
@@ -991,19 +992,18 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$sysopClause}{$filterClause}{$ignoreFilter['sql']}{$moderationFilter['sql']}
                 ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
 
-            $params = [$userId, $userId, $userId];
+            $params = [$userId, $userId];
             $params = array_merge($params, $echoareaIds, $filterParams);
             foreach ($ignoreFilter['params'] as $param) {
                 $params[] = $param;
@@ -1174,14 +1174,13 @@ class MessageHandler
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only, ea.allow_media as area_allow_media,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 WHERE em.id = ?{$ignoreFilter['sql']}{$moderationFilter['sql']}
             ");
-            $params = [$userId, $userId, $messageId];
+            $params = [$userId, $messageId];
             foreach ($ignoreFilter['params'] as $param) {
                 $params[] = $param;
             }
@@ -4167,7 +4166,7 @@ class MessageHandler
     /**
      * Create a share link for a message
      */
-    public function createMessageShare($messageId, $messageType, $userId, $isPublic = false, $expiresHours = null)
+    public function createMessageShare($messageId, $messageType, $userId, $isPublic = false, $expiresHours = null, ?string $aiOgSummary = null)
     {
         // Ensure proper boolean conversion - handle empty strings and various inputs
         $isPublic = filter_var($isPublic, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
@@ -4243,11 +4242,13 @@ class MessageHandler
         }
 
         // Simplify by using conditional SQL instead of CASE with bound parameters
+        $summaryValue = ($aiOgSummary !== null && trim($aiOgSummary) !== '') ? trim($aiOgSummary) : null;
+
         if ($expiresHours) {
             $expiresHoursValue = (int)$expiresHours;
             $stmt = $this->db->prepare("
-                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public, area_identifier, slug)
-                VALUES (?, ?, ?, ?, NOW() + INTERVAL '1 hour' * ?, ?, ?, ?)
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public, area_identifier, slug, ai_og_summary)
+                VALUES (?, ?, ?, ?, NOW() + INTERVAL '1 hour' * ?, ?, ?, ?, ?)
             ");
             $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
             $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
@@ -4257,10 +4258,11 @@ class MessageHandler
             $stmt->bindValue(6, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
             $stmt->bindValue(7, $areaIdentifier, \PDO::PARAM_STR);
             $stmt->bindValue(8, $slug, \PDO::PARAM_STR);
+            $stmt->bindValue(9, $summaryValue, \PDO::PARAM_STR);
         } else {
             $stmt = $this->db->prepare("
-                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public, area_identifier, slug)
-                VALUES (?, ?, ?, ?, NULL, ?, ?, ?)
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public, area_identifier, slug, ai_og_summary)
+                VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?)
             ");
             $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
             $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
@@ -4269,6 +4271,7 @@ class MessageHandler
             $stmt->bindValue(5, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
             $stmt->bindValue(6, $areaIdentifier, \PDO::PARAM_STR);
             $stmt->bindValue(7, $slug, \PDO::PARAM_STR);
+            $stmt->bindValue(8, $summaryValue, \PDO::PARAM_STR);
         }
 
         $result = $stmt->execute();
@@ -4292,7 +4295,7 @@ class MessageHandler
     /**
      * Get shared message by share key
      */
-    public function getSharedMessage($shareKey, $requestingUserId = null)
+    public function getSharedMessage($shareKey, $requestingUserId = null, bool $recordAccess = true, ?string $referrerUrl = null)
     {
         // Clean up expired shares first
         $this->cleanupExpiredShares();
@@ -4354,8 +4357,11 @@ class MessageHandler
             ];
         }
 
-        // Update access statistics
-        $this->updateShareAccess($share['id']);
+        if ($recordAccess) {
+            $this->updateShareAccess($share['id'], $referrerUrl);
+            $share['access_count'] = (int)$share['access_count'] + 1;
+            $share['last_accessed_at'] = gmdate('c');
+        }
 
         // Clean message for JSON encoding
         $message = $this->cleanMessageForJson($message);
@@ -4368,11 +4374,13 @@ class MessageHandler
             'success' => true,
             'message' => $message,
             'share_info' => [
-                'shared_by' => $share['shared_by_real_name'] ?: $share['shared_by_username'],
-                'created_at' => $share['created_at'],
-                'expires_at' => $share['expires_at'],
-                'is_public' => $share['is_public'],
-                'access_count' => $share['access_count']
+                'id'            => $share['id'],
+                'ai_og_summary' => $share['ai_og_summary'] ?? null,
+                'shared_by'     => $share['shared_by_real_name'] ?: $share['shared_by_username'],
+                'created_at'    => $share['created_at'],
+                'expires_at'    => $share['expires_at'],
+                'is_public'     => $share['is_public'],
+                'access_count'  => (int)$share['access_count'],
             ]
         ];
     }
@@ -4463,7 +4471,7 @@ class MessageHandler
      * @param string   $slug            e.g. "hello-world"
      * @param int|null $requestingUserId
      */
-    public function getSharedMessageBySlug(string $areaIdentifier, string $slug, ?int $requestingUserId = null): array
+    public function getSharedMessageBySlug(string $areaIdentifier, string $slug, ?int $requestingUserId = null, bool $recordAccess = true, ?string $referrerUrl = null): array
     {
         $this->cleanupExpiredShares();
 
@@ -4488,28 +4496,41 @@ class MessageHandler
         }
 
         // Delegate to the core lookup logic via share_key
-        return $this->getSharedMessage($share['share_key'], $requestingUserId);
+        return $this->getSharedMessage($share['share_key'], $requestingUserId, $recordAccess, $referrerUrl);
     }
 
     /**
-     * Get all shares for a message by a user
+     * Get shares for a message: the current user's own shares and other users' active shares
      */
     public function getMessageShares($messageId, $messageType, $userId)
     {
-        $stmt = $this->db->prepare("
+        $this->cleanupExpiredShares();
+
+        $myStmt = $this->db->prepare("
             SELECT * FROM shared_messages
             WHERE message_id = ? AND message_type = ? AND shared_by_user_id = ? AND is_active = TRUE
+              AND (expires_at IS NULL OR expires_at > NOW())
             ORDER BY created_at DESC
         ");
+        $myStmt->execute([$messageId, $messageType, $userId]);
+        $myShares = $myStmt->fetchAll();
 
-        $stmt->execute([$messageId, $messageType, $userId]);
-        $shares = $stmt->fetchAll();
+        $otherStmt = $this->db->prepare("
+            SELECT sm.*, u.username AS shared_by_username
+            FROM shared_messages sm
+            JOIN users u ON sm.shared_by_user_id = u.id
+            WHERE sm.message_id = ? AND sm.message_type = ? AND sm.shared_by_user_id != ? AND sm.is_active = TRUE
+              AND (sm.expires_at IS NULL OR sm.expires_at > NOW())
+            ORDER BY sm.created_at DESC
+        ");
+        $otherStmt->execute([$messageId, $messageType, $userId]);
+        $otherShares = $otherStmt->fetchAll();
 
-        $result = [];
-        foreach ($shares as $share) {
+        $myResult = [];
+        foreach ($myShares as $share) {
             $areaId = $share['area_identifier'] ?? null;
             $slug   = $share['slug'] ?? null;
-            $result[] = [
+            $myResult[] = [
                 'share_key'        => $share['share_key'],
                 'share_url'        => $this->buildShareUrl($share['share_key'], $areaId, $slug),
                 'has_friendly_url' => ($areaId !== null && $slug !== null),
@@ -4517,11 +4538,25 @@ class MessageHandler
                 'expires_at'       => $share['expires_at'],
                 'is_public'        => $share['is_public'],
                 'access_count'     => $share['access_count'],
-                'last_accessed_at' => $share['last_accessed_at']
+                'last_accessed_at' => $share['last_accessed_at'],
+                'top_referrers'    => []
             ];
         }
 
-        return ['success' => true, 'shares' => $result];
+        $otherResult = [];
+        foreach ($otherShares as $share) {
+            $areaId = $share['area_identifier'] ?? null;
+            $slug   = $share['slug'] ?? null;
+            $otherResult[] = [
+                'share_url'          => $this->buildShareUrl($share['share_key'], $areaId, $slug),
+                'shared_by_username' => $share['shared_by_username'],
+                'created_at'         => $share['created_at'],
+                'is_public'          => $share['is_public'],
+                'top_referrers'      => [],
+            ];
+        }
+
+        return ['success' => true, 'my_shares' => $myResult, 'other_shares' => $otherResult];
     }
 
     /**
@@ -4652,7 +4687,7 @@ class MessageHandler
     /**
      * Update share access statistics
      */
-    private function updateShareAccess($shareId)
+    private function updateShareAccess($shareId, ?string $referrerUrl = null)
     {
         $stmt = $this->db->prepare("
             UPDATE shared_messages 
@@ -4660,6 +4695,9 @@ class MessageHandler
             WHERE id = ?
         ");
         $stmt->execute([$shareId]);
+
+        $tracker = new ShareReferralTracker($this->db);
+        $tracker->recordMessageShareAccess((int)$shareId, $referrerUrl);
     }
 
     /**
@@ -4973,17 +5011,16 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE em.id IN ({$placeholders})
             ");
 
-            $params = [$userId, $userId, $userId];
+            $params = [$userId, $userId];
             $params = array_merge($params, $parentIds);
 
             $stmt->execute($params);
@@ -5007,18 +5044,17 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE em.reply_to_id IN ({$placeholders})
                 LIMIT 100
             ");
 
-            $params = [$userId, $userId, $userId];
+            $params = [$userId, $userId];
             $params = array_merge($params, $currentIds);
 
             $stmt->execute($params);
@@ -5354,19 +5390,18 @@ class MessageHandler
                    ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                   CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                   CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
             ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
 
-        $params = [$userId, $userId, $userId];
+        $params = [$userId, $userId];
         $params = array_merge($params, $echoareaIds);
         foreach ($filterParams as $param) {
             $params[] = $param;
@@ -5572,18 +5607,17 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND {$domainCondition} AND em.reply_to_id IS NULL
                 ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $userId, $echoareaTag];
+            $params = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -5605,18 +5639,17 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE em.reply_to_id IS NULL{$filterClause}
                 ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $userId];
+            $params = [$userId, $userId];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -5710,17 +5743,16 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE em.reply_to_id IN ({$placeholders}){$ignoreFilter['sql']}{$moderationFilter['sql']}
             ");
 
-            $params = [$userId, $userId, $userId];
+            $params = [$userId, $userId];
             $params = array_merge($params, $currentLevelIds);
             foreach ($ignoreFilter['params'] as $param) {
                 $params[] = $param;
@@ -5780,17 +5812,16 @@ class MessageHandler
                    ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                   CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                   CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE em.id = ?
             LIMIT 1
         ");
-        $stmt->execute([$userId, $userId, $userId, $rootId]);
+        $stmt->execute([$userId, $userId, $rootId]);
         $rootMessages = $stmt->fetchAll();
         if ($rootMessages === []) {
             return ['messages' => [], 'unreadCount' => 0, 'threaded' => true, 'pagination' => ['page' => 1, 'limit' => 0, 'total' => 0, 'pages' => 1]];
@@ -6096,10 +6127,14 @@ class MessageHandler
         }
 
         if ($filter === 'unread') {
-            // Show only unread messages TO this user (not FROM this user)
-            $whereClause .= " AND mrs.read_at IS NULL AND LOWER(n.from_name) != LOWER(?) AND LOWER(n.from_name) != LOWER(?)";
-            $params[] = $user['username'];
-            $params[] = $user['real_name'];
+            if (!empty($myAddresses)) {
+                $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND mrs.read_at IS NULL";
+                $params = [$user['username'], $user['real_name']];
+                $params = array_merge($params, $myAddresses);
+            } else {
+                $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND mrs.read_at IS NULL";
+                $params = [$user['username'], $user['real_name']];
+            }
         } elseif ($filter === 'sent') {
             // Show only messages sent by this user from this system (check from_name AND from_address)
             if (!empty($myAddresses)) {
@@ -6113,10 +6148,11 @@ class MessageHandler
                 $params = [$user['username'], $user['real_name']];
             }
         } elseif ($filter === 'received' && !empty($myAddresses)) {
-            // Show only messages received by this user (must match name AND to_address must be one of our addresses)
-            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
+            // Show only messages received by this user (must match name AND to_address must be one of our addresses).
+            // Note: for inbound messages user_id IS the recipient, so n.user_id != ? would wrongly exclude them.
+            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders)";
             $params = [$user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses, [$userId]);
+            $params = array_merge($params, $myAddresses);
         } elseif ($filter === 'saved') {
             // Show only messages saved by this user
             $whereClause .= " AND sav.id IS NOT NULL";
@@ -6556,18 +6592,17 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.id IN ($echoareaPlaceholders) AND ea.is_active = TRUE{$filterClause}
                 AND em.id IN ($placeholders)
             ");
 
-            $params = [$userId, $userId, $userId];
+            $params = [$userId, $userId];
             $params = array_merge($params, $echoareaIds);
             foreach ($filterParams as $param) {
                 $params[] = $param;
@@ -6597,19 +6632,18 @@ class MessageHandler
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.id IN ($echoareaPlaceholders) AND ea.is_active = TRUE{$filterClause}
                 AND em.reply_to_id IN ($placeholders)
                 LIMIT 100
             ");
 
-            $params = [$userId, $userId, $userId];
+            $params = [$userId, $userId];
             $params = array_merge($params, $echoareaIds);
             foreach ($filterParams as $param) {
                 $params[] = $param;

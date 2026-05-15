@@ -1174,7 +1174,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ORDER BY name
         ");
         $stmt->execute();
-        $rooms = $stmt->fetchAll();
+        $rooms = array_map(function(array $r): array {
+            $r['id'] = (int)$r['id'];
+            return $r;
+        }, $stmt->fetchAll());
 
         echo json_encode(['rooms' => $rooms]);
     });
@@ -1210,7 +1213,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Active bots are always present regardless of session state
         $db = \BinktermPHP\Database::getInstance()->getPdo();
         $botStmt = $db->prepare("
-            SELECT b.user_id, u.username
+            SELECT b.user_id, b.description, u.username
             FROM   ai_bots b
             JOIN   users u ON u.id = b.user_id
             WHERE  b.is_active = TRUE
@@ -1224,10 +1227,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 continue;
             }
             $filtered[] = [
-                'user_id'  => $botUserId,
-                'username' => $bot['username'],
-                'location' => '',
-                'is_bot'   => true,
+                'user_id'     => $botUserId,
+                'username'    => $bot['username'],
+                'description' => $bot['description'] ?? '',
+                'location'    => '',
+                'is_bot'      => true,
             ];
         }
 
@@ -1535,35 +1539,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        if ($roomId) {
-            $stmt = $db->prepare("
-                INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
-                SELECT ?, ?, ?, ?
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM chat_room_bans
-                    WHERE room_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > NOW())
-                )
-                RETURNING id, created_at
-            ");
-            $stmt->execute([$roomId, $userId, $toUserId, $body, $roomId, $userId]);
-        } else {
-            $stmt = $db->prepare("
-                INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
-                VALUES (?, ?, ?, ?)
-                RETURNING id, created_at
-            ");
-            $stmt->execute([$roomId, $userId, $toUserId, $body]);
-        }
-        $result = $stmt->fetch();
-        if (!$result) {
-            getServerLogger()->info('[CHAT SEND] insert blocked by ban');
-            http_response_code(403);
+        try {
+            $chatService = new \BinktermPHP\Chat\ChatMessageService($db);
+            $result = $chatService->sendMessage((int)$userId, $roomId, $toUserId, $body);
+        } catch (\Throwable $e) {
+            if ($e->getMessage() === 'Chat message insert blocked') {
+                http_response_code(403);
+                apiError('errors.chat.send_blocked', apiLocalizedText('errors.chat.send_blocked', 'Message could not be sent', $user));
+                return;
+            }
+            getServerLogger()->error('[CHAT SEND] insert failed: ' . $e->getMessage());
+            http_response_code(500);
             apiError('errors.chat.send_blocked', apiLocalizedText('errors.chat.send_blocked', 'Message could not be sent', $user));
             return;
         }
-
-        ActivityTracker::track((int)$userId, ActivityTracker::TYPE_CHAT_SEND, $roomId);
 
         echo json_encode([
             'success'       => true,
@@ -4273,7 +4262,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $requestingUserId = $currentUser ? ($currentUser['user_id'] ?? $currentUser['id'] ?? null) : null;
 
         $manager = new \BinktermPHP\FileAreaManager();
-        $result  = $manager->getSharedFile($area, $filename, $requestingUserId);
+        $result  = $manager->getSharedFile($area, $filename, $requestingUserId, false);
         $result = apiLocalizeErrorPayload($result, $user);
 
         if (!$result['success']) {
@@ -5453,26 +5442,32 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if (!empty($myAddresses)) {
             $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
             $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count 
+                SELECT COUNT(*) as count
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
                 WHERE mrs.read_at IS NULL
-                  AND (
-                    n.user_id = ?
-                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
-                  )
+                  AND (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                  AND n.to_address IN ($addressPlaceholders)
+                  AND NOT (n.user_id = ? AND n.deleted_by_sender = TRUE)
+                  AND NOT ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE)
             ");
-            $params = [$userId, $userId, $user['username'], $user['real_name']];
+            $params = [$userId, $user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses);
+            $params[] = $userId;
+            $params[] = $user['username'];
+            $params[] = $user['real_name'];
             $unreadStmt->execute($params);
         } else {
             $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count 
+                SELECT COUNT(*) as count
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE n.user_id = ? AND mrs.read_at IS NULL
+                WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                  AND mrs.read_at IS NULL
+                  AND NOT (n.user_id = ? AND n.deleted_by_sender = TRUE)
+                  AND NOT ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE)
             ");
-            $unreadStmt->execute([$userId, $userId]);
+            $unreadStmt->execute([$userId, $user['username'], $user['real_name'], $userId, $user['username'], $user['real_name']]);
         }
         $unread = $unreadStmt->fetch()['count'];
 
@@ -8874,12 +8869,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
-        // Debug logging
-        //error_log("Share API - isPublic: " . var_export($isPublic, true) . ", expiresHours: " . var_export($expiresHours, true));
+        $aiOgSummary = isset($input['ai_og_summary']) ? (string)$input['ai_og_summary'] : null;
 
         try {
             $handler = new MessageHandler();
-            $result = $handler->createMessageShare($id, 'echomail', $userId, $isPublic, $expiresHours);
+            $result = $handler->createMessageShare($id, 'echomail', $userId, $isPublic, $expiresHours, $aiOgSummary);
 
             if ($result['success']) {
                 echo json_encode($result);
@@ -8953,6 +8947,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::post('/messages/echomail/{id}/share-summary', function($id) {
+        header('Content-Type: application/json');
+
+        $user   = RouteHelper::requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+        if (empty($bbsConfig['ai_assistant']['share_summary_enabled'])) {
+            http_response_code(403);
+            apiError('errors.admin.ai_settings.share_summary_disabled', apiLocalizedText('errors.admin.ai_settings.share_summary_disabled', 'AI share summaries are not enabled'));
+            return;
+        }
+
+        try {
+            $handler = new MessageHandler();
+            $message = $handler->getMessage((int)$id, 'echomail', $userId);
+
+            if (!$message) {
+                http_response_code(404);
+                apiError('errors.messages.not_found', apiLocalizedText('errors.messages.not_found', 'Message not found'));
+                return;
+            }
+
+            $localeResolver = new \BinktermPHP\I18n\LocaleResolver(new \BinktermPHP\I18n\Translator());
+            $locale = $localeResolver->resolveLocale(null, $user);
+
+            $summary = \BinktermPHP\AI\ShareSummaryGenerator::generate($message, $locale);
+
+            echo json_encode(['success' => true, 'summary' => $summary]);
+        } catch (\Throwable $e) {
+            getServerLogger()->error('Share summary generation failed: ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.admin.ai_settings.share_summary_failed', apiLocalizedText('errors.admin.ai_settings.share_summary_failed', 'Failed to generate summary'));
+        }
+    });
+
     SimpleRouter::get('/messages/shared/{area}/{slug}', function($area, $slug) {
         header('Content-Type: application/json');
 
@@ -8962,7 +8992,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $handler = new MessageHandler();
-            $result  = $handler->getSharedMessageBySlug($area, $slug, $userId);
+            $result  = $handler->getSharedMessageBySlug($area, $slug, $userId, false);
 
             if ($result['success']) {
                 echo json_encode($result);
@@ -8988,7 +9018,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $handler = new MessageHandler();
-            $result = $handler->getSharedMessage($shareKey, $userId);
+            $result = $handler->getSharedMessage($shareKey, $userId, false);
 
             if ($result['success']) {
                 echo json_encode($result);

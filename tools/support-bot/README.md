@@ -14,13 +14,14 @@ This can be used as an example for writing your own RAG indexer.
    chunk with `all-MiniLM-L6-v2` (runs locally, no API key needed), and stores
    everything in `binkterm_knowledge.db` using the sqlite-vec extension.
 
-2. **`bot_query.php`** receives a question, shells out to `query_embed.py` to embed
-   it with the same model, performs a KNN cosine-similarity search against the
-   database to retrieve the 4 most relevant chunks, injects them into a system
-   prompt, and calls the Anthropic API (Claude Haiku) to generate a grounded answer.
+2. **`bot_query.php`** receives a question, shells out to `query_retrieve.py` to
+   embed it with the same model, performs a KNN cosine-similarity search against
+   the database to retrieve the 4 most relevant chunks, injects them into a
+   system prompt, and calls the Anthropic API (Claude Haiku) to generate a
+   grounded answer.
 
-3. **`query_embed.py`** is a small helper that wraps the sentence-transformers model
-   so PHP doesn't need a native ML library.
+3. **`query_embed.py`** is a small helper for standalone embedding tests. Both it
+   and `query_retrieve.py` use the same `fastembed` model as `build_index.py`.
 
 ## Requirements
 
@@ -118,8 +119,8 @@ interactively.
 : Run `pip install sqlite-vec` and verify that
   `python3 -c "import sqlite_vec; print(sqlite_vec.loadable_path())"` prints a path.
 
-**`Error: query_embed.py produced no output`**
-: Confirm sentence-transformers is installed: `pip show sentence-transformers`
+**`Error: query_retrieve.py produced no output`**
+: Confirm the Python dependencies are installed: `pip install -r requirements.txt`
 
 **`Anthropic API returned HTTP 401`**
 : Check that `ANTHROPIC_API_KEY` is exported in the environment PHP runs under.

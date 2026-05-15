@@ -22,7 +22,8 @@
         "max_messages_per_download": 2500
     },
     "ai_assistant": {
-        "enabled": false
+        "enabled": false,
+        "share_summary_enabled": true
     },
     "packet_bbs": {
         "session_timeout_minutes": 15,

@@ -85,13 +85,9 @@ class BbsConfig
             return;
         }
 
-        $merged = $defaults;
-        foreach ($config as $key => $value) {
-            if ($key === 'features') {
-                continue;
-            }
-            $merged[$key] = $value;
-        }
+        $configWithoutFeatures = $config;
+        unset($configWithoutFeatures['features']);
+        $merged = self::mergeConfigRecursive($defaults, $configWithoutFeatures);
 
         $features = $defaults['features'] ?? [];
         if (isset($config['features']) && is_array($config['features'])) {
@@ -111,6 +107,19 @@ class BbsConfig
     {
         self::load();
         return self::$config ?? self::getDefaults();
+    }
+
+    /**
+     * Merge configuration arrays recursively so nested defaults survive partial
+     * overrides in config/bbs.json.
+     *
+     * @param array $base
+     * @param array $overrides
+     * @return array
+     */
+    private static function mergeConfigRecursive(array $base, array $overrides): array
+    {
+        return array_replace_recursive($base, $overrides);
     }
 
     public static function reload(): void
@@ -184,19 +193,13 @@ class BbsConfig
         $path = self::getConfigPath();
         $existing = self::loadJsonFile($path) ?? [];
 
-        $sanitized = $defaults;
-        foreach ($existing as $key => $value) {
-            if ($key === 'features') {
-                continue;
-            }
-            $sanitized[$key] = $value;
-        }
-        foreach ($config as $key => $value) {
-            if ($key === 'features') {
-                continue;
-            }
-            $sanitized[$key] = $value;
-        }
+        $existingWithoutFeatures = $existing;
+        unset($existingWithoutFeatures['features']);
+        $configWithoutFeatures = $config;
+        unset($configWithoutFeatures['features']);
+
+        $sanitized = self::mergeConfigRecursive($defaults, $existingWithoutFeatures);
+        $sanitized = self::mergeConfigRecursive($sanitized, $configWithoutFeatures);
 
         $features = $defaults['features'] ?? [];
         if (isset($existing['features']) && is_array($existing['features'])) {

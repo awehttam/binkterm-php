@@ -18,7 +18,7 @@
             .replace(/^(>+[ ]*)((?:\\#)+)( )/gm, function(match, prefix, hashes, space) {
                 return prefix + hashes.replace(/\\#/g, '#') + space;
             })
-            .replace(/\\([.~|])/g, '$1');
+            .replace(/\\([-_.~|])/g, '$1');
 
         return md.replace(/%%TUIESC(\d+)%%/g, function(match, index) {
             return protectedSegments[parseInt(index, 10)] || match;

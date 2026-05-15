@@ -24,13 +24,18 @@ Each transport daemon has additional extension requirements — see
 
 - Netmail browsing, reading, composing, replying, and sending
 - Echomail browsing, threaded reading, composing, replying, and posting
+- QWK offline mail packet download and upload (when enabled)
 - File areas browsing with ZMODEM downloads and uploads
+- Bulletins (read-only system announcements posted by admins)
 - Polls (view/vote/create where enabled)
 - Shoutbox (view/post where enabled)
+- BBS Directory (browse other BBSes when enabled)
+- Nodelist browser (browse Fidonet nodelist entries when available)
+- Interests (tag-based content interests when enabled)
 - Door launcher integration (DOS doors, native doors, and configured door menu)
 - Who's Online display
 - Full-screen message editor with cursor navigation and line editing controls
-- ANSI color and screen-aware rendering
+- ANSI color and screen-aware rendering (auto-detected on Telnet via TTYPE negotiation)
 - Sixel image rendering for terminal clients that support it
 - Per-user localization (same i18n flow used by web/API)
 - User preferences and settings (editor behavior, display options, and other per-user configuration)
@@ -68,10 +73,9 @@ Each transport daemon has additional extension requirements — see
 
 ### Security
 
-- **Login Attempts**: Limited to 3 attempts per connection
-- **Rate Limiting**: Maximum 5 failed login attempts per minute per IP address
+- **Login Attempts**: Limited to 3 attempts per connection before the connection is closed
+- **Connection Rate Limiting**: The transport daemon (Telnet/SSH) enforces a per-IP connection rate limit before forking a child process — see [TelnetServer.md](TelnetServer.md) and [SSHServer.md](SSHServer.md) for transport-specific details
 - **Connection Logging**: All login/logout events logged
-- **Session Management**: Automatic cleanup of expired rate limit entries
 
 ### Reliability
 
@@ -99,13 +103,37 @@ silently omitted.
 - Message count display on main menu
 - Helpful command documentation
 
+### Idle Timeout
+
+Sessions that have been idle for 300 seconds receive a warning prompt. If no input is received within a further window (420 seconds total), the session is disconnected automatically. Activity at any point resets the timer.
+
+### Login Menu
+
+Before authenticating, users are shown a pre-login menu:
+
+- **L** — Login to existing account
+- **R** — Reset lost password
+- **N** — Register a new account
+- **K** — QWK transfer (only shown when QWK is enabled)
+- **Q** — Quit / disconnect
+
+New users who register are disconnected after registration and must reconnect to log in.
+
+### Terminal Detection Wizard
+
+On first login, if the user has no saved terminal settings, the server runs an auto-detection wizard that tests character set support and color capability, then saves the results. This wizard is skipped on subsequent sessions once settings are stored.
+
+### System News
+
+After login, the server displays any pending system news before presenting the main menu.
+
 ## Shared Session Model
 
 Both transport daemons run the same `BbsSession` flow after connection setup:
 
 1. Transport handshake and authentication entry
-2. Login/register path (or direct-auth for valid SSH credentials)
-3. Main menu and feature handlers (Netmail, Echomail, Files, Doors, etc.)
+2. Pre-login menu (Login / Register / Reset password / QWK / Quit)
+3. Main menu and feature handlers (Netmail, Echomail, Files, Doors, Bulletins, Polls, QWK, etc.)
 4. Logout and session cleanup
 
 Because the feature handlers are shared, behavior and capabilities remain
@@ -115,7 +143,6 @@ consistent across Telnet and SSH.
 
 - Telnet:
   - Uses telnet option negotiation (IAC/NAWS/echo control) and optional TLS listener
-  - Includes a pre-login ESC anti-bot challenge
   - Supports an optional ANSI login screen (`telnet/screens/login.ans`)
 
 - SSH:
@@ -123,8 +150,20 @@ consistent across Telnet and SSH.
   - Supports direct login when SSH credentials validate successfully
   - Passes PTY dimensions from `pty-req` to the BBS session
 
-These differences are transport-layer concerns only; terminal features after
-login are the same.
+## Custom Terminal Screens
+
+Terminal login, main-menu, and goodbye screens are loaded from `telnet/screens/`.
+Both ANSI (`.ans`) and Sixel (`.sixel`) assets support simple rotating families:
+
+- `login.ans`, `login1.ans`, `login2.ans`
+- `login.sixel` (Sixel login screen; shown instead of ANSI when the client supports Sixel)
+- `mainmenu.ans`, `mainmenu1.ans`
+- `mainmenu.sixel`, `mainmenu1.sixel`
+- `bye.ans`, `bye1.ans`
+- `bye.sixel` (Sixel goodbye screen; shown instead of ANSI when the client supports Sixel)
+
+When multiple files share the same base name and extension, the terminal server
+uses a simple glob match and picks one at random each time that screen is shown.
 
 ## Editor Controls
 
@@ -163,11 +202,13 @@ with color-coded indicators:
 
 ## API Endpoints
 
-The terminal server uses the following BinktermPHP API endpoints:
+The terminal server uses the BinktermPHP web API for most operations. It also makes a small number of direct calls to the database and filesystem: session validation (`Auth`), login activity tracking (`ActivityTracker`), nodelist presence check, feature flags (`BbsConfig`, `BinkpConfig`), and system news (`AppearanceConfig`). The table below lists the primary API endpoints. Additional endpoints are called by individual feature handlers (polls, shoutbox, bulletins, file areas, QWK, interests, BBS directory, nodelist, user settings, etc.).
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/auth/login` | POST | User authentication |
+| `/api/auth/logout` | POST | Session logout |
+| `/api/user/settings` | GET | Load per-user settings (timezone, locale, terminal prefs) |
 | `/api/messages/netmail` | GET | List netmail messages |
 | `/api/messages/netmail/{id}` | GET | Get netmail message details |
 | `/api/messages/netmail/send` | POST | Send netmail message |

@@ -1462,11 +1462,61 @@ class TelnetUtils
         return substr($line, 0, $cols - 1);
     }
 
-    public static function showScreenIfExists(string $screenFile, BbsSession &$server, $conn)
+    /**
+     * Resolve a screen file or screen family to one concrete file path.
+     *
+     * Accepts either a single filename like "login.ans" or an ordered list of
+     * aliases such as ["welcome.ans", "login.ans"]. Each filename is expanded to a
+     * simple glob family (`login*.ans`, `mainmenu*.ans`, etc.). The first alias
+     * with one or more matches wins, and one file from that family is selected
+     * at random.
+     *
+     * @param string|array<int, string> $screenFile
+     * @return string|null
+     */
+    private static function resolveScreenVariant(string|array $screenFile): ?string
     {
-        $screenFile = __DIR__ . '/../screens/'.$screenFile;
+        $screenDir = __DIR__ . '/../screens';
+        $families = is_array($screenFile) ? $screenFile : [$screenFile];
 
-        if (is_file($screenFile)) {
+        foreach ($families as $family) {
+            $family = trim($family);
+            if ($family === '') {
+                continue;
+            }
+
+            $safeName = basename($family);
+            $extension = pathinfo($safeName, PATHINFO_EXTENSION);
+            $baseName = pathinfo($safeName, PATHINFO_FILENAME);
+
+            if ($extension === '' || $baseName === '') {
+                continue;
+            }
+
+            $matches = glob($screenDir . '/' . $baseName . '*.' . $extension, GLOB_NOSORT) ?: [];
+            $matches = array_values(array_filter(array_unique($matches), 'is_file'));
+
+            if ($matches === []) {
+                continue;
+            }
+
+            return $matches[random_int(0, count($matches) - 1)];
+        }
+
+        return null;
+    }
+
+    /**
+     * Show a random ANSI screen variant if one exists.
+     *
+     * @param string|array<int, string> $screenFile
+     * @return bool
+     */
+    public static function showScreenIfExists(string|array $screenFile, BbsSession &$server, $conn): bool
+    {
+        $screenFile = self::resolveScreenVariant($screenFile);
+
+        if ($screenFile !== null && is_file($screenFile)) {
             $content = @file_get_contents($screenFile);
             if ($content !== false && $content !== '') {
                 $content = str_replace("\r\n", "\n", $content);
@@ -1482,13 +1532,14 @@ class TelnetUtils
      * Send a sixel graphics file raw to the client if it exists.
      * Sixel data is binary and must not have line endings normalized.
      *
+     * @param string|array<int, string> $screenFile
      * @return bool True if the file existed and was sent.
      */
-    public static function showSixelScreenIfExists(string $screenFile, BbsSession &$server, $conn): bool
+    public static function showSixelScreenIfExists(string|array $screenFile, BbsSession &$server, $conn): bool
     {
-        $screenFile = __DIR__ . '/../screens/' . $screenFile;
+        $screenFile = self::resolveScreenVariant($screenFile);
 
-        if (is_file($screenFile)) {
+        if ($screenFile !== null && is_file($screenFile)) {
             $content = @file_get_contents($screenFile);
             if ($content !== false && $content !== '') {
                 $server->safeWrite($conn, $content);

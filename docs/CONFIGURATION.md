@@ -40,6 +40,7 @@ bash scripts/restart_daemons.sh
 | Database `networks` table | FTN network metadata and network-level message policy flags | Admin UI → Networks |
 | `config/bbs.json` | BBS features (credits, file areas, registration, etc.) | Admin UI → BBS Settings |
 | `config/nodelists.json` | Nodelist download sources | Admin UI → Nodelists |
+| `config/matterbridge.json` | Matterbridge API bridge settings for local chat | Admin UI → Chat Rooms |
 | `config/mrc.json` | MRC chat relay server | Admin UI or text editor |
 | `config/webdoors.json` | WebDoor game configuration | Admin UI → WebDoors |
 | `config/dosdoors.json` | DOS door game configuration | Admin UI → DOS Doors |
@@ -55,6 +56,8 @@ Examples for most files are provided as `config/*.example` — copy and edit as 
 ## .env — Environment Variables
 
 The `.env` file is the primary low-level configuration file.  Copy `.env.example` to `.env` and fill in values before running setup.
+
+**`.env.example` is the authoritative list of all supported environment variables**, each with its default value and a brief comment. The sections below highlight the most important options, but consult `.env.example` directly for the complete set.
 
 ### Database
 

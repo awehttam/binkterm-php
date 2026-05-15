@@ -372,8 +372,7 @@ function displayMessages(messages, isThreaded = false) {
 
         messages.forEach(function(msg) {
             const isUnread = !msg.is_read;
-            const currentUserId = window.currentUser ? window.currentUser.id : null;
-            const isSent = (msg.user_id && currentUserId && msg.user_id == currentUserId);
+            const isSent = !!msg.is_sent;
             const rowClass = '';    //isUnread ? 'table-light' : '';
 
             // Threading support
@@ -647,6 +646,15 @@ function replyFromContextMenu() {
     composeMessage('netmail', messageId);
 }
 
+function repostFromContextMenu() {
+    if (!currentContextMenuMessageId) {
+        return;
+    }
+    const messageId = currentContextMenuMessageId;
+    hideMessageContextMenu();
+    repostMessage(messageId);
+}
+
 function viewConversationFromContextMenu() {
     if (!currentContextMenuMessageId) {
         return;
@@ -805,9 +813,7 @@ function printMessage() {
 }
 
 function displayMessageContent(message) {
-    // Check if current user is the sender - use user_id comparison instead of address
-    const currentUserId = window.currentUser ? window.currentUser.id : null;
-    const isSent = (message.user_id && currentUserId && message.user_id == currentUserId);
+    const isSent = !!message.is_sent;
 
     $('#messageSubject').text(message.subject || uiT('messages.no_subject', '(No Subject)'));
 
@@ -1085,6 +1091,17 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         $('#replyButton').hide();
     }
 
+    $('#repostButton').show().off('click').on('click', function() {
+        const messageId = currentMessageId;
+
+        $('#messageModal').one('hidden.bs.modal', function() {
+            setTimeout(function() {
+                repostMessage(messageId);
+            }, 10);
+        });
+        $('#messageModal').modal('hide');
+    });
+
     // Set up delete button
     $('#deleteButton').show().off('click').on('click', function() {
         deleteMessage(currentMessageId);
@@ -1152,6 +1169,13 @@ function saveEditMessage() {
 
 function composeMessage(type, replyToId = null) {
     window.location.href = `/compose/netmail${replyToId ? '?reply=' + replyToId : ''}`;
+}
+
+function repostMessage(messageId) {
+    if (!messageId) {
+        return;
+    }
+    window.location.href = `/compose/netmail?repost=${encodeURIComponent(messageId)}`;
 }
 
 function composeMessageToUser(toName, toAddress, subject, alwaysCrashmail) {

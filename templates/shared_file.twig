@@ -2,16 +2,23 @@
 
 {% block title %}{% if file %}{{ file.filename }} | {{ t('ui.shared_file.shared_file', {}, locale, ['common']) }}{% else %}{{ t('ui.shared_file.shared_file', {}, locale, ['common']) }}{% endif %} - {{ parent() }}{% endblock %}
 
-{% block meta_tags %}
+{% block meta_description_tags %}
     {% if file %}
         {% set description = file.short_description ? file.short_description : t('ui.shared_file.meta_description_from_system', {'system_name': system_name}, locale, ['common']) %}
         <meta name="description" content="{{ description|e }}">
+        <meta property="og:description" content="{{ description|e }}">
+    {% else %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}
 
+{% block meta_tags %}
+    {% if file %}
+        {% set description = file.short_description ? file.short_description : t('ui.shared_file.meta_description_from_system', {'system_name': system_name}, locale, ['common']) %}
         {# Open Graph meta tags #}
         <meta property="og:title" content="{{ file.filename|e }}">
         <meta property="og:type" content="website">
         <meta property="og:url" content="{{ share_url }}">
-        <meta property="og:description" content="{{ description|e }}">
         <meta property="og:site_name" content="{{ system_name }}">
 
         {# Twitter Card meta tags #}
