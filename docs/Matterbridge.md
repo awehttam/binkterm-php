@@ -52,6 +52,52 @@ chmod +x matterbridge/matterbridge
 
 A sample TOML config is at `matterbridge/matterbridge.toml`.
 
+## Discord Bot Setup
+
+Before you can configure the Discord section of `matterbridge.toml`, you need a Discord bot application with the appropriate permissions and an invite link to add it to your server.
+
+### 1. Create a Discord Application
+
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications) and sign in.
+2. Click **New Application** in the top-right corner.
+3. Give it a name (e.g. `MyBBS Bridge`) and click **Create**.
+
+### 2. Create a Bot User
+
+1. In the left sidebar, click **Bot**.
+2. Click **Add Bot**, then confirm with **Yes, do it!**
+3. Under the **TOKEN** heading, click **Reset Token** (or **Copy** if it is already shown). Save this token — you will never be able to see it again. This becomes the `Token` value under `[discord.mydiscord]` in `matterbridge.toml`.
+4. Scroll down to **Privileged Gateway Intents** and enable:
+   - **Server Members Intent** — lets the bot see member join/leave events and resolve usernames.
+   - **Message Content Intent** — required so the bot can read message text. Without this, inbound Discord messages will arrive empty.
+5. Click **Save Changes**.
+
+### 3. Set Bot Permissions
+
+1. In the left sidebar, click **OAuth2 → URL Generator**.
+2. Under **Scopes**, check `bot`.
+3. Under **Bot Permissions**, check:
+   - **Read Messages/View Channels**
+   - **Send Messages**
+   - **Read Message History**
+4. Copy the generated URL at the bottom of the page.
+
+### 4. Invite the Bot to Your Server
+
+1. Paste the URL from the previous step into a browser while logged in to Discord as a server admin.
+2. Select your server from the dropdown and click **Authorize**.
+3. Complete the CAPTCHA if prompted.
+
+The bot will now appear as a member of your server (shown as offline until Matterbridge is running).
+
+### 5. Get Channel Names
+
+Discord channel names used in `matterbridge.toml` are the plain text names shown in the channel list (without the `#` prefix), e.g. `general`, `bbs-lobby`. You do not need channel IDs.
+
+The bot must have **View Channel** and **Send Messages** permission in every channel you intend to bridge. If a channel is hidden from the bot role, Matterbridge will log an error on startup.
+
+---
+
 ## Configure Matterbridge (matterbridge.toml)
 
 A minimal bidirectional setup bridging one local room to a Discord channel:
