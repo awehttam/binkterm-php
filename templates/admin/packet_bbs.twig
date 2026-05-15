@@ -295,11 +295,20 @@ let nodeModal, keyModal, contactsModal, contactEditModal;
 let activeContactNodeDbId = null;
 let contactOwnerSearchTimer = null;
 let selectedContactOwner = null;
+let autoaddPollTimer = null;
+const AUTOADD_POLL_INTERVAL = 4000;
+const AUTOADD_POLL_TIMEOUT  = 90000;
 
 document.addEventListener('DOMContentLoaded', function() {
     nodeModal        = new bootstrap.Modal(document.getElementById('nodeModal'));
     contactsModal    = new bootstrap.Modal(document.getElementById('contactsModal'));
     contactEditModal = new bootstrap.Modal(document.getElementById('contactEditModal'));
+
+    document.getElementById('nodeModal').addEventListener('hidden.bs.modal', function() {
+        stopAutoaddPoll();
+        document.getElementById('nodeAutoaddReadBtn').disabled = false;
+    });
+
     loadNodes();
     loadSessions();
     loadQueue();
@@ -469,17 +478,59 @@ function editNode(n) {
 function readAutoaddConfig() {
     const dbId = document.getElementById('nodeDbId').value;
     if (!dbId) return;
-    document.getElementById('nodeAutoaddReadBtn').disabled = true;
+    const btn = document.getElementById('nodeAutoaddReadBtn');
+    btn.disabled = true;
     fetch(`/admin/api/packet-bbs/nodes/${dbId}/read-autoadd-config`, { method: 'POST' })
         .then(r => r.json())
         .then(data => {
             if (data.queued) {
-                alert(window.t('ui.admin.meshcore.autoadd_read_queued', {}, 'Read request queued. Refresh after the bridge next polls.'));
+                startAutoaddPoll(parseInt(dbId, 10));
+            } else {
+                btn.disabled = false;
             }
         })
-        .finally(() => {
-            document.getElementById('nodeAutoaddReadBtn').disabled = false;
-        });
+        .catch(() => { btn.disabled = false; });
+}
+
+function startAutoaddPoll(nodeDbId) {
+    const unknownEl = document.getElementById('nodeAutoaddUnknown');
+    const btn = document.getElementById('nodeAutoaddReadBtn');
+    unknownEl.textContent = window.t('ui.admin.meshcore.autoadd_read_waiting', {}, 'Waiting for device response…');
+    unknownEl.classList.remove('d-none');
+
+    let elapsed = 0;
+    stopAutoaddPoll();
+    autoaddPollTimer = setInterval(function() {
+        elapsed += AUTOADD_POLL_INTERVAL;
+        fetch('/admin/api/packet-bbs/nodes')
+            .then(r => r.json())
+            .then(data => {
+                const node = (data.nodes || []).find(n => n.id === nodeDbId);
+                if (node && node.autoadd_config !== null && node.autoadd_config !== undefined && node.autoadd_config !== '') {
+                    stopAutoaddPoll();
+                    btn.disabled = false;
+                    unknownEl.classList.add('d-none');
+                    setAutoaddCheckboxes(parseInt(node.autoadd_config, 10));
+                } else if (elapsed >= AUTOADD_POLL_TIMEOUT) {
+                    stopAutoaddPoll();
+                    btn.disabled = false;
+                    unknownEl.textContent = window.t('ui.admin.meshcore.autoadd_read_timeout', {}, 'Device did not respond. Try again.');
+                }
+            })
+            .catch(() => {
+                if (elapsed >= AUTOADD_POLL_TIMEOUT) {
+                    stopAutoaddPoll();
+                    btn.disabled = false;
+                }
+            });
+    }, AUTOADD_POLL_INTERVAL);
+}
+
+function stopAutoaddPoll() {
+    if (autoaddPollTimer !== null) {
+        clearInterval(autoaddPollTimer);
+        autoaddPollTimer = null;
+    }
 }
 
 function saveNode() {

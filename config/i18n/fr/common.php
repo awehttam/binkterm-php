@@ -2884,6 +2884,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.meshcore.autoadd_unknown' => 'Inconnu (pas encore lu depuis l\'appareil)',
     'ui.admin.meshcore.autoadd_read_device' => 'Lire depuis l\'appareil',
     'ui.admin.meshcore.autoadd_read_queued' => 'Demande de lecture mise en file d\'attente. Actualisez la page après le prochain cycle du pont.',
+    'ui.admin.meshcore.autoadd_read_waiting' => 'En attente de la réponse du périphérique…',
+    'ui.admin.meshcore.autoadd_read_timeout' => 'Le périphérique n\'a pas répondu. Réessayez.',
     'ui.settings.ai.mcp_key_title' => 'Accès assistant IA',
     'ui.settings.ai.mcp_not_enabled' => 'L\'accès aux assistants IA n\'est pas actuellement activé sur ce BBS. Contactez le sysop si vous êtes intéressé par cette fonctionnalité.',
     'ui.settings.ai.mcp_what_is' => 'Le serveur MCP (Model Context Protocol) permet aux assistants IA comme Claude de se connecter à ce BBS et de lire l\'echomail en votre nom. Votre clé de porteur personnelle authentifie la connexion — l\'IA ne voit que ce que vous pouvez voir.',

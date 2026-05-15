@@ -3570,6 +3570,8 @@ return [
     'ui.admin.meshcore.autoadd_unknown' => 'Desconocido (aún no leído desde el dispositivo)',
     'ui.admin.meshcore.autoadd_read_device' => 'Leer desde el dispositivo',
     'ui.admin.meshcore.autoadd_read_queued' => 'Solicitud de lectura en cola. Actualiza la página tras el próximo ciclo del puente.',
+    'ui.admin.meshcore.autoadd_read_waiting' => 'Esperando respuesta del dispositivo…',
+    'ui.admin.meshcore.autoadd_read_timeout' => 'El dispositivo no respondió. Inténtalo de nuevo.',
     'ui.settings.ai.mcp_key_title' => 'Acceso de asistente de IA',
     'ui.settings.ai.mcp_not_enabled' => 'El acceso de asistente de IA no está habilitado actualmente en este BBS. Contacta al sysop si estás interesado en esta función.',
     'ui.settings.ai.mcp_what_is' => 'El servidor MCP (Model Context Protocol) permite que los asistentes de IA como Claude se conecten a este BBS y lean el echomail en tu nombre. Tu clave personal de portador autentica la conexión — la IA solo ve lo que tú puedes ver.',
