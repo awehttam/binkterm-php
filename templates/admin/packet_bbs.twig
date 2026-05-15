@@ -170,7 +170,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="saveNode()">Save</button>
+                <button type="button" class="btn btn-primary" id="nodeSaveBtn" onclick="saveNode()">Save</button>
             </div>
         </div>
     </div>
@@ -299,7 +299,19 @@ let activeContactNodeDbId = null;
 let contactOwnerSearchTimer = null;
 let selectedContactOwner = null;
 let autoaddPollTimer = null;
+let autoaddConfirmed = false;
 const AUTOADD_POLL_INTERVAL = 4000;
+
+function updateSaveBtn(mode) {
+    const btn = document.getElementById('nodeSaveBtn');
+    if (mode === 'close') {
+        btn.textContent = window.t('ui.common.close', {}, 'Close');
+        btn.classList.replace('btn-primary', 'btn-secondary');
+    } else {
+        btn.textContent = window.t('ui.common.save', {}, 'Save');
+        btn.classList.replace('btn-secondary', 'btn-primary');
+    }
+}
 const AUTOADD_POLL_TIMEOUT  = 90000;
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -310,6 +322,16 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('nodeModal').addEventListener('hidden.bs.modal', function() {
         stopAutoaddPoll();
         document.getElementById('nodeAutoaddReadBtn').disabled = false;
+        autoaddConfirmed = false;
+        updateSaveBtn('save');
+    });
+
+    // Any form change after a confirmed save marks the form dirty again.
+    document.getElementById('nodeModal').addEventListener('input', function() {
+        if (autoaddConfirmed) { autoaddConfirmed = false; updateSaveBtn('save'); }
+    });
+    document.getElementById('nodeModal').addEventListener('change', function() {
+        if (autoaddConfirmed) { autoaddConfirmed = false; updateSaveBtn('save'); }
     });
 
     loadNodes();
@@ -441,6 +463,8 @@ function getAutoaddConfigByte() {
 }
 
 function showAddNodeModal() {
+    autoaddConfirmed = false;
+    updateSaveBtn('save');
     document.getElementById('nodeModalLabel').textContent = 'Add Node';
     document.getElementById('nodeDbId').value = '';
     document.getElementById('nodeId').value = '';
@@ -454,6 +478,8 @@ function showAddNodeModal() {
 }
 
 function editNode(n) {
+    autoaddConfirmed = false;
+    updateSaveBtn('save');
     document.getElementById('nodeModalLabel').textContent = 'Edit Node';
     document.getElementById('nodeDbId').value = n.id;
     document.getElementById('nodeId').value = n.node_id;
@@ -516,6 +542,8 @@ function startAutoaddPoll(nodeDbId) {
                     unknownEl.classList.add('d-none');
                     document.getElementById('nodeAutoaddPendingSync').classList.add('d-none');
                     setAutoaddCheckboxes(parseInt(node.autoadd_config, 10));
+                    autoaddConfirmed = true;
+                    updateSaveBtn('close');
                     loadNodes();
                 } else if (elapsed >= AUTOADD_POLL_TIMEOUT) {
                     stopAutoaddPoll();
@@ -540,6 +568,10 @@ function stopAutoaddPoll() {
 }
 
 function saveNode() {
+    if (autoaddConfirmed) {
+        nodeModal.hide();
+        return;
+    }
     const dbId    = document.getElementById('nodeDbId').value;
     const isEdit  = dbId !== '';
     const isMeshcore = document.getElementById('nodeInterface').value === 'meshcore';
