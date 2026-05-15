@@ -22,6 +22,7 @@
   - [Interest Suggestions](#interest-suggestions)
   - [Translation Catalog Generation](#translation-catalog-generation)
   - [Message Reader Assistant](#message-reader-assistant)
+  - [AI Chat Bots](#ai-chat-bots)
 - [Admin Dashboard](#admin-dashboard)
   - [What It Shows](#what-it-shows)
   - [Supported Periods](#supported-periods)
@@ -442,6 +443,18 @@ message_ai_assistant
 ```
 
 This feature requires a provider that supports tools, plus a reachable MCP server.
+
+### AI Chat Bots
+
+`src/AiBot/LocalChatActivityHandler.php` drives AI bots that respond in local chat rooms.
+
+Relevant feature id:
+
+```text
+ai_bot
+```
+
+Unlike other features, each bot has its own provider and model configured directly on the bot record via the admin UI. This means different bots can use different providers. If a bot has no provider set, the standard resolution order applies — `AI_AI_BOT_PROVIDER`, then `AI_DEFAULT_PROVIDER`, then the first configured provider.
 
 ---
 
