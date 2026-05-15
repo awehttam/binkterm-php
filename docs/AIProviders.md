@@ -33,6 +33,8 @@
 
 BinktermPHP has a provider-agnostic AI layer in `src/AI/` that lets features call OpenAI, Anthropic, or Ollama through a shared interface. The system also records every AI request in a local accounting ledger so you can estimate usage and cost from the admin UI. For local inference providers such as Ollama, cost estimates are based on power consumption rather than per-token billing.
 
+When a feature makes an AI request, the provider is selected in this order: a feature-specific override (e.g. `AI_TRANSLATION_CATALOG_PROVIDER`), then the system-wide default (`AI_DEFAULT_PROVIDER`), then OpenAI if configured, then the first available configured provider. Each feature can be pointed at a different provider and model, or left to use the system-wide default.
+
 ---
 
 ## What It Covers
@@ -487,6 +489,8 @@ php scripts/setup.php
 ---
 
 ## Troubleshooting
+
+AI errors and provider-level failures are written to `data/logs/server.log`. Failed requests are also recorded in the `ai_requests` ledger and visible on the `/admin/ai-usage` dashboard with their HTTP status and error message.
 
 ### No AI Provider Appears to Be Available
 
