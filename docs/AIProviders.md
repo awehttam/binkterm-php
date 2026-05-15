@@ -1,6 +1,40 @@
 # AI Providers and Usage
 
-BinktermPHP has a provider-agnostic AI layer in `src/AI/` that lets features call either OpenAI or Anthropic through a shared interface. The system also records every AI request in a local accounting ledger so you can estimate usage and cost from the admin UI.
+- [What It Covers](#what-it-covers)
+- [Architecture](#architecture)
+  - [Core Classes](#core-classes)
+  - [Flow](#flow)
+- [Provider Configuration](#provider-configuration)
+  - [OpenAI and Anthropic](#openai-and-anthropic)
+  - [Ollama](#ollama)
+    - [Power cost tracking](#power-cost-tracking)
+    - [Token pricing for Ollama](#token-pricing-for-ollama)
+  - [Default Selection](#default-selection)
+  - [Feature-Specific Overrides](#feature-specific-overrides)
+- [Configuration Examples](#configuration-examples)
+- [Pricing and Cost Estimation](#pricing-and-cost-estimation)
+  - [Provider-Wide Pricing](#provider-wide-pricing)
+  - [Model-Specific Pricing](#model-specific-pricing)
+- [The Accounting Ledger](#the-accounting-ledger)
+  - [Operations](#operations)
+  - [Success and Failure Recording](#success-and-failure-recording)
+- [Current Feature Integrations](#current-feature-integrations)
+  - [Interest Suggestions](#interest-suggestions)
+  - [Translation Catalog Generation](#translation-catalog-generation)
+  - [Message Reader Assistant](#message-reader-assistant)
+  - [AI Chat Bots](#ai-chat-bots)
+- [Admin Dashboard](#admin-dashboard)
+  - [What It Shows](#what-it-shows)
+  - [Supported Periods](#supported-periods)
+  - [When the Table Is Missing](#when-the-table-is-missing)
+- [Troubleshooting](#troubleshooting)
+- [Operational Notes](#operational-notes)
+
+---
+
+BinktermPHP has a provider-agnostic AI layer in `src/AI/` that lets features call OpenAI, Anthropic, or Ollama through a shared interface. The system also records every AI request in a local accounting ledger so you can estimate usage and cost from the admin UI. For local inference providers such as Ollama, cost estimates can be based on power consumption rather than per-token billing.
+
+When a feature makes an AI request, the provider is selected in this order: a feature-specific override (e.g. `AI_TRANSLATION_CATALOG_PROVIDER`), then the system-wide default (`AI_DEFAULT_PROVIDER`), then OpenAI if configured, then the first available configured provider. Each feature can be pointed at a different provider and model, or left to use the system-wide default.
 
 ---
 
@@ -12,6 +46,7 @@ The current AI system is used by:
 - `scripts/create_translation_catalog.php` for AI-assisted i18n catalog translation
 - `src/AI/MessageAiAssistant.php` for the message-reader assistant
 - `src/AI/ShareSummaryGenerator.php` for generating Open Graph description summaries of shared echomail messages
+- `src/AiBot/LocalChatActivityHandler.php` for AI chat bots that respond in local chat rooms
 
 The shared layer supports:
 
@@ -72,9 +107,9 @@ ANTHROPIC_API_BASE=https://api.anthropic.com/v1
 
 These providers are considered configured when their API key is non-empty.
 
-### Ollama (local inference)
+### Ollama
 
-[Ollama](https://ollama.com) runs LLMs locally with no API key and no per-token billing. Set `OLLAMA_API_BASE` to enable it:
+[Ollama](https://ollama.com) can run LLMs locally with no API key and no per-token billing, or via the Ollama cloud service which requires an API key and bills per token. Set `OLLAMA_API_BASE` to enable it:
 
 ```ini
 # URL to the running Ollama instance. Set this to enable the provider.
@@ -84,6 +119,8 @@ OLLAMA_API_BASE=http://localhost:11434/v1
 
 # Default model. Run `ollama list` on the server to see available models.
 OLLAMA_DEFAULT_MODEL=llama3.2
+# For Ollama cloud: ministral-3:3b-cloud is available on the free plan and supports tool calling.
+# OLLAMA_DEFAULT_MODEL=ministral-3:3b-cloud
 
 # API key — leave empty for self-hosted installs, set for cloud-hosted services.
 OLLAMA_API_KEY=
@@ -168,11 +205,15 @@ Current feature-specific env vars:
 AI_TRANSLATION_CATALOG_PROVIDER=openai
 AI_TRANSLATION_CATALOG_MODEL=gpt-4o-mini
 
-AI_INTEREST_GENERATION_PROVIDER=anthropic
-AI_INTEREST_GENERATION_MODEL=claude-haiku-4-5-20251001
+AI_INTEREST_GENERATION_PROVIDER=ollama
+AI_INTEREST_GENERATION_MODEL=llama3.2
 
 AI_SHARE_SUMMARY_PROVIDER=anthropic
 AI_SHARE_SUMMARY_MODEL=claude-haiku-4-5-20251001
+
+# message_ai_assistant requires a provider that supports tool calling (OLLAMA_SUPPORTS_TOOLS=true for Ollama).
+AI_MESSAGE_AI_ASSISTANT_PROVIDER=anthropic
+AI_MESSAGE_AI_ASSISTANT_MODEL=claude-haiku-4-5-20251001
 ```
 
 These match the current consumers:
@@ -296,6 +337,20 @@ AI_PRICE_OPENAI_GPT_4O_MINI_INPUT_PER_MILLION_USD=0.15
 AI_PRICE_OPENAI_GPT_4O_MINI_OUTPUT_PER_MILLION_USD=0.60
 ```
 
+The model name is uppercased and any non-alphanumeric character (hyphens, dots, colons) is replaced with an underscore. The table below shows how common model names map to their pricing keys:
+
+| Provider | Model | Pricing key prefix |
+|----------|-------|--------------------|
+| Anthropic | `claude-haiku-4-5-20251001` | `AI_PRICE_ANTHROPIC_CLAUDE_HAIKU_4_5_20251001_` |
+| Anthropic | `claude-sonnet-4-6` | `AI_PRICE_ANTHROPIC_CLAUDE_SONNET_4_6_` |
+| Anthropic | `claude-opus-4-7` | `AI_PRICE_ANTHROPIC_CLAUDE_OPUS_4_7_` |
+| OpenAI | `gpt-4o-mini` | `AI_PRICE_OPENAI_GPT_4O_MINI_` |
+| OpenAI | `gpt-4o` | `AI_PRICE_OPENAI_GPT_4O_` |
+| Ollama | `llama3.2` | `AI_PRICE_OLLAMA_LLAMA3_2_` |
+| Ollama | `ministral-3:3b-cloud` | `AI_PRICE_OLLAMA_MINISTRAL_3_3B_CLOUD_` |
+
+Append `INPUT_PER_MILLION_USD` or `OUTPUT_PER_MILLION_USD` to the prefix to form the full key, e.g. `AI_PRICE_ANTHROPIC_CLAUDE_HAIKU_4_5_20251001_INPUT_PER_MILLION_USD`.
+
 Supported rate buckets:
 
 - `INPUT`
@@ -389,6 +444,18 @@ message_ai_assistant
 
 This feature requires a provider that supports tools, plus a reachable MCP server.
 
+### AI Chat Bots
+
+`src/AiBot/LocalChatActivityHandler.php` drives AI bots that respond in local chat rooms.
+
+Relevant feature id:
+
+```text
+ai_bot
+```
+
+Unlike other features, each bot has its own provider and model configured directly on the bot record via the admin UI. This means different bots can use different providers. If a bot has no provider set, the standard resolution order applies — `AI_AI_BOT_PROVIDER`, then `AI_DEFAULT_PROVIDER`, then the first configured provider.
+
 ---
 
 ## Admin Dashboard
@@ -436,6 +503,8 @@ php scripts/setup.php
 ---
 
 ## Troubleshooting
+
+AI errors and provider-level failures are written to `data/logs/server.log`. Failed requests are also recorded in the `ai_requests` ledger and visible on the `/admin/ai-usage` dashboard with their HTTP status and error message.
 
 ### No AI Provider Appears to Be Available
 
