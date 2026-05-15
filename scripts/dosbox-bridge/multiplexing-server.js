@@ -968,7 +968,10 @@ class SessionManager {
                             if (session.emulator) {
                                 const cols = Math.max(20, Math.min(500, parseInt(msg.cols) || 80));
                                 const rows = Math.max(5,  Math.min(200, parseInt(msg.rows) || 25));
+                                session.slog.log(`[RESIZE] Received resize: ${cols}x${rows}`);
                                 session.emulator.resize(cols, rows);
+                            } else {
+                                session.slog.log(`[RESIZE] Received resize but emulator not ready`);
                             }
                             return;
                         }

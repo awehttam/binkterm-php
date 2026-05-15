@@ -710,8 +710,12 @@ class NativeAdapter extends EmulatorAdapter {
     }
 
     resize(cols, rows) {
+        const slog = this.slog || console;
         if (this.ptyProcess) {
+            slog.log(`[${this.getName()}] Resizing pty to ${cols}x${rows}`);
             this.ptyProcess.resize(cols, rows);
+        } else {
+            slog.log(`[${this.getName()}] resize() called but ptyProcess is null`);
         }
     }
 
