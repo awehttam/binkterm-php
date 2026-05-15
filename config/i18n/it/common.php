@@ -3571,6 +3571,7 @@ return [
     'ui.admin.meshcore.autoadd_read_queued' => 'Richiesta di lettura accodata. Aggiorna la pagina dopo il prossimo ciclo del bridge.',
     'ui.admin.meshcore.autoadd_read_waiting' => 'In attesa della risposta del dispositivo…',
     'ui.admin.meshcore.autoadd_read_timeout' => 'Il dispositivo non ha risposto. Riprovare.',
+    'ui.admin.meshcore.autoadd_pending_sync' => 'Salvato — in attesa che il bridge lo applichi al dispositivo.',
     'ui.settings.ai.mcp_key_title' => 'Accesso assistente AI',
     'ui.settings.ai.mcp_not_enabled' => 'L’accesso all’assistente AI non è attualmente abilitato su questa BBS. Contatta il sysop se sei interessato a questa funzionalità.',
     'ui.settings.ai.mcp_what_is' => 'Il server MCP (Model Context Protocol) consente ad assistenti AI come Claude di connettersi a questa BBS e leggere echomail per tuo conto. La tua chiave bearer personale autentica la connessione — l’AI vede solo ciò che puoi vedere tu.',
