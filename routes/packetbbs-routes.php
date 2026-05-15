@@ -421,6 +421,41 @@ SimpleRouter::post('/api/meshcore/commands/{id}/ack', function ($id) {
 });
 
 /**
+ * POST /api/meshcore/autoadd-config
+ *
+ * Called by the bridge after it reads CMD_GET_AUTOADD_CONFIG from the radio.
+ * Persists the device's current autoadd bitmask on the bridge node record so
+ * the admin panel can display it without querying the device on every page load.
+ *
+ * Request body (JSON):
+ *   { "bridge_node_id": "<64-char-hex>", "config_byte": <0-255>, "max_hops": <0-64> }
+ */
+SimpleRouter::post('/api/meshcore/autoadd-config', function () {
+    $body         = json_decode(file_get_contents('php://input'), true);
+    $bridgeNodeId = is_array($body) ? (string)($body['bridge_node_id'] ?? '') : '';
+
+    if (!requirePacketBbsAuth($bridgeNodeId)) {
+        return;
+    }
+
+    $configByte = isset($body['config_byte']) ? (int)$body['config_byte'] : null;
+    if ($configByte === null || $configByte < 0 || $configByte > 255) {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'config_byte required (0-255)']);
+        return;
+    }
+
+    header('Content-Type: application/json');
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    $stmt = $db->prepare(
+        'UPDATE packet_bbs_nodes SET autoadd_config = ? WHERE node_id = ?'
+    );
+    $stmt->execute([$configByte, $bridgeNodeId]);
+    echo json_encode(['success' => true]);
+});
+
+/**
  * GET /api/packetbbs/pending?node_id=!a1b2c3d4
  *
  * Poll for queued outbound messages for a node (e.g. new mail notifications).

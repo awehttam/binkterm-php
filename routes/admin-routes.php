@@ -4537,7 +4537,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->query(
                 "SELECT n.id, n.node_id, n.handle, n.interface_type, n.user_id,
-                        n.last_seen_at, n.created_at,
+                        n.last_seen_at, n.created_at, n.autoadd_config,
                         u.username,
                         (n.api_key_hash IS NOT NULL) AS has_api_key
                  FROM packet_bbs_nodes n
@@ -4583,10 +4583,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $adminController = new AdminController();
             $adminController->requireAdmin($user);
             header('Content-Type: application/json');
-            $input     = json_decode(file_get_contents('php://input'), true) ?? [];
-            $handle    = trim($input['handle'] ?? '');
-            $ifaceType = trim($input['interface_type'] ?? 'meshcore');
-            $userId    = !empty($input['user_id']) ? (int)$input['user_id'] : null;
+            $input       = json_decode(file_get_contents('php://input'), true) ?? [];
+            $handle      = trim($input['handle'] ?? '');
+            $ifaceType   = trim($input['interface_type'] ?? 'meshcore');
+            $userId      = !empty($input['user_id']) ? (int)$input['user_id'] : null;
+            $autoaddConfig = array_key_exists('autoadd_config', $input)
+                ? (is_numeric($input['autoadd_config']) ? (int)$input['autoadd_config'] : null)
+                : false; // false = not provided
+
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare(
                 'UPDATE packet_bbs_nodes
@@ -4594,7 +4598,56 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                  WHERE id = ?'
             );
             $stmt->execute([$handle ?: null, $ifaceType, $userId, (int)$id]);
-            echo json_encode(['success' => $stmt->rowCount() > 0]);
+
+            if ($autoaddConfig !== false) {
+                $colStmt = $db->prepare(
+                    'UPDATE packet_bbs_nodes SET autoadd_config = ? WHERE id = ?'
+                );
+                $colStmt->execute([$autoaddConfig, (int)$id]);
+
+                // Queue the device command for this bridge node.
+                if ($autoaddConfig !== null) {
+                    $bridgeRow = $db->prepare('SELECT id FROM packet_bbs_nodes WHERE id = ?');
+                    $bridgeRow->execute([(int)$id]);
+                    if ($bridgeRow->rowCount() > 0) {
+                        $cmdStmt = $db->prepare(
+                            'INSERT INTO meshcore_device_commands
+                                (bridge_node_id, command_type, payload)
+                             VALUES (?, ?, ?)'
+                        );
+                        $cmdStmt->execute([
+                            (int)$id,
+                            'set_autoadd_config',
+                            json_encode(['config_byte' => $autoaddConfig]),
+                        ]);
+                    }
+                }
+            }
+
+            echo json_encode(['success' => true]);
+        });
+
+        SimpleRouter::post('/packet-bbs/nodes/{id}/read-autoadd-config', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            // Verify node exists.
+            $nodeRow = $db->prepare('SELECT id FROM packet_bbs_nodes WHERE id = ?');
+            $nodeRow->execute([(int)$id]);
+            if (!$nodeRow->fetch(\PDO::FETCH_ASSOC)) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Node not found']);
+                return;
+            }
+            $cmdStmt = $db->prepare(
+                'INSERT INTO meshcore_device_commands (bridge_node_id, command_type, payload)
+                 VALUES (?, ?, ?)'
+            );
+            $cmdStmt->execute([(int)$id, 'get_autoadd_config', '{}']);
+            echo json_encode(['success' => true, 'queued' => true]);
         });
 
         SimpleRouter::delete('/packet-bbs/nodes/{id}', function($id) {

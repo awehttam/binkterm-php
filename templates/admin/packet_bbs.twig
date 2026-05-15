@@ -129,6 +129,39 @@
                         <input type="number" class="form-control" id="nodeUserId" placeholder="User ID (leave blank to unlink)">
                         <div class="form-text">Links this node to a BBS user account. Leave blank to require LOGIN.</div>
                     </div>
+                    <div id="nodeAutoaddSection" class="d-none">
+                        <hr>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <strong>{{ t('ui.admin.meshcore.autoadd_title') }}</strong>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="nodeAutoaddReadBtn" onclick="readAutoaddConfig()">
+                                <i class="fas fa-download me-1"></i>{{ t('ui.admin.meshcore.autoadd_read_device') }}
+                            </button>
+                        </div>
+                        <div class="form-text mb-2">{{ t('ui.admin.meshcore.autoadd_help') }}</div>
+                        <div id="nodeAutoaddUnknown" class="text-muted fst-italic mb-2 d-none">
+                            {{ t('ui.admin.meshcore.autoadd_unknown') }}
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="autoaddChat" value="2">
+                            <label class="form-check-label" for="autoaddChat">{{ t('ui.admin.meshcore.autoadd_chat') }}</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="autoaddRepeater" value="4">
+                            <label class="form-check-label" for="autoaddRepeater">{{ t('ui.admin.meshcore.autoadd_repeater') }}</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="autoaddRoomServer" value="8">
+                            <label class="form-check-label" for="autoaddRoomServer">{{ t('ui.admin.meshcore.autoadd_room_server') }}</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="autoaddSensor" value="16">
+                            <label class="form-check-label" for="autoaddSensor">{{ t('ui.admin.meshcore.autoadd_sensor') }}</label>
+                        </div>
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" id="autoaddOverwriteOldest" value="1">
+                            <label class="form-check-label" for="autoaddOverwriteOldest">{{ t('ui.admin.meshcore.autoadd_overwrite_oldest') }}</label>
+                        </div>
+                    </div>
                 </form>
                 <div id="nodeModalError" class="alert alert-danger d-none"></div>
             </div>
@@ -377,6 +410,24 @@ function loadQueue() {
         });
 }
 
+function setAutoaddCheckboxes(configByte) {
+    document.getElementById('autoaddChat').checked            = (configByte & 0x02) !== 0;
+    document.getElementById('autoaddRepeater').checked        = (configByte & 0x04) !== 0;
+    document.getElementById('autoaddRoomServer').checked      = (configByte & 0x08) !== 0;
+    document.getElementById('autoaddSensor').checked          = (configByte & 0x10) !== 0;
+    document.getElementById('autoaddOverwriteOldest').checked = (configByte & 0x01) !== 0;
+}
+
+function getAutoaddConfigByte() {
+    let b = 0;
+    if (document.getElementById('autoaddChat').checked)            b |= 0x02;
+    if (document.getElementById('autoaddRepeater').checked)        b |= 0x04;
+    if (document.getElementById('autoaddRoomServer').checked)      b |= 0x08;
+    if (document.getElementById('autoaddSensor').checked)          b |= 0x10;
+    if (document.getElementById('autoaddOverwriteOldest').checked) b |= 0x01;
+    return b;
+}
+
 function showAddNodeModal() {
     document.getElementById('nodeModalLabel').textContent = 'Add Node';
     document.getElementById('nodeDbId').value = '';
@@ -386,6 +437,7 @@ function showAddNodeModal() {
     document.getElementById('nodeInterface').value = 'meshcore';
     document.getElementById('nodeUserId').value = '';
     document.getElementById('nodeModalError').classList.add('d-none');
+    document.getElementById('nodeAutoaddSection').classList.add('d-none');
     nodeModal.show();
 }
 
@@ -398,18 +450,51 @@ function editNode(n) {
     document.getElementById('nodeInterface').value = n.interface_type || 'meshcore';
     document.getElementById('nodeUserId').value = n.user_id || '';
     document.getElementById('nodeModalError').classList.add('d-none');
+
+    const isMeshcore = (n.interface_type || 'meshcore') === 'meshcore';
+    document.getElementById('nodeAutoaddSection').classList.toggle('d-none', !isMeshcore);
+    if (isMeshcore) {
+        if (n.autoadd_config !== null && n.autoadd_config !== undefined && n.autoadd_config !== '') {
+            document.getElementById('nodeAutoaddUnknown').classList.add('d-none');
+            setAutoaddCheckboxes(parseInt(n.autoadd_config, 10));
+        } else {
+            document.getElementById('nodeAutoaddUnknown').classList.remove('d-none');
+            setAutoaddCheckboxes(0);
+        }
+    }
+
     nodeModal.show();
+}
+
+function readAutoaddConfig() {
+    const dbId = document.getElementById('nodeDbId').value;
+    if (!dbId) return;
+    document.getElementById('nodeAutoaddReadBtn').disabled = true;
+    fetch(`/admin/api/packet-bbs/nodes/${dbId}/read-autoadd-config`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.queued) {
+                alert(window.t('ui.admin.meshcore.autoadd_read_queued', {}, 'Read request queued. Refresh after the bridge next polls.'));
+            }
+        })
+        .finally(() => {
+            document.getElementById('nodeAutoaddReadBtn').disabled = false;
+        });
 }
 
 function saveNode() {
     const dbId    = document.getElementById('nodeDbId').value;
     const isEdit  = dbId !== '';
+    const isMeshcore = document.getElementById('nodeInterface').value === 'meshcore';
     const payload = {
         node_id:        document.getElementById('nodeId').value.trim(),
         handle:         document.getElementById('nodeHandle').value.trim(),
         interface_type: document.getElementById('nodeInterface').value,
         user_id:        document.getElementById('nodeUserId').value.trim() || null,
     };
+    if (isEdit && isMeshcore) {
+        payload.autoadd_config = getAutoaddConfigByte();
+    }
 
     const url    = isEdit ? `/admin/api/packet-bbs/nodes/${dbId}` : '/admin/api/packet-bbs/nodes';
     const method = isEdit ? 'PUT' : 'POST';
