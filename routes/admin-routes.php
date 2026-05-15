@@ -4642,6 +4642,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => false, 'error' => 'Node not found']);
                 return;
             }
+            // Clear the cached value so the UI poll waits for a genuinely fresh read.
+            $db->prepare('UPDATE packet_bbs_nodes SET autoadd_config = NULL WHERE id = ?')
+               ->execute([(int)$id]);
             $cmdStmt = $db->prepare(
                 'INSERT INTO meshcore_device_commands (bridge_node_id, command_type, payload)
                  VALUES (?, ?, ?)'
