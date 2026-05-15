@@ -348,7 +348,7 @@ function loadNodes() {
                                 title="Manage Contacts">
                             <i class="fas fa-address-book"></i>
                         </button>` : ''}
-                        <button class="btn btn-sm btn-outline-secondary me-1" onclick='editNode(${JSON.stringify(n)})'>
+                        <button class="btn btn-sm btn-outline-secondary me-1" data-node="${escHtml(JSON.stringify(n))}" onclick="editNode(JSON.parse(this.dataset.node))">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-sm ${n.has_api_key ? 'btn-outline-success' : 'btn-outline-warning'} me-1"
