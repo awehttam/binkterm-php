@@ -49,14 +49,7 @@ if (empty($doorId)) {
             right: 0;
             bottom: 0;
             background: #000;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
             overflow: hidden;
-        }
-
-        #terminal-container .xterm {
-            margin-top: 6px;
         }
 
         /* Force terminal surface to pure black */
@@ -167,10 +160,10 @@ if (empty($doorId)) {
     <div id="terminal-container"></div>
 
     <script src="/webdoors/terminal/assets/xterm.js"></script>
+    <script src="/js/xterm-addon-fit.js"></script>
     <script>
         let term = null;
-        const TERM_COLS = 80;
-        const TERM_ROWS = 25;
+        let fitAddon = null;
         let socket = null;
         let sessionId = null;
         const doorId = <?php echo json_encode($doorId); ?>;
@@ -180,8 +173,6 @@ if (empty($doorId)) {
 
             term = new Terminal({
                 cursorBlink: true,
-                cols: TERM_COLS,
-                rows: TERM_ROWS,
                 fontSize: 16,
                 fontFamily: 'Courier New, monospace',
                 scrollback: 0,
@@ -209,9 +200,16 @@ if (empty($doorId)) {
                 convertEol: false
             });
 
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
             term.open(container);
-            term.resize(TERM_COLS, TERM_ROWS);
-            scheduleFixedTerminalSize();
+            fitAddon.fit();
+
+            term.onResize(({ cols, rows }) => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ type: 'resize', cols, rows }));
+                }
+            });
 
             term.onData((data) => {
                 // Remap DEL (0x7f) to Backspace (0x08) for DOS compatibility
@@ -266,9 +264,6 @@ if (empty($doorId)) {
                 return true;
             });
 
-            term.onRender(() => {
-                scheduleFixedTerminalSize();
-            });
         }
 
         function updateStatus(message, state) {
@@ -328,6 +323,7 @@ if (empty($doorId)) {
 
                     socket.onopen = () => {
                         updateStatus('Connected', 'connected');
+                        socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
                         term.writeln('\x1b[1;32mConnected!\x1b[0m');
                         term.writeln('');
                         term.focus();
@@ -399,7 +395,7 @@ if (empty($doorId)) {
         });
 
         window.addEventListener('resize', () => {
-            scheduleFixedTerminalSize();
+            if (fitAddon) fitAddon.fit();
         });
 
         document.getElementById('leaveBtn').addEventListener('click', leave);

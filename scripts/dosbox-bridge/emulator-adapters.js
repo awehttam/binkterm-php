@@ -60,6 +60,15 @@ class EmulatorAdapter {
     }
 
     /**
+     * Resize the terminal (no-op for adapters that don't support it)
+     * @param {number} cols
+     * @param {number} rows
+     */
+    resize(cols, rows) {
+        // No-op by default; overridden by NativeAdapter
+    }
+
+    /**
      * Get emulator name for logging
      */
     getName() {
@@ -697,6 +706,12 @@ class NativeAdapter extends EmulatorAdapter {
     write(data) {
         if (this.ptyProcess) {
             this.ptyProcess.write(data.toString('utf8'));
+        }
+    }
+
+    resize(cols, rows) {
+        if (this.ptyProcess) {
+            this.ptyProcess.resize(cols, rows);
         }
     }
 
