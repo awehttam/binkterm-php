@@ -709,6 +709,13 @@
                            placeholder="{{ t('ui.settings.meshcore.display_name_placeholder', {}, locale, ['common']) }}">
                     <div class="form-text">{{ t('ui.settings.meshcore.display_name_help', {}, locale, ['common']) }}</div>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">{{ t('ui.settings.meshcore.bridge', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="meshcoreRadioBridge">
+                        <option value="">{{ t('ui.settings.meshcore.bridge_none', {}, locale, ['common']) }}</option>
+                    </select>
+                    <div class="form-text">{{ t('ui.settings.meshcore.bridge_help', {}, locale, ['common']) }}</div>
+                </div>
                 <div id="meshcoreRadioError" class="alert alert-danger d-none"></div>
             </div>
             <div class="modal-footer">
@@ -1394,6 +1401,7 @@ function pollUplinks() {
 
 let meshcoreRadioModal;
 let meshcoreRadioDbId = null;
+let meshcoreBridges   = null;
 
 function loadMeshcoreContacts() {
     const container = document.getElementById('meshcoreContactsContainer');
@@ -1412,6 +1420,7 @@ function loadMeshcoreContacts() {
                     <th>${uiT('ui.settings.meshcore.col_node_id', 'Node ID')}</th>
                     <th>${uiT('ui.settings.meshcore.col_name', 'Name')}</th>
                     <th>${uiT('ui.settings.meshcore.col_type', 'Type')}</th>
+                    <th>${uiT('ui.settings.meshcore.col_bridge', 'Bridge')}</th>
                     <th>${uiT('ui.settings.meshcore.col_last_seen', 'Last Seen')}</th>
                     <th>${uiT('ui.settings.meshcore.col_actions', 'Actions')}</th>
                 </tr></thead><tbody>`;
@@ -1425,19 +1434,23 @@ function loadMeshcoreContacts() {
                 const typeCell = c.adv_type
                     ? `<span class="badge bg-secondary">${escHtmlSettings(c.adv_type)}</span>`
                     : '<span class="text-muted">—</span>';
+                const bridgeCell = c.bridge_handle || c.bridge_node_str
+                    ? escHtmlSettings(c.bridge_handle || c.bridge_node_str)
+                    : `<span class="text-muted">—</span>`;
                 html += `<tr>
                     <td>${keyDisplay}</td>
                     <td>${escHtmlSettings(c.name || '—')}</td>
                     <td>${typeCell}</td>
+                    <td>${bridgeCell}</td>
                     <td>${lastSeen}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-secondary me-1"
-                                onclick='editMeshcoreRadio(${JSON.stringify(c)})'
+                        <button type="button" class="btn btn-sm btn-outline-secondary me-1 js-mc-edit"
+                                data-contact="${escHtmlSettings(JSON.stringify(c))}"
                                 title="${uiT('ui.common.edit', 'Edit')}">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger"
-                                onclick="deleteMeshcoreRadio(${c.id})"
+                        <button type="button" class="btn btn-sm btn-outline-danger js-mc-delete"
+                                data-id="${c.id}"
                                 title="${uiT('ui.common.delete', 'Delete')}">
                             <i class="fas fa-trash"></i>
                         </button>
@@ -1452,6 +1465,43 @@ function loadMeshcoreContacts() {
         });
 }
 
+document.getElementById('meshcoreContactsContainer').addEventListener('click', function(e) {
+    const editBtn = e.target.closest('.js-mc-edit');
+    if (editBtn) {
+        editMeshcoreRadio(JSON.parse(editBtn.dataset.contact));
+        return;
+    }
+    const deleteBtn = e.target.closest('.js-mc-delete');
+    if (deleteBtn) {
+        deleteMeshcoreRadio(parseInt(deleteBtn.dataset.id, 10));
+    }
+});
+
+function loadMeshcoreBridges(callback) {
+    if (meshcoreBridges !== null) { callback(meshcoreBridges); return; }
+    $.get('/api/user/meshcore/bridges')
+        .done(function(data) {
+            meshcoreBridges = data.bridges || [];
+            callback(meshcoreBridges);
+        })
+        .fail(function() {
+            meshcoreBridges = [];
+            callback([]);
+        });
+}
+
+function populateBridgeSelect(selectedId) {
+    const sel = document.getElementById('meshcoreRadioBridge');
+    const none = uiT('ui.settings.meshcore.bridge_none', '— None —');
+    const bridges = meshcoreBridges || [];
+    sel.innerHTML = `<option value="">${none}</option>` +
+        bridges.map(b => {
+            const label = b.handle ? `${escHtmlSettings(b.handle)} (${escHtmlSettings(b.node_id)})` : escHtmlSettings(b.node_id);
+            const sel   = parseInt(b.id) === parseInt(selectedId) ? ' selected' : '';
+            return `<option value="${b.id}"${sel}>${label}</option>`;
+        }).join('');
+}
+
 function showAddMeshcoreRadioModal() {
     meshcoreRadioDbId = null;
     if (!meshcoreRadioModal) meshcoreRadioModal = new bootstrap.Modal(document.getElementById('meshcoreRadioModal'));
@@ -1462,6 +1512,7 @@ function showAddMeshcoreRadioModal() {
     document.getElementById('meshcoreRadioName').value = '';
     document.getElementById('meshcoreRadioError').classList.add('d-none');
     document.getElementById('meshcoreNodeIdGroup').style.display = '';
+    loadMeshcoreBridges(function() { populateBridgeSelect(null); });
     meshcoreRadioModal.show();
 }
 
@@ -1476,6 +1527,7 @@ function editMeshcoreRadio(c) {
     document.getElementById('meshcoreRadioError').classList.add('d-none');
     // Hide node ID field when editing — the key cannot be changed
     document.getElementById('meshcoreNodeIdGroup').style.display = 'none';
+    loadMeshcoreBridges(function() { populateBridgeSelect(c.bridge_node_id); });
     meshcoreRadioModal.show();
 }
 
@@ -1483,6 +1535,9 @@ function saveMeshcoreRadio() {
     const dbId  = document.getElementById('meshcoreRadioDbId').value;
     const isEdit = dbId !== '';
     const name   = document.getElementById('meshcoreRadioName').value.trim();
+
+    const bridgeVal = document.getElementById('meshcoreRadioBridge').value;
+    const bridgeId  = bridgeVal !== '' ? parseInt(bridgeVal, 10) : null;
 
     if (!isEdit) {
         const nodeId = document.getElementById('meshcoreNodeId').value.trim();
@@ -1494,7 +1549,7 @@ function saveMeshcoreRadio() {
             url: '/api/user/meshcore/contacts',
             method: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ node_id: nodeId, name }),
+            data: JSON.stringify({ node_id: nodeId, name, bridge_id: bridgeId }),
             success: function() {
                 meshcoreRadioModal.hide();
                 loadMeshcoreContacts();
@@ -1510,7 +1565,7 @@ function saveMeshcoreRadio() {
             url: `/api/user/meshcore/contacts/${dbId}`,
             method: 'PUT',
             contentType: 'application/json',
-            data: JSON.stringify({ name }),
+            data: JSON.stringify({ name, bridge_id: bridgeId }),
             success: function() {
                 meshcoreRadioModal.hide();
                 loadMeshcoreContacts();
