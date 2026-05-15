@@ -75,4 +75,11 @@ class AiResponse
     {
         return $this->rawResponse;
     }
+
+    public function withUsage(AiUsage $usage): self
+    {
+        $clone = clone $this;
+        $clone->usage = $usage;
+        return $clone;
+    }
 }

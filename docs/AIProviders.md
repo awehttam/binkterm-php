@@ -37,10 +37,12 @@ The AI abstraction lives in `src/AI/`.
 | `src/AI/AiUsage.php` | Normalized token and cost data |
 | `src/AI/AiException.php` | Standardized API/network error wrapper |
 | `src/AI/AiPricing.php` | Maps provider/model pricing env vars to estimated request cost |
+| `src/AI/PowerCostAwareInterface.php` | Optional interface for providers that report local power cost |
 | `src/AI/UsageRecorder.php` | Writes request outcomes to the `ai_requests` ledger |
 | `src/AI/AiUsageReport.php` | Builds dashboard summaries from the ledger |
 | `src/AI/Providers/OpenAIProvider.php` | OpenAI adapter |
 | `src/AI/Providers/AnthropicProvider.php` | Anthropic adapter |
+| `src/AI/Providers/OllamaProvider.php` | Ollama local-inference adapter |
 | `src/AI/HttpClient.php` | Shared JSON HTTP client used by providers |
 
 ### Flow
@@ -56,6 +58,8 @@ The AI abstraction lives in `src/AI/`.
 
 ## Provider Configuration
 
+### OpenAI and Anthropic
+
 Set one or both provider API keys in `.env`:
 
 ```ini
@@ -66,7 +70,63 @@ ANTHROPIC_API_KEY=
 ANTHROPIC_API_BASE=https://api.anthropic.com/v1
 ```
 
-Only configured providers are registered. A provider is considered configured when its API key is non-empty.
+These providers are considered configured when their API key is non-empty.
+
+### Ollama (local inference)
+
+[Ollama](https://ollama.com) runs LLMs locally with no API key and no per-token billing. Set `OLLAMA_API_BASE` to enable it:
+
+```ini
+# URL to the running Ollama instance. Set this to enable the provider.
+# For a local install: http://localhost:11434/v1
+# For a cloud-hosted service: use the provider's base URL.
+OLLAMA_API_BASE=http://localhost:11434/v1
+
+# Default model. Run `ollama list` on the server to see available models.
+OLLAMA_DEFAULT_MODEL=llama3.2
+
+# API key — leave empty for self-hosted installs, set for cloud-hosted services.
+OLLAMA_API_KEY=
+
+# Set to 'true' only if the configured model supports tool/function calling.
+OLLAMA_SUPPORTS_TOOLS=false
+```
+
+The Ollama provider is considered configured when `OLLAMA_API_BASE` is non-empty. `OLLAMA_API_KEY` is optional: self-hosted installs do not need it; cloud-hosted services that require Bearer token authentication do.
+
+#### Power cost tracking
+
+Because local inference costs electricity rather than API credits, the provider can estimate power cost per request and store it in `ai_requests.estimated_cost_usd`:
+
+```ini
+# Your electricity rate in USD per kWh (check your power bill).
+OLLAMA_POWER_COST_PER_KWH_USD=0.12
+
+# Sustained GPU power draw during inference, in watts.
+# Measure with `nvidia-smi --query-gpu=power.draw` or use the GPU's TDP.
+OLLAMA_GPU_POWER_WATTS=200
+```
+
+When both variables are set, `AiService` multiplies the request duration (ms) by the configured wattage and rate:
+
+```
+power_cost = (duration_ms / 3_600_000) * (gpu_watts / 1000) * cost_per_kwh
+```
+
+At typical BBS-scale request volumes this is fractions of a cent per request, but monthly totals are visible in the `/admin/ai-usage` dashboard.
+
+#### Token pricing for Ollama
+
+Token rates default to zero (local inference has no per-token billing). You can set them explicitly in `.env` if you want to model future cloud migration costs:
+
+```ini
+AI_PRICE_OLLAMA_INPUT_PER_MILLION_USD=0
+AI_PRICE_OLLAMA_OUTPUT_PER_MILLION_USD=0
+```
+
+Model-specific overrides follow the same pattern as other providers (e.g. `AI_PRICE_OLLAMA_LLAMA3_2_INPUT_PER_MILLION_USD`).
+
+Only configured providers are registered.
 
 ### Default Selection
 
@@ -75,6 +135,13 @@ You can set a global default provider and model:
 ```ini
 AI_DEFAULT_PROVIDER=openai
 AI_DEFAULT_MODEL=gpt-4o-mini
+```
+
+To use Ollama for everything by default:
+
+```ini
+AI_DEFAULT_PROVIDER=ollama
+AI_DEFAULT_MODEL=llama3.2
 ```
 
 If no explicit provider is set on a request and no feature-specific override exists, `AiService` uses:
@@ -114,6 +181,90 @@ These match the current consumers:
 - `translation_catalog`
 - `interest_generation`
 - `share_summary`
+
+---
+
+## Configuration Examples
+
+### Anthropic only
+
+```ini
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_API_BASE=https://api.anthropic.com/v1
+
+AI_DEFAULT_PROVIDER=anthropic
+AI_DEFAULT_MODEL=claude-haiku-4-5-20251001
+```
+
+### OpenAI only
+
+```ini
+OPENAI_API_KEY=sk-...
+OPENAI_API_BASE=https://api.openai.com/v1
+
+AI_DEFAULT_PROVIDER=openai
+AI_DEFAULT_MODEL=gpt-4o-mini
+```
+
+### Ollama — self-hosted (local)
+
+Run `ollama list` to find your installed model names. Tool calling requires a model that supports function calling (e.g. `llama3.1`, `llama3.2`, `qwen2.5`).
+
+```ini
+OLLAMA_API_BASE=http://localhost:11434/v1
+OLLAMA_DEFAULT_MODEL=llama3.1
+OLLAMA_SUPPORTS_TOOLS=true
+
+AI_DEFAULT_PROVIDER=ollama
+```
+
+With power cost tracking (optional):
+
+```ini
+OLLAMA_API_BASE=http://localhost:11434/v1
+OLLAMA_DEFAULT_MODEL=llama3.1
+OLLAMA_SUPPORTS_TOOLS=true
+OLLAMA_POWER_COST_PER_KWH_USD=0.12
+OLLAMA_GPU_POWER_WATTS=200
+
+AI_DEFAULT_PROVIDER=ollama
+```
+
+### Ollama — cloud-hosted (ollama.com)
+
+`ministral-3:3b-cloud` is available on the Ollama free plan (as of May 2026) and supports tool calling.
+
+```ini
+AI_DEFAULT_PROVIDER=ollama
+OLLAMA_API_BASE=https://ollama.com/v1/
+OLLAMA_DEFAULT_MODEL=ministral-3:3b-cloud
+OLLAMA_SUPPORTS_TOOLS=true
+OLLAMA_API_KEY=yourapikey
+```
+
+Token pricing (optional — tracks cost in the usage dashboard):
+
+```ini
+AI_PRICE_OLLAMA_INPUT_PER_MILLION_USD=0.10
+AI_PRICE_OLLAMA_OUTPUT_PER_MILLION_USD=0.30
+```
+
+### Mixed — Ollama for most features, Anthropic for translation
+
+```ini
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_API_BASE=https://api.anthropic.com/v1
+
+OLLAMA_API_BASE=http://localhost:11434/v1
+OLLAMA_DEFAULT_MODEL=llama3.1
+OLLAMA_SUPPORTS_TOOLS=true
+
+AI_DEFAULT_PROVIDER=ollama
+
+# Use Anthropic for translation where output quality matters more
+AI_TRANSLATION_CATALOG_PROVIDER=anthropic
+AI_TRANSLATION_CATALOG_MODEL=claude-haiku-4-5-20251001
+```
 
 ---
 
@@ -288,10 +439,11 @@ php scripts/setup.php
 
 ### No AI Provider Appears to Be Available
 
-Check that at least one API key is set:
+Check that at least one provider is configured:
 
-- `OPENAI_API_KEY`
-- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY` — required for OpenAI
+- `ANTHROPIC_API_KEY` — required for Anthropic
+- `OLLAMA_API_BASE` — required for Ollama (no key needed)
 
 ### Requests Fail With Network Errors
 

@@ -3,7 +3,9 @@
 namespace BinktermPHP\AI;
 
 use BinktermPHP\Config;
+use BinktermPHP\AI\PowerCostAwareInterface;
 use BinktermPHP\AI\Providers\AnthropicProvider;
+use BinktermPHP\AI\Providers\OllamaProvider;
 use BinktermPHP\AI\Providers\OpenAIProvider;
 
 /**
@@ -83,6 +85,16 @@ class AiService
             $pricing
         ));
 
+        $service->addProvider(new OllamaProvider(
+            (string)Config::env('OLLAMA_API_BASE', ''),
+            (string)Config::env('OLLAMA_DEFAULT_MODEL', 'llama3.2'),
+            Config::env('OLLAMA_SUPPORTS_TOOLS', 'false') === 'true',
+            $pricing,
+            (float)Config::env('OLLAMA_POWER_COST_PER_KWH_USD', '0'),
+            (float)Config::env('OLLAMA_GPU_POWER_WATTS', '0'),
+            (string)Config::env('OLLAMA_API_KEY', '')
+        ));
+
         return $service;
     }
 
@@ -103,11 +115,24 @@ class AiService
                 ? $provider->generateJson($resolvedRequest)
                 : $provider->generateText($resolvedRequest);
 
+            $durationMs = $this->calculateDurationMs($startedAt);
+
+            if ($provider instanceof PowerCostAwareInterface) {
+                $powerCost = $provider->computePowerCost($durationMs);
+                if ($powerCost > 0.0) {
+                    $response = $response->withUsage(
+                        $response->getUsage()->withEstimatedCostUsd(
+                            $response->getUsage()->getEstimatedCostUsd() + $powerCost
+                        )
+                    );
+                }
+            }
+
             $this->usageRecorder->recordSuccess(
                 $resolvedRequest,
                 $operation,
                 $response,
-                $this->calculateDurationMs($startedAt)
+                $durationMs
             );
 
             return $response;
