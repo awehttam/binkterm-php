@@ -611,7 +611,7 @@ function loadContacts(nodeDbId) {
                     <td>${lastSeen}</td>
                     <td>
                         <button class="btn btn-sm btn-outline-secondary me-1"
-                                onclick='editContact(${JSON.stringify(c)})'>
+                                data-contact="${escHtml(JSON.stringify(c))}" onclick="editContact(JSON.parse(this.dataset.contact))">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-danger"
