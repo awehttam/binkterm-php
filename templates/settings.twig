@@ -615,9 +615,16 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">{{ t('ui.settings.meshcore.my_radios', {}, locale, ['common']) }}</h5>
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="showAddMeshcoreRadioModal()">
-                            <i class="fas fa-plus me-1"></i>{{ t('ui.settings.meshcore.add_radio', {}, locale, ['common']) }}
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="showAddMeshcoreRadioModal()">
+                                <i class="fas fa-plus me-1"></i>{{ t('ui.settings.meshcore.add_radio', {}, locale, ['common']) }}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="meshcoreScanQrBtn"
+                                    onclick="showMeshcoreQrScanner()"
+                                    title="{{ t('ui.settings.meshcore.scan_qr_https_required', {}, locale, ['common']) }}">
+                                <i class="fas fa-qrcode me-1"></i>{{ t('ui.settings.meshcore.scan_qr', {}, locale, ['common']) }}
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div id="meshcoreContactsContainer">
@@ -730,9 +737,39 @@
     </div>
 </div>
 
+<!-- MeshCore QR Scanner Modal -->
+<div class="modal fade" id="meshcoreQrModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-qrcode me-2"></i>{{ t('ui.settings.meshcore.scan_qr_title', {}, locale, ['common']) }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 position-relative" style="background:#000; min-height:280px;">
+                <video id="meshcoreQrVideo" autoplay playsinline muted
+                       style="width:100%; display:block; max-height:350px; object-fit:cover;"></video>
+                <canvas id="meshcoreQrCanvas" style="display:none;"></canvas>
+                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+                    <div style="width:190px;height:190px;border:2px solid rgba(255,255,255,0.7);border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);"></div>
+                </div>
+            </div>
+            <div class="modal-footer d-block text-center py-2">
+                <p class="mb-2 text-muted small" id="meshcoreQrStatus">
+                    {{ t('ui.settings.meshcore.scan_qr_prompt', {}, locale, ['common']) }}
+                </p>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                    {{ t('ui.common.cancel', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/jsqr.js"></script>
 <script>
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -1598,5 +1635,106 @@ function showMeshcoreRadioError(msg) {
 function escHtmlSettings(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ---- MeshCore QR scanner ----
+
+(function() {
+    let qrModal       = null;
+    let qrStream      = null;
+    let qrScanTimer   = null;
+
+    function stopQrCamera() {
+        if (qrScanTimer) { clearTimeout(qrScanTimer); qrScanTimer = null; }
+        if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+    }
+
+    function parseMeshcoreQr(raw) {
+        raw = raw.trim();
+        try {
+            const url = new URL(raw);
+            if (url.protocol === 'meshcore:') {
+                const key  = (url.searchParams.get('public_key') || '').toLowerCase();
+                const name = url.searchParams.get('name') || '';
+                if (/^[0-9a-f]{64}$/.test(key)) return { key, name };
+            }
+        } catch (_) {}
+        if (/^[0-9a-f]{64}$/i.test(raw)) return { key: raw.toLowerCase(), name: '' };
+        return null;
+    }
+
+    function setQrStatus(msg, isError) {
+        const el = document.getElementById('meshcoreQrStatus');
+        if (!el) return;
+        el.textContent = msg;
+        el.className   = 'mb-2 small ' + (isError ? 'text-danger' : 'text-muted');
+    }
+
+    function startQrScanLoop() {
+        const video  = document.getElementById('meshcoreQrVideo');
+        const canvas = document.getElementById('meshcoreQrCanvas');
+        if (!video || !canvas || !window.jsQR) return;
+        const ctx = canvas.getContext('2d');
+
+        function tick() {
+            if (!qrStream) return;
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width  = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = window.jsQR(imageData.data, imageData.width, imageData.height);
+                if (code) {
+                    const parsed = parseMeshcoreQr(code.data);
+                    stopQrCamera();
+                    if (parsed) {
+                        if (qrModal) qrModal.hide();
+                        showAddMeshcoreRadioModal();
+                        document.getElementById('meshcoreNodeId').value    = parsed.key;
+                        document.getElementById('meshcoreRadioName').value = parsed.name;
+                    } else {
+                        setQrStatus(uiT('errors.meshcore.qr_unrecognized', 'Unrecognized QR code format.') + ' ' + code.data, true);
+                        return;
+                    }
+                    return;
+                }
+            }
+            qrScanTimer = setTimeout(tick, 100);
+        }
+        tick();
+    }
+
+    window.showMeshcoreQrScanner = function() {
+        if (!window.isSecureContext) return;
+        if (!qrModal) {
+            qrModal = new bootstrap.Modal(document.getElementById('meshcoreQrModal'));
+            document.getElementById('meshcoreQrModal').addEventListener('hidden.bs.modal', function() {
+                stopQrCamera();
+            });
+        }
+        setQrStatus(uiT('ui.settings.meshcore.scan_qr_prompt', 'Point camera at a MeshCore QR code'), false);
+        qrModal.show();
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+            .then(function(stream) {
+                qrStream = stream;
+                const video = document.getElementById('meshcoreQrVideo');
+                video.srcObject = stream;
+                video.play();
+                startQrScanLoop();
+            })
+            .catch(function() {
+                setQrStatus(uiT('errors.meshcore.qr_camera_denied', 'Camera access denied.'), true);
+            });
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const btn = document.getElementById('meshcoreScanQrBtn');
+        if (!btn) return;
+        if (!window.isSecureContext || !navigator.mediaDevices) {
+            btn.style.display = 'none';
+        } else {
+            btn.removeAttribute('title');
+        }
+    });
+}());
 </script>
 {% endblock %}

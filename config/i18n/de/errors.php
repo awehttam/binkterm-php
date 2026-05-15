@@ -711,4 +711,6 @@ return [
     'errors.meshcore.invalid_node_id' => 'Die Knoten-ID muss 12 oder 64 Kleinbuchstaben-Hexadezimalzeichen enthalten.',
     'errors.meshcore.contact_exists' => 'Ein Kontakt mit dieser Knoten-ID ist bereits vorhanden.',
     'errors.meshcore.not_found' => 'Kontakt nicht gefunden.',
+    'errors.meshcore.qr_unrecognized' => 'Unbekanntes QR-Code-Format.',
+    'errors.meshcore.qr_camera_denied' => 'Kamerazugriff verweigert.',
 ];
