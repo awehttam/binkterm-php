@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Chat Room Bridging (Matterbridge)](#chat-room-bridging-matterbridge)
 - [AI Settings](#ai-settings)
 - [AI Share Summarizer](#ai-share-summarizer)
+- [Ollama AI Provider](#ollama-ai-provider)
 - [Messaging](#messaging)
 - [Echomail](#echomail)
 - [Shared Pages](#shared-pages)
@@ -43,6 +44,14 @@ Make sure you have a current backup of your database and files before upgrading.
 - The **Enable AI Assistant** toggle, previously located on the BBS Settings page, has moved to the AI Settings page.
 - A new **Enable AI summaries for shared message links** toggle controls whether the AI share summarizer feature is available to users.
 - The system prompt used when generating share summaries is configurable directly on the AI Settings page. Leave it blank to use the built-in default.
+
+### Ollama AI Provider
+
+- [Ollama](https://ollama.com) is now supported as a third AI provider alongside OpenAI and Anthropic. It can be used self-hosted (local inference, no API key, no per-token billing) or via the Ollama cloud service.
+- Set `OLLAMA_API_BASE` in `.env` to enable the provider. No other change is required for a self-hosted install. Cloud installs also set `OLLAMA_API_KEY`.
+- Token pricing follows the same `AI_PRICE_OLLAMA_*` env var pattern used by other providers and defaults to zero, reflecting that local inference has no per-token cost.
+- Optional power cost tracking: set `OLLAMA_POWER_COST_PER_KWH_USD` and `OLLAMA_GPU_POWER_WATTS` to have the system estimate electricity cost per request and record it in the AI usage ledger alongside token accounting.
+- Tool calling (required by the message reader AI assistant) is off by default. Set `OLLAMA_SUPPORTS_TOOLS=true` only with a model that supports function calling, such as `llama3.1`, `llama3.2`, or `qwen2.5`.
 
 ### AI Share Summarizer
 
@@ -178,6 +187,67 @@ A dedicated **AI Settings** page is now available in the admin panel. All AI-rel
 The **Enable AI Assistant** toggle — which gates the in-reader AI assistant available to users — has moved from **Admin → BBS Settings** to **Admin → AI Settings**. Its behaviour is unchanged; the setting is simply managed from the new location.
 
 The AI Settings page also hosts the **Enable AI summaries for shared message links** toggle and the configurable system prompt described in the next section.
+
+## Ollama AI Provider
+
+[Ollama](https://ollama.com) can now be used as an AI provider in BinktermPHP, alongside the existing OpenAI and Anthropic integrations. Ollama runs open-weight large language models either locally on your own hardware or through the Ollama cloud service.
+
+### Enabling the provider
+
+Set `OLLAMA_API_BASE` in `.env` to enable the provider. The provider is registered automatically when this variable is non-empty.
+
+**Self-hosted (local install):**
+
+```ini
+OLLAMA_API_BASE=http://localhost:11434/v1
+OLLAMA_DEFAULT_MODEL=llama3.1
+OLLAMA_SUPPORTS_TOOLS=true
+AI_DEFAULT_PROVIDER=ollama
+```
+
+**Ollama cloud (`ministral-3:3b-cloud` is available on the free plan as of May 2026):**
+
+```ini
+AI_DEFAULT_PROVIDER=ollama
+OLLAMA_API_BASE=https://ollama.com/v1/
+OLLAMA_DEFAULT_MODEL=ministral-3:3b-cloud
+OLLAMA_SUPPORTS_TOOLS=true
+OLLAMA_API_KEY=yourapikey
+```
+
+See `docs/AIProviders.md` for the full list of configuration examples.
+
+### Tool calling
+
+The message reader AI assistant requires tool calling support. Set `OLLAMA_SUPPORTS_TOOLS=true` only with a model known to support function calling. Models that do not support tool calling will cause the assistant to fail. Examples of compatible models include `llama3.1`, `llama3.2`, and `qwen2.5`.
+
+### Token pricing
+
+Token rates default to zero for Ollama, which is correct for self-hosted installs. For cloud-hosted usage, set rates using the same pattern as other providers:
+
+```ini
+AI_PRICE_OLLAMA_INPUT_PER_MILLION_USD=0.10
+AI_PRICE_OLLAMA_OUTPUT_PER_MILLION_USD=0.30
+```
+
+### Power cost tracking (self-hosted only)
+
+For self-hosted installs, the real cost of running inference is electricity. Set these variables to have the system estimate power cost per request and include it in `ai_requests.estimated_cost_usd`:
+
+```ini
+OLLAMA_POWER_COST_PER_KWH_USD=0.12
+OLLAMA_GPU_POWER_WATTS=200
+```
+
+The estimate uses the actual request duration recorded in the usage ledger:
+
+```
+power_cost = (duration_ms / 3_600_000) * (gpu_watts / 1000) * cost_per_kwh
+```
+
+Power cost variables are not needed for cloud-hosted installs.
+
+---
 
 ## AI Share Summarizer
 
