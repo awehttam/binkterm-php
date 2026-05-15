@@ -180,39 +180,77 @@ SimpleRouter::post('/api/meshcore/advert', function () {
     $db      = \BinktermPHP\Database::getInstance()->getPdo();
     $bbsName = BinkpConfig::getInstance()->getSystemName();
 
-    $stmt = $db->prepare("
-        INSERT INTO cwn_networks
-            (public_key, ssid, latitude, longitude, source_type, hop_count, last_seen_at,
-             network_type, bbs_name)
-        VALUES
-            (:public_key, :ssid, :latitude, :longitude, 'meshcore', :hop_count, NOW(),
-             :network_type, :bbs_name)
-        ON CONFLICT (public_key) WHERE public_key IS NOT NULL DO UPDATE SET
-            ssid = EXCLUDED.ssid,
-            latitude = EXCLUDED.latitude,
-            longitude = EXCLUDED.longitude,
-            hop_count = EXCLUDED.hop_count,
-            network_type = EXCLUDED.network_type,
+    // Two-step upsert: the table has two unique constraints — (public_key) partial and
+    // (ssid, latitude, longitude) — and PostgreSQL only allows one ON CONFLICT clause.
+    // Step 1: update by public_key if a matching row exists.
+    // Step 2: insert with ON CONFLICT on (ssid, latitude, longitude) for new nodes or
+    //         location collisions with a pre-existing manually-added entry.
+    $db->beginTransaction();
+
+    $updateStmt = $db->prepare("
+        UPDATE cwn_networks
+        SET ssid         = :ssid,
+            latitude     = :latitude,
+            longitude    = :longitude,
+            hop_count    = :hop_count,
+            network_type = :network_type,
+            source_type  = 'meshcore',
             last_seen_at = NOW(),
             date_updated = NOW()
-        RETURNING id, (xmax = 0) AS was_inserted
+        WHERE public_key = :public_key
+        RETURNING id
     ");
-    $stmt->execute([
+    $updateStmt->execute([
         ':public_key'   => $pubKeyHex,
         ':ssid'         => $name,
         ':latitude'     => $latitude,
         ':longitude'    => $longitude,
         ':hop_count'    => $hopCount,
         ':network_type' => $advType,
-        ':bbs_name'     => $bbsName,
     ]);
-    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    $row = $updateStmt->fetch(\PDO::FETCH_ASSOC);
+
+    if ($row) {
+        $db->commit();
+        $action    = 'updated';
+        $networkId = (int)$row['id'];
+    } else {
+        $insertStmt = $db->prepare("
+            INSERT INTO cwn_networks
+                (public_key, ssid, latitude, longitude, source_type, hop_count, last_seen_at,
+                 network_type, bbs_name)
+            VALUES
+                (:public_key, :ssid, :latitude, :longitude, 'meshcore', :hop_count, NOW(),
+                 :network_type, :bbs_name)
+            ON CONFLICT (ssid, latitude, longitude) DO UPDATE SET
+                public_key   = COALESCE(EXCLUDED.public_key, cwn_networks.public_key),
+                hop_count    = EXCLUDED.hop_count,
+                network_type = EXCLUDED.network_type,
+                source_type  = EXCLUDED.source_type,
+                last_seen_at = NOW(),
+                date_updated = NOW()
+            RETURNING id, (xmax = 0) AS was_inserted
+        ");
+        $insertStmt->execute([
+            ':public_key'   => $pubKeyHex,
+            ':ssid'         => $name,
+            ':latitude'     => $latitude,
+            ':longitude'    => $longitude,
+            ':hop_count'    => $hopCount,
+            ':network_type' => $advType,
+            ':bbs_name'     => $bbsName,
+        ]);
+        $row = $insertStmt->fetch(\PDO::FETCH_ASSOC);
+        $db->commit();
+        $action    = (!empty($row['was_inserted']) && $row['was_inserted'] !== 'f') ? 'created' : 'updated';
+        $networkId = (int)($row['id'] ?? 0);
+    }
 
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'success'    => true,
-        'action'     => !empty($row['was_inserted']) && $row['was_inserted'] !== 'f' ? 'created' : 'updated',
-        'network_id' => (int)($row['id'] ?? 0),
+        'action'     => $action,
+        'network_id' => $networkId,
     ]);
 });
 
