@@ -50,8 +50,8 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 ## AI & Integrations
 
-- [AI Assistant](AIAssistant.md) — Reader-side helper that uses MCP-backed tool access to explain, summarize, and navigate message content
 - [AI Providers and Usage](AIProviders.md) — AI provider setup, request accounting, and the admin usage dashboard
+- [AI Assistant](AIAssistant.md) — Reader-side helper that uses MCP-backed tool access to explain, summarize, and navigate message content
 - [AI Bots](AIBots.md) — Configuring AI chat bots, the middleware pipeline, writing custom middleware, and cost management
 - [MCP Server](MCPServer.md) — AI and automation integration layer exposing selected platform capabilities to MCP-compatible clients
 - [MCP Client Help](MCPClientHelp.md) — Configure Claude, Anything LLM, OpenAI, and other MCP clients

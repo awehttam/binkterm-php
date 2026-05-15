@@ -1,6 +1,6 @@
 # AI Providers and Usage
 
-BinktermPHP has a provider-agnostic AI layer in `src/AI/` that lets features call either OpenAI or Anthropic through a shared interface. The system also records every AI request in a local accounting ledger so you can estimate usage and cost from the admin UI.
+BinktermPHP has a provider-agnostic AI layer in `src/AI/` that lets features call OpenAI, Anthropic, or Ollama through a shared interface. The system also records every AI request in a local accounting ledger so you can estimate usage and cost from the admin UI.
 
 ---
 
