@@ -496,6 +496,10 @@ return [
     'errors.messages.shared.not_found' => 'Condivisione non trovata',
     'errors.messages.shared.friendly_url_only_echomail' => 'Gli URL leggibili sono disponibili solo per le condivisioni echomail',
     'errors.messages.shared.slug_generation_failed' => 'Impossibile generare lo slug di condivisione per questo messaggio',
+    'errors.messages.share.image_upload_failed'     => 'Caricamento dell\'immagine di anteprima non riuscito',
+    'errors.messages.share.image_remove_failed'     => 'Rimozione dell\'immagine di anteprima non riuscita',
+    'errors.messages.share.image_invalid_type'      => 'Sono consentiti solo file immagine',
+    'errors.messages.share.image_too_large'         => 'L\'immagine deve essere di 5 MB o meno',
 
     // Subscriptions
     'errors.subscriptions.echoarea_id_required' => 'ID area echo obbligatorio',

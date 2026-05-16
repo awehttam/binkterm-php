@@ -3814,7 +3814,8 @@ return [
     'ui.compose.markup_format_help' => 'Invia con formattazione markup. Markdown e StyleCodes sono supportati su reti compatibili.',
     'ui.compose.charset' => 'Codifica',
     'ui.compose.charset_help' => 'Codifica caratteri per il pacchetto in uscita. Usa CP437 per sistemi FTN legacy che non supportano UTF-8, come fidonet.',
-    'ui.compose.insert_file' => 'Inserisci file',
+    'ui.compose.insert_file'  => 'Inserisci file',
+    'ui.compose.insert_image' => 'Aggiungi immagine',
     'ui.compose.hide_panel' => 'Nascondi pannello',
     'ui.compose.show_panel' => 'Mostra pannello',
     'ui.compose.netmail_guidelines' => 'Linee guida netmail:',
@@ -4763,6 +4764,16 @@ return [
     'ui.share.description_placeholder' => 'Facoltativo — descrivi di cosa tratta questo messaggio',
     'ui.share.ai_summary_button_title' => 'Genera riepilogo AI',
     'ui.share.ai_summary_failed'       => 'Impossibile generare un riepilogo. Riprova.',
+
+    // Share modal - OG preview image
+    'ui.share.og_image_label'          => 'Immagine di anteprima',
+    'ui.share.og_image_help'           => 'Carica un\'immagine per arricchire le anteprime sui social media (JPG, PNG, GIF; max 5 MB)',
+    'ui.share.og_image_upload_btn'     => 'Carica immagine',
+    'ui.share.og_image_remove_btn'     => 'Rimuovi immagine',
+    'ui.share.og_image_uploading'      => 'Caricamento...',
+    'ui.share.og_image_no_file'        => 'Seleziona prima un file immagine.',
+    'ui.share.og_image_upload_success' => 'Immagine di anteprima aggiornata',
+    'ui.share.og_image_remove_success' => 'Immagine di anteprima rimossa',
 
     // AI Assistant (echomail + netmail readers)
     'ui.ai_assistant.button'             => 'Assistente AI',

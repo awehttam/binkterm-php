@@ -496,6 +496,10 @@ return [
     'errors.messages.shared.not_found' => 'Share not found',
     'errors.messages.shared.friendly_url_only_echomail' => 'Friendly URLs are only available for echomail shares',
     'errors.messages.shared.slug_generation_failed' => 'Cannot generate share slug for this message',
+    'errors.messages.share.image_upload_failed'     => 'Failed to upload preview image',
+    'errors.messages.share.image_remove_failed'     => 'Failed to remove preview image',
+    'errors.messages.share.image_invalid_type'      => 'Only image files are allowed',
+    'errors.messages.share.image_too_large'         => 'Image must be 5 MB or smaller',
 
     // Subscriptions
     'errors.subscriptions.echoarea_id_required' => 'Echoarea ID required',

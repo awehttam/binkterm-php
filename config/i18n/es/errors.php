@@ -496,6 +496,10 @@ return [
     'errors.messages.shared.not_found' => 'Recurso compartido no encontrado',
     'errors.messages.shared.friendly_url_only_echomail' => 'Las URL amigables solo estan disponibles para recursos compartidos de echomail',
     'errors.messages.shared.slug_generation_failed' => 'No se puede generar un slug para compartir de este mensaje',
+    'errors.messages.share.image_upload_failed'     => 'Error al subir la imagen de vista previa',
+    'errors.messages.share.image_remove_failed'     => 'Error al eliminar la imagen de vista previa',
+    'errors.messages.share.image_invalid_type'      => 'Solo se permiten archivos de imagen',
+    'errors.messages.share.image_too_large'         => 'La imagen debe ser de 5 MB o menos',
 
     // Subscriptions
     'errors.subscriptions.echoarea_id_required' => 'Se requiere el ID del area de eco',

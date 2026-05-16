@@ -152,7 +152,7 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 |-------|---------|
 | `message_read_status` | Tracks which echomail/netmail messages each user has read |
 | `saved_messages` | User-bookmarked messages |
-| `shared_messages` | Webshare links for publicly accessible messages |
+| `shared_messages` | Webshare links for publicly accessible messages (see key columns below) |
 | `drafts` | Saved message drafts |
 | `address_book` | Per-user FTN address book entries |
 | `chat_messages` | Local shoutbox and MRC chat history |
@@ -176,6 +176,25 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 | `activity_categories` / `activity_types` / `user_activity_log` | User activity analytics |
 
 ---
+
+### `shared_messages`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `share_key` | `TEXT` | 32-char hex identifier, used in `/shared/{shareKey}` URLs |
+| `message_id` / `message_type` | `INTEGER` / `TEXT` | References the shared echomail or netmail row |
+| `shared_by_user_id` | `INTEGER` | FK → `users.id` |
+| `area_identifier` | `TEXT` | Echoarea tag (used in friendly-URL slugs) |
+| `slug` | `TEXT` | Human-readable URL slug (e.g. `hello-world`) |
+| `og_image_path` | `TEXT` | Absolute filesystem path to the uploaded OG preview image |
+| `og_image_slug` | `TEXT` | Filename with extension (e.g. `abc123….jpg`); used as the URL parameter for `/shared-image/{og_image_slug}` |
+| `ai_og_summary` | `TEXT` | AI-generated summary injected into `og:description` |
+| `is_active` | `BOOLEAN` | Whether the share link is live |
+| `is_public` | `BOOLEAN` | Whether anyone can view without authentication |
+| `expires_at` | `TIMESTAMPTZ` | Optional expiry; `NULL` means never expires |
+| `access_count` | `INTEGER` | Running count of page views |
+
+The `og_image_slug` is stored as the basename of `og_image_path` and is the canonical URL parameter for `/shared-image/`. Because it includes the file extension, social media crawlers can infer the image format from the URL.
 
 ## Entity Relationship Overview
 

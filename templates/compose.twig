@@ -189,6 +189,15 @@
 
                 <div class="mb-3" id="messageTextGroup">
                     <label for="messageText" class="form-label">{{ t('ui.compose.message_required', {}, locale, ['common']) }}</label>
+                    <!-- Plaintext Toolbar (shown in plain text mode, hidden when StyleCodes active) -->
+                    <div id="plaintextToolbar" class="sc-editor-toolbar mb-1" role="toolbar" aria-label="Plain text formatting">
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" id="insertImageBtn" class="btn btn-outline-secondary"
+                                    title="{{ t('ui.compose.insert_image', {}, locale, ['common']) }}">
+                                <i class="fas fa-image"></i>
+                            </button>
+                        </div>
+                    </div>
                     <!-- StyleCodes Toolbar (shown when StyleCodes markup is selected) -->
                     <div id="stylecodesToolbar" style="display: none;" class="sc-editor-toolbar mb-1" role="toolbar" aria-label="StyleCodes formatting">
                         <div class="btn-group btn-group-sm">
@@ -197,10 +206,17 @@
                             <button type="button" class="btn btn-outline-secondary" onclick="scAction('underline')" title="Underline (_underline_)"><u>U</u></button>
                             <button type="button" class="btn btn-outline-secondary" onclick="scAction('inverse')" title="{{ t('ui.compose.stylecodes.inverse_title', {}, locale, ['common']) }}">Inv</button>
                         </div>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" id="insertImageBtnSc" class="btn btn-outline-secondary"
+                                    title="{{ t('ui.compose.insert_image', {}, locale, ['common']) }}">
+                                <i class="fas fa-image"></i>
+                            </button>
+                        </div>
                     </div>
                     <textarea class="form-control" id="messageText" name="message_text"
                               rows="15" required>{{ reply_text }}</textarea>
                     <input type="file" id="insertFileInput" style="display: none;">
+                    <input type="file" id="insertImageInput" accept="image/*" style="display: none;">
                     <div class="d-flex justify-content-between align-items-center mt-1">
                         <div class="form-text mb-0" id="messageTextHint">
                             {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
@@ -723,6 +739,10 @@ $('#insertFileBtn').on('click', function() {
     $('#insertFileInput').val('').trigger('click');
 });
 
+$('#insertImageBtn, #insertImageBtnSc').on('click', function() {
+    $('#insertImageInput').val('').trigger('click');
+});
+
 const MESSAGE_MAX_BYTES = 16384;
 const MESSAGE_WARN_BYTES = Math.floor(MESSAGE_MAX_BYTES * 0.8); // ~13 KB
 let messageSizeWarnAcknowledged = false;
@@ -774,6 +794,54 @@ $('#insertFileInput').on('change', function() {
         }
     };
     reader.readAsArrayBuffer(file);
+});
+
+$('#insertImageInput').on('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+
+    const btn = $('#insertImageBtn');
+    const originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    $.ajax({
+        url: '/api/markdown-images',
+        method: 'POST',
+        data: formData,
+        contentType: false,
+        processData: false,
+        success: function(data) {
+            if (data.success && data.url) {
+                const ta    = document.getElementById('messageText');
+                const start = ta.selectionStart;
+                const end   = ta.selectionEnd;
+                const url   = data.url;
+                ta.value = ta.value.substring(0, start) + url + ta.value.substring(end);
+                ta.selectionStart = ta.selectionEnd = start + url.length;
+                ta.focus();
+            } else {
+                const msg = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(data, window.t ? window.t('errors.markdown_images.upload_failed', {}, 'Upload failed') : 'Upload failed')
+                    : 'Upload failed';
+                alert(msg);
+            }
+        },
+        error: function(xhr) {
+            let payload = {};
+            try { payload = JSON.parse(xhr.responseText); } catch (e) {}
+            const msg = window.getApiErrorMessage
+                ? window.getApiErrorMessage(payload, window.t ? window.t('errors.markdown_images.upload_failed', {}, 'Upload failed') : 'Upload failed')
+                : 'Upload failed';
+            alert(msg);
+        },
+        complete: function() {
+            btn.prop('disabled', false).html(originalHtml);
+            $('#insertImageInput').val('');
+        }
+    });
 });
 
 function updateMarkdownSection(allowed) {
@@ -1011,6 +1079,7 @@ function destroyMarkdownEditor() {
 function initStyleCodesToolbar() {
     if (scToolbarActive) return;
     scToolbarActive = true;
+    $('#plaintextToolbar').hide();
     $('#stylecodesToolbar').show();
     $('#scHint').show();
     $('#messageTextHint').hide();
@@ -1030,6 +1099,7 @@ function destroyStyleCodesToolbar() {
     if (!scToolbarActive) return;
     scToolbarActive = false;
     $('#stylecodesToolbar').hide();
+    $('#plaintextToolbar').show();
     $('#scHint').hide();
     $('#messageTextHint').show();
     $('#messageText').off('keydown.sc');

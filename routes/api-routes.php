@@ -8947,6 +8947,56 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::post('/messages/echomail/{id}/share/image', function($id) {
+        header('Content-Type: application/json');
+
+        $user   = RouteHelper::requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        if (empty($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+            $code = $_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE;
+            apiError('errors.messages.share.image_upload_failed', apiLocalizedText('errors.messages.share.image_upload_failed', 'Failed to upload preview image'), 400);
+            return;
+        }
+
+        try {
+            $handler = new MessageHandler();
+            $result  = $handler->uploadShareOgImage((int)$id, 'echomail', $userId, $_FILES['image']);
+
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                http_response_code(400);
+                $result = apiLocalizeErrorPayload($result, $user);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            apiError('errors.messages.share.image_upload_failed', apiLocalizedText('errors.messages.share.image_upload_failed', 'Failed to upload preview image'), 500);
+        }
+    });
+
+    SimpleRouter::delete('/messages/echomail/{id}/share/image', function($id) {
+        header('Content-Type: application/json');
+
+        $user   = RouteHelper::requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        try {
+            $handler = new MessageHandler();
+            $result  = $handler->deleteShareOgImage((int)$id, 'echomail', $userId);
+
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                http_response_code(404);
+                $result = apiLocalizeErrorPayload($result, $user);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            apiError('errors.messages.share.image_remove_failed', apiLocalizedText('errors.messages.share.image_remove_failed', 'Failed to remove preview image'), 500);
+        }
+    });
+
     SimpleRouter::post('/messages/echomail/{id}/share-summary', function($id) {
         header('Content-Type: application/json');
 

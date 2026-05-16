@@ -1,0 +1,1 @@
+ALTER TABLE shared_messages ADD COLUMN IF NOT EXISTS og_image_slug TEXT DEFAULT NULL;
