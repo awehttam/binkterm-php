@@ -735,7 +735,11 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
     }
 
     $shareUrl    = \BinktermPHP\Config::getSiteUrl() . '/shared/' . rawurlencode($area) . '/' . rawurlencode($slug);
-    $gotoUrl     = '/shared-goto/' . $area . '/' . $slug;
+    // Prefer the share key (hex-only, no encoding issues) when available; fall back
+    // to area/slug for private shares where the key wasn't returned to an anonymous viewer.
+    $gotoUrl     = $shareKey
+        ? '/shared-goto/' . $shareKey
+        : '/shared-goto/' . $area . '/' . $slug;
     $ogImageUrl  = null;
     $ogImageMime = null;
     $ogImageW    = null;
