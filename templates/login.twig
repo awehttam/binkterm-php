@@ -418,8 +418,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 <script>
-const postLoginRedirect = {{ redirect_url ? redirect_url|json_encode : 'null' }};
-
 $('#loginForm').on('submit', function(e) {
     e.preventDefault();
 
@@ -435,7 +433,7 @@ $('#loginForm').on('submit', function(e) {
         data: JSON.stringify(formData),
         success: function(response) {
             if (response.success) {
-                window.location.href = postLoginRedirect || '/';
+                window.location.href = '/';
             }
         },
         error: function(xhr) {
