@@ -220,13 +220,28 @@ binkterm-php/
 
 ## Development Workflow
 
+### AI-Assisted Development
+
+**`CLAUDE.md`** (repo root) is the primary configuration file for AI coding assistants working on this project. It contains project-specific conventions, architectural context, important gotchas, and skill references that are not obvious from the code alone. Any AI assistant — human or automated — should read it before starting work.
+
+**Skills** are reusable, step-by-step workflows stored as Markdown files in `.claude/commands/`. They are invoked inside Claude Code with `/skill-name` (e.g. `/new-migration`, `/bump-version`). Available skills are listed in `CLAUDE.md` and are announced at the start of each Claude Code session via `.claude/session-start.php`. When adding a new skill file, add it to both the skills list in `CLAUDE.md` **and** to `.claude/session-start.php` so it appears in the session banner.
+
+**OpenAI Codex** (and other agents that follow the `AGENTS.md` convention) are directed to `CLAUDE.md` via `AGENTS.md` at the repo root. This means the same project conventions, guidelines, and context apply regardless of which AI assistant is being used.
+
 ### Code Conventions
 
 - **Variables/Functions**: camelCase (`$userName`, `sendMessage()`)
 - **Classes**: PascalCase (`MessageHandler`, `UserCredit`)
+- **Constants**: UPPER_SNAKE_CASE (`MAX_CONNECTIONS`, `DEFAULT_TIMEOUT`)
 - **Indentation**: 4 spaces (no tabs)
 - **Database**: Use `Database::getInstance()->getPdo()` for connections
 - **Environment variables**: Always use `Config::env('VAR_NAME', 'default')` — never `getenv()` or `$_ENV` directly
+- **Client-side storage**: Use `UserStorage` (`public_html/js/user-storage.js`) instead of `localStorage` directly — it scopes keys per user and falls back to `sessionStorage` when not logged in
+- **Web interface queries**: Use AJAX requests via the API rather than full page reloads
+- **Vendor directory**: Never modify files under `vendor/` — managed entirely by Composer
+- **Writing config files**: Web routes and controllers must not write configuration or runtime files directly. Use the admin daemon (`AdminDaemonClient`) when web code needs to save settings or write project files
+- **UTC timestamps**: Store timestamps in UTC. Prefer `TIMESTAMPTZ` columns with `DEFAULT NOW()`; if writing to a `TIMESTAMP WITHOUT TIME ZONE` column use `NOW() AT TIME ZONE 'UTC'`. Convert to the user's time zone only in the UI or terminal output
+- **Security**: Validate and sanitize all user input and external data. Use prepared statements for all database queries. Never trust user input without validation, expose sensitive configuration, or store passwords in plain text
 
 ### Database Migrations
 
@@ -260,12 +275,35 @@ return function($db) {
 };
 ```
 
+### Migration Best Practices
+
+- Use transactions where appropriate to keep the schema in a consistent state on failure
+- Include rollback procedures in comments for non-transactional operations
+- Test with realistic data volumes before submitting
+- Document any manual steps required that cannot run inside `setup.php`
+- Do not add a separate non-unique index for a column that already has a `UNIQUE` constraint — PostgreSQL creates an index automatically for unique constraints
+
 ### Making Changes
 
 1. **Avoid over-engineering**: Only implement what's requested
 2. **DRY principle**: Centralize repeated logic into classes
 3. **Security**: Watch for SQL injection, XSS, command injection
 4. **Feature parity**: Netmail and echomail features should generally be consistent — clarify when unsure
+
+### Pre-commit Checklist
+
+- [ ] If you added or changed user-facing text in Twig, JavaScript, or API errors, update every locale under `config/i18n/` and run:
+  ```bash
+  php scripts/check_i18n_hardcoded_strings.php
+  php scripts/check_i18n_error_keys.php
+  ```
+- [ ] If you changed CSS, JavaScript, or i18n catalogs, increment `CACHE_NAME` in `public_html/sw.js`
+- [ ] If you changed `binkstream-worker-v2.js`, increment `WORKER_BUILD` in `binkstream-client.js`
+- [ ] If you updated `public_html/css/style.css`, update the four theme stylesheets (`amber.css`, `dark.css`, `greenterm.css`, `cyberpunk.css`)
+- [ ] If you added a file under `docs/` (outside `docs/proposals/`), update `docs/index.md`
+- [ ] If you added, removed, or modified routes in `routes/api-routes.php`, update `docs/API.md`
+- [ ] If your change requires a database migration, run `php scripts/setup.php` to verify it applies cleanly
+- [ ] No sensitive data or credentials committed
 
 ### URL Construction
 
@@ -637,7 +675,7 @@ When adding features, **you must update the corresponding documentation file** f
 - **FAQ**: See [FAQ.md](../FAQ.md) for common questions and troubleshooting
 - **Architecture**: See [ARCHITECTURE.md](ARCHITECTURE.md) for system diagrams and data-flow documentation
 - **Data Model**: See [DATA_MODEL.md](DATA_MODEL.md) for a conceptual overview of key database tables
-- **Contributing**: See `CONTRIBUTING.md` in the project root for git workflow, PR process, and the pre-commit checklist
+- **Contributing**: See `CONTRIBUTING.md` in the project root for git workflow, development setup, testing, and the PR process
 - **Antivirus**: See [AntiVirus.md](AntiVirus.md) for virus scanning setup and configuration
 - **WebDoor Tutorial**: See [WebDoor-Tutorial.md](WebDoor-Tutorial.md) to build your first WebDoor end-to-end
 - **WebDoor API**: See [WebDoors.md](WebDoors.md) for the full WebDoor specification
