@@ -3626,13 +3626,13 @@ function uploadShareOgImage() {
                 $('#shareOgImageInput').val('');
                 showSuccess(uiT('ui.share.og_image_upload_success', 'Preview image updated'));
             } else {
-                showError(getApiErrorMessage(data, uiT('errors.messages.share.image_upload_failed', 'Failed to upload preview image')));
+                showError(apiError(data, uiT('errors.messages.share.image_upload_failed', 'Failed to upload preview image')));
             }
         },
         error: function(xhr) {
             let payload = {};
             try { payload = JSON.parse(xhr.responseText); } catch (e) {}
-            showError(getApiErrorMessage(payload, uiT('errors.messages.share.image_upload_failed', 'Failed to upload preview image')));
+            showError(apiError(payload, uiT('errors.messages.share.image_upload_failed', 'Failed to upload preview image')));
         },
         complete: function() {
             btn.prop('disabled', false).html(originalHtml);
@@ -3655,14 +3655,14 @@ function removeShareOgImage() {
                 populateShareOgImage(null);
                 showSuccess(uiT('ui.share.og_image_remove_success', 'Preview image removed'));
             } else {
-                showError(getApiErrorMessage(data, uiT('errors.messages.share.image_remove_failed', 'Failed to remove preview image')));
+                showError(apiError(data, uiT('errors.messages.share.image_remove_failed', 'Failed to remove preview image')));
                 btn.prop('disabled', false).html(originalHtml);
             }
         },
         error: function(xhr) {
             let payload = {};
             try { payload = JSON.parse(xhr.responseText); } catch (e) {}
-            showError(getApiErrorMessage(payload, uiT('errors.messages.share.image_remove_failed', 'Failed to remove preview image')));
+            showError(apiError(payload, uiT('errors.messages.share.image_remove_failed', 'Failed to remove preview image')));
             btn.prop('disabled', false).html(originalHtml);
         }
     });

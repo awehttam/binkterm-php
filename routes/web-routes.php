@@ -634,11 +634,23 @@ SimpleRouter::get('/shared-image/{slug}', function($slug) {
         exit;
     }
 
-    $path = $row['og_image_path'];
-    $mime = mime_content_type($path) ?: 'application/octet-stream';
-    header('Content-Type: ' . $mime);
+    $path  = $row['og_image_path'];
+    $ext   = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    $mimes = [
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png'  => 'image/png',
+        'gif'  => 'image/gif',
+        'webp' => 'image/webp',
+    ];
+    if (!isset($mimes[$ext])) {
+        http_response_code(404);
+        exit;
+    }
+    header('Content-Type: ' . $mimes[$ext]);
     header('Content-Length: ' . filesize($path));
     header('Cache-Control: public, max-age=86400');
+    header('X-Content-Type-Options: nosniff');
     readfile($path);
     exit;
 })->where(['slug' => '[a-f0-9]{32}\.[a-zA-Z0-9]+']);
