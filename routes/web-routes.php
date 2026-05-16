@@ -665,22 +665,31 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
         // JavaScript will handle showing the error to the user
     }
 
-    $shareUrl   = \BinktermPHP\Config::getSiteUrl() . '/shared/' . rawurlencode($area) . '/' . rawurlencode($slug);
-    $ogImageUrl = null;
-    if (!empty($shareInfo['og_image_slug'])) {
-        $ogImageUrl = \BinktermPHP\Config::getSiteUrl() . '/shared-image/' . rawurlencode($shareInfo['og_image_slug']);
+    $shareUrl    = \BinktermPHP\Config::getSiteUrl() . '/shared/' . rawurlencode($area) . '/' . rawurlencode($slug);
+    $ogImageUrl  = null;
+    $ogImageMime = null;
+    $ogImageW    = null;
+    $ogImageH    = null;
+    if (!empty($shareInfo['og_image_slug']) && !empty($shareInfo['og_image_path']) && file_exists($shareInfo['og_image_path'])) {
+        $ogImageUrl  = \BinktermPHP\Config::getSiteUrl() . '/shared-image/' . rawurlencode($shareInfo['og_image_slug']);
+        $ogImageMime = mime_content_type($shareInfo['og_image_path']) ?: null;
+        $imgSize     = @getimagesize($shareInfo['og_image_path']);
+        if ($imgSize) { $ogImageW = $imgSize[0]; $ogImageH = $imgSize[1]; }
     }
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
-        'shareKey'      => $shareKey,
-        'shareArea'     => $area,
-        'shareSlug'     => $slug,
-        'message'       => $messageData,
-        'share_info'    => $shareInfo,
-        'share_url'     => $shareUrl,
-        'ai_og_summary' => $shareInfo['ai_og_summary'] ?? null,
-        'og_image_url'  => $ogImageUrl,
+        'shareKey'       => $shareKey,
+        'shareArea'      => $area,
+        'shareSlug'      => $slug,
+        'message'        => $messageData,
+        'share_info'     => $shareInfo,
+        'share_url'      => $shareUrl,
+        'ai_og_summary'  => $shareInfo['ai_og_summary'] ?? null,
+        'og_image_url'   => $ogImageUrl,
+        'og_image_mime'  => $ogImageMime,
+        'og_image_width' => $ogImageW,
+        'og_image_height'=> $ogImageH,
     ]);
 })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
 
@@ -708,20 +717,29 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     }
 
     // Build the full share URL for meta tags
-    $shareUrl   = \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
-    $ogImageUrl = null;
-    if (!empty($shareInfo['og_image_slug'])) {
-        $ogImageUrl = \BinktermPHP\Config::getSiteUrl() . '/shared-image/' . rawurlencode($shareInfo['og_image_slug']);
+    $shareUrl    = \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
+    $ogImageUrl  = null;
+    $ogImageMime = null;
+    $ogImageW    = null;
+    $ogImageH    = null;
+    if (!empty($shareInfo['og_image_slug']) && !empty($shareInfo['og_image_path']) && file_exists($shareInfo['og_image_path'])) {
+        $ogImageUrl  = \BinktermPHP\Config::getSiteUrl() . '/shared-image/' . rawurlencode($shareInfo['og_image_slug']);
+        $ogImageMime = mime_content_type($shareInfo['og_image_path']) ?: null;
+        $imgSize     = @getimagesize($shareInfo['og_image_path']);
+        if ($imgSize) { $ogImageW = $imgSize[0]; $ogImageH = $imgSize[1]; }
     }
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
-        'shareKey'      => $shareKey,
-        'message'       => $messageData,
-        'share_info'    => $shareInfo,
-        'share_url'     => $shareUrl,
-        'ai_og_summary' => $shareInfo['ai_og_summary'] ?? null,
-        'og_image_url'  => $ogImageUrl,
+        'shareKey'        => $shareKey,
+        'message'         => $messageData,
+        'share_info'      => $shareInfo,
+        'share_url'       => $shareUrl,
+        'ai_og_summary'   => $shareInfo['ai_og_summary'] ?? null,
+        'og_image_url'    => $ogImageUrl,
+        'og_image_mime'   => $ogImageMime,
+        'og_image_width'  => $ogImageW,
+        'og_image_height' => $ogImageH,
     ]);
 })->where(['shareKey' => '[a-f0-9]{32}']);
 
