@@ -40,7 +40,7 @@
   - [Web UI](#web-ui)
   - [User self-service API routes](#user-self-service-api-routes)
   - [Telnet/SSH terminal](#telnetssh-terminal)
-- [Optional: Netmail → Email Forwarding](#optional-netmail--email-forwarding)
+- [Netmail → Email Forwarding](#netmail--email-forwarding)
 - [Security Considerations](#security-considerations)
 - [Installation / Setup Flow](#installation--setup-flow)
 - [Debian / Ubuntu Installation Guide](#debian--ubuntu-installation-guide)
@@ -543,11 +543,11 @@ A settings option in the terminal's settings menu lets users change their email 
 
 ---
 
-## Optional: Netmail → Email Forwarding
+## Netmail → Email Forwarding
 
-When a user receives a FTN netmail message, binkterm-php can optionally forward a copy to their BBS mailbox. This would be a per-user setting (`forward_netmail_to_email`) stored in `user_settings`.
+BinktermPHP already supports forwarding a copy of incoming FTN netmail messages to a user's external email address. This is a per-user setting (`forward_netmail_to_email`) stored in `user_settings` and is independent of whether the email integration feature is enabled — it works with any outbound email address the user provides, not only a BBS-provisioned mailbox.
 
-The forwarded message would be formatted as a plain-text email with the original netmail headers preserved as metadata. Implementation uses PHP's `mail()` function or a configured SMTP relay — not a direct Postfix socket call.
+The forwarded message is formatted as plain-text email with the original netmail headers preserved as metadata, sent via PHP's `mail()` function or a configured SMTP relay — not a direct Postfix socket call.
 
 ---
 
