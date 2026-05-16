@@ -1,14 +1,71 @@
 > **Draft** — This proposal was generated with AI assistance and may not have been reviewed for accuracy. It is intended as a starting point for discussion, not a finalized specification.
 
-> **Premium Feature** — The Dovecot/Postfix email integration is a registered/premium feature. It will be gated behind `License::isValid()` and will not be available on unregistered installs. Update `docs/proposals/PremiumFeatures.md` when this feature is implemented.
+> **Premium Feature** — The email integration is a registered/premium feature. It will be gated behind `License::isValid()` and will not be available on unregistered installs. Update `docs/proposals/PremiumFeatures.md` when this feature is implemented.
 
-# Dovecot/Postfix Email Integration
+# Email Integration
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Sysop Considerations](#sysop-considerations)
+  - [Should you run an email server at all?](#should-you-run-an-email-server-at-all)
+  - [Who can access email?](#who-can-access-email)
+  - [Outbound mail (submission port 587)](#outbound-mail-submission-port-587)
+  - [Domain strategy: shared vs. subdomain](#domain-strategy-shared-vs-subdomain)
+  - [Auto-provisioning vs. per-user grants](#auto-provisioning-vs-per-user-grants)
+  - [Choosing an adapter](#choosing-an-adapter)
+- [Architecture Overview](#architecture-overview)
+- [Adapter Architecture](#adapter-architecture)
+  - [Interface: EmailProviderAdapter](#interface-srcmailadapteremailprovideradapterphp)
+  - [Shipped adapters](#shipped-adapters)
+  - [Adapter selection and configuration (bbs.json)](#adapter-selection-and-configuration-bbsjson)
+  - [Writing a custom adapter](#writing-a-custom-adapter)
+- [Dovecot/Postfix Adapter — Reference](#dovecotpostfix-adapter--reference)
+- [Database Schema](#database-schema)
+  - [New table: mail_users](#new-table-mail_users)
+  - [Migration file](#migration-file)
+  - [Restricted database user](#restricted-database-user)
+- [Postfix Configuration](#postfix-configuration)
+- [Dovecot Configuration](#dovecot-configuration)
+  - [auth-sql.conf.ext](#etcdovecotconfdauth-sqlconfext)
+  - [dovecot-sql.conf.ext](#etcdovecotdovecot-sqlconfext)
+  - [Dovecot LMTP](#dovecot-lmtp)
+- [binkterm-php Integration](#binkterm-php-integration)
+  - [MailboxManager](#new-class-srcmailmailboxmanagerphp)
+  - [Admin Daemon Command: MAIL_PROVISION](#admin-daemon-command-mail_provision)
+  - [New admin routes](#new-admin-routes)
+  - [Admin UI](#admin-ui)
+  - [Global settings (bbs.json)](#global-settings-bbsjson)
+- [User-Facing Features](#user-facing-features)
+  - [Web UI](#web-ui)
+  - [User self-service API routes](#user-self-service-api-routes)
+  - [Telnet/SSH terminal](#telnetssh-terminal)
+- [Netmail → Email Forwarding](#netmail--email-forwarding)
+- [Security Considerations](#security-considerations)
+- [Installation / Setup Flow](#installation--setup-flow)
+- [Debian / Ubuntu Installation Guide](#debian--ubuntu-installation-guide)
+  - [1. Install packages](#1-install-packages)
+  - [2. Create the vmail system user](#2-create-the-vmail-system-user)
+  - [3. Create a restricted PostgreSQL user for mail](#3-create-a-restricted-postgresql-user-for-mail)
+  - [4. DNS: add an MX record](#4-dns-add-an-mx-record)
+  - [5. TLS certificate](#5-tls-certificate)
+  - [6. Configure Postfix](#6-configure-postfix)
+  - [7. Configure Dovecot](#7-configure-dovecot)
+  - [8. SPF, DKIM, and DMARC](#8-spf-dkim-and-dmarc)
+  - [9. Start and enable services](#9-start-and-enable-services)
+  - [10. Verify the installation](#10-verify-the-installation)
+  - [11. Enable in binkterm-php](#11-enable-in-binkterm-php)
+  - [12. Install Roundcube webmail (optional)](#12-install-roundcube-webmail-optional)
+  - [Firewall](#firewall)
+- [Files Affected / Created](#files-affected--created)
+
+---
 
 ## Overview
 
-This proposal describes how binkterm-php can provision and manage a Postfix/Dovecot mail stack so that every registered BBS user automatically receives a personal email address in the form `username@yourbbs.com`. The web admin interface would manage mailbox creation, deletion, and password sync without requiring the sysop to touch the command line for day-to-day user management.
+This proposal describes how BinktermPHP can provision and manage personal email addresses for BBS users — one where users can receive external mail, use standard IMAP/SMTP clients (Thunderbird, K-9, etc.), and optionally have BBS-internal netmail forwarded to their mailbox. The goal is to make the BBS feel like a complete online community platform without the sysop having to touch the command line for day-to-day user management.
 
-The goal is to make the BBS feel like a complete online community platform — one where users can receive external mail, use standard IMAP/SMTP clients (Thunderbird, K-9, etc.), and optionally have BBS-internal netmail forwarded to their mailbox.
+Email provisioning is implemented through a **pluggable adapter architecture**. BinktermPHP ships with a built-in **Dovecot/Postfix adapter** for sysops who want to run their own mail server, but the same admin UI, provisioning API, and user-facing features work identically regardless of which adapter is active. A sysop who prefers to use a managed email provider (e.g. Mailcow, Mail-in-a-Box, or a future API-backed adapter) can do so by selecting a different adapter in **Admin → Settings → Email** and supplying its configuration — no code changes required.
 
 ---
 
@@ -45,37 +102,132 @@ Enabling authenticated SMTP submission lets users send email from desktop client
 
 The `auto_provision_on_registration` setting in **Admin → Settings → Email** controls whether mailboxes are created automatically for new users. When it is off, admins grant access individually from **Admin → Users → [user] → Email**. Both modes can coexist: auto-provision can be on globally while specific users are deprovisioned, or off globally while select users are provisioned by hand. Choose the mode that matches your trust model for incoming users.
 
+### Choosing an adapter
+
+BinktermPHP ships with the **Dovecot/Postfix** adapter, which runs a full self-hosted mail stack on the same server (or a server you control). If you are not comfortable running a mail server, or if your hosting provider makes it difficult (shared hosting, port 25 blocked, etc.), a future API-backed adapter — for a managed provider such as Mailcow, Mail-in-a-Box, or a custom integration — may be more appropriate. The adapter is selected in **Admin → Settings → Email**; all adapters expose the same admin UI and user-facing features. See the Adapter Architecture section below for details on what a custom adapter must implement.
+
 ---
 
 ## Architecture Overview
 
 ```
-                  ┌─────────────────────────────┐
-                  │         Internet              │
-                  └─────────┬───────────────────┘
-                            │ SMTP (port 25)
-                  ┌─────────▼───────────────────┐
-                  │   Postfix (MTA)              │
-                  │   - Receives inbound mail    │
-                  │   - Relays outbound mail     │
-                  │   - Delivers to Dovecot      │
-                  └─────────┬───────────────────┘
-                            │ LMTP / virtual_mailbox
-                  ┌─────────▼───────────────────┐
-                  │   Dovecot (MDA / IMAP)       │
-                  │   - Maildir storage           │
-                  │   - IMAP (port 993 TLS)      │
-                  │   - Authenticates via DB     │
-                  └─────────┬───────────────────┘
-                            │ SQL auth queries
-                  ┌─────────▼───────────────────┐
-                  │   binkterm-php PostgreSQL DB │
-                  │   - mail_users table          │
-                  │   - Shared with BBS users    │
-                  └─────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────┐
+  │                   BinktermPHP                             │
+  │                                                          │
+  │  Admin UI / API routes / User-facing Profile → My Email  │
+  │                    │                                     │
+  │           MailboxManager (orchestrator)                  │
+  │                    │                                     │
+  │         EmailProviderAdapter (interface)                 │
+  │          /                          \                    │
+  │  DovecotPostfixAdapter         [future adapters]         │
+  │  (self-hosted MTA/MDA)         (Mailcow, API, etc.)      │
+  └──────────┬───────────────────────────────────────────────┘
+             │ SQL (restricted binkterm_mail role)
+  ┌──────────▼────────────────────────┐
+  │   PostgreSQL — mail_users table   │
+  └──────────┬────────────────────────┘
+             │ auth queries (binkterm_mail role)
+  ┌──────────▼──────────┐   ┌────────────────────────┐
+  │   Postfix (MTA)     │──▶│   Dovecot (MDA/IMAP)   │
+  │   inbound / relay   │   │   Maildir / IMAP TLS   │
+  └─────────────────────┘   └────────────────────────┘
 ```
 
-Postfix and Dovecot both authenticate and look up mailboxes via the existing PostgreSQL database. The BBS admin panel controls user provisioning. No flat `/etc/passwd` entries or Postfix `virtual` text files are needed.
+The admin UI, provisioning API, and user-facing **Profile → My Email** page are adapter-agnostic. `MailboxManager` loads the configured adapter at runtime and delegates all mailbox operations to it. The Dovecot/Postfix adapter authenticates and looks up mailboxes via the shared PostgreSQL database using a restricted role. No flat `/etc/passwd` entries or Postfix `virtual` text files are needed.
+
+---
+
+## Adapter Architecture
+
+### Interface: `src/Mail/Adapter/EmailProviderAdapter.php`
+
+All adapters implement this interface. `MailboxManager` depends only on the interface, never on a concrete adapter class.
+
+```php
+namespace BinktermPHP\Mail\Adapter;
+
+interface EmailProviderAdapter
+{
+    /**
+     * Provision a mailbox for the given user.
+     * $localPart is the pre-sanitized RFC 5321 local-part (from MailboxManager::toEmailLocalPart).
+     * Returns the full email address that was assigned.
+     */
+    public function provision(int $userId, string $localPart): string;
+
+    /** Disable or permanently remove a user's mailbox. */
+    public function deprovision(int $userId): void;
+
+    /** Update the mail password independently of the BBS login password. */
+    public function setPassword(int $userId, string $plaintext): void;
+
+    /** Update the mailbox storage quota. */
+    public function setQuota(int $userId, int $quotaMb): void;
+
+    /** Return whether a mailbox is currently active for this user. */
+    public function isProvisioned(int $userId): bool;
+
+    /**
+     * Return adapter-specific status (quota usage, last login, etc.).
+     * Shape is adapter-defined; callers treat it as opaque display data.
+     * @return array<string, mixed>
+     */
+    public function getStatus(int $userId): array;
+}
+```
+
+### Shipped adapters
+
+| Adapter key | Class | Description |
+|---|---|---|
+| `dovecot_postfix` | `DovecotPostfixAdapter` | Self-hosted Postfix MTA + Dovecot MDA/IMAP. Full configuration described below. |
+
+The following are **illustrative examples only** of what future adapters could look like — they are not planned or committed features, and are listed solely to demonstrate the range of integrations the interface could support:
+
+| Adapter key | Description |
+|---|---|
+| `mailcow` | Provisions mailboxes via the Mailcow REST API on a separately hosted Mailcow instance. |
+| `mailinabx` | Provisions via the Mail-in-a-Box API. |
+| `modoboa` | Provisions via the Modoboa REST API on a separately hosted Modoboa instance. |
+| `custom` | Sysop-supplied adapter class registered in `bbs.json`. |
+
+### Adapter selection and configuration (`bbs.json`)
+
+```json
+"mail": {
+    "enabled": false,
+    "adapter": "dovecot_postfix",
+    "auto_provision_on_registration": false,
+    "allow_self_provisioning": false,
+    "adapters": {
+        "dovecot_postfix": {
+            "domain": "yourbbs.com",
+            "maildir_base": "/var/mail/vhosts",
+            "default_quota_mb": 200,
+            "vmail_uid": 5000,
+            "vmail_gid": 5000
+        }
+    }
+}
+```
+
+`mail.adapter` names the active adapter. `mail.adapters.<key>` holds that adapter's configuration. Top-level keys (`auto_provision_on_registration`, `allow_self_provisioning`) are adapter-agnostic and apply regardless of which adapter is selected.
+
+### Writing a custom adapter
+
+A custom adapter must:
+
+1. Implement `EmailProviderAdapter`.
+2. Accept its configuration as a constructor argument (an associative array sourced from `mail.adapters.<key>` in `bbs.json`).
+3. Be registered in `MailboxManager::ADAPTER_MAP` (or, for third-party adapters, named via a `mail.adapters.custom.class` key pointing to a fully-qualified class name that is autoloaded via Composer).
+4. Never write to `mail_users` directly — that is `MailboxManager`'s responsibility. The adapter handles only the external mailbox resource (filesystem, remote API, etc.).
+
+---
+
+## Dovecot/Postfix Adapter — Reference
+
+The sections below document the **built-in `dovecot_postfix` adapter** in full. They are specific to sysops running their own mail stack. Sysops using a different adapter can skip to [binkterm-php Integration](#binkterm-php-integration).
 
 ---
 
@@ -221,25 +373,46 @@ service lmtp {
 
 ### New class: `src/Mail/MailboxManager.php`
 
-Handles all mailbox lifecycle operations:
+The central orchestrator for all mailbox lifecycle operations. It owns the `mail_users` database row and delegates the external mailbox resource (filesystem, remote API, etc.) to the configured `EmailProviderAdapter`.
 
 ```php
 namespace BinktermPHP\Mail;
 
+use BinktermPHP\Mail\Adapter\EmailProviderAdapter;
+
 class MailboxManager
 {
-    public function provision(int $userId): void;   // creates DB row + maildir
-    public function deprovision(int $userId): void; // disables row, optionally purges maildir
-    public function setPassword(int $userId, string $plaintext): void; // bcrypt + store
+    public function __construct(private EmailProviderAdapter $adapter) {}
+
+    /** Provision a mailbox: write the mail_users row, then delegate to the adapter. */
+    public function provision(int $userId): void;
+
+    /** Deprovision: disable the mail_users row, then delegate to the adapter. */
+    public function deprovision(int $userId): void;
+
+    /** Update mail password via the adapter; store bcrypt hash in mail_users. */
+    public function setPassword(int $userId, string $plaintext): void;
+
+    /** Update quota in mail_users and propagate to the adapter. */
     public function setQuota(int $userId, int $quotaMb): void;
+
+    /** Check mail_users for an active row (fast path; no adapter call needed). */
     public function isProvisioned(int $userId): bool;
-    public static function toEmailLocalPart(string $username): string; // sanitize username → RFC 5321 local-part
+
+    /** Return adapter status data for display in the admin UI. */
+    public function getStatus(int $userId): array;
+
+    /** Sanitize a BBS username into a valid RFC 5321 local-part. */
+    public static function toEmailLocalPart(string $username): string;
+
+    /** Instantiate the adapter named in bbs.json mail.adapter. */
+    public static function fromConfig(array $mailConfig): self;
 }
 ```
 
-`provision()` creates the `mail_users` row and the Maildir directory structure on disk (`new/`, `cur/`, `tmp/`). It does **not** call any Postfix/Dovecot CLI tools — the database query alone is sufficient.
+`MailboxManager` is the only class that writes to `mail_users`. Adapters never touch the database directly — they manage only the external resource. `fromConfig()` reads `mail.adapter` from the config array and instantiates the appropriate adapter with its `mail.adapters.<key>` sub-config.
 
-Because the web server process cannot write arbitrary filesystem paths, `provision()` must send a command to the admin daemon rather than calling `mkdir()` directly.
+Because the web server process cannot write arbitrary filesystem paths (relevant to the `dovecot_postfix` adapter), provisioning that requires filesystem access must go through the admin daemon rather than calling `mkdir()` directly. API-backed adapters make HTTP calls and do not need the daemon.
 
 #### Username sanitization (`toEmailLocalPart`)
 
@@ -306,21 +479,12 @@ Two global toggles in **Admin → Settings → Email** control the feature:
 
 ### Global settings (`bbs.json`)
 
-```json
-"mail": {
-    "enabled": false,
-    "domain": "yourbbs.com",
-    "maildir_base": "/var/mail/vhosts",
-    "default_quota_mb": 200,
-    "vmail_uid": 5000,
-    "vmail_gid": 5000,
-    "auto_provision_on_registration": false,
-    "allow_self_provisioning": false
-}
-```
+The `mail` configuration block is described in full in the Adapter Architecture section above. Key top-level keys:
 
-- `auto_provision_on_registration` — when `true`, a mailbox is created automatically when a new user account is approved. Admins can always provision or deprovision individual users from **Admin → Users → [user] → Email** regardless of this setting.
-- `allow_self_provisioning` — when `true`, logged-in users can provision their own mailbox via **Profile → My Email** without admin action. Default `false`.
+- `mail.adapter` — selects the active adapter (`dovecot_postfix` by default).
+- `mail.auto_provision_on_registration` — when `true`, a mailbox is created automatically when a new user account is approved. Admins can always provision or deprovision individual users from **Admin → Users → [user] → Email** regardless of this setting.
+- `mail.allow_self_provisioning` — when `true`, logged-in users can provision their own mailbox via **Profile → My Email** without admin action. Default `false`.
+- `mail.adapters.<key>` — adapter-specific configuration (domain, maildir path, API credentials, etc.).
 
 ---
 
@@ -379,11 +543,11 @@ A settings option in the terminal's settings menu lets users change their email 
 
 ---
 
-## Optional: Netmail → Email Forwarding
+## Netmail → Email Forwarding
 
-When a user receives a FTN netmail message, binkterm-php can optionally forward a copy to their BBS mailbox. This would be a per-user setting (`forward_netmail_to_email`) stored in `user_settings`.
+BinktermPHP already supports forwarding a copy of incoming FTN netmail messages to a user's external email address. This is a per-user setting (`forward_netmail_to_email`) stored in `user_settings` and is independent of whether the email integration feature is enabled — it works with any outbound email address the user provides, not only a BBS-provisioned mailbox.
 
-The forwarded message would be formatted as a plain-text email with the original netmail headers preserved as metadata. Implementation uses PHP's `mail()` function or a configured SMTP relay — not a direct Postfix socket call.
+The forwarded message is formatted as plain-text email with the original netmail headers preserved as metadata, sent via PHP's `mail()` function or a configured SMTP relay — not a direct Postfix socket call.
 
 ---
 
@@ -985,17 +1149,19 @@ Port 143 (plaintext IMAP) should remain closed.
 
 | Path | Change |
 |---|---|
-| `src/Mail/MailboxManager.php` | New class |
-| `scripts/admin_daemon.php` | Add `MAIL_PROVISION`, `MAIL_DEPROVISION` command handlers |
+| `src/Mail/Adapter/EmailProviderAdapter.php` | New interface |
+| `src/Mail/Adapter/DovecotPostfixAdapter.php` | Built-in adapter implementing the interface |
+| `src/Mail/MailboxManager.php` | New orchestrator class; delegates to adapter |
+| `scripts/admin_daemon.php` | Add `MAIL_PROVISION`, `MAIL_DEPROVISION` command handlers (used by `DovecotPostfixAdapter`) |
 | `routes/admin-routes.php` | New admin mail management endpoints |
 | `routes/api-routes.php` | New user self-service mail endpoints (`/api/mail/*`) |
-| `templates/admin/mail_settings.twig` | New admin email settings panel |
-| `templates/admin/user_mail.twig` | Per-user mailbox panel |
-| `templates/profile/email.twig` | User-facing connection info page |
+| `templates/admin/mail_settings.twig` | New admin email settings panel (adapter-agnostic) |
+| `templates/admin/user_mail.twig` | Per-user mailbox panel (adapter-agnostic) |
+| `templates/profile/email.twig` | User-facing connection info page (adapter-agnostic) |
 | `telnet/src/SettingsHandler.php` | Add email password change option |
 | `database/migrations/vYYYYMMDDHHMMSS_add_mail_users.sql` | New migration |
-| `config/bbs.json.example` | Add `mail` block |
-| `docs/install-guide-email.md` | New install guide |
+| `config/bbs.json.example` | Add `mail` block with adapter selection |
+| `docs/install-guide-email.md` | New install guide (Dovecot/Postfix adapter) |
 | `docs/AdminDaemon.md` | Document new commands |
 | `docs/API.md` | Document new admin endpoints |
 | `docs/DATA_MODEL.md` | Document `mail_users` table |
