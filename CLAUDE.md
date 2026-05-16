@@ -1,20 +1,25 @@
 # Project: binkterm-php
 
+> **Note:** The internal/repository name is `binkterm-php`, but the product name is **BinktermPHP**. Use "BinktermPHP" in all user-facing text, documentation, and UI copy.
+
 ## Project Description
 
-A modern web interface and mailer tool that receives and sends Fidonet message packets using its own binkp Fidonet mailer. The project provides users with a delightful, modern web experience that allows them to send and receive netmail (private messages) and echomail (forums) with the help of binkp.
+BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. It provides a full browser-based community interface with a native BinkP mailer, a real-time event bus, and a door game framework — accessible from browsers, Telnet/SSH terminals, Gemini clients, QWK readers, AI assistants, and mesh radio nodes. No third-party mailer required.
 
  - **Product website**: https://lovelybits.org/binktermphp
  - **GitHub repo**: https://github.com/awehttam/binkterm-php
  - **Support BBS**: https://claudes.lovelybits.org
+ - **Product Mascot**: Kludge the Corvid
  - **Default PR target branch**: `claudesbbs` — all pull requests must target this branch, not `main`
  - **New development branches**: When creating a new branch, always ask the user whether to branch from `claudesbbs` (main staging) or another development branch. Never assume `main`.
 
 ## Tech Stack
 
  - Frontend: jQuery, Bootstrap 5
- - Backend: PHP, SimpleRouter request library, Twig templates
+ - Backend: PHP 8.1+ (requires minimum 8.1), SimpleRouter request library, Twig templates
  - Database: Postgres
+ - Dependencies: Composer
+ - Real-time: BinkStream (WebSocket + SSE via SharedWorker)
 
 
 ## Code Conventions
@@ -33,14 +38,19 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
 ## Project Structure
 
  - src/ - main source code
+ - routes/ - HTTP route definitions (api-routes.php, web-routes.php, admin-routes.php, etc.)
+ - config/ - runtime configuration files (binkp.json, bbs.json, webdoors.json, etc.) and i18n catalogs
  - scripts/ - CLI tools (binkp_server, binkp_poll, maintenance scripts, etc.). See `scripts/CLAUDE.md` for CLI script rules.
  - templates/ - html templates. See `templates/CLAUDE.md` for template resolution rules.
  - docs/ - system documentation; often contains historical programming notes that give insight into how specific subsystems were designed and why. Read relevant docs/ files before working on a subsystem — they frequently contain architectural context not obvious from the code alone.
  - public_html/ - the web site files, static assets
- - tests/ - test scripts used in debugging and troubleshooting
+ - tests/ - PHPUnit and Playwright test suites
  - vendor/ - 3rd party libraries managed by composer and should not be touched by Claude
- - data/ - runtime data (binkp.json, nodelists.json, logs, inbound/outbound packets)
+ - data/ - runtime data (logs, inbound/outbound FTN packets)
  - telnet/ - the telnet BBS server (separate from the web interface). See `telnet/CLAUDE.md` for daemon include-list rules.
+ - ssh/ - the SSH daemon; shares terminal-side classes with the telnet daemon. See `ssh/CLAUDE.md`.
+ - dosbox-bridge/ - DOS door runtime data and bridge
+ - tools/ - support and utility tools (e.g. support-bot)
 
 ## Credits
 
@@ -190,10 +200,6 @@ When adding new configuration settings, you may need to add or update admin daem
 ```
 
 JS may display the balance value returned by the server and communicate it to parent windows via `postMessage`. It must never calculate or request credit modifications.
-
-## Session Start
-
-At the start of each new session, print the list of available project-level skills from the Skills section below.
 
 ## Skills
 
