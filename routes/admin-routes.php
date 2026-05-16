@@ -602,6 +602,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $controller->asset($path);
     })->where(['path' => '[A-Za-z0-9_.\-\/]+']);
 
+    SimpleRouter::get('/docs/txt/{path}', function(string $path) {
+        RouteHelper::requireAdmin();
+        $controller = new \BinktermPHP\Web\DocsController();
+        $controller->viewTxt($path);
+    })->where(['path' => '[A-Za-z0-9 _.%\-\/]+']);
+
     // Ad analytics page (license required)
     SimpleRouter::get('/ad-analytics', function() {
         RouteHelper::requireAdmin();
