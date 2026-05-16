@@ -289,7 +289,26 @@ The same user data is also available via environment variables (see above), so s
 
 ## Terminal Settings
 
-Doors run in an `xterm-256color` PTY at **80 columns × 25 rows**. ANSI escape sequences are passed through directly — no character encoding conversion is applied (unlike DOS doors which convert CP437). Write UTF-8 or plain ANSI to stdout.
+Doors run in an `xterm-256color` PTY. ANSI escape sequences are passed through directly — no character encoding conversion is applied (unlike DOS doors which convert CP437). Write UTF-8 or plain ANSI to stdout.
+
+### Terminal size
+
+The default PTY size is **80 columns × 25 rows**. For doors that benefit from a wider canvas (such as PubTerm), the initial terminal dimensions can be set per-door in `config/nativedoors.json` via the `terminal_size` key:
+
+```json
+{
+  "pubterm": {
+    "enabled": true,
+    "terminal_size": "132x43"
+  }
+}
+```
+
+Accepted values are `"WxH"` strings (e.g. `"80x25"`, `"132x24"`, `"132x43"`, `"132x50"`) or `"autofit"` to size the canvas to the user's browser window. The PTY is spawned at the configured dimensions and the BBS receives the correct NAWS terminal size at connection time.
+
+> **Note:** `"autofit"` sizes the xterm.js canvas to fill the browser window and sets the initial BBS dimensions accordingly. Mid-session resize (NAWS updates when the user resizes their browser) requires the TelnetAdapter, which is planned for a future release. With the system `telnet` client currently used by PubTerm, the BBS will not adapt to resizes that happen after the initial connection.
+
+The `terminal_size` setting is read from `config/nativedoors.json` (the admin-configurable runtime config) rather than the static `nativedoor.json` manifest, so it can be changed through **Admin → Native Doors** without touching the door files.
 
 ---
 
@@ -333,6 +352,18 @@ The file structure is a JSON object keyed by door ID:
   }
 }
 ```
+
+All supported keys per door entry:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `false` | Whether the door is available to users |
+| `credit_cost` | integer | `0` | Credits deducted per session |
+| `max_time_minutes` | integer | `30` | Maximum session length in minutes |
+| `max_sessions` | integer | `10` | Maximum concurrent sessions |
+| `allow_anonymous` | boolean | `false` | Allow unauthenticated guest access (requires `credit_cost: 0`) |
+| `guest_max_sessions` | integer | `2` | Maximum concurrent guest sessions when `allow_anonymous` is true |
+| `terminal_size` | string | `"80x25"` | Initial PTY and canvas dimensions. Accepted values: `"80x25"`, `"132x24"`, `"132x43"`, `"132x50"`, or `"autofit"`. See [Terminal Settings](#terminal-settings) |
 
 ---
 
