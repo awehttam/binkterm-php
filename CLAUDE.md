@@ -82,6 +82,7 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
  - When writing proposal or other documentation files, use repo-relative paths like `src/Foo.php` or `docs/Bar.md` in the document text; do not use full filesystem paths.
  - **Doc maintenance**: When adding features that touch a subsystem with a dedicated `docs/` file, **you must update that file**. Consult the **Doc Maintenance Checklist** in `docs/DEVELOPER_GUIDE.md` for the full list of subsystem→doc pairings. When adding a new documentation file to `docs/` (excluding `docs/proposals/`), update `docs/index.md` to include it in operational priority order; when creating a new `UPGRADING_x.y.z.md` file, also add it to the Upgrading section of `docs/index.md`, newest-first.
  - For version bump steps and UPGRADING doc format, invoke the `/bump-version` skill.
+ - When creating or modifying a WebDoor, invoke the `/new-webdoor` skill.
  - Write phpDoc blocks when possible
 
 ## PostgreSQL Gotchas
@@ -200,6 +201,8 @@ When adding new configuration settings, you may need to add or update admin daem
 ```
 
 JS may display the balance value returned by the server and communicate it to parent windows via `postMessage`. It must never calculate or request credit modifications.
+
+When adding a new UserCredit credit/reward type, invoke the `/usercredits-workflow` skill.
 
 ## Skills
 
