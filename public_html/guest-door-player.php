@@ -49,7 +49,14 @@ if (empty($doorId)) {
             right: 0;
             bottom: 0;
             background: #000;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
             overflow: hidden;
+        }
+
+        #terminal-container .xterm {
+            margin-top: 6px;
         }
 
         /* Force terminal surface to pure black */
