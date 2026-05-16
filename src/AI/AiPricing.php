@@ -28,7 +28,7 @@ class AiPricing
     /**
      * @return array{input: float, output: float, cached_input: float, cache_write: float}
      */
-    private function getRates(string $provider, string $model): array
+    public function getRates(string $provider, string $model): array
     {
         return [
             'input' => $this->getRate($provider, $model, 'INPUT'),

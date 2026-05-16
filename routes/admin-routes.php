@@ -499,12 +499,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     SimpleRouter::get('/ai-settings', function() {
         RouteHelper::requireAdmin();
 
-        $ai_available = !empty(\BinktermPHP\AI\AiService::create()->getConfiguredProviders());
+        $aiService = \BinktermPHP\AI\AiService::create();
 
         $template = new Template();
         $template->renderResponse('admin/ai_settings.twig', [
-            'ai_available'                => $ai_available,
+            'ai_available'                => !empty($aiService->getConfiguredProviders()),
             'share_summary_default_prompt' => \BinktermPHP\AI\ShareSummaryGenerator::DEFAULT_SYSTEM_PROMPT,
+            'provider_status'             => $aiService->getProviderStatusList(),
         ]);
     });
 
