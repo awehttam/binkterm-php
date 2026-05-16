@@ -373,6 +373,18 @@ Both lists must be updated together when adding a new root-level file to the all
 
 Links in root-level files (e.g. `README.md`) that point into `docs/` use normal `docs/Foo.md`-style paths. `rewriteLinks()` strips the `docs/` prefix automatically and routes them through the viewer.
 
+### Proposals Directory
+
+`docs/proposals/` is an informal scratchpad for ideas, design notes, and implementation feedback. Writing a proposal is recommended — it helps with project knowledge capture and gives AI coding assistants useful context about intent and design decisions. It is not part of the operational documentation and is excluded from the in-app doc browser and from `docs/index.md`.
+
+A few things to keep in mind when reading or writing proposals:
+
+- **May be outdated**: Proposals capture ideas relative to the version of BinktermPHP at the time they were written. A proposal may describe a subsystem that has since changed significantly, or a feature that was implemented differently than originally planned.
+- **May not be implemented**: Many proposals describe ideas that were never built, were superseded, or are still under consideration.
+- **Purpose**: To capture ideas and implementation notes while they are fresh, and to gather feedback before or during development. They are a communication tool, not a specification.
+
+When writing a proposal, include a preamble noting that it is a draft generated or reviewed at a particular point in time. Do not treat a proposal as an authoritative reference for how the system currently works — read the code and the operational docs for that.
+
 ### Logging
 
 Use `AdminDaemonClient::log($level, $message, $context)` for application-level log messages from web-context PHP code. This routes messages through the admin daemon's structured log rather than the PHP error log. The static method handles connection, logging, and cleanup in one call:
