@@ -35,15 +35,6 @@ if ! command -v telnet &>/dev/null; then
     exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PYTHON_CLIENT="$SCRIPT_DIR/pubterm-client.py"
-
-# Prefer the Python client — it reliably sends NAWS on SIGWINCH so the BBS
-# adapts to mid-session terminal resizes. Fall back to system telnet if
-# Python3 is not available.
-if command -v python3 &>/dev/null && [ -f "$PYTHON_CLIENT" ]; then
-    exec python3 "$PYTHON_CLIENT"
-fi
-
 TELNET_BIN="${PUBTERM_TELNET_BIN:-telnet}"
+
 exec "$TELNET_BIN" -E -K "$TELNET_HOST" "$TELNET_PORT"

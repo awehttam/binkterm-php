@@ -2093,7 +2093,7 @@ class BbsSession
                             $h = (ord($state['sb_data'][2]) << 8) + ord($state['sb_data'][3]);
                             if ($w > 0) { $state['cols'] = $w; }
                             if ($h > 0) { $state['rows'] = $h; }
-                            if ($this->debug) { $this->log("NAWS: {$w}x{$h}"); }
+                            $this->log("NAWS: {$w}x{$h}"); // DEBUG: remove after resize investigation
                         } elseif ($state['sb_opt'] === self::OPT_TTYPE && strlen($state['sb_data']) >= 2 && ord($state['sb_data'][0]) === 0) {
                             $ttype = trim(substr($state['sb_data'], 1));
                             $this->recordTerminalType($state, $ttype);
