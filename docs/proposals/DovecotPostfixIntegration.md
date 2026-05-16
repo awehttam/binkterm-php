@@ -32,7 +32,7 @@
   - [Dovecot LMTP](#dovecot-lmtp)
 - [binkterm-php Integration](#binkterm-php-integration)
   - [MailboxManager](#new-class-srcmailmailboxmanagerphp)
-  - [Admin Daemon Command: MAIL_PROVISION](#admin-daemon-command-mail_provision)
+  - [Admin daemon involvement](#admin-daemon-involvement)
   - [New admin routes](#new-admin-routes)
   - [Admin UI](#admin-ui)
   - [Global settings (bbs.json)](#global-settings-bbsjson)
@@ -412,14 +412,14 @@ class MailboxManager
 
 `MailboxManager` is the only class that writes to `mail_users`. Adapters never touch the database directly — they manage only the external resource. `fromConfig()` reads `mail.adapter` from the config array and instantiates the appropriate adapter with its `mail.adapters.<key>` sub-config.
 
-Because the web server process cannot write arbitrary filesystem paths (relevant to the `dovecot_postfix` adapter), provisioning that requires filesystem access must go through the admin daemon rather than calling `mkdir()` directly. API-backed adapters make HTTP calls and do not need the daemon.
+For the `dovecot_postfix` adapter, `provision()` has no external work to do beyond writing the `mail_users` row — Dovecot creates the Maildir directory structure automatically on first delivery or first IMAP login. API-backed adapters call their provider's HTTP API from `provision()` instead.
 
 #### Username sanitization (`toEmailLocalPart`)
 
 BBS usernames must be mapped to a valid RFC 5321 local-part before use as an email address:
 
 - Lowercase the entire string
-- Replace spaces with hyphens (spaces are already forbidden in usernames, but handled defensively)
+- Replace spaces with hyphens
 - Strip any character that is not `a-z`, `0-9`, `-`, `_`, or `.`
 - Collapse runs of two or more consecutive `-` or `.` characters into a single `-`
 - Strip leading and trailing `-` and `.`
@@ -437,19 +437,11 @@ public static function toEmailLocalPart(string $username): string
 
 The sanitized local-part is stored in `mail_users.email` at provisioning time and never recomputed from the username — if a user renames their BBS account, their email address stays the same. The admin can manually reassign the address if needed.
 
-### Admin Daemon Command: `MAIL_PROVISION`
+### Admin daemon involvement
 
-Add a new command to `scripts/admin_daemon.php`:
+The admin daemon is **not required** for the `dovecot_postfix` adapter's provisioning path. Dovecot creates the Maildir directory on first delivery or IMAP login, so no pre-creation step is needed and no elevated-privilege process is involved.
 
-```
-MAIL_PROVISION <user_id>
-```
-
-The daemon creates the maildir at the configured path and sets ownership to the `vmail` user. It then inserts (or re-enables) the `mail_users` row.
-
-Similarly, `MAIL_DEPROVISION <user_id>` disables the row and optionally removes the maildir (configurable; default: keep data for 30 days).
-
-See `docs/AdminDaemon.md` for the full command reference — both commands must be added there.
+Deprovisioning disables the `mail_users` row (preventing further logins and deliveries) but leaves the Maildir data on disk. If the sysop wants to reclaim disk space, that is a manual task — removing mail data for a deprovisioned user requires filesystem access as the `vmail` user, which is outside the scope of BinktermPHP's process boundary.
 
 ### New admin routes
 
@@ -469,8 +461,10 @@ A new panel in **Admin → Users → [user] → Email** showing:
 
 - Whether the mailbox is provisioned
 - The assigned email address (`username@yourbbs.com`)
-- Current quota and usage (queried via `du` through the admin daemon)
+- Configured quota limit (from `mail_users.quota_mb`)
 - Buttons: Provision, Deprovision, Reset Password, Change Quota
+
+> **Note:** Live quota usage is not displayed. Dovecot enforces the quota limit at delivery time via its quota plugin, but reading actual usage requires running `doveadm quota get` as a privileged user, which is outside BinktermPHP's process boundary. API-backed adapters may return usage data via `MailboxManager::getStatus()` if their provider exposes it.
 
 Two global toggles in **Admin → Settings → Email** control the feature:
 
@@ -506,7 +500,7 @@ A provisioning prompt is shown:
 >
 > **[Claim my email address]**  _(button)_
 
-Submitting the form calls `POST /api/mail/provision` with the chosen password. The server validates the password meets minimum requirements, triggers `MAIL_PROVISION` via the admin daemon, and returns the connection details on success. The page then transitions to the provisioned state below.
+Submitting the form calls `POST /api/mail/provision` with the chosen password. The server validates that the password meets minimum requirements, writes the `mail_users` row via `MailboxManager`, and returns the connection details on success. The page then transitions to the provisioned state below.
 
 **When the user has no mailbox and `allow_self_provisioning` is `false`:**
 
@@ -535,11 +529,13 @@ Password:         (your email password — separate from BBS login)
 | `POST` | `/api/mail/provision` | Provision own mailbox (requires `allow_self_provisioning`) |
 | `POST` | `/api/mail/set-password` | Change own email password |
 
-`POST /api/mail/provision` checks that `mail.allow_self_provisioning` is `true`, that the user is not already provisioned, and that the submitted password meets minimum strength requirements before dispatching the admin daemon command. It returns `403` if self-provisioning is disabled.
+`POST /api/mail/provision` checks that `mail.allow_self_provisioning` is `true`, that the user is not already provisioned, and that the submitted password meets minimum strength requirements before calling `MailboxManager::provision()`. It returns `403` if self-provisioning is disabled.
 
 ### Telnet/SSH terminal
 
 A settings option in the terminal's settings menu lets users change their email password and view their address, parallel to the web UI (per the user settings parity policy in `CLAUDE.md`). When `allow_self_provisioning` is enabled and the user has no mailbox, the terminal settings menu also shows a **Claim email address** option that prompts for a password and calls the same provisioning path.
+
+> **Out of scope:** Reading and composing email within the term server would require a built-in IMAP/SMTP client — a full terminal mail reader. This is not covered by this proposal. Term server users who want to read email should use a standard mail client (Thunderbird, K-9, etc.) or the Roundcube webmail interface.
 
 ---
 
@@ -559,7 +555,7 @@ The forwarded message is formatted as plain-text email with the original netmail
 - **Separate email password**: The mail password must never be the same as the BBS login password. The UI must make this clear, and the backend must store them independently.
 - **Quota enforcement**: Postfix `virtual_mailbox_limit` and Dovecot quota plugin both enforce limits to prevent a single user from filling the disk.
 - **Spam filtering**: Integration with SpamAssassin or Rspamd via Postfix `content_filter` is recommended but out of scope for this proposal.
-- **Admin daemon privilege**: The `MAIL_PROVISION` daemon command runs as root (or as the `vmail` user via `setuid`). The admin daemon already handles similar privilege escalation for binkp operations; the same sandboxing model applies.
+- **Maildir ownership**: The Maildir is created by Dovecot on first delivery or IMAP login, running as the `vmail` user. BinktermPHP never touches the Maildir directly and requires no elevated privileges for provisioning.
 
 ---
 
@@ -572,8 +568,7 @@ The forwarded message is formatted as plain-text email with the original netmail
 5. Sysop copies the Dovecot SQL config and edits it with `binkterm_mail` credentials.
 6. Sysop sets `mail.enabled = true` and `mail.domain` in **Admin → Settings → Email**.
 7. `php scripts/setup.php` runs the `mail_users` migration.
-8. The admin daemon is restarted so it picks up the new `MAIL_PROVISION` command handler.
-9. Sysop provisions mailboxes individually per user, or enables `auto_provision_on_registration`.
+8. Sysop provisions mailboxes individually per user, or enables `auto_provision_on_registration`.
 
 Detailed step-by-step instructions (with example config file snippets) would live in a new `docs/install-guide-email.md`.
 
@@ -1152,7 +1147,6 @@ Port 143 (plaintext IMAP) should remain closed.
 | `src/Mail/Adapter/EmailProviderAdapter.php` | New interface |
 | `src/Mail/Adapter/DovecotPostfixAdapter.php` | Built-in adapter implementing the interface |
 | `src/Mail/MailboxManager.php` | New orchestrator class; delegates to adapter |
-| `scripts/admin_daemon.php` | Add `MAIL_PROVISION`, `MAIL_DEPROVISION` command handlers (used by `DovecotPostfixAdapter`) |
 | `routes/admin-routes.php` | New admin mail management endpoints |
 | `routes/api-routes.php` | New user self-service mail endpoints (`/api/mail/*`) |
 | `templates/admin/mail_settings.twig` | New admin email settings panel (adapter-agnostic) |
