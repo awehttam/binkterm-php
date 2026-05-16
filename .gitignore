@@ -27,6 +27,8 @@ backups/*
 .claude/*
 !.claude/commands/
 !.claude/commands/**
+!.claude/session-start.php
+!.claude/settings.json
 /vendor/
 *~
 .env

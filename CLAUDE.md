@@ -191,11 +191,15 @@ When adding new configuration settings, you may need to add or update admin daem
 
 JS may display the balance value returned by the server and communicate it to parent windows via `postMessage`. It must never calculate or request credit modifications.
 
+## Session Start
+
+At the start of each new session, print the list of available project-level skills from the Skills section below.
+
 ## Skills
 
 When working within any subdirectory, check for the presence of a `CLAUDE.md` file in that directory and follow its instructions in addition to this file.
 
-The following project-scoped skills are available in `.claude/commands/`. When adding a new skill file, add it to this list.
+The following project-scoped skills are available in `.claude/commands/`. When adding a new skill file, add it to this list **and also add an entry to `.claude/session-start.php`** so it is printed to developers at the start of each new session.
 
 - **`/bump-version`** — version bump steps, UPGRADING doc format and voice rules, composer dependency note
 - **`/new-migration`** — migration ID format (authoritative), SQL vs PHP choice, no-duplicate-index rule, setup.php reminder
