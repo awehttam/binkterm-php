@@ -306,7 +306,7 @@ The default PTY size is **80 columns × 25 rows**. For doors that benefit from a
 
 Accepted values are `"WxH"` strings (e.g. `"80x25"`, `"132x24"`, `"132x43"`, `"132x50"`) or `"autofit"` to size the canvas to the user's browser window. The PTY is spawned at the configured dimensions and the BBS receives the correct NAWS terminal size at connection time.
 
-> **Note:** `"autofit"` sizes the xterm.js canvas to fill the browser window and sets the initial BBS dimensions accordingly. Mid-session resize (NAWS updates when the user resizes their browser) requires the TelnetAdapter, which is planned for a future release. With the system `telnet` client currently used by PubTerm, the BBS will not adapt to resizes that happen after the initial connection.
+> **Note:** `"autofit"` sizes the xterm.js canvas to fill the browser window and sets the initial BBS dimensions accordingly. Mid-session resize (NAWS updates when the user resizes their browser) is not currently supported — the system `telnet` client used by PubTerm does not forward PTY window-change signals to the BBS. The BBS will start at the correct size but will not adapt if the user resizes their browser mid-session.
 
 The `terminal_size` setting is read from `config/nativedoors.json` (the admin-configurable runtime config) rather than the static `nativedoor.json` manifest, so it can be changed through **Admin → Native Doors** without touching the door files.
 

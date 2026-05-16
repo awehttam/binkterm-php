@@ -89,7 +89,7 @@ The configured size is used for both the xterm.js canvas in the browser and the 
 
 When `terminal_size` is set to `"autofit"`, the xterm.js canvas fills the browser window and the BBS starts at the dimensions that fit the user's current window. This gives users the most screen real estate without any fixed size commitment.
 
-**Current limitation:** mid-session resize — updating the BBS when the user resizes their browser after connecting — requires the TelnetAdapter, which is planned for a future release. With the system `telnet` client currently used by PubTerm, the BBS will not adapt to resizes that happen after the initial connection. The starting size is still correct.
+**Current limitation:** mid-session resize is not supported. The system `telnet` client used by PubTerm does not forward PTY window-change signals to the BBS as NAWS updates, so the BBS will not adapt if the user resizes their browser after connecting. The starting size is still correct.
 
 ---
 
@@ -125,7 +125,7 @@ Guest sessions are launched under the system guest user account. The BBS treats 
 
 When a user resizes their browser window after connecting, the xterm.js canvas updates correctly but the BBS does not receive a new NAWS terminal-size notification. This is because the system `telnet` client does not forward `SIGWINCH` (the PTY window-change signal) to the remote BBS as a NAWS subnegotiation.
 
-The BBS does correctly handle mid-session NAWS when it arrives — the limitation is on the telnet-client side of the chain. A future TelnetAdapter for the multiplexing bridge will connect to the BBS directly over raw TCP and send NAWS updates itself, resolving this.
+The BBS does correctly handle mid-session NAWS when it arrives — the limitation is on the telnet-client side of the chain.
 
 **Workaround:** set `terminal_size` to a fixed size that matches your BBS layout (e.g. `"132x43"`). The BBS will render correctly at that size for all users regardless of their browser window dimensions.
 
