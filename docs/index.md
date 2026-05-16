@@ -143,6 +143,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 Release-specific upgrade notes, listed newest-first. See [UPGRADING_TEMPLATE.md](UPGRADING_TEMPLATE.md) for the document template.
 
+- [Upgrading to 1.9.7](UPGRADING_1.9.7.md)
 - [Upgrading to 1.9.6](UPGRADING_1.9.6.md)
 - [Upgrading to 1.9.5](UPGRADING_1.9.5.md)
 - [Upgrading to 1.9.4](UPGRADING_1.9.4.md)
