@@ -2975,6 +2975,10 @@ class FileAreaManager
      */
     public function storeSharedMessageImage(int $userId, string $tempPath, string $filename, string $shareKey): string
     {
+        if (!preg_match('/^[a-f0-9]{32}$/', $shareKey)) {
+            throw new \InvalidArgumentException('Invalid share key format');
+        }
+
         $fileArea  = $this->getOrCreatePrivateFileArea($userId);
         $areaDir   = $this->getAreaStorageDir($fileArea);
         $sharedDir = $areaDir . '/shared-messages';
