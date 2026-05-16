@@ -4375,7 +4375,10 @@ class MessageHandler
             'message' => $message,
             'share_info' => [
                 'id'            => $share['id'],
+                'share_key'     => $share['share_key'],
                 'ai_og_summary' => $share['ai_og_summary'] ?? null,
+                'og_image_path' => $share['og_image_path'] ?? null,
+                'og_image_slug' => $share['og_image_slug'] ?? null,
                 'shared_by'     => $share['shared_by_real_name'] ?: $share['shared_by_username'],
                 'created_at'    => $share['created_at'],
                 'expires_at'    => $share['expires_at'],
@@ -4539,6 +4542,8 @@ class MessageHandler
                 'is_public'        => $share['is_public'],
                 'access_count'     => $share['access_count'],
                 'last_accessed_at' => $share['last_accessed_at'],
+                'og_image_path'    => $share['og_image_path'] ?? null,
+                'og_image_slug'    => $share['og_image_slug'] ?? null,
                 'top_referrers'    => []
             ];
         }
@@ -4584,6 +4589,88 @@ class MessageHandler
             'error_code' => 'errors.messages.share_revoke_failed',
             'error' => 'Failed to revoke share link'
         ];
+    }
+
+    /**
+     * Upload (or replace) the OG preview image for the caller's share of a message.
+     *
+     * @param  int    $messageId
+     * @param  string $messageType
+     * @param  int    $userId
+     * @param  array  $fileData    Entry from $_FILES (keys: tmp_name, name, size, type)
+     * @return array
+     */
+    public function uploadShareOgImage(int $messageId, string $messageType, int $userId, array $fileData): array
+    {
+        $share = $this->getExistingShare($messageId, $messageType, $userId);
+        if (!$share) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.messages.shared.not_found',
+                'error'      => 'Share not found',
+            ];
+        }
+
+        $maxBytes = 5 * 1024 * 1024;
+        if ((int)$fileData['size'] > $maxBytes) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.messages.share.image_too_large',
+                'error'      => 'Image must be 5 MB or smaller',
+            ];
+        }
+
+        $mimeType = mime_content_type($fileData['tmp_name']);
+        if (!str_starts_with($mimeType, 'image/')) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.messages.share.image_invalid_type',
+                'error'      => 'Only image files are allowed',
+            ];
+        }
+
+        // Remove the old image if one already exists
+        if (!empty($share['og_image_path'])) {
+            (new \BinktermPHP\FileAreaManager())->deleteSharedMessageImage($share['og_image_path']);
+        }
+
+        $manager   = new \BinktermPHP\FileAreaManager();
+        $imagePath = $manager->storeSharedMessageImage($userId, $fileData['tmp_name'], $fileData['name'], $share['share_key']);
+        $imageSlug = basename($imagePath);
+
+        $stmt = $this->db->prepare("UPDATE shared_messages SET og_image_path = ?, og_image_slug = ? WHERE share_key = ?");
+        $stmt->execute([$imagePath, $imageSlug, $share['share_key']]);
+
+        return ['success' => true, 'share_key' => $share['share_key'], 'og_image_slug' => $imageSlug];
+    }
+
+    /**
+     * Remove the OG preview image from the caller's share of a message.
+     *
+     * @param  int    $messageId
+     * @param  string $messageType
+     * @param  int    $userId
+     * @return array
+     */
+    public function deleteShareOgImage(int $messageId, string $messageType, int $userId): array
+    {
+        $share = $this->getExistingShare($messageId, $messageType, $userId);
+        if (!$share) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.messages.shared.not_found',
+                'error'      => 'Share not found',
+            ];
+        }
+
+        if (!empty($share['og_image_path'])) {
+            (new \BinktermPHP\FileAreaManager())->deleteSharedMessageImage($share['og_image_path']);
+        }
+
+        $stmt = $this->db->prepare("UPDATE shared_messages SET og_image_path = NULL, og_image_slug = NULL WHERE share_key = ?");
+        $stmt->execute([$share['share_key']]);
+
+        return ['success' => true];
     }
 
     /**

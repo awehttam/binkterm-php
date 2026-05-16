@@ -2881,6 +2881,7 @@ class FileAreaManager
     public static function slugifyMarkdownImageFilename(string $filename, string $hash): string
     {
         $base = pathinfo($filename, PATHINFO_FILENAME);
+        $ext  = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
         $slug = strtolower($base);
         $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
@@ -2891,7 +2892,9 @@ class FileAreaManager
             $slug = 'image';
         }
 
-        return $slug . '-' . substr($hash, 0, 12);
+        $slug = $slug . '-' . substr($hash, 0, 12);
+
+        return $ext !== '' ? $slug . '.' . $ext : $slug;
     }
 
     /**
@@ -2954,6 +2957,56 @@ class FileAreaManager
         $this->updateFileAreaStats($fileArea['id']);
 
         return ['hash' => $fileHash, 'url_slug' => $urlSlug, 'file_id' => $fileId];
+    }
+
+    /**
+     * Store an OG preview image for a shared message link.
+     *
+     * The image is placed in the user's private file area under the
+     * `shared-messages/` subfolder, named after the share key so that
+     * the public serve route can look it up without a DB join.
+     *
+     * @param  int    $userId
+     * @param  string $tempPath  Path to the validated uploaded temp file
+     * @param  string $filename  Original filename (used for extension only)
+     * @param  string $shareKey  32-char hex share key
+     * @return string            Absolute storage path of the saved file
+     * @throws \Exception
+     */
+    public function storeSharedMessageImage(int $userId, string $tempPath, string $filename, string $shareKey): string
+    {
+        $fileArea  = $this->getOrCreatePrivateFileArea($userId);
+        $areaDir   = $this->getAreaStorageDir($fileArea);
+        $sharedDir = $areaDir . '/shared-messages';
+        self::ensureDirectoryExists($sharedDir);
+
+        $ext         = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $storageName = $shareKey . ($ext !== '' ? '.' . $ext : '');
+        $storagePath = $sharedDir . '/' . $storageName;
+
+        // Remove any pre-existing image for this share key (different extension)
+        foreach (glob($sharedDir . '/' . $shareKey . '.*') as $old) {
+            @unlink($old);
+        }
+
+        if (!copy($tempPath, $storagePath)) {
+            throw new \Exception('Failed to store shared-message OG image');
+        }
+        chmod($storagePath, 0664);
+
+        return realpath($storagePath);
+    }
+
+    /**
+     * Delete an OG preview image stored for a shared message.
+     *
+     * @param  string $imagePath  Absolute path as stored in shared_messages.og_image_path
+     */
+    public function deleteSharedMessageImage(string $imagePath): void
+    {
+        if ($imagePath !== '' && file_exists($imagePath)) {
+            @unlink($imagePath);
+        }
     }
 
     /**

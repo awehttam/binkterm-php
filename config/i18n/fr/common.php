@@ -3098,7 +3098,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.compose.markup_format_help' => 'Envoyer avec mise en forme. Markdown et StyleCodes sont pris en charge sur les réseaux compatibles.',
     'ui.compose.charset' => 'Encodage',
     'ui.compose.charset_help' => 'Encodage de caractères pour le paquet sortant. Utilisez CP437 pour les systèmes FTN hérités qui ne prennent pas en charge UTF-8.',
-    'ui.compose.insert_file' => 'Insérer un fichier',
+    'ui.compose.insert_file'  => 'Insérer un fichier',
+    'ui.compose.insert_image' => 'Ajouter une image',
     'ui.compose.hide_panel' => 'Masquer le panneau',
     'ui.compose.show_panel' => 'Afficher le panneau',
     'ui.compose.netmail_guidelines' => 'Consignes Netmail :',
@@ -4672,6 +4673,16 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.share.description_placeholder' => 'Facultatif — decrivez ce message',
     'ui.share.ai_summary_button_title' => 'Generer un resume IA',
     'ui.share.ai_summary_failed'       => 'Impossible de generer un resume. Veuillez reessayer.',
+
+    // Share modal - OG preview image
+    'ui.share.og_image_label'          => 'Image d\'apercu',
+    'ui.share.og_image_help'           => 'Importez une image pour enrichir les apercu sur les reseaux sociaux (JPG, PNG, GIF ; 5 Mo max)',
+    'ui.share.og_image_upload_btn'     => 'Importer une image',
+    'ui.share.og_image_remove_btn'     => 'Supprimer l\'image',
+    'ui.share.og_image_uploading'      => 'Importation...',
+    'ui.share.og_image_no_file'        => 'Veuillez d\'abord selectionner un fichier image.',
+    'ui.share.og_image_upload_success' => 'Image d\'apercu mise a jour',
+    'ui.share.og_image_remove_success' => 'Image d\'apercu supprimee',
 
     // AI Assistant (echomail + netmail readers)
     'ui.ai_assistant.button'             => 'Assistant IA',

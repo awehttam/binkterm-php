@@ -3378,6 +3378,11 @@ function showShareDialog(messageId) {
                 const lastAccessed = share.last_accessed_at ? new Date(share.last_accessed_at).toLocaleString(userDateFormat) : 'Never';
                 $('#shareAccessText').text(`Accessed ${accessCount} time${accessCount !== 1 ? 's' : ''}. Last accessed: ${lastAccessed}`);
                 $('#shareAccessInfo').show();
+
+                // Populate OG image preview if one exists
+                if (share.og_image_slug) {
+                    populateShareOgImage(window.location.origin + '/shared-image/' + share.og_image_slug);
+                }
             }
 
             $('#shareModal').modal('show');
@@ -3416,6 +3421,7 @@ function createShare() {
                 $('#shareResult').removeClass('d-none');
                 $('#createShareBtn').addClass('d-none');
                 $('#revokeShareBtn').removeClass('d-none');
+                populateShareOgImage(null);
 
                 if (data.existing) {
                     showSuccess(uiT('ui.echomail.shares.using_existing', 'Using existing share link'));
@@ -3576,11 +3582,100 @@ function fallbackCopyTextToClipboard(text) {
     document.body.removeChild(textArea);
 }
 
+function populateShareOgImage(ogImageUrl) {
+    if (ogImageUrl) {
+        $('#shareOgImageThumb').attr('src', ogImageUrl + '?t=' + Date.now());
+        $('#shareOgImagePreview').removeClass('d-none');
+        $('#shareOgImageUploadControls').addClass('d-none');
+        $('#shareOgImageRemoveControls').removeClass('d-none');
+    } else {
+        $('#shareOgImageThumb').attr('src', '');
+        $('#shareOgImagePreview').addClass('d-none');
+        $('#shareOgImageUploadControls').removeClass('d-none');
+        $('#shareOgImageInput').val('');
+        $('#shareOgImageRemoveControls').addClass('d-none');
+    }
+}
+
+function uploadShareOgImage() {
+    const file = $('#shareOgImageInput')[0].files[0];
+    if (!file) {
+        showError(uiT('ui.share.og_image_no_file', 'Please select an image file first.'));
+        return;
+    }
+
+    const btn = $('#shareOgImageUploadBtn');
+    const originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>' + uiT('ui.share.og_image_uploading', 'Uploading...'));
+    $('#shareOgImageInput').prop('disabled', true);
+    $('#shareOgImageRemoveBtn').prop('disabled', true);
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    $.ajax({
+        url: `/api/messages/echomail/${currentMessageId}/share/image`,
+        method: 'POST',
+        data: formData,
+        contentType: false,
+        processData: false,
+        success: function(data) {
+            if (data.success) {
+                const ogUrl = window.location.origin + '/shared-image/' + data.og_image_slug;
+                populateShareOgImage(ogUrl);
+                $('#shareOgImageInput').val('');
+                showSuccess(uiT('ui.share.og_image_upload_success', 'Preview image updated'));
+            } else {
+                showError(getApiErrorMessage(data, uiT('errors.messages.share.image_upload_failed', 'Failed to upload preview image')));
+            }
+        },
+        error: function(xhr) {
+            let payload = {};
+            try { payload = JSON.parse(xhr.responseText); } catch (e) {}
+            showError(getApiErrorMessage(payload, uiT('errors.messages.share.image_upload_failed', 'Failed to upload preview image')));
+        },
+        complete: function() {
+            btn.prop('disabled', false).html(originalHtml);
+            $('#shareOgImageInput').prop('disabled', false);
+            $('#shareOgImageRemoveBtn').prop('disabled', false);
+        }
+    });
+}
+
+function removeShareOgImage() {
+    const btn = $('#shareOgImageRemoveBtn');
+    const originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+    $.ajax({
+        url: `/api/messages/echomail/${currentMessageId}/share/image`,
+        method: 'DELETE',
+        success: function(data) {
+            if (data.success) {
+                populateShareOgImage(null);
+                showSuccess(uiT('ui.share.og_image_remove_success', 'Preview image removed'));
+            } else {
+                showError(getApiErrorMessage(data, uiT('errors.messages.share.image_remove_failed', 'Failed to remove preview image')));
+                btn.prop('disabled', false).html(originalHtml);
+            }
+        },
+        error: function(xhr) {
+            let payload = {};
+            try { payload = JSON.parse(xhr.responseText); } catch (e) {}
+            showError(getApiErrorMessage(payload, uiT('errors.messages.share.image_remove_failed', 'Failed to remove preview image')));
+            btn.prop('disabled', false).html(originalHtml);
+        }
+    });
+}
+
 // Event handlers for share modal
 $(document).ready(function() {
     $('#createShareBtn').on('click', createShare);
     $('#friendlyUrlBtn').on('click', generateFriendlyUrl);
     $('#revokeShareBtn').on('click', revokeShare);
+
+    $('#shareOgImageUploadBtn').on('click', uploadShareOgImage);
+    $('#shareOgImageRemoveBtn').on('click', removeShareOgImage);
 
     // Reset modal when closed
     $('#shareModal').on('hidden.bs.modal', function() {
@@ -3589,6 +3684,8 @@ $(document).ready(function() {
         $('#createShareBtn').removeClass('d-none');
         $('#friendlyUrlBtn').addClass('d-none').prop('disabled', false).html('<i class="fas fa-link"></i> Get Friendly URL');
         $('#revokeShareBtn').addClass('d-none');
+        $('#shareOgImageInput').val('');
+        populateShareOgImage(null);
     });
 });
 

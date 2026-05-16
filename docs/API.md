@@ -3865,6 +3865,8 @@ Marks a device command as executed. The bridge calls this after dispatching the 
 | `GET` | [`/api/messages/echomail/{id}/shares`](#get-apimessagesechomailidshares) | Yes | List share links for an echomail message. |
 | `DELETE` | [`/api/messages/echomail/{id}/share`](#delete-apimessagesechomailidshare) | Yes | Revoke a shared echomail message link. |
 | `POST` | [`/api/messages/echomail/{id}/share/friendly-url`](#post-apimessagesechomailidsharefriendly-url) | Yes | Generate a friendly URL slug for an existing message share. |
+| `POST` | [`/api/messages/echomail/{id}/share/image`](#post-apimessagesechomailidsharimage) | Yes | Upload an OG preview image for an existing message share. |
+| `DELETE` | [`/api/messages/echomail/{id}/share/image`](#delete-apimessagesechomailidsharimage) | Yes | Remove the OG preview image from an existing message share. |
 | `POST` | [`/api/messages/echomail/{id}/share-summary`](#post-apimessagesechomailidshare-summary) | Yes | Generate an AI summary for a shared echomail message. |
 | `GET` | [`/api/messages/shared/{area}/{slug}`](#get-apimessagessharedareaslug) | Yes | Retrieve a shared echomail message by friendly URL slug. |
 | `GET` | [`/api/messages/shared/{shareKey}`](#get-apimessagessharedsharekey) | Yes | Retrieve a shared message by share key. |
@@ -5167,6 +5169,69 @@ Slug generation result
 |--------|-------------|
 | 404 | Message or share not found |
 | 500 | Cannot generate share slug for this message |
+
+---
+
+#### `POST /api/messages/echomail/{id}/share/image`
+
+**Requires authentication**
+
+Uploads an image to use as the Open Graph preview (`og:image`) for an existing message share. The image is stored in the sharer's private file area under `shared-messages/`. Accepts a multipart form upload with field name `image`. Replaces any previously uploaded image for the same share.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | The echomail message ID whose share receives the image |
+
+**Request** _(multipart/form-data)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `image` | file | Image file (JPG, PNG, GIF, etc.); maximum 5 MB |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | `true` on success |
+| `share_key` | string | 32-char hex share key |
+| `og_image_slug` | string | Filename slug including extension (e.g. `abc123….jpg`); use with `/shared-image/{og_image_slug}` |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | No file uploaded, invalid MIME type, or file too large |
+| 404 | Share not found |
+| 500 | Server error storing the image |
+
+---
+
+#### `DELETE /api/messages/echomail/{id}/share/image`
+
+**Requires authentication**
+
+Removes the Open Graph preview image from an existing message share and deletes the stored file.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | The echomail message ID whose share image is removed |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | `true` on success |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 404 | Share not found |
+| 500 | Server error removing the image |
 
 ---
 

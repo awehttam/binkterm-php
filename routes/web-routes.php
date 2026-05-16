@@ -616,6 +616,33 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     ]);
 })->where(['echoarea' => "[-A-Za-z0-9@._'!%]+"]);
 
+SimpleRouter::get('/shared-image/{slug}', function($slug) {
+    // Public, no-auth route used by social media crawlers to fetch og:image previews.
+    // The slug is the stored filename including extension (e.g. abc123def....jpg),
+    // looked up directly — no extraction needed.
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    $stmt = $db->prepare("
+        SELECT og_image_path FROM shared_messages
+        WHERE og_image_slug = ? AND is_active = TRUE
+          AND (expires_at IS NULL OR expires_at > NOW())
+    ");
+    $stmt->execute([$slug]);
+    $row = $stmt->fetch();
+
+    if (!$row || empty($row['og_image_path']) || !file_exists($row['og_image_path'])) {
+        http_response_code(404);
+        exit;
+    }
+
+    $path = $row['og_image_path'];
+    $mime = mime_content_type($path) ?: 'application/octet-stream';
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . filesize($path));
+    header('Cache-Control: public, max-age=86400');
+    readfile($path);
+    exit;
+})->where(['slug' => '[a-f0-9]{32}\.[a-zA-Z0-9]+']);
+
 SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
     $auth   = new Auth();
     $user   = $auth->getCurrentUser();
@@ -632,13 +659,17 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
         if ($result['success']) {
             $messageData = $result['message'];
             $shareInfo   = $result['share_info'];
-            $shareKey    = $result['share_key'] ?? null;
+            $shareKey    = $result['share_key'] ?? ($shareInfo['share_key'] ?? null);
         }
     } catch (Exception $e) {
         // JavaScript will handle showing the error to the user
     }
 
-    $shareUrl = \BinktermPHP\Config::getSiteUrl() . '/shared/' . rawurlencode($area) . '/' . rawurlencode($slug);
+    $shareUrl   = \BinktermPHP\Config::getSiteUrl() . '/shared/' . rawurlencode($area) . '/' . rawurlencode($slug);
+    $ogImageUrl = null;
+    if (!empty($shareInfo['og_image_slug'])) {
+        $ogImageUrl = \BinktermPHP\Config::getSiteUrl() . '/shared-image/' . rawurlencode($shareInfo['og_image_slug']);
+    }
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
@@ -649,6 +680,7 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
         'share_info'    => $shareInfo,
         'share_url'     => $shareUrl,
         'ai_og_summary' => $shareInfo['ai_og_summary'] ?? null,
+        'og_image_url'  => $ogImageUrl,
     ]);
 })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
 
@@ -676,7 +708,11 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     }
 
     // Build the full share URL for meta tags
-    $shareUrl = \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
+    $shareUrl   = \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
+    $ogImageUrl = null;
+    if (!empty($shareInfo['og_image_slug'])) {
+        $ogImageUrl = \BinktermPHP\Config::getSiteUrl() . '/shared-image/' . rawurlencode($shareInfo['og_image_slug']);
+    }
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
@@ -685,6 +721,7 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
         'share_info'    => $shareInfo,
         'share_url'     => $shareUrl,
         'ai_og_summary' => $shareInfo['ai_og_summary'] ?? null,
+        'og_image_url'  => $ogImageUrl,
     ]);
 })->where(['shareKey' => '[a-f0-9]{32}']);
 
@@ -1973,7 +2010,7 @@ SimpleRouter::get('/echomail-images/{username}/{slug}', function(string $usernam
     }
 
     serveMarkdownImage($file);
-})->where(['username' => '[\w ]+']); // [\w ]+ allows spaces: default [\w-]+ rejects decoded spaces in path
+})->where(['username' => '[\w ]+', 'slug' => '[\w.-]+']); // slug allows dots for file extensions; username allows spaces
 
 // Legacy route: serve by SHA-256 hash for URLs embedded in older posts.
 SimpleRouter::get('/echomail-images/{hash}', function(string $hash) {

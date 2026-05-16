@@ -3815,7 +3815,8 @@ return [
     'ui.compose.markup_format_help' => 'Enviar con formato de marcado. Markdown y StyleCodes son compatibles en redes compatibles.',
     'ui.compose.charset' => 'Codificación',
     'ui.compose.charset_help' => 'Codificación de caracteres para el paquete saliente. Use CP437 para sistemas FTN heredados que no admiten UTF-8.',
-    'ui.compose.insert_file' => 'Insertar archivo',
+    'ui.compose.insert_file'  => 'Insertar archivo',
+    'ui.compose.insert_image' => 'Agregar imagen',
     'ui.compose.hide_panel' => 'Ocultar panel',
     'ui.compose.show_panel' => 'Mostrar panel',
     'ui.compose.netmail_guidelines' => 'Guia de Netmail:',
@@ -4766,6 +4767,16 @@ return [
     'ui.share.description_placeholder' => 'Opcional — describe de que trata este mensaje',
     'ui.share.ai_summary_button_title' => 'Generar resumen con IA',
     'ui.share.ai_summary_failed'       => 'No se pudo generar un resumen. Por favor, intentalo de nuevo.',
+
+    // Share modal - OG preview image
+    'ui.share.og_image_label'          => 'Imagen de vista previa',
+    'ui.share.og_image_help'           => 'Sube una imagen para enriquecer las vistas previas en redes sociales (JPG, PNG, GIF; max. 5 MB)',
+    'ui.share.og_image_upload_btn'     => 'Subir imagen',
+    'ui.share.og_image_remove_btn'     => 'Eliminar imagen',
+    'ui.share.og_image_uploading'      => 'Subiendo...',
+    'ui.share.og_image_no_file'        => 'Por favor, selecciona primero un archivo de imagen.',
+    'ui.share.og_image_upload_success' => 'Imagen de vista previa actualizada',
+    'ui.share.og_image_remove_success' => 'Imagen de vista previa eliminada',
 
     // AI Assistant (echomail + netmail readers)
     'ui.ai_assistant.button'             => 'Asistente IA',

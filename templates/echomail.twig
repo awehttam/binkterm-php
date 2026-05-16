@@ -629,6 +629,25 @@
                         <i class="fas fa-check-circle me-2"></i>
                         {{ t('ui.echomail.share_link_created_success', {}, locale, ['common']) }}
                     </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">{{ t('ui.share.og_image_label', {}, locale, ['common']) }}</label>
+                        <div class="form-text text-muted mb-2">{{ t('ui.share.og_image_help', {}, locale, ['common']) }}</div>
+                        <div id="shareOgImagePreview" class="mb-2 d-none">
+                            <img id="shareOgImageThumb" src="" alt="Preview" class="img-thumbnail" style="max-height:120px;">
+                        </div>
+                        <div id="shareOgImageUploadControls" class="d-flex gap-2 align-items-center flex-wrap">
+                            <input type="file" id="shareOgImageInput" accept="image/*" class="form-control form-control-sm" style="max-width:220px;">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="shareOgImageUploadBtn">
+                                <i class="fas fa-upload me-1"></i>{{ t('ui.share.og_image_upload_btn', {}, locale, ['common']) }}
+                            </button>
+                        </div>
+                        <div id="shareOgImageRemoveControls" class="d-none">
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="shareOgImageRemoveBtn">
+                                <i class="fas fa-trash me-1"></i>{{ t('ui.share.og_image_remove_btn', {}, locale, ['common']) }}
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="shareError" class="d-none">

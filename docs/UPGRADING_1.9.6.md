@@ -70,6 +70,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The dashboard now includes a **New Echoareas** summary section listing echoareas that are available to subscribe to but haven't been subscribed to yet. The section can be collapsed and its state is remembered between page loads.
 - The subscriptions page now shows a **New** badge beside echoareas that were recently added to the system, making it easier to discover areas added since the last visit.
 - The subscriptions list now supports sorting by name, unread count, last-activity date, or subscription date.
+- The plaintext echomail composer now has an **Insert Image** toolbar button (above the text area, matching the position of the Markdown toolbar). Clicking it prompts for an image file upload; once uploaded, the image URL is inserted at the cursor position so the image appears inline in the message body.
 
 ### Shared Pages
 
@@ -77,6 +78,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Applied the same metadata override pattern to shared file pages so file shares also emit a single page-specific `og:description` value.
 - The echomail share dialog now displays any existing share links for the same message, including links created by other users. Each link shows the sharer's username and a one-click copy button, so users can copy an existing link without creating a duplicate.
 - The sharing icon in the echomail message list now appears whenever any user has an active share for a message, not just the currently logged-in user.
+- Users can now upload a custom preview image when creating a shared echomail link. The image is stored in the sharer's private file area and served at a dedicated URL that includes the file extension, so social platforms and messaging apps that infer image format from the URL can display it correctly. The image appears as the `og:image` and `twitter:image` meta tags on the shared page.
 
 ### Sharing Analytics
 
@@ -293,6 +295,10 @@ The subscriptions page (accessible from the navigation menu) now shows a **New**
 
 The subscriptions list now supports sorting by multiple criteria — echoarea name, unread message count, date of last activity, and subscription date. The sort preference is preserved for the session.
 
+### Insert Image in Plaintext Compose
+
+The plaintext echomail composer now has a small toolbar above the text area containing an **Insert Image** button (camera icon). This matches the position of the Markdown editor toolbar so the controls are consistent regardless of compose mode. Clicking the button opens a file picker; after the user selects an image file it is uploaded via the existing markdown-images endpoint and the returned URL is inserted at the current cursor position in the message body. The button is hidden automatically when the StyleCodes editor is active, which has its own toolbar.
+
 ---
 
 ## Shared Pages
@@ -308,6 +314,21 @@ The same override structure is also applied to shared file pages. Shared files c
 The echomail share dialog now queries for existing active share links on the same message before displaying the creation form. If other users have already shared the message, their links are listed above the form, each with the sharer's username and a copy button. This prevents accidental duplicate shares and lets anyone quickly reuse an existing public link.
 
 The sharing icon shown beside messages in the echomail message list has also been updated. Previously the icon only appeared when the currently logged-in user had an active share for that message. It now appears whenever any user on the system has an active share, giving readers a clearer signal that the message is publicly accessible.
+
+### OG Preview Image Upload
+
+The share dialog now includes an image upload section below the share link. When a sharer uploads an image, it is stored in a `shared-messages/` subfolder of their private file area and associated with the share record. The shared message page then includes `og:image` and `twitter:image` meta tags pointing to a public serve URL that includes the original file extension (for example `/shared-image/abc123….jpg`). Social platforms and messaging clients that infer image type from the URL extension will display the image correctly in their link previews.
+
+Each share can hold one image at a time. Uploading a new image replaces the previous one. The upload form is hidden when an image is already present, replaced by a thumbnail preview and a Remove button. Images must be 5 MB or smaller.
+
+Two new database columns are added to `shared_messages`:
+
+| Column | Purpose |
+|--------|---------|
+| `og_image_path` | Absolute filesystem path to the stored image file |
+| `og_image_slug` | Filename with extension (e.g. `abc123….jpg`), used as the serve URL parameter |
+
+These are added by the migrations applied automatically when you run `php scripts/setup.php`.
 
 ## Sharing Analytics
 
