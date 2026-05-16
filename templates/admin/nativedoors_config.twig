@@ -103,6 +103,17 @@
                             <td class="text-nowrap"><code>guest_max_sessions</code></td>
                             <td>Maximum concurrent guest sessions for this door (default: 2). Only applies when <code>allow_anonymous</code> is true.</td>
                         </tr>
+                        <tr>
+                            <td class="text-nowrap"><code>terminal_size</code></td>
+                            <td>
+                                Canvas and initial BBS terminal dimensions for PubTerm. Preset values:
+                                <code>80x25</code>, <code>132x24</code>, <code>132x43</code>, <code>132x50</code>.
+                                Set to <code>autofit</code> to size the canvas to the user's browser window.
+                                Defaults to <code>80x25</code> if not set.
+                                Note: mid-session resize requires the TelnetAdapter (planned); with <code>autofit</code>
+                                the BBS will start at the correct size but will not adapt if the user resizes their browser mid-session.
+                            </td>
+                        </tr>
                     </table>
                 </div>
             </div>

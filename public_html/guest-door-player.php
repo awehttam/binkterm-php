@@ -165,6 +165,7 @@ if (empty($doorId)) {
         let term = null;
         let fitAddon = null;
         let socket = null;
+        let doAutofit = false;
         let sessionId = null;
         const doorId = <?php echo json_encode($doorId); ?>;
 
@@ -203,7 +204,7 @@ if (empty($doorId)) {
             fitAddon = new FitAddon.FitAddon();
             term.loadAddon(fitAddon);
             term.open(container);
-            fitAddon.fit();
+            // Sizing is deferred to applyTerminalSize() once the session config is known
 
             term.onResize(({ cols, rows }) => {
                 if (socket && socket.readyState === WebSocket.OPEN) {
@@ -313,6 +314,8 @@ if (empty($doorId)) {
                         document.title = session.door_name + ' - Guest';
                     }
 
+                    applyTerminalSize(session);
+
                     term.clear();
                     updateStatus('Connecting...', 'connecting');
                     term.writeln('\x1b[1;33mConnecting to ' + session.door_name + '...\x1b[0m');
@@ -369,8 +372,8 @@ if (empty($doorId)) {
             if (!core || !core._renderService || !core._renderService.dimensions) return;
             const dims = core._renderService.dimensions.css;
             if (!dims || !dims.cell) return;
-            const width = Math.ceil(dims.cell.width * TERM_COLS);
-            const height = Math.ceil(dims.cell.height * TERM_ROWS);
+            const width = Math.ceil(dims.cell.width * term.cols);
+            const height = Math.ceil(dims.cell.height * term.rows);
             term.element.style.width = width + 'px';
             term.element.style.height = height + 'px';
         }
@@ -380,6 +383,18 @@ if (empty($doorId)) {
                 window.requestAnimationFrame(setFixedTerminalSize);
             } else {
                 setFixedTerminalSize();
+            }
+        }
+
+        function applyTerminalSize(session) {
+            doAutofit = session.autofit || false;
+            if (doAutofit) {
+                fitAddon.fit();
+            } else {
+                const cols = session.terminal_cols || 80;
+                const rows = session.terminal_rows || 25;
+                term.resize(cols, rows);
+                scheduleFixedTerminalSize();
             }
         }
 
@@ -395,7 +410,11 @@ if (empty($doorId)) {
         });
 
         window.addEventListener('resize', () => {
-            if (fitAddon) fitAddon.fit();
+            if (doAutofit && fitAddon) {
+                fitAddon.fit();
+            } else {
+                scheduleFixedTerminalSize();
+            }
         });
 
         document.getElementById('leaveBtn').addEventListener('click', leave);

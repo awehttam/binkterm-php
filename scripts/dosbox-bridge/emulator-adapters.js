@@ -677,10 +677,27 @@ class NativeAdapter extends EmulatorAdapter {
 
         slog.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir} (output_encoding=${this.outputEncoding})`);
 
+        // Read terminal size from admin config (config/nativedoors.json)
+        let initCols = 80, initRows = 25;
+        const doorConfigPath = path.join(this.basePath, 'config', 'nativedoors.json');
+        try {
+            if (fs.existsSync(doorConfigPath)) {
+                const doorConfigs = JSON.parse(fs.readFileSync(doorConfigPath, 'utf8'));
+                const doorCfg = doorConfigs[door_id] || {};
+                const sizeStr = doorCfg.terminal_size || '80x25';
+                if (sizeStr !== 'autofit') {
+                    const sizeParts = sizeStr.split('x').map(Number);
+                    if (sizeParts[0] > 0) initCols = Math.max(20, Math.min(500, sizeParts[0]));
+                    if (sizeParts[1] > 0) initRows = Math.max(5,  Math.min(200, sizeParts[1]));
+                }
+            }
+        } catch (_) {}
+        slog.log(`[${this.getName()}] Spawning pty at ${initCols}x${initRows}`);
+
         this.ptyProcess = pty.spawn(cmd, args, {
             name: 'xterm-256color',
-            cols: 80,
-            rows: 25,
+            cols: initCols,
+            rows: initRows,
             cwd: doorDir,
             // node-pty on Windows (conpty) does not support encoding — omit it
             ...(isWindows ? {} : { encoding: ptyEncoding }),
