@@ -960,6 +960,24 @@ class SessionManager {
             try {
                 const dataStr = data.toString('utf8');
 
+                // Intercept JSON control messages (e.g. terminal resize) before forwarding bytes
+                if (dataStr.charCodeAt(0) === 0x7B) {
+                    try {
+                        const msg = JSON.parse(dataStr);
+                        if (msg.type === 'resize') {
+                            if (session.emulator) {
+                                const cols = Math.max(20, Math.min(500, parseInt(msg.cols) || 80));
+                                const rows = Math.max(5,  Math.min(200, parseInt(msg.rows) || 25));
+                                session.slog.log(`[RESIZE] Received resize: ${cols}x${rows}`);
+                                session.emulator.resize(cols, rows);
+                            } else {
+                                session.slog.log(`[RESIZE] Received resize but emulator not ready`);
+                            }
+                            return;
+                        }
+                    } catch (_) {}
+                }
+
                 // DOSBox: encode UTF-8 input to CP437 for the emulator
                 // Native (cp437): encode UTF-8 input to CP437 for the door
                 // DOSEMU / Native (utf8): pass through as UTF-8

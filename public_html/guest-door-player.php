@@ -167,11 +167,12 @@ if (empty($doorId)) {
     <div id="terminal-container"></div>
 
     <script src="/webdoors/terminal/assets/xterm.js"></script>
+    <script src="/js/xterm-addon-fit.js"></script>
     <script>
         let term = null;
-        const TERM_COLS = 80;
-        const TERM_ROWS = 25;
+        let fitAddon = null;
         let socket = null;
+        let doAutofit = false;
         let sessionId = null;
         const doorId = <?php echo json_encode($doorId); ?>;
 
@@ -180,8 +181,6 @@ if (empty($doorId)) {
 
             term = new Terminal({
                 cursorBlink: true,
-                cols: TERM_COLS,
-                rows: TERM_ROWS,
                 fontSize: 16,
                 fontFamily: 'Courier New, monospace',
                 scrollback: 0,
@@ -209,9 +208,16 @@ if (empty($doorId)) {
                 convertEol: false
             });
 
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
             term.open(container);
-            term.resize(TERM_COLS, TERM_ROWS);
-            scheduleFixedTerminalSize();
+            // Sizing is deferred to applyTerminalSize() once the session config is known
+
+            term.onResize(({ cols, rows }) => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ type: 'resize', cols, rows }));
+                }
+            });
 
             term.onData((data) => {
                 // Remap DEL (0x7f) to Backspace (0x08) for DOS compatibility
@@ -266,9 +272,6 @@ if (empty($doorId)) {
                 return true;
             });
 
-            term.onRender(() => {
-                scheduleFixedTerminalSize();
-            });
         }
 
         function updateStatus(message, state) {
@@ -318,6 +321,8 @@ if (empty($doorId)) {
                         document.title = session.door_name + ' - Guest';
                     }
 
+                    applyTerminalSize(session);
+
                     term.clear();
                     updateStatus('Connecting...', 'connecting');
                     term.writeln('\x1b[1;33mConnecting to ' + session.door_name + '...\x1b[0m');
@@ -328,6 +333,7 @@ if (empty($doorId)) {
 
                     socket.onopen = () => {
                         updateStatus('Connected', 'connected');
+                        socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
                         term.writeln('\x1b[1;32mConnected!\x1b[0m');
                         term.writeln('');
                         term.focus();
@@ -373,8 +379,8 @@ if (empty($doorId)) {
             if (!core || !core._renderService || !core._renderService.dimensions) return;
             const dims = core._renderService.dimensions.css;
             if (!dims || !dims.cell) return;
-            const width = Math.ceil(dims.cell.width * TERM_COLS);
-            const height = Math.ceil(dims.cell.height * TERM_ROWS);
+            const width = Math.ceil(dims.cell.width * term.cols);
+            const height = Math.ceil(dims.cell.height * term.rows);
             term.element.style.width = width + 'px';
             term.element.style.height = height + 'px';
         }
@@ -384,6 +390,18 @@ if (empty($doorId)) {
                 window.requestAnimationFrame(setFixedTerminalSize);
             } else {
                 setFixedTerminalSize();
+            }
+        }
+
+        function applyTerminalSize(session) {
+            doAutofit = session.autofit || false;
+            if (doAutofit) {
+                fitAddon.fit();
+            } else {
+                const cols = session.terminal_cols || 80;
+                const rows = session.terminal_rows || 25;
+                term.resize(cols, rows);
+                scheduleFixedTerminalSize();
             }
         }
 
@@ -399,7 +417,11 @@ if (empty($doorId)) {
         });
 
         window.addEventListener('resize', () => {
-            scheduleFixedTerminalSize();
+            if (doAutofit && fitAddon) {
+                fitAddon.fit();
+            } else {
+                scheduleFixedTerminalSize();
+            }
         });
 
         document.getElementById('leaveBtn').addEventListener('click', leave);

@@ -385,15 +385,20 @@ SimpleRouter::post('/api/door/guest/launch', function() {
             $wsUrl = "{$protocol}://{$host}:{$session['ws_port']}";
         }
 
+        $termConfig = \BinktermPHP\NativeDoorConfig::getTerminalConfig($doorName);
+
         echo json_encode([
             'success' => true,
             'session' => [
-                'session_id' => $session['session_id'],
-                'door_name'  => $session['door_name'],
-                'node'       => $session['node'],
-                'ws_port'    => $session['ws_port'],
-                'ws_token'   => $session['ws_token'],
-                'ws_url'     => $wsUrl,
+                'session_id'    => $session['session_id'],
+                'door_name'     => $session['door_name'],
+                'node'          => $session['node'],
+                'ws_port'       => $session['ws_port'],
+                'ws_token'      => $session['ws_token'],
+                'ws_url'        => $wsUrl,
+                'terminal_cols' => $termConfig['cols'],
+                'terminal_rows' => $termConfig['rows'],
+                'autofit'       => $termConfig['autofit'],
             ],
         ]);
 

@@ -206,6 +206,31 @@ class NativeDoorConfig
     }
 
     /**
+     * Get terminal size configuration for a door.
+     *
+     * Reads the `terminal_size` key from the door's config entry. Accepted values:
+     *   - "WxH"    — fixed size, e.g. "132x43" (cols x rows)
+     *   - "autofit" — size the xterm.js canvas to the user's browser window
+     *
+     * @param string $doorId Door identifier
+     * @return array{cols: int, rows: int, autofit: bool}
+     */
+    public static function getTerminalConfig(string $doorId): array
+    {
+        self::load();
+        $size = self::$config[$doorId]['terminal_size'] ?? '80x25';
+
+        if ($size === 'autofit') {
+            return ['cols' => 80, 'rows' => 25, 'autofit' => true];
+        }
+
+        $parts = explode('x', strtolower($size));
+        $cols  = max(20, min(500, (int)($parts[0] ?? 80)));
+        $rows  = max(5,  min(200, (int)($parts[1] ?? 25)));
+        return ['cols' => $cols, 'rows' => $rows, 'autofit' => false];
+    }
+
+    /**
      * Force reload configuration from disk
      */
     public static function reload(): void

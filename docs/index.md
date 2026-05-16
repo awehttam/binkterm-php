@@ -64,6 +64,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 - [Doors Overview](Doors.md) — Overview of door types and how to install them
 - [DOS Doors](DOSDoors.md) — Running classic DOS door games
 - [Native Doors](NativeDoors.md) — Native Linux/Unix door games
+- [PubTerm](PubTerm.md) — Built-in browser terminal door: setup, terminal size, guest access, and known limitations
 - [WebDoors](WebDoors.md) — Browser-native door runtime that connects games and utilities to BinktermPHP users, sessions, and APIs
 - [WebDoor Tutorial](WebDoor-Tutorial.md) — Step-by-step guide to building your first WebDoor
 - [JS-DOS Doors](JSDOSDoors.md) — Browser-side DOS game emulation via js-dos/DOSBox WASM
