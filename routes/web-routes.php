@@ -324,7 +324,7 @@ SimpleRouter::get('/appmanifestjson', function() {
 {
   "name": "{$systemName}",
   "short_name": "{$systemName}",
-  "description": "Binkley Fido Terminal",
+  "description": "A modern web and BBS interface for Fidonet echomail, netmail, and classic door games",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -86,6 +86,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 ## Content & Media
 
 - [Media in Messages](MediaInMessages.md) — Inline images, video, audio, platform embeds, retro audio, and text art in echomail and netmail
+- [Message Sharing](MessageSharing.md) — Public share links for echomail and netmail: token and friendly URLs, Open Graph preview images, AI summaries, referrer tracking
 - [Markdown and Markup Formatting](Markdown.md) — Markdown and StyleCodes compose editor, MARKUP kludge, LSC-001 reference, and rendering details
 - [ANSI Support](ANSI_Support.md) — ANSI art rendering in messages and files
 - [ANSI Ads Generator](ANSI_Ads_Generator.md) — Generating ANSI-art advertisements

@@ -75,7 +75,6 @@
                     <i class="fas fa-share-alt me-2"></i>
                     <div>
                         <strong>{{ t('ui.shared_message.title', {}, locale, ['common']) }}</strong>
-                        <p class="mb-0 mt-1" id="shareDescription"></p>
                     </div>
                 </div>
             </div>
@@ -306,11 +305,9 @@ function displaySharedMessage(message, shareInfo) {
     $('#messageCard').show();
     
     // Show share info
-    const sharedBy = shareInfo.shared_by;
     const sharedDate = formatDate(shareInfo.created_at);
     const accessCount = shareInfo.access_count || 0;
-    
-    $('#shareDescription').text(uiT('ui.shared_message.shared_by', 'Shared by {name}', { name: sharedBy }));
+
     $('#shareDate').text(sharedDate);
     $('#shareStats').text(uiT('ui.shared_message.viewed_times', 'Viewed {count} times', { count: accessCount }));
     $('#shareInfo').show();
