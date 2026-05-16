@@ -24,7 +24,9 @@ data/run/*
 !data/run/.gitkeep
 backups/*
 .idea/
-.claude/
+.claude/*
+!.claude/commands/
+!.claude/commands/**
 /vendor/
 *~
 .env

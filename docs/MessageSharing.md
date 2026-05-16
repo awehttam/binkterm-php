@@ -2,7 +2,7 @@
 
 Users can generate public share links for individual echomail messages. Shared links work for anyone on the web — no BBS account required for public shares. Links can include a custom preview image and AI-generated description for social media embeds (Open Graph).
 
-Netmail sharing uses token-only URLs. Echomail sharing supports both token URLs and human-readable friendly URLs.
+Echomail sharing supports both token URLs and human-readable friendly URLs. Netmail cannot be shared.
 
 ---
 
@@ -22,12 +22,12 @@ Each user gets at most one active share per message. Creating a share when one a
 
 ## Share URL Formats
 
-**Token URL** — always available for both echomail and netmail:
+**Token URL:**
 ```
 https://your-bbs.example.com/shared/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
 ```
 
-**Friendly URL** — echomail only, generated on request:
+**Friendly URL** — generated on request:
 ```
 https://your-bbs.example.com/shared/ECHOAREA/message-subject-slug
 https://your-bbs.example.com/shared/ECHOAREA@network/message-subject-slug
@@ -119,7 +119,6 @@ All share endpoints require an authenticated session except where noted.
 ### Create or retrieve a share
 ```
 POST /api/messages/echomail/{id}/share
-POST /api/messages/netmail/{id}/share
 
 {
   "public": true,
