@@ -24,7 +24,11 @@ data/run/*
 !data/run/.gitkeep
 backups/*
 .idea/
-.claude/
+.claude/*
+!.claude/commands/
+!.claude/commands/**
+!.claude/session-start.php
+!.claude/settings.json
 /vendor/
 *~
 .env

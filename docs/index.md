@@ -110,7 +110,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 - [Robots](Robots.md) — Echomail robot automation and response bots
 - [Auto Feed](Autofeed.md) — RSS/Atom and Bluesky auto feeder: posts new items to echo areas on a cron schedule
 - [File Area Rules](FileAreas.md#file-area-rules) — Automated processing rules for incoming files
-- [Anti-Virus](Antivirus.md) — File scanning integration for uploaded files
+- [Anti-Virus](AntiVirus.md) — File scanning integration for uploaded files
 
 ---
 
@@ -143,6 +143,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 Release-specific upgrade notes, listed newest-first. See [UPGRADING_TEMPLATE.md](UPGRADING_TEMPLATE.md) for the document template.
 
+- [Upgrading to 1.9.7](UPGRADING_1.9.7.md)
 - [Upgrading to 1.9.6](UPGRADING_1.9.6.md)
 - [Upgrading to 1.9.5](UPGRADING_1.9.5.md)
 - [Upgrading to 1.9.4](UPGRADING_1.9.4.md)
