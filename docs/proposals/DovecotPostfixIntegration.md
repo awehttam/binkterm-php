@@ -1,6 +1,6 @@
 > **Draft** — This proposal was generated with AI assistance and may not have been reviewed for accuracy. It is intended as a starting point for discussion, not a finalized specification.
 
-> **Premium Feature** — The Dovecot/Postfix email integration is a registered/premium feature. It will be gated behind `License::hasFeature('email')` and will not be available on unregistered installs. Update `docs/proposals/PremiumFeatures.md` when this feature is implemented.
+> **Premium Feature** — The Dovecot/Postfix email integration is a registered/premium feature. It will be gated behind `License::isValid()` and will not be available on unregistered installs. Update `docs/proposals/PremiumFeatures.md` when this feature is implemented.
 
 # Dovecot/Postfix Email Integration
 
