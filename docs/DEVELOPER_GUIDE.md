@@ -609,7 +609,6 @@ Maintenance and scheduling scripts typically run via cron or the admin daemon's 
 | `scripts/update_nodelists.php` | Downloads and imports FTN nodelist files |
 | `scripts/activity_digest.php` | Sends periodic activity digest emails |
 | `scripts/rss_poster.php` | Posts RSS feed items as echomail |
-| `scripts/weather_report.php` | Posts weather reports as echomail |
 
 The `restart_daemons.sh` (Linux) and `start_daemons_windows.cmd` / `start_daemons_windows.ps1` (Windows) scripts start or restart all long-running daemons in one step.
 
