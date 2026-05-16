@@ -693,7 +693,7 @@ SimpleRouter::get('/shared-goto/{area}/{slug}', function($area, $slug) {
     $user = $auth->getCurrentUser();
 
     if (!$user) {
-        $redirect = rawurlencode('/shared-goto/' . rawurlencode($area) . '/' . rawurlencode($slug));
+        $redirect = rawurlencode('/shared-goto/' . $area . '/' . $slug);
         return SimpleRouter::response()->redirect('/login?redirect=' . $redirect);
     }
 
@@ -735,7 +735,7 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
     }
 
     $shareUrl    = \BinktermPHP\Config::getSiteUrl() . '/shared/' . rawurlencode($area) . '/' . rawurlencode($slug);
-    $gotoUrl     = '/shared-goto/' . rawurlencode($area) . '/' . rawurlencode($slug);
+    $gotoUrl     = '/shared-goto/' . $area . '/' . $slug;
     $ogImageUrl  = null;
     $ogImageMime = null;
     $ogImageW    = null;
