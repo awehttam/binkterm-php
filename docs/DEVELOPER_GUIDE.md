@@ -22,6 +22,18 @@ BinktermPHP is a modern web-based interface for FidoNet messaging networks. It c
 
 FidoNet is a worldwide network of BBSs that exchange mail and files using store-and-forward technology. Messages are packaged into "packets" and transmitted between systems using the binkp protocol. Unlike modern internet messaging, FidoNet operates asynchronously - messages are bundled, transmitted to upstream nodes (hubs), and then distributed across the network.
 
+## Key Features
+
+- **Multi-Network Support**: Connect to multiple FTN networks simultaneously
+- **File Areas**: FTN TIC file distribution with pluggable antivirus scanning (ClamAV, VirusTotal)
+- **WebDoors**: Drop-in game/application system (see `docs/WebDoors.md`)
+- **Native Doors & DOS Doors**: PTY and DOSBox-backed door games (see `docs/Doors.md`)
+- **Credits System**: Configurable in-world currency (see below)
+- **Webshare**: Share echomail messages via secure links with expiration
+- **Gateway Tokens**: SSO-like authentication for external services
+- **ANSI Support**: JavaScript-based ANSI art renderer for messages
+- **BBS Directory**: Public directory of BBS systems auto-populated via Echomail Robots
+
 ---
 
 ## Project Architecture
@@ -222,6 +234,7 @@ binkterm-php/
 - **Apply migrations**: Run `php scripts/setup.php` — this runs both migrations and other upgrade tasks
 - **DO NOT** edit `postgres_schema.sql` directly — use migrations
 - **Migration IDs**: Use timestamp IDs in UTC to avoid collisions between parallel development branches. Prefer `php scripts/migration.php create "description"` so the filename is generated consistently. Legacy `vX.Y.Z_description` migrations are still supported for existing files, but new migrations should use timestamps.
+- **Creating a new migration**: Run `php scripts/migration.php create "description"` to generate the file, then invoke the `/new-migration` skill — it covers the authoritative ID format, the SQL vs PHP choice, the no-duplicate-index rule, and the `setup.php` reminder.
 - Migrations can be SQL files or PHP files. Two PHP patterns are supported:
 
 **Pattern 1: Direct Execution** — for simple SQL operations. The file executes on include, uses `$db` from scope, and returns `true`.
@@ -245,14 +258,14 @@ return function($db) {
     }
     return true;
 };
+```
 
 ### Making Changes
 
-1. **Read before editing**: Always read the file before modifying it
-2. **Avoid over-engineering**: Only implement what's requested
-3. **DRY principle**: Centralize repeated logic into classes
-4. **Security**: Watch for SQL injection, XSS, command injection
-5. **Feature parity**: Netmail and echomail features should generally be consistent — clarify when unsure
+1. **Avoid over-engineering**: Only implement what's requested
+2. **DRY principle**: Centralize repeated logic into classes
+3. **Security**: Watch for SQL injection, XSS, command injection
+4. **Feature parity**: Netmail and echomail features should generally be consistent — clarify when unsure
 
 ### URL Construction
 
@@ -270,10 +283,18 @@ This method:
 
 ### Version Management
 
-- **Application version**: Edit `src/Version.php` only
-- **Auto-updates**: Tearlines, footer, API responses update automatically
+The preferred method is the `/bump-version` skill, which walks through all steps in order. For reference, a manual bump touches these files:
+
+- **`src/Version.php`** — the `VERSION` constant; everything else (tearlines, footer, API responses, Twig templates) reads from this automatically.
+- **`composer.json`** — the top-level `"version"` field must be kept in sync.
+- **`docs/UPGRADING_X.Y.Z.md`** — create from `docs/UPGRADING_TEMPLATE.md`; do not pre-populate from git history.
+- **`docs/index.md`** and **`README.md`** — link the new UPGRADING doc (newest-first in the Upgrading section).
+
+Other notes:
 - **Format**: Semantic versioning (MAJOR.MINOR.PATCH)
-- **Database versions** are independent of the application version and use the migration file naming scheme
+- **Git tags** are created by the release maintainer when publishing a GitHub release — do not create them as part of a routine version bump commit.
+- **Database versions** are independent of the application version and use the migration file naming scheme.
+- **New composer dependency**: if the bump adds a required package, the UPGRADING doc must instruct upgraders to run `composer update` before `php scripts/setup.php`.
 
 ### Styling Updates
 
@@ -328,6 +349,8 @@ Use `AdminDaemonClient::log($level, $message, $context)` for application-level l
 
 `scripts/generate_api_docs.php` parses the SimpleRouter route files and produces developer-facing API reference documentation. It uses PHP's built-in tokenizer (not regex) so it correctly handles nested group prefixes, string-interpolation braces, and PHPDoc comment extraction.
 
+**Maintaining `docs/API.md`**: The repository's `docs/API.md` is the canonical REST API reference and must be kept up to date as routes are added, modified, or removed. Update it by hand for incremental changes. Do not use the generator to overwrite `docs/API.md` — the script is intended for local exploration and bulk regeneration by maintainers, not as a substitute for keeping the committed doc current.
+
 ### Output formats
 
 | Format | Flag | Use case |
@@ -350,13 +373,13 @@ Use `AdminDaemonClient::log($level, $message, $context)` for application-level l
 Generate static Markdown for the public API (no AI, no cost):
 
 ```bash
-php scripts/generate_api_docs.php --output=docs/API.md
+php scripts/generate_api_docs.php --output=mydocs/API.md
 ```
 
 Generate OpenAPI YAML for all routes:
 
 ```bash
-php scripts/generate_api_docs.php --routes=all --format=openapi --output=docs/openapi.yaml
+php scripts/generate_api_docs.php --routes=all --format=openapi --output=mydocs/openapi.yaml
 ```
 
 ### AI-enriched documentation
@@ -373,13 +396,13 @@ Requirements: at least one of `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` must be se
 
 ```bash
 # AI-enriched public API docs using Anthropic
-php scripts/generate_api_docs.php --ai --provider=anthropic --output=docs/API.md
+php scripts/generate_api_docs.php --ai --provider=anthropic --output=mydocs/API.md
 
 # AI-enriched admin API as OpenAPI YAML
-php scripts/generate_api_docs.php --routes=admin --ai --format=openapi --output=docs/openapi.yaml
+php scripts/generate_api_docs.php --routes=admin --ai --format=openapi --output=mydocs/openapi.yaml
 
 # Larger batch size to reduce API calls (at the cost of longer prompts)
-php scripts/generate_api_docs.php --routes=all --ai --ai-batch-size=15 --output=docs/API.md
+php scripts/generate_api_docs.php --routes=all --ai --ai-batch-size=15 --output=mydocs/API.md
 ```
 
 ### All options
@@ -435,20 +458,6 @@ php scripts/check_i18n_hardcoded_strings.php
 ```
 
 See `docs/Localization.md` for the full workflow.
-
----
-
-## Key Features
-
-- **Multi-Network Support**: Connect to multiple FTN networks simultaneously
-- **File Areas**: FTN TIC file distribution with pluggable antivirus scanning (ClamAV, VirusTotal)
-- **WebDoors**: Drop-in game/application system (see `docs/WebDoors.md`)
-- **Native Doors & DOS Doors**: PTY and DOSBox-backed door games (see `docs/Doors.md`)
-- **Credits System**: Configurable in-world currency (see below)
-- **Webshare**: Share echomail messages via secure links with expiration
-- **Gateway Tokens**: SSO-like authentication for external services
-- **ANSI Support**: JavaScript-based ANSI art renderer for messages
-- **BBS Directory**: Public directory of BBS systems auto-populated via Echomail Robots
 
 ---
 
