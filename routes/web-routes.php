@@ -396,6 +396,13 @@ SimpleRouter::get('/login', function() {
         return SimpleRouter::response()->redirect('/');
     }
 
+    // Accept a local redirect URL (e.g. from shared message goto links)
+    $redirectUrl = null;
+    $rawRedirect = $_GET['redirect'] ?? '';
+    if ($rawRedirect !== '' && str_starts_with($rawRedirect, '/') && strpos($rawRedirect, '://') === false) {
+        $redirectUrl = $rawRedirect;
+    }
+
     // Read welcome message if it exists
     $welcomeMessage = '';
     $welcomeFile = __DIR__ . '/../config/welcome.txt';
@@ -431,6 +438,7 @@ SimpleRouter::get('/login', function() {
         'login_splash'     => $loginSplashHtml,
         'login_screen'     => $loginScreen,
         'login_ansi_art'   => $loginAnsiArt,
+        'redirect_url'     => $redirectUrl,
     ]);
 });
 
@@ -655,6 +663,55 @@ SimpleRouter::get('/shared-image/{slug}', function($slug) {
     exit;
 })->where(['slug' => '[a-f0-9]{32}\.[a-zA-Z0-9]+']);
 
+// Resolve a shared message link after login and redirect to the inner echomail reader.
+SimpleRouter::get('/shared-goto/{shareKey}', function($shareKey) {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        $redirect = rawurlencode('/shared-goto/' . $shareKey);
+        return SimpleRouter::response()->redirect('/login?redirect=' . $redirect);
+    }
+
+    $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $handler = new MessageHandler();
+    $result  = $handler->getSharedMessage($shareKey, $userId, false);
+
+    if ($result['success']) {
+        $msg = $result['message'];
+        if (empty($msg['echoarea_id']) && empty($msg['echoarea'])) {
+            return SimpleRouter::response()->redirect('/netmail');
+        }
+        return SimpleRouter::response()->redirect('/echomail?message=' . (int)$msg['id']);
+    }
+
+    return SimpleRouter::response()->redirect('/shared/' . rawurlencode($shareKey));
+})->where(['shareKey' => '[a-f0-9]{32}']);
+
+SimpleRouter::get('/shared-goto/{area}/{slug}', function($area, $slug) {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        $redirect = rawurlencode('/shared-goto/' . rawurlencode($area) . '/' . rawurlencode($slug));
+        return SimpleRouter::response()->redirect('/login?redirect=' . $redirect);
+    }
+
+    $userId  = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $handler = new MessageHandler();
+    $result  = $handler->getSharedMessageBySlug($area, $slug, $userId, false);
+
+    if ($result['success']) {
+        $msg = $result['message'];
+        if (empty($msg['echoarea_id']) && empty($msg['echoarea'])) {
+            return SimpleRouter::response()->redirect('/netmail');
+        }
+        return SimpleRouter::response()->redirect('/echomail?message=' . (int)$msg['id']);
+    }
+
+    return SimpleRouter::response()->redirect('/shared/' . rawurlencode($area) . '/' . rawurlencode($slug));
+})->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
+
 SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
     $auth   = new Auth();
     $user   = $auth->getCurrentUser();
@@ -678,6 +735,7 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
     }
 
     $shareUrl    = \BinktermPHP\Config::getSiteUrl() . '/shared/' . rawurlencode($area) . '/' . rawurlencode($slug);
+    $gotoUrl     = '/shared-goto/' . rawurlencode($area) . '/' . rawurlencode($slug);
     $ogImageUrl  = null;
     $ogImageMime = null;
     $ogImageW    = null;
@@ -697,6 +755,7 @@ SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
         'message'        => $messageData,
         'share_info'     => $shareInfo,
         'share_url'      => $shareUrl,
+        'goto_url'       => $gotoUrl,
         'ai_og_summary'  => $shareInfo['ai_og_summary'] ?? null,
         'og_image_url'   => $ogImageUrl,
         'og_image_mime'  => $ogImageMime,
@@ -730,6 +789,7 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
 
     // Build the full share URL for meta tags
     $shareUrl    = \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
+    $gotoUrl     = '/shared-goto/' . rawurlencode($shareKey);
     $ogImageUrl  = null;
     $ogImageMime = null;
     $ogImageW    = null;
@@ -747,6 +807,7 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
         'message'         => $messageData,
         'share_info'      => $shareInfo,
         'share_url'       => $shareUrl,
+        'goto_url'        => $gotoUrl,
         'ai_og_summary'   => $shareInfo['ai_og_summary'] ?? null,
         'og_image_url'    => $ogImageUrl,
         'og_image_mime'   => $ogImageMime,

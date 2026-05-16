@@ -418,14 +418,16 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 <script>
+const postLoginRedirect = {{ redirect_url ? redirect_url|json_encode : 'null' }};
+
 $('#loginForm').on('submit', function(e) {
     e.preventDefault();
-    
+
     const formData = {
         username: $('#username').val(),
         password: $('#password').val()
     };
-    
+
     $.ajax({
         url: '/api/auth/login',
         method: 'POST',
@@ -433,7 +435,7 @@ $('#loginForm').on('submit', function(e) {
         data: JSON.stringify(formData),
         success: function(response) {
             if (response.success) {
-                window.location.href = '/';
+                window.location.href = postLoginRedirect || '/';
             }
         },
         error: function(xhr) {
