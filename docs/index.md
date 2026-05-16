@@ -124,6 +124,15 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 ---
 
+## FTN Standards (LSC)
+
+Specifications published by the LovlyNet Standards Council.
+
+- [LSC-001: MARKUP Kludge](LSC/LSC1%20-%20Markup%20Kludge.txt) — FTN kludge for inline markup and styling in echomail and netmail
+- [LSC-002: FILEREF Kludge](LSC/LSC2%20-%20FILEREF%20Kludge.txt) — FTN kludge for file-referenced echomail threads
+
+---
+
 ## Developer Reference
 
 - [Architecture](ARCHITECTURE.md) — Ecosystem map showing how access methods, realtime delivery, FTN networking, doors, MCP, and AI fit together

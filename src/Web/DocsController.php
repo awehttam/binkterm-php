@@ -163,11 +163,59 @@ class DocsController
     }
 
     /**
-     * Rewrite relative .md links in the raw Markdown to /admin/docs/view/{name}
-     * so they work inside the docs browser.
+     * Render a plain-text documentation file (e.g. an FTN specification) from the docs/ directory.
      *
-     * [Label](Foo.md)   → [Label](/admin/docs/view/Foo)
-     * [Label](./Foo.md) → [Label](/admin/docs/view/Foo)
+     * Accepts subdirectory paths with URL-encoded characters, e.g.
+     * "LSC/LSC1%20-%20Markup%20Kludge" → docs/LSC/LSC1 - Markup Kludge.txt
+     * The .txt extension is appended by this method.
+     *
+     * @param string $path URL-encoded relative path within docs/, without extension
+     */
+    public function viewTxt(string $path): void
+    {
+        $decoded = urldecode($path);
+
+        // Allow letters, digits, spaces, hyphens, underscores, dots, and slashes only.
+        if (!preg_match('/^[A-Za-z0-9 _.\-\/]+$/', $decoded) || str_contains($decoded, '..')) {
+            $this->render404();
+            return;
+        }
+
+        if (stripos($decoded, 'proposals') !== false) {
+            $this->render404();
+            return;
+        }
+
+        $filePath = $this->docsDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $decoded) . '.txt';
+        $realPath = realpath($filePath);
+        if ($realPath === false || !str_starts_with($realPath, $this->docsDir . DIRECTORY_SEPARATOR)) {
+            $this->render404();
+            return;
+        }
+
+        $proposalsDir = $this->docsDir . DIRECTORY_SEPARATOR . 'proposals' . DIRECTORY_SEPARATOR;
+        if (str_starts_with($realPath, $proposalsDir)) {
+            $this->render404();
+            return;
+        }
+
+        $raw  = file_get_contents($realPath);
+        $html = '<pre class="docs-plaintext">' . htmlspecialchars($raw, ENT_QUOTES, 'UTF-8') . '</pre>';
+
+        $template = new Template();
+        $template->renderResponse('admin/docs.twig', [
+            'content'  => $html,
+            'doc_name' => basename($decoded),
+            'is_index' => false,
+        ]);
+    }
+
+    /**
+     * Rewrite relative .md and .txt links in the raw Markdown so they work inside the docs browser.
+     *
+     * [Label](Foo.md)                      → [Label](/admin/docs/view/Foo)
+     * [Label](./Foo.md)                    → [Label](/admin/docs/view/Foo)
+     * [Label](LSC/LSC1%20-%20Spec.txt)     → [Label](/admin/docs/txt/LSC/LSC1%20-%20Spec)
      *
      * External https:// links and anchor (#) links are left unchanged.
      */
@@ -199,6 +247,18 @@ class DocsController
                 }
 
                 return '[' . $label . '](/admin/docs/view/' . $target . $anchor . ')';
+            },
+            $markdown
+        );
+
+        // Rewrite relative .txt links (e.g. LSC specs in subdirectories) to /admin/docs/txt/{path}
+        $markdown = preg_replace_callback(
+            '/\[([^\]]+)\]\((?!https?:\/\/|#)((?:\.\/)?[^)]+?)\.txt(#[^\)]*)?\)/',
+            function (array $m): string {
+                $label  = $m[1];
+                $target = ltrim(str_replace('\\', '/', $m[2]), './');
+                $anchor = $m[3] ?? '';
+                return '[' . $label . '](/admin/docs/txt/' . $target . $anchor . ')';
             },
             $markdown
         );
