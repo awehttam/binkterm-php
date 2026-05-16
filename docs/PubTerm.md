@@ -113,7 +113,7 @@ When `allow_anonymous` is `true`, unauthenticated visitors can connect via:
 - **Direct URL:** `/play/pubterm`
 - **Guest doors listing:** `/guest-doors`
 
-Guest sessions are launched under the system guest user account. The BBS treats them as an anonymous visitor with security level 5.
+Guest sessions are launched under the system guest user account.
 
 `guest_max_sessions` limits how many simultaneous anonymous sessions are permitted. Set this to a low value (e.g. `2`–`5`) to prevent resource exhaustion from bots or scrapers.
 
