@@ -316,10 +316,13 @@ All AI features share a common provider abstraction and usage-tracking layer. Th
 
 **Supported providers**
 
-| Provider | Adapter | Default model |
-|---|---|---|
-| OpenAI | `src/AI/Providers/OpenAIProvider.php` | `gpt-4o-mini` |
-| Anthropic | `src/AI/Providers/AnthropicProvider.php` | `claude-sonnet-4-6` |
+| Provider | Adapter | Default model | Configured when |
+|---|---|---|---|
+| OpenAI | `src/AI/Providers/OpenAIProvider.php` | `gpt-4o-mini` | `OPENAI_API_KEY` is set |
+| Anthropic | `src/AI/Providers/AnthropicProvider.php` | `claude-sonnet-4-6` | `ANTHROPIC_API_KEY` is set |
+| Ollama | `src/AI/Providers/OllamaProvider.php` | `llama3.2` | `OLLAMA_API_BASE` is set |
+
+Ollama uses an OpenAI-compatible `/v1/chat/completions` endpoint and requires no API key. It works with a local Ollama instance or any remote/cloud host that exposes the same API. Tool-calling support is model-dependent and controlled by the `OLLAMA_SUPPORTS_TOOLS` flag.
 
 **Provider and model resolution** (`AiService::resolveProviderAndModel`)
 
@@ -328,7 +331,7 @@ Resolution walks this hierarchy, stopping at the first match:
 1. Explicit provider/model on the `AiRequest` object
 2. Feature-specific env var — `AI_<FEATURE>_PROVIDER` / `AI_<FEATURE>_MODEL`
 3. Global default — `AI_DEFAULT_PROVIDER` / `AI_DEFAULT_MODEL`
-4. First configured provider (OpenAI checked before Anthropic)
+4. First configured provider (OpenAI checked before Anthropic and Ollama)
 
 This means per-feature overrides are possible without touching defaults, and adding a second provider does not require code changes.
 
@@ -389,7 +392,7 @@ mcp-server/server.js
     │  └── search_echomail
     │
     ▼
-AI provider (Anthropic / OpenAI)
+AI provider (Anthropic / OpenAI / Ollama)
     │
     │  final answer returned
     ▼

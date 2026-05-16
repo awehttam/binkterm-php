@@ -22,11 +22,14 @@ If you're considering getting involved, check out **[HELP_WANTED.md](HELP_WANTED
 BinktermPHP is a PHP/PostgreSQL BBS and FTN mail system that combines a modern web interface, terminal access, and a built-in binkp mailer. It lets users read and write netmail and echomail, exchange packets with FidoNet-style networks, and run BBS features such as file areas, doors, chat, and web-based games. We suggest familiarizing yourself with:
 
 - FidoNet Technology Network (FTN) basics
-- The binkp protocol
 - PHP development best practices
 - PostgreSQL database operations
 
-Also read [CLAUDE.md](CLAUDE.md) before starting development. It contains additional project-specific notes, conventions, and operational gotchas that contributors should follow.
+Before writing any code, read these documents:
+
+- **[CLAUDE.md](CLAUDE.md)** — project-specific conventions, operational gotchas, and AI assistant configuration. Additional `CLAUDE.md` files exist in certain subdirectories (e.g. `telnet/`, `ssh/`, `scripts/`, `templates/`) and contain subsystem-specific rules that apply when working in those areas.
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — system overview, daemon IPC model, FTN packet lifecycle, and how the major subsystems fit together.
+- **[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)** — coding conventions, database migrations, development workflow, and pre-commit checklist.
 
 ## Development Setup
 
@@ -75,38 +78,7 @@ Also read [CLAUDE.md](CLAUDE.md) before starting development. It contains additi
 
 ## Code Conventions
 
-### Naming Conventions
-
-- **Variables and functions**: camelCase (e.g., `$userName`, `getUserData()`)
-- **Classes and components**: PascalCase (e.g., `MessageHandler`, `BinkpConfig`)
-- **Constants**: UPPER_SNAKE_CASE (e.g., `MAX_CONNECTIONS`)
-
-### Indentation
-
-- Use **4 spaces** for indentation (no tabs)
-- Be consistent with existing code formatting
-
-### File Organization
-
-- `src/` - Main source code
-- `templates/` - Twig HTML templates
-- `public_html/` - Web site files and static assets
-- `tests/` - Test and debugging scripts
-- `config/` - Configuration files
-- `database/migrations/` - Database migration scripts
-- `vendor/` - Third-party libraries (managed by Composer, do not modify)
-
-### Important Guidelines
-
-- **Never modify the vendor directory** - it's managed by Composer
-- Use AJAX requests for web interface queries
-- Keep feature parity between netmail and echomail when appropriate
-- Use `Config::env('VAR_NAME', 'default')` for environment variables instead of `getenv()` or `$_ENV`
-- Use `BinktermPHP\Binkp\Logger` or the shared logger helpers for application logging; do not add new `error_log()` calls
-- Use `UserStorage` in `public_html/js/user-storage.js` instead of direct `localStorage` access
-- Use the admin daemon when web code needs to save settings or write project files. The web server process does not always run with the same filesystem permissions as the BBS daemons, so routes and controllers should not assume they can write configuration or runtime files directly.
-- Store database timestamps in UTC unless a schema or protocol field explicitly requires otherwise. For absolute event times, prefer PostgreSQL `TIMESTAMPTZ` columns with defaults such as `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`; PostgreSQL stores these as absolute instants independent of the server's local time zone. If you must write to an existing UTC `TIMESTAMP WITHOUT TIME ZONE` column, use expressions such as `NOW() AT TIME ZONE 'UTC'` so stored values do not depend on the database server's time zone. Use plain `TIMESTAMP WITHOUT TIME ZONE` only for intentional local wall-clock values. Convert timestamps to the user's time zone only when presenting them in the UI or terminal output.
-- Write secure code - avoid SQL injection, XSS, command injection, and other OWASP Top 10 vulnerabilities
+See [docs/DEVELOPER_GUIDE.md — Code Conventions](docs/DEVELOPER_GUIDE.md#development-workflow) for naming rules, indentation, environment variable access, client-side storage, timestamp handling, security requirements, and all other coding standards.
 
 ## Making Changes
 
@@ -118,87 +90,34 @@ Also read [CLAUDE.md](CLAUDE.md) before starting development. It contains additi
 
 ### While Coding
 
-1. Follow the existing code style and conventions
+1. Follow the existing code style and conventions described in [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)
 2. Write clear, self-documenting code with meaningful variable names
 3. Add comments only where the logic isn't self-evident
 4. Keep functions focused and reasonably sized
-5. Avoid premature optimization - prioritize clarity
+5. Avoid premature optimization — prioritize clarity
 
-### Project-Specific Checks
-
-- If you add or change user-facing text in Twig, JavaScript, or API errors, update every locale under `config/i18n/` and run:
-  ```bash
-  php scripts/check_i18n_hardcoded_strings.php
-  php scripts/check_i18n_error_keys.php
-  ```
-- If you change CSS, JavaScript, or i18n catalogs, increment the service worker cache version in `public_html/sw.js` so browsers fetch the new assets.
-- If you change `public_html/js/binkstream-worker-v2.js`, increment `WORKER_BUILD` in `public_html/js/binkstream-client.js`.
-- If you update `public_html/css/style.css`, update the theme stylesheets as needed: `amber.css`, `dark.css`, `greenterm.css`, and `cyberpunk.css`.
-- If you add documentation under `docs/` outside `docs/proposals/`, update `docs/index.md`.
-- If a web route or controller needs to write project configuration files, use the admin daemon path instead of writing files directly from the web process.
-
-### Security Considerations
-
-Always validate and sanitize:
-- User input
-- External API data
-- Database queries (use prepared statements)
-- File paths and operations
-
-Never:
-- Trust user input without validation
-- Expose sensitive configuration data
-- Use dynamic SQL queries without parameterization
-- Store passwords in plain text
+Before committing, work through the **Pre-commit Checklist** in [docs/DEVELOPER_GUIDE.md — Pre-commit Checklist](docs/DEVELOPER_GUIDE.md#development-workflow).
 
 ## Database Migrations
 
-### Creating Migrations
+All database schema changes must go through migration scripts. See [docs/DEVELOPER_GUIDE.md — Database Migrations](docs/DEVELOPER_GUIDE.md#development-workflow) for file format, PHP migration patterns, and best practices.
 
-All database schema changes must be done through migration scripts.
+To create a new migration:
 
-1. Create a timestamped migration file in `database/migrations/` following the naming convention:
-   ```
-   vYYYYMMDDHHMMSS_<description>.sql
-   ```
-   Example: `v20260503143000_add_user_preferences.sql`
+```bash
+php scripts/migration.php create "add user preferences"
+php scripts/migration.php create "backfill user data" php
+```
 
-   Prefer the helper command so timestamps are generated consistently in UTC:
-   ```bash
-   php scripts/migration.php create "add user preferences"
-   php scripts/migration.php create "backfill user data" php
-   ```
+Then run `php scripts/setup.php` to verify it applies cleanly.
 
-2. Use SQL or PHP migrations as appropriate. See [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for PHP migration patterns.
-
-3. Write idempotent migrations when possible (safe to run multiple times).
-
-4. Test migrations through the setup flow:
-   ```bash
-   php scripts/setup.php
-   ```
-
-Do not update `src/Version.php` or `composer.json` just because you added a migration. Application version bumps are handled separately during release preparation unless a maintainer explicitly asks you to do the version bump as part of your change.
-
-### Migration Best Practices
-
-- Use transactions where appropriate
-- Include rollback procedures in comments
-- Test with realistic data volumes
-- Document any manual steps required
-- Do not add a separate non-unique index for a column that already has a `UNIQUE` constraint; PostgreSQL creates an index for unique constraints automatically
+Do not update `src/Version.php` or `composer.json` just because you added a migration. Version bumps are handled separately by maintainers unless explicitly requested.
 
 ## Version Management
 
-BinktermPHP uses semantic versioning (MAJOR.MINOR.PATCH):
+See [docs/DEVELOPER_GUIDE.md — Version Management](docs/DEVELOPER_GUIDE.md#development-workflow) for the full process. Contributors typically do not need to bump the version — maintainers handle this during release preparation unless they explicitly request otherwise.
 
-- **MAJOR**: Breaking changes
-- **MINOR**: New features, backwards compatible
-- **PATCH**: Bug fixes, backwards compatible
-
-Contributors typically do not need to update `src/Version.php`, `composer.json`, or create release upgrade documents. Maintainers handle version bumps during release preparation unless they explicitly request otherwise.
-
-When a change adds a required Composer package, document the upgrade requirement in the relevant `docs/UPGRADING_x.x.x.md` file if one already exists for the active release cycle. The upgrade instructions must tell operators to run `composer update` before `php scripts/setup.php`.
+If your change adds a required Composer package, document it in the relevant `docs/UPGRADING_x.x.x.md` with instructions to run `composer update` before `php scripts/setup.php`.
 
 ## Testing
 
@@ -291,20 +210,16 @@ The `claudesbbs` branch is a staging branch deployed to [Claude's BBS](https://c
 
 ### PR Checklist
 
-Before submitting, ensure:
-- [ ] Code follows project conventions
+Before submitting, work through the [Pre-commit Checklist](docs/DEVELOPER_GUIDE.md#development-workflow) in the Developer Guide, then confirm:
+- [ ] Code follows project conventions (see [Developer Guide](docs/DEVELOPER_GUIDE.md))
 - [ ] No sensitive data or credentials committed
 - [ ] Changes tested locally
-- [ ] Relevant validation scripts run, especially i18n checks for UI/API text changes
 - [ ] Documentation updated if needed
-- [ ] Database migrations created if schema changed
-- [ ] `php scripts/setup.php` run if migrations or setup-managed files changed
-- [ ] Service worker cache version bumped if CSS, JavaScript, or i18n catalogs changed
 - [ ] No new security vulnerabilities introduced
-- [ ] Code is properly formatted and commented
 
 ## Questions or Need Help?
 
+- Ask for help in the **LVLY_BINKTERMPHP** echomail area or on **Discord**
 - Open an issue for bugs or feature requests
 - Join discussions in existing issues
 - Check the project wiki for additional documentation
