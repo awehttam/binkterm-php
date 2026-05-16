@@ -2,7 +2,7 @@
 $skills = [
     '/bump-version — version bump steps, UPGRADING doc format',
     '/new-migration — migration ID format, SQL vs PHP choice',
-    '/credits-workflow — 5-place checklist for new UserCredit types',
+    '/usercredits-workflow — 5-place checklist for new UserCredit types',
     '/logging-guide — log file table, per-context code patterns',
     '/new-webdoor — manifest requirement, SDK require path',
 ];

@@ -28,7 +28,7 @@ Procedural checklists that contributors invoke on demand have been extracted int
 
 - `/bump-version` — version bump steps, UPGRADING doc format, and composer dependency notes
 - `/new-migration` — migration ID format, SQL vs PHP choice, no-duplicate-index rule, and setup.php reminder
-- `/credits-workflow` — five-step checklist for adding new `UserCredit` types
+- `/usercredits-workflow` — five-step checklist for adding new `UserCredit` types
 - `/logging-guide` — log file table, per-context code patterns, log levels, and adding a new log file
 - `/new-webdoor` — manifest requirement, SDK require path, and API independence rule
 

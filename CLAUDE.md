@@ -209,6 +209,6 @@ The following project-scoped skills are available in `.claude/commands/`. When a
 
 - **`/bump-version`** — version bump steps, UPGRADING doc format and voice rules, composer dependency note
 - **`/new-migration`** — migration ID format (authoritative), SQL vs PHP choice, no-duplicate-index rule, setup.php reminder
-- **`/credits-workflow`** — 5-place checklist for adding new UserCredit types
+- **`/usercredits-workflow`** — 5-place checklist for adding new UserCredit types
 - **`/logging-guide`** — log file table, per-context code patterns, log levels, adding a new log file
 - **`/new-webdoor`** — manifest requirement, SDK require path, API independence rule
