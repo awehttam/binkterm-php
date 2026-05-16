@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-build_index.py - Fetches BinktermPHP documentation, chunks it, embeds it,
-and stores it in a sqlite-vec database for RAG-based support queries.
+build_index.py - Reads BinktermPHP documentation from the local repo, chunks it,
+embeds it, and stores it in a sqlite-vec database for RAG-based support queries.
 
 Usage: python3 build_index.py
 """
@@ -9,12 +9,7 @@ Usage: python3 build_index.py
 import re
 import struct
 import sys
-
-try:
-    import requests
-except ImportError:
-    print("Error: requests not installed. Run: pip install -r requirements.txt", file=sys.stderr)
-    sys.exit(1)
+from pathlib import Path
 
 try:
     import sqlite3
@@ -30,41 +25,48 @@ except ImportError:
     sys.exit(1)
 
 
-GITHUB_RAW_BASE = "https://raw.githubusercontent.com/awehttam/binkterm-php/main"
+# Repo root is two directories above this script (tools/support-bot/ → repo root).
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Root-level files always included.
 ROOT_DOCS = ["README.md", "FAQ.md"]
 
 
-def discover_docs_urls() -> list[tuple[str, str]]:
+def discover_local_docs() -> list[tuple[str, Path]]:
     """
-    Fetch docs/index.md from GitHub and extract every linked .md file.
-    Returns a list of (label, raw_url) pairs, starting with the root docs
-    then the docs/ directory files in index order.
+    Read docs/index.md from the local repo and extract every linked .md file.
+    Returns a list of (label, path) pairs: root docs first, then docs/ files
+    in index order.
     """
-    urls: list[tuple[str, str]] = []
+    entries: list[tuple[str, Path]] = []
 
-    # Root docs first.
     for name in ROOT_DOCS:
-        urls.append((name, f"{GITHUB_RAW_BASE}/{name}"))
+        p = REPO_ROOT / name
+        if p.exists():
+            entries.append((name, p))
+        else:
+            print(f"  Warning: {name} not found at {p}", file=sys.stderr)
 
-    # Parse docs/index.md for linked filenames.
-    index_url = f"{GITHUB_RAW_BASE}/docs/index.md"
-    print(f"  Discovering docs from {index_url}...")
-    resp = requests.get(index_url, timeout=30)
-    resp.raise_for_status()
+    index_path = REPO_ROOT / "docs" / "index.md"
+    print(f"  Discovering docs from {index_path}...")
+    if not index_path.exists():
+        print(f"  Warning: docs/index.md not found — skipping docs/ discovery.", file=sys.stderr)
+        return entries
 
+    index_text = index_path.read_text(encoding="utf-8")
     seen: set[str] = set(ROOT_DOCS)
-    # Match markdown links: [text](Filename.md) or [text](Filename.md#anchor)
-    for m in re.finditer(r'\[.*?\]\(([^)]+\.md)(?:#[^)]*)?\)', resp.text):
+    for m in re.finditer(r'\[.*?\]\(([^)]+\.md)(?:#[^)]*)?\)', index_text):
         filename = m.group(1)
         if filename in seen:
             continue
         seen.add(filename)
-        label = f"docs/{filename}"
-        urls.append((label, f"{GITHUB_RAW_BASE}/docs/{filename}"))
+        p = REPO_ROOT / "docs" / filename
+        if p.exists():
+            entries.append((f"docs/{filename}", p))
+        else:
+            print(f"  Warning: docs/{filename} linked in index but not found on disk.", file=sys.stderr)
 
-    return urls
+    return entries
 
 DB_PATH        = "binkterm_knowledge.db"
 MODEL_NAME     = "sentence-transformers/all-MiniLM-L6-v2"
@@ -76,11 +78,9 @@ CHUNK_CHARS    = CHUNK_TOKENS * 4
 OVERLAP_CHARS  = OVERLAP_TOKENS * 4
 
 
-def fetch_markdown(label: str, url: str) -> str:
-    print(f"  Fetching {label}...", flush=True)
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.text
+def read_markdown(label: str, path: Path) -> str:
+    print(f"  Reading {label}...", flush=True)
+    return path.read_text(encoding="utf-8")
 
 
 def heading_breadcrumb(heading_stack: dict) -> str:
@@ -167,26 +167,26 @@ def pack_vector(vec: list[float]) -> bytes:
 
 def build_index() -> None:
     # ------------------------------------------------------------------
-    # 1. Discover and fetch documents
+    # 1. Discover and read local documents
     # ------------------------------------------------------------------
-    print("Discovering documentation sources...")
-    docs_urls = discover_docs_urls()
-    print(f"  Found {len(docs_urls)} documents to index.\n")
+    print(f"Discovering documentation sources (repo root: {REPO_ROOT})...")
+    local_docs = discover_local_docs()
+    print(f"  Found {len(local_docs)} documents to index.\n")
 
-    print("Fetching documentation...")
+    print("Reading documentation...")
     all_chunks: list[dict] = []
 
-    for label, url in docs_urls:
+    for label, path in local_docs:
         try:
-            text = fetch_markdown(label, url)
+            text = read_markdown(label, path)
             doc_chunks = chunk_markdown(text, label)
             all_chunks.extend(doc_chunks)
             print(f"    {label}: {len(doc_chunks)} chunks")
         except Exception as exc:
-            print(f"  Warning: could not fetch {url}: {exc}", file=sys.stderr)
+            print(f"  Warning: could not read {path}: {exc}", file=sys.stderr)
 
     if not all_chunks:
-        print("Error: no chunks produced — check network access and URLs.", file=sys.stderr)
+        print("Error: no chunks produced — check that docs/ files exist under the repo root.", file=sys.stderr)
         sys.exit(1)
 
     print(f"\nTotal chunks: {len(all_chunks)}")

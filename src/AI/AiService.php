@@ -68,6 +68,105 @@ class AiService
         return array_values(array_keys($this->providers));
     }
 
+    /**
+     * Static metadata for all known AI providers.
+     * Single source of truth for provider display names, default models, and env hints.
+     *
+     * @return array<string, array{display_name: string, default_model: string, tools_default: bool, is_self_hosted: bool, env_var_hint: string}>
+     */
+    public static function getKnownProviderMeta(): array
+    {
+        return [
+            'openai' => [
+                'display_name' => 'OpenAI',
+                'default_model' => 'gpt-4o-mini',
+                'tools_default' => true,
+                'is_self_hosted' => false,
+                'env_var_hint' => 'OPENAI_API_KEY',
+            ],
+            'anthropic' => [
+                'display_name' => 'Anthropic',
+                'default_model' => 'claude-sonnet-4-6',
+                'tools_default' => true,
+                'is_self_hosted' => false,
+                'env_var_hint' => 'ANTHROPIC_API_KEY',
+            ],
+            'ollama' => [
+                'display_name' => 'Ollama',
+                'default_model' => 'llama3.2',
+                'tools_default' => false,
+                'is_self_hosted' => true,
+                'env_var_hint' => 'OLLAMA_API_BASE',
+            ],
+        ];
+    }
+
+    /**
+     * Returns configuration status for all known providers.
+     * Used by the admin AI settings page to display the current provider status.
+     *
+     * @return array<int, array{
+     *   name: string,
+     *   display_name: string,
+     *   configured: bool,
+     *   default_model: string,
+     *   supports_tools: bool,
+     *   is_self_hosted: bool,
+     *   env_var_hint: string,
+     *   pricing: array{input: float, output: float, cached_input: float, cache_write: float, has_pricing: bool},
+     *   power_cost: array{gpu_watts: float, per_kwh: float, cost_per_hour: float}|null,
+     * }>
+     */
+    public function getProviderStatusList(): array
+    {
+        $pricing = new AiPricing();
+        $result = [];
+
+        foreach (self::getKnownProviderMeta() as $name => $info) {
+            $configured = isset($this->providers[$name]);
+            $provider = $this->providers[$name] ?? null;
+            $defaultModel = $provider ? $provider->getDefaultModel() : $info['default_model'];
+            $supportsTools = $provider ? $provider->supportsTools() : $info['tools_default'];
+
+            $rates = $pricing->getRates($name, $defaultModel);
+            $hasPricing = $rates['input'] > 0.0 || $rates['output'] > 0.0;
+
+            $powerCost = null;
+            if ($info['is_self_hosted']) {
+                $gpuWatts = (float)Config::env('OLLAMA_GPU_POWER_WATTS', '0');
+                $perKwh = (float)Config::env('OLLAMA_POWER_COST_PER_KWH_USD', '0');
+                $costPerHour = ($gpuWatts > 0.0 && $perKwh > 0.0)
+                    ? round(($gpuWatts / 1000.0) * $perKwh, 6)
+                    : 0.0;
+                $powerCost = [
+                    'gpu_watts' => $gpuWatts,
+                    'per_kwh' => $perKwh,
+                    'cost_per_hour' => $costPerHour,
+                ];
+            }
+
+            $result[] = [
+                'name' => $name,
+                'display_name' => $info['display_name'],
+                'configured' => $configured,
+                'default_model' => $defaultModel,
+                'supports_tools' => $supportsTools,
+                'is_self_hosted' => $info['is_self_hosted'],
+                'env_var_hint' => $info['env_var_hint'],
+                'pricing' => [
+                    'input' => $rates['input'],
+                    'output' => $rates['output'],
+                    'cached_input' => $rates['cached_input'],
+                    'cache_write' => $rates['cache_write'],
+                    'has_pricing' => $hasPricing,
+                ],
+                'power_cost' => $powerCost,
+            ];
+        }
+
+        return $result;
+    }
+
     public static function create(): self
     {
         $service = new self();
