@@ -23,16 +23,24 @@ class TerminalSettingsHandler
     /**
      * Load saved terminal settings from the API and apply them to state.
      */
-    public function loadSettings($conn, array &$state, string $session): void
+    /**
+     * @param array|null $preloaded  Pre-fetched terminal settings array (skips API call when provided).
+     */
+    public function loadSettings($conn, array &$state, string $session, ?array $preloaded = null): void
     {
-        $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user/terminal-settings', null, $session);
-        if (($response['status'] ?? 0) === 200 && isset($response['data']['settings'])) {
-            $settings = $response['data']['settings'];
-            $state['terminal_charset']    = $settings['terminal_charset'] ?? null;
-            $state['terminal_ansi_color'] = $settings['terminal_ansi_color'] ?? null;
+        if ($preloaded !== null) {
+            $state['terminal_charset']    = $preloaded['terminal_charset']    ?? null;
+            $state['terminal_ansi_color'] = $preloaded['terminal_ansi_color'] ?? null;
         } else {
-            $state['terminal_charset']    = null;
-            $state['terminal_ansi_color'] = null;
+            $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user/terminal-settings', null, $session);
+            if (($response['status'] ?? 0) === 200 && isset($response['data']['settings'])) {
+                $settings = $response['data']['settings'];
+                $state['terminal_charset']    = $settings['terminal_charset'] ?? null;
+                $state['terminal_ansi_color'] = $settings['terminal_ansi_color'] ?? null;
+            } else {
+                $state['terminal_charset']    = null;
+                $state['terminal_ansi_color'] = null;
+            }
         }
         $this->server->applyTerminalSettings($state);
     }

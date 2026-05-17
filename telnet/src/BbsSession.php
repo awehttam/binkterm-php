@@ -364,13 +364,15 @@ class BbsSession
 
         $state['csrf_token'] = $loginResult['csrf_token'] ?? null;
 
-        $settingsResponse = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user/settings', null, $session);
-        $settings = $settingsResponse['data']['settings'] ?? [];
-        $state['user_timezone']   = $settings['timezone']    ?? 'UTC';
-        $state['user_date_format']= $settings['date_format'] ?? 'Y-m-d H:i:s';
-        $state['username']        = $username;
+        $initResp = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/config/session-init', null, $session);
+        $initData = $initResp['data'] ?? [];
+
+        $userSettings = $initData['user'] ?? [];
+        $state['user_timezone']     = $userSettings['timezone']    ?? 'UTC';
+        $state['user_date_format']  = $userSettings['date_format'] ?? 'Y-m-d H:i:s';
+        $state['username']          = $username;
         $state['qwk_transfer_mode'] = !empty($loginResult['qwk_transfer_mode']);
-        $userLocale = $settings['locale'] ?? '';
+        $userLocale = $userSettings['locale'] ?? '';
         if ($userLocale !== '' && $this->translator->isSupportedLocale($userLocale)) {
             $state['locale'] = $userLocale;
         }
@@ -411,7 +413,7 @@ class BbsSession
 
         // Load saved terminal settings and apply them to the session
         $terminalSettingsHandler = new TerminalSettingsHandler($this, $this->apiBase);
-        $terminalSettingsHandler->loadSettings($conn, $state, $session);
+        $terminalSettingsHandler->loadSettings($conn, $state, $session, $initData['terminal'] ?? null);
         $settingsHandler = new SettingsHandler($this, $this->apiBase);
 
         // Run first-time detection wizard if no terminal settings have been saved yet
@@ -448,10 +450,16 @@ class BbsSession
 
         $dashboardStats = MailUtils::getDashboardStats($this->apiBase, $session);
 
-        // Fetch configurable menu key bindings for this session
-        $menuKeysResp = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/config/term-menu-keys', null, $session);
-        $menuKeys = is_array($menuKeysResp['data']['term_menu_keys'] ?? null)
-            ? $menuKeysResp['data']['term_menu_keys']
+        $idleData = $initData['idle'] ?? [];
+        if (!empty($idleData['warn_seconds'])) {
+            $state['idle_warning_timeout'] = (int)$idleData['warn_seconds'];
+        }
+        if (!empty($idleData['disconnect_seconds'])) {
+            $state['idle_disconnect_timeout'] = (int)$idleData['disconnect_seconds'];
+        }
+
+        $menuKeys = is_array($initData['term_menu_keys'] ?? null)
+            ? $initData['term_menu_keys']
             : [
                 'netmail' => 'n', 'echomail' => 'e', 'shoutbox' => 's', 'bulletins' => 'u',
                 'polls'   => 'p', 'doors'    => 'd', 'files'    => 'f', 'settings'  => 't',
@@ -693,6 +701,7 @@ class BbsSession
                     $promptShown = true;
                 }
 
+                $wasIdleWarned = $state['idle_warned'] ?? false;
                 [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
 
                 if ($shouldDisconnect) {
@@ -717,6 +726,12 @@ class BbsSession
                     if (isset($keyToAction[$char]) || ctype_digit($char)) {
                         $choice = $char;
                     }
+                }
+
+                // If a non-menu key dismissed the idle warning, redraw the menu so the
+                // user gets visible confirmation that the session is still active.
+                if ($wasIdleWarned && !($state['idle_warned'] ?? false) && $choice === '') {
+                    continue 2;
                 }
             }
 
@@ -1400,6 +1415,7 @@ class BbsSession
             $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.idle.warning_key', 'Are you still there? (Press any key to continue)', [], $state['locale'] ?? $this->systemLocale), self::ANSI_YELLOW . self::ANSI_BOLD));
             $this->writeLine($conn, '');
             $state['idle_warned'] = true;
+            return ['', true, false];
         }
 
         $idleRemainingMs = (($state['idle_warned'] ?? false) ? $disconnAt : $warnAt) - $elapsed;
@@ -2331,6 +2347,7 @@ class BbsSession
             $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.idle.warning_line', 'Are you still there? (Press Enter to continue)', [], $state['locale']), self::ANSI_YELLOW . self::ANSI_BOLD));
             $this->writeLine($conn, '');
             $state['idle_warned'] = true;
+            return ['', true, false];
         }
 
         $timeout = $state['idle_warned']
@@ -2371,6 +2388,7 @@ class BbsSession
             $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.idle.warning_key', 'Are you still there? (Press any key to continue)', [], $state['locale']), self::ANSI_YELLOW . self::ANSI_BOLD));
             $this->writeLine($conn, '');
             $state['idle_warned'] = true;
+            return ['', true, false];
         }
 
         $timeout = $state['idle_warned']

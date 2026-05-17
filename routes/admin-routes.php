@@ -1793,6 +1793,28 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ];
                 }
 
+                if (array_key_exists('terminal_idle', $config)) {
+                    $ti = $config['terminal_idle'];
+                    if (!is_array($ti)) {
+                        throw new Exception('Invalid terminal_idle configuration');
+                    }
+                    $warnMinutes       = (int)($ti['warn_minutes'] ?? 5);
+                    $disconnectMinutes = (int)($ti['disconnect_minutes'] ?? 7);
+                    if ($warnMinutes < 1) {
+                        throw new Exception('Idle warning timeout must be a positive integer');
+                    }
+                    if ($disconnectMinutes < 1) {
+                        throw new Exception('Idle disconnect timeout must be a positive integer');
+                    }
+                    if ($disconnectMinutes <= $warnMinutes) {
+                        throw new Exception('Idle disconnect timeout must be greater than the warning timeout');
+                    }
+                    $config['terminal_idle'] = [
+                        'warn_minutes'       => $warnMinutes,
+                        'disconnect_minutes' => $disconnectMinutes,
+                    ];
+                }
+
                 if (array_key_exists('packet_bbs', $config)) {
                     $pbbs = $config['packet_bbs'];
                     if (!is_array($pbbs)) {
