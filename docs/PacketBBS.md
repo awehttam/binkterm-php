@@ -12,8 +12,11 @@
   - [3. Configure the Bridge](#3-configure-the-bridge)
 - [User Enrollment](#user-enrollment)
 - [End-User Command Guide](#end-user-command-guide)
+  - [Session Context](#session-context)
+  - [Command Tables](#command-tables)
   - [Login](#login)
   - [Online Users](#online-users)
+  - [Status](#status)
   - [Netmail](#netmail)
   - [Echomail](#echomail)
     - [Area Search](#area-search)
@@ -179,24 +182,106 @@ Radio login uses TOTP codes, not the web password.
 
 ## End-User Command Guide
 
-PacketBBS is intentionally terse. Send `HELP` first:
+PacketBBS is intentionally terse. Send `HELP` or `H` first:
 
 ```text
-HELP
+H
 ```
 
 Typical response:
 
 ```text
-HELP: LOGIN, WHO, MAIL, AREAS
-R <id>, RP <id>, M, P, Q
-More: HELP MAIL, HELP AREAS
+H: L username code | A areas | N mail
+T tag | R id | Y id | EP post
+M more | B back | U status | Q quit
 ```
+
+### Session Context
+
+PacketBBS keeps lightweight session context per sender node. That means:
+
+- `AREA <tag>` or `T <tag>` makes that echoarea the current working area
+- `POST` can reuse the current area instead of requiring the tag every time
+- `REPLY` can reuse the current message when the target is unambiguous
+- `M`, `P`, and `B` continue the current list or message
+- guided flows like `POST` -> `Subj?` keep state until sent or cancelled
+
+Example:
+
+```text
+AREA LVLY_TEST
+POST
+Subj?
+Testing from radio
+Msg:
+hello from field
++
+/SEND
+Posted to LVLY_TEST.
+```
+
+### Command Tables
+
+#### Global Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `HELP` | `H` | Show general help or contextual help such as `H MAIL` or `H U`. |
+| `HELPFULL` | `FULLHELP` or `HELPFUL` | Show verbose help with full command names. |
+| `LOGIN <user> <code>` | `L <user> <code>` | Log in using PacketBBS TOTP. |
+| `WHO` | `W` | Show who is online. |
+| `STATUS` | `U` | Show current area, list, message, or draft state. |
+| `QUIT` | `Q` | End the PacketBBS session and clear state. |
+| `WEBSITE` | `WEB` | Show the BBS website URL. |
+
+#### Area Navigation Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `AREAS` | `A` or `E` | List subscribed areas. |
+| `AREAS <search>` | `A <search>` | Search subscribed areas by tag, description, or domain. If the text resolves to a subscribed area, it opens that area instead. |
+| `AREA <tag>` | `AREA <tag>` or `T <tag>` or `ER <tag>` | Open an area and make it the current working area. |
+| `MORE` | `M` | Show the next page of the current list or message. |
+| `PREV` | `B`, `P`, or `PREV` | Show the previous page of the current list or message. |
+
+#### Netmail Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `MAIL` | `N`, `NM`, or `NETMAIL` | List netmail. |
+| `READ <id>` | `R <id>` or `NR <id>` | Read a netmail or current-list message by ID. `R` without an ID reopens the current message when one is active. |
+| `REPLY <id>` | `Y <id>`, `RP <id>`, or `NRP <id>` | Reply to a specific message. `REPLY` without an ID replies to the current message when context is clear. |
+| `SEND <user> <subject>` | `S <user> <subject>` or `NS <user> <subject>` | Start a new netmail draft in one step. |
+
+#### Echomail / Current Area Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `AREA <tag>` | `T <tag>` or `ER <tag>` | Open an area and set area context. |
+| `READ <id>` | `R <id>` | Read an echomail message by ID. `R` without an ID reopens the current message when one is active. |
+| `REPLY <id>` | `Y <id>` or `RP <id>` | Reply to a message by ID, or to the current message when no ID is given and context is clear. |
+| `POST <tag> <subject>` | `EP <tag> <subject>` | Start a post in an explicitly named area. |
+| `POST <subject>` | `EP <subject>` | Start a post in the current area using the whole remainder as the subject. |
+| `POST` | `EP` | Start a guided post flow in the current area and prompt for subject. |
+
+#### Guided Flow Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `/SEND` | `.` | Send the current draft. |
+| `/CANCEL` | `CANCEL` | Cancel the current draft or guided flow. |
+| `STATUS` | `U` | Show current draft target, subject, and body progress. |
 
 ### Login
 
 ```text
 LOGIN <username> <6-digit-code>
+```
+
+Short form:
+
+```text
+L <username> <6-digit-code>
 ```
 
 Example:
@@ -219,7 +304,34 @@ If the session is idle too long, log in again.
 WHO
 ```
 
+Short form:
+
+```text
+W
+```
+
 Lists users currently online. Depending on sysop configuration, this may be available before login.
+
+### Status
+
+```text
+U
+```
+
+Shows the current working context. Example responses:
+
+```text
+area LVLY_TEST
+list echomail p1/3
+```
+
+or:
+
+```text
+draft post LVLY_TEST
+subj Testing from radio
+2 lines
+```
 
 ### Netmail
 
@@ -254,6 +366,16 @@ Read a message:
 R 12
 ```
 
+If a current message is already open, you can also send:
+
+```text
+R
+```
+
+to reopen that message from the top.
+
+The same replay behavior applies to `NR` and `EM` when they are used without an ID and a current message is active.
+
 Compatibility aliases:
 
 ```text
@@ -264,15 +386,18 @@ NR 12
 Reply:
 
 ```text
-RP 12
+REPLY 12
 ```
 
 Compatibility aliases:
 
 ```text
-REPLY 12
+RP 12
 NRP 12
+Y 12
 ```
+
+If a message is already open, `REPLY` without an ID uses the current message.
 
 Start new netmail:
 
@@ -295,9 +420,10 @@ List subscribed areas:
 AREAS
 ```
 
-Alias:
+Aliases:
 
 ```text
+A
 E
 ```
 
@@ -311,7 +437,7 @@ LVLY_TEST@lovlynet Test echo area
 AREA <tag>, M
 ```
 
-The header shows the current page and total pages. If there are more pages, the footer shows `AREA <tag>, M`. Use `M` and `P` to navigate pages.
+The header shows the current page and total pages. If there are more pages, the footer shows `AREA <tag>, M`. Use `M` and `P` or `B` to navigate pages.
 
 Networked areas appear as `TAG@domain`. Use `M` to page through all subscribed areas.
 
@@ -343,6 +469,7 @@ AREA LVLY_TEST@lovlynet
 Aliases:
 
 ```text
+T LVLY_TEST@lovlynet
 ER LVLY_TEST@lovlynet
 ```
 
@@ -358,19 +485,15 @@ Read an echomail message:
 R 44
 ```
 
+`EM` behaves the same way as `R` for the current message: if you already have a message open, `EM` without an ID reopens it from the top.
+
 Reply:
 
 ```text
-RP 44
+REPLY 44
 ```
 
-Post a new echomail message:
-
-```text
-POST <tag> <subject>
-```
-
-Example:
+Post a new echomail message with an explicit area:
 
 ```text
 POST LVLY_TEST@lovlynet Testing radio post
@@ -380,6 +503,24 @@ Compatibility alias:
 
 ```text
 EP LVLY_TEST@lovlynet Testing radio post
+```
+
+If you already opened an area, PacketBBS remembers it. These are valid too:
+
+```text
+AREA LVLY_TEST
+POST Testing radio post
+```
+
+or guided:
+
+```text
+AREA LVLY_TEST
+POST
+Subj?
+Testing radio post
+Msg:
+hello from field
 ```
 
 ### Compose Mode
@@ -395,6 +536,15 @@ Subj: Re: Meeting
 Send lines. /SEND=send /CANCEL=abort
 ```
 
+Guided `POST` can also prompt for the subject first:
+
+```text
+POST
+Subj?
+Testing from field
+Msg:
+```
+
 Then send one body line per radio message:
 
 ```text
@@ -405,6 +555,12 @@ PacketBBS responds:
 
 ```text
 OK
+```
+
+Guided post flows reply with a shorter acknowledgement while the body is in progress:
+
+```text
++
 ```
 
 Finish:
@@ -466,16 +622,17 @@ MORE
 Move back one page:
 
 ```text
-P
+B
 ```
 
-Alias:
+Compatibility aliases:
 
 ```text
+P
 PREV
 ```
 
-`P` on the first page returns:
+`B` or `P` on the first page returns:
 
 ```text
 Already at first page.

@@ -91,6 +91,7 @@ class PacketBbsGateway
 
         $session = $this->sessionRepo->getOrCreate($nodeId);
         $renderer = new PacketBbsTextRenderer($interface);
+        $state = $this->getSessionState($session);
 
         // Check session expiry: if last_activity is older than timeout and user_id is set,
         // clear auth state so they must re-login (but keep session row so context is preserved)
@@ -103,6 +104,7 @@ class PacketBbsGateway
                 'compose_buffer'     => null,
                 'compose_type'       => null,
                 'compose_meta'       => null,
+                'session_state'      => [],
             ]);
             $session = $this->sessionRepo->load($nodeId);
             return 'Session expired. LOGIN again.';
@@ -118,16 +120,27 @@ class PacketBbsGateway
             return $this->handleComposeLine($session, $nodeId, $command, $renderer);
         }
 
+        if ($this->hasActiveFlow($state)) {
+            return $this->handleFlowInput($session, $nodeId, $command, $renderer);
+        }
+
         // Parse command verb and arguments
         $parts = preg_split('/\s+/', $command, 2);
         $verb  = strtoupper($parts[0]);
         $args  = trim($parts[1] ?? '');
 
         switch ($verb) {
+            case 'H':
             case 'HELP':
             case '?':
-                return $renderer->renderHelp($args, $this->getBbsName());
+                return $renderer->renderHelp($args, $this->getBbsName(), $state);
 
+            case 'HELPFULL':
+            case 'FULLHELP':
+            case 'HELPFUL':
+                return $renderer->renderHelp($verb, $this->getBbsName(), $state);
+
+            case 'L':
             case 'LOGIN':
                 return $this->handleLogin($session, $nodeId, $args, $interface);
 
@@ -135,8 +148,13 @@ class PacketBbsGateway
             case 'QUIT':
                 return $this->handleQuit($nodeId);
 
+            case 'W':
             case 'WHO':
                 return $this->handleWho($session, $renderer);
+
+            case 'U':
+            case 'STATUS':
+                return $renderer->renderStatus($state);
 
             case 'N':
             case 'MAIL':
@@ -155,13 +173,13 @@ class PacketBbsGateway
             case 'SEND':
                 return $this->handleNetmailCompose($session, $nodeId, $args, $renderer);
 
+            case 'A':
             case 'E':
             case 'AREAS':
-                return $this->handleEchoareaList($session, $nodeId, $args, 1, $renderer);
-
+            case 'T':
             case 'ER':
             case 'AREA':
-                return $this->handleEchomailList($session, $nodeId, trim($args), 1, $renderer);
+                return $this->handleAreaCommand($session, $nodeId, $verb, $args, $renderer);
 
             case 'EM':
                 return $this->handleEchomailRead($session, $nodeId, (int)$args, $renderer);
@@ -177,6 +195,7 @@ class PacketBbsGateway
             case 'READ':
                 return $this->handleReadAny($session, $nodeId, (int)$args, $renderer);
 
+            case 'Y':
             case 'RP':
             case 'REPLY':
                 return $this->handleReplyAny($session, $nodeId, (int)$args, $renderer);
@@ -185,6 +204,7 @@ class PacketBbsGateway
             case 'MORE':
                 return $this->handleMore($session, $nodeId, $renderer);
 
+            case 'B':
             case 'P':
             case 'PREV':
                 return $this->handlePrev($session, $nodeId, $renderer);
@@ -206,6 +226,75 @@ class PacketBbsGateway
         $stmt = $this->db->prepare('SELECT 1 FROM packet_bbs_nodes WHERE node_id = ?');
         $stmt->execute([$nodeId]);
         return (bool)$stmt->fetch();
+    }
+
+    /**
+     * @param array<string,mixed> $session
+     * @return array<string,mixed>
+     */
+    private function getSessionState(array $session): array
+    {
+        $state = $session['session_state'] ?? [];
+        return is_array($state) ? $state : [];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private function saveSessionState(string $nodeId, array $state): void
+    {
+        $this->sessionRepo->update($nodeId, ['session_state' => $state]);
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private function hasActiveFlow(array $state): bool
+    {
+        return !empty($state['active_flow']['type']);
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @param array<string,mixed> $currentArea
+     */
+    private function setCurrentAreaInState(array $state, array $currentArea): array
+    {
+        $tag = strtoupper(trim((string)($currentArea['tag'] ?? '')));
+        $domain = strtolower(trim((string)($currentArea['domain'] ?? '')));
+        $display = $domain !== '' ? $tag . '@' . $domain : $tag;
+        $state['current_area'] = [
+            'tag' => $tag,
+            'domain' => $domain !== '' ? $domain : null,
+            'display' => $display,
+        ];
+        return $state;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private function clearActiveFlow(array $state): array
+    {
+        unset($state['active_flow']);
+        return $state;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private function beginPostSubjectFlow(array $state, string $areaTag, string $areaDomain = ''): array
+    {
+        $display = $this->formatAreaIdentifier($areaTag, $areaDomain);
+        $state['active_flow'] = [
+            'type' => 'post',
+            'step' => 'await_subject',
+            'target_display' => $display,
+            'target_area_tag' => strtoupper($areaTag),
+            'target_area_domain' => $areaDomain !== '' ? strtolower($areaDomain) : null,
+            'body_lines' => 0,
+        ];
+        return $state;
     }
 
     // -------------------------------------------------------------------------
@@ -235,13 +324,16 @@ class PacketBbsGateway
      */
     private function handleComposeLine(array $session, string $nodeId, string $line, PacketBbsTextRenderer $renderer): string
     {
+        $state = $this->getSessionState($session);
         $control = strtoupper(trim($line));
         if ($control === 'CANCEL' || $control === '/CANCEL') {
+            $state = $this->clearActiveFlow($state);
             $this->sessionRepo->update($nodeId, [
                 'menu_state'   => 'main',
                 'compose_buffer' => null,
                 'compose_type'   => null,
                 'compose_meta'   => null,
+                'session_state'  => $state,
             ]);
             return 'Cancelled.';
         }
@@ -259,20 +351,74 @@ class PacketBbsGateway
         }
 
         $this->sessionRepo->update($nodeId, ['compose_buffer' => $buffer]);
+        if ($this->hasActiveFlow($state)) {
+            $state['active_flow']['body_lines'] = substr_count($buffer, "\n");
+            $this->saveSessionState($nodeId, $state);
+            return '+';
+        }
         return 'OK';
+    }
+
+    private function handleFlowInput(array $session, string $nodeId, string $line, PacketBbsTextRenderer $renderer): string
+    {
+        $state = $this->getSessionState($session);
+        $flow = $state['active_flow'] ?? [];
+        $control = strtoupper(trim($line));
+
+        if ($control === 'CANCEL' || $control === '/CANCEL' || $control === '/C') {
+            $state = $this->clearActiveFlow($state);
+            $this->sessionRepo->update($nodeId, [
+                'menu_state' => 'main',
+                'compose_buffer' => null,
+                'compose_type' => null,
+                'compose_meta' => null,
+                'session_state' => $state,
+            ]);
+            return 'Cancelled.';
+        }
+
+        if (($flow['type'] ?? '') === 'post' && ($flow['step'] ?? '') === 'await_subject') {
+            $subject = trim($line);
+            if ($subject === '') {
+                return 'Subj?';
+            }
+
+            $tag = (string)($flow['target_area_tag'] ?? '');
+            $domain = (string)($flow['target_area_domain'] ?? '');
+            $display = $this->formatAreaIdentifier($tag, $domain);
+
+            $state['active_flow']['step'] = 'await_body';
+            $state['active_flow']['subject'] = $subject;
+            $state['active_flow']['target_display'] = $display;
+
+            $this->startCompose($nodeId, 'echomail', [
+                'tag'      => $tag,
+                'domain'   => $domain,
+                'to_name'  => 'All',
+                'subject'  => $subject,
+                'reply_to' => null,
+            ]);
+            $this->saveSessionState($nodeId, $state);
+
+            return "Msg:\n/SEND or /CANCEL";
+        }
+
+        return 'Unknown. H';
     }
 
     private function submitCompose(array $session, string $nodeId): string
     {
-        $meta   = json_decode($session['compose_meta'] ?? '{}', true) ?? [];
+        $meta   = is_array($session['compose_meta'] ?? null) ? $session['compose_meta'] : (json_decode($session['compose_meta'] ?? '{}', true) ?? []);
         $body   = trim($session['compose_buffer'] ?? '');
         $type   = $session['compose_type'] ?? '';
+        $state  = $this->clearActiveFlow($this->getSessionState($session));
 
         $this->sessionRepo->update($nodeId, [
             'menu_state'   => 'main',
             'compose_buffer' => null,
             'compose_type'   => null,
             'compose_meta'   => null,
+            'session_state'  => $state,
         ]);
 
         if ($body === '') {
@@ -309,6 +455,11 @@ class PacketBbsGateway
                 if ($id === false) {
                     return 'Post failed.';
                 }
+                $state = $this->setCurrentAreaInState($state, [
+                    'tag' => (string)($meta['tag'] ?? ''),
+                    'domain' => (string)($meta['domain'] ?? ''),
+                ]);
+                $this->saveSessionState($nodeId, $state);
                 return sprintf('Posted to %s.', $this->formatAreaIdentifier((string)($meta['tag'] ?? '?'), (string)($meta['domain'] ?? '')));
             }
         } catch (\Exception $e) {
@@ -407,6 +558,7 @@ class PacketBbsGateway
             'compose_buffer'     => null,
             'compose_type'       => null,
             'compose_meta'       => null,
+            'session_state'      => [],
         ]);
 
         $this->logger->info(sprintf('login ok node=%s user=%s', $nodeId, $user['username']));
@@ -450,6 +602,27 @@ class PacketBbsGateway
         return $renderer->renderWho($users);
     }
 
+    private function handleAreaCommand(array $session, string $nodeId, string $verb, string $args, PacketBbsTextRenderer $renderer): string
+    {
+        $args = trim($args);
+
+        if ($args === '') {
+            return $this->handleEchoareaList($session, $nodeId, '', 1, $renderer);
+        }
+
+        $echoarea = $this->resolveSubscribedEchoarea((int)$session['user_id'], $args);
+        if ($echoarea) {
+            $area = $this->formatAreaIdentifier((string)$echoarea['tag'], (string)($echoarea['domain'] ?? ''));
+            return $this->handleEchomailList($session, $nodeId, $area, 1, $renderer);
+        }
+
+        if ($verb === 'AREA') {
+            return sprintf('No area %s.', strtoupper($args));
+        }
+
+        return $this->handleEchoareaList($session, $nodeId, $args, 1, $renderer);
+    }
+
     private function handleNetmailList(array $session, string $nodeId, int $page, PacketBbsTextRenderer $renderer): string
     {
         if ($err = $this->requireLogin($session)) {
@@ -468,6 +641,14 @@ class PacketBbsGateway
         $this->sessionRepo->update($nodeId, [
             'pagination_cursor'  => $page,
             'pagination_context' => json_encode(['type' => 'netmail']),
+            'session_state'      => [
+                ...$this->clearActiveFlow($this->getSessionState($session)),
+                'current_list' => [
+                    'type' => 'netmail',
+                    'page' => $page,
+                    'total_pages' => (int)$total,
+                ],
+            ],
         ]);
 
         return $renderer->renderNetmailList($messages, $page, $total);
@@ -490,7 +671,17 @@ class PacketBbsGateway
             return $err;
         }
         if ($id <= 0) {
-            return 'Use: R <id>';
+            $currentMessage = $this->getCurrentMessageState($session);
+            if (empty($currentMessage['id'])) {
+                return 'Use: R <id>';
+            }
+            $id = (int)$currentMessage['id'];
+            $msgType = (string)($currentMessage['type'] ?? 'netmail');
+            $msg = $this->messageHandler->getMessage($id, $msgType === 'echomail' ? 'echomail' : 'netmail', $session['user_id']);
+            if ($msg) {
+                return $this->renderMessageWithPagination($msg, $msgType === 'echomail' ? 'echomail' : 'netmail', $id, $nodeId, $renderer);
+            }
+            return 'No current message.';
         }
 
         $msg = $this->messageHandler->getMessage($id, 'netmail', $session['user_id']);
@@ -667,6 +858,15 @@ class PacketBbsGateway
                 'type'   => 'areas',
                 'search' => $search !== '' ? $search : null,
             ]),
+            'session_state'      => [
+                ...$this->clearActiveFlow($this->getSessionState($session)),
+                'current_list' => [
+                    'type' => 'areas',
+                    'page' => $page,
+                    'total_pages' => $totalPages,
+                    'search' => $search !== '' ? $search : null,
+                ],
+            ],
         ]);
 
         return $renderer->renderEchoareaList($areas, $search !== '' ? $search : null, $page, $totalPages);
@@ -705,6 +905,15 @@ class PacketBbsGateway
         $this->sessionRepo->update($nodeId, [
             'pagination_cursor'  => $page,
             'pagination_context' => json_encode(['type' => 'echomail', 'area' => $this->formatAreaIdentifier($tag, $domain)]),
+            'session_state'      => $this->setCurrentAreaInState([
+                ...$this->clearActiveFlow($this->getSessionState($session)),
+                'current_list' => [
+                    'type' => 'echomail',
+                    'page' => $page,
+                    'total_pages' => (int)$total,
+                    'area' => $this->formatAreaIdentifier($tag, $domain),
+                ],
+            ], ['tag' => $tag, 'domain' => $domain]),
         ]);
 
         return $renderer->renderEchomailList($messages, $this->formatAreaIdentifier($tag, $domain), $page, $total);
@@ -764,7 +973,17 @@ class PacketBbsGateway
             return $err;
         }
         if ($id <= 0) {
-            return 'Use: R <id>';
+            $currentMessage = $this->getCurrentMessageState($session);
+            if (empty($currentMessage['id'])) {
+                return 'Use: R <id>';
+            }
+            $id = (int)$currentMessage['id'];
+            $msgType = (string)($currentMessage['type'] ?? 'echomail');
+            $msg = $this->messageHandler->getMessage($id, $msgType === 'netmail' ? 'netmail' : 'echomail', $session['user_id']);
+            if ($msg) {
+                return $this->renderMessageWithPagination($msg, $msgType === 'netmail' ? 'netmail' : 'echomail', $id, $nodeId, $renderer);
+            }
+            return 'No current message.';
         }
 
         $msg = $this->messageHandler->getMessage($id, 'echomail', $session['user_id']);
@@ -811,12 +1030,57 @@ class PacketBbsGateway
             return $err;
         }
 
+        $args = trim($args);
+        $state = $this->getSessionState($session);
+        $currentArea = $state['current_area'] ?? null;
+
+        if ($args === '') {
+            if (!is_array($currentArea) || empty($currentArea['tag'])) {
+                return 'Use: POST <tag> <subject>';
+            }
+
+            $state = $this->beginPostSubjectFlow(
+                $state,
+                (string)$currentArea['tag'],
+                (string)($currentArea['domain'] ?? '')
+            );
+            $this->saveSessionState($nodeId, $state);
+            return 'Subj?';
+        }
+
+        if (is_array($currentArea) && !empty($currentArea['tag'])) {
+            $parts = preg_split('/\s+/', $args, 2);
+            $explicitArea = count($parts) >= 2 ? $this->resolveSubscribedEchoarea((int)$session['user_id'], (string)$parts[0]) : null;
+
+            if (!$explicitArea) {
+                $tag = (string)$currentArea['tag'];
+                $domain = (string)($currentArea['domain'] ?? '');
+                $this->startCompose($nodeId, 'echomail', [
+                    'tag'      => $tag,
+                    'domain'   => $domain,
+                    'to_name'  => 'All',
+                    'subject'  => $args,
+                    'reply_to' => null,
+                ]);
+
+                $state = $this->setCurrentAreaInState(
+                    $this->beginPostSubjectFlow($this->clearActiveFlow($state), $tag, $domain),
+                    ['tag' => $tag, 'domain' => $domain]
+                );
+                $state['active_flow']['step'] = 'await_body';
+                $state['active_flow']['subject'] = $args;
+                $this->saveSessionState($nodeId, $state);
+
+                return $renderer->renderComposePrompt('echomail', $this->formatAreaIdentifier($tag, $domain), $args);
+            }
+        }
+
         $parts = preg_split('/\s+/', $args, 2);
         if (count($parts) < 2 || $parts[0] === '' || $parts[1] === '') {
             return 'Use: POST <tag> <subject>';
         }
 
-        $area    = $parts[0];
+        $area = $parts[0];
         $subject = $parts[1];
 
         $echoarea = $this->resolveSubscribedEchoarea((int)$session['user_id'], $area);
@@ -834,6 +1098,14 @@ class PacketBbsGateway
             'reply_to' => null,
         ]);
 
+        $state = $this->setCurrentAreaInState(
+            $this->beginPostSubjectFlow($this->clearActiveFlow($state), $tag, $domain),
+            ['tag' => $tag, 'domain' => $domain]
+        );
+        $state['active_flow']['step'] = 'await_body';
+        $state['active_flow']['subject'] = $subject;
+        $this->saveSessionState($nodeId, $state);
+
         return $renderer->renderComposePrompt('echomail', $this->formatAreaIdentifier($tag, $domain), $subject);
     }
 
@@ -843,7 +1115,27 @@ class PacketBbsGateway
             return $err;
         }
         if ($id <= 0) {
-            return 'Use: R <id>';
+            $state = $this->getSessionState($session);
+            $currentMessage = $state['current_message'] ?? null;
+            if (!is_array($currentMessage) || empty($currentMessage['id'])) {
+                return 'Use: R <id>';
+            }
+
+            $id = (int)$currentMessage['id'];
+            $type = (string)($currentMessage['type'] ?? '');
+            if ($type === 'netmail') {
+                $msg = $this->messageHandler->getMessage($id, 'netmail', $session['user_id']);
+                if ($msg) {
+                    return $this->renderMessageWithPagination($msg, 'netmail', $id, $nodeId, $renderer);
+                }
+            } elseif ($type === 'echomail') {
+                $msg = $this->messageHandler->getMessage($id, 'echomail', $session['user_id']);
+                if ($msg) {
+                    return $this->renderMessageWithPagination($msg, 'echomail', $id, $nodeId, $renderer);
+                }
+            }
+
+            return 'No current message.';
         }
 
         $msg = $this->messageHandler->getMessage($id, 'netmail', $session['user_id']);
@@ -860,21 +1152,61 @@ class PacketBbsGateway
     }
 
     /**
+     * @param array<string,mixed> $session
+     * @return array<string,mixed>
+     */
+    private function getCurrentMessageState(array $session): array
+    {
+        $state = $this->getSessionState($session);
+        $currentMessage = $state['current_message'] ?? [];
+        return is_array($currentMessage) ? $currentMessage : [];
+    }
+
+    /**
      * Render a message, setting up body pagination context if the body exceeds the threshold.
      */
     private function renderMessageWithPagination(array $msg, string $type, int $id, string $nodeId, PacketBbsTextRenderer $renderer): string
     {
         $totalPages = $renderer->countBodyPages($msg['message_text'] ?? '');
+        $session = $this->sessionRepo->load($nodeId) ?? [];
+        $state = $this->clearActiveFlow($this->getSessionState($session));
+        $state['current_message'] = [
+            'id' => $id,
+            'type' => $type,
+        ];
+        if ($type === 'echomail') {
+            $state = $this->setCurrentAreaInState($state, [
+                'tag' => (string)($msg['tag'] ?? $msg['echoarea_tag'] ?? ''),
+                'domain' => (string)($msg['domain'] ?? $msg['echoarea_domain'] ?? ''),
+            ]);
+        }
 
         if ($totalPages > 1) {
             $this->sessionRepo->update($nodeId, [
                 'pagination_cursor'  => 1,
                 'pagination_context' => json_encode(['type' => 'message', 'msg_type' => $type, 'id' => $id]),
+                'session_state'      => [
+                    ...$state,
+                    'current_list' => [
+                        'type' => 'message',
+                        'page' => 1,
+                        'total_pages' => $totalPages,
+                    ],
+                ],
             ]);
             return $type === 'netmail'
                 ? $renderer->renderNetmailMessage($msg, 1)
                 : $renderer->renderEchomailMessage($msg, 1);
         }
+
+        $this->saveSessionState($nodeId, [
+            ...$state,
+            'current_list' => [
+                'type' => 'message',
+                'page' => 1,
+                'total_pages' => 1,
+            ],
+        ]);
 
         return $type === 'netmail'
             ? $renderer->renderNetmailMessage($msg)
@@ -887,6 +1219,18 @@ class PacketBbsGateway
             return $err;
         }
         if ($id <= 0) {
+            $state = $this->getSessionState($session);
+            $currentMessage = $state['current_message'] ?? null;
+            if (is_array($currentMessage) && !empty($currentMessage['id'])) {
+                $id = (int)$currentMessage['id'];
+                $type = (string)($currentMessage['type'] ?? '');
+                if ($type === 'netmail') {
+                    return $this->handleNetmailReply($session, $nodeId, $id, $renderer);
+                }
+                if ($type === 'echomail') {
+                    return $this->handleEchomailReply($session, $nodeId, $id, $renderer);
+                }
+            }
             return 'Use: RP <id>';
         }
 
@@ -939,11 +1283,27 @@ class PacketBbsGateway
 
             $totalPages = $renderer->countBodyPages($msg['message_text'] ?? '');
             if ($page > $totalPages) {
-                $this->sessionRepo->update($nodeId, ['pagination_context' => null]);
+                $state = $this->getSessionState($session);
+                if (isset($state['current_list'])) {
+                    $state['current_list']['page'] = $totalPages;
+                    $state['current_list']['total_pages'] = $totalPages;
+                }
+                $this->sessionRepo->update($nodeId, [
+                    'pagination_context' => null,
+                    'session_state' => $state,
+                ]);
                 return 'End.';
             }
 
-            $this->sessionRepo->update($nodeId, ['pagination_cursor' => $page]);
+            $state = $this->getSessionState($session);
+            if (isset($state['current_list'])) {
+                $state['current_list']['page'] = $page;
+                $state['current_list']['total_pages'] = $totalPages;
+            }
+            $this->sessionRepo->update($nodeId, [
+                'pagination_cursor' => $page,
+                'session_state' => $state,
+            ]);
 
             return $msgType === 'netmail'
                 ? $renderer->renderNetmailMessage($msg, $page)
@@ -991,7 +1351,14 @@ class PacketBbsGateway
                 return 'Message not found.';
             }
 
-            $this->sessionRepo->update($nodeId, ['pagination_cursor' => $page]);
+            $state = $this->getSessionState($session);
+            if (isset($state['current_list'])) {
+                $state['current_list']['page'] = $page;
+            }
+            $this->sessionRepo->update($nodeId, [
+                'pagination_cursor' => $page,
+                'session_state' => $state,
+            ]);
 
             return $msgType === 'netmail'
                 ? $renderer->renderNetmailMessage($msg, $page)
