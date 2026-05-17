@@ -1,0 +1,39 @@
+[binkterm-telnet-ratelimit]
+enabled = true
+filter = binkterm-telnet-ratelimit
+backend = auto
+logpath = /path/to/binkterm/data/logs/telnetd.log
+port = 2323,8023
+protocol = tcp
+# The daemon suppresses duplicate log lines within a rate-limit window, so
+# only one line is written per offending IP per window. maxretry = 1 ensures
+# fail2ban bans immediately on the first logged rejection.
+findtime = 10m
+maxretry = 1
+bantime = 1h
+
+# --- Action examples — uncomment the one that matches your firewall ---
+
+# iptables (most common on older Debian/Ubuntu/CentOS/RHEL systems)
+action = iptables-multiport[name=binkterm-telnet-ratelimit, port="2323,8023", protocol=tcp]
+
+# nftables (default on newer Debian 11+/Ubuntu 22.04+/Fedora systems)
+#action = nftables-multiport[name=binkterm-telnet-ratelimit, port="2323,8023", protocol=tcp]
+
+# firewalld (default on RHEL/CentOS/Rocky/AlmaLinux with firewalld running)
+#action = firewallcmd-rich-rules[name=binkterm-telnet-ratelimit, port="2323,8023", protocol=tcp]
+
+# ufw (Ubuntu systems using ufw instead of raw iptables)
+#action = ufw[name=binkterm-telnet-ratelimit, port="2323,8023", protocol=tcp]
+
+# ipset + iptables (efficient for large ban lists; requires ipset installed)
+#action = iptables-ipset-proto6-allports[name=binkterm-telnet-ratelimit]
+
+# pf (FreeBSD / OpenBSD — requires fail2ban's pf action and a table in pf.conf)
+# Add to /etc/pf.conf:  table <f2b-binkterm-telnet-ratelimit> persist
+#                        block in quick proto tcp from <f2b-binkterm-telnet-ratelimit> to any port {2323 8023}
+# Then run: pfctl -f /etc/pf.conf
+#action = pf[name=binkterm-telnet-ratelimit, port="2323,8023", protocol=tcp]
+
+# ipfw (FreeBSD alternative to pf; uses kernel firewall rule sets)
+#action = ipfw[name=binkterm-telnet-ratelimit, port="2323,8023", protocol=tcp]
