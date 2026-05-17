@@ -10,6 +10,8 @@ require_once __DIR__ . '/../telnet/src/TelnetUtils.php';
 require_once __DIR__ . '/../telnet/src/TerminalMarkupRenderer.php';
 require_once __DIR__ . '/../telnet/src/SixelImageRenderer.php';
 require_once __DIR__ . '/../telnet/src/TerminalBoxRenderer.php';
+require_once __DIR__ . '/../telnet/src/TerminalSplitScreen.php';
+require_once __DIR__ . '/../telnet/src/ChatHandler.php';
 require_once __DIR__ . '/../telnet/src/MailUtils.php';
 require_once __DIR__ . '/../telnet/src/NetmailHandler.php';
 require_once __DIR__ . '/../telnet/src/EchomailHandler.php';

@@ -55,6 +55,12 @@ class TelnetUtils
             $attempt++;
 
             $ch = curl_init($url);
+            $headers = [
+                'Accept: application/json',
+                'Cache-Control: no-cache, no-store, must-revalidate',
+                'Pragma: no-cache',
+                'Expires: 0',
+            ];
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
@@ -64,17 +70,16 @@ class TelnetUtils
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
                 if ($payload !== null) {
                     $json    = json_encode($payload);
-                    $headers = [
-                        'Content-Type: application/json',
-                        'Content-Length: ' . strlen($json)
-                    ];
+                    $headers[] = 'Content-Type: application/json';
+                    $headers[] = 'Content-Length: ' . strlen($json);
                     if ($csrfToken !== null) {
                         $headers[] = 'X-CSRF-Token: ' . $csrfToken;
                     }
                     curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
                 }
             }
+
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
             // Add session cookie if provided
             if ($session) {

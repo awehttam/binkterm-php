@@ -111,7 +111,7 @@ class TerminalBoxRenderer
 
     private function padPlainText(string $text, int $width, int $padType): string
     {
-        $textLength = strlen($text);
+        $textLength = $this->visibleTextWidth($text);
         if ($textLength >= $width) {
             return $text;
         }
@@ -130,15 +130,15 @@ class TerminalBoxRenderer
 
     private function truncatePlainText(string $text, int $width): string
     {
-        if (strlen($text) <= $width) {
+        if ($this->visibleTextWidth($text) <= $width) {
             return $text;
         }
-        return substr($text, 0, $width);
+        return $this->truncateVisibleText($text, $width);
     }
 
     private function ansiLength(string $text): int
     {
-        return strlen($this->stripAnsi($text));
+        return $this->visibleTextWidth($this->stripAnsi($text));
     }
 
     private function stripAnsi(string $text): string
@@ -150,20 +150,55 @@ class TerminalBoxRenderer
     {
         $result = '';
         $visible = 0;
-        $length = strlen($line);
+        if (!preg_match_all('/\033\[[0-9;]*m|./us', $line, $matches)) {
+            return '';
+        }
 
-        for ($i = 0; $i < $length && $visible < $width; $i++) {
-            if ($line[$i] === "\033" && preg_match('/\G\033\[[0-9;]*m/', $line, $match, 0, $i)) {
-                $result .= $match[0];
-                $i += strlen($match[0]) - 1;
+        foreach ($matches[0] as $token) {
+            if (str_starts_with($token, "\033[")) {
+                $result .= $token;
                 continue;
             }
 
-            $result .= $line[$i];
-            $visible++;
+            $charWidth = max(1, mb_strwidth($token, 'UTF-8'));
+            if ($visible + $charWidth > $width) {
+                break;
+            }
+            $result .= $token;
+            $visible += $charWidth;
         }
 
         return $result . "\033[0m";
+    }
+
+    private function visibleTextWidth(string $text): int
+    {
+        return mb_strwidth($text, 'UTF-8');
+    }
+
+    private function truncateVisibleText(string $text, int $width): string
+    {
+        if ($width <= 0 || $text === '') {
+            return '';
+        }
+
+        $result = '';
+        $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if ($chars === false) {
+            return mb_substr($text, 0, $width, 'UTF-8');
+        }
+
+        $visible = 0;
+        foreach ($chars as $char) {
+            $charWidth = max(1, mb_strwidth($char, 'UTF-8'));
+            if ($visible + $charWidth > $width) {
+                break;
+            }
+            $result .= $char;
+            $visible += $charWidth;
+        }
+
+        return $result;
     }
 
     private function writeLine($conn, string $text = ''): void
