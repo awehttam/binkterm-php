@@ -59,6 +59,7 @@ class ChatHandler
         $chat['last_active_refresh'] = 0;
         $chat['last_render_size'] = [0, 0];
         $chat['dirty'] = true;
+        $chat['input_dirty'] = false;
 
         while (true) {
             $now = microtime(true);
@@ -91,7 +92,11 @@ class ChatHandler
             if ($chat['dirty']) {
                 $this->render($conn, $state, $chat);
                 $chat['dirty'] = false;
+                $chat['input_dirty'] = false;
                 $chat['last_render_size'] = [$cols, $rows];
+            } elseif (!empty($chat['input_dirty'])) {
+                $this->renderInputPaneOnly($conn, $state, $chat);
+                $chat['input_dirty'] = false;
             }
 
             [$key, $timedOut, $shouldDisconnect] = $this->server->readKeyWithTimeout($conn, $state, 250);
@@ -329,36 +334,36 @@ class ChatHandler
 
         if ($key === 'LEFT') {
             $chat['input_cursor'] = max(0, $cursor - 1);
-            $chat['dirty'] = true;
+            $this->markInputDirty($chat);
             return;
         }
         if ($key === 'RIGHT') {
             $chat['input_cursor'] = min(strlen($input), $cursor + 1);
-            $chat['dirty'] = true;
+            $this->markInputDirty($chat);
             return;
         }
         if ($key === 'HOME') {
             $chat['input_cursor'] = 0;
-            $chat['dirty'] = true;
+            $this->markInputDirty($chat);
             return;
         }
         if ($key === 'END') {
             $chat['input_cursor'] = strlen($input);
-            $chat['dirty'] = true;
+            $this->markInputDirty($chat);
             return;
         }
         if ($key === 'BACKSPACE') {
             if ($cursor > 0) {
                 $chat['input'] = substr($input, 0, $cursor - 1) . substr($input, $cursor);
                 $chat['input_cursor'] = $cursor - 1;
-                $chat['dirty'] = true;
+                $this->markInputDirty($chat);
             }
             return;
         }
         if ($key === 'DELETE') {
             if ($cursor < strlen($input)) {
                 $chat['input'] = substr($input, 0, $cursor) . substr($input, $cursor + 1);
-                $chat['dirty'] = true;
+                $this->markInputDirty($chat);
             }
             return;
         }
@@ -390,7 +395,7 @@ class ChatHandler
             $char = substr($key, 5);
             $chat['input'] = substr($input, 0, $cursor) . $char . substr($input, $cursor);
             $chat['input_cursor'] = $cursor + 1;
-            $chat['dirty'] = true;
+            $this->markInputDirty($chat);
         }
     }
 
@@ -1277,6 +1282,101 @@ class ChatHandler
         $row = $contentRow;
         $this->server->safeWrite($conn, "\033[{$row};{$col}H");
         TelnetUtils::setCursorVisible($conn, true);
+    }
+
+    private function renderInputPaneOnly($conn, array &$state, array &$chat): void
+    {
+        $layoutInfo = $chat['last_split_layout'] ?? [];
+        if (empty($layoutInfo['rows'])) {
+            $chat['dirty'] = true;
+            return;
+        }
+
+        $inputRow = $layoutInfo['rows'][count($layoutInfo['rows']) - 1] ?? null;
+        if (!$inputRow || empty($inputRow['panes'][0])) {
+            $chat['dirty'] = true;
+            return;
+        }
+
+        $pane = $inputRow['panes'][0];
+        $layout = $chat['layout'] ?? $this->buildLayout((int)($state['cols'] ?? 80), (int)($state['rows'] ?? 24));
+        $inputLines = $this->buildInputLines($chat, $state, $layout);
+        $contentWidth = max(4, (int)$pane['width'] - 4);
+        $contentHeight = max(1, (int)$pane['height'] - 4);
+        $chars = $this->server->getTerminalLineDrawingChars();
+        $borderColor = (string)($pane['pane']['border_color'] ?? TelnetUtils::ANSI_BLUE);
+
+        TelnetUtils::setCursorVisible($conn, false);
+        for ($i = 0; $i < $contentHeight; $i++) {
+            $line = $inputLines[$i] ?? '';
+            $rendered = $this->renderSplitPaneContentLine($line, $contentWidth, $chars, $borderColor);
+            $row = (int)$pane['y'] + 3 + $i;
+            $col = (int)$pane['x'];
+            $this->server->safeWrite($conn, "\033[{$row};{$col}H" . $rendered);
+        }
+
+        $this->positionInputCursor($conn, $chat, $layoutInfo);
+    }
+
+    private function renderSplitPaneContentLine(string $line, int $contentWidth, array $chars, string $borderColor): string
+    {
+        $line = $this->server->encodeForTerminal($line);
+        $visibleWidth = $this->ansiLength($line);
+        if ($visibleWidth > $contentWidth) {
+            $line = $this->truncateAnsiLine($line, $contentWidth);
+            $visibleWidth = $this->ansiLength($line);
+        }
+        $padding = str_repeat(' ', max(0, $contentWidth - $visibleWidth));
+
+        return $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), $borderColor)
+            . ' '
+            . $line
+            . $padding
+            . ' '
+            . $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), $borderColor);
+    }
+
+    private function markInputDirty(array &$chat): void
+    {
+        if (!empty($chat['dirty'])) {
+            return;
+        }
+        $chat['input_dirty'] = true;
+    }
+
+    private function ansiLength(string $text): int
+    {
+        return mb_strwidth($this->stripAnsi($text), 'UTF-8');
+    }
+
+    private function stripAnsi(string $text): string
+    {
+        return preg_replace('/\033\[[0-9;]*m/', '', $text) ?? $text;
+    }
+
+    private function truncateAnsiLine(string $line, int $width): string
+    {
+        $result = '';
+        $visible = 0;
+        if (!preg_match_all('/\033\[[0-9;]*m|./us', $line, $matches)) {
+            return '';
+        }
+
+        foreach ($matches[0] as $token) {
+            if (str_starts_with($token, "\033[")) {
+                $result .= $token;
+                continue;
+            }
+
+            $charWidth = max(1, mb_strwidth($token, 'UTF-8'));
+            if ($visible + $charWidth > $width) {
+                break;
+            }
+            $result .= $token;
+            $visible += $charWidth;
+        }
+
+        return $result . "\033[0m";
     }
 
     private function buildNavItems(array $chat): array
