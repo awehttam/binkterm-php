@@ -36,9 +36,8 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### PacketBBS Node Directory
 
-- Bridge nodes now have a **Location Description** field (free text, e.g. "Lower Mainland BC") stored in the new `location` column on `packet_bbs_nodes`. The public node table and the dashboard widget now show this descriptor instead of GPS coordinates. Run `php scripts/setup.php` to apply migration `v20260517215052` that adds the column.
-- The public node directory URL has changed from `/meshcore-nodes` to `/packetbbs-nodes`. The **BBS Lists** menu entry has been renamed to **PacketBBS Nodes**. Any bookmarks or links to the old URL need to be updated.
-- The public `/packetbbs-nodes` page now opens a node info modal when the URL hash is `#node-{id}`, making deep links from the dashboard widget work correctly.
+- A new **PacketBBS Nodes** map and list has been added to the **BBS Lists** menu and is visible when PacketBBS nodes are registered to the BBS.
+- Bridge nodes now have a **Location Description** field (free text, e.g. "Lower Mainland BC"). The public node table and the dashboard widget now show this descriptor instead of GPS coordinates.
 - The **PacketBBS Nodes** dashboard card now appears in the sidebar (between the Voting Booth and Echo Areas cards). Each node name is a link that opens its info modal. The location description is shown beneath the name; nodes with no description show a placeholder.
 - The node edit modal in **Admin → Packet BBS Nodes** is now a two-column layout. The **Auto-Add Contact Policy** section occupies the right column. The **Link to BBS Account** field has been removed; use the standard `LOGIN <user> <code>` authenticator flow instead. The Handle/Callsign field now shows the BBS hostname as placeholder text and includes a note that the value should match the MeshCore node name.
 - The auto-add contact policy is no longer pushed to the device on every save — a `set_autoadd_config` device command is queued only when the bitmask actually changes.
@@ -54,15 +53,19 @@ Make sure you have a current backup of your database and files before upgrading.
 
 This release raises the minimum supported PHP version to 8.2. The project metadata, build image, and operator-facing guidance now all assume PHP 8.2 or newer.
 
-If your server is still on PHP 8.1, upgrade PHP first and verify the runtime before replacing the application files or running `php scripts/setup.php`. No database migration is tied to this requirement, but the application will not run correctly on older PHP versions.
+If your server is still on PHP 8.1, upgrade PHP first and verify the runtime before replacing the application files or running `php scripts/setup.php`. The application will not run correctly on older PHP versions.
 
 ---
 
 ## Terminal Server
 
-Terminal users can now access Local Chat directly from the shared BBS main menu by pressing `C`.
+### Responsive Terminal Resizing
 
-The shared terminal main menu also now responds to terminal window resizing while waiting for input. If the user resizes the terminal, the menu redraws immediately for the new width and height, and the dashboard widgets switch between the wide sidebar and narrow bottom-bar layouts as needed without making another `/api/dashboard/stats` request.
+The terminal server interface now responds more broadly to terminal window resizing over both Telnet and SSH. When the user resizes the terminal, screens that support responsive layout redraw to the new width and height immediately. This includes the main menu and dashboard widgets, which switch between the wide sidebar and narrow bottom-bar layouts as needed without making another `/api/dashboard/stats` request.
+
+### Local Chat
+
+Terminal users can now access Local Chat directly from the shared BBS main menu by pressing `C`.
 
 The terminal client currently provides:
 
@@ -72,7 +75,7 @@ The terminal client currently provides:
 - a bottom compose box with `Enter` to send and `Ctrl+E` for multiline compose
 - API-backed polling for live updates while the chat screen is open
 
-No migration or post-upgrade admin action is required for this feature. If Local Chat is already enabled in **Admin -> BBS Settings**, it becomes available automatically to terminal users after the upgraded daemons are restarted.
+No post-upgrade admin action is required for this feature. If Local Chat is already enabled in **Admin -> BBS Settings**, it becomes available automatically to terminal users after the upgraded daemons are restarted.
 
 ### Terminal Inline Image Viewer Expansion
 
@@ -82,7 +85,7 @@ When any supported inline images are found, the message body shows numbered `[Im
 
 For safety and predictable `img2sixel` behavior, the terminal-side URL scan is limited to raster formats known to work in this environment. SVG, WebP, and other extensions are not included in the terminal scan. Hosts that serve valid image files as `application/octet-stream` are now accepted when the URL path ends in one of the supported raster extensions, and the downloaded file is validated before conversion.
 
-No migration or sysop configuration is required. If `img2sixel` is already installed, the expanded image-viewer behavior becomes available after the upgraded daemons are restarted.
+No sysop configuration is required. If `img2sixel` is already installed, the expanded image-viewer behavior becomes available after the upgraded daemons are restarted.
 
 ### SSH Startup Input Drain
 
@@ -90,7 +93,7 @@ Some SSH clients send buffered input bytes immediately during PTY or shell start
 
 The SSH daemon now discards any channel-data bytes that are already queued at the moment the shell channel is established, before handing the connection to the shared `BbsSession`. Normal interactive input after startup is unaffected.
 
-No migration or configuration change is required. The fix takes effect when the upgraded SSH daemon is restarted.
+No configuration change is required. The fix takes effect when the upgraded SSH daemon is restarted.
 
 ### Netmail Sent Folder in Terminal Reader
 
@@ -98,13 +101,13 @@ The terminal netmail message list now includes a Sent folder. From the message l
 
 When reading a message in the Sent view, the header shows the recipient (`To:`) rather than the sender, since the sender is always the logged-in user. Pressing `R` to reply from the Sent view pre-fills the recipient fields with the original message's addressee rather than the sender.
 
-No migration or sysop configuration is required. The daemon restart that follows a normal upgrade is sufficient.
+No sysop configuration is required. The daemon restart that follows a normal upgrade is sufficient.
 
 ### Configurable Terminal Idle Timeout
 
 The idle warning and disconnect timeouts for terminal sessions (Telnet and SSH) are now configurable from **Admin → BBS Settings → Terminal Idle Timeout**. Previously these were hardcoded at 5 minutes to warning and 7 minutes to disconnect; those values are now the defaults and can be changed without editing code or config files. The disconnect timeout must always be set greater than the warning timeout.
 
-No migration is required. The daemon restart that follows a normal upgrade is sufficient.
+No additional admin setup is required. The daemon restart that follows a normal upgrade is sufficient.
 
 ### Configurable Terminal Main Menu Keys
 
@@ -114,25 +117,21 @@ The admin UI shows a center reference column with the built-in default key for e
 
 The menu layout adapts automatically: when an action has no assigned key its slot is omitted and the remaining items in that section reflow to fill the gap. When every action in an entire section (Messaging, Community/Explore, or Files/Settings) is unassigned the section header itself is suppressed. Sysops who use a custom `mainmenu.ans` are responsible for keeping that art in sync with the configured keys.
 
-No migration is required. The built-in defaults remain in effect until a custom map is saved through the admin UI.
+No additional admin setup is required. The built-in defaults remain in effect until a custom map is saved through the admin UI.
 
 ---
 
 ## PacketBBS Node Directory
 
-### Migration: location column
+### Location Description field
 
-A new `location VARCHAR(255)` column has been added to `packet_bbs_nodes`. Run `php scripts/setup.php` after upgrading to apply migration `v20260517215052_add_location_to_packet_bbs_nodes.sql`. No data migration is required; existing rows default to `NULL` (displayed as "No location set").
-
-### Public node directory URL change
-
-The public node directory has moved from `/meshcore-nodes` to `/packetbbs-nodes`. The navigation menu entry is now **PacketBBS Nodes**. The old URL is not redirected; update any external links or bookmarks.
+Bridge nodes now include a **Location Description** field stored on `packet_bbs_nodes`. Existing rows with no description continue to display the "No location set" placeholder until you add one.
 
 ### Admin node edit modal
 
 The node edit modal is now wider (`modal-lg`) and uses a two-column layout. The left column holds node identity fields (Node ID, Handle/Callsign, Interface Type, Location Description, Coordinates). The right column holds the Auto-Add Contact Policy section for MeshCore nodes. The **Link to BBS Account** field has been removed from the modal entirely; normal per-user authentication uses the `LOGIN <user> <code>` TOTP flow and does not require an account link.
 
-The Handle/Callsign field placeholder now shows the BBS hostname derived from `SITE_URL`. A note under the field explains that the value should match the node name set in the MeshCore app, as it is used as the contact display name when the bridge QR-codes itself into a new companion's contact list.
+The Handle/Callsign field placeholder now shows the BBS hostname derived from `SITE_URL` (using the hostname can help with discovery from mesh adverts). A note under the field explains that the value should match the node name set in the MeshCore app, as it is used as the contact display name when the bridge QR-codes itself into a new companion's contact list.
 
 ### Auto-add policy sync change
 
@@ -147,7 +146,7 @@ The root `CLAUDE.md` file previously contained all project guidance in a single 
 Procedural checklists that contributors invoke on demand have been extracted into skill files under `.claude/commands/`:
 
 - `/bump-version` — version bump steps, UPGRADING doc format, and composer dependency notes
-- `/new-migration` — migration ID format, SQL vs PHP choice, no-duplicate-index rule, and setup.php reminder
+- `/new-migration` — database-change workflow guidance, SQL vs PHP choice, no-duplicate-index rule, and setup.php reminder
 - `/usercredits-workflow` — five-step checklist for adding new `UserCredit` types
 - `/logging-guide` — log file table, per-context code patterns, log levels, and adding a new log file
 - `/new-webdoor` — manifest requirement, SDK require path, and API independence rule
