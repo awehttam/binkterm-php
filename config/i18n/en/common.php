@@ -4205,11 +4205,12 @@ return [
     'ui.base.admin.bbs_directory' => 'BBS Directory',
 
     // Meshcore Nodes public page
-    'ui.meshcore_nodes.page_title' => 'Meshcore Nodes',
-    'ui.meshcore_nodes.page_intro' => 'This BBS can be accessed directly over mesh radio through any of the nodes listed below. If you have a MeshCore or compatible mesh radio device, you can connect without internet access.',
+    'ui.meshcore_nodes.page_title' => 'PacketBBS Nodes',
+    'ui.meshcore_nodes.page_intro' => 'If you have a PacketBBS compatible radio such as MeshCore and are within range of the network, you can access this BBS through any of the nodes listed below without internet access.',
     'ui.meshcore_nodes.registered_nodes' => 'Registered Nodes',
     'ui.meshcore_nodes.none_registered' => 'No nodes are registered yet.',
     'ui.meshcore_nodes.col_name' => 'Name',
+    'ui.meshcore_nodes.col_network_type' => 'Network Type',
     'ui.meshcore_nodes.col_location' => 'Location',
     'ui.meshcore_nodes.col_coordinates' => 'Coordinates',
     'ui.meshcore_nodes.col_last_seen' => 'Last Seen',
