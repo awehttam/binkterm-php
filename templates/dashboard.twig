@@ -31,11 +31,11 @@
     }
 
     .packetbbs-card-intro {
-        color: var(--bs-body-color, var(--text-color, #e0e0e0));
+        color: var(--text-color, #e0e0e0) !important;
         font-size: 0.875rem;
         line-height: 1.45;
         margin: 0;
-        opacity: 0.88;
+        opacity: 0.92;
     }
 
     .packetbbs-card-list {
@@ -48,8 +48,8 @@
 
     .packetbbs-card-item {
         align-items: flex-start;
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(var(--bs-secondary-rgb), 0.28);
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(157, 78, 221, 0.32);
         border-radius: 0.75rem;
         display: flex;
         gap: 0.75rem;
@@ -62,7 +62,7 @@
     }
 
     .packetbbs-card-item-link {
-        color: var(--bs-link-color, var(--cyber-cyan, #05d9e8));
+        color: var(--cyber-cyan, #05d9e8) !important;
         font-size: 1rem;
         font-weight: 600;
         line-height: 1.2;
@@ -72,16 +72,16 @@
 
     .packetbbs-card-item-link:hover,
     .packetbbs-card-item-link:focus {
-        color: var(--bs-link-hover-color, var(--cyber-cyan-bright, #6eeef8));
+        color: var(--cyber-cyan-bright, #6eeef8) !important;
         text-decoration: underline;
     }
 
     .packetbbs-card-item-location {
-        color: var(--bs-body-color, var(--text-color, #e0e0e0));
+        color: var(--text-color, #e0e0e0) !important;
         font-size: 0.9rem;
         line-height: 1.35;
         margin-top: 0.35rem;
-        opacity: 0.8;
+        opacity: 0.88;
         word-break: break-word;
     }
 
@@ -91,10 +91,10 @@
     }
 
     .packetbbs-card-item-badge {
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(157, 78, 221, 0.18);
+        border: 1px solid rgba(157, 78, 221, 0.45);
         border-radius: 999px;
-        color: var(--bs-body-color, var(--text-color, #e0e0e0));
+        color: var(--cyber-cyan-bright, #6eeef8) !important;
         display: inline-flex;
         font-size: 0.72rem;
         font-weight: 700;
@@ -108,10 +108,10 @@
     .packetbbs-card-loading,
     .packetbbs-card-empty,
     .packetbbs-card-error {
-        color: var(--bs-body-color, var(--text-color, #e0e0e0));
+        color: var(--text-color, #e0e0e0) !important;
         font-size: 0.875rem;
         margin: 0;
-        opacity: 0.8;
+        opacity: 0.88;
         padding: 0.35rem 0;
         text-align: center;
     }
@@ -121,6 +121,12 @@
         margin-top: 0.15rem;
         padding-top: 0.85rem;
         text-align: right;
+    }
+
+    .packetbbs-card-footer a,
+    .packetbbs-card-footer .small,
+    .packetbbs-card-footer small {
+        color: var(--cyber-cyan-bright, #6eeef8) !important;
     }
 
     @media (max-width: 575.98px) {
