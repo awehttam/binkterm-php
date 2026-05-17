@@ -1,8 +1,8 @@
 # Local Chat
 
-Local Chat is BinktermPHP's built-in real-time messaging system. It provides room-based group chat and direct messages (DMs) between users, delivered through the BinkStream real-time channel with a polling fallback.
+Local Chat is BinktermPHP's built-in messaging system. It provides room-based group chat and direct messages (DMs) between users, delivered through the BinkStream real-time channel for web clients and through polling for terminal clients.
 
-At this time Local Chat is a web-only feature. Terminal (telnet/SSH) users cannot access it directly.
+Local Chat is available in both the web UI and the shared terminal server used by Telnet and SSH sessions.
 
 ---
 
@@ -11,16 +11,17 @@ At this time Local Chat is a web-only feature. Terminal (telnet/SSH) users canno
 1. [Overview](#overview)
 2. [Chat Rooms](#chat-rooms)
 3. [Direct Messages](#direct-messages)
-4. [Real-Time Delivery](#real-time-delivery)
-5. [User Commands](#user-commands)
-6. [Online Users List](#online-users-list)
-7. [Admin Controls](#admin-controls)
-8. [Moderation](#moderation)
-9. [Matterbridge Integration](#matterbridge-integration)
-10. [AI Bot Integration](#ai-bot-integration)
-11. [Enabling and Disabling Chat](#enabling-and-disabling-chat)
-12. [Database Schema](#database-schema)
-13. [API Reference](#api-reference)
+4. [Access Methods](#access-methods)
+5. [Real-Time Delivery](#real-time-delivery)
+6. [User Commands](#user-commands)
+7. [Online Users List](#online-users-list)
+8. [Admin Controls](#admin-controls)
+9. [Moderation](#moderation)
+10. [Matterbridge Integration](#matterbridge-integration)
+11. [AI Bot Integration](#ai-bot-integration)
+12. [Enabling and Disabling Chat](#enabling-and-disabling-chat)
+13. [Database Schema](#database-schema)
+14. [API Reference](#api-reference)
 
 ---
 
@@ -29,6 +30,26 @@ At this time Local Chat is a web-only feature. Terminal (telnet/SSH) users canno
 Local Chat is organized around named rooms. Any number of rooms can be created from the admin panel. A default **Lobby** room is created on installation and cannot be deleted.
 
 Messages are stored permanently in the `chat_messages` table. Real-time delivery goes through the `sse_events` transient queue, which is independent of message storage. Losing the `sse_events` queue (e.g., a Postgres crash) does not lose chat history — it only affects in-flight delivery.
+
+---
+
+## Access Methods
+
+### Web UI
+
+The browser chat UI uses BinkStream (WebSocket or SSE) for live delivery with a polling fallback when a real-time stream is not active.
+
+### Terminal Server
+
+The shared terminal server exposes Local Chat from the main menu for both Telnet and SSH users.
+
+- Press `C` at the main menu to open **Local Chat**
+- The current wide layout uses a left navigation pane, a larger message pane, and a full-width compose box
+- Online users are shown in the left navigation pane rather than in a dedicated sidebar
+- Messages are rendered as terminal Markdown, matching the message-body renderer used by echomail and netmail viewers
+- The terminal client uses polling rather than SSE/BinkStream for updates while the chat screen is open
+
+See [Terminal Server](TerminalServer.md#local-chat) for terminal controls and layout details.
 
 ---
 
@@ -50,7 +71,7 @@ DMs are not bridged to Matterbridge.
 
 ## Real-Time Delivery
 
-Chat uses BinkStream as its delivery channel. The flow for a room message is:
+Web chat uses BinkStream as its primary delivery channel. The flow for a room message is:
 
 1. User POSTs to `POST /api/chat/send`.
 2. `ChatMessageService::sendMessage()` inserts into `chat_messages` inside a transaction.
@@ -59,7 +80,9 @@ Chat uses BinkStream as its delivery channel. The flow for a room message is:
 5. BinkStream delivers the `sse_events` row to connected browsers over WebSocket or SSE.
 6. Browsers that do not have an active BinkStream connection fall back to polling `GET /api/chat/poll` every second.
 
-The client de-duplicates messages by ID so a message received through both BinkStream and the poll fallback is displayed only once.
+Browser clients de-duplicate messages by ID so a message received through both BinkStream and the poll fallback is displayed only once.
+
+Terminal clients do not consume the BinkStream channel directly. They load room and DM history through `GET /api/chat/messages`, anchor their poll cursor with `GET /api/chat/cursor`, and then poll `GET /api/chat/poll` for background updates while separately refreshing the active conversation snapshot.
 
 See [BinkStream Back-Channel](BinkStreamChannel.md) for transport details, Apache buffering caveats, and debugging tools.
 
@@ -277,6 +300,12 @@ Fallback polling endpoint used when BinkStream is unavailable. Returns messages 
 Query parameters: `since_id` — only return messages after this ID.
 
 Returns up to 200 messages per request. Excludes messages from the requesting user and messages from inactive rooms.
+
+### `GET /api/chat/cursor`
+
+Returns the highest visible chat message ID for the current authenticated user.
+
+Response: `{ "max_id": number }`
 
 ---
 

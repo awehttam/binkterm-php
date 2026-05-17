@@ -16,6 +16,22 @@ This proposal adds a **terminal local chat client** that lets a user:
 
 The implementation should remain consistent with the existing terminal architecture: terminal-side code stays in `telnet/src/`, uses REST APIs only, and is shared by both the Telnet and SSH daemons.
 
+## Current implementation note
+
+The feature has since been implemented. The shipped terminal client differs from
+this draft in a few important ways:
+
+- the current wide layout uses a left navigation pane, a larger message pane,
+  and a full-width compose box
+- online users are summarized in the left navigation pane rather than in a
+  separate right-hand sidebar
+- chat message bodies are rendered with the shared terminal Markdown renderer
+  used by echomail and netmail viewers
+- the terminal client uses polling for live updates rather than SSE
+
+Treat the remainder of this document as design history rather than an exact
+description of the current UI.
+
 ## Goals
 
 - Add a main-menu entry for local chat in terminal services

@@ -137,10 +137,10 @@ Local chat supports:
 - room selection from an in-chat navigation pane
 - direct messages to online users and known DM contacts
 - unread badges for rooms and DMs during the current chat session
-- online user display
+- online user display in the left navigation pane
 - message polling with automatic updates while the chat screen is open
 - scrollback with **PgUp/PgDn**
-- admin room moderation shortcuts from the online users pane
+- Markdown rendering in the message pane using the shared terminal markup renderer
 - multiline compose via **Ctrl+E**
 
 Chat controls:
@@ -153,6 +153,19 @@ Chat controls:
 - **Ctrl+K** — show local chat help
 - **R** — refresh rooms and online users
 - **Ctrl+C** — exit local chat
+
+The current wide layout uses:
+
+- a narrower **Rooms / DMs** pane on the left
+- a larger **Messages** pane on the right
+- a full-width **Compose** box at the bottom
+
+The left pane also includes the current online-user summary, so there is no
+separate right-hand online-users sidebar.
+
+Chat messages are rendered as terminal Markdown, matching the message-body
+renderer used by echomail and netmail viewers. Sender and timestamp are shown
+as a header line above each rendered message body.
 
 On narrower terminals the chat client switches to a stacked layout so rooms/DMs,
 messages, and the compose box still fit on screen.

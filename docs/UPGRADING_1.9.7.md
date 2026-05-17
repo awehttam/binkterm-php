@@ -5,7 +5,9 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+  - [Terminal Server](#terminal-server)
   - [Developer Tooling](#developer-tooling)
+- [Terminal Server](#terminal-server-1)
 - [Developer Tooling](#developer-tooling-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -13,10 +15,31 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
+### Terminal Server
+
+- The shared terminal server now includes **Local Chat** from the main menu. Telnet and SSH users can open room chat, switch rooms and DMs, view online users from the left navigation pane, read Markdown-rendered messages, and send new messages without leaving the terminal session.
+- The terminal chat client uses the existing local chat API with polling, so no additional daemon or sysop configuration is required when upgrading.
+
 ### Developer Tooling
 
 - The root `CLAUDE.md` contributor guide has been split into subdirectory-scoped files and on-demand skill scripts, reducing context load when working in specific parts of the codebase. No action required for sysops.
 - A `session-start.php` script has been added to `.claude/` to print available project skills at the start of each Claude Code session.
+
+---
+
+## Terminal Server
+
+Terminal users can now access Local Chat directly from the shared BBS main menu by pressing `C`.
+
+The terminal client currently provides:
+
+- room and DM selection from the left navigation pane
+- online-user summary in that same pane
+- a larger message pane with Markdown rendering
+- a bottom compose box with `Enter` to send and `Ctrl+E` for multiline compose
+- API-backed polling for live updates while the chat screen is open
+
+No migration or post-upgrade admin action is required for this feature. If Local Chat is already enabled in **Admin -> BBS Settings**, it becomes available automatically to terminal users after the upgraded daemons are restarted.
 
 ---
 
