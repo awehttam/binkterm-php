@@ -4642,6 +4642,14 @@ return [
     'ui.terminalserver.server.menu.section.files'      => 'Archivos',
     'ui.terminalserver.server.menu.section.settings'   => 'Configuración',
 
+    // Telnet server — main menu dashboard widgets
+    'ui.terminalserver.dashboard.title'           => 'Panel',
+    'ui.terminalserver.dashboard.label.netmail'   => 'Netmail',
+    'ui.terminalserver.dashboard.label.echomail'  => 'Echomail',
+    'ui.terminalserver.dashboard.label.online'    => 'En línea',
+    'ui.terminalserver.dashboard.label.bulletins' => 'Boletines',
+    'ui.terminalserver.dashboard.label.credits'   => 'Créditos',
+
     // Telnet server — Interests handler
     'ui.terminalserver.interests.title'              => 'Intereses',
     'ui.terminalserver.interests.none'               => 'No hay intereses disponibles.',

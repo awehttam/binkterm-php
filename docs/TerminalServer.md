@@ -48,6 +48,7 @@ Each transport daemon has additional extension requirements — see
 - Adapts message lists to fit available screen height
 - Prevents list overflow on different terminal sizes
 - Dynamic pagination based on terminal rows
+- Terminal resize events are processed in real time during key-wait loops — the main menu re-renders immediately when the window is resized, without requiring a keypress
 
 ### Message Browsing
 
@@ -95,12 +96,34 @@ Sixel output requires `img2sixel` from the `libsixel-bin` package to be
 installed and available in `PATH`. If the binary is not found, images are
 silently omitted.
 
+### Main Menu Dashboard
+
+The main menu displays a live dashboard panel alongside the navigation options. The panel shows the same stats as the web dashboard, sourced from `/api/dashboard/stats`.
+
+**Widgets shown (in priority order):**
+
+| Widget | Content |
+|--------|---------|
+| Netmail | Unread netmail count |
+| Echomail | New echomail since last visit |
+| Online | Users active in the last 15 minutes |
+| Bulletins | Unread bulletins |
+| Credits | Credit balance (only when credits are enabled) |
+
+**Layout adapts to terminal width:**
+
+- **Wide screens (≥ ~110 columns):** A bordered panel is drawn to the right of the menu box using ANSI cursor positioning. Lower-priority widgets are dropped from the bottom when there is insufficient vertical space.
+- **Narrower screens:** A compact single-line stats bar appears below the menu box. Bulletins and credits are omitted if there are no spare rows.
+
+Stats are refreshed from the API after returning from netmail, echomail, or bulletins. On resize, the menu re-renders with the cached stats (no extra API call).
+
 ### User Experience
 
 - Colorized prompts and status messages
 - Welcome message with BBS website URL
 - Goodbye message on logout with reminder to visit website
-- Message count display on main menu
+- Unread and new message counts shown on main menu items (netmail: unread count; echomail: new since last visit)
+- Live dashboard widgets alongside the main menu (see above)
 - Helpful command documentation
 
 ### Idle Timeout
@@ -215,6 +238,7 @@ The terminal server uses the BinktermPHP web API for most operations. It also ma
 | `/api/messages/echomail` | GET | List echomail messages |
 | `/api/messages/echomail/{id}` | GET | Get echomail message details |
 | `/api/messages/echomail/post` | POST | Post echomail message |
+| `/api/dashboard/stats` | GET | Main menu dashboard widgets (unread counts, online users, bulletins, credits) |
 
 All API requests include cookie-based session management, automatic retry with
 exponential backoff, and optional SSL certificate verification.

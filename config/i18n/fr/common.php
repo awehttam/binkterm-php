@@ -4543,6 +4543,14 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.terminalserver.server.menu.section.files'      => 'Fichiers',
     'ui.terminalserver.server.menu.section.settings'   => 'Paramètres',
 
+    // Telnet server — main menu dashboard widgets
+    'ui.terminalserver.dashboard.title'           => 'Tableau de bord',
+    'ui.terminalserver.dashboard.label.netmail'   => 'Netmail',
+    'ui.terminalserver.dashboard.label.echomail'  => 'Echomail',
+    'ui.terminalserver.dashboard.label.online'    => 'En ligne',
+    'ui.terminalserver.dashboard.label.bulletins' => 'Bulletins',
+    'ui.terminalserver.dashboard.label.credits'   => 'Crédits',
+
     // Telnet server — Interests handler
     'ui.terminalserver.interests.title'              => 'Interets',
     'ui.terminalserver.interests.none'               => 'Aucun interet disponible.',

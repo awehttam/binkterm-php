@@ -241,6 +241,9 @@ class DashboardStatsService
         ");
         $newEchoareas = $newEchoareaStmt->fetchAll(PDO::FETCH_ASSOC);
 
+        $auth = new Auth();
+        $bulletinManager = new BulletinManager($this->db);
+
         return [
             'unread_netmail' => $netmailBadge,
             'new_echomail' => $echomailBadge,
@@ -257,6 +260,8 @@ class DashboardStatsService
             'pending_file_approvals' => $pendingFileApprovals,
             'pending_files_max_id' => $pendingFilesMaxId,
             'pending_echomail_moderation' => $pendingEchomailModeration,
+            'online_count' => $auth->getOnlineUserCount(15),
+            'unread_bulletins' => $bulletinManager->getUnreadCount($userId),
         ];
     }
 }
