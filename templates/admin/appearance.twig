@@ -641,6 +641,44 @@
                 <span id="sixelScreenStatus" class="mt-2 d-block small"></span>
             </div>
         </div>
+
+        <div class="card mt-4" id="termMenuKeysCard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ t('ui.admin.appearance.term_menu_keys.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetTermMenuKeysToDefaults()">
+                    <i class="fas fa-undo me-1"></i> {{ t('ui.admin.appearance.term_menu_keys.reset_defaults', {}, locale, ['common']) }}
+                </button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">{{ t('ui.admin.appearance.term_menu_keys.help', {}, locale, ['common']) }}</p>
+
+                <div class="alert alert-warning py-2 small mb-3" id="termMenuKeysQuitWarning" style="display:none;">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    {{ t('ui.admin.appearance.term_menu_keys.quit_required_notice', {}, locale, ['common']) }}
+                </div>
+                <div class="alert alert-danger py-2 small mb-3" id="termMenuKeysDupeWarning" style="display:none;">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    <span id="termMenuKeysDupeText"></span>
+                </div>
+
+                <table class="table table-sm table-bordered w-auto">
+                    <thead>
+                        <tr>
+                            <th>{{ t('ui.admin.appearance.term_menu_keys.col_action', {}, locale, ['common']) }}</th>
+                            <th class="text-center" style="width:70px;">{{ t('ui.admin.appearance.term_menu_keys.col_default', {}, locale, ['common']) }}</th>
+                            <th style="width:80px;">{{ t('ui.admin.appearance.term_menu_keys.col_key', {}, locale, ['common']) }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="termMenuKeysBody">
+                    </tbody>
+                </table>
+
+                <button type="button" class="btn btn-primary" id="saveTermMenuKeysBtn" onclick="saveTermMenuKeys()">
+                    <i class="fas fa-save me-1"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
+                </button>
+                <span id="termMenuKeysStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
     </div>
 
     {# ====== TAB: MESSAGE READER ====== #}
@@ -1658,6 +1696,129 @@ $('#sixelScreenSelect').on('change', function() {
         loadSixelScreen(currentSixelScreenKey);
     }
 });
+
+// ---- Terminal Main Menu Keys ----
+
+const TERM_MENU_KEY_DEFAULTS = {
+    netmail: 'n', echomail: 'e', shoutbox: 's', bulletins: 'u',
+    polls: 'p', doors: 'd', files: 'f', settings: 't',
+    interests: 'i', whosonline: 'w', qwk: 'k', bbslist: 'b',
+    nodelist: 'l', localchat: 'c', quit: 'q'
+};
+
+const TERM_MENU_KEY_LABELS = {
+    netmail:    uiT('ui.admin.appearance.term_menu_keys.action.netmail',    'Netmail'),
+    echomail:   uiT('ui.admin.appearance.term_menu_keys.action.echomail',   'Echomail'),
+    shoutbox:   uiT('ui.admin.appearance.term_menu_keys.action.shoutbox',   'Shoutbox'),
+    bulletins:  uiT('ui.admin.appearance.term_menu_keys.action.bulletins',  'Bulletins'),
+    polls:      uiT('ui.admin.appearance.term_menu_keys.action.polls',      'Polls'),
+    doors:      uiT('ui.admin.appearance.term_menu_keys.action.doors',      'Door Games'),
+    files:      uiT('ui.admin.appearance.term_menu_keys.action.files',      'Files'),
+    settings:   uiT('ui.admin.appearance.term_menu_keys.action.settings',   'Settings'),
+    interests:  uiT('ui.admin.appearance.term_menu_keys.action.interests',  'Interests'),
+    whosonline: uiT('ui.admin.appearance.term_menu_keys.action.whosonline', "Who's Online"),
+    qwk:        uiT('ui.admin.appearance.term_menu_keys.action.qwk',       'QWK Offline Mail'),
+    bbslist:    uiT('ui.admin.appearance.term_menu_keys.action.bbslist',    'BBS Directory'),
+    nodelist:   uiT('ui.admin.appearance.term_menu_keys.action.nodelist',   'Node List'),
+    localchat:  uiT('ui.admin.appearance.term_menu_keys.action.localchat',  'Local Chat'),
+    quit:       uiT('ui.admin.appearance.term_menu_keys.action.quit',       'Quit'),
+};
+
+function buildTermMenuKeysTable(keys) {
+    const $body = $('#termMenuKeysBody').empty();
+    Object.keys(TERM_MENU_KEY_DEFAULTS).forEach(function(action) {
+        const val = keys[action] || '';
+        const required = action === 'quit' ? ' required' : '';
+        const dflt = TERM_MENU_KEY_DEFAULTS[action] || '';
+        $body.append(
+            `<tr data-action="${escHtml(action)}">
+                <td>${escHtml(TERM_MENU_KEY_LABELS[action] || action)}</td>
+                <td class="text-center font-monospace text-muted">${escHtml(dflt.toUpperCase())}</td>
+                <td><input type="text" class="form-control form-control-sm term-menu-key-input font-monospace text-uppercase"
+                    maxlength="1" value="${escHtml(val)}"
+                    data-action="${escHtml(action)}"${required}
+                    style="width:60px; text-transform:uppercase;"
+                    oninput="validateTermMenuKeys()"></td>
+            </tr>`
+        );
+    });
+    validateTermMenuKeys();
+}
+
+function validateTermMenuKeys() {
+    const seen = {};
+    let dupes = [];
+    let quitMissing = false;
+
+    $('.term-menu-key-input').each(function() {
+        const action = $(this).data('action');
+        const val = $(this).val().trim().toLowerCase();
+        $(this).removeClass('is-invalid');
+        if (val === '') {
+            if (action === 'quit') quitMissing = true;
+            return;
+        }
+        if (!/^[a-z0-9]$/.test(val)) {
+            $(this).addClass('is-invalid');
+            return;
+        }
+        if (seen[val]) {
+            dupes.push(val.toUpperCase());
+            $(this).addClass('is-invalid');
+            $('.term-menu-key-input[data-action="' + seen[val] + '"]').addClass('is-invalid');
+        } else {
+            seen[val] = action;
+        }
+    });
+
+    const valid = dupes.length === 0 && !quitMissing;
+    $('#saveTermMenuKeysBtn').prop('disabled', !valid);
+    $('#termMenuKeysQuitWarning').toggle(quitMissing);
+    if (dupes.length > 0) {
+        $('#termMenuKeysDupeText').text(
+            uiT('errors.admin.appearance.term_menu_keys.duplicate_key', 'Each menu key must be unique') + ': ' + [...new Set(dupes)].join(', ')
+        );
+        $('#termMenuKeysDupeWarning').show();
+    } else {
+        $('#termMenuKeysDupeWarning').hide();
+    }
+}
+
+function resetTermMenuKeysToDefaults() {
+    buildTermMenuKeysTable(TERM_MENU_KEY_DEFAULTS);
+}
+
+function saveTermMenuKeys() {
+    const keys = {};
+    $('.term-menu-key-input').each(function() {
+        const action = $(this).data('action');
+        const val = $(this).val().trim().toLowerCase();
+        if (val !== '') keys[action] = val;
+    });
+    showStatus('termMenuKeysStatus', 'info', uiT('ui.common.saving', 'Saving...'));
+    $.ajax({
+        url: '/admin/api/appearance/term-menu-keys',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ term_menu_keys: keys }),
+        success: function() {
+            showStatus('termMenuKeysStatus', 'success', uiT('ui.common.saved', 'Saved'));
+        },
+        error: function(xhr) {
+            showStatus('termMenuKeysStatus', 'danger', apiError(xhr.responseJSON, uiT('errors.admin.appearance.term_menu_keys.save_failed', 'Failed to save menu key settings')));
+        }
+    });
+}
+
+// Load existing keys from the appearance config
+(function initTermMenuKeys() {
+    $.get('/admin/api/appearance', function(data) {
+        const stored = data?.data?.config?.shell?.term_menu_keys;
+        buildTermMenuKeysTable(stored && typeof stored === 'object' ? stored : TERM_MENU_KEY_DEFAULTS);
+    }).fail(function() {
+        buildTermMenuKeysTable(TERM_MENU_KEY_DEFAULTS);
+    });
+})();
 
 // ---- Helpers ----
 function showStatus(id, type, msg) {

@@ -27,6 +27,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The terminal chat client uses the existing local chat API with polling, so no additional daemon or sysop configuration is required when upgrading.
 - The terminal main menu now reacts to live terminal resize events. On Telnet NAWS updates and SSH window-change events, the menu redraws to the new dimensions without requiring an extra keypress, and dashboard widgets are re-laid out using cached stats rather than triggering another API call.
 - The terminal netmail reader now provides a **Sent folder**. Users can press `S` from the message list to toggle between the Inbox and Sent views. The active folder is remembered across sessions.
+- **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
 
 ### Developer Tooling
 
@@ -66,6 +67,16 @@ The terminal netmail message list now includes a Sent folder. From the message l
 When reading a message in the Sent view, the header shows the recipient (`To:`) rather than the sender, since the sender is always the logged-in user. Pressing `R` to reply from the Sent view pre-fills the recipient fields with the original message's addressee rather than the sender.
 
 No migration or sysop configuration is required. The daemon restart that follows a normal upgrade is sufficient.
+
+### Configurable Terminal Main Menu Keys
+
+Every action in the terminal main menu can now be remapped to a custom key via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Each action accepts a single letter or digit (0–9). Leaving a key blank removes that action from the menu entirely — the option is not shown and is unreachable from the keyboard. The `quit` action always requires a key.
+
+The admin UI shows a center reference column with the built-in default key for each action, so sysops can see at a glance what they are overriding.
+
+The menu layout adapts automatically: when an action has no assigned key its slot is omitted and the remaining items in that section reflow to fill the gap. When every action in an entire section (Messaging, Community/Explore, or Files/Settings) is unassigned the section header itself is suppressed. Sysops who use a custom `mainmenu.ans` are responsible for keeping that art in sync with the configured keys.
+
+No migration is required. The built-in defaults remain in effect until a custom map is saved through the admin UI.
 
 ---
 

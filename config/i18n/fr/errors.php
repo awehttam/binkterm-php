@@ -612,6 +612,10 @@ return [
     'errors.admin.appearance.sixel.upload.failed' => 'Échec du téléversement de l\'écran sixel',
     'errors.admin.appearance.sixel.upload.file_too_large' => 'Le fichier sixel dépasse la limite de taille (5 Mo)',
     'errors.admin.appearance.sixel.delete.failed' => 'Impossible de supprimer l\'écran sixel',
+    'errors.admin.appearance.term_menu_keys.invalid_key' => 'Les touches du menu doivent être une seule lettre ou un chiffre',
+    'errors.admin.appearance.term_menu_keys.duplicate_key' => 'Chaque touche du menu doit être unique',
+    'errors.admin.appearance.term_menu_keys.quit_required' => 'Une touche doit être assignée à Quitter',
+    'errors.admin.appearance.term_menu_keys.save_failed' => 'Impossible d\'enregistrer les touches du menu',
 
     // Markdown image upload
     'errors.markdown_images.upload_failed' => 'Echec du telechargement de l\'image. Veuillez reessayer.',

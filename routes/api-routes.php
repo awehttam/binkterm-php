@@ -12424,4 +12424,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // ---- end MeshCore user contact management ----
 
+    // ---- Terminal menu key config (read-only, used by the term server) ----
+
+    SimpleRouter::get('/config/term-menu-keys', function() {
+        RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success'        => true,
+            'term_menu_keys' => \BinktermPHP\AppearanceConfig::getTermMenuKeys(),
+        ]);
+    });
+
+    // ---- end terminal menu key config ----
+
 });
