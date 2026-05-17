@@ -272,7 +272,7 @@ Le nœud relais doit connaître votre radio pour pouvoir relayer le trafic vers 
 
 1. Allez dans **Paramètres → Radio MeshCore**.
 2. Cliquez sur **Enregistrer une radio**.
-3. Entrez l\'identifiant de votre nœud — soit l\'**identifiant de nœud à 12 caractères** affiché dans l\'application MeshCore, soit votre **clé publique complète à 64 caractères** si vous la connaissez.
+3. Entrez la **clé publique complète à 64 caractères** de votre radio, ou utilisez le bouton **scanner QR** pour la renseigner directement depuis votre application MeshCore.
 4. Sélectionnez le nœud relais identifié à l\'Étape 2 comme votre **Radio compagne**.
 5. Enregistrez. Si votre clé publique complète est déjà connue, le BBS ajoutera automatiquement votre radio à la liste des contacts du relais. Sinon, elle sera réclamée quand le relais vous entendra la prochaine fois.
 

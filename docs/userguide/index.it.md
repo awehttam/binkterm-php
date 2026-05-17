@@ -272,7 +272,7 @@ Il nodo bridge deve conoscere la tua radio per poter instradare il traffico vers
 
 1. Vai su **Impostazioni → Radio MeshCore**.
 2. Clicca su **Registra una radio**.
-3. Inserisci l\'identificatore del tuo nodo — l\'**ID nodo a 12 caratteri** mostrato nell\'app MeshCore, oppure la tua **chiave pubblica completa a 64 caratteri** se la conosci.
+3. Inserisci la **chiave pubblica completa a 64 caratteri** della tua radio, oppure usa il pulsante **scanner QR** per compilarla direttamente dall\'app MeshCore.
 4. Seleziona il nodo bridge identificato al Passaggio 2 come tua **Radio compagna**.
 5. Salva. Se la tua chiave pubblica completa è già nota, il BBS aggiungerà automaticamente la tua radio all\'elenco contatti del bridge. Altrimenti verrà acquisita la prossima volta che il bridge ti sentirà.
 

@@ -7,6 +7,16 @@
 <link rel="stylesheet" href="/assets/leaflet/MarkerCluster.css">
 <link rel="stylesheet" href="/assets/leaflet/MarkerCluster.Default.css">
 <style>
+    .packetbbs-node-link {
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .packetbbs-node-link:hover,
+    .packetbbs-node-link:focus {
+        text-decoration: underline;
+    }
+
     #meshcoreNodesMap {
         height: 420px;
         min-height: 300px;
@@ -69,34 +79,36 @@
                     <thead class="table-dark">
                         <tr>
                             <th>{{ t('ui.meshcore_nodes.col_name', {}, 'common') }}</th>
+                            <th>{{ t('ui.meshcore_nodes.col_network_type', {}, 'common') }}</th>
                             <th>{{ t('ui.meshcore_nodes.col_location', {}, 'common') }}</th>
-                            <th>{{ t('ui.meshcore_nodes.col_last_seen', {}, 'common') }}</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for node in nodes %}
                         <tr>
-                            <td><strong>{{ node.handle | default('—') | e }}</strong></td>
+                            <td>
+                                <strong>
+                                    <a href="#"
+                                       class="packetbbs-node-link"
+                                       onclick="openMeshcoreNodeModal({{ node.id }}); return false;">
+                                        {{ node.handle | default('—') | e }}
+                                    </a>
+                                </strong>
+                            </td>
+                            <td>
+                                {% if node.interface_type %}
+                                <span class="badge bg-secondary">{{ node.interface_type | e }}</span>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if node.location %}
                                 <span class="small">{{ node.location | e }}</span>
                                 {% else %}
                                 <span class="text-muted">{{ t('ui.meshcore_nodes.no_location', {}, 'common') }}</span>
                                 {% endif %}
-                            </td>
-                            <td>
-                                {% if node.last_seen_at %}
-                                <span class="text-muted small">{{ node.last_seen_at }}</span>
-                                {% else %}
-                                <span class="text-muted">{{ t('ui.meshcore_nodes.never_seen', {}, 'common') }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-secondary"
-                                        onclick="openMeshcoreNodeModal({{ node.id }})">
-                                    {{ t('ui.meshcore_nodes.more_info', {}, 'common') }}
-                                </button>
                             </td>
                         </tr>
                         {% endfor %}
