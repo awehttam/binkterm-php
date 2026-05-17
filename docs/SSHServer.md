@@ -33,7 +33,7 @@ troubleshooting.
 
 ## Requirements
 
-- PHP 8.1+
+- PHP 8.2+
 - PHP extensions: `curl`, `openssl`, `gmp`, `pcntl` (Linux/macOS for multiple
   concurrent connections)
 - BinktermPHP web API reachable (defaults to `SITE_URL` from `.env`)

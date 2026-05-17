@@ -25,7 +25,7 @@ running the daemon as root.
 
 ## Requirements
 
-- PHP 8.1+
+- PHP 8.2+
 - BinktermPHP installed and configured
 - File Areas enabled if you want `/incoming` or `/fileareas`
 - QWK enabled if you want `/qwk/download` or `/qwk/upload`

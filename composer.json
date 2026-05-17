@@ -4,7 +4,7 @@
     "description": "Modern web based public home point and BBS with FTN and bink integration",
     "type": "project",
     "require": {
-        "php": ">=8.0",
+        "php": ">=8.2",
         "pecee/simple-router": "^5.3",
         "twig/twig": "^3.7",
         "ext-pdo": "*",
