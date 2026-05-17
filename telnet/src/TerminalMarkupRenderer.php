@@ -274,13 +274,13 @@ class TerminalMarkupRenderer
             // Unordered list
             if (preg_match('/^[-*]\s+(.+)$/', $line, $m)) {
                 while ($i < $total && preg_match('/^[-*]\s+(.+)$/', $lines[$i], $lm)) {
-                    $itemText    = self::expandMarkdownLinks($lm[1]);
+                    $itemText     = self::expandMarkdownLinks($lm[1]);
                     $continuation = $width - 2;
-                    $wrapped      = self::wrapRaw($itemText, max(4, $continuation));
+                    $wrapped      = self::wrapAnsi(self::inlineMarkdown($itemText), max(4, $continuation));
                     $first        = true;
                     foreach ($wrapped as $wl) {
                         $prefix   = $first ? self::BOLD . '* ' . self::R : '  ';
-                        $output[] = $prefix . self::inlineMarkdown($wl);
+                        $output[] = $prefix . $wl;
                         $first    = false;
                     }
                     $i++;
@@ -308,9 +308,9 @@ class TerminalMarkupRenderer
             }
             if ($para) {
                 $joined  = self::expandMarkdownLinks(implode(' ', $para));
-                $wrapped = self::wrapRaw($joined, $width);
+                $wrapped = self::wrapAnsi(self::inlineMarkdown($joined), $width);
                 foreach ($wrapped as $wl) {
-                    $output[] = self::inlineMarkdown($wl);
+                    $output[] = $wl;
                 }
                 $output[] = '';
             }
@@ -522,6 +522,59 @@ class TerminalMarkupRenderer
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Word-wrap an ANSI-formatted string to $width visible columns.
+     *
+     * Unlike wrapRaw(), this counts only visible characters (escape sequences are
+     * skipped) so that bold/colour spans that cross a natural wrap boundary are
+     * preserved intact rather than split across lines.
+     *
+     * @param string $text  ANSI-formatted text
+     * @param int    $width Maximum visible width
+     * @return string[]
+     */
+    private static function wrapAnsi(string $text, int $width): array
+    {
+        if ($text === '') {
+            return [''];
+        }
+
+        $width  = max(1, $width);
+        $tokens = preg_split('/(\s+)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$text];
+
+        $lines      = [];
+        $current    = '';
+        $currentLen = 0;
+
+        foreach ($tokens as $token) {
+            // Whitespace-only tokens are delimiters between words; skip them (we
+            // re-insert a single space ourselves).
+            if (preg_match('/^\s+$/', $token)) {
+                continue;
+            }
+
+            $tokenLen = mb_strlen(self::stripAnsi($token));
+
+            if ($currentLen === 0) {
+                $current    = $token;
+                $currentLen = $tokenLen;
+            } elseif ($currentLen + 1 + $tokenLen <= $width) {
+                $current    .= ' ' . $token;
+                $currentLen += 1 + $tokenLen;
+            } else {
+                $lines[]    = $current;
+                $current    = $token;
+                $currentLen = $tokenLen;
+            }
+        }
+
+        if ($current !== '') {
+            $lines[] = $current;
+        }
+
+        return $lines ?: [''];
+    }
 
     /**
      * Word-wrap a plain-text string to $width and return the resulting lines.
