@@ -370,9 +370,7 @@ class NetmailHandler
             $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
             $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
             $kludgeLines  = array_map(fn(string $line): string => $this->server->encodeForTerminal($line), $kludgeLines);
-            $imageRefs    = $markupFormat !== null
-                ? TerminalMarkupRenderer::extractImageRefs($markupFormat, $body)
-                : [];
+            $imageRefs    = TerminalMarkupRenderer::extractImageRefs((string)($markupFormat ?? ''), $body);
             if (!is_array($attachments)) {
                 $attachments = [];
             }
