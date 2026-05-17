@@ -31,10 +31,11 @@
     }
 
     .packetbbs-card-intro {
-        color: var(--bs-secondary-color);
+        color: var(--bs-body-color, var(--text-color, #e0e0e0));
         font-size: 0.875rem;
         line-height: 1.45;
         margin: 0;
+        opacity: 0.88;
     }
 
     .packetbbs-card-list {
@@ -47,7 +48,8 @@
 
     .packetbbs-card-item {
         align-items: flex-start;
-        border: 1px solid rgba(var(--bs-secondary-rgb), 0.2);
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(var(--bs-secondary-rgb), 0.28);
         border-radius: 0.75rem;
         display: flex;
         gap: 0.75rem;
@@ -60,6 +62,7 @@
     }
 
     .packetbbs-card-item-link {
+        color: var(--bs-link-color, var(--cyber-cyan, #05d9e8));
         font-size: 1rem;
         font-weight: 600;
         line-height: 1.2;
@@ -69,14 +72,16 @@
 
     .packetbbs-card-item-link:hover,
     .packetbbs-card-item-link:focus {
+        color: var(--bs-link-hover-color, var(--cyber-cyan-bright, #6eeef8));
         text-decoration: underline;
     }
 
     .packetbbs-card-item-location {
-        color: var(--bs-secondary-color);
+        color: var(--bs-body-color, var(--text-color, #e0e0e0));
         font-size: 0.9rem;
         line-height: 1.35;
         margin-top: 0.35rem;
+        opacity: 0.8;
         word-break: break-word;
     }
 
@@ -85,12 +90,28 @@
         flex-shrink: 0;
     }
 
+    .packetbbs-card-item-badge {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        color: var(--bs-body-color, var(--text-color, #e0e0e0));
+        display: inline-flex;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        line-height: 1;
+        padding: 0.35rem 0.55rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
     .packetbbs-card-loading,
     .packetbbs-card-empty,
     .packetbbs-card-error {
-        color: var(--bs-secondary-color);
+        color: var(--bs-body-color, var(--text-color, #e0e0e0));
         font-size: 0.875rem;
         margin: 0;
+        opacity: 0.8;
         padding: 0.35rem 0;
         text-align: center;
     }
@@ -1022,7 +1043,7 @@ function loadPacketBbsStatus() {
                         ? escapeHtml(n.location)
                         : '<span class="fst-italic">' + window.t('ui.meshcore_nodes.no_location', {}, 'No location set') + '</span>';
                     const iface = n.interface_type
-                        ? '<span class="badge text-bg-secondary">' + escapeHtml(n.interface_type) + '</span>'
+                        ? '<span class="packetbbs-card-item-badge">' + escapeHtml(n.interface_type) + '</span>'
                         : '';
                     return '<div class="packetbbs-card-item">' +
                         '<div class="packetbbs-card-item-main">' +
