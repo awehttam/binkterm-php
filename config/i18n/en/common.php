@@ -3556,6 +3556,7 @@ return [
     'ui.dashboard.card.voting_booth' => 'Voting Booth',
     'ui.dashboard.card.echo_areas' => 'Echo Areas',
     'ui.dashboard.card.referral' => 'Referral Link',
+    'ui.dashboard.card.packetbbs_status' => 'PacketBBS Nodes',
 
     // Settings
     'ui.settings.title' => 'Settings',
@@ -4198,9 +4199,37 @@ return [
 
     // BBS Lists dropdown (public nav) + admin nav
     'ui.base.bbs_lists' => 'BBS Lists',
+    'ui.base.meshcore_nodes' => 'PacketBBS Nodes',
     'ui.base.admin.echomail_robots' => 'Echomail Robots',
     'ui.base.bbs_directory' => 'BBS Directory',
     'ui.base.admin.bbs_directory' => 'BBS Directory',
+
+    // Meshcore Nodes public page
+    'ui.meshcore_nodes.page_title' => 'Meshcore Nodes',
+    'ui.meshcore_nodes.page_intro' => 'This BBS can be accessed directly over mesh radio through any of the nodes listed below. If you have a MeshCore or compatible mesh radio device, you can connect without internet access.',
+    'ui.meshcore_nodes.registered_nodes' => 'Registered Nodes',
+    'ui.meshcore_nodes.none_registered' => 'No nodes are registered yet.',
+    'ui.meshcore_nodes.col_name' => 'Name',
+    'ui.meshcore_nodes.col_location' => 'Location',
+    'ui.meshcore_nodes.col_coordinates' => 'Coordinates',
+    'ui.meshcore_nodes.col_last_seen' => 'Last Seen',
+    'ui.meshcore_nodes.no_location' => 'No location set',
+    'ui.meshcore_nodes.location' => 'Location',
+    'ui.meshcore_nodes.preamble' => 'Access the BBS via Mesh Network',
+    'ui.meshcore_nodes.never_seen' => 'Never',
+    'ui.meshcore_nodes.more_info' => 'More info',
+    'ui.meshcore_nodes.loading' => 'Loading…',
+    'ui.meshcore_nodes.load_error' => 'Failed to load node details.',
+    'ui.meshcore_nodes.view_all' => 'View all nodes',
+    'ui.meshcore_nodes.coordinates' => 'Coordinates',
+    'ui.meshcore_nodes.public_key' => 'Public Key',
+    'ui.meshcore_nodes.last_seen' => 'Last Seen',
+    'ui.meshcore_nodes.qr_hint' => 'Scan to add as MeshCore contact',
+
+    // Map picker
+    'ui.map_picker.title' => 'Pick a Location',
+    'ui.map_picker.hint' => 'Click the map to place a marker. Drag the marker to adjust.',
+    'ui.map_picker.use_location' => 'Use this location',
 
     // BBS Directory (public page)
     'ui.bbs_directory.page_title' => 'BBS Directory — Telnet Bulletin Board Systems',

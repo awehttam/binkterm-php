@@ -382,6 +382,29 @@
         </div>{# /dash-card-wrapper referral #}
         {% endif %}
 
+        {% if packetbbs_nodes_exist %}
+        <div class="dash-card-wrapper" data-card-id="packetbbs_status">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-broadcast-tower me-2"></i>{{ t('ui.dashboard.card.packetbbs_status', {}, locale, ['common']) }}
+                </h6>
+            </div>
+            <div class="card-body pb-0">
+                <p class="text-muted small mb-2">{{ t('ui.meshcore_nodes.preamble', {}, locale, ['common']) }}</p>
+            </div>
+            <div id="packetBbsStatusList">
+                <div class="text-center text-muted py-3 small">
+                    <i class="fas fa-spinner fa-spin me-1"></i>{{ t('ui.meshcore_nodes.loading', {}, locale, ['common']) }}
+                </div>
+            </div>
+            <div class="card-footer text-end py-1">
+                <a href="/packetbbs-nodes" class="small">{{ t('ui.meshcore_nodes.view_all', {}, locale, ['common']) }}</a>
+            </div>
+        </div>
+        </div>{# /dash-card-wrapper packetbbs_status #}
+        {% endif %}
+
         <div class="dash-card-wrapper" data-card-id="echo_areas">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -490,6 +513,9 @@ $(document).ready(function() {
     {% endif %}
     {% if referral_enabled %}
     loadReferralStats();
+    {% endif %}
+    {% if packetbbs_nodes_exist %}
+    loadPacketBbsStatus();
     {% endif %}
     renderDashboardAd();
     updateDashboardAdPosition();
@@ -888,6 +914,40 @@ function postShout() {
         }
     })
     .catch(() => alert(uiT('ui.dashboard.shoutbox.post_failed', 'Failed to post shout.')));
+}
+
+function loadPacketBbsStatus() {
+    fetch('/api/meshcore/nodes')
+        .then(r => r.json())
+        .then(function (data) {
+            const el = document.getElementById('packetBbsStatusList');
+            if (!el) return;
+            const nodes = data.nodes || [];
+            if (nodes.length === 0) {
+                el.innerHTML = '<p class="text-muted small text-center py-3">' +
+                    window.t('ui.meshcore_nodes.none_registered', {}, 'No nodes registered.') + '</p>';
+                return;
+            }
+            el.innerHTML = '<ul class="list-group list-group-flush">' +
+                nodes.map(function (n) {
+                    const location = n.location
+                        ? escapeHtml(n.location)
+                        : '<span class="text-muted fst-italic">' + window.t('ui.meshcore_nodes.no_location', {}, 'No location set') + '</span>';
+                    const iface = n.interface_type
+                        ? '<span class="badge bg-secondary ms-1">' + escapeHtml(n.interface_type) + '</span>'
+                        : '';
+                    return '<li class="list-group-item py-2 px-3 d-flex justify-content-between align-items-center">' +
+                        '<span><a href="/packetbbs-nodes#node-' + n.id + '" class="text-decoration-none">' + escapeHtml(n.handle || '—') + '</a>' + iface + '</span>' +
+                        '<small class="text-muted">' + location + '</small>' +
+                        '</li>';
+                }).join('') +
+                '</ul>';
+        })
+        .catch(function () {
+            const el = document.getElementById('packetBbsStatusList');
+            if (el) el.innerHTML = '<p class="text-muted small text-center py-3">' +
+                window.t('ui.meshcore_nodes.load_error', {}, 'Failed to load.') + '</p>';
+        });
 }
 
 function loadReferralStats() {

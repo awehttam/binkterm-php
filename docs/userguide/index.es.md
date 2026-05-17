@@ -14,8 +14,9 @@ Bienvenido a bordo! Esta guia te llevara a traves de todo lo que este BBS tiene 
 6. [Puertas: Juegos y aplicaciones](#puertas-juegos-y-aplicaciones)
 7. [Areas de archivos](#areas-de-archivos)
 8. [Explorando las redes BBS](#explorando-las-redes-bbs)
-9. [Tu perfil y ajustes](#tu-perfil-y-ajustes)
-10. [Obtener ayuda](#obtener-ayuda)
+9. [Acceso por radio y mesh (PacketBBS)](#acceso-por-radio-y-mesh-packetbbs)
+10. [Tu perfil y ajustes](#tu-perfil-y-ajustes)
+11. [Obtener ayuda](#obtener-ayuda)
 
 ---
 
@@ -227,6 +228,81 @@ Cada nodo en la red FTN tiene una direccion unica con el formato **Zona:Red/Nodo
 | Punto | Una subdireccion opcional para un usuario en un nodo |
 
 Multiples redes FTN (FidoNet, FSXNet, AgoraNet, DoveNet y otras) operan de forma independiente pero utilizan la misma convencion de direccionamiento.
+
+---
+
+## Acceso por radio y mesh (PacketBBS)
+
+PacketBBS es un método de acceso que te permite leer y publicar en el BBS desde un **dispositivo de radio packet o mesh** — incluso sin conexión a internet. Utiliza comandos de texto cortos y eficientes en ancho de banda, diseñados para funcionar en enlaces de radio de baja velocidad.
+
+Si eres radioaficionado o utilizas un dispositivo de radio mesh como un nodo MeshCore o Meshtastic, y tu sysop ha configurado un puente PacketBBS, puedes iniciar sesión y usar el BBS directamente desde tu radio.
+
+### Qué puedes hacer
+
+- Leer y responder a tu **netmail** (mensajes privados)
+- Explorar y publicar en **áreas de echomail**
+- Leer **boletines** publicados por el sysop
+- Ver quién está **en línea** actualmente
+
+### Cómo configurar el acceso por radio
+
+Hay dos pasos de configuración, ambos realizados desde la interfaz web.
+
+#### Paso 1 — Inscribir un Autenticador PacketBBS
+
+PacketBBS utiliza una aplicación de contraseña de un solo uso (TOTP) para mantener tu inicio de sesión seguro por radio.
+
+1. Inicia sesión en la interfaz web.
+2. Ve a **Ajustes → Cuenta**.
+3. Encuentra **Autenticador PacketBBS** y haz clic en **Configurar autenticador**.
+4. Escanea el código QR con cualquier aplicación TOTP (Google Authenticator, Aegis, etc.) o introduce el secreto manualmente.
+5. Introduce el código de 6 dígitos que muestra la aplicación para verificar la inscripción.
+
+#### Paso 2 — Registrar tu radio
+
+La radio puente del BBS necesita conocer tu radio para poder retransmitir el tráfico hacia ti. Regístrala en **Ajustes → Radio MeshCore**:
+
+1. Ve a **Ajustes → Radio MeshCore**.
+2. Haz clic en **Registrar una radio**.
+3. Introduce el identificador de tu nodo — el **ID de nodo de 12 caracteres** que se muestra en la aplicación MeshCore, o tu **clave pública completa de 64 caracteres** si la conoces.
+4. Selecciona una **Radio compañera** — la radio puente del BBS que retransmitirá mensajes a tu dispositivo. Consulta la página **Nodos Meshcore** (en Listas BBS) para ver qué radios puente están disponibles y sus ubicaciones.
+5. Guarda. Si tu clave pública completa ya es conocida, el BBS añadirá automáticamente tu radio a la lista de contactos del puente. De lo contrario, se reclamará cuando el puente te escuche la próxima vez.
+
+> **Consejo:** La página Nodos Meshcore tiene un código QR para cada radio puente. Escanearlo lo añade como contacto en tu aplicación MeshCore, lo que facilita la comunicación bidireccional.
+
+Una vez completados ambos pasos, envía desde tu radio:
+
+```text
+LOGIN <nombre de usuario> <código de 6 dígitos>
+```
+
+Tu código TOTP cambia cada 30 segundos, así que escríbelo rápidamente. Tras un inicio de sesión exitoso, los boletines no leídos se listan automáticamente.
+
+### Resumen de comandos
+
+| Comando | Forma corta | Función |
+|---|---|---|
+| `HELP` | `H` | Mostrar una referencia rápida de comandos |
+| `HELPFUL` | — | Mostrar la lista completa de comandos |
+| `LOGIN <user> <code>` | `L <user> <code>` | Iniciar sesión con tu código TOTP |
+| `WHO` | `W` | Ver quién está en línea |
+| `STATUS` | `U` | Mostrar el contexto actual (área, mensaje o borrador) |
+| `AREAS` | `A` | Listar tus áreas echo suscritas |
+| `AREA <tag>` | `T <tag>` | Abrir un área echo |
+| `MAIL` | `N` | Listar tu netmail |
+| `READ <id>` | `R <id>` | Leer un mensaje |
+| `REPLY <id>` | `Y <id>` | Responder a un mensaje |
+| `SEND <user> <subject>` | `S <user> <subject>` | Redactar un nuevo netmail |
+| `POST` | `EP` | Publicar en el área echo actual |
+| `BULLETINS` | `BU` | Listar boletines; `BU <id>` lee uno |
+| `/SEND` | `/S` o `.` | Enviar un mensaje que estás redactando |
+| `/CANCEL` | `/C` | Cancelar un mensaje en curso |
+| `MORE` | `M` | Página siguiente |
+| `BACK` | `B` | Página anterior |
+| `Q` | — | Salir del área actual, o terminar la sesión en el nivel principal |
+| `QUIT` | — | Terminar la sesión desde cualquier lugar |
+
+> **Consejo:** Los comandos no distinguen entre mayúsculas y minúsculas. `help`, `HELP` y `Help` funcionan igual.
 
 ---
 

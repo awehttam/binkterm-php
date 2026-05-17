@@ -216,6 +216,7 @@ class Template
         $this->twig->addGlobal('mrc_webdoor_enabled', GameConfig::isEnabled('mrc'));
 
         $this->twig->addGlobal('bbs_directory_enabled', BbsConfig::isFeatureEnabled('bbs_directory'));
+        $this->twig->addGlobal('meshcore_nodes_available', (new \BinktermPHP\PacketBbs\PacketBbsNodeService())->getNodeCount() > 0);
         $this->twig->addGlobal('site_url', Config::getSiteUrl());
         $ftpEnabled = strtolower(trim((string)Config::env('FTPD_ENABLED', 'false'))) === 'true';
         $ftpHost = trim((string)Config::env('FTPD_PUBLIC_HOST', ''));

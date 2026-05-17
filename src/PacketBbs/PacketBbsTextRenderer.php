@@ -91,6 +91,7 @@ class PacketBbsTextRenderer
                 '(Y) id reply to msg',
                 '(S)END user subj compose',
                 '(EP) post in current area',
+                '(BU)LLETINS list / (BU) # read',
                 '(U)STATUS show context',
                 '(M)ORE next page',
                 '(B)ACK prev page',
@@ -148,7 +149,7 @@ class PacketBbsTextRenderer
             return implode("\n", [
                 'Area ' . $this->truncate($area, 24),
                 'R id | EP post | A list | U status',
-                'Q quit',
+                'Q leave area | QUIT end session',
             ]);
         }
 
@@ -432,5 +433,83 @@ class PacketBbsTextRenderer
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $bulletins
+     */
+    public function renderAbout(string $bbsName, string $bbsUrl): string
+    {
+        return implode("\n", [
+            sprintf('Hi! This is a radio bridge to %s.', $bbsName),
+            'Use "L username authcode" to login.',
+            sprintf('Visit %s to register and setup PacketBBS access.', $bbsUrl),
+        ]);
+    }
+
+    public function renderBulletinList(array $bulletins): string
+    {
+        if (empty($bulletins)) {
+            return 'No bulletins.';
+        }
+        $lines = [sprintf('BULLETINS %d', count($bulletins))];
+        foreach ($bulletins as $b) {
+            $id     = (int)$b['id'];
+            $unread = empty($b['is_read']) ? '*' : ' ';
+            $title  = $this->truncate((string)($b['title'] ?? ''), $this->lineWidth - strlen((string)$id) - 3);
+            $lines[] = sprintf('%s#%d %s', $unread, $id, $title);
+        }
+        $lines[] = 'BU # to read';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string,mixed> $bulletin
+     */
+    public function renderBulletin(array $bulletin): string
+    {
+        $id    = (int)$bulletin['id'];
+        $title = $this->truncate((string)($bulletin['title'] ?? ''), $this->lineWidth);
+        $body  = $this->stripMarkdown((string)($bulletin['body'] ?? ''));
+        $lines = ["#$id $title"];
+        foreach ($this->wrapBody($body) as $line) {
+            $lines[] = $line;
+        }
+        $lines[] = 'BU for list';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $unreadBulletins
+     */
+    public function renderLoginBulletinNotice(array $unreadBulletins): string
+    {
+        $count = count($unreadBulletins);
+        $lines = [sprintf('%d unread bulletin%s:', $count, $count === 1 ? '' : 's')];
+        foreach ($unreadBulletins as $b) {
+            $id    = (int)$b['id'];
+            $title = $this->truncate((string)($b['title'] ?? ''), $this->lineWidth - strlen((string)$id) - 2);
+            $lines[] = sprintf('#%d %s', $id, $title);
+        }
+        $lines[] = 'BU to read';
+        return implode("\n", $lines);
+    }
+
+    private function stripMarkdown(string $text): string
+    {
+        // ATX headings
+        $text = preg_replace('/^#{1,6}\s+/m', '', $text) ?? $text;
+        // Bold/italic
+        $text = preg_replace('/\*{1,3}([^*\n]+)\*{1,3}/', '$1', $text) ?? $text;
+        $text = preg_replace('/_{1,3}([^_\n]+)_{1,3}/', '$1', $text) ?? $text;
+        // Inline code
+        $text = preg_replace('/`([^`]+)`/', '$1', $text) ?? $text;
+        // Links and images
+        $text = preg_replace('/!?\[([^\]]*)\]\([^)]*\)/', '$1', $text) ?? $text;
+        // Blockquotes
+        $text = preg_replace('/^>\s?/m', '', $text) ?? $text;
+        // Horizontal rules
+        $text = preg_replace('/^[-*_]{3,}\s*$/m', '---', $text) ?? $text;
+        return $text;
     }
 }

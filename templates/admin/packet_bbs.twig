@@ -2,6 +2,10 @@
 
 {% block title %}Packet BBS Nodes{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="/assets/leaflet/leaflet.css">
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -98,7 +102,7 @@
 
 <!-- Add/Edit Node Modal -->
 <div class="modal fade" id="nodeModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="nodeModalLabel">Add Node</h5>
@@ -107,66 +111,84 @@
             <div class="modal-body">
                 <form id="nodeForm">
                     <input type="hidden" id="nodeDbId">
-                    <div class="mb-3">
-                        <label class="form-label">Node ID <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="nodeId" placeholder="e.g. !a1b2c3d4 or W1ABC-1" required>
-                        <div class="form-text">The unique radio network address of the node.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Handle / Callsign</label>
-                        <input type="text" class="form-control" id="nodeHandle" placeholder="Optional display name">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Interface Type</label>
-                        <select class="form-select" id="nodeInterface">
-                            <option value="meshcore">MeshCore</option>
-                            <option value="meshtastic" disabled>Meshtastic (coming soon)</option>
-                            <option value="tnc" disabled>TNC / AX.25 (coming soon)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Link to BBS Account (optional)</label>
-                        <input type="number" class="form-control" id="nodeUserId" placeholder="User ID (leave blank to unlink)">
-                        <div class="form-text">Links this node to a BBS user account. Leave blank to require LOGIN.</div>
-                    </div>
-                    <div id="nodeAutoaddSection" class="d-none">
-                        <hr>
-                        <div class="d-flex align-items-center justify-content-between mb-1">
-                            <strong>{{ t('ui.admin.meshcore.autoadd_title') }}</strong>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="nodeAutoaddReadBtn" onclick="readAutoaddConfig()">
-                                <i class="fas fa-download me-1"></i>{{ t('ui.admin.meshcore.autoadd_read_device') }}
-                            </button>
+                    <div class="row g-4">
+                        <!-- Left column: node details -->
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Node ID <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="nodeId" placeholder="e.g. !a1b2c3d4 or W1ABC-1" required>
+                                <div class="form-text">The unique radio network address of the node.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Handle / Callsign</label>
+                                {% set site_hostname = (site_url | split('//') | last) | split('/') | first %}
+                                <input type="text" class="form-control" id="nodeHandle" placeholder="{{ site_hostname }}">
+                                <div class="form-text">Should match the node's name in MeshCore. Used as the contact name when users scan the QR code to add this node to their radio.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Interface Type</label>
+                                <select class="form-select" id="nodeInterface">
+                                    <option value="meshcore">MeshCore</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Location Description (optional)</label>
+                                <input type="text" class="form-control" id="nodeLocation" placeholder="e.g. Lower Mainland BC" maxlength="255">
+                                <div class="form-text">Human-readable location shown in the node list and dashboard.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Coordinates (optional)</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="nodeLat" placeholder="Latitude" aria-label="Latitude">
+                                    <input type="text" class="form-control" id="nodeLon" placeholder="Longitude" aria-label="Longitude">
+                                    <button type="button" class="btn btn-outline-secondary map-picker-trigger"
+                                            data-lat-field="#nodeLat" data-lon-field="#nodeLon"
+                                            title="Pick on map">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">GPS coordinates. Used to show this node on the map.</div>
+                            </div>
                         </div>
-                        <div class="form-text mb-2">{{ t('ui.admin.meshcore.autoadd_help') }}</div>
-                        <div id="nodeAutoaddUnknown" class="text-muted fst-italic mb-2 d-none">
-                            {{ t('ui.admin.meshcore.autoadd_unknown') }}
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="autoaddChat" value="2">
-                            <label class="form-check-label" for="autoaddChat">{{ t('ui.admin.meshcore.autoadd_chat') }}</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="autoaddRepeater" value="4">
-                            <label class="form-check-label" for="autoaddRepeater">{{ t('ui.admin.meshcore.autoadd_repeater') }}</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="autoaddRoomServer" value="8">
-                            <label class="form-check-label" for="autoaddRoomServer">{{ t('ui.admin.meshcore.autoadd_room_server') }}</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="autoaddSensor" value="16">
-                            <label class="form-check-label" for="autoaddSensor">{{ t('ui.admin.meshcore.autoadd_sensor') }}</label>
-                        </div>
-                        <div class="form-check mt-1">
-                            <input class="form-check-input" type="checkbox" id="autoaddOverwriteOldest" value="1">
-                            <label class="form-check-label" for="autoaddOverwriteOldest">{{ t('ui.admin.meshcore.autoadd_overwrite_oldest') }}</label>
-                        </div>
-                        <div id="nodeAutoaddPendingSync" class="alert alert-warning py-1 px-2 small mt-2 d-none">
-                            <i class="fas fa-clock me-1"></i>{{ t('ui.admin.meshcore.autoadd_pending_sync') }}
+                        <!-- Right column: auto-add contact policy (MeshCore only) -->
+                        <div class="col-md-6" id="nodeAutoaddSection" style="display:none!important">
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <strong>{{ t('ui.admin.meshcore.autoadd_title') }}</strong>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="nodeAutoaddReadBtn" onclick="readAutoaddConfig()">
+                                    <i class="fas fa-download me-1"></i>{{ t('ui.admin.meshcore.autoadd_read_device') }}
+                                </button>
+                            </div>
+                            <div class="form-text mb-2">{{ t('ui.admin.meshcore.autoadd_help') }}</div>
+                            <div id="nodeAutoaddUnknown" class="text-muted fst-italic mb-2 d-none">
+                                {{ t('ui.admin.meshcore.autoadd_unknown') }}
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoaddChat" value="2">
+                                <label class="form-check-label" for="autoaddChat">{{ t('ui.admin.meshcore.autoadd_chat') }}</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoaddRepeater" value="4">
+                                <label class="form-check-label" for="autoaddRepeater">{{ t('ui.admin.meshcore.autoadd_repeater') }}</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoaddRoomServer" value="8">
+                                <label class="form-check-label" for="autoaddRoomServer">{{ t('ui.admin.meshcore.autoadd_room_server') }}</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoaddSensor" value="16">
+                                <label class="form-check-label" for="autoaddSensor">{{ t('ui.admin.meshcore.autoadd_sensor') }}</label>
+                            </div>
+                            <div class="form-check mt-1">
+                                <input class="form-check-input" type="checkbox" id="autoaddOverwriteOldest" value="1">
+                                <label class="form-check-label" for="autoaddOverwriteOldest">{{ t('ui.admin.meshcore.autoadd_overwrite_oldest') }}</label>
+                            </div>
+                            <div id="nodeAutoaddPendingSync" class="alert alert-warning py-1 px-2 small mt-2 d-none">
+                                <i class="fas fa-clock me-1"></i>{{ t('ui.admin.meshcore.autoadd_pending_sync') }}
+                            </div>
                         </div>
                     </div>
                 </form>
-                <div id="nodeModalError" class="alert alert-danger d-none"></div>
+                <div id="nodeModalError" class="alert alert-danger d-none mt-3"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -291,8 +313,11 @@
     </div>
 </div>
 
+{% include 'partials/map_picker_modal.twig' %}
+
 <script>
 const currentAdminUser = {{ current_admin_user | json_encode | raw }};
+const SITE_HOSTNAME = {{ ((site_url | split('//') | last) | split('/') | first) | json_encode | raw }};
 
 let nodeModal, keyModal, contactsModal, contactEditModal;
 let activeContactNodeDbId = null;
@@ -300,6 +325,7 @@ let contactOwnerSearchTimer = null;
 let selectedContactOwner = null;
 let autoaddPollTimer = null;
 let autoaddConfirmed = false;
+let autoaddInitialConfig = null; // config byte when the edit modal was opened; null = not loaded
 const AUTOADD_POLL_INTERVAL = 4000;
 
 function updateSaveBtn(mode) {
@@ -464,21 +490,26 @@ function getAutoaddConfigByte() {
 
 function showAddNodeModal() {
     autoaddConfirmed = false;
+    autoaddInitialConfig = null;
     updateSaveBtn('save');
     document.getElementById('nodeModalLabel').textContent = 'Add Node';
     document.getElementById('nodeDbId').value = '';
     document.getElementById('nodeId').value = '';
     document.getElementById('nodeId').disabled = false;
     document.getElementById('nodeHandle').value = '';
+    document.getElementById('nodeHandle').placeholder = SITE_HOSTNAME;
     document.getElementById('nodeInterface').value = 'meshcore';
-    document.getElementById('nodeUserId').value = '';
+    document.getElementById('nodeLocation').value = '';
+    document.getElementById('nodeLat').value = '';
+    document.getElementById('nodeLon').value = '';
     document.getElementById('nodeModalError').classList.add('d-none');
-    document.getElementById('nodeAutoaddSection').classList.add('d-none');
+    document.getElementById('nodeAutoaddSection').style.setProperty('display', 'none', 'important');
     nodeModal.show();
 }
 
 function editNode(n) {
     autoaddConfirmed = false;
+    autoaddInitialConfig = null;
     updateSaveBtn('save');
     document.getElementById('nodeModalLabel').textContent = 'Edit Node';
     document.getElementById('nodeDbId').value = n.id;
@@ -486,18 +517,28 @@ function editNode(n) {
     document.getElementById('nodeId').disabled = true;
     document.getElementById('nodeHandle').value = n.handle || '';
     document.getElementById('nodeInterface').value = n.interface_type || 'meshcore';
-    document.getElementById('nodeUserId').value = n.user_id || '';
+    document.getElementById('nodeLocation').value = n.location || '';
+    document.getElementById('nodeLat').value = n.lat != null ? n.lat : '';
+    document.getElementById('nodeLon').value = n.lon != null ? n.lon : '';
     document.getElementById('nodeModalError').classList.add('d-none');
 
     const isMeshcore = (n.interface_type || 'meshcore') === 'meshcore';
-    document.getElementById('nodeAutoaddSection').classList.toggle('d-none', !isMeshcore);
+    const autoaddEl = document.getElementById('nodeAutoaddSection');
+    if (isMeshcore) {
+        autoaddEl.style.removeProperty('display');
+    } else {
+        autoaddEl.style.setProperty('display', 'none', 'important');
+    }
     if (isMeshcore) {
         if (n.autoadd_config !== null && n.autoadd_config !== undefined && n.autoadd_config !== '') {
             document.getElementById('nodeAutoaddUnknown').classList.add('d-none');
-            setAutoaddCheckboxes(parseInt(n.autoadd_config, 10));
+            const configByte = parseInt(n.autoadd_config, 10);
+            setAutoaddCheckboxes(configByte);
+            autoaddInitialConfig = configByte;
         } else {
             document.getElementById('nodeAutoaddUnknown').classList.remove('d-none');
             setAutoaddCheckboxes(0);
+            autoaddInitialConfig = null;
         }
         document.getElementById('nodeAutoaddPendingSync').classList.toggle('d-none', !n.autoadd_pending_sync);
     }
@@ -575,14 +616,23 @@ function saveNode() {
     const dbId    = document.getElementById('nodeDbId').value;
     const isEdit  = dbId !== '';
     const isMeshcore = document.getElementById('nodeInterface').value === 'meshcore';
+    const latRaw = document.getElementById('nodeLat').value.trim();
+    const lonRaw = document.getElementById('nodeLon').value.trim();
     const payload = {
         node_id:        document.getElementById('nodeId').value.trim(),
         handle:         document.getElementById('nodeHandle').value.trim(),
         interface_type: document.getElementById('nodeInterface').value,
-        user_id:        document.getElementById('nodeUserId').value.trim() || null,
+        location:       document.getElementById('nodeLocation').value.trim() || null,
+        lat:            latRaw !== '' ? parseFloat(latRaw) : null,
+        lon:            lonRaw !== '' ? parseFloat(lonRaw) : null,
     };
-    if (isEdit && isMeshcore) {
-        payload.autoadd_config = getAutoaddConfigByte();
+    // Only push autoadd config when it was loaded and has actually changed.
+    const currentAutoaddConfig = isEdit && isMeshcore ? getAutoaddConfigByte() : null;
+    const autoaddChanged = isEdit && isMeshcore
+        && autoaddInitialConfig !== null
+        && currentAutoaddConfig !== autoaddInitialConfig;
+    if (autoaddChanged) {
+        payload.autoadd_config = currentAutoaddConfig;
     }
 
     const url    = isEdit ? `/admin/api/packet-bbs/nodes/${dbId}` : '/admin/api/packet-bbs/nodes';
@@ -592,7 +642,7 @@ function saveNode() {
         .then(r => r.json())
         .then(data => {
             if (data.success || data.id) {
-                if (isEdit && isMeshcore) {
+                if (autoaddChanged) {
                     // Keep the modal open and auto-read back from the device to
                     // confirm the setting was applied, clearing the pending badge.
                     loadNodes();
@@ -885,4 +935,9 @@ function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/leaflet/leaflet.js"></script>
+<script src="/js/map-picker.js"></script>
 {% endblock %}

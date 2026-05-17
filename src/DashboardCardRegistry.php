@@ -29,8 +29,9 @@ class DashboardCardRegistry
             'bulletins'      => ['label_key' => 'ui.dashboard.card.bulletins',      'default_zone' => 'sidebar', 'required' => false],
             'system_info'    => ['label_key' => 'ui.dashboard.card.system_info',    'default_zone' => 'sidebar', 'required' => false],
             'todays_callers' => ['label_key' => 'ui.dashboard.card.todays_callers', 'default_zone' => 'sidebar', 'required' => false, 'admin_only' => true],
-            'voting_booth'   => ['label_key' => 'ui.dashboard.card.voting_booth',   'default_zone' => 'sidebar', 'required' => false, 'feature' => 'voting_booth'],
-            'echo_areas'     => ['label_key' => 'ui.dashboard.card.echo_areas',     'default_zone' => 'sidebar', 'required' => false],
+            'voting_booth'     => ['label_key' => 'ui.dashboard.card.voting_booth',     'default_zone' => 'sidebar', 'required' => false, 'feature' => 'voting_booth'],
+            'packetbbs_status' => ['label_key' => 'ui.dashboard.card.packetbbs_status', 'default_zone' => 'sidebar', 'required' => false, 'conditional' => 'packetbbs_nodes_exist'],
+            'echo_areas'       => ['label_key' => 'ui.dashboard.card.echo_areas',       'default_zone' => 'sidebar', 'required' => false],
             'referral'       => ['label_key' => 'ui.dashboard.card.referral',       'default_zone' => 'sidebar', 'required' => false, 'conditional' => 'referral_enabled'],
         ];
     }
@@ -100,14 +101,32 @@ class DashboardCardRegistry
         $sidebarIds = array_values(array_filter($saved['sidebar'] ?? [], fn($id) => in_array($id, $allIds, true)));
         $hiddenIds  = array_values(array_filter($saved['hidden']  ?? [], fn($id) => in_array($id, $allIds, true)));
 
-        $placed = array_merge($mainIds, $sidebarIds);
-        foreach ($allIds as $id) {
-            if (!in_array($id, $placed, true)) {
-                if ($availableCards[$id]['default_zone'] === 'main') {
-                    $mainIds[] = $id;
-                } else {
-                    $sidebarIds[] = $id;
+        $placed = array_merge($mainIds, $sidebarIds, $hiddenIds);
+
+        // Collect new cards in registry order, then insert each at the position
+        // that best matches its registry position relative to the already-placed cards.
+        // This prevents new cards from always landing at the bottom of their zone.
+        foreach ($allIds as $newId) {
+            if (in_array($newId, $placed, true)) {
+                continue;
+            }
+            $isMain = $availableCards[$newId]['default_zone'] === 'main';
+            $newPos = array_search($newId, $allIds, true);
+
+            // Find the index after which to insert: the last zone card whose registry
+            // position is strictly before the new card's registry position.
+            $insertAfter = -1;
+            $zoneList    = $isMain ? $mainIds : $sidebarIds;
+            foreach ($zoneList as $idx => $existingId) {
+                if (array_search($existingId, $allIds, true) < $newPos) {
+                    $insertAfter = $idx;
                 }
+            }
+            array_splice($zoneList, $insertAfter + 1, 0, [$newId]);
+            if ($isMain) {
+                $mainIds = $zoneList;
+            } else {
+                $sidebarIds = $zoneList;
             }
         }
 

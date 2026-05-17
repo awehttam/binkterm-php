@@ -12483,4 +12483,56 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // ---- end terminal menu key config ----
 
+    // -------------------------------------------------------------------------
+    // Public PacketBBS / MeshCore node endpoints (no auth required)
+    // -------------------------------------------------------------------------
+
+    /**
+     * GET /api/meshcore/nodes
+     *
+     * Returns all registered PacketBBS nodes (public, no auth required).
+     * Used by the dashboard card.
+     */
+    SimpleRouter::get('/meshcore/nodes', function() {
+        header('Content-Type: application/json');
+        $service = new \BinktermPHP\PacketBbs\PacketBbsNodeService();
+        echo json_encode(['nodes' => $service->getPublicNodes()]);
+    });
+
+    /**
+     * GET /api/meshcore/node/{id}
+     *
+     * Returns public detail for a single registered PacketBBS node.
+     */
+    SimpleRouter::get('/meshcore/node/{id}', function($id) {
+        header('Content-Type: application/json');
+        $service = new \BinktermPHP\PacketBbs\PacketBbsNodeService();
+        $node = $service->getNodeById((int)$id);
+        if (!$node) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Node not found']);
+            return;
+        }
+        echo json_encode($node);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/meshcore/node/{id}/qr.svg
+     *
+     * Returns an SVG QR code encoding the MeshCore contact-add deep-link for the node.
+     */
+    SimpleRouter::get('/meshcore/node/{id}/qr.svg', function($id) {
+        $service = new \BinktermPHP\PacketBbs\PacketBbsNodeService();
+        $node = $service->getNodeById((int)$id);
+        if (!$node) {
+            http_response_code(404);
+            echo 'Not found';
+            return;
+        }
+        header('Content-Type: image/svg+xml');
+        header('Cache-Control: public, max-age=3600');
+        $handle = $node['handle'] ?? $node['node_id'];
+        echo $service->getQrCodeSvg((string)$handle, (string)$node['node_id']);
+    })->where(['id' => '[0-9]+']);
+
 });

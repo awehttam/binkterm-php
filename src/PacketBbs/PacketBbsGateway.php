@@ -112,7 +112,9 @@ class PacketBbsGateway
 
         $command = trim($command);
         if ($command === '') {
-            return 'Send HELP.';
+            return empty($session['user_id'])
+                ? $renderer->renderAbout($this->getBbsName(), Config::getSiteUrl())
+                : 'Send HELP.';
         }
 
         // If in compose mode, route all input through the compose handler
@@ -133,7 +135,13 @@ class PacketBbsGateway
             case 'H':
             case 'HELP':
             case '?':
+                if (empty($session['user_id'])) {
+                    return $renderer->renderAbout($this->getBbsName(), Config::getSiteUrl());
+                }
                 return $renderer->renderHelp($args, $this->getBbsName(), $state);
+
+            case 'ABOUT':
+                return $renderer->renderAbout($this->getBbsName(), Config::getSiteUrl());
 
             case 'HELPFULL':
             case 'FULLHELP':
@@ -142,10 +150,27 @@ class PacketBbsGateway
 
             case 'L':
             case 'LOGIN':
-                return $this->handleLogin($session, $nodeId, $args, $interface);
+                return $this->handleLogin($session, $nodeId, $args, $interface, $renderer);
+
+            case 'BU':
+            case 'BULLETINS':
+                return $this->handleBulletins($session, $nodeId, $args, $renderer);
 
             case 'Q':
             case 'QUIT':
+                // Q exits the current area if one is active; at top level it ends the session.
+                // QUIT (full word) always ends the session unconditionally.
+                if ($verb === 'Q') {
+                    $state = $this->getSessionState($session);
+                    if (!empty($state['current_area'])) {
+                        $areaName = (string)($state['current_area']['display']
+                            ?? $state['current_area']['tag']
+                            ?? 'area');
+                        unset($state['current_area'], $state['current_list'], $state['current_message']);
+                        $this->sessionRepo->update($nodeId, ['session_state' => $state]);
+                        return sprintf('Left %s. HELP for commands.', strtoupper($areaName));
+                    }
+                }
                 return $this->handleQuit($nodeId);
 
             case 'W':
@@ -497,7 +522,7 @@ class PacketBbsGateway
         return 'Send failed. Ask sysop.';
     }
 
-    private function handleLogin(array $session, string $nodeId, string $args, string $interface): string
+    private function handleLogin(array $session, string $nodeId, string $args, string $interface, PacketBbsTextRenderer $renderer): string
     {
         $parts = preg_split('/\s+/', $args, 2);
         if (count($parts) < 2 || $parts[0] === '' || $parts[1] === '') {
@@ -562,7 +587,40 @@ class PacketBbsGateway
         ]);
 
         $this->logger->info(sprintf('login ok node=%s user=%s', $nodeId, $user['username']));
-        return sprintf('Hi %s. HELP for commands.', $user['username']);
+
+        $response = sprintf('Hi %s. HELP for commands.', $user['username']);
+        $unread = (new \BinktermPHP\BulletinManager())->getUnreadBulletins((int)$user['id']);
+        if (!empty($unread)) {
+            $response .= "\n" . $renderer->renderLoginBulletinNotice($unread);
+        }
+        return $response;
+    }
+
+    private function handleBulletins(array $session, string $nodeId, string $args, PacketBbsTextRenderer $renderer): string
+    {
+        $userId  = (int)($session['user_id'] ?? 0);
+        $manager = new \BinktermPHP\BulletinManager();
+
+        if ($args !== '' && ctype_digit($args)) {
+            $id        = (int)$args;
+            $bulletins = $manager->getActiveBulletins($userId > 0 ? $userId : null);
+            $bulletin  = null;
+            foreach ($bulletins as $b) {
+                if ((int)$b['id'] === $id) {
+                    $bulletin = $b;
+                    break;
+                }
+            }
+            if (!$bulletin) {
+                return "Bulletin #$id not found.";
+            }
+            if ($userId > 0) {
+                $manager->markRead($userId, $id);
+            }
+            return $renderer->renderBulletin($bulletin);
+        }
+
+        return $renderer->renderBulletinList($manager->getActiveBulletins($userId > 0 ? $userId : null));
     }
 
     private function handleQuit(string $nodeId): string

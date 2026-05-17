@@ -1,0 +1,23 @@
+{#
+  Reusable MeshCore node info modal.
+  Include once per page.
+  Trigger via meshcore-node-info.js: openMeshcoreNodeModal(nodeId)
+#}
+<div class="modal fade" id="meshcoreNodeInfoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-broadcast-tower me-2"></i>
+                    <span id="meshcoreNodeInfoName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="meshcoreNodeInfoBody">
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i>{{ t('ui.meshcore_nodes.loading', {}, 'common') }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

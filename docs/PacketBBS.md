@@ -21,10 +21,12 @@
   - [Echomail](#echomail)
     - [Area Search](#area-search)
   - [Compose Mode](#compose-mode)
+  - [Bulletins](#bulletins)
   - [Paging](#paging)
   - [Quit](#quit)
 - [Output Profiles](#output-profiles)
 - [Admin Operations](#admin-operations)
+- [Public Node Directory](#public-node-directory)
 - [MeshCore Companion Contacts](#meshcore-companion-contacts)
   - [How Contact Sync Works](#how-contact-sync-works)
   - [Contact Identifiers](#contact-identifiers)
@@ -137,10 +139,11 @@ Add a node:
 
 | Field | Purpose |
 |---|---|
-| Node ID | The bridge device ID. For MeshCore this is commonly the bridge node hash/ID. |
-| Handle / Callsign | Optional sysop-facing label for the node. |
-| Interface Type | Output profile. Currently `meshcore` is the normal choice. |
-| Link to BBS Account | Optional account link. Leave blank for normal `LOGIN <user> <code>` flow. |
+| Node ID | The bridge device ID. For MeshCore this is the bridge node hash/ID. |
+| Handle / Callsign | The node name as it appears in the MeshCore app. This value is used as the contact display name when the bridge QR-codes itself into another operator's contact list. Setting it to the BBS hostname is recommended. |
+| Interface Type | Output profile. `MeshCore` is the only currently supported type. |
+| Location Description | Optional free-text location label shown on the public node directory and dashboard widget (e.g. "Lower Mainland BC"). |
+| Coordinates | Optional GPS coordinates used to place the node on the public node map. Not displayed directly to users. |
 
 After creating the node, click the key button and generate an API key. Copy it immediately; it will not be shown again.
 
@@ -231,7 +234,8 @@ Posted to LVLY_TEST.
 | `LOGIN <user> <code>` | `L <user> <code>` | Log in using PacketBBS TOTP. |
 | `WHO` | `W` | Show who is online. |
 | `STATUS` | `U` | Show current area, list, message, or draft state. |
-| `QUIT` | `Q` | End the PacketBBS session and clear state. |
+| `BULLETINS` | `BU` | List active bulletins. `BU <id>` reads bulletin number `<id>`. |
+| `QUIT` | `Q` | Context-aware: exits the current area if one is active, or ends the PacketBBS session from the top level. Use the full word `QUIT` to end the session unconditionally from anywhere. |
 | `WEBSITE` | `WEB` | Show the BBS website URL. |
 
 #### Area Navigation Context
@@ -268,8 +272,8 @@ Posted to LVLY_TEST.
 
 | Full command | Short code | Description |
 |---|---|---|
-| `/SEND` | `.` | Send the current draft. |
-| `/CANCEL` | `CANCEL` | Cancel the current draft or guided flow. |
+| `/SEND` | `.` or `/S` | Send the current draft. |
+| `/CANCEL` | `CANCEL` or `/C` | Cancel the current draft or guided flow. |
 | `STATUS` | `U` | Show current draft target, subject, and body progress. |
 
 ### Login
@@ -569,6 +573,12 @@ Finish:
 /SEND
 ```
 
+Short form:
+
+```text
+/S
+```
+
 Old-style `.` also sends:
 
 ```text
@@ -581,7 +591,65 @@ Cancel:
 /CANCEL
 ```
 
+Short form:
+
+```text
+/C
+```
+
 Old-style `CANCEL` also cancels.
+
+### Bulletins
+
+When you log in, any unread bulletins are listed automatically:
+
+```text
+Hi alice. HELP for commands.
+2 unread bulletins:
+#1 Welcome to the BBS
+#3 Maintenance window tonight
+BU to read
+```
+
+List all active bulletins at any time:
+
+```text
+BU
+```
+
+Alias:
+
+```text
+BULLETINS
+```
+
+Example response:
+
+```text
+BULLETINS 3
+*#1 Welcome to the BBS
+ #2 Previous announcement
+*#3 Maintenance window tonight
+BU # to read
+```
+
+`*` marks bulletins you have not yet read.
+
+Read a specific bulletin:
+
+```text
+BU 1
+```
+
+Example response:
+
+```text
+#1 Welcome to the BBS
+Welcome! This BBS is...
+BU for list
+```
+
+Reading a bulletin marks it as read for your account. The `*` will disappear from the list on your next `BU`.
 
 ### Paging
 
@@ -592,7 +660,7 @@ Paging applies to three things: the area list, message lists, and long message b
 If a list has more pages, the footer shows:
 
 ```text
-R <id>, M
+R <id>, M:more B:back
 ```
 
 #### Long messages
@@ -600,7 +668,7 @@ R <id>, M
 If a message body exceeds 120 characters, it is split into pages. The first page shows a progress footer:
 
 ```text
-1/3 M:more
+1/3 M:more B:back
 ```
 
 Subsequent pages show the same until the last page, which shows the normal reply prompt.
@@ -646,17 +714,20 @@ End.
 
 ### Quit
 
+`Q` is context-aware:
+
+- **Inside an area:** exits the area and returns to the main context. Your session stays active.
+- **At the top level:** ends the PacketBBS session and clears state.
+
 ```text
 Q
 ```
 
-Alias:
+To end the session unconditionally from anywhere, regardless of what area you are in, use the full word:
 
 ```text
 QUIT
 ```
-
-This clears the PacketBBS session.
 
 ## Output Profiles
 
@@ -676,7 +747,6 @@ The admin Packet BBS page shows:
 
 - registered bridge nodes
 - whether each node has an API key
-- linked account, if configured
 - last-seen time
 - active PacketBBS sessions
 - outbound queue entries
@@ -684,12 +754,40 @@ The admin Packet BBS page shows:
 Common operations:
 
 - Generate/regenerate API key for a node.
-- Edit node handle/interface/account link.
+- Edit node handle, location description, coordinates, or interface type.
+- Set the auto-add contact policy for MeshCore nodes.
 - Delete a node.
 - Kill a stuck session.
 - Flush unsent outbound queue entries.
 
 Regenerating a node API key invalidates the old bridge key immediately.
+
+The node edit modal uses a two-column layout. Left column: identity and location fields. Right column: Auto-Add Contact Policy (MeshCore nodes only). The auto-add policy is pushed to the device only when the bitmask changes — saving other fields without touching the policy does not queue a device command.
+
+## Public Node Directory
+
+Registered PacketBBS nodes are publicly listed at `/packetbbs-nodes`. No login is required to view the page.
+
+The page shows:
+
+- an interactive map with a marker for every node that has GPS coordinates set
+- a sortable table listing all registered nodes by handle, interface type, and location description
+- a node info modal (handle, location description, coordinates with a copy button, public key with a copy button, and QR code)
+
+Linking to a specific node info modal uses the URL hash `#node-{id}`:
+
+```text
+https://your-bbs.example/packetbbs-nodes#node-42
+```
+
+The dashboard includes a **PacketBBS Nodes** card in the sidebar. It lists registered nodes with their handle and location description. Clicking a node name follows the `#node-{id}` link and opens the info modal automatically.
+
+### Adding Location Data
+
+To make nodes useful in the public directory, fill in the **Location Description** and optionally the **Coordinates** fields when registering or editing a node in **Admin → Packet BBS Nodes**:
+
+- **Location Description** — human-readable label shown in the node table and dashboard (e.g. "Lower Mainland BC", "Mt. Baker repeater site").
+- **Coordinates** — used to place the node on the map. Not displayed directly on the page; users see the location description instead.
 
 ## MeshCore Companion Contacts
 
@@ -792,7 +890,7 @@ The **Admin → Packet BBS Nodes** node edit modal includes an **Auto-Add Contac
 | Auto-add sensors | `0x10` | Recommended: off |
 | Overwrite oldest when full | `0x01` | When the contact list is at capacity, replaces the oldest non-favourite entry |
 
-Saving the node queues a `set_autoadd_config` device command. The bridge sends `CMD_SET_AUTOADD_CONFIG` to the radio on its next poll cycle; the setting takes effect immediately and persists across device restarts.
+Saving the node queues a `set_autoadd_config` device command **only when the bitmask changed** since the modal was opened. The bridge sends `CMD_SET_AUTOADD_CONFIG` to the radio on its next poll cycle; the setting takes effect immediately and persists across device restarts. Saving other node fields (handle, location, coordinates) without changing the policy does not trigger a device command.
 
 **Read from Device:** clicking this button queues a `get_autoadd_config` command. The bridge reads the device's actual current value and reports it back to the BBS. Refresh the admin page after the bridge next polls to see the result. This is useful when the device was configured through another tool and the BBS record does not yet match the device state.
 

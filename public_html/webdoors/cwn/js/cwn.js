@@ -131,7 +131,7 @@ function requestUserLocation() {
 }
 
 /**
- * Load all networks and display on map
+ * Load all networks and display on map (including PacketBBS bridge nodes)
  */
 function loadNetworks() {
     const bounds = map.getBounds();
@@ -142,16 +142,22 @@ function loadNetworks() {
         bounds.getEast()
     ].join(',');
 
-    $.get('api.php', {
+    const cwnRequest = $.get('api.php', {
         action: 'list',
         limit: NETWORK_PAGE_SIZE,
         bbox: bbox
-    }).done(function(data) {
+    });
+    const pbbRequest = $.get('api.php', { action: 'packetbbs_nodes' });
+
+    $.when(cwnRequest, pbbRequest).done(function(cwnResult, pbbResult) {
+        const data = cwnResult[0];
+        const pbbData = pbbResult[0];
+
         allNetworks = data.networks || [];
         const total = parseInt(data.total_all ?? data.total, 10) || 0;
         const visibleTotal = parseInt(data.total, 10) || allNetworks.length;
 
-        displayNetworksOnMap(allNetworks, total);
+        displayNetworksOnMap(allNetworks, total, pbbData.nodes || []);
         displayNetworksList(allNetworks, total, visibleTotal);
         updateStatistics(data);
     }).fail(function(xhr) {
@@ -165,10 +171,45 @@ function scheduleNetworkLoad() {
 }
 
 /**
- * Display networks on map
+ * Display networks on map (CWN + PacketBBS bridge nodes)
  */
-function displayNetworksOnMap(networks, total) {
+function displayNetworksOnMap(networks, total, packetBbsNodes) {
     markers.clearLayers();
+
+    // PacketBBS bridge nodes — distinct orange tower icon
+    (packetBbsNodes || []).forEach(function (node) {
+        const lat = parseFloat(node.lat);
+        const lon = parseFloat(node.lon);
+        if (isNaN(lat) || isNaN(lon)) return;
+
+        const name = node.handle || node.node_id_prefix || '?';
+        const prefix = node.node_id_prefix || '';
+        const lastSeen = node.last_seen_at
+            ? new Date(node.last_seen_at).toLocaleString()
+            : 'Never';
+
+        const pbbIcon = L.divIcon({
+            className: '',
+            html: '<i class="fas fa-broadcast-tower" style="font-size:20px;color:#fd7e14;"></i>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+
+        const popupContent =
+            '<div>' +
+            '<h6><i class="fas fa-broadcast-tower me-1" style="color:#fd7e14"></i>' + escapeHtml(name) + '</h6>' +
+            '<span class="badge bg-warning text-dark">PacketBBS Node</span>' +
+            (prefix ? '<p class="mb-1 mt-2"><code class="small">' + escapeHtml(prefix) + '…</code></p>' : '') +
+            '<small class="text-muted"><i class="fas fa-clock me-1"></i>' + escapeHtml(lastSeen) + '</small>' +
+            '<hr class="my-2">' +
+            '<a href="/packetbbs-nodes#node-' + node.id + '" class="btn btn-sm btn-outline-warning w-100" target="_top">' +
+            '<i class="fas fa-info-circle me-1"></i>More Info</a>' +
+            '</div>';
+
+        L.marker([lat, lon], { icon: pbbIcon })
+            .bindPopup(popupContent)
+            .addTo(markers);
+    });
 
     networks.forEach(function(network) {
         const marker = L.marker([network.latitude, network.longitude], {
