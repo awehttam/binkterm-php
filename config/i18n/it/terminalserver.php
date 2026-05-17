@@ -153,6 +153,9 @@ return [
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Nessun messaggio netmail.',
+    'ui.terminalserver.netmail.no_sent_messages'       => 'Nessun netmail inviato.',
+    'ui.terminalserver.netmail.inbox_header'           => 'Posta in arrivo Netmail (pagina {page}/{total}):',
+    'ui.terminalserver.netmail.sent_header'            => 'Netmail inviati (pagina {page}/{total}):',
     'ui.terminalserver.netmail.header'                 => 'Netmail (pagina {page}/{total}):',
     'ui.terminalserver.netmail.compose_title'          => '=== Componi Netmail ===',
     'ui.terminalserver.netmail.sending'                => 'Invio netmail...',

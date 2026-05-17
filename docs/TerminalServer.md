@@ -58,6 +58,7 @@ Each transport daemon has additional extension requirements — see
 - View message details with headers
 - Thread awareness and proper message display
 - ANSI color support for enhanced readability
+- Netmail reader supports **Inbox** and **Sent** folder views — press `S` from the message list to toggle. The active folder is persisted per user across sessions. In Sent view, the message header shows the recipient (`To:`) instead of the sender, and replying pre-fills the original recipient's address.
 
 ### Full-Screen Message Editor
 
@@ -277,7 +278,7 @@ The terminal server uses the BinktermPHP web API for most operations. It also ma
 | `/api/auth/login` | POST | User authentication |
 | `/api/auth/logout` | POST | Session logout |
 | `/api/user/settings` | GET | Load per-user settings (timezone, locale, terminal prefs) |
-| `/api/messages/netmail` | GET | List netmail messages |
+| `/api/messages/netmail` | GET | List netmail messages (`filter=all` for inbox, `filter=sent` for sent folder) |
 | `/api/messages/netmail/{id}` | GET | Get netmail message details |
 | `/api/messages/netmail/send` | POST | Send netmail message |
 | `/api/messages/echomail` | GET | List echomail messages |
