@@ -29,6 +29,7 @@ Each transport daemon has additional extension requirements — see
 - Bulletins (read-only system announcements posted by admins)
 - Polls (view/vote/create where enabled)
 - Shoutbox (view/post where enabled)
+- Local chat with rooms, direct messages, online users, and moderation shortcuts
 - BBS Directory (browse other BBSes when enabled)
 - Nodelist browser (browse Fidonet nodelist entries when available)
 - Interests (tag-based content interests when enabled)
@@ -125,6 +126,36 @@ Stats are refreshed from the API after returning from netmail, echomail, or bull
 - Unread and new message counts shown on main menu items (netmail: unread count; echomail: new since last visit)
 - Live dashboard widgets alongside the main menu (see above)
 - Helpful command documentation
+
+### Local Chat
+
+The terminal server now includes the same local chat system used by the web UI.
+From the main menu, press **C** to open **Local Chat**.
+
+Local chat supports:
+
+- room selection from an in-chat navigation pane
+- direct messages to online users and known DM contacts
+- unread badges for rooms and DMs during the current chat session
+- online user display
+- message polling with automatic updates while the chat screen is open
+- scrollback with **PgUp/PgDn**
+- admin room moderation shortcuts from the online users pane
+- multiline compose via **Ctrl+E**
+
+Chat controls:
+
+- **Tab / Shift+Tab** — move focus between panes
+- **Up / Down / Home / End** — move within the focused pane
+- **Enter** — open selected room/DM or send the current message
+- **PgUp / PgDn** — scroll message history
+- **Ctrl+E** — open the full-screen multiline composer
+- **Ctrl+K** — show local chat help
+- **R** — refresh rooms and online users
+- **Ctrl+C** — exit local chat
+
+On narrower terminals the chat client switches to a stacked layout so rooms/DMs,
+messages, and the compose box still fit on screen.
 
 ### Idle Timeout
 

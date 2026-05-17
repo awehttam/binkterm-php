@@ -398,6 +398,7 @@ class BbsSession
 
         $netmailHandler       = new NetmailHandler($this, $this->apiBase);
         $echomailHandler      = new EchomailHandler($this, $this->apiBase);
+        $chatHandler          = new ChatHandler($this, $this->apiBase);
         $shoutboxHandler      = new ShoutboxHandler($this, $this->apiBase);
         $bulletinsHandler     = new BulletinsHandler($this, $this->apiBase);
         $pollsHandler         = new PollsHandler($this, $this->apiBase);
@@ -527,6 +528,7 @@ class BbsSession
                 $lblNetmail    = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.netmail',   'N) Netmail ({count} unread)',     ['count' => $dashboardStats['unread_netmail']], $locale), 'N'), $state);
                 $lblEchomail   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.echomail',  'E) Echomail ({count} new)',       ['count' => $dashboardStats['new_echomail']],   $locale), 'E'), $state);
                 $lblQwk        = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.qwk',        'K) QWK Offline Mail',             [],                                      $locale), 'K'), $state);
+                $lblChat       = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.chat',       'C) Local Chat',                   [],                                      $locale), 'C'), $state);
                 $lblWhosOnline = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.whos_online',"W) Who's Online",                 [],                                      $locale), 'W'), $state);
                 $lblShoutbox   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.shoutbox',   'S) Shoutbox',                     [],                                      $locale), 'S'), $state);
                 $lblBulletins  = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.bulletins',  'U) Bulletins',                    [],                                      $locale), 'U'), $state);
@@ -553,6 +555,7 @@ class BbsSession
 
                 // --- Community (left) + Explore (right) ---
                 $communityItems = [['W', $lblWhosOnline]];
+                if (BbsConfig::isFeatureEnabled('chat')) $communityItems[] = ['C', $lblChat];
                 if ($showPolls)    $communityItems[] = ['P', $lblPolls];
                 if ($showShoutbox) $communityItems[] = ['S', $lblShoutbox];
                 if ($showDoors)    $communityItems[] = ['D', $lblDoors];
@@ -649,7 +652,7 @@ class BbsSession
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if (in_array($char, ['n','e','q','s','u','p','w','d','f','t','i','k','b','l'], true) || ctype_digit($char)) {
+                    if (in_array($char, ['n','e','q','s','u','p','w','d','f','t','i','k','b','l','c'], true) || ctype_digit($char)) {
                         $choice = $char;
                     }
                 }
@@ -675,6 +678,9 @@ class BbsSession
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $this->log("Menu: {$username} -> Polls");
                 $pollsHandler->show($conn, $state, $session);
+            } elseif (BbsConfig::isFeatureEnabled('chat') && $choice === 'c') {
+                $this->log("Menu: {$username} -> Local Chat");
+                $chatHandler->show($conn, $state, $session);
             } elseif (!empty($interestsOption) && $choice === $interestsOption) {
                 $this->log("Menu: {$username} -> Interests");
                 $interestsHandler->show($conn, $state, $session);
@@ -1259,6 +1265,93 @@ class BbsSession
             if ($timedOut) { continue; }
             return $key;
         }
+    }
+
+    /**
+     * Read a single key token with an upper-bound timeout.
+     *
+     * Returns [string|null $key, bool $timedOut, bool $shouldDisconnect].
+     * This is intended for interactive full-screen handlers that need to
+     * interleave input with periodic polling/redraw work.
+     */
+    public function readKeyWithTimeout($conn, array &$state, int $timeoutMs): array
+    {
+        $elapsed   = time() - ($state['last_activity'] ?? time());
+        $warnAt    = (int)($state['idle_warning_timeout'] ?? 300);
+        $disconnAt = (int)($state['idle_disconnect_timeout'] ?? 420);
+
+        if ($elapsed >= $disconnAt) {
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.idle.disconnect', 'Idle timeout - disconnecting...', [], $state['locale'] ?? $this->systemLocale), self::ANSI_YELLOW));
+            $this->writeLine($conn, '');
+            return [null, true, true];
+        }
+        if (empty($state['idle_warned']) && $elapsed >= $warnAt) {
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.idle.warning_key', 'Are you still there? (Press any key to continue)', [], $state['locale'] ?? $this->systemLocale), self::ANSI_YELLOW . self::ANSI_BOLD));
+            $this->writeLine($conn, '');
+            $state['idle_warned'] = true;
+        }
+
+        $idleRemainingMs = (($state['idle_warned'] ?? false) ? $disconnAt : $warnAt) - $elapsed;
+        $idleRemainingMs = max(0, $idleRemainingMs * 1000);
+        $waitMs = max(0, min($timeoutMs, $idleRemainingMs, 30000));
+
+        $read = [$conn];
+        $write = $except = null;
+        $sec = (int)floor($waitMs / 1000);
+        $usec = ($waitMs % 1000) * 1000;
+        $hasData = @stream_select($read, $write, $except, $sec, $usec);
+        if ($hasData === false) { return [null, false, true]; }
+        if ($hasData === 0) {
+            if ((time() - ($state['last_activity'] ?? time())) >= $disconnAt) {
+                return [null, true, true];
+            }
+            return ['', true, false];
+        }
+
+        $char = $this->readRawChar($conn, $state);
+        if ($char === null) {
+            return [null, false, true];
+        }
+
+        $state['last_activity'] = time();
+        $state['idle_warned'] = false;
+
+        if ($char === self::KEY_UP) { return ['UP', false, false]; }
+        if ($char === self::KEY_DOWN) { return ['DOWN', false, false]; }
+        if ($char === self::KEY_LEFT) { return ['LEFT', false, false]; }
+        if ($char === self::KEY_RIGHT) { return ['RIGHT', false, false]; }
+        if ($char === self::KEY_HOME) { return ['HOME', false, false]; }
+        if ($char === self::KEY_END) { return ['END', false, false]; }
+        if ($char === self::KEY_PGUP) { return ['PGUP', false, false]; }
+        if ($char === self::KEY_PGDOWN) { return ['PGDOWN', false, false]; }
+        if ($char === self::KEY_SHIFT_TAB) { return ['SHIFT_TAB', false, false]; }
+        if ($char === self::KEY_DELETE) { return ['DELETE', false, false]; }
+
+        $ord = ord($char[0]);
+        if ($ord === 9) { return ['TAB', false, false]; }
+        if ($ord === 13) {
+            $read = [$conn];
+            $write = $except = null;
+            if (@stream_select($read, $write, $except, 0, 50000) > 0) {
+                $next = $this->readRawChar($conn, $state);
+                if ($next !== null && ord($next) !== 10 && ord($next) !== 0) {
+                    $state['pushback'] = ($state['pushback'] ?? '') . $next;
+                }
+            }
+            return ['ENTER', false, false];
+        }
+        if ($ord === 10) { return ['ENTER', false, false]; }
+        if ($ord === 8 || $ord === 127) { return ['BACKSPACE', false, false]; }
+        if ($ord >= 32 && $ord < 127) { return ['CHAR:' . $char, false, false]; }
+        if ($ord === 3) { return ['CTRL_C', false, false]; }
+        if ($ord === 5) { return ['CTRL_E', false, false]; }
+        if ($ord === 11) { return ['CTRL_K', false, false]; }
+        if ($ord === 13) { return ['ENTER', false, false]; }
+        if ($ord === 26) { return ['CTRL_Z', false, false]; }
+
+        return ['', false, false];
     }
 
     // ===== TELNET PROTOCOL =====

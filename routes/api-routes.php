@@ -1709,6 +1709,41 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['messages' => $messages]);
     });
 
+    SimpleRouter::get('/chat/cursor', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
+            http_response_code(403);
+            apiError('errors.chat.feature_disabled', apiLocalizedText('errors.chat.feature_disabled', 'Chat is disabled', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(400);
+            apiError('errors.chat.invalid_message_query', apiLocalizedText('errors.chat.invalid_message_query', 'Invalid chat message query', $user));
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT COALESCE(MAX(m.id), 0) AS max_id
+            FROM chat_messages m
+            LEFT JOIN chat_rooms r ON m.room_id = r.id
+            WHERE m.from_user_id != ?
+              AND (
+                (m.room_id IS NOT NULL AND r.is_active = TRUE)
+                OR m.to_user_id = ?
+              )
+        ");
+        $stmt->execute([$userId, $userId]);
+        $maxId = (int)($stmt->fetchColumn() ?: 0);
+
+        echo json_encode(['max_id' => $maxId]);
+    });
+
     /**
      * GET /api/stream
      *

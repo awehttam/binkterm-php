@@ -1397,6 +1397,7 @@ JSON object with success status
 | `GET` | [`/api/chat/rooms`](#get-apichatrooms) | Yes | List all active chat rooms. |
 | `GET` | [`/api/chat/online`](#get-apichatonline) | Yes | Get list of online users and active bots. |
 | `GET` | [`/api/chat/messages`](#get-apichatmessages) | Yes | Fetch chat messages from a room or direct message thread. |
+| `GET` | [`/api/chat/cursor`](#get-apichatcursor) | Yes | Return the current maximum visible chat message ID for the user. |
 | `POST` | [`/api/chat/send`](#post-apichatsend) | Yes | Send a message to a chat room or direct message. |
 | `POST` | [`/api/chat/moderate`](#post-apichatmoderate) | Yes | Moderate chat: kick or ban user from room. |
 | `GET` | [`/api/chat/poll`](#get-apichatpoll) | Yes | Poll for new chat messages since last check. |
@@ -1563,6 +1564,32 @@ Confirmation of moderation action
 | 403 | Admin privileges required |
 | 404 | Chat room not found |
 | 404 | User not found or inactive |
+| 403 | Chat feature is disabled |
+
+---
+
+#### `GET /api/chat/cursor`
+
+**Requires authentication**
+
+Returns the highest chat message ID currently visible to the authenticated user
+across active rooms and direct messages addressed to them. This is useful for
+clients that want to anchor a polling cursor at "now" without replaying older
+backlog from other rooms or DM threads.
+
+**Response** _(JSON)_
+
+Current visible chat cursor
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_id` | integer | Highest visible chat message ID for the authenticated user |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid chat user context |
 | 403 | Chat feature is disabled |
 
 ---
