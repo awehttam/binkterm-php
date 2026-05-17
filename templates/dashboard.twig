@@ -24,6 +24,94 @@
         margin-top: 1.5rem;
     }
 
+    .packetbbs-card .card-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+    }
+
+    .packetbbs-card-intro {
+        color: var(--bs-secondary-color);
+        font-size: 0.875rem;
+        line-height: 1.45;
+        margin: 0;
+    }
+
+    .packetbbs-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin: 0;
+        padding: 0;
+    }
+
+    .packetbbs-card-item {
+        align-items: flex-start;
+        border: 1px solid rgba(var(--bs-secondary-rgb), 0.2);
+        border-radius: 0.75rem;
+        display: flex;
+        gap: 0.75rem;
+        justify-content: space-between;
+        padding: 0.8rem 0.9rem;
+    }
+
+    .packetbbs-card-item-main {
+        min-width: 0;
+    }
+
+    .packetbbs-card-item-link {
+        font-size: 1rem;
+        font-weight: 600;
+        line-height: 1.2;
+        text-decoration: none;
+        word-break: break-word;
+    }
+
+    .packetbbs-card-item-link:hover,
+    .packetbbs-card-item-link:focus {
+        text-decoration: underline;
+    }
+
+    .packetbbs-card-item-location {
+        color: var(--bs-secondary-color);
+        font-size: 0.9rem;
+        line-height: 1.35;
+        margin-top: 0.35rem;
+        word-break: break-word;
+    }
+
+    .packetbbs-card-item-meta {
+        display: flex;
+        flex-shrink: 0;
+    }
+
+    .packetbbs-card-loading,
+    .packetbbs-card-empty,
+    .packetbbs-card-error {
+        color: var(--bs-secondary-color);
+        font-size: 0.875rem;
+        margin: 0;
+        padding: 0.35rem 0;
+        text-align: center;
+    }
+
+    .packetbbs-card-footer {
+        border-top: 1px solid var(--bs-card-border-color);
+        margin-top: 0.15rem;
+        padding-top: 0.85rem;
+        text-align: right;
+    }
+
+    @media (max-width: 575.98px) {
+        .packetbbs-card-item {
+            flex-direction: column;
+        }
+
+        .packetbbs-card-item-meta {
+            align-self: flex-start;
+        }
+    }
+
     /* Customize modal drag styles */
     .dash-chip {
         cursor: grab;
@@ -384,22 +472,22 @@
 
         {% if packetbbs_nodes_exist %}
         <div class="dash-card-wrapper" data-card-id="packetbbs_status">
-        <div class="card">
+        <div class="card packetbbs-card">
             <div class="card-header">
                 <h6 class="mb-0">
                     <i class="fas fa-broadcast-tower me-2"></i>{{ t('ui.dashboard.card.packetbbs_status', {}, locale, ['common']) }}
                 </h6>
             </div>
-            <div class="card-body pb-0">
-                <p class="text-muted small mb-2">{{ t('ui.meshcore_nodes.preamble', {}, locale, ['common']) }}</p>
-            </div>
-            <div id="packetBbsStatusList">
-                <div class="text-center text-muted py-3 small">
+            <div class="card-body">
+                <p class="packetbbs-card-intro">{{ t('ui.meshcore_nodes.preamble', {}, locale, ['common']) }}</p>
+                <div id="packetBbsStatusList">
+                <div class="packetbbs-card-loading">
                     <i class="fas fa-spinner fa-spin me-1"></i>{{ t('ui.meshcore_nodes.loading', {}, locale, ['common']) }}
                 </div>
-            </div>
-            <div class="card-footer text-end py-1">
-                <a href="/packetbbs-nodes" class="small">{{ t('ui.meshcore_nodes.view_all', {}, locale, ['common']) }}</a>
+                </div>
+                <div class="packetbbs-card-footer">
+                    <a href="/packetbbs-nodes" class="small">{{ t('ui.meshcore_nodes.view_all', {}, locale, ['common']) }}</a>
+                </div>
             </div>
         </div>
         </div>{# /dash-card-wrapper packetbbs_status #}
@@ -924,28 +1012,31 @@ function loadPacketBbsStatus() {
             if (!el) return;
             const nodes = data.nodes || [];
             if (nodes.length === 0) {
-                el.innerHTML = '<p class="text-muted small text-center py-3">' +
+                el.innerHTML = '<p class="packetbbs-card-empty">' +
                     window.t('ui.meshcore_nodes.none_registered', {}, 'No nodes registered.') + '</p>';
                 return;
             }
-            el.innerHTML = '<ul class="list-group list-group-flush">' +
+            el.innerHTML = '<div class="packetbbs-card-list">' +
                 nodes.map(function (n) {
                     const location = n.location
                         ? escapeHtml(n.location)
-                        : '<span class="text-muted fst-italic">' + window.t('ui.meshcore_nodes.no_location', {}, 'No location set') + '</span>';
+                        : '<span class="fst-italic">' + window.t('ui.meshcore_nodes.no_location', {}, 'No location set') + '</span>';
                     const iface = n.interface_type
-                        ? '<span class="badge bg-secondary ms-1">' + escapeHtml(n.interface_type) + '</span>'
+                        ? '<span class="badge text-bg-secondary">' + escapeHtml(n.interface_type) + '</span>'
                         : '';
-                    return '<li class="list-group-item py-2 px-3 d-flex justify-content-between align-items-center">' +
-                        '<span><a href="/packetbbs-nodes#node-' + n.id + '" class="text-decoration-none">' + escapeHtml(n.handle || '—') + '</a>' + iface + '</span>' +
-                        '<small class="text-muted">' + location + '</small>' +
-                        '</li>';
+                    return '<div class="packetbbs-card-item">' +
+                        '<div class="packetbbs-card-item-main">' +
+                        '<a href="/packetbbs-nodes#node-' + n.id + '" class="packetbbs-card-item-link">' + escapeHtml(n.handle || '—') + '</a>' +
+                        '<div class="packetbbs-card-item-location">' + location + '</div>' +
+                        '</div>' +
+                        (iface ? '<div class="packetbbs-card-item-meta">' + iface + '</div>' : '') +
+                        '</div>';
                 }).join('') +
-                '</ul>';
+                '</div>';
         })
         .catch(function () {
             const el = document.getElementById('packetBbsStatusList');
-            if (el) el.innerHTML = '<p class="text-muted small text-center py-3">' +
+            if (el) el.innerHTML = '<p class="packetbbs-card-error">' +
                 window.t('ui.meshcore_nodes.load_error', {}, 'Failed to load.') + '</p>';
         });
 }
