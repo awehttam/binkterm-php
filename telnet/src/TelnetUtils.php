@@ -764,6 +764,23 @@ class TelnetUtils
             $title = $server->encodeForTerminal($title);
         }
 
+        // Rebuild rows at the new terminal width on resize.
+        $encodedTitle = $title;
+        $rebuildFn = static function(array &$s) use ($messages, $server, $encodedTitle): array {
+            $newCols = $s['cols'] ?? 80;
+            $newRows = [];
+            foreach ($messages as $idx => $msg) {
+                $newRows[] = TelnetUtils::formatMessageListEntry($msg, $idx + 1, false, $newCols, $s);
+            }
+            if (method_exists($server, 'encodeForTerminal')) {
+                $newRows = array_map(
+                    static fn(string $row): string => $server->encodeForTerminal($row),
+                    $newRows
+                );
+            }
+            return ['rows' => $newRows, 'title' => $encodedTitle];
+        };
+
         $statusBar = [
             ['text' => 'U/D',        'color' => self::ANSI_RED],
             ['text' => ' Move  ',    'color' => self::ANSI_BLUE],
@@ -781,7 +798,8 @@ class TelnetUtils
             $conn, $state, $server,
             $title, $rows, $page, $totalPages, $selectedIndex,
             $statusBar,
-            ['c' => 'compose']
+            ['c' => 'compose'],
+            $rebuildFn
         );
 
         // Map the generic 'select' action to the message-specific 'read' action.
@@ -902,10 +920,13 @@ class TelnetUtils
      * @param int      $page          Current page number (1-based)
      * @param int      $totalPages    Total page count
      * @param int      $selectedIndex Currently highlighted row index (0-based)
-     * @param array    $statusBar     Status bar segments: [['text' => string, 'color' => string], ...]
-     * @param array    $extraKeys     Optional extra single-char key bindings (lowercase): ['c' => 'compose', ...]
-     *                                Built-in keys (q, n, p, and digits) always take precedence;
-     *                                attempting to bind those keys here is silently ignored.
+     * @param array         $statusBar     Status bar segments: [['text' => string, 'color' => string], ...]
+     * @param array         $extraKeys     Optional extra single-char key bindings (lowercase): ['c' => 'compose', ...]
+     *                                     Built-in keys (q, n, p, and digits) always take precedence;
+     *                                     attempting to bind those keys here is silently ignored.
+     * @param callable|null $rebuildFn     Optional resize callback: fn(array &$state): array{rows: string[], title: string}
+     *                                     When provided, called on terminal resize to reformat rows and title at the
+     *                                     new dimensions before triggering a full repaint.
      * @return array{action: string, index: int, selectedIndex: int}
      *   action:        'quit' | 'disconnect' | 'select' | 'prev' | 'next' | (value from $extraKeys)
      *   index:         item index (meaningful for 'select')
@@ -921,7 +942,8 @@ class TelnetUtils
         int $totalPages,
         int $selectedIndex,
         array $statusBar,
-        array $extraKeys = []
+        array $extraKeys = [],
+        ?callable $rebuildFn = null
     ): array {
         $cols         = $state['cols'] ?? 80;
         $termRows     = $state['rows'] ?? 24;
@@ -956,6 +978,37 @@ class TelnetUtils
 
             if ($key === null) {
                 return ['action' => 'disconnect', 'index' => $selectedIndex, 'selectedIndex' => $selectedIndex];
+            }
+
+            // Detect terminal resize (NAWS update may have changed state mid-read)
+            $newCols     = $state['cols'] ?? $cols;
+            $newTermRows = $state['rows'] ?? $termRows;
+            if ($newCols !== $cols || $newTermRows !== $termRows) {
+                $cols      = $newCols;
+                $termRows  = $newTermRows;
+                $inputRow  = max(1, $termRows - 1);
+                if ($rebuildFn !== null) {
+                    $rebuilt       = $rebuildFn($state);
+                    $rows          = $rebuilt['rows'];
+                    $title         = $rebuilt['title'];
+                    $rowCount      = count($rows);
+                    $selectedIndex = min($selectedIndex, max(0, $rowCount - 1));
+                }
+                $buffer     = '';
+                $statusLine = self::buildStatusBar($statusBar, $cols);
+                self::safeWrite($conn, "\033[2J\033[H");
+                self::writeLine($conn, $title);
+                foreach ($rows as $idx => $row) {
+                    $plain = self::stripAnsi($row);
+                    if ($idx === $selectedIndex) {
+                        self::writeLine($conn, self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD));
+                    } else {
+                        self::writeLine($conn, $row);
+                    }
+                }
+                self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
+                self::safeWrite($conn, $statusLine . "\r");
+                self::safeWrite($conn, "\033[{$inputRow};1H");
             }
 
             if ($key === 'LEFT') {

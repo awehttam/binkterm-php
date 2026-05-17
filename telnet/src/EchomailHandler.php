@@ -709,7 +709,7 @@ class EchomailHandler
             $buildView = function(array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress, $imageRefs): array {
                 $cols     = $s['cols'] ?? 80;
                 $width    = max(10, $cols - 2);
-                $charset  = $s['terminal_charset'] ?? 'ascii';
+                $charset  = $this->server->getTerminalCharset();
                 $fromLine = $fromAddress ? "{$fromName} <{$fromAddress}>" : $fromName;
 
                 $segments = [

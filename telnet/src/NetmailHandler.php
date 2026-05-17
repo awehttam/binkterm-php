@@ -329,7 +329,7 @@ class NetmailHandler
             $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs): array {
                 $cols    = $s['cols'] ?? 80;
                 $width   = max(10, $cols - 2);
-                $charset = $s['terminal_charset'] ?? 'ascii';
+                $charset = $this->server->getTerminalCharset();
 
                 $fromName    = $msg['from_name'] ?? 'Unknown';
                 $fromAddress = $msg['from_address'] ?? '';
