@@ -750,24 +750,19 @@ class ChatHandler
 
         $existingMessages = $chat['conversations'][$targetKey]['messages'] ?? [];
         $existingSignature = $this->conversationSignature($existingMessages);
-        $snapshotSignature = $this->conversationSignature($snapshot);
-        if ($existingSignature === $snapshotSignature) {
+        $mergedMessages = $this->mergeConversationSnapshot($existingMessages, $snapshot);
+        $mergedSignature = $this->conversationSignature($mergedMessages);
+        if ($existingSignature === $mergedSignature) {
             return;
         }
 
-        $newIds = [];
         foreach ($snapshot as $message) {
             $fromUserId = (int)($message['from_user_id'] ?? 0);
             $messageId = (int)($message['id'] ?? 0);
-            if ($messageId > 0) {
-                $newIds[$messageId] = true;
-            }
             if ($fromUserId > 0 && $fromUserId !== (int)$chat['user_id'] && !$this->conversationContainsId($existingMessages, $messageId)) {
                 $this->maybeBeepForMessage($conn, $chat, $message);
             }
         }
-
-        $mergedMessages = $this->mergeConversationSnapshot($existingMessages, $snapshot);
 
         $chat['conversations'][$targetKey] = [
             'loaded' => true,
@@ -1323,7 +1318,7 @@ class ChatHandler
 
         $pane = $inputRow['panes'][0];
         $contentRow = (int)$pane['y'] + 5;
-        $contentCol = (int)$pane['x'] + 3;
+        $contentCol = (int)$pane['x'] + 4;
         $width = max(10, (int)$pane['width'] - 6);
         [, $cursorPos] = $this->getVisibleInputWindow((string)$chat['input'], (int)$chat['input_cursor'], $width);
         $col = $contentCol + $cursorPos;
