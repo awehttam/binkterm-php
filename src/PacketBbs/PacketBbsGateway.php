@@ -319,14 +319,14 @@ class PacketBbsGateway
     /**
      * Handle a line of input while in compose mode.
      *
-     * Accumulates body lines. A lone '.' or '/SEND' submits; 'CANCEL' or
-     * '/CANCEL' aborts.
+     * Accumulates body lines. A lone '.' or '/SEND' ('/S') submits; 'CANCEL',
+     * '/CANCEL', or '/C' aborts.
      */
     private function handleComposeLine(array $session, string $nodeId, string $line, PacketBbsTextRenderer $renderer): string
     {
         $state = $this->getSessionState($session);
         $control = strtoupper(trim($line));
-        if ($control === 'CANCEL' || $control === '/CANCEL') {
+        if ($control === 'CANCEL' || $control === '/CANCEL' || $control === '/C') {
             $state = $this->clearActiveFlow($state);
             $this->sessionRepo->update($nodeId, [
                 'menu_state'   => 'main',
@@ -338,7 +338,7 @@ class PacketBbsGateway
             return 'Cancelled.';
         }
 
-        if (trim($line) === '.' || $control === '/SEND') {
+        if (trim($line) === '.' || $control === '/SEND' || $control === '/S') {
             return $this->submitCompose($session, $nodeId);
         }
 
@@ -347,7 +347,7 @@ class PacketBbsGateway
 
         // Guard against excessively large messages (FTN ~16KB body limit)
         if (strlen($buffer) > 15000) {
-            return 'Too long. /SEND or /CANCEL.';
+            return 'Too long. /S or /C.';
         }
 
         $this->sessionRepo->update($nodeId, ['compose_buffer' => $buffer]);
@@ -400,7 +400,7 @@ class PacketBbsGateway
             ]);
             $this->saveSessionState($nodeId, $state);
 
-            return "Msg:\n/SEND or /CANCEL";
+            return "Msg:\n/SEND (/S) or /CANCEL (/C)";
         }
 
         return 'Unknown. H';

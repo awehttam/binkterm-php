@@ -83,20 +83,18 @@ class PacketBbsTextRenderer
         if (in_array($topic, ['HELPFULL', 'FULLHELP', 'HELPFUL'], true)) {
             return implode("\n", [
                 'FULL HELP',
-                'LOGIN username code',
-                'WHO online users',
-                'AREAS list areas',
-                'AREA tag open area',
-                'MAIL netmail list',
-                'READ id read msg',
-                'REPLY id reply msg',
-                'SEND user subject',
-                'POST tag subject',
-                'POST subject in current area',
-                'STATUS show context',
-                'MORE next page',
-                'PREV previous page',
-                'QUIT end session',
+                '(L)OGIN username code',
+                '(W)HO online users',
+                '(A)REAS list / (A)REA tag open',
+                '(N)ETMAIL list mail',
+                '(R)EAD id read msg',
+                '(Y) id reply to msg',
+                '(S)END user subj compose',
+                '(EP) post in current area',
+                '(U)STATUS show context',
+                '(M)ORE next page',
+                '(B)ACK prev page',
+                '(Q)UIT end session',
             ]);
         }
 
@@ -199,7 +197,7 @@ class PacketBbsTextRenderer
             $lines[] = $prefix . $subj;
         }
         if ($page < $totalPages) {
-            $lines[] = 'R <id>, M';
+            $lines[] = 'R <id>, M:more B:back';
         } else {
             $lines[] = 'R <id>, RP <id>';
         }
@@ -224,7 +222,7 @@ class PacketBbsTextRenderer
                 $lines[] = $line;
             }
             $lines[] = $page < $totalPages
-                ? sprintf('%d/%d M:more', $page, $totalPages)
+                ? sprintf('%d/%d M:more B:back', $page, $totalPages)
                 : 'RP ' . (int)$m['id'];
         } else {
             foreach ($bodyLines as $line) {
@@ -307,7 +305,7 @@ class PacketBbsTextRenderer
             $desc = $this->truncate($a['description'] ?? '', max(8, $this->lineWidth - mb_strlen($tag) - 1));
             $lines[] = trim($tag . ' ' . $desc);
         }
-        $lines[] = $page < $totalPages ? 'AREA <tag>, M' : 'AREA <tag>';
+        $lines[] = $page < $totalPages ? 'AREA <tag>, M:more B:back' : 'AREA <tag>';
         return implode("\n", $lines);
     }
 
@@ -329,7 +327,7 @@ class PacketBbsTextRenderer
             $lines[] = $prefix . $subj;
         }
         if ($page < $totalPages) {
-            $lines[] = 'R <id>, M';
+            $lines[] = 'R <id>, M:more B:back';
         } else {
             $lines[] = 'R <id>, RP <id>';
         }
@@ -363,7 +361,7 @@ class PacketBbsTextRenderer
                 $lines[] = $line;
             }
             $lines[] = $page < $totalPages
-                ? sprintf('%d/%d M:more', $page, $totalPages)
+                ? sprintf('%d/%d M:more B:back', $page, $totalPages)
                 : 'RP ' . (int)$m['id'];
         } else {
             foreach ($bodyLines as $line) {
