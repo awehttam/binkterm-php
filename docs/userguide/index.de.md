@@ -246,7 +246,7 @@ Wenn du Amateurfunker bist oder ein Mesh-Radio-Gerät wie einen MeshCore- oder M
 
 ### So richtest du den Funkzugang ein
 
-Es gibt zwei Einrichtungsschritte, die beide über die Weboberfläche durchgeführt werden.
+Es gibt drei Einrichtungsschritte, die alle über die Weboberfläche durchgeführt werden.
 
 #### Schritt 1 — Einen PacketBBS-Authentifikator einrichten
 
@@ -258,17 +258,23 @@ PacketBBS verwendet eine Einmalpasswort-App (TOTP), um deinen Login über Funk a
 4. Scanne den QR-Code mit einer TOTP-App (Google Authenticator, Aegis usw.) oder gib das Secret manuell ein.
 5. Gib den 6-stelligen Code ein, den die App anzeigt, um die Einrichtung zu bestätigen.
 
-#### Schritt 2 — Deine Radio registrieren
+#### Schritt 2 — Einen Brückenknoten in deinem Meshnetz finden
 
-Die Brückenradio des BBS muss deine Radio kennen, um den Funkverkehr zu dir weiterleiten zu können. Registriere sie unter **Einstellungen → MeshCore-Radio**:
+Du brauchst einen Brückenknoten, der von deiner Radio aus erreichbar ist — entweder in der Nähe oder mit demselben Meshnetz verbunden.
+
+Gehe zu **BBS-Listen → PacketBBS-Knoten**. Jeder aufgeführte Knoten zeigt seinen Standort und seinen Schnittstellentyp. Suche einen, der sich in deinem Meshnetz befindet oder nah genug ist, um deine Radio zu hören. Notiere seinen Namen; du wählst ihn im nächsten Schritt als Begleitradio aus.
+
+> **Tipp:** Jeder Knoteneintrag hat einen QR-Code. Einscannen fügt die Brücke als Kontakt in der MeshCore-App hinzu und erleichtert die bidirektionale Kommunikation.
+
+#### Schritt 3 — Deine Radio registrieren
+
+Der Brückenknoten muss deine Radio kennen, um den Funkverkehr zu dir weiterleiten zu können. Registriere sie unter **Einstellungen → MeshCore-Radio**:
 
 1. Gehe zu **Einstellungen → MeshCore-Radio**.
 2. Klicke auf **Radio registrieren**.
 3. Gib die Kennung deines Knotens ein — entweder die **12-stellige Knoten-ID**, die in der MeshCore-App angezeigt wird, oder deinen vollständigen **64-stelligen öffentlichen Schlüssel**, falls bekannt.
-4. Wähle eine **Begleitradio** — die Brückenradio des BBS, die Nachrichten an dein Gerät weiterleitet. Auf der Seite **Meshcore-Knoten** (unter BBS-Listen) siehst du, welche Brückenradios verfügbar sind und wo sie sich befinden.
+4. Wähle den in Schritt 2 gefundenen Brückenknoten als **Begleitradio** aus.
 5. Speichern. Wenn dein vollständiger öffentlicher Schlüssel bereits bekannt ist, fügt das BBS deine Radio automatisch zur Kontaktliste der Brücke hinzu. Andernfalls wird sie beim nächsten Funkkontakt zugeordnet.
-
-> **Tipp:** Die Seite Meshcore-Knoten zeigt einen QR-Code für jede Brückenradio. Einscannen fügt die Brücke als Kontakt in der MeshCore-App hinzu und erleichtert die bidirektionale Kommunikation.
 
 Nach der Einrichtung sendest du per Funk:
 

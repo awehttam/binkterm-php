@@ -246,7 +246,7 @@ Si eres radioaficionado o utilizas un dispositivo de radio mesh como un nodo Mes
 
 ### Cómo configurar el acceso por radio
 
-Hay dos pasos de configuración, ambos realizados desde la interfaz web.
+Hay tres pasos de configuración, todos realizados desde la interfaz web.
 
 #### Paso 1 — Inscribir un Autenticador PacketBBS
 
@@ -258,19 +258,25 @@ PacketBBS utiliza una aplicación de contraseña de un solo uso (TOTP) para mant
 4. Escanea el código QR con cualquier aplicación TOTP (Google Authenticator, Aegis, etc.) o introduce el secreto manualmente.
 5. Introduce el código de 6 dígitos que muestra la aplicación para verificar la inscripción.
 
-#### Paso 2 — Registrar tu radio
+#### Paso 2 — Encontrar un nodo puente en tu red mesh
 
-La radio puente del BBS necesita conocer tu radio para poder retransmitir el tráfico hacia ti. Regístrala en **Ajustes → Radio MeshCore**:
+Necesitas un nodo puente que sea accesible desde tu radio — ya sea cercano o conectado a la misma red mesh que tú.
+
+Ve a **Listas BBS → Nodos PacketBBS**. Cada nodo listado muestra su ubicación y tipo de interfaz. Encuentra uno que esté en tu red mesh o lo suficientemente cerca para escuchar tu radio. Anota su nombre; lo seleccionarás como Radio compañera en el siguiente paso.
+
+> **Consejo:** Cada entrada de nodo tiene un código QR. Escanearlo lo añade como contacto en tu aplicación MeshCore, lo que facilita la comunicación bidireccional.
+
+#### Paso 3 — Registrar tu radio
+
+El nodo puente necesita conocer tu radio para poder retransmitir el tráfico hacia ti. Regístrala en **Ajustes → Radio MeshCore**:
 
 1. Ve a **Ajustes → Radio MeshCore**.
 2. Haz clic en **Registrar una radio**.
 3. Introduce el identificador de tu nodo — el **ID de nodo de 12 caracteres** que se muestra en la aplicación MeshCore, o tu **clave pública completa de 64 caracteres** si la conoces.
-4. Selecciona una **Radio compañera** — la radio puente del BBS que retransmitirá mensajes a tu dispositivo. Consulta la página **Nodos Meshcore** (en Listas BBS) para ver qué radios puente están disponibles y sus ubicaciones.
+4. Selecciona el nodo puente identificado en el Paso 2 como tu **Radio compañera**.
 5. Guarda. Si tu clave pública completa ya es conocida, el BBS añadirá automáticamente tu radio a la lista de contactos del puente. De lo contrario, se reclamará cuando el puente te escuche la próxima vez.
 
-> **Consejo:** La página Nodos Meshcore tiene un código QR para cada radio puente. Escanearlo lo añade como contacto en tu aplicación MeshCore, lo que facilita la comunicación bidireccional.
-
-Una vez completados ambos pasos, envía desde tu radio:
+Una vez completados los tres pasos, envía desde tu radio:
 
 ```text
 LOGIN <nombre de usuario> <código de 6 dígitos>

@@ -246,7 +246,7 @@ If you're a ham radio operator or use a mesh radio device such as a MeshCore or 
 
 ### How to Set Up Radio Access
 
-There are two setup steps. Both are done through the BBS web interface before you head to the radio.
+There are three setup steps. All are done through the BBS web interface before you head to the radio.
 
 #### Step 1 — Enroll a PacketBBS Authenticator
 
@@ -258,19 +258,25 @@ PacketBBS uses a one-time-password (TOTP) app instead of a plain password to kee
 4. Scan the QR code with any TOTP app (Google Authenticator, Aegis, etc.) or enter the secret manually.
 5. Enter the 6-digit code shown by the app to verify enrollment.
 
-#### Step 2 — Register your radio
+#### Step 2 — Find a bridge node on your mesh
 
-The BBS bridge radio needs to know about your radio so it can relay traffic to you. Register it under **Settings → MeshCore Radio**:
+You need a bridge node that is reachable from your radio — either nearby, or connected to the same mesh network you are on.
+
+Go to **BBS Lists → PacketBBS Nodes**. Each listed node shows its location and interface type. Find one that is on your mesh or close enough to hear your radio. Note its name; you will select it as your Companion Radio in the next step.
+
+> **Tip:** Each node listing has a QR code. Scanning it adds the bridge as a contact in your MeshCore app, which helps ensure the bridge can hear you and vice versa.
+
+#### Step 3 — Register your radio
+
+The bridge node needs to know about your radio so it can relay traffic to you. Register it under **Settings → MeshCore Radio**:
 
 1. Go to **Settings → MeshCore Radio**.
 2. Click **Register a radio**.
 3. Enter your node's identifier — either the **12-character node ID** shown in the MeshCore app, or your full **64-character public key** if you know it.
-4. Select a **Companion Radio** — the BBS bridge radio that will relay messages to your device. Check the **Meshcore Nodes** page (under BBS Lists) to see which bridge radios are available and their locations.
+4. Select the bridge node you identified in Step 2 as your **Companion Radio**.
 5. Save. If your full public key is already known, the BBS will automatically add your radio to the bridge's contact list. Otherwise it will be claimed when the bridge next hears from you.
 
-> **Tip:** The Meshcore Nodes page has a QR code for each bridge radio. Scanning it adds the bridge as a contact in your MeshCore app, which helps ensure the bridge can hear you and vice versa.
-
-Once both steps are done, send this from your radio:
+Once all three steps are done, send this from your radio:
 
 ```text
 LOGIN <username> <6-digit-code>

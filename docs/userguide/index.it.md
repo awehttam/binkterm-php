@@ -246,31 +246,37 @@ Se sei un radioamatore o utilizzi un dispositivo radio mesh come un nodo MeshCor
 
 ### Come configurare l'accesso radio
 
-Ci sono due passaggi di configurazione, entrambi eseguiti dall'interfaccia web.
+Ci sono tre passaggi di configurazione, tutti eseguiti dall\'interfaccia web.
 
 #### Passaggio 1 — Registrare un Autenticatore PacketBBS
 
-PacketBBS utilizza un'app per password monouso (TOTP) per proteggere il tuo accesso via radio.
+PacketBBS utilizza un\'app per password monouso (TOTP) per proteggere il tuo accesso via radio.
 
-1. Accedi all'interfaccia web.
+1. Accedi all\'interfaccia web.
 2. Vai su **Impostazioni → Account**.
 3. Trova **Autenticatore PacketBBS** e clicca su **Configura autenticatore**.
 4. Scansiona il codice QR con qualsiasi app TOTP (Google Authenticator, Aegis, ecc.) o inserisci il segreto manualmente.
-5. Inserisci il codice a 6 cifre mostrato dall'app per verificare la registrazione.
+5. Inserisci il codice a 6 cifre mostrato dall\'app per verificare la registrazione.
 
-#### Passaggio 2 — Registrare la tua radio
+#### Passaggio 2 — Trovare un nodo bridge sulla tua rete mesh
 
-La radio bridge del BBS deve conoscere la tua radio per poter instradare il traffico verso di te. Registrala in **Impostazioni → Radio MeshCore**:
+Hai bisogno di un nodo bridge raggiungibile dalla tua radio — vicino a te o connesso alla stessa rete mesh in cui ti trovi.
+
+Vai su **Liste BBS → Nodi PacketBBS**. Ogni nodo elencato mostra la sua posizione e il tipo di interfaccia. Trovane uno che si trovi sulla tua rete mesh o abbastanza vicino da sentire la tua radio. Annota il suo nome; lo selezionerai come Radio compagna nel passaggio successivo.
+
+> **Suggerimento:** Ogni voce di nodo ha un codice QR. Scansionandolo lo aggiungi come contatto nell\'app MeshCore, facilitando la comunicazione bidirezionale.
+
+#### Passaggio 3 — Registrare la tua radio
+
+Il nodo bridge deve conoscere la tua radio per poter instradare il traffico verso di te. Registrala in **Impostazioni → Radio MeshCore**:
 
 1. Vai su **Impostazioni → Radio MeshCore**.
 2. Clicca su **Registra una radio**.
 3. Inserisci l\'identificatore del tuo nodo — l\'**ID nodo a 12 caratteri** mostrato nell\'app MeshCore, oppure la tua **chiave pubblica completa a 64 caratteri** se la conosci.
-4. Seleziona una **Radio compagna** — la radio bridge del BBS che inoltrerà i messaggi al tuo dispositivo. Consulta la pagina **Nodi Meshcore** (in Liste BBS) per vedere quali radio bridge sono disponibili e le loro posizioni.
+4. Seleziona il nodo bridge identificato al Passaggio 2 come tua **Radio compagna**.
 5. Salva. Se la tua chiave pubblica completa è già nota, il BBS aggiungerà automaticamente la tua radio all\'elenco contatti del bridge. Altrimenti verrà acquisita la prossima volta che il bridge ti sentirà.
 
-> **Suggerimento:** La pagina Nodi Meshcore mostra un codice QR per ogni radio bridge. Scansionandolo la aggiungi come contatto nell\'app MeshCore, facilitando la comunicazione bidirezionale.
-
-Una volta completati entrambi i passaggi, invia dalla tua radio:
+Una volta completati tutti e tre i passaggi, invia dalla tua radio:
 
 ```text
 LOGIN <nome utente> <codice a 6 cifre>

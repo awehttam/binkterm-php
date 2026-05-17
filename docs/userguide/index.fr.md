@@ -246,31 +246,37 @@ Si vous êtes radioamateur ou utilisez un appareil radio mesh tel qu'un noeud Me
 
 ### Comment configurer l'accès radio
 
-Deux étapes de configuration sont nécessaires, toutes deux effectuées depuis l'interface web.
+Trois étapes de configuration sont nécessaires, toutes effectuées depuis l\'interface web.
 
 #### Étape 1 — Enregistrer un authentificateur PacketBBS
 
 PacketBBS utilise une application de mot de passe à usage unique (TOTP) pour sécuriser votre connexion par radio.
 
-1. Connectez-vous à l'interface web.
+1. Connectez-vous à l\'interface web.
 2. Allez dans **Paramètres → Compte**.
-3. Trouvez **Authentificateur PacketBBS** et cliquez sur **Configurer l'authentificateur**.
-4. Scannez le QR code avec n'importe quelle application TOTP (Google Authenticator, Aegis, etc.) ou entrez le secret manuellement.
-5. Entrez le code à 6 chiffres affiché par l'application pour vérifier l'enregistrement.
+3. Trouvez **Authentificateur PacketBBS** et cliquez sur **Configurer l\'authentificateur**.
+4. Scannez le QR code avec n\'importe quelle application TOTP (Google Authenticator, Aegis, etc.) ou entrez le secret manuellement.
+5. Entrez le code à 6 chiffres affiché par l\'application pour vérifier l\'enregistrement.
 
-#### Étape 2 — Enregistrer votre radio
+#### Étape 2 — Trouver un nœud relais sur votre réseau mesh
 
-La radio pont du BBS doit connaître votre radio pour pouvoir relayer le trafic vers vous. Enregistrez-la sous **Paramètres → Radio MeshCore** :
+Vous avez besoin d\'un nœud relais accessible depuis votre radio — à proximité ou connecté au même réseau mesh que vous.
+
+Allez dans **Listes BBS → Nœuds PacketBBS**. Chaque nœud listé indique son emplacement et son type d\'interface. Trouvez-en un qui se trouve sur votre réseau mesh ou suffisamment proche pour entendre votre radio. Notez son nom ; vous le sélectionnerez comme Radio compagne à l\'étape suivante.
+
+> **Conseil :** Chaque entrée de nœud dispose d\'un QR code. Le scanner l\'ajoute comme contact dans votre application MeshCore, ce qui facilite la communication bidirectionnelle.
+
+#### Étape 3 — Enregistrer votre radio
+
+Le nœud relais doit connaître votre radio pour pouvoir relayer le trafic vers vous. Enregistrez-la sous **Paramètres → Radio MeshCore** :
 
 1. Allez dans **Paramètres → Radio MeshCore**.
 2. Cliquez sur **Enregistrer une radio**.
-3. Entrez l'identifiant de votre nœud — soit l'**identifiant de nœud à 12 caractères** affiché dans l'application MeshCore, soit votre **clé publique complète à 64 caractères** si vous la connaissez.
-4. Sélectionnez une **Radio compagne** — la radio pont du BBS qui relayera les messages vers votre appareil. Consultez la page **Nœuds Meshcore** (dans Listes BBS) pour voir quelles radios pont sont disponibles et leurs emplacements.
-5. Enregistrez. Si votre clé publique complète est déjà connue, le BBS ajoutera automatiquement votre radio à la liste des contacts du pont. Sinon, elle sera réclamée quand le pont vous entendra la prochaine fois.
+3. Entrez l\'identifiant de votre nœud — soit l\'**identifiant de nœud à 12 caractères** affiché dans l\'application MeshCore, soit votre **clé publique complète à 64 caractères** si vous la connaissez.
+4. Sélectionnez le nœud relais identifié à l\'Étape 2 comme votre **Radio compagne**.
+5. Enregistrez. Si votre clé publique complète est déjà connue, le BBS ajoutera automatiquement votre radio à la liste des contacts du relais. Sinon, elle sera réclamée quand le relais vous entendra la prochaine fois.
 
-> **Conseil :** La page Nœuds Meshcore affiche un QR code pour chaque radio pont. Le scanner l'ajoute comme contact dans votre application MeshCore, ce qui facilite la communication bidirectionnelle.
-
-Une fois les deux étapes terminées, envoyez depuis votre radio :
+Une fois les trois étapes terminées, envoyez depuis votre radio :
 
 ```text
 LOGIN <nom d'utilisateur> <code à 6 chiffres>
