@@ -107,6 +107,7 @@ class SshSession
     private int $peerWindowSize    = 2097152;
     private int $maxPacketSize     = 32768;
     private bool $channelOpen      = false;
+    private bool $sixelSupported   = false;
 
     // Terminal size reported by client pty-req or window-change
     private int $termCols = 80;
@@ -118,6 +119,7 @@ class SshSession
 
     // Raw bytes pre-fed by the bridge for non-blocking packet reassembly.
     private string $rawBuf = '';
+    private string $prefetchedChannelData = '';
 
     // RSA host key (loaded/generated in __construct)
     private \OpenSSLAsymmetricKey $hostKey;
@@ -183,10 +185,12 @@ class SshSession
             if ($authResult === null)          { return null; }
             if (!$this->openChannel())         { return null; }
             $this->drainStartupChannelInput();
+            $this->sixelSupported = $this->probeSixelSupport();
 
             return array_merge($authResult, [
                 'cols' => $this->termCols,
                 'rows' => $this->termRows,
+                'sixel_supported' => $this->sixelSupported,
             ]);
         } catch (\Throwable $e) {
             if ($this->debug) {
@@ -590,6 +594,7 @@ class SshSession
     private function drainStartupChannelInput(): void
     {
         $discarded = 0;
+        $sawData = false;
 
         $prevBlocking = stream_get_meta_data($this->socket)['blocked'] ?? true;
         stream_set_blocking($this->socket, false);
@@ -603,22 +608,118 @@ class SshSession
                     break;
                 }
 
-                $chunk = $this->tryReadChannelData();
-                if ($chunk === false || $chunk === null) {
-                    break;
+                $raw = @fread($this->socket, 65536);
+                if ($raw === false || $raw === '') {
+                    if (feof($this->socket)) {
+                        break;
+                    }
+                    continue;
                 }
+                $sawData = true;
+                $this->feedRawBytes($raw);
 
-                if ($chunk !== '') {
-                    $discarded += strlen($chunk);
+                while (true) {
+                    $chunk = $this->tryReadChannelData();
+                    if ($chunk === false) {
+                        break;
+                    }
+                    if ($chunk === null) {
+                        return;
+                    }
+                    if ($chunk !== '') {
+                        $discarded += strlen($chunk);
+                    }
                 }
             }
         } finally {
             stream_set_blocking($this->socket, (bool)$prevBlocking);
         }
 
-        if ($this->debug && $discarded > 0) {
+        if ($this->debug && ($discarded > 0 || $sawData)) {
             $this->dbg("Drained {$discarded} bytes of queued SSH startup input before BBS handoff");
         }
+    }
+
+    /**
+     * Probe the SSH terminal channel for Sixel support using Primary DA (ESC[c).
+     *
+     * Unlike the telnet-side probe, this runs entirely inside the SSH transport
+     * layer before BbsSession starts. Any device-attribute reply is consumed
+     * here so it cannot leak into pre-login menu input on Windows or other
+     * non-forked SSH paths.
+     */
+    private function probeSixelSupport(): bool
+    {
+        if (!$this->channelOpen) {
+            return false;
+        }
+
+        try {
+            $this->sendChannelData("\033[c");
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        $buf = '';
+        $deadline = microtime(true) + 0.75;
+        $prevBlocking = stream_get_meta_data($this->socket)['blocked'] ?? true;
+        stream_set_blocking($this->socket, false);
+
+        try {
+            while (microtime(true) < $deadline) {
+                $read = [$this->socket];
+                $write = $except = null;
+                $remainingUsec = max(0, (int)(($deadline - microtime(true)) * 1_000_000));
+                $ready = @stream_select($read, $write, $except, 0, $remainingUsec);
+                if ($ready === false || $ready === 0) {
+                    break;
+                }
+
+                $raw = @fread($this->socket, 65536);
+                if ($raw === false || $raw === '') {
+                    if (feof($this->socket)) {
+                        break;
+                    }
+                    continue;
+                }
+                $this->feedRawBytes($raw);
+
+                while (true) {
+                    $chunk = $this->tryReadChannelData();
+                    if ($chunk === false) {
+                        break;
+                    }
+                    if ($chunk === null) {
+                        return false;
+                    }
+                    if ($chunk !== '') {
+                        $buf .= $chunk;
+                        if (preg_match('/\033\[\?([0-9;]+)c/', $buf, $matches, PREG_OFFSET_CAPTURE)) {
+                            $attrs = explode(';', $matches[1][0]);
+                            $full = $matches[0][0];
+                            $start = $matches[0][1];
+                            $end = $start + strlen($full);
+                            $leftover = substr($buf, 0, $start) . substr($buf, $end);
+                            if ($leftover !== '') {
+                                $this->prefetchedChannelData .= $leftover;
+                            }
+                            return in_array('4', $attrs, true);
+                        }
+                    }
+                }
+            }
+        } finally {
+            stream_set_blocking($this->socket, (bool)$prevBlocking);
+        }
+
+        if ($buf !== '') {
+            $leftover = preg_replace('/\033\[[?>=]?[0-9;]*c/', '', $buf) ?? $buf;
+            if ($leftover !== '') {
+                $this->prefetchedChannelData .= $leftover;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -865,6 +966,12 @@ class SshSession
      */
     public function readChannelData(): ?string
     {
+        if ($this->prefetchedChannelData !== '') {
+            $chunk = $this->prefetchedChannelData;
+            $this->prefetchedChannelData = '';
+            return $chunk;
+        }
+
         while (true) {
             $pkt = $this->recvPacket();
             if ($pkt === null) { return null; }
@@ -943,6 +1050,12 @@ class SshSession
      */
     public function tryReadChannelData(): string|false|null
     {
+        if ($this->prefetchedChannelData !== '') {
+            $chunk = $this->prefetchedChannelData;
+            $this->prefetchedChannelData = '';
+            return $chunk;
+        }
+
         while (true) {
             $pkt = $this->tryRecvPacket();
             if ($pkt === false) { return false; }

@@ -7,6 +7,24 @@ namespace BinktermPHP\TelnetServer;
  */
 class TerminalBoxRenderer
 {
+    public const SCHEME_DEFAULT = [
+        'border' => TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD,
+        'divider' => TelnetUtils::ANSI_BLUE,
+        'title_bar' => TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD,
+    ];
+
+    public const SCHEME_BULLETINS = [
+        'border' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD,
+        'divider' => TelnetUtils::ANSI_CYAN,
+        'title_bar' => TelnetUtils::ANSI_BG_WHITE . TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD,
+    ];
+
+    public const SCHEME_SHOUTBOX = [
+        'border' => TelnetUtils::ANSI_MAGENTA . TelnetUtils::ANSI_BOLD,
+        'divider' => TelnetUtils::ANSI_MAGENTA,
+        'title_bar' => TelnetUtils::ANSI_BG_RED . TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD,
+    ];
+
     private BbsSession $server;
 
     public function __construct(BbsSession $server)
@@ -24,55 +42,15 @@ class TerminalBoxRenderer
      * @param string[] $stopKeys Optional key values that should stop paging early.
      * @return string|null Key that stopped paging, or null.
      */
-    public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt, int $verticalMargin = 2, array $stopKeys = []): ?string
+    public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt, int $verticalMargin = 2, array $stopKeys = [], array $colorScheme = self::SCHEME_DEFAULT): ?string
     {
-        $cols = max(40, (int)($state['cols'] ?? 80));
-        $rows = max(12, (int)($state['rows'] ?? 24));
-        $boxWidth = max(38, min($cols - 4, 96));
-        $contentWidth = max(20, $boxWidth - 4);
-        $boxHeight = max(8, $rows - max(2, $verticalMargin));
-        $contentHeight = max(3, $boxHeight - 4);
-        $leftPad = str_repeat(' ', max(0, (int)floor(($cols - $boxWidth) / 2)));
-        $topPadCount = max(0, (int)floor(($rows - $boxHeight - 1) / 2));
-        $topPad = str_repeat("\r\n", $topPadCount);
-
-        $pages = array_chunk($lines ?: [''], $contentHeight);
+        $layout = $this->buildLayout($state, $verticalMargin, 2);
+        $pages = array_chunk($lines ?: [''], $layout['contentHeight']);
         $pageCount = count($pages);
 
-        $chars = $this->server->getTerminalLineDrawingChars();
-        $topBorder = $this->server->encodeForTerminal($chars['tl'] . str_repeat($chars['h_bold'], $boxWidth - 2) . $chars['tr']);
-        $divider = $this->server->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $boxWidth - 2) . $chars['r_tee']);
-        $bottomBorder = $this->server->encodeForTerminal($chars['bl'] . str_repeat($chars['h_bold'], $boxWidth - 2) . $chars['br']);
-
         foreach ($pages as $pageIndex => $pageLines) {
-            $this->server->safeWrite($conn, "\033[2J\033[H");
-            if ($topPad !== '') {
-                $this->server->safeWrite($conn, $topPad);
-            }
-
-            $this->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($topBorder, TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD));
-
             $pageLabel = $pageCount > 1 ? sprintf(' (%d/%d)', $pageIndex + 1, $pageCount) : '';
-            $titleText = $this->fitPlainText($title . $pageLabel, $contentWidth);
-            $titleInner = $this->padPlainText($titleText, $contentWidth, STR_PAD_BOTH);
-            $titleLine = $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD)
-                . $this->server->colorizeForTerminal(' ' . $titleInner . ' ', TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
-                . $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD);
-            $this->writeLine($conn, $leftPad . $titleLine);
-            $this->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($divider, TelnetUtils::ANSI_BLUE));
-
-            $visibleLines = 0;
-            foreach ($pageLines as $line) {
-                $this->writeLine($conn, $leftPad . $this->renderContentLine($line, $contentWidth, $chars));
-                $visibleLines++;
-            }
-            while ($visibleLines < $contentHeight) {
-                $this->writeLine($conn, $leftPad . $this->renderContentLine('', $contentWidth, $chars));
-                $visibleLines++;
-            }
-
-            $this->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($bottomBorder, TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD));
-            $this->writeLine($conn, '');
+            $this->renderBox($conn, $state, $title . $pageLabel, $pageLines, $verticalMargin, $colorScheme, 2);
             $this->writeLine($conn, $this->server->colorizeForTerminal($continuePrompt, TelnetUtils::ANSI_YELLOW));
             $key = $this->server->readKeyWithIdleCheck($conn, $state);
             if ($key === null) {
@@ -86,7 +64,76 @@ class TerminalBoxRenderer
         return null;
     }
 
-    private function renderContentLine(string $line, int $contentWidth, array $chars): string
+    /**
+     * Display one centered framed box without paging or waiting for input.
+     *
+     * @param resource $conn
+     * @param array $state
+     * @param string[] $lines
+     */
+    public function renderBox($conn, array &$state, string $title, array $lines, int $verticalMargin = 2, array $colorScheme = self::SCHEME_DEFAULT, int $footerLines = 0): void
+    {
+        $layout = $this->buildLayout($state, $verticalMargin, $footerLines);
+        $chars = $this->server->getTerminalLineDrawingChars();
+        $colors = $this->mergeColorScheme($colorScheme);
+        $topBorder = $this->server->encodeForTerminal($chars['tl'] . str_repeat($chars['h_bold'], $layout['boxWidth'] - 2) . $chars['tr']);
+        $divider = $this->server->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $layout['boxWidth'] - 2) . $chars['r_tee']);
+        $bottomBorder = $this->server->encodeForTerminal($chars['bl'] . str_repeat($chars['h_bold'], $layout['boxWidth'] - 2) . $chars['br']);
+        $titleText = $this->fitPlainText($title, $layout['contentWidth']);
+        $titleInner = $this->padPlainText($titleText, $layout['contentWidth'], STR_PAD_BOTH);
+
+        $this->server->safeWrite($conn, "\033[2J\033[H");
+        if ($layout['topPad'] !== '') {
+            $this->server->safeWrite($conn, $layout['topPad']);
+        }
+
+        $this->writeLine($conn, $layout['leftPad'] . $this->server->colorizeForTerminal($topBorder, $colors['border']));
+        $titleLine = $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), $colors['border'])
+            . $this->server->colorizeForTerminal(' ' . $titleInner . ' ', $colors['title_bar'])
+            . $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), $colors['border']);
+        $this->writeLine($conn, $layout['leftPad'] . $titleLine);
+        $this->writeLine($conn, $layout['leftPad'] . $this->server->colorizeForTerminal($divider, $colors['divider']));
+
+        $visibleLines = 0;
+        foreach ($lines as $line) {
+            $this->writeLine($conn, $layout['leftPad'] . $this->renderContentLine($line, $layout['contentWidth'], $chars, $colors));
+            $visibleLines++;
+        }
+        while ($visibleLines < $layout['contentHeight']) {
+            $this->writeLine($conn, $layout['leftPad'] . $this->renderContentLine('', $layout['contentWidth'], $chars, $colors));
+            $visibleLines++;
+        }
+
+        $this->writeLine($conn, $layout['leftPad'] . $this->server->colorizeForTerminal($bottomBorder, $colors['border']));
+        $this->writeLine($conn, '');
+    }
+
+    /**
+     * @param array $state
+     * @return array{boxWidth:int,contentWidth:int,contentHeight:int,leftPad:string,topPad:string}
+     */
+    private function buildLayout(array $state, int $verticalMargin, int $footerLines = 0): array
+    {
+        $cols = max(40, (int)($state['cols'] ?? 80));
+        $rows = max(12, (int)($state['rows'] ?? 24));
+        $boxWidth = max(38, min($cols - 4, 96));
+        $contentWidth = max(20, $boxWidth - 4);
+        $reservedFooter = max(0, $footerLines);
+        $boxHeight = max(8, $rows - max(2, $verticalMargin) - $reservedFooter);
+        $contentHeight = max(3, $boxHeight - 4);
+        $leftPad = str_repeat(' ', max(0, (int)floor(($cols - $boxWidth) / 2)));
+        $topPadCount = max(0, (int)floor(($rows - $boxHeight - $reservedFooter - 1) / 2));
+
+        return [
+            'boxWidth' => $boxWidth,
+            'contentWidth' => $contentWidth,
+            'contentHeight' => $contentHeight,
+            'leftPad' => $leftPad,
+            'topPad' => str_repeat("\r\n", $topPadCount),
+        ];
+    }
+
+    private function renderContentLine(string $line, int $contentWidth, array $chars, array $colorScheme): string
     {
         $line = $this->server->encodeForTerminal($line);
         $visibleWidth = $this->ansiLength($line);
@@ -96,12 +143,17 @@ class TerminalBoxRenderer
         }
         $padding = str_repeat(' ', max(0, $contentWidth - $visibleWidth));
 
-        return $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), TelnetUtils::ANSI_BLUE)
+        return $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), $colorScheme['divider'])
             . ' '
             . $line
             . $padding
             . ' '
-            . $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), TelnetUtils::ANSI_BLUE);
+            . $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), $colorScheme['divider']);
+    }
+
+    private function mergeColorScheme(array $colorScheme): array
+    {
+        return array_merge(self::SCHEME_DEFAULT, $colorScheme);
     }
 
     private function fitPlainText(string $text, int $width): string
