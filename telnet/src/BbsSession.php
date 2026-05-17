@@ -1203,6 +1203,18 @@ class BbsSession
     }
 
     /**
+     * Return the resolved terminal character set for this session ('utf8', 'cp437', or 'ascii').
+     *
+     * Prefer this over reading $state['terminal_charset'] directly — the instance property
+     * is authoritative and handles fallback inference (e.g. SSH clients, TTYPE negotiation)
+     * that the raw state key does not capture.
+     */
+    public function getTerminalCharset(): string
+    {
+        return $this->terminalCharset;
+    }
+
+    /**
      * Remove a translated menu line's leading "<key>) " prefix if present.
      */
     private function stripMenuHotkeyPrefix(string $line, string $hotkey): string
