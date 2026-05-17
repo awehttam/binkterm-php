@@ -1006,6 +1006,7 @@ class BbsSession
         $lblCred = $this->t('ui.terminalserver.dashboard.label.credits',   'Credits',   [], $locale);
 
         $dot    = $this->colorize(' · ', self::ANSI_BLUE);
+        $dotLen = 3; // visible width of ' · '
         $parts  = [];
         $parts[] = $this->colorize($lblNM  . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['unread_netmail'],   self::ANSI_BOLD);
         $parts[] = $this->colorize($lblECH . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['new_echomail'],     self::ANSI_BOLD);
@@ -1017,8 +1018,40 @@ class BbsSession
             $parts[] = $this->colorize($lblCred . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['credit_balance'], self::ANSI_BOLD);
         }
 
-        $pad = str_repeat(' ', $menuLeft + 1); // align with inside of menu box border
-        $this->writeLine($conn, $pad . implode($dot, $parts));
+        $padLen  = $menuLeft + 1; // columns used by left-margin indent
+        $pad     = str_repeat(' ', $padLen);
+        $avail   = max(1, ($state['cols'] ?? 80) - $padLen);
+
+        // Strip ANSI escapes to measure visible column width.
+        $visLen  = static function (string $s): int {
+            return mb_strwidth(preg_replace('/\x1b\[[0-9;]*m/', '', $s), 'UTF-8');
+        };
+
+        // Pack parts greedily onto lines; wrap when the next part would overflow.
+        $lines      = [];
+        $curLine    = '';
+        $curLen     = 0;
+        foreach ($parts as $i => $part) {
+            $partLen = $visLen($part);
+            if ($curLine === '') {
+                $curLine = $part;
+                $curLen  = $partLen;
+            } elseif ($curLen + $dotLen + $partLen <= $avail) {
+                $curLine .= $dot . $part;
+                $curLen  += $dotLen + $partLen;
+            } else {
+                $lines[]  = $curLine;
+                $curLine  = $part;
+                $curLen   = $partLen;
+            }
+        }
+        if ($curLine !== '') {
+            $lines[] = $curLine;
+        }
+
+        foreach ($lines as $line) {
+            $this->writeLine($conn, $pad . $line);
+        }
     }
 
     /**
