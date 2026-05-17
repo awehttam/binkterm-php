@@ -5,8 +5,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+  - [Runtime Requirements](#runtime-requirements)
   - [Terminal Server](#terminal-server)
   - [Developer Tooling](#developer-tooling)
+- [Runtime Requirements](#runtime-requirements-1)
 - [Terminal Server](#terminal-server-1)
 - [Developer Tooling](#developer-tooling-1)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -14,6 +16,10 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+### Runtime Requirements
+
+- BinktermPHP now requires PHP 8.2 or newer. Systems still running PHP 8.1 or earlier must upgrade PHP before deploying this release.
 
 ### Terminal Server
 
@@ -25,6 +31,14 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - The root `CLAUDE.md` contributor guide has been split into subdirectory-scoped files and on-demand skill scripts, reducing context load when working in specific parts of the codebase. No action required for sysops.
 - A `session-start.php` script has been added to `.claude/` to print available project skills at the start of each Claude Code session.
+
+---
+
+## Runtime Requirements
+
+This release raises the minimum supported PHP version to 8.2. The project metadata, build image, and operator-facing guidance now all assume PHP 8.2 or newer.
+
+If your server is still on PHP 8.1, upgrade PHP first and verify the runtime before replacing the application files or running `php scripts/setup.php`. No database migration is tied to this requirement, but the application will not run correctly on older PHP versions.
 
 ---
 

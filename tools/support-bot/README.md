@@ -26,7 +26,7 @@ This can be used as an example for writing your own RAG indexer.
 ## Requirements
 
 - Python 3.10+
-- PHP 8.1+ with the `sqlite3` and `curl` extensions enabled
+- PHP 8.2+ with the `sqlite3` and `curl` extensions enabled
 - PHP's SQLite3 extension must allow `loadExtension()` — see note below
 - An Anthropic API key
 

@@ -27,7 +27,7 @@ BinktermPHP is developed and tested on Debian-based Linux distributions, includi
 ---
 
 ## Requirements
-- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL, GMP
+- **PHP 8.2+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL, GMP
 - **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
 - **Web Server** - Caddy, Apache, Nginx, etc.

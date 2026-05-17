@@ -16,7 +16,7 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
 ## Tech Stack
 
  - Frontend: jQuery, Bootstrap 5
- - Backend: PHP 8.1+ (requires minimum 8.1), SimpleRouter request library, Twig templates
+ - Backend: PHP 8.2+ (requires minimum 8.2), SimpleRouter request library, Twig templates
  - Database: Postgres
  - Dependencies: Composer
  - Real-time: BinkStream (WebSocket + SSE via SharedWorker)
