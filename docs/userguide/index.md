@@ -272,7 +272,7 @@ The bridge node needs to know about your radio so it can relay traffic to you. R
 
 1. Go to **Settings → MeshCore Radio**.
 2. Click **Register a radio**.
-3. Enter your node's identifier — either the **12-character node ID** shown in the MeshCore app, or your full **64-character public key** if you know it.
+3. Enter your radio's full **64-character public key**, or use the **QR scanner** button to fill it in directly from your MeshCore app.
 4. Select the bridge node you identified in Step 2 as your **Companion Radio**.
 5. Save. If your full public key is already known, the BBS will automatically add your radio to the bridge's contact list. Otherwise it will be claimed when the bridge next hears from you.
 
