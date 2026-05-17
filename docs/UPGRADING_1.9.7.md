@@ -27,6 +27,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - The terminal chat client uses the existing local chat API with polling, so no additional daemon or sysop configuration is required when upgrading.
 - The terminal main menu now reacts to live terminal resize events. On Telnet NAWS updates and SSH window-change events, the menu redraws to the new dimensions without requiring an extra keypress, and dashboard widgets are re-laid out using cached stats rather than triggering another API call.
 - The terminal netmail reader now provides a **Sent folder**. Users can press `S` from the message list to toggle between the Inbox and Sent views. The active folder is remembered across sessions.
+- The terminal message viewer now exposes inline image viewing more broadly. The existing `I` image-viewer flow still supports Markdown `![alt](url)` images, and now also detects bare direct image URLs in regular message bodies when they end in `.png`, `.jpg`, `.jpeg`, or `.gif`.
+- SSH terminal startup now discards any client input bytes already queued during PTY/shell setup before handing control to the BBS session. This prevents some SSH clients from accidentally skipping login or menu screens with phantom startup keypresses.
 - **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
 - **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Idle Timeout** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
 
@@ -60,6 +62,24 @@ The terminal client currently provides:
 - API-backed polling for live updates while the chat screen is open
 
 No migration or post-upgrade admin action is required for this feature. If Local Chat is already enabled in **Admin -> BBS Settings**, it becomes available automatically to terminal users after the upgraded daemons are restarted.
+
+### Terminal Inline Image Viewer Expansion
+
+The terminal message viewer's existing `I` image-viewer flow now covers more than just Markdown image syntax. Markdown messages still support `![alt](url)` inline images as before, and the viewer now also scans regular message bodies for bare direct image URLs ending in `.png`, `.jpg`, `.jpeg`, or `.gif`.
+
+When any supported inline images are found, the message body shows numbered `[Image N: …]` placeholders and pressing `I` opens the same Sixel image viewer used previously. This applies across the shared terminal readers rather than only to Markdown-rendered messages.
+
+For safety and predictable `img2sixel` behavior, the terminal-side URL scan is limited to raster formats known to work in this environment. SVG, WebP, and other extensions are not included in the terminal scan. Hosts that serve valid image files as `application/octet-stream` are now accepted when the URL path ends in one of the supported raster extensions, and the downloaded file is validated before conversion.
+
+No migration or sysop configuration is required. If `img2sixel` is already installed, the expanded image-viewer behavior becomes available after the upgraded daemons are restarted.
+
+### SSH Startup Input Drain
+
+Some SSH clients send buffered input bytes immediately during PTY or shell startup. Previously those bytes could reach the shared BBS session as if the user had already pressed keys, causing the terminal UI to skip past login screens, menu screens, or even enter a message viewer unexpectedly.
+
+The SSH daemon now discards any channel-data bytes that are already queued at the moment the shell channel is established, before handing the connection to the shared `BbsSession`. Normal interactive input after startup is unaffected.
+
+No migration or configuration change is required. The fix takes effect when the upgraded SSH daemon is restarted.
 
 ### Netmail Sent Folder in Terminal Reader
 
