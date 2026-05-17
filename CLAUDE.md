@@ -28,12 +28,12 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
  - PascalCase for components and classes
  - 4 space indents
  - **Markdown over HTML**: Prefer Markdown for any user-facing customizable text fields (admin settings, content panels, footers, etc.). Only use raw HTML when Markdown cannot express the needed formatting.
- - **Environment Variables**: Always use `Config::env('VAR_NAME', 'default')` to read from .env file. Do NOT use `getenv()` or `$_ENV` directly.
+ - **Environment Variables**: Use `Config::env('VAR_NAME', 'default')` for application configuration values that come from the project's `.env` file. Direct `getenv()` reads are allowed for process/runtime environment inspection that is not part of BinktermPHP config resolution, such as searching the OS `PATH` inside a daemon helper. Do NOT use `$_ENV` directly for application config.
  - **Client-side storage**: Always use `UserStorage` (from `public_html/js/user-storage.js`) instead of `localStorage` directly. `UserStorage` automatically scopes keys by the logged-in user's ID so that different accounts on the same browser cannot share state. When not logged in it falls back to `sessionStorage` to avoid persisting anonymous state.
 
 ## Logging
 
-**Never use `error_log()` for application logging** (except inside `src/Binkp/Logger.php` itself and `src/Admin/AdminDaemonClient.php` where it is the last-resort fallback). All logging must go through `BinktermPHP\Binkp\Logger`. Use `getServerLogger()` in route files. When wiring up a new component, invoke the `/logging-guide` skill.
+**Never use `error_log()` for web/application logging** (except inside `src/Binkp/Logger.php` itself and `src/Admin/AdminDaemonClient.php` where it is the last-resort fallback). All web-side and shared application logging must go through `BinktermPHP\Binkp\Logger`. Use `getServerLogger()` in route files. Exception: self-contained daemon/runtime subsystems that do not run in the web request context, such as the Telnet/ZMODEM runtime under `telnet/src/`, may use targeted `error_log(..., 3, $file)` file logging when that is the established subsystem-local mechanism. When wiring up a new component, invoke the `/logging-guide` skill.
 
 ## Project Structure
 
