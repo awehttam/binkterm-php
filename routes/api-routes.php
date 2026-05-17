@@ -9733,6 +9733,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'terminal_netmail_selected_message_id' => $meta->getValue((int)$userId, 'terminal_netmail_selected_message_id'),
             'terminal_echomail_areas_page' => $meta->getValue((int)$userId, 'terminal_echomail_areas_page'),
             'terminal_echomail_positions' => $meta->getValue((int)$userId, 'terminal_echomail_positions'),
+            'terminal_chat_target' => $meta->getValue((int)$userId, 'terminal_chat_target'),
         ];
 
         echo json_encode(['success' => true, 'settings' => $settings]);
@@ -9821,6 +9822,51 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
             $meta->setValue((int)$userId, 'terminal_echomail_positions', $encoded);
+        }
+
+        if (array_key_exists('terminal_chat_target', $settings)) {
+            $target = $settings['terminal_chat_target'];
+            if ($target === null || $target === '') {
+                $meta->setValue((int)$userId, 'terminal_chat_target', null);
+            } elseif (is_string($target)) {
+                $decoded = json_decode($target, true);
+                if (!is_array($decoded)) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_chat_target']);
+                    return;
+                }
+                $target = $decoded;
+            }
+
+            if ($target !== null && $target !== '') {
+                if (!is_array($target)) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_chat_target']);
+                    return;
+                }
+
+                $type = (string)($target['type'] ?? '');
+                $id = (int)($target['id'] ?? 0);
+                $label = trim((string)($target['label'] ?? ''));
+                if (($type !== 'room' && $type !== 'dm') || $id < 1 || $label === '' || strlen($label) > 255) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_chat_target']);
+                    return;
+                }
+
+                $encoded = json_encode([
+                    'type' => $type,
+                    'id' => $id,
+                    'label' => $label,
+                ]);
+                if ($encoded === false) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_chat_target']);
+                    return;
+                }
+
+                $meta->setValue((int)$userId, 'terminal_chat_target', $encoded);
+            }
         }
 
         echo json_encode(['success' => true]);

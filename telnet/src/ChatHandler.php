@@ -46,7 +46,9 @@ class ChatHandler
         $this->refreshRooms($chat, $session, $state);
         $this->refreshOnlineUsers($chat, $session);
         $this->refreshCursorAnchor($chat, $session, $state);
-        $this->ensureActiveTarget($chat, $session, $state);
+        if (!$this->restoreSavedTarget($chat, $session, $state)) {
+            $this->ensureActiveTarget($chat, $session, $state);
+        }
 
         if ($chat['active_target'] === null) {
             $this->showInfo($conn, $state, $this->t('ui.terminalserver.chat.no_targets', 'No chat rooms or users are available right now.', $state));
@@ -309,7 +311,6 @@ class ChatHandler
                 'id' => (int)$selected['user_id'],
                 'label' => (string)$selected['username'],
             ]);
-            $chat['focus'] = self::FOCUS_INPUT;
             return;
         } elseif (($key === 'CHAR:k' || $key === 'CHAR:K' || $key === 'CHAR:b' || $key === 'CHAR:B')
             && $chat['is_admin']
@@ -510,6 +511,7 @@ class ChatHandler
     private function openTarget(array &$chat, string $session, array &$state, array $target): void
     {
         $chat['active_target'] = $target;
+        $chat['focus'] = self::FOCUS_INPUT;
         $chat['nav_selected_key'] = $this->targetKey($target['type'], (int)$target['id']);
         $chat['message_scroll_offset'] = 0;
 
@@ -533,7 +535,73 @@ class ChatHandler
             $chat['users_selected_id'] = (int)$target['id'];
         }
 
+        $this->saveActiveTarget($chat, $session, $state);
         $chat['dirty'] = true;
+    }
+
+    private function restoreSavedTarget(array &$chat, string $session, array &$state): bool
+    {
+        $response = $this->apiRequest('GET', '/api/user/terminal-mail-state', null, $session, $state);
+        $settings = $response['data']['settings'] ?? [];
+        $rawTarget = $settings['terminal_chat_target'] ?? '';
+        if (!is_string($rawTarget) || trim($rawTarget) === '') {
+            return false;
+        }
+
+        $decoded = json_decode($rawTarget, true);
+        if (!is_array($decoded)) {
+            return false;
+        }
+
+        $type = (string)($decoded['type'] ?? '');
+        $id = (int)($decoded['id'] ?? 0);
+        $label = trim((string)($decoded['label'] ?? ''));
+        if (($type !== 'room' && $type !== 'dm') || $id < 1 || $label === '') {
+            return false;
+        }
+
+        if ($type === 'room') {
+            if (!isset($chat['room_map'][$id])) {
+                return false;
+            }
+            $label = (string)($chat['room_map'][$id]['name'] ?? $label);
+        } else {
+            if (isset($chat['online_map'][$id]['username'])) {
+                $label = (string)$chat['online_map'][$id]['username'];
+            }
+            $this->ensureDmUser($chat, $id, $label);
+        }
+
+        $this->openTarget($chat, $session, $state, [
+            'type' => $type,
+            'id' => $id,
+            'label' => $label,
+        ]);
+
+        return true;
+    }
+
+    private function saveActiveTarget(array $chat, string $session, array $state): void
+    {
+        $active = $chat['active_target'] ?? null;
+        if (!is_array($active)) {
+            return;
+        }
+
+        $type = (string)($active['type'] ?? '');
+        $id = (int)($active['id'] ?? 0);
+        $label = trim((string)($active['label'] ?? ''));
+        if (($type !== 'room' && $type !== 'dm') || $id < 1 || $label === '') {
+            return;
+        }
+
+        $this->apiRequest('POST', '/api/user/terminal-mail-state', [
+            'terminal_chat_target' => [
+                'type' => $type,
+                'id' => $id,
+                'label' => $label,
+            ],
+        ], $session, $state);
     }
 
     private function loadConversation(array &$chat, string $session, array &$state, string $type, int $id, ?int $beforeId = null): void

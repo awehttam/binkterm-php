@@ -141,6 +141,7 @@ Local chat supports:
 - message polling with automatic updates while the chat screen is open
 - scrollback with **PgUp/PgDn**
 - Markdown rendering in the message pane using the shared terminal markup renderer
+- automatic reopen to the last selected room or DM
 - multiline compose via **Ctrl+E**
 
 Chat controls:

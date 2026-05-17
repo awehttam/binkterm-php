@@ -7358,7 +7358,7 @@ Confirmation of update
 
 **Requires authentication**
 
-Fetches saved mail reader state for the authenticated user, including current page numbers, selected message IDs, and area positions. Used to restore UI state across sessions.
+Fetches saved terminal navigation state for the authenticated user, including mail-reader positions and the last selected local chat target. Used to restore UI state across sessions.
 
 **Response** _(JSON)_
 
@@ -7367,7 +7367,7 @@ User mail navigation state
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
-| `settings` | object | State object with terminal_netmail_page, terminal_netmail_selected_message_id, terminal_echomail_areas_page, and terminal_echomail_positions |
+| `settings` | object | State object with terminal_netmail_page, terminal_netmail_selected_message_id, terminal_echomail_areas_page, terminal_echomail_positions, and terminal_chat_target |
 
 ---
 
@@ -7375,7 +7375,7 @@ User mail navigation state
 
 **Requires authentication**
 
-Persists mail reader state for the authenticated user, including pagination, selected messages, and area positions. Accepts both wrapped and flat request formats. Integer fields must be positive or null; terminal_echomail_positions accepts JSON string or object.
+Persists terminal navigation state for the authenticated user, including mail-reader positions and the last selected local chat target. Accepts both wrapped and flat request formats. Integer fields must be positive or null; terminal_echomail_positions and terminal_chat_target accept JSON string or object.
 
 **Request Body** _(JSON)_
 
@@ -7388,6 +7388,15 @@ Mail state to update (wrapped or flat)
 | `terminal_netmail_selected_message_id` | integer | No | Selected netmail message ID (≥1 or null) |
 | `terminal_echomail_areas_page` | integer | No | Current echomail areas page (≥1 or null) |
 | `terminal_echomail_positions` | object|string | No | Area positions as JSON object or string |
+| `terminal_chat_target` | object|string | No | Last selected terminal chat target as JSON object or string |
+
+When `terminal_chat_target` is present it must include:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | `room` or `dm` |
+| `id` | integer | Target room ID or DM user ID |
+| `label` | string | Display label used when restoring the target |
 
 **Response** _(JSON)_
 
@@ -7401,7 +7410,7 @@ Confirmation of update
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid value for integer field (not numeric or < 1) or invalid terminal_echomail_positions JSON |
+| 400 | Invalid value for integer field (not numeric or < 1) or invalid terminal_echomail_positions/terminal_chat_target JSON |
 
 ---
 
