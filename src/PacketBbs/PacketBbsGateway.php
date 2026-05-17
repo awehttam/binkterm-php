@@ -696,11 +696,13 @@ class PacketBbsGateway
             return 'End.';
         }
 
+        $state = $this->clearActiveFlow($this->getSessionState($session));
+        unset($state['current_area'], $state['current_message']);
         $this->sessionRepo->update($nodeId, [
             'pagination_cursor'  => $page,
             'pagination_context' => json_encode(['type' => 'netmail']),
             'session_state'      => [
-                ...$this->clearActiveFlow($this->getSessionState($session)),
+                ...$state,
                 'current_list' => [
                     'type' => 'netmail',
                     'page' => $page,
