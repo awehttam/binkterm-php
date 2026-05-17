@@ -253,6 +253,9 @@
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" href="/bbs-directory"><i class="fas fa-server"></i> {{ t('ui.base.bbs_directory', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/nodelist"><i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}</a></li>
+                                {% if meshcore_nodes_available %}
+                                <li><a class="dropdown-item" href="/packetbbs-nodes"><i class="fas fa-broadcast-tower"></i> {{ t('ui.base.meshcore_nodes', {}, 'common') }}</a></li>
+                                {% endif %}
                             </ul>
                         </li>
                         {% else %}
@@ -390,6 +393,9 @@
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" href="/bbs-directory"><i class="fas fa-server"></i> {{ t('ui.base.bbs_directory', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/nodelist"><i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}</a></li>
+                                {% if meshcore_nodes_available %}
+                                <li><a class="dropdown-item" href="/packetbbs-nodes"><i class="fas fa-broadcast-tower"></i> {{ t('ui.base.meshcore_nodes', {}, 'common') }}</a></li>
+                                {% endif %}
                             </ul>
                         </li>
                         {% else %}

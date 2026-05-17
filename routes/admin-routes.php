@@ -4664,11 +4664,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
             try {
                 $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $lat      = isset($input['lat']) && $input['lat'] !== null && $input['lat'] !== '' ? (float)$input['lat'] : null;
+                $lon      = isset($input['lon']) && $input['lon'] !== null && $input['lon'] !== '' ? (float)$input['lon'] : null;
+                $location = trim($input['location'] ?? '') ?: null;
                 $stmt = $db->prepare(
-                    'INSERT INTO packet_bbs_nodes (node_id, handle, interface_type)
-                     VALUES (?, ?, ?) RETURNING id'
+                    'INSERT INTO packet_bbs_nodes (node_id, handle, interface_type, lat, lon, location)
+                     VALUES (?, ?, ?, ?, ?, ?) RETURNING id'
                 );
-                $stmt->execute([$nodeId, $handle ?: null, $ifaceType]);
+                $stmt->execute([$nodeId, $handle ?: null, $ifaceType, $lat, $lon, $location]);
                 $row = $stmt->fetch(\PDO::FETCH_ASSOC);
                 echo json_encode(['success' => true, 'id' => (int)$row['id']]);
             } catch (\Exception $e) {
@@ -4687,6 +4690,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $handle      = trim($input['handle'] ?? '');
             $ifaceType   = trim($input['interface_type'] ?? 'meshcore');
             $userId      = !empty($input['user_id']) ? (int)$input['user_id'] : null;
+            $lat      = isset($input['lat']) && $input['lat'] !== null && $input['lat'] !== '' ? (float)$input['lat'] : null;
+            $lon      = isset($input['lon']) && $input['lon'] !== null && $input['lon'] !== '' ? (float)$input['lon'] : null;
+            $location = trim($input['location'] ?? '') ?: null;
             $autoaddConfig = array_key_exists('autoadd_config', $input)
                 ? (is_numeric($input['autoadd_config']) ? (int)$input['autoadd_config'] : null)
                 : false; // false = not provided
@@ -4694,10 +4700,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare(
                 'UPDATE packet_bbs_nodes
-                 SET handle = ?, interface_type = ?, user_id = ?
+                 SET handle = ?, interface_type = ?, user_id = ?, lat = ?, lon = ?, location = ?
                  WHERE id = ?'
             );
-            $stmt->execute([$handle ?: null, $ifaceType, $userId, (int)$id]);
+            $stmt->execute([$handle ?: null, $ifaceType, $userId, $lat, $lon, $location, (int)$id]);
 
             if ($autoaddConfig !== false) {
                 $colStmt = $db->prepare(

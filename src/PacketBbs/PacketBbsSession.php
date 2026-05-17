@@ -41,7 +41,7 @@ class PacketBbsSession
         $stmt = $this->db->prepare('SELECT * FROM packet_bbs_sessions WHERE node_id = ?');
         $stmt->execute([$nodeId]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $row ?: null;
+        return $row ? $this->normalizeRow($row) : null;
     }
 
     /**
@@ -58,7 +58,7 @@ class PacketBbsSession
              RETURNING *'
         );
         $stmt->execute([$nodeId]);
-        return $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $this->normalizeRow($stmt->fetch(\PDO::FETCH_ASSOC) ?: []);
     }
 
     /**
@@ -76,7 +76,7 @@ class PacketBbsSession
 
         $allowed = [
             'user_id', 'menu_state', 'pagination_cursor', 'pagination_context',
-            'compose_buffer', 'compose_type', 'compose_meta',
+            'compose_buffer', 'compose_type', 'compose_meta', 'session_state',
         ];
 
         foreach ($allowed as $col) {
@@ -113,5 +113,28 @@ class PacketBbsSession
         $this->db->prepare(
             "DELETE FROM packet_bbs_sessions WHERE last_activity_at < NOW() - INTERVAL '1 minute' * ?"
         )->execute([$minutes]);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private function normalizeRow(array $row): array
+    {
+        foreach (['compose_meta', 'session_state'] as $key) {
+            if (!isset($row[$key]) || $row[$key] === '' || $row[$key] === null) {
+                $row[$key] = [];
+                continue;
+            }
+
+            if (is_array($row[$key])) {
+                continue;
+            }
+
+            $decoded = json_decode((string)$row[$key], true);
+            $row[$key] = is_array($decoded) ? $decoded : [];
+        }
+
+        return $row;
     }
 }

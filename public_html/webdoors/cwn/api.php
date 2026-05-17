@@ -32,7 +32,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-// Require authentication
+// Get database connection
+$db = Database::getInstance()->getPdo();
+
+// Route the request
+$action = $_GET['action'] ?? '';
+
+// packetbbs_nodes is public — serve it before the auth check
+if ($action === 'packetbbs_nodes') {
+    $stmt = $db->query(
+        "SELECT id, handle, interface_type, location,
+                CAST(lat AS FLOAT) AS lat,
+                CAST(lon AS FLOAT) AS lon,
+                last_seen_at,
+                left(node_id, 12) AS node_id_prefix
+           FROM packet_bbs_nodes
+          WHERE lat IS NOT NULL AND lon IS NOT NULL"
+    );
+    echo json_encode(['nodes' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+    exit;
+}
+
+// Require authentication for all other actions
 $auth = new Auth();
 $user = $auth->getCurrentUser();
 
@@ -45,12 +66,6 @@ if (!$user) {
 $userId = $user['user_id'] ?? $user['id'];
 $username = $user['username'];
 $isAdmin = $user['is_admin'] ?? false;
-
-// Get database connection
-$db = Database::getInstance()->getPdo();
-
-// Route the request
-$action = $_GET['action'] ?? '';
 
 try {
     switch ($action) {

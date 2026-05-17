@@ -12,16 +12,21 @@
   - [3. Configure the Bridge](#3-configure-the-bridge)
 - [User Enrollment](#user-enrollment)
 - [End-User Command Guide](#end-user-command-guide)
+  - [Session Context](#session-context)
+  - [Command Tables](#command-tables)
   - [Login](#login)
   - [Online Users](#online-users)
+  - [Status](#status)
   - [Netmail](#netmail)
   - [Echomail](#echomail)
     - [Area Search](#area-search)
   - [Compose Mode](#compose-mode)
+  - [Bulletins](#bulletins)
   - [Paging](#paging)
   - [Quit](#quit)
 - [Output Profiles](#output-profiles)
 - [Admin Operations](#admin-operations)
+- [Public Node Directory](#public-node-directory)
 - [MeshCore Companion Contacts](#meshcore-companion-contacts)
   - [How Contact Sync Works](#how-contact-sync-works)
   - [Contact Identifiers](#contact-identifiers)
@@ -134,10 +139,11 @@ Add a node:
 
 | Field | Purpose |
 |---|---|
-| Node ID | The bridge device ID. For MeshCore this is commonly the bridge node hash/ID. |
-| Handle / Callsign | Optional sysop-facing label for the node. |
-| Interface Type | Output profile. Currently `meshcore` is the normal choice. |
-| Link to BBS Account | Optional account link. Leave blank for normal `LOGIN <user> <code>` flow. |
+| Node ID | The bridge device ID. For MeshCore this is the bridge node hash/ID. |
+| Handle / Callsign | The node name as it appears in the MeshCore app. This value is used as the contact display name when the bridge QR-codes itself into another operator's contact list. Setting it to the BBS hostname is recommended. |
+| Interface Type | Output profile. `MeshCore` is the only currently supported type. |
+| Location Description | Optional free-text location label shown on the public node directory and dashboard widget (e.g. "Lower Mainland BC"). |
+| Coordinates | Optional GPS coordinates used to place the node on the public node map. Not displayed directly to users. |
 
 After creating the node, click the key button and generate an API key. Copy it immediately; it will not be shown again.
 
@@ -179,24 +185,107 @@ Radio login uses TOTP codes, not the web password.
 
 ## End-User Command Guide
 
-PacketBBS is intentionally terse. Send `HELP` first:
+PacketBBS is intentionally terse. Send `HELP` or `H` first:
 
 ```text
-HELP
+H
 ```
 
 Typical response:
 
 ```text
-HELP: LOGIN, WHO, MAIL, AREAS
-R <id>, RP <id>, M, P, Q
-More: HELP MAIL, HELP AREAS
+H: L username code | A areas | N mail
+T tag | R id | Y id | EP post
+M more | B back | U status | Q quit
 ```
+
+### Session Context
+
+PacketBBS keeps lightweight session context per sender node. That means:
+
+- `AREA <tag>` or `T <tag>` makes that echoarea the current working area
+- `POST` can reuse the current area instead of requiring the tag every time
+- `REPLY` can reuse the current message when the target is unambiguous
+- `M`, `P`, and `B` continue the current list or message
+- guided flows like `POST` -> `Subj?` keep state until sent or cancelled
+
+Example:
+
+```text
+AREA LVLY_TEST
+POST
+Subj?
+Testing from radio
+Msg:
+hello from field
++
+/SEND
+Posted to LVLY_TEST.
+```
+
+### Command Tables
+
+#### Global Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `HELP` | `H` | Show general help or contextual help such as `H MAIL` or `H U`. |
+| `HELPFULL` | `FULLHELP` or `HELPFUL` | Show verbose help with full command names. |
+| `LOGIN <user> <code>` | `L <user> <code>` | Log in using PacketBBS TOTP. |
+| `WHO` | `W` | Show who is online. |
+| `STATUS` | `U` | Show current area, list, message, or draft state. |
+| `BULLETINS` | `BU` | List active bulletins. `BU <id>` reads bulletin number `<id>`. |
+| `QUIT` | `Q` | Context-aware: exits the current area if one is active, or ends the PacketBBS session from the top level. Use the full word `QUIT` to end the session unconditionally from anywhere. |
+| `WEBSITE` | `WEB` | Show the BBS website URL. |
+
+#### Area Navigation Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `AREAS` | `A` or `E` | List subscribed areas. |
+| `AREAS <search>` | `A <search>` | Search subscribed areas by tag, description, or domain. If the text resolves to a subscribed area, it opens that area instead. |
+| `AREA <tag>` | `AREA <tag>` or `T <tag>` or `ER <tag>` | Open an area and make it the current working area. |
+| `MORE` | `M` | Show the next page of the current list or message. |
+| `PREV` | `B`, `P`, or `PREV` | Show the previous page of the current list or message. |
+
+#### Netmail Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `MAIL` | `N`, `NM`, or `NETMAIL` | List netmail. |
+| `READ <id>` | `R <id>` or `NR <id>` | Read a netmail or current-list message by ID. `R` without an ID reopens the current message when one is active. |
+| `REPLY <id>` | `Y <id>`, `RP <id>`, or `NRP <id>` | Reply to a specific message. `REPLY` without an ID replies to the current message when context is clear. |
+| `SEND <user> <subject>` | `S <user> <subject>` or `NS <user> <subject>` | Start a new netmail draft in one step. |
+
+#### Echomail / Current Area Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `AREA <tag>` | `T <tag>` or `ER <tag>` | Open an area and set area context. |
+| `READ <id>` | `R <id>` | Read an echomail message by ID. `R` without an ID reopens the current message when one is active. |
+| `REPLY <id>` | `Y <id>` or `RP <id>` | Reply to a message by ID, or to the current message when no ID is given and context is clear. |
+| `POST <tag> <subject>` | `EP <tag> <subject>` | Start a post in an explicitly named area. |
+| `POST <subject>` | `EP <subject>` | Start a post in the current area using the whole remainder as the subject. |
+| `POST` | `EP` | Start a guided post flow in the current area and prompt for subject. |
+
+#### Guided Flow Context
+
+| Full command | Short code | Description |
+|---|---|---|
+| `/SEND` | `.` or `/S` | Send the current draft. |
+| `/CANCEL` | `CANCEL` or `/C` | Cancel the current draft or guided flow. |
+| `STATUS` | `U` | Show current draft target, subject, and body progress. |
 
 ### Login
 
 ```text
 LOGIN <username> <6-digit-code>
+```
+
+Short form:
+
+```text
+L <username> <6-digit-code>
 ```
 
 Example:
@@ -219,7 +308,34 @@ If the session is idle too long, log in again.
 WHO
 ```
 
+Short form:
+
+```text
+W
+```
+
 Lists users currently online. Depending on sysop configuration, this may be available before login.
+
+### Status
+
+```text
+U
+```
+
+Shows the current working context. Example responses:
+
+```text
+area LVLY_TEST
+list echomail p1/3
+```
+
+or:
+
+```text
+draft post LVLY_TEST
+subj Testing from radio
+2 lines
+```
 
 ### Netmail
 
@@ -254,6 +370,16 @@ Read a message:
 R 12
 ```
 
+If a current message is already open, you can also send:
+
+```text
+R
+```
+
+to reopen that message from the top.
+
+The same replay behavior applies to `NR` and `EM` when they are used without an ID and a current message is active.
+
 Compatibility aliases:
 
 ```text
@@ -264,15 +390,18 @@ NR 12
 Reply:
 
 ```text
-RP 12
+REPLY 12
 ```
 
 Compatibility aliases:
 
 ```text
-REPLY 12
+RP 12
 NRP 12
+Y 12
 ```
+
+If a message is already open, `REPLY` without an ID uses the current message.
 
 Start new netmail:
 
@@ -295,9 +424,10 @@ List subscribed areas:
 AREAS
 ```
 
-Alias:
+Aliases:
 
 ```text
+A
 E
 ```
 
@@ -311,7 +441,7 @@ LVLY_TEST@lovlynet Test echo area
 AREA <tag>, M
 ```
 
-The header shows the current page and total pages. If there are more pages, the footer shows `AREA <tag>, M`. Use `M` and `P` to navigate pages.
+The header shows the current page and total pages. If there are more pages, the footer shows `AREA <tag>, M`. Use `M` and `P` or `B` to navigate pages.
 
 Networked areas appear as `TAG@domain`. Use `M` to page through all subscribed areas.
 
@@ -343,6 +473,7 @@ AREA LVLY_TEST@lovlynet
 Aliases:
 
 ```text
+T LVLY_TEST@lovlynet
 ER LVLY_TEST@lovlynet
 ```
 
@@ -358,19 +489,15 @@ Read an echomail message:
 R 44
 ```
 
+`EM` behaves the same way as `R` for the current message: if you already have a message open, `EM` without an ID reopens it from the top.
+
 Reply:
 
 ```text
-RP 44
+REPLY 44
 ```
 
-Post a new echomail message:
-
-```text
-POST <tag> <subject>
-```
-
-Example:
+Post a new echomail message with an explicit area:
 
 ```text
 POST LVLY_TEST@lovlynet Testing radio post
@@ -380,6 +507,24 @@ Compatibility alias:
 
 ```text
 EP LVLY_TEST@lovlynet Testing radio post
+```
+
+If you already opened an area, PacketBBS remembers it. These are valid too:
+
+```text
+AREA LVLY_TEST
+POST Testing radio post
+```
+
+or guided:
+
+```text
+AREA LVLY_TEST
+POST
+Subj?
+Testing radio post
+Msg:
+hello from field
 ```
 
 ### Compose Mode
@@ -395,6 +540,15 @@ Subj: Re: Meeting
 Send lines. /SEND=send /CANCEL=abort
 ```
 
+Guided `POST` can also prompt for the subject first:
+
+```text
+POST
+Subj?
+Testing from field
+Msg:
+```
+
 Then send one body line per radio message:
 
 ```text
@@ -407,10 +561,22 @@ PacketBBS responds:
 OK
 ```
 
+Guided post flows reply with a shorter acknowledgement while the body is in progress:
+
+```text
++
+```
+
 Finish:
 
 ```text
 /SEND
+```
+
+Short form:
+
+```text
+/S
 ```
 
 Old-style `.` also sends:
@@ -425,7 +591,65 @@ Cancel:
 /CANCEL
 ```
 
+Short form:
+
+```text
+/C
+```
+
 Old-style `CANCEL` also cancels.
+
+### Bulletins
+
+When you log in, any unread bulletins are listed automatically:
+
+```text
+Hi alice. HELP for commands.
+2 unread bulletins:
+#1 Welcome to the BBS
+#3 Maintenance window tonight
+BU to read
+```
+
+List all active bulletins at any time:
+
+```text
+BU
+```
+
+Alias:
+
+```text
+BULLETINS
+```
+
+Example response:
+
+```text
+BULLETINS 3
+*#1 Welcome to the BBS
+ #2 Previous announcement
+*#3 Maintenance window tonight
+BU # to read
+```
+
+`*` marks bulletins you have not yet read.
+
+Read a specific bulletin:
+
+```text
+BU 1
+```
+
+Example response:
+
+```text
+#1 Welcome to the BBS
+Welcome! This BBS is...
+BU for list
+```
+
+Reading a bulletin marks it as read for your account. The `*` will disappear from the list on your next `BU`.
 
 ### Paging
 
@@ -436,7 +660,7 @@ Paging applies to three things: the area list, message lists, and long message b
 If a list has more pages, the footer shows:
 
 ```text
-R <id>, M
+R <id>, M:more B:back
 ```
 
 #### Long messages
@@ -444,7 +668,7 @@ R <id>, M
 If a message body exceeds 120 characters, it is split into pages. The first page shows a progress footer:
 
 ```text
-1/3 M:more
+1/3 M:more B:back
 ```
 
 Subsequent pages show the same until the last page, which shows the normal reply prompt.
@@ -466,16 +690,17 @@ MORE
 Move back one page:
 
 ```text
-P
+B
 ```
 
-Alias:
+Compatibility aliases:
 
 ```text
+P
 PREV
 ```
 
-`P` on the first page returns:
+`B` or `P` on the first page returns:
 
 ```text
 Already at first page.
@@ -489,17 +714,20 @@ End.
 
 ### Quit
 
+`Q` is context-aware:
+
+- **Inside an area:** exits the area and returns to the main context. Your session stays active.
+- **At the top level:** ends the PacketBBS session and clears state.
+
 ```text
 Q
 ```
 
-Alias:
+To end the session unconditionally from anywhere, regardless of what area you are in, use the full word:
 
 ```text
 QUIT
 ```
-
-This clears the PacketBBS session.
 
 ## Output Profiles
 
@@ -519,7 +747,6 @@ The admin Packet BBS page shows:
 
 - registered bridge nodes
 - whether each node has an API key
-- linked account, if configured
 - last-seen time
 - active PacketBBS sessions
 - outbound queue entries
@@ -527,12 +754,40 @@ The admin Packet BBS page shows:
 Common operations:
 
 - Generate/regenerate API key for a node.
-- Edit node handle/interface/account link.
+- Edit node handle, location description, coordinates, or interface type.
+- Set the auto-add contact policy for MeshCore nodes.
 - Delete a node.
 - Kill a stuck session.
 - Flush unsent outbound queue entries.
 
 Regenerating a node API key invalidates the old bridge key immediately.
+
+The node edit modal uses a two-column layout. Left column: identity and location fields. Right column: Auto-Add Contact Policy (MeshCore nodes only). The auto-add policy is pushed to the device only when the bitmask changes — saving other fields without touching the policy does not queue a device command.
+
+## Public Node Directory
+
+Registered PacketBBS nodes are publicly listed at `/packetbbs-nodes`. No login is required to view the page.
+
+The page shows:
+
+- an interactive map with a marker for every node that has GPS coordinates set
+- a sortable table listing all registered nodes by handle, interface type, and location description
+- a node info modal (handle, location description, coordinates with a copy button, public key with a copy button, and QR code)
+
+Linking to a specific node info modal uses the URL hash `#node-{id}`:
+
+```text
+https://your-bbs.example/packetbbs-nodes#node-42
+```
+
+The dashboard includes a **PacketBBS Nodes** card in the sidebar. It lists registered nodes with their handle and location description. Clicking a node name follows the `#node-{id}` link and opens the info modal automatically.
+
+### Adding Location Data
+
+To make nodes useful in the public directory, fill in the **Location Description** and optionally the **Coordinates** fields when registering or editing a node in **Admin → Packet BBS Nodes**:
+
+- **Location Description** — human-readable label shown in the node table and dashboard (e.g. "Lower Mainland BC", "Mt. Baker repeater site").
+- **Coordinates** — used to place the node on the map. Not displayed directly on the page; users see the location description instead.
 
 ## MeshCore Companion Contacts
 
@@ -635,7 +890,7 @@ The **Admin → Packet BBS Nodes** node edit modal includes an **Auto-Add Contac
 | Auto-add sensors | `0x10` | Recommended: off |
 | Overwrite oldest when full | `0x01` | When the contact list is at capacity, replaces the oldest non-favourite entry |
 
-Saving the node queues a `set_autoadd_config` device command. The bridge sends `CMD_SET_AUTOADD_CONFIG` to the radio on its next poll cycle; the setting takes effect immediately and persists across device restarts.
+Saving the node queues a `set_autoadd_config` device command **only when the bitmask changed** since the modal was opened. The bridge sends `CMD_SET_AUTOADD_CONFIG` to the radio on its next poll cycle; the setting takes effect immediately and persists across device restarts. Saving other node fields (handle, location, coordinates) without changing the policy does not trigger a device command.
 
 **Read from Device:** clicking this button queues a `get_autoadd_config` command. The bridge reads the device's actual current value and reports it back to the BBS. Refresh the admin page after the bridge next polls to see the result. This is useful when the device was configured through another tool and the BBS record does not yet match the device state.
 

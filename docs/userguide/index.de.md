@@ -14,8 +14,9 @@ Herzlich willkommen! Dieses Handbuch führt dich durch alles, was dieses BBS zu 
 6. [Doors: Spiele & Anwendungen](#doors-spiele-anwendungen)
 7. [Dateibereiche](#dateibereiche)
 8. [Die BBS-Netzwerke erkunden](#die-bbs-netzwerke-erkunden)
-9. [Dein Profil & Einstellungen](#dein-profil-einstellungen)
-10. [Hilfe erhalten](#hilfe-erhalten)
+9. [Radio- und Mesh-Zugang (PacketBBS)](#radio--und-mesh-zugang-packetbbs)
+10. [Dein Profil & Einstellungen](#dein-profil-einstellungen)
+11. [Hilfe erhalten](#hilfe-erhalten)
 
 ---
 
@@ -227,6 +228,87 @@ Jeder Knoten im FTN-Netzwerk hat eine eindeutige Adresse im Format **Zone:Netz/K
 | Point | Eine optionale Unteradresse für einen Benutzer an einem Knoten |
 
 Mehrere FTN-Netzwerke (FidoNet, FSXNet, AgoraNet, DoveNet u. a.) arbeiten unabhängig voneinander, verwenden jedoch dieselbe Adressierungskonvention.
+
+---
+
+## Radio- und Mesh-Zugang (PacketBBS)
+
+PacketBBS ist eine Zugriffsmethode, mit der du das BBS von einem **Packet-Radio- oder Mesh-Radio-Gerät** aus lesen und posten kannst — sogar ohne Internetzugang. Es verwendet kurze, bandbreiteneffiziente Textbefehle, die für langsame Funkverbindungen ausgelegt sind.
+
+Wenn du Amateurfunker bist oder ein Mesh-Radio-Gerät wie einen MeshCore- oder Meshtastic-Knoten verwendest und dein Sysop eine PacketBBS-Brücke eingerichtet hat, kannst du dich direkt von deiner Funkanlage aus einloggen und das BBS nutzen.
+
+### Was du tun kannst
+
+- **Netmail** (private Nachrichten) lesen und beantworten
+- **Echomail-Bereiche** durchsuchen und dort posten
+- **Bulletins** des Sysops lesen
+- Sehen, wer gerade **online** ist
+
+### So richtest du den Funkzugang ein
+
+Es gibt drei Einrichtungsschritte, die alle über die Weboberfläche durchgeführt werden.
+
+#### Schritt 1 — Einen PacketBBS-Authentifikator einrichten
+
+PacketBBS verwendet eine Einmalpasswort-App (TOTP), um deinen Login über Funk abzusichern.
+
+1. Melde dich in der Weboberfläche an.
+2. Gehe zu **Einstellungen → Konto**.
+3. Suche **PacketBBS-Authentifikator** und klicke auf **Authentifikator einrichten**.
+4. Scanne den QR-Code mit einer TOTP-App (Google Authenticator, Aegis usw.) oder gib das Secret manuell ein.
+5. Gib den 6-stelligen Code ein, den die App anzeigt, um die Einrichtung zu bestätigen.
+
+#### Schritt 2 — Einen Brückenknoten in deinem Meshnetz finden
+
+Du brauchst einen Brückenknoten, der von deiner Radio aus erreichbar ist — entweder in der Nähe oder mit demselben Meshnetz verbunden.
+
+Gehe zu **BBS-Listen → PacketBBS-Knoten**. Jeder aufgeführte Knoten zeigt seinen Standort und seinen Schnittstellentyp. Suche einen, der sich in deinem Meshnetz befindet oder nah genug ist, um deine Radio zu hören. Notiere seinen Namen; du wählst ihn im nächsten Schritt als Begleitradio aus.
+
+> **Tipp:** Jeder Knoteneintrag hat einen QR-Code. Einscannen fügt die Brücke als Kontakt in der MeshCore-App hinzu und erleichtert die bidirektionale Kommunikation.
+
+#### Schritt 3 — Deine Radio registrieren
+
+Der Brückenknoten muss deine Radio kennen, um den Funkverkehr zu dir weiterleiten zu können. Registriere sie unter **Einstellungen → MeshCore-Radio**:
+
+1. Gehe zu **Einstellungen → MeshCore-Radio**.
+2. Klicke auf **Radio registrieren**.
+3. Gib die Kennung deines Knotens ein — entweder die **12-stellige Knoten-ID**, die in der MeshCore-App angezeigt wird, oder deinen vollständigen **64-stelligen öffentlichen Schlüssel**, falls bekannt.
+4. Wähle den in Schritt 2 gefundenen Brückenknoten als **Begleitradio** aus.
+5. Speichern. Wenn dein vollständiger öffentlicher Schlüssel bereits bekannt ist, fügt das BBS deine Radio automatisch zur Kontaktliste der Brücke hinzu. Andernfalls wird sie beim nächsten Funkkontakt zugeordnet.
+
+Nach der Einrichtung sendest du per Funk:
+
+```text
+LOGIN <Benutzername> <6-stelliger-Code>
+```
+
+Dein TOTP-Code ändert sich alle 30 Sekunden — also schnell eintippen. Nach dem erfolgreichen Login werden ungelesene Bulletins automatisch angezeigt.
+
+### Befehlsübersicht
+
+| Befehl | Kurzform | Funktion |
+|---|---|---|
+| `HELP` | `H` | Kurzübersicht der Befehle anzeigen |
+| `HELPFUL` | — | Vollständige Befehlsliste anzeigen |
+| `LOGIN <user> <code>` | `L <user> <code>` | Mit TOTP-Code einloggen |
+| `WHO` | `W` | Online-Benutzer anzeigen |
+| `STATUS` | `U` | Aktuellen Kontext anzeigen (Bereich, Nachricht oder Entwurf) |
+| `AREAS` | `A` | Abonnierte Echo-Bereiche auflisten |
+| `AREA <tag>` | `T <tag>` | Einen Echo-Bereich öffnen |
+| `MAIL` | `N` | Netmail auflisten |
+| `READ <id>` | `R <id>` | Eine Nachricht lesen |
+| `REPLY <id>` | `Y <id>` | Auf eine Nachricht antworten |
+| `SEND <user> <subject>` | `S <user> <subject>` | Neue Netmail verfassen |
+| `POST` | `EP` | Im aktuellen Echo-Bereich posten |
+| `BULLETINS` | `BU` | Bulletins auflisten; `BU <id>` liest eines |
+| `/SEND` | `/S` oder `.` | Verfasste Nachricht senden |
+| `/CANCEL` | `/C` | Nachricht in Arbeit abbrechen |
+| `MORE` | `M` | Nächste Seite |
+| `BACK` | `B` | Vorherige Seite |
+| `Q` | — | Aktuellen Bereich verlassen oder Sitzung auf oberster Ebene beenden |
+| `QUIT` | — | Sitzung von überall beenden |
+
+> **Tipp:** Befehle unterscheiden keine Gross- und Kleinschreibung. `help`, `HELP` und `Help` funktionieren alle gleich.
 
 ---
 

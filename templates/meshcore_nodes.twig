@@ -1,0 +1,159 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.meshcore_nodes.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/assets/leaflet/leaflet.css">
+<link rel="stylesheet" href="/assets/leaflet/MarkerCluster.css">
+<link rel="stylesheet" href="/assets/leaflet/MarkerCluster.Default.css">
+<style>
+    #meshcoreNodesMap {
+        height: 420px;
+        min-height: 300px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 0.5rem;
+        background: #111827;
+    }
+
+    #meshcoreNodesMap .leaflet-tile-pane {
+        filter: grayscale(0.45) saturate(0.45) brightness(0.38) contrast(1.28);
+    }
+
+    #meshcoreNodesMap .leaflet-popup-content-wrapper,
+    #meshcoreNodesMap .leaflet-popup-tip {
+        background: #111827;
+        color: #e2e8f0;
+    }
+
+    #meshcoreNodesMap .leaflet-popup-content a {
+        color: #93c5fd;
+    }
+
+    #meshcoreNodesMap .leaflet-control-container .leaflet-bar a,
+    #meshcoreNodesMap .leaflet-control-zoom a {
+        background: rgba(15, 23, 42, 0.92);
+        color: #e2e8f0;
+        border-bottom-color: rgba(148, 163, 184, 0.18);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="fas fa-broadcast-tower me-2"></i>{{ t('ui.meshcore_nodes.page_title', {}, 'common') }}
+        </h1>
+    </div>
+
+    <p class="lead mb-4">{{ t('ui.meshcore_nodes.page_intro', {}, 'common') }}</p>
+
+    {% if mappable_nodes | length > 0 %}
+    <div class="card mb-4">
+        <div class="card-body p-0">
+            <div id="meshcoreNodesMap"></div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header">
+            <strong>{{ t('ui.meshcore_nodes.registered_nodes', {}, 'common') }}</strong>
+        </div>
+        <div class="card-body p-0">
+            {% if nodes | length == 0 %}
+            <p class="text-muted text-center py-4">{{ t('ui.meshcore_nodes.none_registered', {}, 'common') }}</p>
+            {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>{{ t('ui.meshcore_nodes.col_name', {}, 'common') }}</th>
+                            <th>{{ t('ui.meshcore_nodes.col_location', {}, 'common') }}</th>
+                            <th>{{ t('ui.meshcore_nodes.col_last_seen', {}, 'common') }}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for node in nodes %}
+                        <tr>
+                            <td><strong>{{ node.handle | default('—') | e }}</strong></td>
+                            <td>
+                                {% if node.location %}
+                                <span class="small">{{ node.location | e }}</span>
+                                {% else %}
+                                <span class="text-muted">{{ t('ui.meshcore_nodes.no_location', {}, 'common') }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if node.last_seen_at %}
+                                <span class="text-muted small">{{ node.last_seen_at }}</span>
+                                {% else %}
+                                <span class="text-muted">{{ t('ui.meshcore_nodes.never_seen', {}, 'common') }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        onclick="openMeshcoreNodeModal({{ node.id }})">
+                                    {{ t('ui.meshcore_nodes.more_info', {}, 'common') }}
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% include 'partials/meshcore_node_info_modal.twig' %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/leaflet/leaflet.js"></script>
+<script src="/assets/leaflet/leaflet.markercluster.js"></script>
+<script src="/js/meshcore-node-info.js"></script>
+<script>
+(function () {
+    const mappableNodes = {{ mappable_nodes | json_encode | raw }};
+
+    if (mappableNodes.length > 0 && document.getElementById('meshcoreNodesMap')) {
+        const map = L.map('meshcoreNodesMap');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+
+        const markers = L.markerClusterGroup();
+
+        mappableNodes.forEach(function (node) {
+            const lat = parseFloat(node.lat);
+            const lon = parseFloat(node.lon);
+            const name = node.handle || node.node_id_prefix || '—';
+            const prefix = node.node_id_prefix || '';
+
+            const popup = L.popup().setContent(
+                '<strong>' + name + '</strong>' +
+                (prefix ? '<br><code class="small">' + prefix + '…</code>' : '') +
+                '<br><a href="#" onclick="openMeshcoreNodeModal(' + node.id + ');return false;">' +
+                window.t('ui.meshcore_nodes.more_info', {}, 'More info') + '</a>'
+            );
+
+            const marker = L.marker([lat, lon]).bindPopup(popup);
+            markers.addLayer(marker);
+        });
+
+        map.addLayer(markers);
+        map.fitBounds(markers.getBounds(), { padding: [30, 30], maxZoom: 13 });
+    }
+
+    // Auto-open node modal when page is loaded with a #node-{id} hash.
+    const hashMatch = window.location.hash.match(/^#node-(\d+)$/);
+    if (hashMatch) {
+        openMeshcoreNodeModal(parseInt(hashMatch[1], 10));
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,35 @@
+{#
+  Reusable map-picker modal.
+  Include once per page. Trigger with a button carrying:
+    class="map-picker-trigger"
+    data-lat-field="#someLatInput"
+    data-lon-field="#someLonInput"
+  Requires /assets/leaflet/ and map-picker.js to be loaded on the page.
+#}
+<div class="modal fade" id="mapPickerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-map-marker-alt me-2"></i>{{ t('ui.map_picker.title', {}, 'common') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="mapPickerMap" style="height: 420px; width: 100%;"></div>
+                <div class="p-2 border-top bg-light small text-muted">
+                    <i class="fas fa-info-circle me-1"></i>{{ t('ui.map_picker.hint', {}, 'common') }}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="me-auto small text-muted" id="mapPickerCoords"></span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{ t('ui.common.cancel', {}, 'common') }}
+                </button>
+                <button type="button" class="btn btn-primary" id="mapPickerConfirm" disabled>
+                    <i class="fas fa-check me-1"></i>{{ t('ui.map_picker.use_location', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

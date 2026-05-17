@@ -14,8 +14,9 @@ Welcome aboard! This guide will walk you through everything this BBS has to offe
 6. [Doors: Games & Applications](#doors-games-applications)
 7. [File Areas](#file-areas)
 8. [Exploring the BBS Networks](#exploring-the-bbs-networks)
-9. [Your Profile & Settings](#your-profile-settings)
-10. [Getting Help](#getting-help)
+9. [Radio & Mesh Access (PacketBBS)](#radio-mesh-access-packetbbs)
+10. [Your Profile & Settings](#your-profile-settings)
+11. [Getting Help](#getting-help)
 
 ---
 
@@ -227,6 +228,87 @@ Every node on the FTN network has a unique address in the format **Zone:Net/Node
 | Point | An optional sub-address for a user on a node |
 
 Multiple FTN networks (FidoNet, FSXNet, AgoraNet, DoveNet, and others) operate independently but use the same addressing convention.
+
+---
+
+## Radio & Mesh Access (PacketBBS) {#radio-mesh-access-packetbbs}
+
+PacketBBS is an access method that lets you read and post on the BBS from a **packet radio or mesh radio device** — even without internet access. It uses short, bandwidth-efficient text commands designed to work over low-speed radio links.
+
+If you're a ham radio operator or use a mesh radio device such as a MeshCore or Meshtastic node, and your sysop has configured a PacketBBS bridge, you can log in and use the BBS directly from your radio.
+
+### What You Can Do
+
+- Read and reply to **netmail** (private messages)
+- Browse and post in **echomail areas**
+- Read **bulletins** posted by the sysop
+- See who is currently **online**
+
+### How to Set Up Radio Access
+
+There are three setup steps. All are done through the BBS web interface before you head to the radio.
+
+#### Step 1 — Enroll a PacketBBS Authenticator
+
+PacketBBS uses a one-time-password (TOTP) app instead of a plain password to keep your login secure over the air.
+
+1. Log in to the web interface.
+2. Go to **Settings → Account**.
+3. Find **PacketBBS Authenticator** and click **Set up authenticator**.
+4. Scan the QR code with any TOTP app (Google Authenticator, Aegis, etc.) or enter the secret manually.
+5. Enter the 6-digit code shown by the app to verify enrollment.
+
+#### Step 2 — Find a bridge node on your mesh
+
+You need a bridge node that is reachable from your radio — either nearby, or connected to the same mesh network you are on.
+
+Go to **BBS Lists → PacketBBS Nodes**. Each listed node shows its location and interface type. Find one that is on your mesh or close enough to hear your radio. Note its name; you will select it as your Companion Radio in the next step.
+
+> **Tip:** Each node listing has a QR code. Scanning it adds the bridge as a contact in your MeshCore app, which helps ensure the bridge can hear you and vice versa.
+
+#### Step 3 — Register your radio
+
+The bridge node needs to know about your radio so it can relay traffic to you. Register it under **Settings → MeshCore Radio**:
+
+1. Go to **Settings → MeshCore Radio**.
+2. Click **Register a radio**.
+3. Enter your node's identifier — either the **12-character node ID** shown in the MeshCore app, or your full **64-character public key** if you know it.
+4. Select the bridge node you identified in Step 2 as your **Companion Radio**.
+5. Save. If your full public key is already known, the BBS will automatically add your radio to the bridge's contact list. Otherwise it will be claimed when the bridge next hears from you.
+
+Once all three steps are done, send this from your radio:
+
+```text
+LOGIN <username> <6-digit-code>
+```
+
+Your TOTP code changes every 30 seconds, so type it quickly. After a successful login, any unread bulletins are listed automatically.
+
+### Command Summary
+
+| Command | Short form | What it does |
+|---|---|---|
+| `HELP` | `H` | Show a quick command reference |
+| `HELPFUL` | — | Show the full command list |
+| `LOGIN <user> <code>` | `L <user> <code>` | Log in with your TOTP code |
+| `WHO` | `W` | See who is online |
+| `STATUS` | `U` | Show current context (area, message, or draft) |
+| `AREAS` | `A` | List your subscribed echo areas |
+| `AREA <tag>` | `T <tag>` | Open an echo area |
+| `MAIL` | `N` | List your netmail |
+| `READ <id>` | `R <id>` | Read a message |
+| `REPLY <id>` | `Y <id>` | Reply to a message |
+| `SEND <user> <subject>` | `S <user> <subject>` | Compose a new netmail |
+| `POST` | `EP` | Post in the current echo area |
+| `BULLETINS` | `BU` | List bulletins; `BU <id>` reads one |
+| `/SEND` | `/S` or `.` | Send a message you are composing |
+| `/CANCEL` | `/C` | Cancel a message in progress |
+| `MORE` | `M` | Next page |
+| `BACK` | `B` | Previous page |
+| `Q` | — | Exit the current area, or end the session at the top level |
+| `QUIT` | — | End the session from anywhere |
+
+> **Tip:** Commands are not case-sensitive. `help`, `HELP`, and `Help` all work the same way.
 
 ---
 

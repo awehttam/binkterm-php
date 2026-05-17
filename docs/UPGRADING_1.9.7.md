@@ -7,9 +7,11 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
   - [Runtime Requirements](#runtime-requirements)
   - [Terminal Server](#terminal-server)
+  - [PacketBBS Node Directory](#packetbbs-node-directory)
   - [Developer Tooling](#developer-tooling)
 - [Runtime Requirements](#runtime-requirements-1)
 - [Terminal Server](#terminal-server-1)
+- [PacketBBS Node Directory](#packetbbs-node-directory-1)
 - [Developer Tooling](#developer-tooling-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -31,6 +33,15 @@ Make sure you have a current backup of your database and files before upgrading.
 - SSH terminal startup now discards any client input bytes already queued during PTY/shell setup before handing control to the BBS session. This prevents some SSH clients from accidentally skipping login or menu screens with phantom startup keypresses.
 - **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
 - **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Idle Timeout** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
+
+### PacketBBS Node Directory
+
+- Bridge nodes now have a **Location Description** field (free text, e.g. "Lower Mainland BC") stored in the new `location` column on `packet_bbs_nodes`. The public node table and the dashboard widget now show this descriptor instead of GPS coordinates. Run `php scripts/setup.php` to apply migration `v20260517215052` that adds the column.
+- The public node directory URL has changed from `/meshcore-nodes` to `/packetbbs-nodes`. The **BBS Lists** menu entry has been renamed to **PacketBBS Nodes**. Any bookmarks or links to the old URL need to be updated.
+- The public `/packetbbs-nodes` page now opens a node info modal when the URL hash is `#node-{id}`, making deep links from the dashboard widget work correctly.
+- The **PacketBBS Nodes** dashboard card now appears in the sidebar (between the Voting Booth and Echo Areas cards). Each node name is a link that opens its info modal. The location description is shown beneath the name; nodes with no description show a placeholder.
+- The node edit modal in **Admin → Packet BBS Nodes** is now a two-column layout. The **Auto-Add Contact Policy** section occupies the right column. The **Link to BBS Account** field has been removed; use the standard `LOGIN <user> <code>` authenticator flow instead. The Handle/Callsign field now shows the BBS hostname as placeholder text and includes a note that the value should match the MeshCore node name.
+- The auto-add contact policy is no longer pushed to the device on every save — a `set_autoadd_config` device command is queued only when the bitmask actually changes.
 
 ### Developer Tooling
 
@@ -104,6 +115,28 @@ The admin UI shows a center reference column with the built-in default key for e
 The menu layout adapts automatically: when an action has no assigned key its slot is omitted and the remaining items in that section reflow to fill the gap. When every action in an entire section (Messaging, Community/Explore, or Files/Settings) is unassigned the section header itself is suppressed. Sysops who use a custom `mainmenu.ans` are responsible for keeping that art in sync with the configured keys.
 
 No migration is required. The built-in defaults remain in effect until a custom map is saved through the admin UI.
+
+---
+
+## PacketBBS Node Directory
+
+### Migration: location column
+
+A new `location VARCHAR(255)` column has been added to `packet_bbs_nodes`. Run `php scripts/setup.php` after upgrading to apply migration `v20260517215052_add_location_to_packet_bbs_nodes.sql`. No data migration is required; existing rows default to `NULL` (displayed as "No location set").
+
+### Public node directory URL change
+
+The public node directory has moved from `/meshcore-nodes` to `/packetbbs-nodes`. The navigation menu entry is now **PacketBBS Nodes**. The old URL is not redirected; update any external links or bookmarks.
+
+### Admin node edit modal
+
+The node edit modal is now wider (`modal-lg`) and uses a two-column layout. The left column holds node identity fields (Node ID, Handle/Callsign, Interface Type, Location Description, Coordinates). The right column holds the Auto-Add Contact Policy section for MeshCore nodes. The **Link to BBS Account** field has been removed from the modal entirely; normal per-user authentication uses the `LOGIN <user> <code>` TOTP flow and does not require an account link.
+
+The Handle/Callsign field placeholder now shows the BBS hostname derived from `SITE_URL`. A note under the field explains that the value should match the node name set in the MeshCore app, as it is used as the contact display name when the bridge QR-codes itself into a new companion's contact list.
+
+### Auto-add policy sync change
+
+Previously, saving a MeshCore node always queued a `set_autoadd_config` device command, even when nothing changed. The modal now tracks the policy bitmask at open time and only queues the device command when the value actually changes at save time. The "Saved — waiting for bridge to apply to device" confirmation is shown only when a command was queued.
 
 ---
 

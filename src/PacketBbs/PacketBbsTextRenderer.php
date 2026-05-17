@@ -73,48 +73,90 @@ class PacketBbsTextRenderer
         return (int)ceil(max(1, count($lines)) / $this->msgPageSize);
     }
 
-    public function renderHelp(string $topic = '', string $bbsName = ''): string
+    /**
+     * @param array<string,mixed> $context
+     */
+    public function renderHelp(string $topic = '', string $bbsName = '', array $context = []): string
     {
         $topic = strtoupper(trim($topic));
 
+        if (in_array($topic, ['HELPFULL', 'FULLHELP', 'HELPFUL'], true)) {
+            return implode("\n", [
+                'FULL HELP',
+                '(L)OGIN username code',
+                '(W)HO online users',
+                '(A)REAS list / (A)REA tag open',
+                '(N)ETMAIL list mail',
+                '(R)EAD id read msg',
+                '(Y) id reply to msg',
+                '(S)END user subj compose',
+                '(EP) post in current area',
+                '(BU)LLETINS list / (BU) # read',
+                '(U)STATUS show context',
+                '(M)ORE next page',
+                '(B)ACK prev page',
+                '(Q)UIT end session',
+            ]);
+        }
+
         if (in_array($topic, ['MAIL', 'N', 'NETMAIL'], true)) {
             return implode("\n", [
-                'MAIL/N: list netmail',
-                'R <id>: read',
-                'RP <id>: reply',
-                'SEND <user> <subj>: new netmail',
-                'M: more  P: prev',
+                'H N',
+                'N:list  R id:read',
+                'Y id:reply  S u subj:send',
+                'M:more  B:back',
             ]);
         }
 
         if (in_array($topic, ['AREAS', 'AREA', 'E', 'ECHO', 'ECHOMAIL'], true)) {
             return implode("\n", [
-                'AREAS/E: list areas',
-                'AREA <tag>/ER <tag>: list messages',
-                'R <id>: read',
-                'RP <id>: reply',
-                'POST <tag> <subj>: new post',
-                'M: more  P: prev',
+                'H A',
+                'A:list/open  AREA tag:open',
+                'R id:read  EP:post here',
+                'M:more  B:back',
             ]);
         }
 
-        if (in_array($topic, ['POST', 'REPLY', 'RP', 'COMPOSE'], true)) {
+        if (in_array($topic, ['POST', 'P', 'EP'], true)) {
             return implode("\n", [
-                'Send one line at a time.',
-                '/SEND or .: send',
-                '/CANCEL or CANCEL: abort',
+                'H EP',
+                'EP: post in current area',
+                'No area? use T tag',
+                'Subj? Msg: /S /C',
             ]);
         }
 
-        $intro = trim($bbsName) !== ''
-            ? sprintf("Hi, I'm %s. Here's help:", trim($bbsName))
-            : "Hi, I'm PacketBBS. Here's help:";
+        if (in_array($topic, ['READ', 'R'], true)) {
+            return implode("\n", [
+                'H R',
+                'R id: read item',
+                'R: reread current msg',
+                'In list, id may be slot',
+                'Use M/B to move',
+            ]);
+        }
+
+        if (in_array($topic, ['STATUS', 'U'], true)) {
+            return implode("\n", [
+                'H U',
+                'U: show area, list, msg,',
+                'or draft state',
+            ]);
+        }
+
+        if (!empty($context['current_area'])) {
+            $area = (string)($context['current_area']['display'] ?? $context['current_area']['tag'] ?? 'area');
+            return implode("\n", [
+                'Area ' . $this->truncate($area, 24),
+                'R id | EP post | A list | U status',
+                'Q leave area | QUIT end session',
+            ]);
+        }
 
         return implode("\n", [
-            $intro,
-            'LOGIN, WHO, MAIL, AREAS',
-            'R <id>, RP <id>, M, P, Q',
-            'WEB, More: HELP MAIL, HELP AREAS',
+            'H: L username code | A areas | N mail',
+            'T tag | R id | Y id | EP post',
+            'M more | B back | U status | Q quit',
         ]);
     }
 
@@ -156,7 +198,7 @@ class PacketBbsTextRenderer
             $lines[] = $prefix . $subj;
         }
         if ($page < $totalPages) {
-            $lines[] = 'R <id>, M';
+            $lines[] = 'R <id>, M:more B:back';
         } else {
             $lines[] = 'R <id>, RP <id>';
         }
@@ -181,7 +223,7 @@ class PacketBbsTextRenderer
                 $lines[] = $line;
             }
             $lines[] = $page < $totalPages
-                ? sprintf('%d/%d M:more', $page, $totalPages)
+                ? sprintf('%d/%d M:more B:back', $page, $totalPages)
                 : 'RP ' . (int)$m['id'];
         } else {
             foreach ($bodyLines as $line) {
@@ -264,7 +306,7 @@ class PacketBbsTextRenderer
             $desc = $this->truncate($a['description'] ?? '', max(8, $this->lineWidth - mb_strlen($tag) - 1));
             $lines[] = trim($tag . ' ' . $desc);
         }
-        $lines[] = $page < $totalPages ? 'AREA <tag>, M' : 'AREA <tag>';
+        $lines[] = $page < $totalPages ? 'AREA <tag>, M:more B:back' : 'AREA <tag>';
         return implode("\n", $lines);
     }
 
@@ -286,7 +328,7 @@ class PacketBbsTextRenderer
             $lines[] = $prefix . $subj;
         }
         if ($page < $totalPages) {
-            $lines[] = 'R <id>, M';
+            $lines[] = 'R <id>, M:more B:back';
         } else {
             $lines[] = 'R <id>, RP <id>';
         }
@@ -320,7 +362,7 @@ class PacketBbsTextRenderer
                 $lines[] = $line;
             }
             $lines[] = $page < $totalPages
-                ? sprintf('%d/%d M:more', $page, $totalPages)
+                ? sprintf('%d/%d M:more B:back', $page, $totalPages)
                 : 'RP ' . (int)$m['id'];
         } else {
             foreach ($bodyLines as $line) {
@@ -340,5 +382,134 @@ class PacketBbsTextRenderer
             'Subj: ' . $this->truncate($subject, max(8, $this->lineWidth - 6)),
             'Send lines. /SEND=send /CANCEL=abort',
         ]);
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    public function renderStatus(array $state): string
+    {
+        $lines = [];
+
+        if (!empty($state['current_area']['display'])) {
+            $lines[] = 'area ' . $this->truncate((string)$state['current_area']['display'], 28);
+        } elseif (!empty($state['current_area']['tag'])) {
+            $tag = strtoupper((string)$state['current_area']['tag']);
+            $domain = strtolower((string)($state['current_area']['domain'] ?? ''));
+            $lines[] = 'area ' . ($domain !== '' ? $tag . '@' . $domain : $tag);
+        }
+
+        if (!empty($state['active_flow']['type'])) {
+            $flow = (string)$state['active_flow']['type'];
+            $step = (string)($state['active_flow']['step'] ?? '');
+            $subject = trim((string)($state['active_flow']['subject'] ?? ''));
+            $target = trim((string)($state['active_flow']['target_display'] ?? ''));
+            $line = 'draft ' . $flow;
+            if ($target !== '') {
+                $line .= ' ' . $target;
+            }
+            $lines[] = $this->truncate($line, 32);
+            if ($subject !== '') {
+                $lines[] = 'subj ' . $this->truncate($subject, 29);
+            } elseif ($step !== '') {
+                $lines[] = 'step ' . $this->truncate($step, 29);
+            }
+            if (isset($state['active_flow']['body_lines'])) {
+                $lines[] = (int)$state['active_flow']['body_lines'] . ' lines';
+            }
+        } elseif (!empty($state['current_message']['id'])) {
+            $msgType = (string)($state['current_message']['type'] ?? 'msg');
+            $page = (int)($state['current_list']['page'] ?? 1);
+            $lines[] = sprintf('%s #%d p%d', $msgType, (int)$state['current_message']['id'], $page);
+        } elseif (!empty($state['current_list']['type'])) {
+            $type = (string)$state['current_list']['type'];
+            $page = (int)($state['current_list']['page'] ?? 1);
+            $total = (int)($state['current_list']['total_pages'] ?? 1);
+            $lines[] = sprintf('list %s p%d/%d', $type, $page, $total);
+        }
+
+        if (empty($lines)) {
+            return 'No active context.';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $bulletins
+     */
+    public function renderAbout(string $bbsName, string $bbsUrl): string
+    {
+        return implode("\n", [
+            sprintf('Hi! This is a radio bridge to %s.', $bbsName),
+            'Use "L username authcode" to login.',
+            sprintf('Visit %s to register and setup PacketBBS access.', $bbsUrl),
+        ]);
+    }
+
+    public function renderBulletinList(array $bulletins): string
+    {
+        if (empty($bulletins)) {
+            return 'No bulletins.';
+        }
+        $lines = [sprintf('BULLETINS %d', count($bulletins))];
+        foreach ($bulletins as $b) {
+            $id     = (int)$b['id'];
+            $unread = empty($b['is_read']) ? '*' : ' ';
+            $title  = $this->truncate((string)($b['title'] ?? ''), $this->lineWidth - strlen((string)$id) - 3);
+            $lines[] = sprintf('%s#%d %s', $unread, $id, $title);
+        }
+        $lines[] = 'BU # to read';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string,mixed> $bulletin
+     */
+    public function renderBulletin(array $bulletin): string
+    {
+        $id    = (int)$bulletin['id'];
+        $title = $this->truncate((string)($bulletin['title'] ?? ''), $this->lineWidth);
+        $body  = $this->stripMarkdown((string)($bulletin['body'] ?? ''));
+        $lines = ["#$id $title"];
+        foreach ($this->wrapBody($body) as $line) {
+            $lines[] = $line;
+        }
+        $lines[] = 'BU for list';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $unreadBulletins
+     */
+    public function renderLoginBulletinNotice(array $unreadBulletins): string
+    {
+        $count = count($unreadBulletins);
+        $lines = [sprintf('%d unread bulletin%s:', $count, $count === 1 ? '' : 's')];
+        foreach ($unreadBulletins as $b) {
+            $id    = (int)$b['id'];
+            $title = $this->truncate((string)($b['title'] ?? ''), $this->lineWidth - strlen((string)$id) - 2);
+            $lines[] = sprintf('#%d %s', $id, $title);
+        }
+        $lines[] = 'BU to read';
+        return implode("\n", $lines);
+    }
+
+    private function stripMarkdown(string $text): string
+    {
+        // ATX headings
+        $text = preg_replace('/^#{1,6}\s+/m', '', $text) ?? $text;
+        // Bold/italic
+        $text = preg_replace('/\*{1,3}([^*\n]+)\*{1,3}/', '$1', $text) ?? $text;
+        $text = preg_replace('/_{1,3}([^_\n]+)_{1,3}/', '$1', $text) ?? $text;
+        // Inline code
+        $text = preg_replace('/`([^`]+)`/', '$1', $text) ?? $text;
+        // Links and images
+        $text = preg_replace('/!?\[([^\]]*)\]\([^)]*\)/', '$1', $text) ?? $text;
+        // Blockquotes
+        $text = preg_replace('/^>\s?/m', '', $text) ?? $text;
+        // Horizontal rules
+        $text = preg_replace('/^[-*_]{3,}\s*$/m', '---', $text) ?? $text;
+        return $text;
     }
 }

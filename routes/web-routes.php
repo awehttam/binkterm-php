@@ -241,7 +241,11 @@ SimpleRouter::get('/', function() {
     // Build dashboard card registry and layout
     $creditsConfig = $bbsConfig['credits'] ?? [];
     $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
-    $cardConditions = ['referral_enabled' => $referralEnabled];
+    $packetBbsNodesExist = (new \BinktermPHP\PacketBbs\PacketBbsNodeService())->getNodeCount() > 0;
+    $cardConditions = [
+        'referral_enabled'     => $referralEnabled,
+        'packetbbs_nodes_exist' => $packetBbsNodesExist,
+    ];
     $availableCards = \BinktermPHP\DashboardCardRegistry::getAvailableCards($user, $cardConditions);
     $savedLayoutRaw = $userSettings['dashboard_layout'] ?? null;
     if ($savedLayoutRaw) {
@@ -267,6 +271,7 @@ SimpleRouter::get('/', function() {
         'dashboard_layout' => $dashboardLayout,
         'dashboard_available_cards' => $availableCards,
         'echomail_badge_mode' => $userSettings['echomail_badge_mode'] ?? 'new',
+        'packetbbs_nodes_exist' => $packetBbsNodesExist,
     ]);
 });
 
@@ -1742,6 +1747,19 @@ SimpleRouter::get('/shell-art/{name}', function(string $name) {
     header('Content-Length: ' . filesize($path));
     header('Cache-Control: public, max-age=3600');
     readfile($path);
+});
+
+// Public Meshcore Nodes page
+SimpleRouter::get('/packetbbs-nodes', function() {
+    $service       = new \BinktermPHP\PacketBbs\PacketBbsNodeService();
+    $nodes         = $service->getPublicNodes();
+    $mappableNodes = $service->getMappableNodes();
+
+    $template = new Template();
+    $template->renderResponse('meshcore_nodes.twig', [
+        'nodes'          => $nodes,
+        'mappable_nodes' => $mappableNodes,
+    ]);
 });
 
 // Public BBS Directory page
