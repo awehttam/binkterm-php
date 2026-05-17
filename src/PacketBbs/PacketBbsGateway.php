@@ -690,7 +690,7 @@ class PacketBbsGateway
         $limit  = $renderer->getPageSize();
         $result = $this->messageHandler->getNetmail($session['user_id'], $page, $limit);
         $messages = $result['messages'] ?? [];
-        $total    = $result['pagination']['total_pages'] ?? 1;
+        $total    = $result['pagination']['pages'] ?? 1;
 
         if ($page > max(1, (int)$total)) {
             return 'End.';
@@ -956,7 +956,7 @@ class PacketBbsGateway
         $limit  = $renderer->getPageSize();
         $result = $this->messageHandler->getEchomail($tag, $domain, $page, $limit, $session['user_id']);
         $messages = $result['messages'] ?? [];
-        $total    = $result['pagination']['total_pages'] ?? 1;
+        $total    = $result['pagination']['pages'] ?? 1;
 
         if ($page > max(1, (int)$total)) {
             return 'End.';
