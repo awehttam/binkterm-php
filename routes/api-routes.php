@@ -9731,6 +9731,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $settings = [
             'terminal_netmail_page' => $meta->getValue((int)$userId, 'terminal_netmail_page'),
             'terminal_netmail_selected_message_id' => $meta->getValue((int)$userId, 'terminal_netmail_selected_message_id'),
+            'terminal_netmail_folder' => $meta->getValue((int)$userId, 'terminal_netmail_folder'),
             'terminal_echomail_areas_page' => $meta->getValue((int)$userId, 'terminal_echomail_areas_page'),
             'terminal_echomail_positions' => $meta->getValue((int)$userId, 'terminal_echomail_positions'),
             'terminal_chat_target' => $meta->getValue((int)$userId, 'terminal_chat_target'),
@@ -9822,6 +9823,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
             $meta->setValue((int)$userId, 'terminal_echomail_positions', $encoded);
+        }
+
+        if (array_key_exists('terminal_netmail_folder', $settings)) {
+            $folder = $settings['terminal_netmail_folder'];
+            if ($folder === null || $folder === '') {
+                $meta->setValue((int)$userId, 'terminal_netmail_folder', null);
+            } elseif (in_array($folder, ['inbox', 'sent'], true)) {
+                $meta->setValue((int)$userId, 'terminal_netmail_folder', $folder);
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_netmail_folder']);
+                return;
+            }
         }
 
         if (array_key_exists('terminal_chat_target', $settings)) {

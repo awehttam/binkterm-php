@@ -26,6 +26,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The shared terminal server now includes **Local Chat** from the main menu. Telnet and SSH users can open room chat, switch rooms and DMs, view online users from the left navigation pane, read Markdown-rendered messages, and send new messages without leaving the terminal session.
 - The terminal chat client uses the existing local chat API with polling, so no additional daemon or sysop configuration is required when upgrading.
 - The terminal main menu now reacts to live terminal resize events. On Telnet NAWS updates and SSH window-change events, the menu redraws to the new dimensions without requiring an extra keypress, and dashboard widgets are re-laid out using cached stats rather than triggering another API call.
+- The terminal netmail reader now provides a **Sent folder**. Users can press `S` from the message list to toggle between the Inbox and Sent views. The active folder is remembered across sessions.
 
 ### Developer Tooling
 
@@ -57,6 +58,14 @@ The terminal client currently provides:
 - API-backed polling for live updates while the chat screen is open
 
 No migration or post-upgrade admin action is required for this feature. If Local Chat is already enabled in **Admin -> BBS Settings**, it becomes available automatically to terminal users after the upgraded daemons are restarted.
+
+### Netmail Sent Folder in Terminal Reader
+
+The terminal netmail message list now includes a Sent folder. From the message list, pressing `S` switches between the Inbox view (all received messages) and the Sent view (messages sent from this system). Pressing `S` again returns to the Inbox. The last-used folder is saved per user and restored the next time they open netmail from the terminal.
+
+When reading a message in the Sent view, the header shows the recipient (`To:`) rather than the sender, since the sender is always the logged-in user. Pressing `R` to reply from the Sent view pre-fills the recipient fields with the original message's addressee rather than the sender.
+
+No migration or sysop configuration is required. The daemon restart that follows a normal upgrade is sufficient.
 
 ---
 

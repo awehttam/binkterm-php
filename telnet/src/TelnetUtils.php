@@ -747,7 +747,9 @@ class TelnetUtils
         array $messages,
         int $page,
         int $totalPages,
-        int $selectedIndex
+        int $selectedIndex,
+        array $extraKeys = [],
+        array $extraStatusSegments = []
     ): array {
         $cols = $state['cols'] ?? 80;
 
@@ -793,12 +795,15 @@ class TelnetUtils
             ['text' => 'Q',          'color' => self::ANSI_RED],
             ['text' => ' Quit',      'color' => self::ANSI_BLUE],
         ];
+        if (!empty($extraStatusSegments)) {
+            $statusBar = array_merge($statusBar, $extraStatusSegments);
+        }
 
         $result = self::runSelectableList(
             $conn, $state, $server,
             $title, $rows, $page, $totalPages, $selectedIndex,
             $statusBar,
-            ['c' => 'compose'],
+            array_merge(['c' => 'compose'], $extraKeys),
             $rebuildFn
         );
 

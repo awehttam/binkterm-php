@@ -54,9 +54,13 @@ class NetmailHandler
         $perPage       = MailUtils::getMessagesPerPage($state);
         $selectedIndex = 0;
         $selectedMessageId = $savedState['selected_message_id'];
+        $folder        = $savedState['folder'];
+
+        $extraKeys = ['s' => 'toggle_folder'];
+        $locale    = $state['locale'] ?? 'en';
 
         while (true) {
-            [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage);
+            [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage, $folder);
 
             if (!$messages) {
                 if ($page > 1 && $totalPages > 0) {
@@ -65,7 +69,28 @@ class NetmailHandler
                     $selectedMessageId = null;
                     continue;
                 }
-                TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.netmail.no_messages', 'No netmail messages.', [], $state['locale']));
+                $noMsgKey = $folder === 'sent'
+                    ? 'ui.terminalserver.netmail.no_sent_messages'
+                    : 'ui.terminalserver.netmail.no_messages';
+                $noMsgFallback = $folder === 'sent' ? 'No sent netmail messages.' : 'No netmail messages.';
+
+                // In sent folder: pressing S returns to inbox; in inbox: quit.
+                if ($folder === 'sent') {
+                    TelnetUtils::writeLine($conn, $this->server->t($noMsgKey, $noMsgFallback, [], $locale));
+                    TelnetUtils::writeLine($conn, '');
+                    TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                        $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                        TelnetUtils::ANSI_DIM
+                    ));
+                    $this->server->readKeyWithIdleCheck($conn, $state);
+                    $folder = 'inbox';
+                    $page   = 1;
+                    $selectedIndex = 0;
+                    $this->saveListState($session, $page, null, $folder, $state['csrf_token'] ?? null);
+                    continue;
+                }
+
+                TelnetUtils::writeLine($conn, $this->server->t($noMsgKey, $noMsgFallback, [], $locale));
                 return;
             }
 
@@ -81,14 +106,38 @@ class NetmailHandler
                 $selectedIndex = 0;
             }
 
+            if ($folder === 'sent') {
+                $titleKey      = 'ui.terminalserver.netmail.sent_header';
+                $titleFallback = 'Netmail Sent (page {page}/{total}):';
+                $toggleLabel   = 'Inbox';
+                // Show recipient instead of sender in sent folder list view.
+                $displayMessages = array_map(static function(array $msg): array {
+                    $msg['from_name'] = $msg['to_name'] ?? $msg['from_name'];
+                    return $msg;
+                }, $messages);
+                $extraStatusSegments = [
+                    ['text' => '  S',       'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' ' . $toggleLabel, 'color' => TelnetUtils::ANSI_BLUE],
+                ];
+            } else {
+                $titleKey      = 'ui.terminalserver.netmail.inbox_header';
+                $titleFallback = 'Netmail Inbox (page {page}/{total}):';
+                $toggleLabel   = 'Sent';
+                $displayMessages = $messages;
+                $extraStatusSegments = [
+                    ['text' => '  S',      'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' ' . $toggleLabel, 'color' => TelnetUtils::ANSI_BLUE],
+                ];
+            }
+
             $title  = TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.netmail.header', 'Netmail (page {page}/{total}):', ['page' => $page, 'total' => $totalPages], $state['locale']),
+                $this->server->t($titleKey, $titleFallback, ['page' => $page, 'total' => $totalPages], $locale),
                 TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             );
-            $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $messages, $page, $totalPages, $selectedIndex);
+            $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $displayMessages, $page, $totalPages, $selectedIndex, $extraKeys, $extraStatusSegments);
             $selectedIndex = $result['selectedIndex'];
             $currentSelectedId = isset($messages[$selectedIndex]['id']) ? (int)$messages[$selectedIndex]['id'] : null;
-            $this->saveListState($session, $page, $currentSelectedId, $state['csrf_token'] ?? null);
+            $this->saveListState($session, $page, $currentSelectedId, $folder, $state['csrf_token'] ?? null);
 
             switch ($result['action']) {
                 case 'disconnect':
@@ -106,8 +155,14 @@ class NetmailHandler
                 case 'compose':
                     $this->compose($conn, $state, $session, null);
                     break;
+                case 'toggle_folder':
+                    $folder        = $folder === 'inbox' ? 'sent' : 'inbox';
+                    $page          = 1;
+                    $selectedIndex = 0;
+                    $this->saveListState($session, $page, null, $folder, $state['csrf_token'] ?? null);
+                    break;
                 case 'read':
-                    [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $page, $perPage, $totalPages, $result['index']);
+                    [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $page, $perPage, $totalPages, $result['index'], $folder);
                     break;
             }
         }
@@ -294,10 +349,10 @@ class NetmailHandler
      * @param int $id Message ID for fetching full details
      * @return void
      */
-    private function displayMessage($conn, array &$state, string $session, int $page, int $perPage, int $totalPages, int $index): array
+    private function displayMessage($conn, array &$state, string $session, int $page, int $perPage, int $totalPages, int $index, string $folder = 'inbox'): array
     {
         while (true) {
-            [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage);
+            [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage, $folder);
             $msg = $messages[$index] ?? null;
             if (!$msg) {
                 return [$page, 0];
@@ -323,17 +378,25 @@ class NetmailHandler
             }
 
             $hasAttachments = !empty($attachments);
+            $isSentFolder   = $folder === 'sent';
 
             // Closure that rebuilds all layout-dependent view components from current $state.
             // Called once on open and again whenever the terminal is resized.
-            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs): array {
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs, $isSentFolder): array {
                 $cols    = $s['cols'] ?? 80;
                 $width   = max(10, $cols - 2);
                 $charset = $this->server->getTerminalCharset();
 
-                $fromName    = $msg['from_name'] ?? 'Unknown';
-                $fromAddress = $msg['from_address'] ?? '';
-                $fromLine    = $fromAddress ? "{$fromName} <{$fromAddress}>" : $fromName;
+                if ($isSentFolder) {
+                    $nameLabel   = 'To:   ';
+                    $nameValue   = $msg['to_name'] ?? 'Unknown';
+                    $nameAddress = $msg['to_address'] ?? '';
+                } else {
+                    $nameLabel   = 'From: ';
+                    $nameValue   = $msg['from_name'] ?? 'Unknown';
+                    $nameAddress = $msg['from_address'] ?? '';
+                }
+                $nameLine = $nameAddress ? "{$nameValue} <{$nameAddress}>" : $nameValue;
 
                 $segments = [
                     ['text' => 'U/D',         'color' => TelnetUtils::ANSI_RED],
@@ -366,9 +429,9 @@ class NetmailHandler
 
                 return [
                     'headerLines'  => TelnetUtils::buildMessageHeaderBox($width, [
-                        ['label' => 'From: ', 'value' => $fromLine,                                                       'style' => 'normal'],
-                        ['label' => 'Date: ', 'value' => TelnetUtils::formatUserDate($msg['date_written'] ?? '', $s),     'style' => 'dim'],
-                        ['label' => 'Subj: ', 'value' => $msg['subject'] ?? 'Message',                                   'style' => 'bold'],
+                        ['label' => $nameLabel, 'value' => $nameLine,                                                     'style' => 'normal'],
+                        ['label' => 'Date: ',   'value' => TelnetUtils::formatUserDate($msg['date_written'] ?? '', $s),   'style' => 'dim'],
+                        ['label' => 'Subj: ',   'value' => $msg['subject'] ?? 'Message',                                 'style' => 'bold'],
                     ], $charset),
                     'wrappedLines' => $wrappedLines,
                     'statusLine'   => TelnetUtils::buildStatusBar($segments, $width),
@@ -414,7 +477,15 @@ class NetmailHandler
                     break;
                 case 'reply':
                     TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-                    $this->compose($conn, $state, $session, $detail['data'] ?? $msg);
+                    $replyData = $detail['data'] ?? $msg;
+                    if ($isSentFolder) {
+                        // When replying from Sent folder, pre-fill the original recipient.
+                        $replyData = array_merge($replyData, [
+                            'from_name'    => $msg['to_name'] ?? '',
+                            'from_address' => $msg['to_address'] ?? '',
+                        ]);
+                    }
+                    $this->compose($conn, $state, $session, $replyData);
                     TelnetUtils::setCursorVisible($conn, true);
                     return [$page, $index];
                 case 'download':
@@ -428,14 +499,16 @@ class NetmailHandler
     /**
      * Fetch a page of netmail messages.
      *
+     * @param string $folder 'inbox' or 'sent'
      * @return array [messages, totalPages]
      */
-    private function fetchMessagesPage(string $session, int $page, int $perPage): array
+    private function fetchMessagesPage(string $session, int $page, int $perPage, string $folder = 'inbox'): array
     {
+        $filter = $folder === 'sent' ? 'sent' : 'all';
         $response = TelnetUtils::apiRequest(
             $this->apiBase,
             'GET',
-            '/api/messages/netmail?page=' . $page . '&per_page=' . $perPage,
+            '/api/messages/netmail?page=' . $page . '&per_page=' . $perPage . '&filter=' . $filter,
             null,
             $session
         );
@@ -450,7 +523,7 @@ class NetmailHandler
     /**
      * Load saved netmail list state from user meta.
      *
-     * @return array{page:int, selected_message_id:?int}
+     * @return array{page:int, selected_message_id:?int, folder:string}
      */
     private function loadSavedListState(string $session): array
     {
@@ -465,21 +538,25 @@ class NetmailHandler
         $settings = $response['data']['settings'] ?? [];
         $page = (int)($settings['terminal_netmail_page'] ?? 1);
         $selectedId = (int)($settings['terminal_netmail_selected_message_id'] ?? 0);
+        $savedFolder = (string)($settings['terminal_netmail_folder'] ?? 'inbox');
+        $folder = in_array($savedFolder, ['inbox', 'sent'], true) ? $savedFolder : 'inbox';
 
         return [
             'page' => max(1, $page),
             'selected_message_id' => $selectedId > 0 ? $selectedId : null,
+            'folder' => $folder,
         ];
     }
 
     /**
      * Save netmail list state to user meta.
      */
-    private function saveListState(string $session, int $page, ?int $selectedMessageId, ?string $csrfToken = null): void
+    private function saveListState(string $session, int $page, ?int $selectedMessageId, string $folder = 'inbox', ?string $csrfToken = null): void
     {
         $payload = [
             'terminal_netmail_page' => max(1, $page),
             'terminal_netmail_selected_message_id' => $selectedMessageId,
+            'terminal_netmail_folder' => $folder,
         ];
 
         TelnetUtils::apiRequest(
