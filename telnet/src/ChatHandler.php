@@ -1258,11 +1258,13 @@ class ChatHandler
     private function positionInputCursor($conn, array $chat, array $layoutInfo): void
     {
         if (empty($layoutInfo['rows'])) {
+            TelnetUtils::setCursorVisible($conn, true);
             return;
         }
 
         $inputRow = $layoutInfo['rows'][count($layoutInfo['rows']) - 1] ?? null;
         if (!$inputRow || empty($inputRow['panes'][0])) {
+            TelnetUtils::setCursorVisible($conn, true);
             return;
         }
 
@@ -1274,6 +1276,7 @@ class ChatHandler
         $col = $contentCol + $cursorPos;
         $row = $contentRow;
         $this->server->safeWrite($conn, "\033[{$row};{$col}H");
+        TelnetUtils::setCursorVisible($conn, true);
     }
 
     private function buildNavItems(array $chat): array

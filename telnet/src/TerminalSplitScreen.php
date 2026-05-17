@@ -23,6 +23,9 @@ class TerminalSplitScreen
     private int $horizontalMargin = 1;
     private int $verticalMargin = 1;
     private array $lastLayout = [];
+    private ?int $lastCols = null;
+    private ?int $lastRows = null;
+    private bool $hasRendered = false;
 
     /**
      * @var array<int, array{height: int|null, panes: array<int, array<string, mixed>>}>
@@ -126,7 +129,11 @@ class TerminalSplitScreen
         $usableWidth = max(20, $cols - ($this->horizontalMargin * 2));
         $usableHeight = max(6, $rows - ($this->verticalMargin * 2));
 
-        $this->server->safeWrite($conn, "\033[2J\033[H");
+        $needsFullClear = !$this->hasRendered || $this->lastCols !== $cols || $this->lastRows !== $rows;
+        TelnetUtils::setCursorVisible($conn, false);
+        if ($needsFullClear) {
+            $this->server->safeWrite($conn, "\033[2J\033[H");
+        }
 
         $titleRows = ($this->title !== '') ? 2 : 0;
         if ($this->title !== '') {
@@ -172,6 +179,9 @@ class TerminalSplitScreen
 
         $finalRow = min($rows, $contentTop + $contentHeight);
         $this->server->safeWrite($conn, "\033[" . $finalRow . ";1H");
+        $this->lastCols = $cols;
+        $this->lastRows = $rows;
+        $this->hasRendered = true;
     }
 
     /**
