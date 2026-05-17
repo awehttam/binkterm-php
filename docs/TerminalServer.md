@@ -128,10 +128,38 @@ Stats are refreshed from the API after returning from netmail, echomail, or bull
 - Live dashboard widgets alongside the main menu (see above)
 - Helpful command documentation
 
+### Customizable Main Menu Keys
+
+Every action in the terminal main menu can be bound to a different single letter or digit (0–9) by the sysop. The binding is stored in `data/appearance.json` under `shell.term_menu_keys` and is configured through **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. The key table in that UI shows the built-in default for each action in a center reference column.
+
+**Default key map:**
+
+| Key | Action |
+|-----|--------|
+| N | Netmail |
+| E | Echomail |
+| S | Shoutbox |
+| U | Bulletins |
+| P | Polls |
+| D | Door Games |
+| F | Files |
+| T | Settings |
+| I | Interests |
+| W | Who's Online |
+| K | QWK Offline Mail |
+| B | BBS Directory |
+| L | Node List |
+| C | Local Chat |
+| Q | Quit |
+
+If no custom map is saved the built-in defaults above are used. When a custom map is saved, any action with no assigned key is hidden from the menu and its slot is not rendered — remaining items in that section reflow to fill the gap. When every action in a section (Messaging, Community/Explore, or Files/Settings) is unassigned, the section header itself is suppressed. The `quit` key is always required. Sysops are responsible for ensuring their `mainmenu.ans` art matches whatever keys are configured.
+
+The key map is fetched once per session from `GET /api/config/term-menu-keys` immediately after login.
+
 ### Local Chat
 
-The terminal server now includes the same local chat system used by the web UI.
-From the main menu, press **C** to open **Local Chat**.
+The terminal server includes the same local chat system used by the web UI.
+From the main menu, press the configured **Local Chat** key (default **C**) to open local chat.
 
 Local chat supports:
 
@@ -285,6 +313,7 @@ The terminal server uses the BinktermPHP web API for most operations. It also ma
 | `/api/messages/echomail/{id}` | GET | Get echomail message details |
 | `/api/messages/echomail/post` | POST | Post echomail message |
 | `/api/dashboard/stats` | GET | Main menu dashboard widgets (unread counts, online users, bulletins, credits) |
+| `/api/config/term-menu-keys` | GET | Sysop-configured main menu key bindings (falls back to built-in defaults) |
 
 All API requests include cookie-based session management, automatic retry with
 exponential backoff, and optional SSL certificate verification.

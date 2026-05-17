@@ -2384,6 +2384,66 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::post('/appearance/term-menu-keys', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $raw = $payload['term_menu_keys'] ?? [];
+                if (!is_array($raw)) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.term_menu_keys.invalid_key', apiLocalizedText('errors.admin.appearance.term_menu_keys.invalid_key', 'Invalid menu key data'));
+                    return;
+                }
+
+                $knownActions = array_keys(\BinktermPHP\AppearanceConfig::DEFAULT_TERM_MENU_KEYS);
+                $sanitized = [];
+                foreach ($knownActions as $action) {
+                    if (!isset($raw[$action])) {
+                        continue;
+                    }
+                    $val = strtolower(trim((string)$raw[$action]));
+                    if (!preg_match('/^[a-z0-9]$/', $val)) {
+                        http_response_code(400);
+                        apiError('errors.admin.appearance.term_menu_keys.invalid_key', apiLocalizedText('errors.admin.appearance.term_menu_keys.invalid_key', 'Menu keys must be a single letter or digit'));
+                        return;
+                    }
+                    $sanitized[$action] = $val;
+                }
+
+                // quit is mandatory
+                if (!isset($sanitized['quit'])) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.term_menu_keys.quit_required', apiLocalizedText('errors.admin.appearance.term_menu_keys.quit_required', 'A key must be assigned to Quit'));
+                    return;
+                }
+
+                // no duplicate keys
+                $used = [];
+                foreach ($sanitized as $action => $key) {
+                    if (in_array($key, $used, true)) {
+                        http_response_code(400);
+                        apiError('errors.admin.appearance.term_menu_keys.duplicate_key', apiLocalizedText('errors.admin.appearance.term_menu_keys.duplicate_key', 'Each menu key must be unique'));
+                        return;
+                    }
+                    $used[] = $key;
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['shell']['term_menu_keys'] = $sanitized;
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_menu_keys.save_failed', apiLocalizedText('errors.admin.appearance.term_menu_keys.save_failed', 'Failed to save menu key settings'));
+            }
+        });
+
         SimpleRouter::post('/appearance/preview-markdown', function() {
             RouteHelper::requireAdmin();
             header('Content-Type: application/json');

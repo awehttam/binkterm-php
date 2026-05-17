@@ -25,6 +25,25 @@ class AppearanceConfig
     private static ?array $config = null;
     private static bool $loaded = false;
 
+    /** Default terminal main menu key bindings */
+    public const DEFAULT_TERM_MENU_KEYS = [
+        'netmail'    => 'n',
+        'echomail'   => 'e',
+        'shoutbox'   => 's',
+        'bulletins'  => 'u',
+        'polls'      => 'p',
+        'doors'      => 'd',
+        'files'      => 'f',
+        'settings'   => 't',
+        'interests'  => 'i',
+        'whosonline' => 'w',
+        'qwk'        => 'k',
+        'bbslist'    => 'b',
+        'nodelist'   => 'l',
+        'localchat'  => 'c',
+        'quit'       => 'q',
+    ];
+
     /** Default BBS menu items used when none are configured */
     private const DEFAULT_MENU_ITEMS = [
         ['key' => 'M', 'label' => 'Messages', 'label_key' => 'ui.admin.appearance.default_menu.messages', 'icon' => 'envelope', 'url' => '/echomail'],
@@ -74,6 +93,7 @@ class AppearanceConfig
             'shell' => [
                 'active' => 'web',
                 'lock_shell' => false,
+                'term_menu_keys' => null,
                 'bbs_menu' => [
                     'variant' => 'cards',
                     'menu_items' => self::DEFAULT_MENU_ITEMS,
@@ -255,6 +275,29 @@ class AppearanceConfig
             'ansi_file' => (string)($cfg['ansi_file'] ?? ''),
             'ansi_size' => $ansiSize,
         ];
+    }
+
+    /**
+     * Returns the effective action→key map for the terminal main menu.
+     * Falls back to DEFAULT_TERM_MENU_KEYS when no custom map is stored.
+     * Actions absent from a custom map are disabled (not returned).
+     *
+     * @return array<string,string>  e.g. ['netmail' => 'n', 'quit' => 'q', ...]
+     */
+    public static function getTermMenuKeys(): array
+    {
+        self::load();
+        $stored = self::$config['shell']['term_menu_keys'] ?? null;
+        if (!is_array($stored) || empty($stored)) {
+            return self::DEFAULT_TERM_MENU_KEYS;
+        }
+        $result = [];
+        foreach (self::DEFAULT_TERM_MENU_KEYS as $action => $_) {
+            if (isset($stored[$action]) && preg_match('/^[a-z0-9]$/i', $stored[$action])) {
+                $result[$action] = strtolower($stored[$action]);
+            }
+        }
+        return $result;
     }
 
     /**

@@ -7855,3 +7855,53 @@ Online users and session count
 | 401 | Authentication required |
 
 ---
+
+#### `GET /api/config/term-menu-keys`
+
+**Requires authentication**
+
+Returns the effective terminal main menu key map for the current system. Used by the Telnet/SSH terminal server at session start to determine which key dispatches which action. Returns the sysop-configured custom map if one is saved; otherwise returns the built-in defaults. Actions absent from the map are disabled.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` |
+| `term_menu_keys` | object | Map of action ID to single-character key string |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+
+---
+
+#### `POST /api/admin/appearance/term-menu-keys`
+
+**Requires admin**
+
+Saves a custom terminal main menu key map. Each action maps to a unique single ASCII letter (`a-z`, stored lowercase). Actions omitted from the payload are disabled (hidden from the menu). `quit` must always be present.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `term_menu_keys` | object | Yes | Map of action ID to key char. Known action IDs: `netmail`, `echomail`, `shoutbox`, `bulletins`, `polls`, `doors`, `files`, `settings`, `interests`, `whosonline`, `qwk`, `bbslist`, `nodelist`, `localchat`, `quit` |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | `true` on success |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid key (not a single letter), duplicate key, or `quit` missing |
+| 401 | Authentication required |
+| 403 | Admin privileges required |
+| 500 | Failed to save settings |
+
+---
