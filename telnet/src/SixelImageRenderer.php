@@ -21,6 +21,12 @@ use BinktermPHP\Version;
  */
 class SixelImageRenderer
 {
+    /** @var string[] URL/file extensions we allow for sixel conversion */
+    private const SUPPORTED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif'];
+
+    /** @var string[] MIME types we allow after download validation */
+    private const SUPPORTED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif'];
+
     /** @var string[] Known installation paths probed when IMG2SIXEL_PATH is not set */
     private static array $SEARCH_PATHS = [
         '/usr/bin/img2sixel',
@@ -183,6 +189,8 @@ class SixelImageRenderer
             return null;
         }
 
+        $allowOctetStream = $this->urlHasSupportedImageExtension($url);
+
         // Validate Content-Type before writing to disk
         $meta = stream_get_meta_data($src);
         foreach (($meta['wrapper_data'] ?? []) as $header) {
@@ -190,7 +198,7 @@ class SixelImageRenderer
                 $ct = trim(substr($header, strlen('Content-Type:')));
                 // Strip parameters (e.g. "; charset=…")
                 $ct = strtok($ct, ';');
-                if ($ct !== false && stripos(trim($ct), 'image/') !== 0) {
+                if ($ct !== false && !$this->isAllowedResponseContentType(trim($ct), $allowOctetStream)) {
                     fclose($src);
                     $error = 'Unexpected Content-Type: ' . trim($ct);
                     return null;
@@ -231,6 +239,11 @@ class SixelImageRenderer
         if ($written === 0) {
             @unlink($tmpFile);
             $error = 'Empty response from URL';
+            return null;
+        }
+
+        if (!$this->isSupportedDownloadedImage($tmpFile, $error)) {
+            @unlink($tmpFile);
             return null;
         }
 
@@ -461,5 +474,62 @@ class SixelImageRenderer
         }
 
         return null;
+    }
+
+    /**
+     * Return true when an HTTP response Content-Type is acceptable for image download.
+     *
+     * @param string $contentType
+     * @param bool   $allowOctetStream
+     * @return bool
+     */
+    private function isAllowedResponseContentType(string $contentType, bool $allowOctetStream): bool
+    {
+        if (stripos($contentType, 'image/') === 0) {
+            return true;
+        }
+
+        return $allowOctetStream && strcasecmp($contentType, 'application/octet-stream') === 0;
+    }
+
+    /**
+     * Return true when the URL path ends in a supported raster image extension.
+     *
+     * @param string $url
+     * @return bool
+     */
+    private function urlHasSupportedImageExtension(string $url): bool
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+        if (!is_string($path) || $path === '') {
+            return false;
+        }
+
+        $ext = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
+        return in_array($ext, self::SUPPORTED_EXTENSIONS, true);
+    }
+
+    /**
+     * Validate that the downloaded file is a supported raster image.
+     *
+     * @param string $path
+     * @param string $error
+     * @return bool
+     */
+    private function isSupportedDownloadedImage(string $path, string &$error): bool
+    {
+        $info = @getimagesize($path);
+        if ($info === false) {
+            $error = 'Downloaded file is not a valid image';
+            return false;
+        }
+
+        $mime = strtolower((string)($info['mime'] ?? ''));
+        if (!in_array($mime, self::SUPPORTED_MIME_TYPES, true)) {
+            $error = 'Unsupported image format: ' . ($mime !== '' ? $mime : 'unknown');
+            return false;
+        }
+
+        return true;
     }
 }

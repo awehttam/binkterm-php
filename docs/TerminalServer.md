@@ -89,10 +89,16 @@ Each transport daemon has additional extension requirements — see
 
 ### Sixel Image Rendering
 
-When viewing messages that contain Markdown image references, the terminal
-server will render those images inline using the Sixel graphics protocol for
-clients that advertise Sixel support. Clients that do not support Sixel skip
-the image gracefully.
+When viewing messages in the terminal server, the inline Sixel image viewer can
+open:
+
+- Markdown image references written as `![alt](url)` in markdown-formatted messages
+- Bare direct image URLs in any message body when the URL ends in a supported
+  raster extension: `.png`, `.jpg`, `.jpeg`, or `.gif`
+
+The message body shows numbered image placeholders, and pressing `I` opens the
+viewer for the selected image. SVG and other non-raster extensions are not
+included in this terminal-side URL scan.
 
 Sixel output requires `img2sixel` from the `libsixel-bin` package to be
 installed and available in `PATH`. If the binary is not found, images are

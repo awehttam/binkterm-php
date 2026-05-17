@@ -810,6 +810,7 @@ class BbsSession
             }
         }
 
+        $this->logoutSession($session);
         fclose($conn);
         if ($forked) { exit(0); }
     }
@@ -3113,8 +3114,7 @@ class BbsSession
         }
 
         try {
-            $auth = new \BinktermPHP\Auth();
-            $auth->logout($sessionId);
+            $this->apiRequest('POST', '/api/auth/logout', null, $sessionId);
         } catch (\Throwable $e) {
             $this->log('Logout failed for terminal session: ' . $e->getMessage());
         }

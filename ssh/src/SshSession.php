@@ -182,6 +182,7 @@ class SshSession
             $authResult = $this->authenticate();
             if ($authResult === null)          { return null; }
             if (!$this->openChannel())         { return null; }
+            $this->drainStartupChannelInput();
 
             return array_merge($authResult, [
                 'cols' => $this->termCols,
@@ -576,6 +577,48 @@ class SshSession
             }
         }
         return true;
+    }
+
+    /**
+     * Discard any SSH channel-data packets already queued immediately after shell startup.
+     *
+     * Some SSH clients send early buffered bytes during PTY/shell setup. If we hand those
+     * straight to BbsSession they appear as phantom keystrokes and can skip login/menu
+     * screens. Drain only what is already readable right now; do not block waiting for
+     * user input.
+     */
+    private function drainStartupChannelInput(): void
+    {
+        $discarded = 0;
+
+        $prevBlocking = stream_get_meta_data($this->socket)['blocked'] ?? true;
+        stream_set_blocking($this->socket, false);
+
+        try {
+            while (true) {
+                $read = [$this->socket];
+                $write = $except = null;
+                $ready = @stream_select($read, $write, $except, 0, 0);
+                if ($ready === false || $ready === 0) {
+                    break;
+                }
+
+                $chunk = $this->tryReadChannelData();
+                if ($chunk === false || $chunk === null) {
+                    break;
+                }
+
+                if ($chunk !== '') {
+                    $discarded += strlen($chunk);
+                }
+            }
+        } finally {
+            stream_set_blocking($this->socket, (bool)$prevBlocking);
+        }
+
+        if ($this->debug && $discarded > 0) {
+            $this->dbg("Drained {$discarded} bytes of queued SSH startup input before BBS handoff");
+        }
     }
 
     /**

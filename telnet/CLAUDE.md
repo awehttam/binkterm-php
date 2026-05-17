@@ -26,12 +26,38 @@ The admin save route (`POST /api/admin/appearance/term-menu-keys`) derives its v
 
 ## Data Access
 
-**Terminal-side code must use the REST API for all data access.** Code under `telnet/src/` and `ssh/` must never access the database directly, never `require` web-side classes from `src/`, and never call web-side helpers. All reads and writes go through HTTP calls to the local API using `TelnetUtils::apiRequest()`.
+The terminal server is a trusted first-party runtime component of BinktermPHP. Code under `telnet/src/` and `ssh/` does not need to treat the rest of the application as a strictly remote system, but it must still respect clear boundaries.
+
+Daemon/runtime exceptions:
+
+- Terminal-side logout should normally use the existing authenticated API logout flow so session teardown stays aligned with the web behavior.
+- Subsystem-local daemon logging may use targeted `error_log(..., 3, $file)` file logging when it is intentionally isolated from the web logging stack, such as ZMODEM transfer logs under `telnet/src/`.
+- Direct `getenv()` reads are acceptable for process/runtime inspection that is not part of `.env`-backed application config resolution, such as searching the OS `PATH` for external transfer helpers.
+
+Choose the access path that best fits the feature:
+
+- Prefer `TelnetUtils::apiRequest()` when terminal code is consuming an existing API-shaped application feature, especially user-facing flows that should behave the same way as the web client.
+- Reuse shared business logic, domain services, and transport-agnostic utility classes from `src/` when that is the safest and most maintainable way to share behavior with the web side.
+- Direct database access is acceptable, but it should stay narrow. Use it mainly for simple internal reads or small internal queries where introducing or extending an API or service would add unnecessary complexity.
+
+Where both are practical, prefer reusing an existing shared service or domain class over writing new direct SQL in terminal code.
+
+Authentication and session flows should normally use the existing API endpoints so terminal and web behavior remain consistent. Direct reuse of shared auth/session logic is acceptable only for clear internal-only cases and must not depend on browser-specific request handling.
+
+Do not bypass important business rules. If validation, permissions, side effects, or invariants already live in a shared service or domain class, terminal code should use that logic instead of reimplementing the behavior with ad hoc SQL.
+
+Terminal code may use shared internal classes from `src/` when they are transport-agnostic or encapsulate reusable business logic. Terminal code must not directly depend on web controllers, route handlers, Twig/view helpers, form handlers, middleware, or other code that assumes a browser-driven HTTP request lifecycle.
+
+Calling authenticated local API endpoints through `TelnetUtils::apiRequest()` is acceptable, including endpoints protected by CSRF, because the terminal server handles that protocol explicitly.
 
 ```text
-❌ $db = Database::getInstance()->getPdo();    (direct DB — forbidden)
-❌ BulletinManager::getUnreadCount($userId);   (web-side class — forbidden)
-✅ TelnetUtils::apiRequest($base, 'GET', '/api/...', null, $session);
-```
+✅ TelnetUtils::apiRequest($base, 'GET', '/api/user/settings', null, $session);
+✅ $doors = (new DoorManager())->getEnabledDoors();
+✅ $db = Database::getInstance()->getPdo(); // narrow internal read/query when appropriate
 
-When a feature needs data that the existing API does not expose, add or extend an endpoint on the web side first, then call it from the terminal side.
+⚠ Direct SQL writes that duplicate existing business logic are usually the wrong choice
+⚠ New public API endpoints created only to let the termserver perform an internal-only action are usually the wrong choice
+
+❌ Calling controllers, form handlers, or web-only helpers from terminal code
+❌ Reimplementing business rules in terminal-side SQL when a shared service already owns them
+```

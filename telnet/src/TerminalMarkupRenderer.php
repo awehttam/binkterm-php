@@ -19,6 +19,8 @@ namespace BinktermPHP\TelnetServer;
  */
 class TerminalMarkupRenderer
 {
+    private const DIRECT_IMAGE_URL_PATTERN = '(?<!\()(https?:\/\/[^\s<>()]+\.(?:png|jpe?g|gif)(?:\?[^\s<>()]*)?(?:#[^\s<>()]*)?)';
+
     // ANSI codes used for markup rendering
     private const R    = "\033[0m";    // reset (used at line ends only)
     private const BOLD = "\033[1m";
@@ -45,11 +47,12 @@ class TerminalMarkupRenderer
     public static function render(string $format, string $text, int $width): array
     {
         $clean = self::stripKludgeLines($text);
+        $clean = self::replaceInlineImageRefsWithTokens($format, $clean);
 
         return match (strtolower($format)) {
             'markdown'   => self::renderMarkdown($clean, $width),
             'stylecodes' => self::renderStyleCodes($clean, $width),
-            default      => TelnetUtils::wrapTextLines($clean, $width),
+            default      => self::renderPlainText($clean, $width),
         };
     }
 
@@ -98,21 +101,16 @@ class TerminalMarkupRenderer
      */
     public static function extractImageRefs(string $format, string $text): array
     {
-        if (strtolower($format) !== 'markdown') {
-            return [];
-        }
-
         $clean = self::stripKludgeLines($text);
-        $refs  = [];
+        $matches = self::scanInlineImageRefs($format, $clean);
+        $refs    = [];
 
-        if (preg_match_all('/!\[([^\]]*)\]\(([^\)]+)\)/', $clean, $matches, PREG_SET_ORDER)) {
-            foreach ($matches as $i => $m) {
-                $refs[] = [
-                    'index' => $i + 1,
-                    'alt'   => $m[1],
-                    'url'   => $m[2],
-                ];
-            }
+        foreach ($matches as $i => $match) {
+            $refs[] = [
+                'index' => $i + 1,
+                'alt'   => $match['alt'],
+                'url'   => $match['url'],
+            ];
         }
 
         return $refs;
@@ -159,19 +157,6 @@ class TerminalMarkupRenderer
      */
     private static function renderMarkdown(string $text, int $width): array
     {
-        // Replace image references with numbered placeholders before any other processing.
-        // The numbering matches extractImageRefs() so callers can correlate by index.
-        $imageNum = 0;
-        $text = preg_replace_callback(
-            '/!\[([^\]]*)\]\(([^\)]+)\)/',
-            static function (array $m) use (&$imageNum): string {
-                $imageNum++;
-                $label = $m[1] !== '' ? $m[1] : $m[2];
-                return "\x00IMAGE{$imageNum}:" . $label . "\x00";
-            },
-            $text
-        ) ?? $text;
-
         $lines  = preg_split('/\r?\n/', $text);
         $output = [];
         $i      = 0;
@@ -337,15 +322,116 @@ class TerminalMarkupRenderer
     }
 
     /**
-     * Apply inline Markdown ANSI formatting to a single already-wrapped line.
+     * Render plain text body to ANSI terminal lines, preserving inline image placeholders.
      *
-     * @param string $text Raw text (no kludges, already wrapped to width)
-     * @return string ANSI-formatted line
+     * @param string $text
+     * @param int    $width
+     * @return string[]
      */
-    private static function inlineMarkdown(string $text): string
+    private static function renderPlainText(string $text, int $width): array
     {
-        // Render image placeholders (set during renderMarkdown pre-pass) in magenta+dim
-        $text = preg_replace_callback(
+        $lines  = preg_split('/\r?\n/', $text);
+        $output = [];
+
+        foreach ($lines as $line) {
+            $wrapped = self::wrapRaw($line, $width);
+            foreach ($wrapped as $wrappedLine) {
+                $output[] = self::renderImagePlaceholders($wrappedLine);
+            }
+        }
+
+        return $output ?: [''];
+    }
+
+    /**
+     * Find markdown image references and standalone direct image URLs in document order.
+     *
+     * Markdown image refs are only matched in their explicit `![alt](url)` form.
+     * Standalone direct image URLs are detected only when they end in a known image
+     * extension and are not the URL segment inside markdown link/image syntax.
+     *
+     * @param string $text
+     * @return array<int, array{offset:int, length:int, alt:string, url:string}>
+     */
+    private static function scanInlineImageRefs(string $format, string $text): array
+    {
+        $isMarkdown = strtolower($format) === 'markdown';
+        $pattern = $isMarkdown
+            ? '/!\[([^\]]*)\]\(([^\)\r\n]+)\)|' . self::DIRECT_IMAGE_URL_PATTERN . '/i'
+            : '/' . self::DIRECT_IMAGE_URL_PATTERN . '/i';
+        $refs    = [];
+
+        if (!preg_match_all($pattern, $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            return $refs;
+        }
+
+        foreach ($matches as $match) {
+            $full   = $match[0][0];
+            $offset = (int)$match[0][1];
+            $alt    = '';
+            $url    = '';
+
+            if ($isMarkdown && isset($match[1][1]) && (int)$match[1][1] >= 0) {
+                $alt = $match[1][0];
+                $url = $match[2][0] ?? '';
+            } elseif (($isMarkdown && isset($match[3][1]) && (int)$match[3][1] >= 0)
+                || (!$isMarkdown && isset($match[1][1]) && (int)$match[1][1] >= 0)
+            ) {
+                $url = $isMarkdown ? $match[3][0] : $match[1][0];
+            }
+
+            if (!$isMarkdown && $url !== '' && self::isImmediatelyPrecededByMarkdownLinkOpen($text, $offset)) {
+                continue;
+            }
+
+            if ($isMarkdown && $url === '' && isset($match[1][1]) && (int)$match[1][1] < 0 && isset($match[3][1]) && (int)$match[3][1] >= 0) {
+                $url = $match[3][0];
+            }
+
+            if ($url === '') {
+                continue;
+            }
+
+            $refs[] = [
+                'offset' => $offset,
+                'length' => strlen($full),
+                'alt'    => $alt,
+                'url'    => $url,
+            ];
+        }
+
+        return $refs;
+    }
+
+    /**
+     * Replace discovered inline image references with numbered placeholder tokens.
+     *
+     * @param string $format
+     * @param string $text
+     * @return string
+     */
+    private static function replaceInlineImageRefsWithTokens(string $format, string $text): string
+    {
+        $imageMatches = self::scanInlineImageRefs($format, $text);
+        for ($i = count($imageMatches) - 1; $i >= 0; $i--) {
+            $match = $imageMatches[$i];
+            $label = $match['alt'] !== '' ? $match['alt'] : $match['url'];
+            $token = "\x00IMAGE" . ($i + 1) . ':' . $label . "\x00";
+            $text  = substr_replace($text, $token, $match['offset'], $match['length']);
+        }
+
+        return $text;
+    }
+
+    /**
+     * Render image placeholder tokens into formatted terminal labels.
+     *
+     * @param string $text
+     * @return string
+     */
+    private static function renderImagePlaceholders(string $text): string
+    {
+        return preg_replace_callback(
             '/\x00IMAGE(\d+):([^\x00]*)\x00/',
             static function (array $m): string {
                 $num   = $m[1];
@@ -354,6 +440,34 @@ class TerminalMarkupRenderer
             },
             $text
         ) ?? $text;
+    }
+
+    /**
+     * Detect whether a direct URL token is the URL segment inside markdown link syntax.
+     *
+     * @param string $text
+     * @param int    $offset
+     * @return bool
+     */
+    private static function isImmediatelyPrecededByMarkdownLinkOpen(string $text, int $offset): bool
+    {
+        if ($offset <= 0) {
+            return false;
+        }
+
+        $prefix = substr($text, 0, $offset);
+        return (bool)preg_match('/\[[^\]]*\]\($/', $prefix);
+    }
+
+    /**
+     * Apply inline Markdown ANSI formatting to a single already-wrapped line.
+     *
+     * @param string $text Raw text (no kludges, already wrapped to width)
+     * @return string ANSI-formatted line
+     */
+    private static function inlineMarkdown(string $text): string
+    {
+        $text = self::renderImagePlaceholders($text);
 
         // Protect inline code spans first
         $codeMap = [];
@@ -489,7 +603,7 @@ class TerminalMarkupRenderer
 
             $wrapped = self::wrapRaw($line, $width);
             foreach ($wrapped as $wl) {
-                $output[] = self::inlineStyleCodes($wl);
+                $output[] = self::inlineStyleCodes(self::renderImagePlaceholders($wl));
             }
         }
 
