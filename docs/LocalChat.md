@@ -44,8 +44,6 @@ The browser chat UI uses BinkStream (WebSocket or SSE) for live delivery with a 
 The shared terminal server exposes Local Chat from the main menu for both Telnet and SSH users.
 
 - Press `C` at the main menu to open **Local Chat**
-- The current wide layout uses a left navigation pane, a larger message pane, and a full-width compose box
-- Online users are shown in the left navigation pane rather than in a dedicated sidebar
 - Messages are rendered as terminal Markdown, matching the message-body renderer used by echomail and netmail viewers
 - Re-entering terminal chat restores the last selected room or DM from user metadata
 - The terminal client uses polling rather than SSE/BinkStream for updates while the chat screen is open

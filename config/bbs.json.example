@@ -25,6 +25,10 @@
         "enabled": false,
         "share_summary_enabled": true
     },
+    "terminal_idle": {
+        "warn_minutes": 5,
+        "disconnect_minutes": 7
+    },
     "packet_bbs": {
         "session_timeout_minutes": 15,
         "allow_guest_who": true

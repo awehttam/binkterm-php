@@ -140,6 +140,26 @@ class BbsConfig
      *
      * @return int
      */
+    /**
+     * @return int Seconds before the "Are you still there?" idle warning is shown.
+     */
+    public static function getTerminalIdleWarnSeconds(): int
+    {
+        self::load();
+        $minutes = (int)(self::$config['terminal_idle']['warn_minutes'] ?? 5);
+        return max(60, $minutes * 60);
+    }
+
+    /**
+     * @return int Seconds before an idle session is disconnected (after the warning).
+     */
+    public static function getTerminalIdleDisconnectSeconds(): int
+    {
+        self::load();
+        $minutes = (int)(self::$config['terminal_idle']['disconnect_minutes'] ?? 7);
+        return max(self::getTerminalIdleWarnSeconds() + 60, $minutes * 60);
+    }
+
     public static function getEchomailModerationThreshold(): int
     {
         self::load();

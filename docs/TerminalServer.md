@@ -154,7 +154,7 @@ Every action in the terminal main menu can be bound to a different single letter
 
 If no custom map is saved the built-in defaults above are used. When a custom map is saved, any action with no assigned key is hidden from the menu and its slot is not rendered — remaining items in that section reflow to fill the gap. When every action in a section (Messaging, Community/Explore, or Files/Settings) is unassigned, the section header itself is suppressed. The `quit` key is always required. Sysops are responsible for ensuring their `mainmenu.ans` art matches whatever keys are configured.
 
-The key map is fetched once per session from `GET /api/config/term-menu-keys` immediately after login.
+The key map is returned as part of the `GET /api/config/session-init` call made immediately after login.
 
 ### Local Chat
 
@@ -202,7 +202,7 @@ messages, and the compose box still fit on screen.
 
 ### Idle Timeout
 
-Sessions that have been idle for 300 seconds receive a warning prompt. If no input is received within a further window (420 seconds total), the session is disconnected automatically. Activity at any point resets the timer.
+After a configurable period of inactivity the session displays an "Are you still there?" prompt. If no key is pressed before a second configurable deadline the session is disconnected. Any keypress resets the timer. The thresholds are set in **Admin → BBS Settings → Terminal Idle Timeout** and default to 5 minutes for the warning and 7 minutes for the disconnect.
 
 ### Login Menu
 
@@ -305,7 +305,7 @@ The terminal server uses the BinktermPHP web API for most operations. It also ma
 |----------|--------|---------|
 | `/api/auth/login` | POST | User authentication |
 | `/api/auth/logout` | POST | Session logout |
-| `/api/user/settings` | GET | Load per-user settings (timezone, locale, terminal prefs) |
+| `/api/config/session-init` | GET | Single post-login call that returns user settings (timezone, locale, date format), terminal settings (charset, ANSI color), idle timeout thresholds, and main menu key bindings |
 | `/api/messages/netmail` | GET | List netmail messages (`filter=all` for inbox, `filter=sent` for sent folder) |
 | `/api/messages/netmail/{id}` | GET | Get netmail message details |
 | `/api/messages/netmail/send` | POST | Send netmail message |
@@ -313,7 +313,6 @@ The terminal server uses the BinktermPHP web API for most operations. It also ma
 | `/api/messages/echomail/{id}` | GET | Get echomail message details |
 | `/api/messages/echomail/post` | POST | Post echomail message |
 | `/api/dashboard/stats` | GET | Main menu dashboard widgets (unread counts, online users, bulletins, credits) |
-| `/api/config/term-menu-keys` | GET | Sysop-configured main menu key bindings (falls back to built-in defaults) |
 
 All API requests include cookie-based session management, automatic retry with
 exponential backoff, and optional SSL certificate verification.

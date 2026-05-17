@@ -12435,6 +12435,52 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    SimpleRouter::get('/config/terminal-idle', function() {
+        RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success'            => true,
+            'warn_seconds'       => \BinktermPHP\BbsConfig::getTerminalIdleWarnSeconds(),
+            'disconnect_seconds' => \BinktermPHP\BbsConfig::getTerminalIdleDisconnectSeconds(),
+        ]);
+    });
+
+    // Combined session-init endpoint — replaces four separate startup calls made by the
+    // terminal server (user settings, terminal settings, idle timeouts, menu keys).
+    SimpleRouter::get('/config/session-init', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $handler    = new MessageHandler();
+        $settings   = $handler->getUserSettings($userId);
+        $translator = new Translator();
+        $resolver   = new LocaleResolver($translator);
+        $settings['locale'] = $resolver->resolveLocale((string)($settings['locale'] ?? ''), $settings);
+        $resolver->persistLocale($settings['locale']);
+
+        $meta = new \BinktermPHP\UserMeta();
+
+        echo json_encode([
+            'success' => true,
+            'user' => [
+                'timezone'    => $settings['timezone']    ?? 'UTC',
+                'date_format' => $settings['date_format'] ?? 'Y-m-d H:i:s',
+                'locale'      => $settings['locale']      ?? 'en',
+            ],
+            'terminal' => [
+                'terminal_charset'    => $meta->getValue((int)$userId, 'terminal_charset'),
+                'terminal_ansi_color' => $meta->getValue((int)$userId, 'terminal_ansi_color'),
+            ],
+            'idle' => [
+                'warn_seconds'       => \BinktermPHP\BbsConfig::getTerminalIdleWarnSeconds(),
+                'disconnect_seconds' => \BinktermPHP\BbsConfig::getTerminalIdleDisconnectSeconds(),
+            ],
+            'term_menu_keys' => \BinktermPHP\AppearanceConfig::getTermMenuKeys(),
+        ]);
+    });
+
     // ---- end terminal menu key config ----
 
 });

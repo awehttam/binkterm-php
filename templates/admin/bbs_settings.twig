@@ -49,6 +49,22 @@
                         <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">{{ t('ui.admin.bbs_settings.system.save', {}, locale, ['common']) }}</button>
                     </form>
                     <hr>
+                    <h6 class="mb-3">{{ t('ui.admin.bbs_settings.terminal_idle.title', {}, locale, ['common']) }}</h6>
+                    <div id="bbsTerminalIdleAlert"></div>
+                    <form id="bbsTerminalIdleForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsIdleWarnMinutes">{{ t('ui.admin.bbs_settings.terminal_idle.warn_minutes', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsIdleWarnMinutes" min="1" step="1" value="5">
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_idle.warn_minutes_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsIdleDisconnectMinutes">{{ t('ui.admin.bbs_settings.terminal_idle.disconnect_minutes', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsIdleDisconnectMinutes" min="2" step="1" value="7">
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_idle.disconnect_minutes_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveTerminalIdle()">{{ t('ui.admin.bbs_settings.terminal_idle.save', {}, locale, ['common']) }}</button>
+                    </form>
+                    <hr>
                     <h6 class="mb-3">{{ t('ui.admin.bbs_settings.packet_bbs.title', {}, locale, ['common']) }}</h6>
                     <div id="bbsPacketBbsAlert"></div>
                     <form id="bbsPacketBbsForm">
@@ -369,6 +385,11 @@ function loadBbsSettings() {
             const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
+            const terminalIdle = data.config?.terminal_idle || {};
+            const idleWarnMinutes = parseInt(terminalIdle.warn_minutes, 10);
+            const idleDisconnectMinutes = parseInt(terminalIdle.disconnect_minutes, 10);
+            document.getElementById('bbsIdleWarnMinutes').value = Number.isNaN(idleWarnMinutes) ? 5 : idleWarnMinutes;
+            document.getElementById('bbsIdleDisconnectMinutes').value = Number.isNaN(idleDisconnectMinutes) ? 7 : idleDisconnectMinutes;
             const packetBbs = data.config?.packet_bbs || {};
             const sessionTimeout = parseInt(packetBbs.session_timeout_minutes, 10);
             document.getElementById('bbsPacketBbsSessionTimeout').value = Number.isNaN(sessionTimeout) ? 15 : sessionTimeout;
@@ -526,6 +547,52 @@ function saveBbsPacketBbs() {
         })
         .catch(error => {
             showBbsPacketBbsAlert(error.message || uiT('ui.admin.bbs_settings.packet_bbs.save_failed', 'Failed to save Packet BBS settings.'), 'danger');
+        });
+}
+
+function saveTerminalIdle() {
+    const warnMinutes = parseInt(document.getElementById('bbsIdleWarnMinutes').value, 10);
+    if (Number.isNaN(warnMinutes) || warnMinutes < 1) {
+        showBbsTerminalIdleAlert(uiT('ui.admin.bbs_settings.validation.terminal_idle_warn_positive', 'Idle warning timeout must be a positive integer.'), 'danger');
+        return;
+    }
+    const disconnectMinutes = parseInt(document.getElementById('bbsIdleDisconnectMinutes').value, 10);
+    if (Number.isNaN(disconnectMinutes) || disconnectMinutes < 1) {
+        showBbsTerminalIdleAlert(uiT('ui.admin.bbs_settings.validation.terminal_idle_disconnect_positive', 'Idle disconnect timeout must be a positive integer.'), 'danger');
+        return;
+    }
+    if (disconnectMinutes <= warnMinutes) {
+        showBbsTerminalIdleAlert(uiT('ui.admin.bbs_settings.validation.terminal_idle_disconnect_gt_warn', 'Idle disconnect timeout must be greater than the warning timeout.'), 'danger');
+        return;
+    }
+
+    fetch('/admin/api/bbs-settings')
+        .then(response => response.json())
+        .then(currentData => {
+            const config = Object.assign({}, currentData.config || {}, {
+                terminal_idle: {
+                    warn_minutes: warnMinutes,
+                    disconnect_minutes: disconnectMinutes
+                }
+            });
+            return fetch('/admin/api/bbs-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config })
+            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.terminal_idle.save_failed', 'Failed to save terminal idle settings.')));
+            }
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.terminal_idle.saved_success', 'Terminal idle timeout settings saved.'))
+                : uiT('ui.admin.bbs_settings.terminal_idle.saved_success', 'Terminal idle timeout settings saved.');
+            showBbsTerminalIdleAlert(successMessage, 'success');
+        })
+        .catch(error => {
+            showBbsTerminalIdleAlert(error.message || uiT('ui.admin.bbs_settings.terminal_idle.save_failed', 'Failed to save terminal idle settings.'), 'danger');
         });
 }
 
@@ -776,6 +843,16 @@ function showBbsSettingsAlert(message, type) {
 
 function showBbsPacketBbsAlert(message, type) {
     const container = document.getElementById('bbsPacketBbsAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showBbsTerminalIdleAlert(message, type) {
+    const container = document.getElementById('bbsTerminalIdleAlert');
     container.innerHTML = `
         <div class="alert alert-${type} alert-dismissible fade show" role="alert">
             ${message}
