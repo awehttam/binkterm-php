@@ -2,6 +2,8 @@
 
 BinktermPHP includes an integrated credits economy that rewards user participation and allows charging for certain actions. Credits can be used to encourage quality content, manage resource usage, and gamify the BBS experience.
 
+> **Sysop?** See [Credit Economy Setup](CreditEconomySetup.md) for a guide on designing a balanced economy, tuning rewards and costs, and monetization considerations. This document covers the developer API and internals.
+
 ## Key Features
 
 - Configurable credit costs and rewards for various activities

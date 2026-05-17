@@ -98,6 +98,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 ## Economy & Engagement
 
+- [Credit Economy Setup](CreditEconomySetup.md) — Sysop guide: designing a balanced credit economy, tuning rewards and costs, monetization considerations
 - [Credit System](CreditSystem.md) — User credit economy: earning, spending, and configuration
 - [Interests](Interests.md) — Topic-based echo area groups users can subscribe to
 - [Advertising](Advertising.md) — Ad banners, Broadcast Manager, and display configuration
