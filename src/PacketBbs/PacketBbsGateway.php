@@ -1196,17 +1196,56 @@ class PacketBbsGateway
             return 'No current message.';
         }
 
+        $state = $this->getSessionState($session);
+        if ($this->isNetmailContext($state)) {
+            $msg = $this->messageHandler->getMessage($id, 'netmail', $session['user_id']);
+            if ($msg) {
+                return $this->renderMessageWithPagination($msg, 'netmail', $id, $nodeId, $renderer);
+            }
+            return sprintf('No message %d.', $id);
+        }
+
+        if ($this->isEchomailContext($state)) {
+            $msg = $this->messageHandler->getMessage($id, 'echomail', $session['user_id']);
+            if ($msg) {
+                return $this->renderMessageWithPagination($msg, 'echomail', $id, $nodeId, $renderer);
+            }
+            return sprintf('No message %d.', $id);
+        }
+
+        // No established context — try netmail then echomail.
         $msg = $this->messageHandler->getMessage($id, 'netmail', $session['user_id']);
         if ($msg) {
             return $this->renderMessageWithPagination($msg, 'netmail', $id, $nodeId, $renderer);
         }
-
         $msg = $this->messageHandler->getMessage($id, 'echomail', $session['user_id']);
         if ($msg) {
             return $this->renderMessageWithPagination($msg, 'echomail', $id, $nodeId, $renderer);
         }
 
         return sprintf('No message %d.', $id);
+    }
+
+    /** @param array<string,mixed> $state */
+    private function isNetmailContext(array $state): bool
+    {
+        if (!empty($state['current_area'])) {
+            return false;
+        }
+        $listType = $state['current_list']['type'] ?? '';
+        if ($listType === 'netmail') {
+            return true;
+        }
+        return $listType === 'message' && ($state['current_message']['type'] ?? '') === 'netmail';
+    }
+
+    /** @param array<string,mixed> $state */
+    private function isEchomailContext(array $state): bool
+    {
+        if (!empty($state['current_area'])) {
+            return true;
+        }
+        return ($state['current_list']['type'] ?? '') === 'echomail';
     }
 
     /**
@@ -1292,11 +1331,28 @@ class PacketBbsGateway
             return 'Use: RP <id>';
         }
 
+        $state = $this->getSessionState($session);
+        if ($this->isNetmailContext($state)) {
+            $msg = $this->messageHandler->getMessage($id, 'netmail', $session['user_id']);
+            if ($msg) {
+                return $this->handleNetmailReply($session, $nodeId, $id, $renderer);
+            }
+            return sprintf('No message %d.', $id);
+        }
+
+        if ($this->isEchomailContext($state)) {
+            $msg = $this->messageHandler->getMessage($id, 'echomail', $session['user_id']);
+            if ($msg) {
+                return $this->handleEchomailReply($session, $nodeId, $id, $renderer);
+            }
+            return sprintf('No message %d.', $id);
+        }
+
+        // No established context — try netmail then echomail.
         $msg = $this->messageHandler->getMessage($id, 'netmail', $session['user_id']);
         if ($msg) {
             return $this->handleNetmailReply($session, $nodeId, $id, $renderer);
         }
-
         $msg = $this->messageHandler->getMessage($id, 'echomail', $session['user_id']);
         if ($msg) {
             return $this->handleEchomailReply($session, $nodeId, $id, $renderer);
