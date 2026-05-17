@@ -19,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - The shared terminal server now includes **Local Chat** from the main menu. Telnet and SSH users can open room chat, switch rooms and DMs, view online users from the left navigation pane, read Markdown-rendered messages, and send new messages without leaving the terminal session.
 - The terminal chat client uses the existing local chat API with polling, so no additional daemon or sysop configuration is required when upgrading.
+- The terminal main menu now reacts to live terminal resize events. On Telnet NAWS updates and SSH window-change events, the menu redraws to the new dimensions without requiring an extra keypress, and dashboard widgets are re-laid out using cached stats rather than triggering another API call.
 
 ### Developer Tooling
 
@@ -30,6 +31,8 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Terminal Server
 
 Terminal users can now access Local Chat directly from the shared BBS main menu by pressing `C`.
+
+The shared terminal main menu also now responds to terminal window resizing while waiting for input. If the user resizes the terminal, the menu redraws immediately for the new width and height, and the dashboard widgets switch between the wide sidebar and narrow bottom-bar layouts as needed without making another `/api/dashboard/stats` request.
 
 The terminal client currently provides:
 
