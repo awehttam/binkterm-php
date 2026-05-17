@@ -1262,26 +1262,13 @@ class ChatHandler
 
     private function positionInputCursor($conn, array $chat, array $layoutInfo): void
     {
-        if (empty($layoutInfo['rows'])) {
+        $cursor = $this->buildInputCursorSequence($chat, $layoutInfo);
+        if ($cursor === null) {
             TelnetUtils::setCursorVisible($conn, true);
             return;
         }
 
-        $inputRow = $layoutInfo['rows'][count($layoutInfo['rows']) - 1] ?? null;
-        if (!$inputRow || empty($inputRow['panes'][0])) {
-            TelnetUtils::setCursorVisible($conn, true);
-            return;
-        }
-
-        $pane = $inputRow['panes'][0];
-        $contentRow = (int)$pane['y'] + 5;
-        $contentCol = (int)$pane['x'] + 3;
-        $width = max(10, (int)$pane['width'] - 6);
-        [, $cursorPos] = $this->getVisibleInputWindow((string)$chat['input'], (int)$chat['input_cursor'], $width);
-        $col = $contentCol + $cursorPos;
-        $row = $contentRow;
-        $this->server->safeWrite($conn, "\033[{$row};{$col}H");
-        TelnetUtils::setCursorVisible($conn, true);
+        $this->server->safeWrite($conn, $cursor . "\033[?25h");
     }
 
     private function renderInputPaneOnly($conn, array &$state, array &$chat): void
@@ -1306,16 +1293,43 @@ class ChatHandler
         $chars = $this->server->getTerminalLineDrawingChars();
         $borderColor = (string)($pane['pane']['border_color'] ?? TelnetUtils::ANSI_BLUE);
 
-        TelnetUtils::setCursorVisible($conn, false);
+        $buffer = "\033[?25l";
         for ($i = 0; $i < $contentHeight; $i++) {
             $line = $inputLines[$i] ?? '';
             $rendered = $this->renderSplitPaneContentLine($line, $contentWidth, $chars, $borderColor);
             $row = (int)$pane['y'] + 3 + $i;
             $col = (int)$pane['x'];
-            $this->server->safeWrite($conn, "\033[{$row};{$col}H" . $rendered);
+            $buffer .= "\033[{$row};{$col}H" . $rendered;
         }
 
-        $this->positionInputCursor($conn, $chat, $layoutInfo);
+        $cursor = $this->buildInputCursorSequence($chat, $layoutInfo);
+        if ($cursor !== null) {
+            $buffer .= $cursor;
+        }
+        $buffer .= "\033[?25h";
+        $this->server->safeWrite($conn, $buffer);
+    }
+
+    private function buildInputCursorSequence(array $chat, array $layoutInfo): ?string
+    {
+        if (empty($layoutInfo['rows'])) {
+            return null;
+        }
+
+        $inputRow = $layoutInfo['rows'][count($layoutInfo['rows']) - 1] ?? null;
+        if (!$inputRow || empty($inputRow['panes'][0])) {
+            return null;
+        }
+
+        $pane = $inputRow['panes'][0];
+        $contentRow = (int)$pane['y'] + 5;
+        $contentCol = (int)$pane['x'] + 3;
+        $width = max(10, (int)$pane['width'] - 6);
+        [, $cursorPos] = $this->getVisibleInputWindow((string)$chat['input'], (int)$chat['input_cursor'], $width);
+        $col = $contentCol + $cursorPos;
+        $row = $contentRow;
+
+        return "\033[{$row};{$col}H";
     }
 
     private function renderSplitPaneContentLine(string $line, int $contentWidth, array $chars, string $borderColor): string
