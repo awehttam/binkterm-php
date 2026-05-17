@@ -217,10 +217,12 @@ class SshServer
                 'csrf_token' => $authResult['csrf_token'] ?? null,
                 'cols'       => $authResult['cols'] ?? 80,
                 'rows'       => $authResult['rows'] ?? 24,
+                'sixel_supported' => !empty($authResult['sixel_supported']),
             ]
             : [
                 'cols' => $authResult['cols'] ?? 80,
                 'rows' => $authResult['rows'] ?? 24,
+                'sixel_supported' => !empty($authResult['sixel_supported']),
             ];
 
         if ($bridgePid === -1) {

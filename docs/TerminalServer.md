@@ -132,6 +132,7 @@ Stats are refreshed from the API after returning from netmail, echomail, or bull
 - Goodbye message on logout with reminder to visit website
 - Unread and new message counts shown on main menu items (netmail: unread count; echomail: new since last visit)
 - Live dashboard widgets alongside the main menu (see above)
+- Shoutbox screens use the same centered framed panel style as other terminal viewers, with separate timestamp/author headers and wrapped message bodies for cleaner readability
 - Helpful command documentation
 
 ### Customizable Main Menu Keys
@@ -252,6 +253,7 @@ consistent across Telnet and SSH.
   - Uses encrypted SSH-2 transport and host-key authentication model
   - Supports direct login when SSH credentials validate successfully
   - Passes PTY dimensions from `pty-req` to the BBS session
+  - Sixel capability probing for SSH runs inside the SSH transport layer before `BbsSession` starts, so the DA reply can be consumed there without leaking into pre-login prompts
 
 ## Custom Terminal Screens
 

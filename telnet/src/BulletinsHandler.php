@@ -61,14 +61,16 @@ class BulletinsHandler
             $lines = $format === 'markdown'
                 ? TerminalMarkupRenderer::render('markdown', $body, $width)
                 : $this->renderAnsiPlainBulletin($body, $width, ($state['terminal_ansi_color'] ?? 'yes') !== 'no');
-            $title = (string)($bulletin['title'] ?? $this->server->t('ui.terminalserver.bulletins.title', 'Bulletins', [], $state['locale']));
+            $bulletinsLabel = $this->server->t('ui.terminalserver.bulletins.title', 'Bulletins', [], $state['locale']);
+            $bulletinTitle = trim((string)($bulletin['title'] ?? ''));
+            $title = $bulletinTitle !== '' ? $bulletinsLabel . ': ' . $bulletinTitle : $bulletinsLabel;
             $prompt = $this->server->t(
                 'ui.terminalserver.bulletins.continue',
                 'Bulletin {current} of {total}. Press Enter for next, S to skip all...',
                 ['current' => $index + 1, 'total' => count($bulletins)],
                 $state['locale']
             );
-            $key = $box->showPagedBox($conn, $state, $title, $lines, $prompt, 2, ['CHAR:s', 'CHAR:S']);
+            $key = $box->showPagedBox($conn, $state, $title, $lines, $prompt, 2, ['CHAR:s', 'CHAR:S'], TerminalBoxRenderer::SCHEME_BULLETINS);
             if ($key === 'CHAR:s' || $key === 'CHAR:S') {
                 break;
             }

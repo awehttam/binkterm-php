@@ -176,6 +176,9 @@ class BbsSession
         if ($this->preAuthSession !== null) {
             if (!empty($this->preAuthSession['cols'])) { $state['cols'] = (int)$this->preAuthSession['cols']; }
             if (!empty($this->preAuthSession['rows'])) { $state['rows'] = (int)$this->preAuthSession['rows']; }
+            if (array_key_exists('sixel_supported', $this->preAuthSession)) {
+                $this->sixelSupported = (bool)$this->preAuthSession['sixel_supported'];
+            }
         }
 
         if ($this->debug) {
@@ -213,9 +216,9 @@ class BbsSession
                 }
             }
         } else {
-            // SSH clients are assumed ANSI/UTF-8; probe for sixel support the same
-            // way telnet does — send a Primary DA request and check for attribute 4.
-            $this->probeSixelSupport($conn, $state);
+            // SSH capability probing is handled in SshSession before BbsSession
+            // starts so that DA replies cannot leak into prompt input. At this
+            // point sixelSupported may already be seeded via preAuthSession.
         }
 
         if (!$this->peerName || !$this->peerIp) {
@@ -2447,88 +2450,15 @@ class BbsSession
 
         $line = '';
         while (true) {
-            if (!empty($state['pushback'])) {
-                $char = $state['pushback'][0];
-                $state['pushback'] = substr($state['pushback'], 1);
-            } else {
-                $char = fread($conn, 1);
+            $char = $this->readRawChar($conn, $state);
+            if ($char === null) {
+                return null;
             }
-
-            if ($char === false || $char === '') {
-                if (!is_resource($conn) || feof($conn)) { return null; }
-                $meta = stream_get_meta_data($conn);
-                if ($meta['timed_out']) { return null; }
+            if ($char === "\x00") {
                 continue;
             }
 
-            $byte = ord($char);
-
-            // ---- TELNET state machine ----
-            if (!empty($state['telnet_mode'])) {
-                if ($state['telnet_mode'] === 'IAC') {
-                    if ($byte === self::IAC) {
-                        $line .= chr(self::IAC);
-                        $state['telnet_mode'] = null;
-                    } elseif (in_array($byte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
-                        $state['telnet_mode'] = 'IAC_CMD';
-                        $state['telnet_cmd']  = $byte;
-                    } elseif ($byte === self::SB) {
-                        $state['telnet_mode'] = 'SB';
-                        $state['sb_opt']      = null;
-                        $state['sb_data']     = '';
-                    } else {
-                        $state['telnet_mode'] = null;
-                    }
-                    continue;
-                }
-                if ($state['telnet_mode'] === 'IAC_CMD') {
-                    if (($state['telnet_cmd'] ?? null) === self::WILL && $byte === self::OPT_TTYPE) {
-                        $this->requestTerminalType($conn);
-                    }
-                    $state['telnet_mode'] = null;
-                    $state['telnet_cmd']  = null;
-                    continue;
-                }
-                if ($state['telnet_mode'] === 'SB') {
-                    if ($state['sb_opt'] === null) { $state['sb_opt'] = $byte; continue; }
-                    if ($byte === self::IAC)        { $state['telnet_mode'] = 'SB_IAC'; continue; }
-                    $state['sb_data'] .= chr($byte);
-                    continue;
-                }
-                if ($state['telnet_mode'] === 'SB_IAC') {
-                    if ($byte === self::SE) {
-                        if ($state['sb_opt'] === self::OPT_NAWS && strlen($state['sb_data']) >= 4) {
-                            $w = (ord($state['sb_data'][0]) << 8) + ord($state['sb_data'][1]);
-                            $h = (ord($state['sb_data'][2]) << 8) + ord($state['sb_data'][3]);
-                            if ($w > 0) { $state['cols'] = $w; }
-                            if ($h > 0) { $state['rows'] = $h; }
-                            if ($this->debug) { $this->log("NAWS: {$w}x{$h}"); }
-                        } elseif ($state['sb_opt'] === self::OPT_TTYPE && strlen($state['sb_data']) >= 2 && ord($state['sb_data'][0]) === 0) {
-                            $ttype = trim(substr($state['sb_data'], 1));
-                            $this->recordTerminalType($state, $ttype);
-                        }
-                        $state['telnet_mode'] = null;
-                        $state['sb_opt']      = null;
-                        $state['sb_data']     = '';
-                        continue;
-                    }
-                    if ($byte === self::IAC) {
-                        $state['sb_data']     .= chr(self::IAC);
-                        $state['telnet_mode']  = 'SB';
-                        continue;
-                    }
-                    $state['telnet_mode'] = 'SB';
-                    continue;
-                }
-            }
-
-            if ($byte === self::IAC) { $state['telnet_mode'] = 'IAC'; continue; }
-
-            // Consume the LF (or NUL) that follows a CR in non-binary telnet.
-            if (!empty($state['skip_lf_once'])) {
-                $state['skip_lf_once'] = false;
-                if ($byte === 10 || $byte === 0) { continue; }
-            }
+            $byte = ord($char[0]);
 
             if ($byte === 10) {
                 if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\r\n"); }
@@ -2547,6 +2477,12 @@ class BbsSession
                 continue;
             }
             if ($byte === 0) { continue; }
+
+            // Ignore ANSI escape sequences and other multi-byte key tokens in
+            // line mode instead of echoing terminal control bytes back out.
+            if (strlen($char) > 1 || $byte === 27) {
+                continue;
+            }
 
             $line .= chr($byte);
             if (!empty($state['input_echo'])) { $this->safeWrite($conn, chr($byte)); }
@@ -2894,15 +2830,53 @@ class BbsSession
                 }
                 $next2 = fread($conn, 1);
                 if ($next2 === false) { return chr(27); }
-                if (ord($next2) >= ord('0') && ord($next2) <= ord('9')) {
-                    $r = [$conn]; $w = $ex = null;
-                    if (@stream_select($r, $w, $ex, 0, 50000) > 0) {
-                        $tilde = fread($conn, 1);
-                        if ($tilde === '~') { return chr(27) . '[' . $next2 . '~'; }
-                        // Not a tilde — push the byte back rather than silently discarding it,
-                        // so multi-byte sequences like CPR (ESC[row;colR) are not corrupted.
-                        if ($tilde !== false && $tilde !== '') {
-                            $state['pushback'] = ($state['pushback'] ?? '') . $tilde;
+                if ($next2 === '?' || $next2 === '>' || $next2 === '=') {
+                    $seq = $next2;
+                    while (true) {
+                        $r = [$conn]; $w = $ex = null;
+                        if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
+                            return "\x00";
+                        }
+
+                        $next = fread($conn, 1);
+                        if ($next === false || $next === '') {
+                            return "\x00";
+                        }
+
+                        $seq .= $next;
+                        if (preg_match('/^[0-9;?<>=]*[A-Za-z~]$/', $seq)) {
+                            // Terminal-generated CSI responses such as DA/CPR
+                            // are protocol chatter, not user input.
+                            return "\x00";
+                        }
+                    }
+                }
+                if (ctype_digit($next2)) {
+                    $seq = $next2;
+                    while (true) {
+                        $r = [$conn]; $w = $ex = null;
+                        if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
+                            return chr(27) . '[' . $next2;
+                        }
+
+                        $next = fread($conn, 1);
+                        if ($next === false || $next === '') {
+                            return chr(27) . '[' . $next2;
+                        }
+
+                        if ($next === '~') {
+                            return chr(27) . '[' . $seq . '~';
+                        }
+
+                        $seq .= $next;
+                        if (preg_match('/^[0-9;]*[A-Za-z]$/', $seq)) {
+                            // Device reports like CPR (ESC[row;colR) are not
+                            // keypresses and should not enter the input stream.
+                            return "\x00";
+                        }
+
+                        if (!preg_match('/^[0-9;]+$/', $seq)) {
+                            return "\x00";
                         }
                     }
                 }

@@ -58,35 +58,12 @@ class ShoutboxHandler
         $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: entered");
         while (true) {
             $messages = $this->getMessages($session, $limit);
-            $cols = (int)($state['cols'] ?? 80);
-            $innerWidth = max(20, min($cols - 2, 78));
-
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']), TelnetUtils::ANSI_MAGENTA . TelnetUtils::ANSI_BOLD));
-            TelnetUtils::writeLine($conn, '');
-
-            if (!$messages) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.no_messages', 'No shoutbox messages.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
-            } else {
-                $lineIndex = 0;
-                foreach ($messages as $msg) {
-                    $user = $msg['username'] ?? 'Unknown';
-                    $text = str_replace(["\r\n", "\r", "\n"], ' ', (string)($msg['message'] ?? ''));
-                    $date = TelnetUtils::formatUserDate($msg['created_at'] ?? '', $state, false);
-                    $line = sprintf('[%s] %s: %s', $date, $user, $text);
-                    $wrapped = wordwrap($line, $innerWidth, "\n", false);
-                    foreach (explode("\n", $wrapped) as $part) {
-                        if (strlen($part) > $innerWidth) {
-                            $part = substr($part, 0, $innerWidth - 3) . '...';
-                        }
-                        $color = ($lineIndex % 2 === 0) ? TelnetUtils::ANSI_GREEN : TelnetUtils::ANSI_CYAN;
-                        TelnetUtils::writeLine($conn, TelnetUtils::colorize($part, $color));
-                        $lineIndex++;
-                    }
-                }
-            }
-
-            TelnetUtils::writeLine($conn, '');
+        $this->renderShoutboxBox(
+            $conn,
+            $state,
+            $this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']),
+            $messages
+        );
             $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.menu', '[P]ost  [R]efresh  [Q]uit: ', [], $state['locale']), TelnetUtils::ANSI_YELLOW), true);
             if ($choice === null) {
                 return;
@@ -139,33 +116,13 @@ class ShoutboxHandler
     private function renderReadOnly($conn, array &$state, string $session, int $limit): void
     {
         $messages = $this->getMessages($session, $limit);
-        $cols = (int)($state['cols'] ?? 80);
-        $innerWidth = max(20, min($cols - 2, 78));
-
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.recent_title', 'Recent Shoutbox', [], $state['locale']), TelnetUtils::ANSI_MAGENTA . TelnetUtils::ANSI_BOLD));
-
-        if (!$messages) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.no_messages', 'No shoutbox messages.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
-        } else {
-            $lineIndex = 0;
-            foreach ($messages as $msg) {
-                $user = $msg['username'] ?? 'Unknown';
-                $text = str_replace(["\r\n", "\r", "\n"], ' ', (string)($msg['message'] ?? ''));
-                $date = TelnetUtils::formatUserDate($msg['created_at'] ?? '', $state, false);
-                $line = sprintf('[%s] %s: %s', $date, $user, $text);
-                $wrapped = wordwrap($line, $innerWidth, "\n", false);
-                foreach (explode("\n", $wrapped) as $part) {
-                    if (strlen($part) > $innerWidth) {
-                        $part = substr($part, 0, $innerWidth - 3) . '...';
-                    }
-                    $color = ($lineIndex % 2 === 0) ? TelnetUtils::ANSI_GREEN : TelnetUtils::ANSI_CYAN;
-                    TelnetUtils::writeLine($conn, TelnetUtils::colorize($part, $color));
-                    $lineIndex++;
-                }
-            }
-        }
-
-        TelnetUtils::writeLine($conn, '');
+        $this->renderShoutboxBox(
+            $conn,
+            $state,
+            $this->server->t('ui.terminalserver.shoutbox.recent_title', 'Recent Shoutbox', [], $state['locale']),
+            $messages,
+            6
+        );
         TelnetUtils::writeLine(
             $conn,
             TelnetUtils::colorize(
@@ -231,4 +188,96 @@ class ShoutboxHandler
 
         return $response['data']['messages'] ?? [];
     }
+
+    /**
+     * @param array<int,array<string,mixed>> $messages
+     * @param resource $conn
+     */
+    private function renderShoutboxBox($conn, array &$state, string $title, array $messages, int $verticalMargin = 4): void
+    {
+        $cols = max(40, (int)($state['cols'] ?? 80));
+        $rows = max(12, (int)($state['rows'] ?? 24));
+        $boxWidth = max(38, min($cols - 4, 96));
+        $contentWidth = max(20, $boxWidth - 4);
+        $boxHeight = max(8, $rows - max(2, $verticalMargin));
+        $contentHeight = max(3, $boxHeight - 4);
+
+        $lines = $this->buildMessageLines($messages, $state, $contentWidth);
+        if (count($lines) > $contentHeight) {
+            $lines = array_slice($lines, -(max(1, $contentHeight - 1)));
+            array_unshift($lines, TelnetUtils::colorize('...', TelnetUtils::ANSI_DIM));
+        }
+
+        $shoutboxLabel = $this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']);
+        $headerTitle = trim($title) === $shoutboxLabel ? $shoutboxLabel : $shoutboxLabel . ': ' . $title;
+
+        $renderer = new TerminalBoxRenderer($this->server);
+        $renderer->renderBox($conn, $state, $headerTitle, $lines, $verticalMargin, TerminalBoxRenderer::SCHEME_SHOUTBOX);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $messages
+     * @return string[]
+     */
+    private function buildMessageLines(array $messages, array $state, int $contentWidth): array
+    {
+        if (empty($messages)) {
+            return [
+                TelnetUtils::colorize(
+                    $this->server->t('ui.terminalserver.shoutbox.no_messages', 'No shoutbox messages.', [], $state['locale']),
+                    TelnetUtils::ANSI_YELLOW
+                )
+            ];
+        }
+
+        $lines = [];
+        foreach ($messages as $index => $msg) {
+            $user = trim((string)($msg['username'] ?? 'Unknown'));
+            if ($user === '') {
+                $user = 'Unknown';
+            }
+
+            $text = trim(str_replace(["\r\n", "\r", "\n"], ' ', (string)($msg['message'] ?? '')));
+            $date = TelnetUtils::formatUserDate((string)($msg['created_at'] ?? ''), $state, false);
+            $header = TelnetUtils::colorize($date, TelnetUtils::ANSI_YELLOW)
+                . ' '
+                . TelnetUtils::colorize($user, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD);
+            $lines[] = $header;
+
+            $messageWidth = max(12, $contentWidth - 2);
+            $wrapped = $this->wrapPlainText($text === '' ? '-' : $text, $messageWidth);
+            foreach ($wrapped as $part) {
+                $lines[] = '  ' . TelnetUtils::colorize($part, TelnetUtils::ANSI_GREEN);
+            }
+
+            if ($index !== array_key_last($messages)) {
+                $lines[] = '';
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return string[]
+     */
+    private function wrapPlainText(string $text, int $width): array
+    {
+        $text = preg_replace('/\s+/', ' ', trim($text)) ?? trim($text);
+        if ($text === '') {
+            return [''];
+        }
+
+        $wrapped = wordwrap($text, max(1, $width), "\n", false);
+        $lines = explode("\n", $wrapped);
+
+        return array_map(static function (string $line) use ($width): string {
+            if (mb_strwidth($line, 'UTF-8') <= $width) {
+                return $line;
+            }
+
+            return mb_strimwidth($line, 0, max(0, $width - 3), '...', 'UTF-8');
+        }, $lines);
+    }
+
 }
