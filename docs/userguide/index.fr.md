@@ -231,7 +231,7 @@ Plusieurs réseaux FTN (FidoNet, FSXNet, AgoraNet, DoveNet, et d'autres) fonctio
 
 ---
 
-## Accès radio et mesh (PacketBBS)
+## Accès radio et mesh (PacketBBS) {#acces-radio-et-mesh-packetbbs}
 
 PacketBBS est une méthode d'accès qui vous permet de lire et de poster sur le BBS depuis un **appareil radio packet ou mesh** — même sans connexion internet. Il utilise des commandes texte courtes et économes en bande passante, conçues pour fonctionner sur des liaisons radio à faible débit.
 

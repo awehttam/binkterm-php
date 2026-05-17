@@ -14,7 +14,7 @@ Welcome aboard! This guide will walk you through everything this BBS has to offe
 6. [Doors: Games & Applications](#doors-games-applications)
 7. [File Areas](#file-areas)
 8. [Exploring the BBS Networks](#exploring-the-bbs-networks)
-9. [Radio & Mesh Access (PacketBBS)](#radio--mesh-access-packetbbs)
+9. [Radio & Mesh Access (PacketBBS)](#radio-mesh-access-packetbbs)
 10. [Your Profile & Settings](#your-profile-settings)
 11. [Getting Help](#getting-help)
 
@@ -231,7 +231,7 @@ Multiple FTN networks (FidoNet, FSXNet, AgoraNet, DoveNet, and others) operate i
 
 ---
 
-## Radio & Mesh Access (PacketBBS)
+## Radio & Mesh Access (PacketBBS) {#radio-mesh-access-packetbbs}
 
 PacketBBS is an access method that lets you read and post on the BBS from a **packet radio or mesh radio device** — even without internet access. It uses short, bandwidth-efficient text commands designed to work over low-speed radio links.
 
