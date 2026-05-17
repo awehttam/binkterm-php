@@ -1661,11 +1661,26 @@ Returns aggregated dashboard statistics including user activity, message counts,
 
 **Response** _(JSON)_
 
-Dashboard statistics object
+Dashboard statistics object. All counts are for the authenticated user.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `stats` | object | User-specific dashboard statistics (structure varies by service implementation) |
+| `unread_netmail` | integer | Netmail badge count (non-zero only when new messages arrived since last check) |
+| `total_netmail` | integer | True unread netmail count |
+| `new_echomail` | integer | Echomail messages in subscribed areas since last visit |
+| `online_count` | integer | Users active in the last 15 minutes |
+| `unread_bulletins` | integer | Unread bulletins for the authenticated user |
+| `credit_balance` | integer | User credit balance (0 if credits disabled) |
+| `chat_total` | integer | New chat messages since last visit |
+| `new_files` | integer | New approved files since last visit |
+| `new_echoareas` | integer | Echo areas created in the last 30 days |
+| `recent_echoareas` | array | Up to 8 most recently created echo area objects |
+| `echomail_max_id` | integer | Current max echomail row ID (used for badge tracking) |
+| `chat_max_id` | integer | Current max chat message ID |
+| `files_max_id` | integer | Current max file ID |
+| `total_files` | integer | Total approved files |
+| `pending_file_approvals` | integer | _(admin only)_ Files pending approval |
+| `pending_echomail_moderation` | integer | _(admin only)_ Echomail messages pending moderation |
 
 **Error Responses**
 

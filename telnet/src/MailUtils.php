@@ -220,6 +220,48 @@ class MailUtils
     }
 
     /**
+     * Fetches dashboard stats for the main menu via /api/dashboard/stats.
+     *
+     * Returns unread/new counts for messaging, online users, bulletins, and
+     * credits. Replaces getMessageCounts() for the main menu — one API call
+     * instead of two, and provides true unread/new figures instead of totals.
+     *
+     * @param string $apiBase Base URL for API requests
+     * @param string $session Session token for authentication
+     * @return array{
+     *   unread_netmail: int,
+     *   new_echomail: int,
+     *   online_count: int,
+     *   unread_bulletins: int,
+     *   credit_balance: int|null
+     * }
+     */
+    public static function getDashboardStats(string $apiBase, string $session): array
+    {
+        $defaults = [
+            'unread_netmail'   => 0,
+            'new_echomail'     => 0,
+            'online_count'     => 0,
+            'unread_bulletins' => 0,
+            'credit_balance'   => null,
+        ];
+
+        $response = TelnetUtils::apiRequest($apiBase, 'GET', '/api/dashboard/stats', null, $session);
+        if (($response['status'] ?? 0) !== 200 || empty($response['data'])) {
+            return $defaults;
+        }
+
+        $data = $response['data'];
+        return [
+            'unread_netmail'   => (int)($data['total_netmail']    ?? 0),
+            'new_echomail'     => (int)($data['new_echomail']      ?? 0),
+            'online_count'     => (int)($data['online_count']      ?? 0),
+            'unread_bulletins' => (int)($data['unread_bulletins']  ?? 0),
+            'credit_balance'   => isset($data['credit_balance']) ? (int)$data['credit_balance'] : null,
+        ];
+    }
+
+    /**
      * Fetch available taglines.
      *
      * @return array List of taglines

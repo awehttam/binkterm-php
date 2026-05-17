@@ -445,7 +445,7 @@ class BbsSession
             $interestsHandler->showOnboardingHintIfNeeded($conn, $state, $session);
         }
 
-        $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
+        $dashboardStats = MailUtils::getDashboardStats($this->apiBase, $session);
 
         // ===== MAIN MENU LOOP =====
         while (true) {
@@ -524,8 +524,8 @@ class BbsSession
                 $empty    = str_repeat(' ', $colWidth);
 
                 // Pre-build stripped, normalised labels
-                $lblNetmail    = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.netmail',   'N) Netmail ({count} messages)',   ['count' => $messageCounts['netmail']],   $locale), 'N'), $state);
-                $lblEchomail   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.echomail',  'E) Echomail ({count} messages)',  ['count' => $messageCounts['echomail']], $locale), 'E'), $state);
+                $lblNetmail    = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.netmail',   'N) Netmail ({count} unread)',     ['count' => $dashboardStats['unread_netmail']], $locale), 'N'), $state);
+                $lblEchomail   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.echomail',  'E) Echomail ({count} new)',       ['count' => $dashboardStats['new_echomail']],   $locale), 'E'), $state);
                 $lblQwk        = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.qwk',        'K) QWK Offline Mail',             [],                                      $locale), 'K'), $state);
                 $lblWhosOnline = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.whos_online',"W) Who's Online",                 [],                                      $locale), 'W'), $state);
                 $lblShoutbox   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.shoutbox',   'S) Shoutbox',                     [],                                      $locale), 'S'), $state);
@@ -602,8 +602,20 @@ class BbsSession
                 }
 
                 $this->writeLine($conn, $menuPad . $this->colorize($boxBottom, self::ANSI_BLUE . self::ANSI_BOLD));
+
+                // Dashboard widgets: sidebar (wide screens) or bottom bar (narrow).
+                // Row layout: 1=status, 2=blank, 3=box-top, 4=title, 5=divider,
+                // 6…5+count($rows)=menu items, 6+count($rows)=box-bottom.
+                $termRows     = $state['rows'] ?? 24;
+                $boxStartRow  = 3;
+                $boxBottomRow = 6 + count($rows);
+                $this->renderMenuWidgets($conn, $state, $dashboardStats, $menuLeft, $menuWidth, $boxStartRow, $boxBottomRow, $termRows);
+
                 $this->writeLine($conn, '');
             }
+
+            $lastRenderCols = $state['cols'] ?? 80;
+            $lastRenderRows = $state['rows'] ?? 24;
 
             $choice      = '';
             $promptShown = false;
@@ -628,6 +640,13 @@ class BbsSession
                 }
                 if ($timedOut) { continue; }
 
+                // Detect terminal resize (NAWS updated $state during readTelnetKeyWithTimeout)
+                $currentCols = $state['cols'] ?? 80;
+                $currentRows = $state['rows'] ?? 24;
+                if ($currentCols !== $lastRenderCols || $currentRows !== $lastRenderRows) {
+                    continue 2; // restart outer loop to re-render menu at new dimensions
+                }
+
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
                     if (in_array($char, ['n','e','q','s','u','p','w','d','f','t','i','k','b','l'], true) || ctype_digit($char)) {
@@ -641,17 +660,18 @@ class BbsSession
             if ($choice === 'n') {
                 $this->log("Menu: {$username} -> Netmail");
                 $netmailHandler->show($conn, $state, $session);
-                $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
+                $dashboardStats = MailUtils::getDashboardStats($this->apiBase, $session);
             } elseif ($choice === 'e') {
                 $this->log("Menu: {$username} -> Echomail");
                 $echomailHandler->showEchoareas($conn, $state, $session);
-                $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
+                $dashboardStats = MailUtils::getDashboardStats($this->apiBase, $session);
             } elseif (!empty($shoutboxOption) && $choice === $shoutboxOption) {
                 $this->log("Menu: {$username} -> Shoutbox");
                 $shoutboxHandler->show($conn, $state, $session, 20);
             } elseif (!empty($bulletinsOption) && $choice === $bulletinsOption) {
                 $this->log("Menu: {$username} -> Bulletins");
                 $bulletinsHandler->show($conn, $state, $session);
+                $dashboardStats = MailUtils::getDashboardStats($this->apiBase, $session);
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $this->log("Menu: {$username} -> Polls");
                 $pollsHandler->show($conn, $state, $session);
@@ -825,6 +845,174 @@ class BbsSession
         $label  = '[' . $text . ']';
         $padded = $this->fitTerminalLabel($label, $colWidth, $state);
         return $this->colorize($padded, self::ANSI_CYAN . self::ANSI_BOLD);
+    }
+
+    /**
+     * Route dashboard widget rendering to sidebar or bottom bar depending on
+     * how much horizontal space is available beside the menu.
+     *
+     * Sidebar threshold: at least 16 columns to the right of the menu box.
+     * Below that, falls back to a single-line stats bar written below the box.
+     *
+     * @param resource $conn
+     */
+    private function renderMenuWidgets(
+        $conn, array $state, array $stats,
+        int $menuLeft, int $menuWidth,
+        int $boxStartRow, int $boxBottomRow, int $termRows
+    ): void {
+        $cols         = $state['cols'] ?? 80;
+        $sidebarStart = $menuLeft + $menuWidth + 2; // 1-indexed, 1-col gap after menu right edge
+        $sidebarAvail = $cols - $sidebarStart + 1;
+
+        if ($sidebarAvail >= 16) {
+            $panelWidth = min(22, $sidebarAvail);
+            $this->renderDashboardSidebar(
+                $conn, $state, $stats,
+                $sidebarStart, $panelWidth,
+                $boxStartRow, $boxBottomRow, $termRows
+            );
+        } else {
+            // Show bottom bar only if there is at least one spare row below the box
+            $promptRow = $boxBottomRow + 2; // blank line + prompt
+            if ($termRows > $promptRow) {
+                $this->renderDashboardBottomBar($conn, $state, $stats, $menuLeft, $menuWidth);
+            }
+        }
+    }
+
+    /**
+     * Draw a dashboard stats panel to the right of the menu using ANSI absolute
+     * cursor positioning. Saves and restores cursor so the calling code resumes
+     * writing the prompt at the correct location.
+     *
+     * Widgets are shown in priority order and dropped from the bottom when
+     * there is insufficient vertical space: netmail → echomail → online →
+     * bulletins → credits.
+     *
+     * @param resource $conn
+     */
+    private function renderDashboardSidebar(
+        $conn, array $state, array $stats,
+        int $startCol, int $panelWidth,
+        int $boxStartRow, int $maxRow, int $termRows
+    ): void {
+        $innerWidth = $panelWidth - 2;
+        if ($innerWidth < 8) { return; }
+
+        $availRows = min($maxRow, $termRows - 2) - $boxStartRow + 1;
+        if ($availRows < 5) { return; }
+
+        $locale = $state['locale'];
+        $chars  = $this->getLineDrawingChars();
+
+        $title   = $this->t('ui.terminalserver.dashboard.title',           'Dashboard', [], $locale);
+        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'Netmail',   [], $locale);
+        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'Echomail',  [], $locale);
+        $lblOL   = $this->t('ui.terminalserver.dashboard.label.online',    'Online',    [], $locale);
+        $lblBull = $this->t('ui.terminalserver.dashboard.label.bulletins', 'Bulletins', [], $locale);
+        $lblCred = $this->t('ui.terminalserver.dashboard.label.credits',   'Credits',   [], $locale);
+
+        // Build widget rows; each entry is either 'DIVIDER' or ['label', value].
+        // header = 3 rows (top + title + divider), bottom border = 1 row.
+        $widgetEntries = [];
+        $widgetEntries[] = [$lblNM,  $stats['unread_netmail']];
+        $widgetEntries[] = [$lblECH, $stats['new_echomail']];
+        $rowsUsed = 3 + count($widgetEntries) + 1; // header + stats + bottom
+
+        if ($rowsUsed + 2 <= $availRows) { // divider + online
+            $widgetEntries[] = 'DIVIDER';
+            $widgetEntries[] = [$lblOL, $stats['online_count']];
+            $rowsUsed += 2;
+        }
+        if ($rowsUsed + 1 <= $availRows) { // bulletins (same divider group)
+            $widgetEntries[] = [$lblBull, $stats['unread_bulletins']];
+            $rowsUsed++;
+        }
+        if ($stats['credit_balance'] !== null && $rowsUsed + 2 <= $availRows) {
+            $widgetEntries[] = 'DIVIDER';
+            $widgetEntries[] = [$lblCred, $stats['credit_balance']];
+        }
+
+        $v      = $chars['v'];
+        $topBar = $this->encodeForTerminal($chars['tl'] . str_repeat($chars['h'], $innerWidth) . $chars['tr']);
+        $divBar = $this->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $innerWidth) . $chars['r_tee']);
+        $botBar = $this->encodeForTerminal($chars['bl'] . str_repeat($chars['h'], $innerWidth) . $chars['br']);
+
+        $titlePadded = $this->fitTerminalLabel($title, $innerWidth, $state);
+        $titleLine   = $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE)
+            . $this->colorize($titlePadded, self::ANSI_CYAN . self::ANSI_BOLD)
+            . $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE);
+
+        $lines   = [];
+        $lines[] = $this->colorize($topBar, self::ANSI_BLUE);
+        $lines[] = $titleLine;
+        $lines[] = $this->colorize($divBar, self::ANSI_BLUE);
+
+        $countWidth = min(5, $innerWidth - 2);
+        $labelWidth = max(0, $innerWidth - $countWidth - 1);
+
+        foreach ($widgetEntries as $entry) {
+            if ($entry === 'DIVIDER') {
+                $lines[] = $this->colorize($divBar, self::ANSI_BLUE);
+                continue;
+            }
+            [$label, $value] = $entry;
+            $labelStr  = $this->fitTerminalLabel($label, $labelWidth, $state);
+            $countStr  = str_pad((string)(int)$value, $countWidth, ' ', STR_PAD_LEFT);
+            $innerLine = $this->colorize($labelStr, self::ANSI_DIM)
+                . ' '
+                . $this->colorize($countStr, self::ANSI_BOLD);
+            $lines[]   = $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE)
+                . $innerLine
+                . $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE);
+        }
+        $lines[] = $this->colorize($botBar, self::ANSI_BLUE);
+
+        foreach ($lines as $i => $line) {
+            $row = $boxStartRow + $i;
+            if ($row > min($maxRow, $termRows - 1)) { break; }
+            $this->safeWrite($conn, "\033[{$row};{$startCol}H");
+            $this->safeWrite($conn, $line);
+        }
+        // Return cursor to the line immediately after the menu box so the
+        // calling code can continue writing the blank spacer and prompt there.
+        // Using an explicit absolute move instead of \033[s]/\033[u because
+        // save/restore is not reliably supported across all terminal emulators.
+        $this->safeWrite($conn, "\033[" . ($maxRow + 1) . ";1H");
+    }
+
+    /**
+     * Render a compact one-line stats bar below the menu box.
+     * Used on narrow screens that have no room for a sidebar.
+     *
+     * @param resource $conn
+     */
+    private function renderDashboardBottomBar(
+        $conn, array $state, array $stats,
+        int $menuLeft, int $menuWidth
+    ): void {
+        $locale  = $state['locale'];
+        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'Netmail',   [], $locale);
+        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'Echomail',  [], $locale);
+        $lblOL   = $this->t('ui.terminalserver.dashboard.label.online',    'Online',    [], $locale);
+        $lblBull = $this->t('ui.terminalserver.dashboard.label.bulletins', 'Bulletins', [], $locale);
+        $lblCred = $this->t('ui.terminalserver.dashboard.label.credits',   'Credits',   [], $locale);
+
+        $dot    = $this->colorize(' · ', self::ANSI_BLUE);
+        $parts  = [];
+        $parts[] = $this->colorize($lblNM  . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['unread_netmail'],   self::ANSI_BOLD);
+        $parts[] = $this->colorize($lblECH . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['new_echomail'],     self::ANSI_BOLD);
+        $parts[] = $this->colorize($lblOL  . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['online_count'],     self::ANSI_BOLD);
+        if ($stats['unread_bulletins'] > 0) {
+            $parts[] = $this->colorize($lblBull . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['unread_bulletins'], self::ANSI_BOLD);
+        }
+        if ($stats['credit_balance'] !== null) {
+            $parts[] = $this->colorize($lblCred . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['credit_balance'], self::ANSI_BOLD);
+        }
+
+        $pad = str_repeat(' ', $menuLeft + 1); // align with inside of menu box border
+        $this->writeLine($conn, $pad . implode($dot, $parts));
     }
 
     /**
@@ -2442,11 +2630,26 @@ class BbsSession
                     }
                     $sbData .= $b;
                 }
+                if ($sbOpt === self::OPT_NAWS && strlen($sbData) >= 4) {
+                    $w = (ord($sbData[0]) << 8) + ord($sbData[1]);
+                    $h = (ord($sbData[2]) << 8) + ord($sbData[3]);
+                    if ($w > 0) { $state['cols'] = $w; }
+                    if ($h > 0) { $state['rows'] = $h; }
+                    if ($this->debug) { $this->log("NAWS (rawchar): {$w}x{$h}"); }
+                }
                 if ($sbOpt === self::OPT_TTYPE && strlen($sbData) >= 2 && ord($sbData[0]) === 0) {
                     $ttype = trim(substr($sbData, 1));
                     $this->recordTerminalType($state, $ttype);
                 }
-                return $this->readRawChar($conn, $state); // skip subneg; return next real char
+                // If no more data is waiting right now, return immediately rather than
+                // blocking on the next fread. Key-wait loops that check for state changes
+                // (cols/rows) will detect the update on the next iteration without needing
+                // the user to press a key.
+                $rr = [$conn]; $rw = $rex = null;
+                if (@stream_select($rr, $rw, $rex, 0, 0) < 1) {
+                    return "\x00";
+                }
+                return $this->readRawChar($conn, $state); // more data available — read next char
             }
             // Unknown IAC command — skip and read next real char
             return $this->readRawChar($conn, $state);
