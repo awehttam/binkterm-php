@@ -448,6 +448,7 @@ return [
     'errors.admin.packet_bbs.node_not_found' => 'Nodo no encontrado',
     'errors.admin.packet_bbs.key_generate_failed' => 'Error al generar la clave.',
     'errors.admin.packet_bbs.request_failed' => 'Solicitud fallida.',
+    'errors.admin.packet_bbs.save_failed' => 'Error al guardar.',
     'errors.admin.insecure_nodes.create_failed' => 'No se pudo agregar el nodo inseguro',
     'errors.admin.insecure_nodes.update_failed' => 'No se pudo actualizar el nodo inseguro',
     'errors.admin.insecure_nodes.delete_failed' => 'No se pudo eliminar el nodo inseguro',

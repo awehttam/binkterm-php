@@ -328,6 +328,7 @@ return [
     'errors.admin.packet_bbs.node_not_found' => 'Nœud introuvable',
     'errors.admin.packet_bbs.key_generate_failed' => 'Échec de la génération de la clé.',
     'errors.admin.packet_bbs.request_failed' => 'Échec de la requête.',
+    'errors.admin.packet_bbs.save_failed' => 'Échec de l\'enregistrement.',
     'errors.admin.insecure_nodes.create_failed' => 'Échec de l\'ajout du nœud non sécurisé',
     'errors.admin.insecure_nodes.update_failed' => 'Échec de la mise à jour du nœud non sécurisé',
     'errors.admin.insecure_nodes.delete_failed' => 'Échec de la suppression du nœud non sécurisé',
