@@ -73,10 +73,9 @@ Fill in the fields under the **General** tab:
 | Location | Your city and country |
 | Origin Line | Tagline appended to your outgoing echomail messages |
 
-Under **Registration**, decide whether new users can self-register or need an invitation:
+All new self-registrations require admin approval before the account is activated. Users fill in the registration form at `/register` and the submission lands in **Admin → Users → Pending** for you to approve or reject. You will receive a notification when someone registers.
 
-- **Open registration** — anyone can create an account
-- **Closed registration** — only accounts created by an admin are allowed
+To create an account directly without waiting for a registration, use **Admin → Users → Add User**.
 
 Save your settings. The BBS name and sysop fields take effect immediately for new outgoing mail.
 
