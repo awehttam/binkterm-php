@@ -499,11 +499,7 @@ class BbsSession
 
                 $currentUtc = gmdate('Y-m-d H:i:s');
                 $timeStr    = TelnetUtils::formatUserDate($currentUtc, $state, false);
-                $statusLine = TelnetUtils::buildStatusBar([
-                    ['text' => $systemName . '  ', 'color' => self::ANSI_BLUE],
-                    ['text' => str_repeat(' ', max(1, $cols - strlen($systemName) - strlen($timeStr) - 2)), 'color' => self::ANSI_BLUE],
-                    ['text' => $timeStr, 'color' => self::ANSI_BLUE],
-                ], $cols);
+                $statusLine = $this->buildMainMenuStatusLine($systemName, $timeStr, $cols, $state);
                 $this->safeWrite($conn, "\033[1;1H");
                 $this->safeWrite($conn, $statusLine . "\r");
                 $this->safeWrite($conn, "\033[2;1H");
@@ -996,8 +992,8 @@ class BbsSession
         $chars  = $this->getLineDrawingChars();
 
         $title   = $this->t('ui.terminalserver.dashboard.title',           'Dashboard', [], $locale);
-        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'Netmail',   [], $locale);
-        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'Echomail',  [], $locale);
+        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'New Netmail',   [], $locale);
+        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'New Echomail',  [], $locale);
         $lblOL   = $this->t('ui.terminalserver.dashboard.label.online',    'Online',    [], $locale);
         $lblBull = $this->t('ui.terminalserver.dashboard.label.bulletins', 'Bulletins', [], $locale);
         $lblCred = $this->t('ui.terminalserver.dashboard.label.credits',   'Credits',   [], $locale);
@@ -1082,8 +1078,8 @@ class BbsSession
         int $menuLeft, int $menuWidth
     ): void {
         $locale  = $state['locale'];
-        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'Netmail',   [], $locale);
-        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'Echomail',  [], $locale);
+        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'New Netmail',   [], $locale);
+        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'New Echomail',  [], $locale);
         $lblOL   = $this->t('ui.terminalserver.dashboard.label.online',    'Online',    [], $locale);
         $lblBull = $this->t('ui.terminalserver.dashboard.label.bulletins', 'Bulletins', [], $locale);
         $lblCred = $this->t('ui.terminalserver.dashboard.label.credits',   'Credits',   [], $locale);
@@ -1138,6 +1134,36 @@ class BbsSession
     }
 
     /**
+     * Build the fallback main-menu header row, preferring the BBS name over
+     * the clock when the terminal is too narrow to show both cleanly.
+     */
+    private function buildMainMenuStatusLine(string $systemName, string $timeStr, int $width, array $state): string
+    {
+        if ($width <= 0) {
+            return '';
+        }
+
+        $systemName = $this->normalizeTerminalTextForClient($systemName, $state);
+        $timeStr    = $this->normalizeTerminalTextForClient($timeStr, $state);
+
+        $systemWidth = $this->terminalTextWidth($systemName, $state);
+        $timeWidth   = $this->terminalTextWidth($timeStr, $state);
+        $gapWidth    = 2;
+
+        if ($systemWidth + $gapWidth + $timeWidth <= $width) {
+            return TelnetUtils::buildStatusBar([
+                ['text' => $systemName, 'color' => self::ANSI_BLUE],
+                ['text' => str_repeat(' ', $width - $systemWidth - $timeWidth), 'color' => self::ANSI_BLUE],
+                ['text' => $timeStr, 'color' => self::ANSI_BLUE],
+            ], $width);
+        }
+
+        return TelnetUtils::buildStatusBar([
+            ['text' => $this->truncateTerminalLabel($systemName, $width, $state, true), 'color' => self::ANSI_BLUE],
+        ], $width);
+    }
+
+    /**
      * Fit a menu label to a fixed terminal cell width.
      */
     private function fitTerminalLabel(string $label, int $width, array $state): string
@@ -1156,6 +1182,49 @@ class BbsSession
         $trimmed = mb_strimwidth($label, 0, $width, '', 'UTF-8');
         $pad = max(0, $width - mb_strwidth($trimmed, 'UTF-8'));
         return $trimmed . str_repeat(' ', $pad);
+    }
+
+    /**
+     * Truncate terminal text to a target width, optionally with an ellipsis.
+     */
+    private function truncateTerminalLabel(string $label, int $width, array $state, bool $withEllipsis = false): string
+    {
+        if ($width <= 0) {
+            return '';
+        }
+
+        $ellipsis = $withEllipsis ? '...' : '';
+        $ellipsisWidth = $withEllipsis ? 3 : 0;
+
+        if ($this->shouldUseAsciiFallback($state) || $this->terminalCharset === 'cp437') {
+            if (strlen($label) <= $width) {
+                return $label;
+            }
+            if (!$withEllipsis || $width <= $ellipsisWidth) {
+                return substr($label, 0, $width);
+            }
+            return substr($label, 0, $width - $ellipsisWidth) . $ellipsis;
+        }
+
+        if (mb_strwidth($label, 'UTF-8') <= $width) {
+            return $label;
+        }
+        if (!$withEllipsis || $width <= $ellipsisWidth) {
+            return mb_strimwidth($label, 0, $width, '', 'UTF-8');
+        }
+        return mb_strimwidth($label, 0, $width, $ellipsis, 'UTF-8');
+    }
+
+    /**
+     * Measure terminal text width for the current session charset mode.
+     */
+    private function terminalTextWidth(string $text, array $state): int
+    {
+        if ($this->shouldUseAsciiFallback($state) || $this->terminalCharset === 'cp437') {
+            return strlen($text);
+        }
+
+        return mb_strwidth($text, 'UTF-8');
     }
 
     /**

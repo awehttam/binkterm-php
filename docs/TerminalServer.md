@@ -50,6 +50,7 @@ Each transport daemon has additional extension requirements — see
 - Prevents list overflow on different terminal sizes
 - Dynamic pagination based on terminal rows
 - Terminal resize events are processed in real time during key-wait loops — the main menu re-renders immediately when the window is resized, without requiring a keypress
+- On narrow terminals, the fallback main-menu header truncates cleanly and prefers keeping the BBS name visible before dropping the clock
 
 ### Message Browsing
 

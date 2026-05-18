@@ -362,8 +362,8 @@ return [
 
     // --- Main menu dashboard widgets ---
     'ui.terminalserver.dashboard.title'           => 'Dashboard',
-    'ui.terminalserver.dashboard.label.netmail'   => 'Netmail',
-    'ui.terminalserver.dashboard.label.echomail'  => 'Echomail',
+    'ui.terminalserver.dashboard.label.netmail'   => 'Neue Netmail',
+    'ui.terminalserver.dashboard.label.echomail'  => 'Neue Echomail',
     'ui.terminalserver.dashboard.label.online'    => 'Online',
     'ui.terminalserver.dashboard.label.bulletins' => 'Bulletins',
     'ui.terminalserver.dashboard.label.credits'   => 'Guthaben',
