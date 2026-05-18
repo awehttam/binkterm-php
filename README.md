@@ -42,7 +42,7 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 - **Doors for every era** — classic DOS games via DOSBox-X, native PTY doors, HTML5 WebDoors, browser WASM, and C64 emulation, with credit charging built in across all types.
 - **Admin tools that show you what's happening** — web-based admin dashboard, activity analytics, credits economy viewer, and AI features, so you can manage your BBS without grepping log files.
 - **Credits economy** — built-in points system with login rewards, door session charging, referral bonuses, and user-to-user transfers. Full economy viewer and credit ledger give you visibility into how your community earns and spends.
-- **AI integration** — expose echo areas to AI assistants via MCP, give users an in-reader AI assistant, and deploy chatbots to any chat room. Personal bearer keys keep each user's AI access scoped to their own account.
+- **AI integration** — provider-agnostic AI layer supports OpenAI, Anthropic, and Ollama (local inference); expose echo areas via MCP, give users an in-reader AI assistant, and deploy chatbots to any chat room.
 
 ---
 
@@ -83,7 +83,9 @@ BinktermPHP runs in any modern browser across different features and themes.
 # Features
 
 ### Core Platform
-- Browser-based echomail and netmail with full-text search, inline ANSI rendering, Markdown/StyleCodes authoring, and message sharing via expiring web links
+- Browser-based echomail and netmail with full-text search, Markdown/StyleCodes authoring, and message sharing via expiring web links
+- **Rich media rendering** — inline images, video, audio, and platform embeds (YouTube, SoundCloud, etc.) in messages; ANSI art decoder; RIPscrip graphics; pipe code / MCI color codes (Synchronet, Renegade, Mystic); Sixel-aware web interface
+- **File areas** — file browsing, upload, and download; TIC file distribution via FTN; FREQ serving; automated processing rules; anti-virus integration; ISO area support; file comments via linked echo areas
 - Mobile-responsive UI, installable as a PWA
 - Multiple themes — ANSI-inspired, cyberpunk, amber terminal, and more
 - **Credits economy** — reward logins and participation, charge for features and door games, referral bonuses and transfers
@@ -94,12 +96,12 @@ BinktermPHP runs in any modern browser across different features and themes.
 
 ### Access Methods
 - **Web** — full HTML5 interface, installable as a PWA
-- **Telnet** — built-in server with ANSI art, Sixel graphics, and screen rotation
+- **Telnet** — built-in server with ANSI art, Sixel graphics, screen rotation, and a browser-based terminal via PubTerm
 - **SSH** — built-in SSH server for secure terminal access
 - **Gemini** — capsule hosting for Gemini-protocol clients
 - **QWK** — packet download/upload via built-in passive FTP daemon
 - **MCP** — Model Context Protocol access for AI assistants and automation clients
-- **PacketBBS** — compact one-line command interface for MeshCore mesh radio nodes
+- **PacketBBS** — compact one-line command interface for mesh radio nodes; supports MeshCore (TCP/IP) and AX.25 KISS TNC interfaces
 - **FTP** — standalone passive FTP daemon for file area transfers
 
 ### FTN / Networking
@@ -108,8 +110,6 @@ BinktermPHP runs in any modern browser across different features and themes.
 - AreaFix and FileFix for automated subscription management with hub uplinks
 - Nodelist browser with text/address/flag search, map view, and crashmail routing
 - **LovlyNet** — Zone 227 FTN with automated node registration (`scripts/lovlynet_setup.php`)
-- File areas with automated rules, FREQ serving, and anti-virus integration
-
 ### Doors & Games
 - **DOS Doors** — classic door games via DOSBox-X (headless, no display required)
 - **Native Doors** — Linux/Windows programs via PTY
@@ -119,12 +119,14 @@ BinktermPHP runs in any modern browser across different features and themes.
 
 ### Realtime / Chat
 - **BinkStream** — WebSocket and SSE event delivery; incoming FTN mail notifies open browser tabs in real time
+- **Local chat & DMs** — built-in room-based group chat and direct messages between users, delivered in real time via BinkStream
 - **Multi-room chat** — Matterbridge bridging to Discord, Slack, IRC, Telegram, and others
 - **MRC** — Multi-Relay Chat protocol integration
 - **Shoutbox** — public 280-character message wall
 
 ### AI / MCP / Automation
-- **MCP server** — AI assistants read echo areas and messages via Model Context Protocol; personal bearer keys per user
+- **MCP server** — AI assistants read echo areas and messages via Model Context Protocol
+- **Multiple AI providers** — OpenAI, Anthropic, and Ollama (local inference) via a shared provider-agnostic interface; per-feature provider and model overrides; usage and cost accounting in the admin dashboard
 - **AI message assistant** — in-reader AI assistant for echomail and netmail with credit charging
 - **AI bots** — configurable per-room chatbot middleware with a custom middleware pipeline
 - **Broadcast/Advertising** — scheduled postings, ad rotation, bulletins, weather reports, and related content workflows
@@ -223,9 +225,10 @@ These features are disabled by default and require additional setup:
 | C64 Doors (emulated) | [docs/C64Doors.md](docs/C64Doors.md) |
 | Gemini Browser & Capsule Hosting | [docs/GeminiCapsule.md](docs/GeminiCapsule.md) |
 | MCP Server (AI assistant access) | [docs/MCPServer.md](docs/MCPServer.md) |
-| PacketBBS Gateway (mesh radio) | [docs/PacketBBS.md](docs/PacketBBS.md) |
+| PacketBBS Gateway (MeshCore / AX.25 KISS TNC) | [docs/PacketBBS.md](docs/PacketBBS.md) |
 | Telnet Server | [docs/TelnetServer.md](docs/TelnetServer.md) |
 | SSH Server | [docs/SSHServer.md](docs/SSHServer.md) |
+| File Areas | [docs/FileAreas.md](docs/FileAreas.md) |
 | FTP Server | [docs/FTPServer.md](docs/FTPServer.md) |
 | Matterbridge Chat Bridge | [docs/Matterbridge.md](docs/Matterbridge.md) |
 
@@ -243,6 +246,7 @@ See **[docs/index.md](docs/index.md)** for the full documentation index.
 | HTTP API reference | [docs/API.md](docs/API.md) |
 | Building a WebDoor | [docs/WebDoor-Tutorial.md](docs/WebDoor-Tutorial.md) |
 | MCP server & client setup | [docs/MCPServer.md](docs/MCPServer.md) · [docs/MCPClientHelp.md](docs/MCPClientHelp.md) |
+| AI providers & accounting | [docs/AIProviders.md](docs/AIProviders.md) |
 | BinkStream real-time events | [docs/BinkStreamChannel.md](docs/BinkStreamChannel.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
