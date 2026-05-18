@@ -87,7 +87,7 @@ class PacketBbsTextRenderer
                 '(R)EAD id read msg',
                 '(Y) id reply to msg',
                 '(S)END user|addr subj',
-                '(EP) post in current area',
+                '(P)OST in current area',
                 '(BU)LLETINS list / (BU) # read',
                 '(U)STATUS show context',
                 '(M)ORE next page',
@@ -109,15 +109,15 @@ class PacketBbsTextRenderer
             return implode("\n", [
                 'H A',
                 'A:list/open  AREA tag:open',
-                'R id:read  EP:post here',
+                'R id:read  P:post here',
                 'M:more  B:back',
             ]);
         }
 
         if (in_array($topic, ['POST', 'P', 'EP'], true)) {
             return implode("\n", [
-                'H EP',
-                'EP: post in current area',
+                'H P',
+                'P/EP: post in current area',
                 'No area? use T tag',
                 'Subj? Msg: /S /C',
             ]);
@@ -145,14 +145,14 @@ class PacketBbsTextRenderer
             $area = (string)($context['current_area']['display'] ?? $context['current_area']['tag'] ?? 'area');
             return implode("\n", [
                 'Area ' . $this->truncate($area, 24),
-                'R id | EP post | A list | U status',
+                'R id | P post | A list | U status',
                 'Q leave area | QUIT end session',
             ]);
         }
 
         return implode("\n", [
             'H: L username code | A areas | N mail',
-            'T tag | S to subj | R id | Y id',
+            'T tag | S to subj | P post | R id',
             'M more | B back | U status | Q quit',
         ]);
     }

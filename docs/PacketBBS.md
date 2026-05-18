@@ -195,7 +195,7 @@ Typical response:
 
 ```text
 H: L username code | A areas | N mail
-T tag | S to subj | R id | Y id
+T tag | S to subj | P post | R id
 M more | B back | U status | Q quit
 ```
 

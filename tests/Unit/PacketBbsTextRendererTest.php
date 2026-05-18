@@ -13,6 +13,7 @@ class PacketBbsTextRendererTest extends TestCase
 
         $this->assertStringContainsString('H: L username code | A areas | N mail', $help);
         $this->assertStringContainsString('S to subj', $help);
+        $this->assertStringContainsString('P post', $help);
         $this->assertStringContainsString('U status', $help);
     }
 
@@ -48,6 +49,7 @@ class PacketBbsTextRendererTest extends TestCase
         $this->assertStringContainsString('FULL HELP', $help);
         $this->assertStringContainsString('(L)OGIN username code', $help);
         $this->assertStringContainsString('(S)END user|addr subj', $help);
+        $this->assertStringContainsString('(P)OST in current area', $help);
         $this->assertStringContainsString('(U)STATUS show context', $help);
     }
 
@@ -58,6 +60,16 @@ class PacketBbsTextRendererTest extends TestCase
         $help = $renderer->renderHelp('N');
 
         $this->assertStringContainsString('S to subj:send', $help);
+    }
+
+    public function testRenderPostHelpMentionsCanonicalAlias(): void
+    {
+        $renderer = new PacketBbsTextRenderer('meshcore');
+
+        $help = $renderer->renderHelp('P');
+
+        $this->assertStringContainsString('H P', $help);
+        $this->assertStringContainsString('P/EP: post in current area', $help);
     }
 
     public function testRenderStatusShowsDraftSummary(): void
