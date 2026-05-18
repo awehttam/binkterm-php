@@ -21,6 +21,7 @@ use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
+use BinktermPHP\Chat\ChatMessageService;
 use BinktermPHP\MessageHandler;
 use BinktermPHP\UserMeta;
 
@@ -117,6 +118,11 @@ class PacketBbsGateway
                 : 'Send HELP.';
         }
 
+        // If in chat mode, route all input through the chat handler
+        if ($session['menu_state'] === 'chat') {
+            return $this->handleChatInput($session, $nodeId, $command, $renderer);
+        }
+
         // If in compose mode, route all input through the compose handler
         if ($session['menu_state'] === 'compose_netmail' || $session['menu_state'] === 'compose_echomail') {
             return $this->handleComposeLine($session, $nodeId, $command, $renderer);
@@ -158,10 +164,13 @@ class PacketBbsGateway
 
             case 'Q':
             case 'QUIT':
-                // Q exits the current area if one is active; at top level it ends the session.
-                // QUIT (full word) always ends the session unconditionally.
+                // Q exits the current context; QUIT always ends the session.
                 if ($verb === 'Q') {
                     $state = $this->getSessionState($session);
+                    // Fallback: if somehow in chat mode here, exit the room.
+                    if ($session['menu_state'] === 'chat' || !empty($state['current_chat_room'])) {
+                        return $this->exitChatRoom($nodeId, $state);
+                    }
                     if (!empty($state['current_area'])) {
                         $areaName = (string)($state['current_area']['display']
                             ?? $state['current_area']['tag']
@@ -233,6 +242,10 @@ class PacketBbsGateway
             case 'P':
             case 'PREV':
                 return $this->handlePrev($session, $nodeId, $renderer);
+
+            case 'C':
+            case 'CHAT':
+                return $this->handleChat($session, $nodeId, $args, $renderer);
 
             case 'WEB':
             case 'WEBSITE':
@@ -1503,6 +1516,381 @@ class PacketBbsGateway
         }
 
         return 'No context.';
+    }
+
+    // -------------------------------------------------------------------------
+    // Chat handlers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Enter a chat room. With no args, enters the default (first active) room.
+     */
+    private function handleChat(array $session, string $nodeId, string $args, PacketBbsTextRenderer $renderer): string
+    {
+        if ($err = $this->requireLogin($session)) {
+            return $err;
+        }
+        return $this->enterChatRoom($session, $nodeId, trim($args), $renderer);
+    }
+
+    /**
+     * Route input while menu_state === 'chat'. Escape commands are handled
+     * explicitly; everything else is posted to the current room.
+     */
+    private function handleChatInput(array $session, string $nodeId, string $command, PacketBbsTextRenderer $renderer): string
+    {
+        $state = $this->getSessionState($session);
+        $room  = $state['current_chat_room'] ?? null;
+        $dm    = $state['current_chat_dm'] ?? null;
+
+        if (!is_array($room) && !is_array($dm)) {
+            $this->sessionRepo->update($nodeId, ['menu_state' => 'main']);
+            return 'Chat session lost. CHAT to re-enter.';
+        }
+
+        $parts = preg_split('/\s+/', $command, 2);
+        $verb  = strtoupper($parts[0]);
+        $args  = trim($parts[1] ?? '');
+
+        switch ($verb) {
+            case 'Q':
+            case '/C':
+                return $this->exitChatRoom($nodeId, $state);
+
+            case 'QUIT':
+                return $this->handleQuit($nodeId);
+
+            case 'W':
+            case 'WHO':
+                return $this->handleWho($session, $renderer);
+
+            case 'U':
+            case 'STATUS':
+                return $renderer->renderStatus($state);
+
+            case 'H':
+            case 'HELP':
+            case '?':
+                return $renderer->renderHelp('CHAT', $this->getBbsName(), $state);
+
+            case 'M':
+            case 'MORE':
+                return $this->handleChatMore($session, $nodeId, $state, $renderer);
+
+            case 'B':
+            case 'P':
+            case 'PREV':
+                return $this->handleChatPrev($session, $nodeId, $state, $renderer);
+
+            case 'L':
+            case 'LOGIN':
+                return 'Already in chat. Q to exit first.';
+
+            case 'C':
+            case 'CHAT':
+                if ($args !== '') {
+                    return $this->enterChatRoom($session, $nodeId, $args, $renderer);
+                }
+                // Refresh at latest page
+                $messages = $this->chatFetch($state, (int)$session['user_id'], 1, $renderer->getPageSize());
+                $this->sessionRepo->update($nodeId, ['pagination_cursor' => 1]);
+                return $renderer->renderChatMessages($messages['rows'], $this->chatDisplayName($state), 1, $messages['total_pages']);
+        }
+
+        // Everything else: post to the current context (room or DM)
+        if ($dm !== null) {
+            return $this->postDmMessage($session, $nodeId, $command, (int)$dm['user_id'], (string)$dm['username']);
+        }
+        return $this->postChatMessage($session, $nodeId, $command, (int)$room['id'], (string)$room['name']);
+    }
+
+    /**
+     * Enter a named room (or the default room when $name is empty), setting
+     * menu_state to 'chat' and showing recent messages.
+     */
+    private function enterChatRoom(array $session, string $nodeId, string $name, PacketBbsTextRenderer $renderer): string
+    {
+        $room = $this->resolveChatRoom($name);
+        if (!$room) {
+            if ($name !== '') {
+                $target = $this->resolveUser($name);
+                if ($target) {
+                    return $this->enterDm($session, $nodeId, (int)$target['id'], (string)$target['username'], $renderer);
+                }
+                return sprintf('No room or user "%s".', $this->truncateForChat($name, 20));
+            }
+            return 'No chat rooms available.';
+        }
+
+        $state = $this->getSessionState($session);
+        $state['current_chat_room'] = ['id' => (int)$room['id'], 'name' => (string)$room['name']];
+        unset($state['current_chat_dm']);
+
+        $messages = $this->fetchChatMessages((int)$room['id'], 1, $renderer->getPageSize());
+
+        $this->sessionRepo->update($nodeId, [
+            'menu_state'         => 'chat',
+            'pagination_cursor'  => 1,
+            'pagination_context' => json_encode(['type' => 'chat', 'room_id' => (int)$room['id']]),
+            'session_state'      => $state,
+        ]);
+
+        return $renderer->renderChatMessages($messages['rows'], (string)$room['name'], 1, $messages['total_pages']);
+    }
+
+    /**
+     * Resolve a chat room by name (case-insensitive), or return the first
+     * active room when $name is empty.
+     *
+     * @return array{id:int,name:string}|null
+     */
+    private function resolveChatRoom(string $name): ?array
+    {
+        if ($name === '') {
+            $stmt = $this->db->prepare(
+                'SELECT id, name FROM chat_rooms WHERE is_active = TRUE ORDER BY id ASC LIMIT 1'
+            );
+            $stmt->execute();
+        } else {
+            $stmt = $this->db->prepare(
+                'SELECT id, name FROM chat_rooms WHERE is_active = TRUE AND LOWER(name) = LOWER(?) LIMIT 1'
+            );
+            $stmt->execute([trim($name)]);
+        }
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
+     * Fetch a page of chat messages for a room, newest first (page 1 = latest),
+     * then reverse so they display oldest-to-newest within the page.
+     *
+     * @return array{rows:array<int,array<string,mixed>>,total_pages:int}
+     */
+    private function fetchChatMessages(int $roomId, int $page, int $pageSize): array
+    {
+        $countStmt = $this->db->prepare('SELECT COUNT(*) FROM chat_messages WHERE room_id = ?');
+        $countStmt->execute([$roomId]);
+        $total      = (int)$countStmt->fetchColumn();
+        $totalPages = max(1, (int)ceil($total / $pageSize));
+
+        $offset = ($page - 1) * $pageSize;
+        $stmt   = $this->db->prepare(
+            'SELECT cm.id, cm.body, cm.created_at, u.username
+             FROM chat_messages cm
+             JOIN users u ON u.id = cm.from_user_id
+             WHERE cm.room_id = ?
+             ORDER BY cm.created_at DESC
+             LIMIT ? OFFSET ?'
+        );
+        $stmt->execute([$roomId, $pageSize, $offset]);
+        $rows = array_reverse($stmt->fetchAll(\PDO::FETCH_ASSOC));
+
+        return ['rows' => $rows, 'total_pages' => $totalPages];
+    }
+
+    /**
+     * Post a message to the current chat room on behalf of the logged-in user.
+     */
+    private function postChatMessage(array $session, string $nodeId, string $text, int $roomId, string $roomName): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return 'Empty.';
+        }
+        if (mb_strlen($text) > 500) {
+            return 'Too long (500 char max).';
+        }
+
+        try {
+            (new ChatMessageService())->sendMessage((int)$session['user_id'], $roomId, null, $text);
+            return 'OK';
+        } catch (\RuntimeException $e) {
+            if (str_contains(strtolower($e->getMessage()), 'blocked')) {
+                return 'Banned from this room.';
+            }
+            $this->logger->error('packetbbs chat post error: ' . $e->getMessage());
+            return 'Post failed.';
+        }
+    }
+
+    /** Show older chat history (higher page offset). */
+    private function handleChatMore(array $session, string $nodeId, array $state, PacketBbsTextRenderer $renderer): string
+    {
+        $page     = (int)($session['pagination_cursor'] ?? 1) + 1;
+        $messages = $this->chatFetch($state, (int)$session['user_id'], $page, $renderer->getPageSize());
+
+        if ($page > $messages['total_pages']) {
+            return 'End of history.';
+        }
+
+        $this->sessionRepo->update($nodeId, ['pagination_cursor' => $page]);
+        return $renderer->renderChatMessages($messages['rows'], $this->chatDisplayName($state), $page, $messages['total_pages']);
+    }
+
+    /** Show newer chat history (lower page offset, towards page 1 = latest). */
+    private function handleChatPrev(array $session, string $nodeId, array $state, PacketBbsTextRenderer $renderer): string
+    {
+        $current = (int)($session['pagination_cursor'] ?? 1);
+        if ($current <= 1) {
+            return 'At latest.';
+        }
+
+        $page     = $current - 1;
+        $messages = $this->chatFetch($state, (int)$session['user_id'], $page, $renderer->getPageSize());
+
+        $this->sessionRepo->update($nodeId, ['pagination_cursor' => $page]);
+        return $renderer->renderChatMessages($messages['rows'], $this->chatDisplayName($state), $page, $messages['total_pages']);
+    }
+
+    /** Truncate helper used in chat context (no renderer available). */
+    private function truncateForChat(string $str, int $max): string
+    {
+        if (mb_strlen($str) <= $max) {
+            return $str;
+        }
+        return mb_substr($str, 0, $max - 1) . '~';
+    }
+
+    /**
+     * Exit chat/DM mode, clear context from session state, and return a
+     * confirmation. Used both by the chat-input handler and as a fallback in
+     * the main Q dispatcher.
+     */
+    private function exitChatRoom(string $nodeId, array $state): string
+    {
+        $displayName = $this->chatDisplayName($state);
+        unset($state['current_chat_room'], $state['current_chat_dm']);
+        $this->sessionRepo->update($nodeId, [
+            'menu_state'         => 'main',
+            'pagination_context' => null,
+            'session_state'      => $state,
+        ]);
+        return sprintf('Left %s.', $displayName);
+    }
+
+    /**
+     * Enter a DM conversation with another user, setting menu_state to 'chat'
+     * and showing recent message history.
+     */
+    private function enterDm(array $session, string $nodeId, int $toUserId, string $toUsername, PacketBbsTextRenderer $renderer): string
+    {
+        $fromUserId = (int)$session['user_id'];
+        if ($toUserId === $fromUserId) {
+            return 'Cannot DM yourself.';
+        }
+
+        $state = $this->getSessionState($session);
+        $state['current_chat_dm'] = ['user_id' => $toUserId, 'username' => $toUsername];
+        unset($state['current_chat_room']);
+
+        $messages = $this->fetchDmMessages($fromUserId, $toUserId, 1, $renderer->getPageSize());
+
+        $this->sessionRepo->update($nodeId, [
+            'menu_state'         => 'chat',
+            'pagination_cursor'  => 1,
+            'pagination_context' => json_encode(['type' => 'dm', 'to_user_id' => $toUserId]),
+            'session_state'      => $state,
+        ]);
+
+        return $renderer->renderChatMessages($messages['rows'], 'DM:' . $toUsername, 1, $messages['total_pages']);
+    }
+
+    /**
+     * Fetch paginated DM history between two users (most recent first per page,
+     * displayed oldest-first within the page).
+     *
+     * @return array{rows:array<int,array<string,mixed>>,total_pages:int}
+     */
+    private function fetchDmMessages(int $userId1, int $userId2, int $page, int $pageSize): array
+    {
+        $offset = ($page - 1) * $pageSize;
+
+        $countStmt = $this->db->prepare("
+            SELECT COUNT(*) AS total
+            FROM chat_messages
+            WHERE room_id IS NULL
+              AND ((from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?))
+        ");
+        $countStmt->execute([$userId1, $userId2, $userId2, $userId1]);
+        $total      = (int)($countStmt->fetchColumn() ?: 0);
+        $totalPages = max(1, (int)ceil($total / $pageSize));
+
+        $stmt = $this->db->prepare("
+            SELECT cm.id, cm.body, cm.created_at, u.username
+            FROM chat_messages cm
+            JOIN users u ON u.id = cm.from_user_id
+            WHERE cm.room_id IS NULL
+              AND ((cm.from_user_id = ? AND cm.to_user_id = ?) OR (cm.from_user_id = ? AND cm.to_user_id = ?))
+            ORDER BY cm.created_at DESC
+            LIMIT ? OFFSET ?
+        ");
+        $stmt->execute([$userId1, $userId2, $userId2, $userId1, $pageSize, $offset]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        return ['rows' => array_reverse($rows), 'total_pages' => $totalPages];
+    }
+
+    /**
+     * Send a direct message to another user via ChatMessageService.
+     */
+    private function postDmMessage(array $session, string $nodeId, string $text, int $toUserId, string $toUsername): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return 'Empty.';
+        }
+        if (mb_strlen($text) > 500) {
+            return 'Too long (500 char max).';
+        }
+
+        try {
+            (new ChatMessageService())->sendMessage((int)$session['user_id'], null, $toUserId, $text);
+            return 'OK';
+        } catch (\RuntimeException $e) {
+            $this->logger->error('packetbbs dm post error: ' . $e->getMessage());
+            return 'Send failed.';
+        }
+    }
+
+    /**
+     * Resolve a user by username for DM entry.
+     *
+     * @return array{id:int,username:string}|null
+     */
+    private function resolveUser(string $username): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, username FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1'
+        );
+        $stmt->execute([trim($username)]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
+     * Fetch messages for the current chat context (room or DM), abstracting
+     * which underlying query to use.
+     *
+     * @return array{rows:array<int,array<string,mixed>>,total_pages:int}
+     */
+    private function chatFetch(array $state, int $fromUserId, int $page, int $pageSize): array
+    {
+        if (!empty($state['current_chat_dm'])) {
+            return $this->fetchDmMessages($fromUserId, (int)$state['current_chat_dm']['user_id'], $page, $pageSize);
+        }
+        return $this->fetchChatMessages((int)$state['current_chat_room']['id'], $page, $pageSize);
+    }
+
+    /**
+     * Return the display name for the current chat context (room name or "DM:username").
+     */
+    private function chatDisplayName(array $state): string
+    {
+        if (!empty($state['current_chat_dm'])) {
+            return 'DM:' . (string)$state['current_chat_dm']['username'];
+        }
+        return (string)($state['current_chat_room']['name'] ?? 'chat');
     }
 
     /**

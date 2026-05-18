@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Runtime Requirements](#runtime-requirements)
   - [Terminal Server](#terminal-server)
   - [PacketBBS](#packetbbs)
+    - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
     - [AX.25 TNC (KISS) Interface Type](#ax25-tnc-kiss-interface-type)
     - [Auto-add policy sync change](#auto-add-policy-sync-change)
@@ -16,6 +17,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Runtime Requirements](#runtime-requirements-1)
 - [Terminal Server](#terminal-server-1)
 - [PacketBBS](#packetbbs-1)
+  - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
     - [Location Description field](#location-description-field)
     - [Node description field](#node-description-field)
@@ -47,6 +49,12 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Idle Timeout** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
 
 ### PacketBBS
+
+#### Local Chat
+
+- PacketBBS operators can now participate in local BBS chat rooms. The `CHAT` command (short form `C`) enters the default room. `CHAT <room>` enters a named room.
+- While in a chat room, any text sent is posted automatically. Exit with `Q` or `/C`. `M` pages back through older history; `B` returns toward the latest messages. `WHO`, `STATUS`, `HELP`, and `LOGIN` are intercepted as commands and are never posted.
+- Messages posted by web and terminal users are delivered to radio operators currently in the same room via the outbound queue, without any bridge code changes.
 
 #### PacketBBS Node Directory
 
@@ -147,6 +155,38 @@ No additional admin setup is required. The built-in defaults remain in effect un
 ---
 
 ## PacketBBS
+
+### Local Chat {#local-chat-packetbbs-1}
+
+PacketBBS operators can now read and post in local BBS chat rooms directly from their radio node.
+
+**Entering a room**
+
+`CHAT` or `C` with no arguments enters the default room (the first active room, typically Lobby). `CHAT <room>` or `C <room>` enters a room by name. Login is required.
+
+On entry the most recent messages are shown, formatted as `username: message` and paged to fit the node's output profile.
+
+**Auto-post mode**
+
+Once inside a room, every message sent is posted to the room immediately. There is no explicit send command. The following inputs are intercepted as commands and are never posted to the room:
+
+| Input | Action |
+|---|---|
+| `Q` or `/C` | Exit the room, return to main context |
+| `QUIT` | End the PacketBBS session |
+| `W` / `WHO` | Show online users |
+| `U` / `STATUS` | Show current context |
+| `H` / `HELP` / `?` | Show chat help |
+| `M` / `MORE` | Page to older history |
+| `B` / `P` / `PREV` | Page back toward latest messages |
+| `L` / `LOGIN` | Intercepted — not posted |
+| `C` / `CHAT` | Refresh or switch rooms |
+
+**Receiving messages from other users**
+
+When a web or terminal user posts to a chat room, any PacketBBS sessions currently in that room receive the message via the outbound queue. The bridge delivers it on its next poll without any bridge-side changes.
+
+No migration is required. The feature uses the existing `chat_rooms` and `chat_messages` tables. No admin configuration is needed beyond having at least one active chat room.
 
 ### PacketBBS Node Directory
 
