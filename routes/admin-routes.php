@@ -4788,6 +4788,29 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             echo json_encode(['sessions' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
         });
 
+        SimpleRouter::get('/packet-bbs/sessions/{nodeId}', function($nodeId) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare(
+                'SELECT s.*, u.username
+                 FROM packet_bbs_sessions s
+                 LEFT JOIN users u ON u.id = s.user_id
+                 WHERE s.node_id = ?'
+            );
+            $stmt->execute([$nodeId]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!$row) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Session not found']);
+                return;
+            }
+            echo json_encode(['session' => $row]);
+        });
+
         SimpleRouter::delete('/packet-bbs/sessions/{nodeId}', function($nodeId) {
             $auth = new Auth();
             $user = $auth->requireAuth();

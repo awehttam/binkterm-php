@@ -313,14 +313,37 @@
     </div>
 </div>
 
+<!-- Session Detail Modal -->
+<div class="modal fade" id="sessionDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i>Session — <code id="sessionDetailNodeId"></code></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="sessionDetailBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary me-auto" onclick="refreshSessionDetail()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button type="button" class="btn btn-outline-danger me-2" onclick="killSessionFromModal()">
+                    <i class="fas fa-times"></i> Kill Session
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% include 'partials/map_picker_modal.twig' %}
 
 <script>
 const currentAdminUser = {{ current_admin_user | json_encode | raw }};
 const SITE_HOSTNAME = {{ ((site_url | split('//') | last) | split('/') | first) | json_encode | raw }};
 
-let nodeModal, keyModal, contactsModal, contactEditModal;
+let nodeModal, keyModal, contactsModal, contactEditModal, sessionDetailModal;
 let activeContactNodeDbId = null;
+let activeSessionNodeId = null;
 let contactOwnerSearchTimer = null;
 let selectedContactOwner = null;
 let autoaddPollTimer = null;
@@ -341,9 +364,10 @@ function updateSaveBtn(mode) {
 const AUTOADD_POLL_TIMEOUT  = 90000;
 
 document.addEventListener('DOMContentLoaded', function() {
-    nodeModal        = new bootstrap.Modal(document.getElementById('nodeModal'));
-    contactsModal    = new bootstrap.Modal(document.getElementById('contactsModal'));
-    contactEditModal = new bootstrap.Modal(document.getElementById('contactEditModal'));
+    nodeModal          = new bootstrap.Modal(document.getElementById('nodeModal'));
+    contactsModal      = new bootstrap.Modal(document.getElementById('contactsModal'));
+    contactEditModal   = new bootstrap.Modal(document.getElementById('contactEditModal'));
+    sessionDetailModal = new bootstrap.Modal(document.getElementById('sessionDetailModal'));
 
     document.getElementById('nodeModal').addEventListener('hidden.bs.modal', function() {
         stopAutoaddPoll();
@@ -436,7 +460,7 @@ function loadSessions() {
             }
             tbody.innerHTML = data.sessions.map(s => `
                 <tr>
-                    <td><code>${escHtml(s.node_id)}</code></td>
+                    <td><a href="#" class="font-monospace text-decoration-none" onclick="showSessionDetailModal('${escHtml(s.node_id)}'); return false;">${escHtml(s.node_id)}</a></td>
                     <td>${s.username ? escHtml(s.username) : '<span class="text-muted">not logged in</span>'}</td>
                     <td><code>${escHtml(s.menu_state)}</code></td>
                     <td>${new Date(s.last_activity_at).toLocaleString()}</td>
@@ -669,6 +693,96 @@ function killSession(nodeId) {
     if (!confirm(`Kill session for ${nodeId}?`)) return;
     fetch(`/admin/api/packet-bbs/sessions/${encodeURIComponent(nodeId)}`, { method: 'DELETE' })
         .then(() => loadSessions());
+}
+
+function showSessionDetailModal(nodeId) {
+    activeSessionNodeId = nodeId;
+    document.getElementById('sessionDetailNodeId').textContent = nodeId;
+    document.getElementById('sessionDetailBody').innerHTML =
+        '<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</div>';
+    sessionDetailModal.show();
+
+    fetch(`/admin/api/packet-bbs/sessions/${encodeURIComponent(nodeId)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('sessionDetailBody').innerHTML =
+                    `<div class="alert alert-warning mb-0">${escHtml(data.error)}</div>`;
+                return;
+            }
+            renderSessionDetail(data.session);
+        })
+        .catch(() => {
+            document.getElementById('sessionDetailBody').innerHTML =
+                '<div class="alert alert-danger mb-0">Request failed.</div>';
+        });
+}
+
+function refreshSessionDetail() {
+    if (!activeSessionNodeId) return;
+    document.getElementById('sessionDetailBody').innerHTML =
+        '<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</div>';
+    fetch(`/admin/api/packet-bbs/sessions/${encodeURIComponent(activeSessionNodeId)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('sessionDetailBody').innerHTML =
+                    `<div class="alert alert-warning mb-0">${escHtml(data.error)}</div>`;
+                return;
+            }
+            renderSessionDetail(data.session);
+        })
+        .catch(() => {
+            document.getElementById('sessionDetailBody').innerHTML =
+                '<div class="alert alert-danger mb-0">Request failed.</div>';
+        });
+}
+
+function killSessionFromModal() {
+    if (!activeSessionNodeId) return;
+    if (!confirm(`Kill session for ${activeSessionNodeId}?`)) return;
+    fetch(`/admin/api/packet-bbs/sessions/${encodeURIComponent(activeSessionNodeId)}`, { method: 'DELETE' })
+        .then(() => {
+            sessionDetailModal.hide();
+            loadSessions();
+        });
+}
+
+function renderSessionDetail(s) {
+    const fmt = v => v !== null && v !== undefined && v !== '' ? escHtml(String(v)) : '<span class="text-muted">—</span>';
+    const fmtDate = v => v ? new Date(v).toLocaleString() : '<span class="text-muted">—</span>';
+    const fmtJson = v => {
+        if (v === null || v === undefined || v === '' || (typeof v === 'object' && Object.keys(v).length === 0)) {
+            return '<span class="text-muted">—</span>';
+        }
+        const obj = typeof v === 'string' ? JSON.parse(v) : v;
+        return `<pre class="mb-0 small bg-light p-2 rounded">${escHtml(JSON.stringify(obj, null, 2))}</pre>`;
+    };
+
+    const rows = [
+        ['Node ID',           fmt(s.node_id)],
+        ['User',              s.username ? fmt(s.username) : '<span class="text-muted">not logged in</span>'],
+        ['Menu State',        `<code>${fmt(s.menu_state)}</code>`],
+        ['Session Started',   fmtDate(s.created_at)],
+        ['Last Activity',     fmtDate(s.last_activity_at)],
+        ['Pagination Cursor', fmt(s.pagination_cursor)],
+        ['Pagination Context',fmt(s.pagination_context)],
+        ['Compose Type',      fmt(s.compose_type)],
+        ['Compose Buffer',    s.compose_buffer ? `<pre class="mb-0 small bg-light p-2 rounded">${escHtml(s.compose_buffer)}</pre>` : '<span class="text-muted">—</span>'],
+        ['Compose Meta',      fmtJson(s.compose_meta)],
+        ['Session State',     fmtJson(s.session_state)],
+    ];
+
+    document.getElementById('sessionDetailBody').innerHTML = `
+        <table class="table table-sm table-bordered mb-0">
+            <tbody>
+                ${rows.map(([label, value]) => `
+                    <tr>
+                        <th class="text-nowrap bg-light" style="width:170px">${label}</th>
+                        <td>${value}</td>
+                    </tr>`).join('')}
+            </tbody>
+        </table>`;
 }
 
 function flushQueue() {
