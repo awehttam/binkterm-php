@@ -11,15 +11,20 @@ Make sure you have a current backup of your database and files before upgrading.
     - [PacketBBS Node Directory](#packetbbs-node-directory)
     - [AX.25 TNC (KISS) Interface Type](#ax25-tnc-kiss-interface-type)
     - [Auto-add policy sync change](#auto-add-policy-sync-change)
+  - [Web Interface](#web-interface)
   - [Developer Tooling](#developer-tooling)
 - [Runtime Requirements](#runtime-requirements-1)
 - [Terminal Server](#terminal-server-1)
 - [PacketBBS](#packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
     - [Location Description field](#location-description-field)
+    - [Node description field](#node-description-field)
+    - [Admin node list](#admin-node-list)
     - [Admin node edit modal](#admin-node-edit-modal)
+    - [Node info modal](#node-info-modal)
   - [AX.25 TNC (KISS) Interface Type](#ax25-tnc-kiss-interface-type-1)
   - [Auto-add policy sync change](#auto-add-policy-sync-change-1)
+- [Web Interface](#web-interface-1)
 - [Developer Tooling](#developer-tooling-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -58,6 +63,10 @@ Make sure you have a current backup of your database and files before upgrading.
 #### Auto-add policy sync change
 
 - The auto-add contact policy is no longer pushed to the device on every save — a `set_autoadd_config` device command is queued only when the bitmask actually changes.
+
+### Web Interface
+
+- Inline code (`code`) in Markdown-rendered content now renders in the theme's normal text color on all dark themes (dark, amber, greenterm, cyberpunk). Bootstrap's default pink/red code color was difficult to read against dark backgrounds.
 
 ### Developer Tooling
 
@@ -146,11 +155,27 @@ No additional admin setup is required. The built-in defaults remain in effect un
 
 Bridge nodes now include a **Location Description** field stored on `packet_bbs_nodes`. Existing rows with no description continue to display the "No location set" placeholder until you add one.
 
+#### Node description field
+
+Bridge nodes now have a **Description** field (`description TEXT` on `packet_bbs_nodes`). It is optional and accepts free-form text — use it to describe the node's purpose, coverage area, or any other detail useful to users. The description appears in the public node info modal when a user clicks a node on the PacketBBS Nodes page.
+
+Existing rows have a `NULL` description and show no description row in the modal until one is added through **Admin → Packet BBS Nodes**.
+
+#### Admin node list
+
+The **Linked Account** column has been removed from the registered nodes table in **Admin → Packet BBS Nodes**. Account linking was removed from the node edit modal in an earlier build; this removes the now-empty column from the list view.
+
 #### Admin node edit modal
 
-The node edit modal is now wider (`modal-lg`) and uses a two-column layout. The left column holds node identity fields (Node ID, Handle/Callsign, Interface Type, Location Description, Coordinates). The right column holds the Auto-Add Contact Policy section for MeshCore nodes. The **Link to BBS Account** field has been removed from the modal entirely; normal per-user authentication uses the `LOGIN <user> <code>` TOTP flow and does not require an account link.
+The node edit modal is now wider (`modal-lg`) and uses a two-column layout. The left column holds node identity fields (Node ID, Handle/Callsign, Interface Type, Location Description, Description, Coordinates). The right column holds the Auto-Add Contact Policy section for MeshCore nodes. The **Link to BBS Account** field has been removed from the modal entirely; normal per-user authentication uses the `LOGIN <user> <code>` TOTP flow and does not require an account link.
 
 The Handle/Callsign field placeholder now shows the BBS hostname derived from `SITE_URL` (using the hostname can help with discovery from mesh adverts). A note under the field explains that the value should match the node name set in the MeshCore app, as it is used as the contact display name when the bridge QR-codes itself into a new companion's contact list.
+
+#### Node info modal
+
+The public node info modal (opened by clicking a node on the PacketBBS Nodes page) now shows a **Description** row when a description has been set for the node.
+
+The **QR code** and **Public Key** sections are now only shown for MeshCore nodes. AX.25 TNC (KISS) nodes authenticate by callsign and have no cryptographic public key, so those fields are suppressed for that interface type.
 
 ### AX.25 TNC (KISS) Interface Type
 
@@ -161,6 +186,16 @@ The companion bridge adapter — a standalone PHP daemon that connects a KISS TN
 ### Auto-add policy sync change
 
 Previously, saving a MeshCore node always queued a `set_autoadd_config` device command, even when nothing changed. The modal now tracks the policy bitmask at open time and only queues the device command when the value actually changes at save time. The "Saved — waiting for bridge to apply to device" confirmation is shown only when a command was queued.
+
+---
+
+## Web Interface
+
+### Dark Theme Inline Code Color
+
+Bootstrap 5's default color for inline `code` elements (`#d63384`, a pink/red) is difficult to read against dark backgrounds. The dark, amber, greenterm, and cyberpunk themes now override this with the theme's normal text color.
+
+No sysop action is required.
 
 ---
 
