@@ -136,8 +136,8 @@ class Auth
         $stmt->execute([
             $sessionId,
             $userId,
-            $ipAddress,
-            $userAgent,
+            $ipAddress !== '' ? $ipAddress : null,
+            $userAgent !== '' ? $userAgent : null,
             $service
         ]);
 
