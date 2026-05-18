@@ -77,6 +77,8 @@ All new self-registrations require admin approval before the account is activate
 
 To create an account directly without waiting for a registration, use **Admin → Users → Add User**.
 
+Also review the **Echomail Moderation Threshold** setting in **Admin → BBS Settings → Features**. This controls how many approved networked echomail posts a new user must accumulate before their posts are transmitted upstream without manual review. New users can always post to local-only areas regardless of this setting. Set it to `0` to disable moderation entirely and let all new users post freely; a value of `1` or higher holds each new user's networked posts for your approval until they reach that post count. The default is `0` (disabled).
+
 Save your settings. The BBS name and sysop fields take effect immediately for new outgoing mail.
 
 ---
