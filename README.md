@@ -119,6 +119,7 @@ BinktermPHP runs in any modern browser across different features and themes.
 
 ### Realtime / Chat
 - **BinkStream** — WebSocket and SSE event delivery; incoming FTN mail notifies open browser tabs in real time
+- **Local chat & DMs** — built-in room-based group chat and direct messages between users, delivered in real time via BinkStream
 - **Multi-room chat** — Matterbridge bridging to Discord, Slack, IRC, Telegram, and others
 - **MRC** — Multi-Relay Chat protocol integration
 - **Shoutbox** — public 280-character message wall
