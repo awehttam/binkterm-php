@@ -89,7 +89,8 @@ class PacketBbsTextRenderer
                 '(S)END user|addr subj',
                 '(P)OST in current area',
                 '(BU)LLETINS list / (BU) # read',
-                '(C)HAT [room] enter chat',
+                '(CL) list rooms/DMs',
+                '(C)HAT [room|user] enter chat/DM',
                 '(U)STATUS show context',
                 '(M)ORE next page',
                 '(B)ACK prev page',
@@ -100,8 +101,10 @@ class PacketBbsTextRenderer
         if (in_array($topic, ['CHAT', 'C'], true)) {
             return implode("\n", [
                 'H CHAT',
+                'CL or CHAT LIST: list rooms/DMs',
                 'CHAT: enter lobby',
                 'CHAT <room>: enter room',
+                'CHAT <user>: open DM',
                 'Type msg to post. Q:exit',
                 'M:older B:newer W:who',
             ]);
@@ -166,7 +169,7 @@ class PacketBbsTextRenderer
             'GEN U/Q | M/B',
             'NET N | R/Y id | S to subj',
             'ECHO A | T tag | P subj',
-            'CHAT C [room] | FULLHELP',
+            'CHAT CL C [room|user] | FULLHELP',
         ]);
     }
 
@@ -508,6 +511,60 @@ class PacketBbsTextRenderer
             $lines[] = sprintf('#%d %s', $id, $title);
         }
         $lines[] = 'BU to read';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Render the list of active chat rooms and recent DM partners.
+     *
+     * @param string[] $rooms
+     * @param string[] $dmPartners
+     */
+    public function renderChatList(array $rooms, array $dmPartners): string
+    {
+        $lines = [];
+
+        $lines[] = 'Rooms:';
+        if (empty($rooms)) {
+            $lines[] = 'None';
+        } else {
+            $line = '';
+            foreach ($rooms as $name) {
+                $name = $this->truncate((string)$name, 20);
+                if ($line === '') {
+                    $line = $name;
+                } elseif (mb_strlen($line) + 1 + mb_strlen($name) <= $this->lineWidth) {
+                    $line .= ' ' . $name;
+                } else {
+                    $lines[] = $line;
+                    $line = $name;
+                }
+            }
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+
+        if (!empty($dmPartners)) {
+            $lines[] = 'DMs:';
+            $line = '';
+            foreach ($dmPartners as $username) {
+                $username = $this->truncate((string)$username, 20);
+                if ($line === '') {
+                    $line = $username;
+                } elseif (mb_strlen($line) + 1 + mb_strlen($username) <= $this->lineWidth) {
+                    $line .= ' ' . $username;
+                } else {
+                    $lines[] = $line;
+                    $line = $username;
+                }
+            }
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+
+        $lines[] = 'C <name> to enter';
         return implode("\n", $lines);
     }
 

@@ -97,8 +97,13 @@ class PacketBbsGateway
         // Check session expiry: if last_activity is older than timeout and user_id is set,
         // clear auth state so they must re-login (but keep session row so context is preserved)
         if ($session['user_id'] && $this->isExpired($session)) {
+            $expiredBbsSessionId = (string)($session['bbs_session_id'] ?? '');
+            if ($expiredBbsSessionId !== '') {
+                (new Auth())->logout($expiredBbsSessionId);
+            }
             $this->sessionRepo->update($nodeId, [
                 'user_id'            => null,
+                'bbs_session_id'     => null,
                 'menu_state'         => 'main',
                 'pagination_cursor'  => 1,
                 'pagination_context' => null,
@@ -109,6 +114,12 @@ class PacketBbsGateway
             ]);
             $session = $this->sessionRepo->load($nodeId);
             return 'Session expired. LOGIN again.';
+        }
+
+        // Keep the user's online presence fresh on every command.
+        $activeBbsSessionId = (string)($session['bbs_session_id'] ?? '');
+        if ($session['user_id'] && $activeBbsSessionId !== '') {
+            (new Auth())->updateSessionActivity($activeBbsSessionId, 'PacketBBS');
         }
 
         $command = trim($command);
@@ -243,8 +254,14 @@ class PacketBbsGateway
             case 'PREV':
                 return $this->handlePrev($session, $nodeId, $renderer);
 
+            case 'CL':
+                return $this->handleChatList($session, $nodeId, $renderer);
+
             case 'C':
             case 'CHAT':
+                if (strtoupper($args) === 'LIST') {
+                    return $this->handleChatList($session, $nodeId, $renderer);
+                }
                 return $this->handleChat($session, $nodeId, $args, $renderer);
 
             case 'WEB':
@@ -588,8 +605,24 @@ class PacketBbsGateway
 
         $rateLimit->recordSuccess($nodeId, $username);
 
+        // Revoke any previous online session for this node (re-login case).
+        $oldBbsSessionId = (string)($session['bbs_session_id'] ?? '');
+        if ($oldBbsSessionId !== '') {
+            (new Auth())->logout($oldBbsSessionId);
+        }
+
+        // Create a user_sessions entry so this user appears in online-user
+        // lists and can be selected as a DM target from the web interface.
+        $bbsSessionId = (new Auth())->createSessionForConnection(
+            (int)$user['id'],
+            'packetbbs',
+            '',
+            $nodeId
+        );
+
         $this->sessionRepo->update($nodeId, [
             'user_id'            => $user['id'],
+            'bbs_session_id'     => $bbsSessionId,
             'menu_state'         => 'main',
             'pagination_cursor'  => 1,
             'pagination_context' => null,
@@ -1525,6 +1558,38 @@ class PacketBbsGateway
     /**
      * Enter a chat room. With no args, enters the default (first active) room.
      */
+    private function handleChatList(array $session, string $nodeId, PacketBbsTextRenderer $renderer): string
+    {
+        if ($err = $this->requireLogin($session)) {
+            return $err;
+        }
+
+        $roomStmt = $this->db->prepare(
+            'SELECT name FROM chat_rooms WHERE is_active = TRUE ORDER BY id ASC'
+        );
+        $roomStmt->execute();
+        $rooms = $roomStmt->fetchAll(\PDO::FETCH_COLUMN);
+
+        $userId = (int)$session['user_id'];
+        $dmStmt = $this->db->prepare("
+            SELECT u.username, MAX(cm.created_at) AS last_at
+            FROM chat_messages cm
+            JOIN users u ON u.id = CASE
+                WHEN cm.from_user_id = ? THEN cm.to_user_id
+                ELSE cm.from_user_id
+            END
+            WHERE cm.room_id IS NULL
+              AND (cm.from_user_id = ? OR cm.to_user_id = ?)
+            GROUP BY u.id, u.username
+            ORDER BY last_at DESC
+            LIMIT 10
+        ");
+        $dmStmt->execute([$userId, $userId, $userId]);
+        $dmPartners = $dmStmt->fetchAll(\PDO::FETCH_COLUMN);
+
+        return $renderer->renderChatList($rooms, $dmPartners);
+    }
+
     private function handleChat(array $session, string $nodeId, string $args, PacketBbsTextRenderer $renderer): string
     {
         if ($err = $this->requireLogin($session)) {
@@ -1588,6 +1653,9 @@ class PacketBbsGateway
 
             case 'C':
             case 'CHAT':
+                if (strtoupper($args) === 'LIST') {
+                    return $this->handleChatList($session, $nodeId, $renderer);
+                }
                 if ($args !== '') {
                     return $this->enterChatRoom($session, $nodeId, $args, $renderer);
                 }
