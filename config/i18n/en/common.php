@@ -4245,6 +4245,7 @@ return [
     'ui.meshcore_nodes.col_last_seen' => 'Last Seen',
     'ui.meshcore_nodes.no_location' => 'No location set',
     'ui.meshcore_nodes.location' => 'Location',
+    'ui.meshcore_nodes.description' => 'Description',
     'ui.meshcore_nodes.preamble' => 'Access the BBS via Mesh Network',
     'ui.meshcore_nodes.never_seen' => 'Never',
     'ui.meshcore_nodes.more_info' => 'More info',

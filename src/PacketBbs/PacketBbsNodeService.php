@@ -51,7 +51,7 @@ class PacketBbsNodeService
     public function getNodeById(int $id): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, handle, interface_type, location, lat, lon, last_seen_at, node_id
+            'SELECT id, handle, interface_type, location, description, lat, lon, last_seen_at, node_id
                FROM packet_bbs_nodes
               WHERE id = ?'
         );

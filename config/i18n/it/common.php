@@ -4222,6 +4222,7 @@ return [
     'ui.meshcore_nodes.col_last_seen' => 'Ultima attività',
     'ui.meshcore_nodes.no_location' => 'Nessuna posizione',
     'ui.meshcore_nodes.location' => 'Posizione',
+    'ui.meshcore_nodes.description' => 'Descrizione',
     'ui.meshcore_nodes.preamble' => 'Accedi al BBS tramite la rete Mesh',
     'ui.meshcore_nodes.never_seen' => 'Mai',
     'ui.meshcore_nodes.more_info' => 'Maggiori info',

@@ -26,7 +26,6 @@
                             <th>Node ID</th>
                             <th>Handle</th>
                             <th>Interface</th>
-                            <th>Linked Account</th>
                             <th>Last Seen</th>
                             <th>Actions</th>
                         </tr>
@@ -136,6 +135,10 @@
                                 <label class="form-label">Location Description (optional)</label>
                                 <input type="text" class="form-control" id="nodeLocation" placeholder="e.g. Lower Mainland BC" maxlength="255">
                                 <div class="form-text">Human-readable location shown in the node list and dashboard.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Description (optional)</label>
+                                <textarea class="form-control" id="nodeDescription" rows="3" placeholder="Brief description of this node…"></textarea>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Coordinates (optional)</label>
@@ -424,7 +427,6 @@ function loadNodes() {
                     <td><code>${escHtml(n.node_id)}</code></td>
                     <td>${escHtml(n.handle || '—')}</td>
                     <td><span class="badge bg-secondary">${escHtml(n.interface_type)}</span></td>
-                    <td>${n.username ? escHtml(n.username) : '<span class="text-muted">' + window.t('ui.admin.packet_bbs.node.no_user', {}, 'none') + '</span>'}</td>
                     <td>${n.last_seen_at ? new Date(n.last_seen_at).toLocaleString() : '<span class="text-muted">' + window.t('ui.admin.packet_bbs.node.never_seen', {}, 'never') + '</span>'}</td>
                     <td>
                         ${n.interface_type === 'meshcore' ? `
@@ -525,6 +527,7 @@ function showAddNodeModal() {
     document.getElementById('nodeHandle').placeholder = SITE_HOSTNAME;
     document.getElementById('nodeInterface').value = 'meshcore';
     document.getElementById('nodeLocation').value = '';
+    document.getElementById('nodeDescription').value = '';
     document.getElementById('nodeLat').value = '';
     document.getElementById('nodeLon').value = '';
     document.getElementById('nodeModalError').classList.add('d-none');
@@ -543,6 +546,7 @@ function editNode(n) {
     document.getElementById('nodeHandle').value = n.handle || '';
     document.getElementById('nodeInterface').value = n.interface_type || 'meshcore';
     document.getElementById('nodeLocation').value = n.location || '';
+    document.getElementById('nodeDescription').value = n.description || '';
     document.getElementById('nodeLat').value = n.lat != null ? n.lat : '';
     document.getElementById('nodeLon').value = n.lon != null ? n.lon : '';
     document.getElementById('nodeModalError').classList.add('d-none');
@@ -648,6 +652,7 @@ function saveNode() {
         handle:         document.getElementById('nodeHandle').value.trim(),
         interface_type: document.getElementById('nodeInterface').value,
         location:       document.getElementById('nodeLocation').value.trim() || null,
+        description:    document.getElementById('nodeDescription').value.trim() || null,
         lat:            latRaw !== '' ? parseFloat(latRaw) : null,
         lon:            lonRaw !== '' ? parseFloat(lonRaw) : null,
     };
