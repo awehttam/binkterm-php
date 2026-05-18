@@ -11,10 +11,11 @@ class PacketBbsTextRendererTest extends TestCase
 
         $help = $renderer->renderHelp();
 
-        $this->assertStringContainsString('H: L username code | A areas | N mail', $help);
-        $this->assertStringContainsString('S to subj', $help);
-        $this->assertStringContainsString('P post', $help);
-        $this->assertStringContainsString('U status', $help);
+        $this->assertStringContainsString('GEN L user code | W | BU #', $help);
+        $this->assertStringContainsString('GEN U/Q | M/B', $help);
+        $this->assertStringContainsString('NET N | R/Y id | S to subj', $help);
+        $this->assertStringContainsString('ECHO A | T tag | P subj', $help);
+        $this->assertStringContainsString('Use FULLHELP for full help', $help);
     }
 
     public function testRenderAreaContextHelpShowsCurrentArea(): void

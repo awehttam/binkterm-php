@@ -151,9 +151,11 @@ class PacketBbsTextRenderer
         }
 
         return implode("\n", [
-            'H: L username code | A areas | N mail',
-            'T tag | S to subj | P post | R id',
-            'M more | B back | U status | Q quit',
+            'GEN L user code | W | BU #',
+            'GEN U/Q | M/B',
+            'NET N | R/Y id | S to subj',
+            'ECHO A | T tag | P subj',
+            'Use FULLHELP for full help',
         ]);
     }
 
