@@ -126,14 +126,14 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Handle / Callsign</label>
-                                {% set site_hostname = (site_url | split('//') | last) | split('/') | first %}
-                                <input type="text" class="form-control" id="nodeHandle" placeholder="{{ site_hostname }}">
-                                <div class="form-text">Should match the node's name in MeshCore. Used as the contact name when users scan the QR code to add this node to their radio.</div>
+                                <input type="text" class="form-control" id="nodeHandle" placeholder="Node name">
+                                <div class="form-text">A name for this radio node. Consider using your BBS hostname so that radio users who hear the node's adverts or beacons can identify which BBS it belongs to.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Interface Type</label>
                                 <select class="form-select" id="nodeInterface">
                                     <option value="meshcore">MeshCore</option>
+                                    <option value="meshtastic">Meshtastic</option>
                                     <option value="tnc">AX.25 TNC (KISS)</option>
                                 </select>
                             </div>
@@ -531,7 +531,7 @@ function showAddNodeModal() {
     document.getElementById('nodeId').value = '';
     document.getElementById('nodeId').disabled = false;
     document.getElementById('nodeHandle').value = '';
-    document.getElementById('nodeHandle').placeholder = SITE_HOSTNAME;
+    document.getElementById('nodeHandle').placeholder = 'Node name';
     document.getElementById('nodeInterface').value = 'meshcore';
     document.getElementById('nodeLocation').value = '';
     document.getElementById('nodeDescription').value = '';

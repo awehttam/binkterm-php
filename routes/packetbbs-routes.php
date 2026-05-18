@@ -83,6 +83,9 @@ SimpleRouter::post('/api/packetbbs/command', function () {
     }
 
     $interface = (string)($body['interface'] ?? 'meshcore');
+    if (!in_array($interface, ['meshcore', 'meshtastic', 'tnc'], true)) {
+        $interface = 'meshcore';
+    }
     $command   = (string)$body['command'];
 
     // Reject absurdly long input before it reaches the gateway

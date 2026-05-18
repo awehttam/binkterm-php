@@ -4658,6 +4658,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $nodeId    = trim($input['node_id'] ?? '');
             $handle    = trim($input['handle'] ?? '');
             $ifaceType = trim($input['interface_type'] ?? 'meshcore');
+            if (!in_array($ifaceType, ['meshcore', 'meshtastic', 'tnc'], true)) {
+                $ifaceType = 'meshcore';
+            }
             if ($nodeId === '') {
                 http_response_code(400);
                 apiError('errors.admin.packet_bbs.node_id_required', 'node_id is required');
@@ -4691,6 +4694,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $input       = json_decode(file_get_contents('php://input'), true) ?? [];
             $handle      = trim($input['handle'] ?? '');
             $ifaceType   = trim($input['interface_type'] ?? 'meshcore');
+            if (!in_array($ifaceType, ['meshcore', 'meshtastic', 'tnc'], true)) {
+                $ifaceType = 'meshcore';
+            }
             $userId      = !empty($input['user_id']) ? (int)$input['user_id'] : null;
             $lat      = isset($input['lat']) && $input['lat'] !== null && $input['lat'] !== '' ? (float)$input['lat'] : null;
             $lon      = isset($input['lon']) && $input['lon'] !== null && $input['lon'] !== '' ? (float)$input['lon'] : null;
