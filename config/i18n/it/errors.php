@@ -363,6 +363,8 @@ return [
     'errors.admin.appearance.sixel.upload.failed' => 'Impossibile caricare la schermata sixel',
     'errors.admin.appearance.sixel.upload.file_too_large' => 'Il file sixel supera il limite di dimensione (5 MB)',
     'errors.admin.appearance.sixel.delete.failed' => 'Impossibile eliminare la schermata sixel',
+    'errors.admin.appearance.term_border.invalid_style' => 'Stile bordo non valido',
+    'errors.admin.appearance.term_border.save_failed' => 'Impossibile salvare lo stile bordo',
     'errors.admin.appearance.message_reader.save_failed' => 'Impossibile salvare le impostazioni del lettore messaggi',
     'errors.admin.appearance.dashboard.save_failed' => 'Impossibile salvare il layout dashboard',
     'errors.admin.appearance.markdown_preview.failed' => 'Impossibile renderizzare l’anteprima markdown',

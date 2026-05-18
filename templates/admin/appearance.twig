@@ -642,6 +642,42 @@
             </div>
         </div>
 
+        <div class="card mt-4" id="termBorderStyleCard">
+            <div class="card-header">
+                <h5 class="mb-0">{{ t('ui.admin.appearance.term_border.title', {}, locale, ['common']) }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">{{ t('ui.admin.appearance.term_border.help', {}, locale, ['common']) }}</p>
+
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-4">
+                        <label class="form-label" for="termBorderStyleSelect">{{ t('ui.admin.appearance.term_border.label', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="termBorderStyleSelect">
+                            <option value="classic">{{ t('ui.admin.appearance.term_border.style.classic', {}, locale, ['common']) }}</option>
+                            <option value="double">{{ t('ui.admin.appearance.term_border.style.double', {}, locale, ['common']) }}</option>
+                            <option value="single">{{ t('ui.admin.appearance.term_border.style.single', {}, locale, ['common']) }}</option>
+                            <option value="heavy">{{ t('ui.admin.appearance.term_border.style.heavy', {}, locale, ['common']) }}</option>
+                            <option value="rounded">{{ t('ui.admin.appearance.term_border.style.rounded', {}, locale, ['common']) }}</option>
+                            <option value="minimal">{{ t('ui.admin.appearance.term_border.style.minimal', {}, locale, ['common']) }}</option>
+                            <option value="mixed">{{ t('ui.admin.appearance.term_border.style.mixed', {}, locale, ['common']) }}</option>
+                            <option value="shadow">{{ t('ui.admin.appearance.term_border.style.shadow', {}, locale, ['common']) }}</option>
+                            <option value="ascii">{{ t('ui.admin.appearance.term_border.style.ascii', {}, locale, ['common']) }}</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="form-text">{{ t('ui.admin.appearance.term_border.charset_note', {}, locale, ['common']) }}</div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button type="button" class="btn btn-primary" onclick="saveTermBorderStyle()">
+                        <i class="fas fa-save me-1"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
+                    </button>
+                    <span id="termBorderStyleStatus" class="ms-2 text-muted small"></span>
+                </div>
+            </div>
+        </div>
+
         <div class="card mt-4" id="termMenuKeysCard">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">{{ t('ui.admin.appearance.term_menu_keys.title', {}, locale, ['common']) }}</h5>
@@ -1817,6 +1853,34 @@ function saveTermMenuKeys() {
         buildTermMenuKeysTable(stored && typeof stored === 'object' ? stored : TERM_MENU_KEY_DEFAULTS);
     }).fail(function() {
         buildTermMenuKeysTable(TERM_MENU_KEY_DEFAULTS);
+    });
+})();
+
+// ---- Terminal Border Style ----
+
+function saveTermBorderStyle() {
+    const style = $('#termBorderStyleSelect').val();
+    showStatus('termBorderStyleStatus', 'info', uiT('ui.common.saving', 'Saving...'));
+    $.ajax({
+        url: '/admin/api/appearance/term-border-style',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ term_border_style: style }),
+        success: function() {
+            showStatus('termBorderStyleStatus', 'success', uiT('ui.common.saved', 'Saved'));
+        },
+        error: function(xhr) {
+            showStatus('termBorderStyleStatus', 'danger', getApiErrorMessage(xhr.responseJSON, uiT('errors.admin.appearance.term_border.save_failed', 'Failed to save border style')));
+        }
+    });
+}
+
+(function initTermBorderStyle() {
+    $.get('/admin/api/appearance', function(data) {
+        const stored = data?.data?.config?.shell?.term_border_style;
+        if (stored) {
+            $('#termBorderStyleSelect').val(stored);
+        }
     });
 })();
 

@@ -363,6 +363,8 @@ return [
     'errors.admin.appearance.sixel.upload.failed' => 'Error al subir la pantalla sixel',
     'errors.admin.appearance.sixel.upload.file_too_large' => 'El archivo sixel supera el limite de tamano (5MB)',
     'errors.admin.appearance.sixel.delete.failed' => 'Error al eliminar la pantalla sixel',
+    'errors.admin.appearance.term_border.invalid_style' => 'Estilo de borde no v\xe1lido',
+    'errors.admin.appearance.term_border.save_failed' => 'No se pudo guardar el estilo de borde',
     'errors.admin.appearance.message_reader.save_failed' => 'No se pudo guardar la configuracion del lector de mensajes',
     'errors.admin.appearance.dashboard.save_failed' => 'No se pudo guardar el diseno del panel',
     'errors.admin.appearance.markdown_preview.failed' => 'No se pudo renderizar la vista previa de markdown',

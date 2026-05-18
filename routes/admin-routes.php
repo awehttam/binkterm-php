@@ -2466,6 +2466,33 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::post('/appearance/term-border-style', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $style = strtolower(trim((string)($payload['term_border_style'] ?? '')));
+
+                if (!in_array($style, \BinktermPHP\AppearanceConfig::VALID_BORDER_STYLES, true)) {
+                    http_response_code(400);
+                    apiError('errors.admin.appearance.term_border.invalid_style', apiLocalizedText('errors.admin.appearance.term_border.invalid_style', 'Invalid border style'));
+                    return;
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['shell']['term_border_style'] = $style;
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.appearance.term_border.save_failed', apiLocalizedText('errors.admin.appearance.term_border.save_failed', 'Failed to save border style'));
+            }
+        });
+
         SimpleRouter::post('/appearance/preview-markdown', function() {
             RouteHelper::requireAdmin();
             header('Content-Type: application/json');
