@@ -83,7 +83,8 @@ BinktermPHP runs in any modern browser across different features and themes.
 # Features
 
 ### Core Platform
-- Browser-based echomail and netmail with full-text search, inline ANSI rendering, Markdown/StyleCodes authoring, and message sharing via expiring web links
+- Browser-based echomail and netmail with full-text search, Markdown/StyleCodes authoring, and message sharing via expiring web links
+- **Rich media rendering** — inline images, video, audio, and platform embeds (YouTube, SoundCloud, etc.) in messages; ANSI art decoder; RIPscrip graphics; pipe code / MCI color codes (Synchronet, Renegade, Mystic); Sixel-aware web interface
 - **File areas** — file browsing, upload, and download; TIC file distribution via FTN; FREQ serving; automated processing rules; anti-virus integration; ISO area support; file comments via linked echo areas
 - Mobile-responsive UI, installable as a PWA
 - Multiple themes — ANSI-inspired, cyberpunk, amber terminal, and more
@@ -95,7 +96,7 @@ BinktermPHP runs in any modern browser across different features and themes.
 
 ### Access Methods
 - **Web** — full HTML5 interface, installable as a PWA
-- **Telnet** — built-in server with ANSI art, Sixel graphics, and screen rotation
+- **Telnet** — built-in server with ANSI art, Sixel graphics, screen rotation, and a browser-based terminal via PubTerm
 - **SSH** — built-in SSH server for secure terminal access
 - **Gemini** — capsule hosting for Gemini-protocol clients
 - **QWK** — packet download/upload via built-in passive FTP daemon
