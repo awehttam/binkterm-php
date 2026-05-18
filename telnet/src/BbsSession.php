@@ -992,8 +992,8 @@ class BbsSession
         $chars  = $this->getLineDrawingChars();
 
         $title   = $this->t('ui.terminalserver.dashboard.title',           'Dashboard', [], $locale);
-        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'Netmail',   [], $locale);
-        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'Echomail',  [], $locale);
+        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'New Netmail',   [], $locale);
+        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'New Echomail',  [], $locale);
         $lblOL   = $this->t('ui.terminalserver.dashboard.label.online',    'Online',    [], $locale);
         $lblBull = $this->t('ui.terminalserver.dashboard.label.bulletins', 'Bulletins', [], $locale);
         $lblCred = $this->t('ui.terminalserver.dashboard.label.credits',   'Credits',   [], $locale);
@@ -1078,8 +1078,8 @@ class BbsSession
         int $menuLeft, int $menuWidth
     ): void {
         $locale  = $state['locale'];
-        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'Netmail',   [], $locale);
-        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'Echomail',  [], $locale);
+        $lblNM   = $this->t('ui.terminalserver.dashboard.label.netmail',   'New Netmail',   [], $locale);
+        $lblECH  = $this->t('ui.terminalserver.dashboard.label.echomail',  'New Echomail',  [], $locale);
         $lblOL   = $this->t('ui.terminalserver.dashboard.label.online',    'Online',    [], $locale);
         $lblBull = $this->t('ui.terminalserver.dashboard.label.bulletins', 'Bulletins', [], $locale);
         $lblCred = $this->t('ui.terminalserver.dashboard.label.credits',   'Credits',   [], $locale);
