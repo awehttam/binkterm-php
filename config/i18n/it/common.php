@@ -4700,7 +4700,7 @@ return [
     'ui.interests.admin.deleted_success' => 'Interesse eliminato.',
     'ui.interests.admin.areas_saved_success' => 'Aree aggiornate.',
 
-    ‘ui.admin.wall.incoming’                         => 'Messaggio in arrivo da {from}',
+    'ui.admin.wall.incoming'                         => 'Messaggio in arrivo da {from}',
 
     // Echomail moderation queue
     'ui.admin.echomail_moderation.page_title'               => 'Moderazione echomail',

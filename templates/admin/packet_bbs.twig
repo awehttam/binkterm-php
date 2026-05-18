@@ -10,9 +10,14 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <h1 class="h2"><i class="fas fa-broadcast-tower me-2"></i>Packet BBS / MeshCore Nodes</h1>
-        <button class="btn btn-primary" onclick="showAddNodeModal()">
-            <i class="fas fa-plus me-2"></i>Add Node
-        </button>
+        <div class="d-flex gap-2">
+            <a href="/admin/docs/view/PacketBBS" class="btn btn-outline-secondary">
+                <i class="fas fa-question-circle me-1"></i>Help
+            </a>
+            <button class="btn btn-primary" onclick="showAddNodeModal()">
+                <i class="fas fa-plus me-2"></i>Add Node
+            </button>
+        </div>
     </div>
 
     <!-- Registered Nodes -->
