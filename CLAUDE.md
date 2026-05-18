@@ -9,6 +9,7 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
  - **Product website**: https://lovelybits.org/binktermphp
  - **GitHub repo**: https://github.com/awehttam/binkterm-php
  - **Support BBS**: https://claudes.lovelybits.org
+ - **Reddit**: https://www.reddit.com/r/BinktermPHP/
  - **Product Mascot**: Kludge the Corvid
  - **Default PR target branch**: `claudesbbs` — all pull requests must target this branch, not `main`
  - **New development branches**: When creating a new branch, always ask the user whether to branch from `claudesbbs` (main staging) or another development branch. Never assume `main`.

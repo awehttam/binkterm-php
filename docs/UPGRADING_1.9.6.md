@@ -94,9 +94,6 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Terminal login, main-menu, and goodbye art screens now support simple rotating file families. You can keep a single file such as `telnet/screens/login.ans`, or add numbered variants such as `telnet/screens/login1.ans`, `telnet/screens/login2.ans`, `telnet/screens/mainmenu1.sixel`, and `telnet/screens/bye1.ans`.
 - When multiple matching files exist for the same screen family and file type, the terminal server now uses a glob match and randomly selects one file each time that screen is shown.
-- The main menu now shows a live dashboard panel alongside the navigation options, sourced from the same `/api/dashboard/stats` endpoint used by the web dashboard. Widgets include unread netmail, new echomail since last visit, online user count, unread bulletins, and credit balance (when credits are enabled). The layout adapts to terminal width: a bordered sidebar panel appears on wide screens (≥ ~110 columns) and a compact single-line stats bar appears below the menu on narrower screens.
-- Terminal resize events (NAWS subnegotiation) are now processed in real time during the main-menu key-wait loop. When the terminal window is resized, the menu and dashboard re-render immediately without requiring a keypress. Stats are served from the in-memory cache — no extra API call is made on resize.
-- Main menu items for netmail and echomail now show accurate counts: netmail displays the unread inbox count and echomail displays the count of new messages since the user's last visit.
 
 ### Documentation
 
@@ -353,31 +350,6 @@ The terminal server now supports rotating custom screen families for login, main
 
 Examples include `telnet/screens/login.ans`, `telnet/screens/login1.ans`, `telnet/screens/login2.ans`, `telnet/screens/mainmenu.sixel`, `telnet/screens/mainmenu1.sixel`, and `telnet/screens/bye1.ans`. Matching is done per file type, so Sixel-capable clients randomize across matching `.sixel` files and ANSI-capable clients randomize across matching `.ans` files.
 
-### Main Menu Dashboard
-
-The main menu now displays a live dashboard alongside the navigation options, sourced from `/api/dashboard/stats` — the same endpoint used by the web dashboard.
-
-Widgets are shown in priority order:
-
-| Widget | Content |
-|--------|---------|
-| Netmail | Unread netmail count |
-| Echomail | New echomail since last visit |
-| Online | Users active in the last 15 minutes |
-| Bulletins | Unread bulletins |
-| Credits | Credit balance (only when credits are enabled) |
-
-The layout adapts to the detected terminal width. On wide screens (≥ ~110 columns) a bordered panel is drawn to the right of the menu using ANSI cursor positioning. Lower-priority widgets are dropped from the panel when there is not enough vertical space. On narrower screens a compact single-line stats bar is placed below the menu box; bulletins and credits are omitted from the bar when rows are limited.
-
-Stats are fetched once when the menu is first displayed and again after returning from netmail, echomail, or bulletins. No extra API call is made on resize — the menu re-renders from the cached stats.
-
-Menu items for netmail and echomail now show accurate counts: the netmail item shows the unread inbox count and the echomail item shows the count of new messages since the user's last visit, matching the labels used on the web dashboard.
-
-### Real-Time Resize Handling
-
-Terminal resize events (NAWS — Negotiate About Window Size) are now processed in real time during the main-menu key-wait loop. Previously, NAWS subnegotiation packets that arrived while waiting for a keypress were silently discarded because the resize handler only ran on the interactive input path.
-
-The key-wait loop now detects dimension changes between iterations and immediately re-renders the menu and dashboard panel without requiring a keypress. Resize handling uses a non-blocking read after consuming a subneg packet, so the loop returns instantly when no further data is waiting rather than blocking on the next character.
 
 ## Documentation
 
