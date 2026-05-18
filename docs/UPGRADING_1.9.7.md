@@ -7,11 +7,19 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
   - [Runtime Requirements](#runtime-requirements)
   - [Terminal Server](#terminal-server)
-  - [PacketBBS Node Directory](#packetbbs-node-directory)
+  - [PacketBBS](#packetbbs)
+    - [PacketBBS Node Directory](#packetbbs-node-directory)
+    - [AX.25 TNC (KISS) Interface Type](#ax25-tnc-kiss-interface-type)
+    - [Auto-add policy sync change](#auto-add-policy-sync-change)
   - [Developer Tooling](#developer-tooling)
 - [Runtime Requirements](#runtime-requirements-1)
 - [Terminal Server](#terminal-server-1)
-- [PacketBBS Node Directory](#packetbbs-node-directory-1)
+- [PacketBBS](#packetbbs-1)
+  - [PacketBBS Node Directory](#packetbbs-node-directory-1)
+    - [Location Description field](#location-description-field)
+    - [Admin node edit modal](#admin-node-edit-modal)
+  - [AX.25 TNC (KISS) Interface Type](#ax25-tnc-kiss-interface-type-1)
+  - [Auto-add policy sync change](#auto-add-policy-sync-change-1)
 - [Developer Tooling](#developer-tooling-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -34,12 +42,21 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
 - **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Idle Timeout** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
 
-### PacketBBS Node Directory
+### PacketBBS
+
+#### PacketBBS Node Directory
 
 - A new **PacketBBS Nodes** map and list has been added to the **BBS Lists** menu and is visible when PacketBBS nodes are registered to the BBS.
 - Bridge nodes now have a **Location Description** field (free text, e.g. "Lower Mainland BC"). The public node table and the dashboard widget now show this descriptor instead of GPS coordinates.
 - The **PacketBBS Nodes** dashboard card now appears in the sidebar (between the Voting Booth and Echo Areas cards). Each node name is a link that opens its info modal. The location description is shown beneath the name; nodes with no description show a placeholder.
 - The node edit modal in **Admin → Packet BBS Nodes** is now a two-column layout. The **Auto-Add Contact Policy** section occupies the right column. The **Link to BBS Account** field has been removed; use the standard `LOGIN <user> <code>` authenticator flow instead. The Handle/Callsign field now shows the BBS hostname as placeholder text and includes a note that the value should match the MeshCore node name.
+
+#### AX.25 TNC (KISS) Interface Type
+
+- The Interface Type dropdown in the node registration modal now includes **AX.25 TNC (KISS)** alongside MeshCore. The companion bridge adapter is available as a separate package at [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss) (experimental).
+
+#### Auto-add policy sync change
+
 - The auto-add contact policy is no longer pushed to the device on every save — a `set_autoadd_config` device command is queued only when the bitmask actually changes.
 
 ### Developer Tooling
@@ -121,17 +138,25 @@ No additional admin setup is required. The built-in defaults remain in effect un
 
 ---
 
-## PacketBBS Node Directory
+## PacketBBS
 
-### Location Description field
+### PacketBBS Node Directory
+
+#### Location Description field
 
 Bridge nodes now include a **Location Description** field stored on `packet_bbs_nodes`. Existing rows with no description continue to display the "No location set" placeholder until you add one.
 
-### Admin node edit modal
+#### Admin node edit modal
 
 The node edit modal is now wider (`modal-lg`) and uses a two-column layout. The left column holds node identity fields (Node ID, Handle/Callsign, Interface Type, Location Description, Coordinates). The right column holds the Auto-Add Contact Policy section for MeshCore nodes. The **Link to BBS Account** field has been removed from the modal entirely; normal per-user authentication uses the `LOGIN <user> <code>` TOTP flow and does not require an account link.
 
 The Handle/Callsign field placeholder now shows the BBS hostname derived from `SITE_URL` (using the hostname can help with discovery from mesh adverts). A note under the field explains that the value should match the node name set in the MeshCore app, as it is used as the contact display name when the bridge QR-codes itself into a new companion's contact list.
+
+### AX.25 TNC (KISS) Interface Type
+
+The node registration modal now includes **AX.25 TNC (KISS)** as a selectable interface type. Registering a node with this type sets the output profile to 8 lines × 64 columns per page, tuned for packet radio frame sizes.
+
+The companion bridge adapter — a standalone PHP daemon that connects a KISS TNC (hardware or Direwolf) to the PacketBBS API — is available separately at [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss). The adapter is currently experimental. No BBS migration is required; the interface type string is stored as-is on the existing `packet_bbs_nodes` table.
 
 ### Auto-add policy sync change
 

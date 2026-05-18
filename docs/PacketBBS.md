@@ -83,6 +83,7 @@ PacketBBS requires a bridge adapter to connect a radio network to the BinktermPH
 | Adapter | Radio network | Repository | Status |
 |---|---|---|---|
 | MeshCore Bridge | MeshCore | [awehttam/binktermphp-meshcorebridge](https://github.com/awehttam/binktermphp-meshcorebridge) | Available |
+| AX.25 KISS Bridge | AX.25 packet radio (hardware or software TNC) | [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss) | Experimental |
 
 ### Bridge Node vs Sender Node
 
@@ -139,9 +140,9 @@ Add a node:
 
 | Field | Purpose |
 |---|---|
-| Node ID | The bridge device ID. For MeshCore this is the bridge node hash/ID. |
-| Handle / Callsign | The node name as it appears in the MeshCore app. This value is used as the contact display name when the bridge QR-codes itself into another operator's contact list. Setting it to the BBS hostname is recommended. |
-| Interface Type | Output profile. `MeshCore` is the only currently supported type. |
+| Node ID | The bridge device ID. For MeshCore this is the bridge node hash/ID. For AX.25 KISS use the bridge callsign (e.g. `N0BBS-1`). |
+| Handle / Callsign | A friendly name for the node. For MeshCore nodes this should match the node name in the app; it is used as the contact display name when the bridge QR-codes itself into another operator's contact list. Setting it to the BBS hostname is recommended. |
+| Interface Type | Output profile that controls line width and page size. Choose `MeshCore`, or `AX.25 TNC (KISS)` for packet radio bridges. |
 | Location Description | Optional free-text location label shown on the public node directory and dashboard widget (e.g. "Lower Mainland BC"). |
 | Coordinates | Optional GPS coordinates used to place the node on the public node map. Not displayed directly to users. |
 
