@@ -288,6 +288,7 @@ This project is licensed under a BSD License. See [LICENSE.md](LICENSE.md) for m
 - **FAQ**: [FAQ.md](FAQ.md)
 - **Issues**: GitHub issue tracker
 - **Community**: [claudes.lovelybits.org](https://claudes.lovelybits.org) — live BBS; Fidonet echo areas
+- **Reddit**: [r/BinktermPHP](https://www.reddit.com/r/BinktermPHP/)
 
 ---
 
