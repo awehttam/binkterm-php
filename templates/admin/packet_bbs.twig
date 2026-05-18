@@ -326,6 +326,9 @@
                 <button type="button" class="btn btn-outline-secondary me-auto" onclick="refreshSessionDetail()">
                     <i class="fas fa-sync-alt"></i> Refresh
                 </button>
+                <button type="button" class="btn btn-outline-danger me-2" onclick="killSessionFromModal()">
+                    <i class="fas fa-times"></i> Kill Session
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
@@ -732,6 +735,16 @@ function refreshSessionDetail() {
         .catch(() => {
             document.getElementById('sessionDetailBody').innerHTML =
                 '<div class="alert alert-danger mb-0">Request failed.</div>';
+        });
+}
+
+function killSessionFromModal() {
+    if (!activeSessionNodeId) return;
+    if (!confirm(`Kill session for ${activeSessionNodeId}?`)) return;
+    fetch(`/admin/api/packet-bbs/sessions/${encodeURIComponent(activeSessionNodeId)}`, { method: 'DELETE' })
+        .then(() => {
+            sessionDetailModal.hide();
+            loadSessions();
         });
 }
 
