@@ -11,6 +11,7 @@
   - [2. Register a Bridge Node](#2-register-a-bridge-node)
   - [3. Configure the Bridge](#3-configure-the-bridge)
 - [User Enrollment](#user-enrollment)
+- [Over-the-Air Authentication Security](#over-the-air-authentication-security)
 - [End-User Command Guide](#end-user-command-guide)
   - [Session Context](#session-context)
   - [Command Tables](#command-tables)
@@ -183,6 +184,41 @@ The authenticator issuer is:
 ```
 
 Radio login uses TOTP codes, not the web password.
+
+## Over-the-Air Authentication Security
+
+> **Warning:** On unencrypted radio links such as AX.25/KISS, all traffic is transmitted in plain text. Any station on the same frequency can read every packet, including login commands and BBS responses.
+
+### Callsign spoofing after login
+
+PacketBBS sessions are keyed by the sender `node_id` — typically the AX.25 source callsign. AX.25 provides no cryptographic proof that the source callsign in a frame matches the station that actually transmitted it. Any operator with a radio and appropriate software can set their source callsign to any value and transmit on the same frequency.
+
+This creates a session-hijacking exposure:
+
+1. A monitoring station observes a frame containing `LOGIN alice 123456` (or just observes that node `N0CALL-5` has an active session from the `WHO` response).
+2. The monitoring station transmits a frame with source callsign `N0CALL-5` addressed to the bridge.
+3. The bridge receives that spoofed frame, looks up the active session for `N0CALL-5`, and executes the command as the logged-in user.
+
+The TOTP code itself expires after 30 seconds, so replaying a captured login is a narrow window. However, **commands sent after login do not require a fresh code** — the session persists for up to `session_timeout_minutes`. Any spoofed frame with the correct source callsign can issue BBS commands for the duration of that session.
+
+### Practical implications by transport
+
+| Transport | Encryption | Callsign authentication | Risk |
+|---|---|---|---|
+| AX.25 / KISS (hardware or Direwolf) | None | None — easily spoofed | High: full session hijack possible |
+| AX.25 / KISS over RF via igate | None | None | High |
+| APRS messaging | None | None | High |
+| MeshCore | Curve25519 per-packet encryption | Public key — cannot be forged without the private key | Low: cryptographically bound identity |
+
+### Mitigations and recommendations
+
+- **Keep `session_timeout_minutes` short** (the default of 15 minutes is a reasonable balance; consider 5–10 minutes on high-risk links).
+- **Avoid performing sensitive operations by radio on shared or high-traffic frequencies** where monitoring is likely.
+- **Treat the PacketBBS session as a shared-secret login, not a secure channel.** The TOTP authenticator verifies the user at login time; it does not protect individual commands issued within the same session.
+- **MeshCore bridges are not vulnerable to callsign spoofing** because each radio packet is signed by the sender's private key and can be verified by the receiver. Sysops operating in environments where identity matters should prefer MeshCore-capable hardware.
+- **Sysop operations** (admin commands, if any are exposed via radio) should never be performed over an unencrypted radio link.
+
+This is an inherent limitation of the AX.25 protocol and is not specific to BinktermPHP. Many traditional packet BBS systems carry the same risk. Operators should understand their local RF environment and assess the likelihood of active spoofing before using authenticated PacketBBS features on the air.
 
 ## End-User Command Guide
 
