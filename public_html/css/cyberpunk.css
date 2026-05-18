@@ -58,6 +58,10 @@ body {
     min-height: 100vh;
 }
 
+code {
+    color: var(--text-color);
+}
+
 /* Grid overlay effect */
 body::before {
     content: "";

@@ -34,6 +34,10 @@ body {
     color: var(--text-color);
 }
 
+code {
+    color: var(--text-color);
+}
+
 /* Override Bootstrap navbar */
 .navbar.bg-primary {
     background-color: #1e3a5f !important;

@@ -46,6 +46,10 @@ body {
     animation: flicker 0.15s infinite;
 }
 
+code {
+    color: var(--text-color);
+}
+
 /* Scanline effect overlay */
 body::before {
     content: "";
