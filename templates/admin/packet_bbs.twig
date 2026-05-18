@@ -30,6 +30,7 @@
                         <tr>
                             <th>Node ID</th>
                             <th>Handle</th>
+                            <th>Description</th>
                             <th>Interface</th>
                             <th>Last Seen</th>
                             <th>Actions</th>
@@ -424,13 +425,14 @@ function loadNodes() {
         .then(data => {
             const tbody = document.getElementById('nodesBody');
             if (!data.nodes || data.nodes.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No nodes registered. Add one to get started.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No nodes registered. Add one to get started.</td></tr>';
                 return;
             }
             tbody.innerHTML = data.nodes.map(n => `
                 <tr>
                     <td><code>${escHtml(n.node_id)}</code></td>
                     <td>${escHtml(n.handle || '—')}</td>
+                    <td class="text-muted small">${escHtml(n.description || '')}</td>
                     <td><span class="badge bg-secondary">${escHtml(n.interface_type)}</span></td>
                     <td>${n.last_seen_at ? new Date(n.last_seen_at).toLocaleString() : '<span class="text-muted">' + window.t('ui.admin.packet_bbs.node.never_seen', {}, 'never') + '</span>'}</td>
                     <td>

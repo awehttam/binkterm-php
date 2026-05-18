@@ -4626,6 +4626,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->query(
                 "SELECT n.id, n.node_id, n.handle, n.interface_type, n.user_id,
+                        n.lat, n.lon, n.location, n.description,
                         n.last_seen_at, n.created_at, n.autoadd_config,
                         u.username,
                         (n.api_key_hash IS NOT NULL) AS has_api_key,
