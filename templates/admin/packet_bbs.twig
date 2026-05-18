@@ -323,6 +323,9 @@
             </div>
             <div class="modal-body" id="sessionDetailBody"></div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary me-auto" onclick="refreshSessionDetail()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
@@ -337,6 +340,7 @@ const SITE_HOSTNAME = {{ ((site_url | split('//') | last) | split('/') | first) 
 
 let nodeModal, keyModal, contactsModal, contactEditModal, sessionDetailModal;
 let activeContactNodeDbId = null;
+let activeSessionNodeId = null;
 let contactOwnerSearchTimer = null;
 let selectedContactOwner = null;
 let autoaddPollTimer = null;
@@ -689,12 +693,33 @@ function killSession(nodeId) {
 }
 
 function showSessionDetailModal(nodeId) {
+    activeSessionNodeId = nodeId;
     document.getElementById('sessionDetailNodeId').textContent = nodeId;
     document.getElementById('sessionDetailBody').innerHTML =
         '<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</div>';
     sessionDetailModal.show();
 
     fetch(`/admin/api/packet-bbs/sessions/${encodeURIComponent(nodeId)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('sessionDetailBody').innerHTML =
+                    `<div class="alert alert-warning mb-0">${escHtml(data.error)}</div>`;
+                return;
+            }
+            renderSessionDetail(data.session);
+        })
+        .catch(() => {
+            document.getElementById('sessionDetailBody').innerHTML =
+                '<div class="alert alert-danger mb-0">Request failed.</div>';
+        });
+}
+
+function refreshSessionDetail() {
+    if (!activeSessionNodeId) return;
+    document.getElementById('sessionDetailBody').innerHTML =
+        '<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading…</div>';
+    fetch(`/admin/api/packet-bbs/sessions/${encodeURIComponent(activeSessionNodeId)}`)
         .then(r => r.json())
         .then(data => {
             if (data.error) {
