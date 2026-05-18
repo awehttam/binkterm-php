@@ -4223,6 +4223,7 @@ return [
     'ui.meshcore_nodes.col_last_seen' => 'Última vez visto',
     'ui.meshcore_nodes.no_location' => 'Sin ubicación',
     'ui.meshcore_nodes.location' => 'Ubicación',
+    'ui.meshcore_nodes.description' => 'Descripción',
     'ui.meshcore_nodes.preamble' => 'Accede al BBS a través de la red Mesh',
     'ui.meshcore_nodes.never_seen' => 'Nunca',
     'ui.meshcore_nodes.more_info' => 'Más info',

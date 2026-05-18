@@ -318,6 +318,7 @@ return [
     'ui.meshcore_nodes.col_last_seen' => 'Dernière activité',
     'ui.meshcore_nodes.no_location' => 'Aucune position',
     'ui.meshcore_nodes.location' => 'Emplacement',
+    'ui.meshcore_nodes.description' => 'Description',
     'ui.meshcore_nodes.preamble' => 'Accédez au BBS via le réseau maillé',
     'ui.meshcore_nodes.never_seen' => 'Jamais',
     'ui.meshcore_nodes.more_info' => 'Plus d\'infos',
