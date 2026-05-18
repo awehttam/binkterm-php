@@ -136,6 +136,68 @@ Stats are refreshed from the API after returning from netmail, echomail, or bull
 - Shoutbox screens use the same centered framed panel style as other terminal viewers, with separate timestamp/author headers and wrapped message bodies for cleaner readability
 - Helpful command documentation
 
+### Border and Frame Style
+
+All terminal frames, box viewers, and paged content screens share a single configurable box-drawing style. The setting is stored in `data/appearance.json` under `shell.term_border_style` and is configured through **Admin → BBS Settings → Appearance → Terminal Server → Border Style**.
+
+| Style | Description | Charset required |
+|-------|-------------|-----------------|
+| **Classic** *(default)* | Double-line corners and tees, single-line sides and dividers | CP437 or UTF-8 |
+| **Double** | All double-line box drawing | CP437 or UTF-8 |
+| **Single** | Thin single-line box drawing | CP437 or UTF-8 |
+| **Heavy** | Bold thick single-line box drawing | UTF-8 only |
+| **Rounded** | Thin single-line with curved corners | UTF-8 only |
+| **Minimal** | Top and bottom horizontal rules only; no side walls | CP437 or UTF-8 |
+| **Mixed** | Double horizontal lines, single vertical lines | CP437 or UTF-8 |
+| **Shadow** | Classic borders with a half-block drop shadow (▒) on the right and bottom | UTF-8 only |
+| **ASCII** | Plus, hyphen, and pipe characters — safe for any terminal | Any |
+
+**Examples:**
+
+```
+Classic                         Double
+╔══════════════════╗            ╔══════════════════╗
+│      Title       │            ║      Title       ║
+╠══════════════════╣            ╠══════════════════╣
+│ Content line     │            ║ Content line     ║
+╚══════════════════╝            ╚══════════════════╝
+
+Single                          Heavy (UTF-8)
+┌──────────────────┐            ┏━━━━━━━━━━━━━━━━━━┓
+│      Title       │            ┃      Title       ┃
+├──────────────────┤            ┣━━━━━━━━━━━━━━━━━━┫
+│ Content line     │            ┃ Content line     ┃
+└──────────────────┘            ┗━━━━━━━━━━━━━━━━━━┛
+
+Rounded (UTF-8)                 Minimal
+╭──────────────────╮            ──────────────────
+│      Title       │                  Title
+├──────────────────┤            ──────────────────
+│ Content line     │              Content line
+╰──────────────────╯            ──────────────────
+
+Mixed                           Shadow (UTF-8)
+╒══════════════════╕            ╔══════════════════╗▒
+│      Title       │            │      Title       │▒
+╞══════════════════╡            ╠══════════════════╣▒
+│ Content line     │            │ Content line     │▒
+╘══════════════════╛            ╚══════════════════╝▒
+                                 ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+
+ASCII
++------------------+
+|      Title       |
++------------------+
+| Content line     |
++------------------+
+```
+
+**Charset fallback:** The rendered style is determined by both the configured setting and the connecting client's detected character set:
+
+- **UTF-8 terminal** — all styles render as configured.
+- **CP437 terminal** — Heavy falls back to Classic; Rounded falls back to Single. All other styles are unchanged.
+- **ASCII terminal** (or when ANSI color is disabled) — always renders as ASCII regardless of the configured style.
+
 ### Customizable Main Menu Keys
 
 Every action in the terminal main menu can be bound to a different single letter or digit (0–9) by the sysop. The binding is stored in `data/appearance.json` under `shell.term_menu_keys` and is configured through **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. The key table in that UI shows the built-in default for each action in a center reference column.

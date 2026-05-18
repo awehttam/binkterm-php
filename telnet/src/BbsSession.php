@@ -1303,7 +1303,11 @@ class BbsSession
         } elseif ($charset === 'cp437') {
             $this->terminalCharset = 'cp437';
             $this->asciiTextMode   = false;
+        } elseif ($charset === 'ascii') {
+            $this->terminalCharset = 'ascii';
+            $this->asciiTextMode   = true;
         } else {
+            // No saved preference — auto-detect from terminal negotiation
             $fallback = $this->shouldUseAsciiFallback($state);
             $this->terminalCharset = $fallback ? 'ascii' : 'utf8';
             $this->asciiTextMode   = $fallback;
@@ -1342,39 +1346,97 @@ class BbsSession
     }
 
     /**
-     * Get line drawing characters for the active terminal character set.
+     * Get line drawing characters for the active terminal character set and
+     * the configured border style. Falls back toward simpler styles when the
+     * client's charset cannot render the requested glyphs.
      *
-     * @return array{h:string,h_bold:string,v:string,tl:string,tr:string,bl:string,br:string,l_tee:string,r_tee:string}
+     * @return array{h:string,h_bold:string,v:string,tl:string,tr:string,bl:string,br:string,l_tee:string,r_tee:string,shadow_char:string}
      */
     private function getLineDrawingChars(): array
     {
         // When ANSI color is disabled, keep framing strictly ASCII to avoid
         // mixed OEM glyph rendering artifacts in monochrome terminal modes.
         if (!$this->ansiColorEnabled || $this->terminalCharset === 'ascii') {
-            return [
-                'h' => '-',
-                'h_bold' => '=',
-                'v' => '|',
-                'tl' => '+',
-                'tr' => '+',
-                'bl' => '+',
-                'br' => '+',
-                'l_tee' => '+',
-                'r_tee' => '+',
-            ];
+            return $this->borderGlyphs('ascii');
         }
 
-        return [
-            'h' => '─',
-            'h_bold' => '═',
-            'v' => '│',
-            'tl' => '╔',
-            'tr' => '╗',
-            'bl' => '╚',
-            'br' => '╝',
-            'l_tee' => '╠',
-            'r_tee' => '╣',
-        ];
+        $configured = \BinktermPHP\AppearanceConfig::getTermBorderStyle();
+        $style = $this->resolveEffectiveBorderStyle($configured);
+        return $this->borderGlyphs($style);
+    }
+
+    /**
+     * Resolve the effective border style for the current client charset.
+     * UTF-8-only styles fall back on cp437 terminals; all non-ascii styles
+     * fall back to ascii on ASCII-only terminals.
+     */
+    private function resolveEffectiveBorderStyle(string $style): string
+    {
+        if ($this->terminalCharset === 'utf8') {
+            return $style;
+        }
+        // cp437: heavy and rounded require UTF-8 codepoints not in the CP437 set
+        return match ($style) {
+            'heavy'   => 'classic',
+            'rounded' => 'single',
+            default   => $style,
+        };
+    }
+
+    /**
+     * Return the glyph set for the given resolved border style name.
+     *
+     * @return array{h:string,h_bold:string,v:string,tl:string,tr:string,bl:string,br:string,l_tee:string,r_tee:string,shadow_char:string}
+     */
+    private function borderGlyphs(string $style): array
+    {
+        return match ($style) {
+            'double' => [
+                'h' => '═', 'h_bold' => '═', 'v' => '║',
+                'tl' => '╔', 'tr' => '╗', 'bl' => '╚', 'br' => '╝',
+                'l_tee' => '╠', 'r_tee' => '╣', 'shadow_char' => '',
+            ],
+            'single' => [
+                'h' => '─', 'h_bold' => '─', 'v' => '│',
+                'tl' => '┌', 'tr' => '┐', 'bl' => '└', 'br' => '┘',
+                'l_tee' => '├', 'r_tee' => '┤', 'shadow_char' => '',
+            ],
+            'heavy' => [
+                'h' => '━', 'h_bold' => '━', 'v' => '┃',
+                'tl' => '┏', 'tr' => '┓', 'bl' => '┗', 'br' => '┛',
+                'l_tee' => '┣', 'r_tee' => '┫', 'shadow_char' => '',
+            ],
+            'rounded' => [
+                'h' => '─', 'h_bold' => '─', 'v' => '│',
+                'tl' => '╭', 'tr' => '╮', 'bl' => '╰', 'br' => '╯',
+                'l_tee' => '├', 'r_tee' => '┤', 'shadow_char' => '',
+            ],
+            'minimal' => [
+                'h' => '─', 'h_bold' => '─', 'v' => ' ',
+                'tl' => '─', 'tr' => '─', 'bl' => '─', 'br' => '─',
+                'l_tee' => '─', 'r_tee' => '─', 'shadow_char' => '',
+            ],
+            'mixed' => [
+                'h' => '═', 'h_bold' => '═', 'v' => '│',
+                'tl' => '╒', 'tr' => '╕', 'bl' => '╘', 'br' => '╛',
+                'l_tee' => '╞', 'r_tee' => '╡', 'shadow_char' => '',
+            ],
+            'shadow' => [
+                'h' => '─', 'h_bold' => '═', 'v' => '│',
+                'tl' => '╔', 'tr' => '╗', 'bl' => '╚', 'br' => '╝',
+                'l_tee' => '╠', 'r_tee' => '╣', 'shadow_char' => '▒',
+            ],
+            'ascii' => [
+                'h' => '-', 'h_bold' => '=', 'v' => '|',
+                'tl' => '+', 'tr' => '+', 'bl' => '+', 'br' => '+',
+                'l_tee' => '+', 'r_tee' => '+', 'shadow_char' => '',
+            ],
+            default => [ // 'classic' — double corners/tees, single sides and divider
+                'h' => '─', 'h_bold' => '═', 'v' => '│',
+                'tl' => '╔', 'tr' => '╗', 'bl' => '╚', 'br' => '╝',
+                'l_tee' => '╠', 'r_tee' => '╣', 'shadow_char' => '',
+            ],
+        };
     }
 
     /**

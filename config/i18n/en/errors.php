@@ -363,6 +363,8 @@ return [
     'errors.admin.appearance.sixel.upload.failed' => 'Failed to upload sixel screen',
     'errors.admin.appearance.sixel.upload.file_too_large' => 'Sixel file exceeds size limit (5MB)',
     'errors.admin.appearance.sixel.delete.failed' => 'Failed to delete sixel screen',
+    'errors.admin.appearance.term_border.invalid_style' => 'Invalid border style',
+    'errors.admin.appearance.term_border.save_failed' => 'Failed to save border style',
     'errors.admin.appearance.term_menu_keys.invalid_key' => 'Menu keys must be a single letter or digit',
     'errors.admin.appearance.term_menu_keys.duplicate_key' => 'Each menu key must be unique',
     'errors.admin.appearance.term_menu_keys.quit_required' => 'A key must be assigned to Quit',

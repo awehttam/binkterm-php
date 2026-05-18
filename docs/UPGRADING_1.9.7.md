@@ -7,7 +7,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
   - [Runtime Requirements](#runtime-requirements)
   - [Terminal Server](#terminal-server)
+  - [Configurable Border Style](#configurable-border-style)
+  - [Terminal Charset Setting Honoured](#terminal-charset-setting-honoured)
   - [PacketBBS](#packetbbs)
+    - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
     - [AX.25 TNC (KISS) Interface Type](#ax25-tnc-kiss-interface-type)
     - [Auto-add policy sync change](#auto-add-policy-sync-change)
@@ -15,7 +18,10 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Developer Tooling](#developer-tooling)
 - [Runtime Requirements](#runtime-requirements-1)
 - [Terminal Server](#terminal-server-1)
+  - [Configurable Border Style](#configurable-border-style)
+  - [Terminal Charset Setting Honoured](#terminal-charset-setting-honoured)
 - [PacketBBS](#packetbbs-1)
+  - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
     - [Location Description field](#location-description-field)
     - [Node description field](#node-description-field)
@@ -45,8 +51,16 @@ Make sure you have a current backup of your database and files before upgrading.
 - SSH terminal startup now discards any client input bytes already queued during PTY/shell setup before handing control to the BBS session. This prevents some SSH clients from accidentally skipping login or menu screens with phantom startup keypresses.
 - **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
 - **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Idle Timeout** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
+- **Configurable border style**: the box-drawing style used for all terminal frames and viewers can now be set per-system via **Admin → BBS Settings → Appearance → Terminal Server → Border Style**. Nine styles are available (Classic, Double, Single, Heavy, Rounded, Minimal, Mixed, Shadow, ASCII). Styles that require characters not supported by the connecting client's character set fall back automatically.
+- **Terminal charset preference honoured**: the user's saved terminal character set preference (ASCII, CP437, or UTF-8) is now correctly respected. Previously a saved ASCII preference could be silently overridden by terminal auto-detection on UTF-8 capable clients.
 
 ### PacketBBS
+
+#### Local Chat
+
+- PacketBBS operators can now participate in local BBS chat rooms. The `CHAT` command (short form `C`) enters the default room. `CHAT <room>` enters a named room.
+- While in a chat room, any text sent is posted automatically. Exit with `Q` or `/C`. `M` pages back through older history; `B` returns toward the latest messages. `WHO`, `STATUS`, `HELP`, and `LOGIN` are intercepted as commands and are never posted.
+- Messages posted by web and terminal users are delivered to radio operators currently in the same room via the outbound queue, without any bridge code changes.
 
 #### PacketBBS Node Directory
 
@@ -144,9 +158,67 @@ The menu layout adapts automatically: when an action has no assigned key its slo
 
 No additional admin setup is required. The built-in defaults remain in effect until a custom map is saved through the admin UI.
 
+### Configurable Border Style
+
+The box-drawing characters used for all terminal frames, paged viewers, and content boxes can now be selected per-system. The setting is in **Admin → BBS Settings → Appearance → Terminal Server → Border Style** and is applied immediately — no daemon restart required.
+
+Nine styles are available:
+
+| Style | Description |
+|-------|-------------|
+| **Classic** *(default)* | Double-line corners and tees, single-line sides |
+| **Double** | Full double-line box drawing |
+| **Single** | Thin single-line box drawing |
+| **Heavy** | Bold thick single-line (UTF-8 terminal required) |
+| **Rounded** | Curved corners (UTF-8 terminal required) |
+| **Minimal** | Top and bottom rules only, no side walls |
+| **Mixed** | Double horizontal, single vertical |
+| **Shadow** | Classic borders with a half-block drop shadow (UTF-8 terminal required) |
+| **ASCII** | Plus, hyphen, and pipe — safe for any terminal |
+
+Styles that require characters outside the connecting client's character set fall back automatically: Heavy → Classic and Rounded → Single on CP437 terminals; all non-ASCII styles → ASCII on ASCII-only terminals. The Classic style is the default and matches the existing look from earlier releases.
+
+### Terminal Charset Setting Honoured
+
+A user's saved terminal character set preference (ASCII, CP437, or UTF-8, set from **Terminal Settings** in the terminal session) is now correctly applied. Previously, a preference explicitly saved as **ASCII** could be silently promoted to UTF-8 when connecting from a UTF-8-capable terminal, causing box-drawing characters to appear even when the user had opted out. The saved preference now takes precedence over auto-detection in all cases.
+
+Users who were affected do not need to change anything — their existing setting will now be respected on next login.
+
 ---
 
 ## PacketBBS
+
+### Local Chat {#local-chat-packetbbs-1}
+
+PacketBBS operators can now read and post in local BBS chat rooms directly from their radio node.
+
+**Entering a room**
+
+`CHAT` or `C` with no arguments enters the default room (the first active room, typically Lobby). `CHAT <room>` or `C <room>` enters a room by name. Login is required.
+
+On entry the most recent messages are shown, formatted as `username: message` and paged to fit the node's output profile.
+
+**Auto-post mode**
+
+Once inside a room, every message sent is posted to the room immediately. There is no explicit send command. The following inputs are intercepted as commands and are never posted to the room:
+
+| Input | Action |
+|---|---|
+| `Q` or `/C` | Exit the room, return to main context |
+| `QUIT` | End the PacketBBS session |
+| `W` / `WHO` | Show online users |
+| `U` / `STATUS` | Show current context |
+| `H` / `HELP` / `?` | Show chat help |
+| `M` / `MORE` | Page to older history |
+| `B` / `P` / `PREV` | Page back toward latest messages |
+| `L` / `LOGIN` | Intercepted — not posted |
+| `C` / `CHAT` | Refresh or switch rooms |
+
+**Receiving messages from other users**
+
+When a web or terminal user posts to a chat room, any PacketBBS sessions currently in that room receive the message via the outbound queue. The bridge delivers it on its next poll without any bridge-side changes.
+
+No migration is required. The feature uses the existing `chat_rooms` and `chat_messages` tables. No admin configuration is needed beyond having at least one active chat room.
 
 ### PacketBBS Node Directory
 

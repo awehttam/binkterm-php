@@ -613,6 +613,8 @@ return [
     'errors.admin.appearance.sixel.upload.failed' => 'Échec du téléversement de l\'écran sixel',
     'errors.admin.appearance.sixel.upload.file_too_large' => 'Le fichier sixel dépasse la limite de taille (5 Mo)',
     'errors.admin.appearance.sixel.delete.failed' => 'Impossible de supprimer l\'écran sixel',
+    'errors.admin.appearance.term_border.invalid_style' => 'Style de bordure invalide',
+    'errors.admin.appearance.term_border.save_failed' => 'Impossible de sauvegarder le style de bordure',
     'errors.admin.appearance.term_menu_keys.invalid_key' => 'Les touches du menu doivent être une seule lettre ou un chiffre',
     'errors.admin.appearance.term_menu_keys.duplicate_key' => 'Chaque touche du menu doit être unique',
     'errors.admin.appearance.term_menu_keys.quit_required' => 'Une touche doit être assignée à Quitter',

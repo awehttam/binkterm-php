@@ -5,6 +5,7 @@ namespace BinktermPHP\Chat;
 use BinktermPHP\ActivityTracker;
 use BinktermPHP\Database;
 use BinktermPHP\MarkdownRenderer;
+use BinktermPHP\PacketBbs\PacketBbsChatNotifier;
 
 /**
  * Centralized local chat sender with optional Matterbridge fan-out.
@@ -86,8 +87,13 @@ class ChatMessageService
                 ActivityTracker::track($fromUserId, ActivityTracker::TYPE_CHAT_SEND, null);
             }
 
-            if ($bridgeOutbound && $roomId !== null) {
-                $this->relayRoomMessageToMatterbridge($roomId, $fromUserId, $body);
+            if ($bridgeOutbound) {
+                if ($roomId !== null) {
+                    $this->relayRoomMessageToMatterbridge($roomId, $fromUserId, $body);
+                    PacketBbsChatNotifier::enqueueForRoom($this->db, $roomId, $fromUserId, $body);
+                } elseif ($toUserId !== null) {
+                    PacketBbsChatNotifier::enqueueForDm($this->db, $toUserId, $fromUserId, $body);
+                }
             }
 
             return [

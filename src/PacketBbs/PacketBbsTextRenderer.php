@@ -89,10 +89,24 @@ class PacketBbsTextRenderer
                 '(S)END user|addr subj',
                 '(P)OST in current area',
                 '(BU)LLETINS list / (BU) # read',
+                '(CL) list rooms/DMs',
+                '(C)HAT [room|user] enter chat/DM',
                 '(U)STATUS show context',
                 '(M)ORE next page',
                 '(B)ACK prev page',
                 '(Q)UIT end session',
+            ]);
+        }
+
+        if (in_array($topic, ['CHAT', 'C'], true)) {
+            return implode("\n", [
+                'H CHAT',
+                'CL or CHAT LIST: list rooms/DMs',
+                'CHAT: enter lobby',
+                'CHAT <room>: enter room',
+                'CHAT <user>: open DM',
+                'Type msg to post. Q:exit',
+                'M:older B:newer W:who',
             ]);
         }
 
@@ -155,7 +169,7 @@ class PacketBbsTextRenderer
             'GEN U/Q | M/B',
             'NET N | R/Y id | S to subj',
             'ECHO A | T tag | P subj',
-            'Use FULLHELP for full help',
+            'CHAT CL C [room|user] | FULLHELP',
         ]);
     }
 
@@ -390,6 +404,12 @@ class PacketBbsTextRenderer
     {
         $lines = [];
 
+        if (!empty($state['current_chat_dm']['username'])) {
+            $lines[] = 'dm ' . $this->truncate((string)$state['current_chat_dm']['username'], $this->lineWidth - 3);
+        } elseif (!empty($state['current_chat_room']['name'])) {
+            $lines[] = 'chat ' . $this->truncate((string)$state['current_chat_room']['name'], $this->lineWidth - 5);
+        }
+
         if (!empty($state['current_area']['display'])) {
             $lines[] = 'area ' . $this->truncate((string)$state['current_area']['display'], 28);
         } elseif (!empty($state['current_area']['tag'])) {
@@ -491,6 +511,100 @@ class PacketBbsTextRenderer
             $lines[] = sprintf('#%d %s', $id, $title);
         }
         $lines[] = 'BU to read';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Render the list of active chat rooms and recent DM partners.
+     *
+     * @param string[] $rooms
+     * @param string[] $dmPartners
+     */
+    public function renderChatList(array $rooms, array $dmPartners): string
+    {
+        $lines = [];
+
+        $lines[] = 'Rooms:';
+        if (empty($rooms)) {
+            $lines[] = 'None';
+        } else {
+            $line = '';
+            foreach ($rooms as $name) {
+                $name = $this->truncate((string)$name, 20);
+                if ($line === '') {
+                    $line = $name;
+                } elseif (mb_strlen($line) + 1 + mb_strlen($name) <= $this->lineWidth) {
+                    $line .= ' ' . $name;
+                } else {
+                    $lines[] = $line;
+                    $line = $name;
+                }
+            }
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+
+        if (!empty($dmPartners)) {
+            $lines[] = 'DMs:';
+            $line = '';
+            foreach ($dmPartners as $username) {
+                $username = $this->truncate((string)$username, 20);
+                if ($line === '') {
+                    $line = $username;
+                } elseif (mb_strlen($line) + 1 + mb_strlen($username) <= $this->lineWidth) {
+                    $line .= ' ' . $username;
+                } else {
+                    $lines[] = $line;
+                    $line = $username;
+                }
+            }
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+
+        $lines[] = 'C <name> to enter';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Render recent messages for a chat room.
+     *
+     * Page 1 = most recent messages. Higher pages = older history.
+     * Messages within a page are shown oldest-to-newest.
+     *
+     * @param array<int,array<string,mixed>> $messages
+     */
+    public function renderChatMessages(array $messages, string $roomName, int $page, int $totalPages): string
+    {
+        $header = $page === 1
+            ? sprintf('Chat: %s', $this->truncate($roomName, $this->lineWidth - 6))
+            : sprintf('Chat: %s p%d/%d', $this->truncate($roomName, $this->lineWidth - 12), $page, $totalPages);
+
+        $lines = [$header];
+
+        if (empty($messages)) {
+            $lines[] = 'No messages yet.';
+        } else {
+            foreach ($messages as $m) {
+                $username = $this->truncate((string)($m['username'] ?? '?'), 10);
+                $prefix   = $username . ': ';
+                $body     = str_replace(["\r\n", "\r", "\n"], ' ', (string)($m['body'] ?? ''));
+                $lines[]  = $prefix . $this->truncate($body, max(8, $this->lineWidth - mb_strlen($prefix)));
+            }
+        }
+
+        if ($page === 1 && $totalPages <= 1) {
+            $lines[] = 'Type to post. Q:exit';
+        } elseif ($page === 1) {
+            $lines[] = 'M:older Q:exit';
+        } elseif ($page < $totalPages) {
+            $lines[] = 'M:older B:newer Q:exit';
+        } else {
+            $lines[] = 'B:newer Q:exit';
+        }
+
         return implode("\n", $lines);
     }
 

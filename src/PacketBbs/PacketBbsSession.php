@@ -75,7 +75,7 @@ class PacketBbsSession
         $params     = [];
 
         $allowed = [
-            'user_id', 'menu_state', 'pagination_cursor', 'pagination_context',
+            'user_id', 'bbs_session_id', 'menu_state', 'pagination_cursor', 'pagination_context',
             'compose_buffer', 'compose_type', 'compose_meta', 'session_state',
         ];
 
@@ -98,18 +98,39 @@ class PacketBbsSession
     }
 
     /**
-     * Delete a session (on QUIT or explicit logout).
+     * Delete a session (on QUIT or explicit logout), also removing the linked
+     * user_sessions row so the user goes offline immediately.
      */
     public function destroy(string $nodeId): void
     {
+        $stmt = $this->db->prepare(
+            'SELECT bbs_session_id FROM packet_bbs_sessions WHERE node_id = ?'
+        );
+        $stmt->execute([$nodeId]);
+        $bbsSessionId = $stmt->fetchColumn();
+        if ($bbsSessionId) {
+            $this->db->prepare('DELETE FROM user_sessions WHERE session_id = ?')
+                ->execute([$bbsSessionId]);
+        }
+
         $this->db->prepare('DELETE FROM packet_bbs_sessions WHERE node_id = ?')->execute([$nodeId]);
     }
 
     /**
-     * Prune sessions that have been inactive for more than $minutes.
+     * Prune sessions inactive for more than $minutes, also removing their
+     * linked user_sessions rows so timed-out users go offline.
      */
     public function cleanExpired(int $minutes): void
     {
+        $this->db->prepare(
+            "DELETE FROM user_sessions
+             WHERE session_id IN (
+                 SELECT bbs_session_id FROM packet_bbs_sessions
+                 WHERE last_activity_at < NOW() - INTERVAL '1 minute' * ?
+                   AND bbs_session_id IS NOT NULL
+             )"
+        )->execute([$minutes]);
+
         $this->db->prepare(
             "DELETE FROM packet_bbs_sessions WHERE last_activity_at < NOW() - INTERVAL '1 minute' * ?"
         )->execute([$minutes]);

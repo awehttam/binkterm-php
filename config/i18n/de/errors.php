@@ -362,6 +362,8 @@ return [
     'errors.admin.appearance.sixel.upload.failed' => 'Failed to Upload sixel screen',
     'errors.admin.appearance.sixel.upload.file_too_large' => 'Sixel file exceeds size limit (5MB)',
     'errors.admin.appearance.sixel.delete.failed' => 'sixel screen konnte nicht gelöscht werden',
+    'errors.admin.appearance.term_border.invalid_style' => 'Ung\xfcltiger Rahmenstil',
+    'errors.admin.appearance.term_border.save_failed' => 'Rahmenstil konnte nicht gespeichert werden',
     'errors.admin.appearance.message_reader.save_failed' => 'message reader Einstellungen konnte nicht gespeichert werden',
     'errors.admin.appearance.dashboard.save_failed' => 'dashboard layout konnte nicht gespeichert werden',
     'errors.admin.appearance.markdown_preview.failed' => 'Failed to render markdown preview',

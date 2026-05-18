@@ -23,7 +23,14 @@ namespace BinktermPHP;
 class AppearanceConfig
 {
     private static ?array $config = null;
-    private static bool $loaded = false;
+
+    /** Default terminal border/frame drawing style */
+    public const DEFAULT_BORDER_STYLE = 'classic';
+
+    /** All valid border style identifiers */
+    public const VALID_BORDER_STYLES = [
+        'classic', 'double', 'single', 'heavy', 'ascii', 'rounded', 'minimal', 'mixed', 'shadow',
+    ];
 
     /** Default terminal main menu key bindings */
     public const DEFAULT_TERM_MENU_KEYS = [
@@ -94,6 +101,7 @@ class AppearanceConfig
                 'active' => 'web',
                 'lock_shell' => false,
                 'term_menu_keys' => null,
+                'term_border_style' => self::DEFAULT_BORDER_STYLE,
                 'bbs_menu' => [
                     'variant' => 'cards',
                     'menu_items' => self::DEFAULT_MENU_ITEMS,
@@ -177,11 +185,6 @@ class AppearanceConfig
 
     private static function load(): void
     {
-        if (self::$loaded) {
-            return;
-        }
-
-        self::$loaded = true;
         $path = self::getConfigPath();
 
         if (!file_exists($path)) {
@@ -298,6 +301,17 @@ class AppearanceConfig
             }
         }
         return $result;
+    }
+
+    /**
+     * Returns the configured terminal border/frame drawing style.
+     * Always returns a value in VALID_BORDER_STYLES.
+     */
+    public static function getTermBorderStyle(): string
+    {
+        self::load();
+        $style = (string)(self::$config['shell']['term_border_style'] ?? self::DEFAULT_BORDER_STYLE);
+        return in_array($style, self::VALID_BORDER_STYLES, true) ? $style : self::DEFAULT_BORDER_STYLE;
     }
 
     /**

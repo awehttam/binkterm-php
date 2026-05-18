@@ -76,35 +76,58 @@ class TerminalBoxRenderer
         $layout = $this->buildLayout($state, $verticalMargin, $footerLines);
         $chars = $this->server->getTerminalLineDrawingChars();
         $colors = $this->mergeColorScheme($colorScheme);
+        $shadowChar = $chars['shadow_char'] ?? '';
+        $hasShadow = $shadowChar !== '';
+
         $topBorder = $this->server->encodeForTerminal($chars['tl'] . str_repeat($chars['h_bold'], $layout['boxWidth'] - 2) . $chars['tr']);
         $divider = $this->server->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $layout['boxWidth'] - 2) . $chars['r_tee']);
         $bottomBorder = $this->server->encodeForTerminal($chars['bl'] . str_repeat($chars['h_bold'], $layout['boxWidth'] - 2) . $chars['br']);
         $titleText = $this->fitPlainText($title, $layout['contentWidth']);
         $titleInner = $this->padPlainText($titleText, $layout['contentWidth'], STR_PAD_BOTH);
 
+        // Shadow: a single shadow glyph appended after vertical border lines,
+        // plus an extra row of shadow glyphs below the bottom border.
+        $shadowGlyph = $hasShadow ? $this->server->colorizeForTerminal(
+            $this->server->encodeForTerminal($shadowChar),
+            TelnetUtils::ANSI_DIM
+        ) : '';
+        $shadowRow = $hasShadow ? ' ' . $this->server->colorizeForTerminal(
+            $this->server->encodeForTerminal(str_repeat($shadowChar, $layout['boxWidth'])),
+            TelnetUtils::ANSI_DIM
+        ) : '';
+
         $this->server->safeWrite($conn, "\033[2J\033[H");
         if ($layout['topPad'] !== '') {
             $this->server->safeWrite($conn, $layout['topPad']);
         }
 
+        // Top border — no shadow on the top edge
         $this->writeLine($conn, $layout['leftPad'] . $this->server->colorizeForTerminal($topBorder, $colors['border']));
+
+        // Title row
         $titleLine = $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), $colors['border'])
             . $this->server->colorizeForTerminal(' ' . $titleInner . ' ', $colors['title_bar'])
             . $this->server->colorizeForTerminal($this->server->encodeForTerminal($chars['v']), $colors['border']);
-        $this->writeLine($conn, $layout['leftPad'] . $titleLine);
-        $this->writeLine($conn, $layout['leftPad'] . $this->server->colorizeForTerminal($divider, $colors['divider']));
+        $this->writeLine($conn, $layout['leftPad'] . $titleLine . $shadowGlyph);
+
+        // Divider row
+        $this->writeLine($conn, $layout['leftPad'] . $this->server->colorizeForTerminal($divider, $colors['divider']) . $shadowGlyph);
 
         $visibleLines = 0;
         foreach ($lines as $line) {
-            $this->writeLine($conn, $layout['leftPad'] . $this->renderContentLine($line, $layout['contentWidth'], $chars, $colors));
+            $this->writeLine($conn, $layout['leftPad'] . $this->renderContentLine($line, $layout['contentWidth'], $chars, $colors) . $shadowGlyph);
             $visibleLines++;
         }
         while ($visibleLines < $layout['contentHeight']) {
-            $this->writeLine($conn, $layout['leftPad'] . $this->renderContentLine('', $layout['contentWidth'], $chars, $colors));
+            $this->writeLine($conn, $layout['leftPad'] . $this->renderContentLine('', $layout['contentWidth'], $chars, $colors) . $shadowGlyph);
             $visibleLines++;
         }
 
-        $this->writeLine($conn, $layout['leftPad'] . $this->server->colorizeForTerminal($bottomBorder, $colors['border']));
+        // Bottom border + optional shadow row beneath it
+        $this->writeLine($conn, $layout['leftPad'] . $this->server->colorizeForTerminal($bottomBorder, $colors['border']) . $shadowGlyph);
+        if ($hasShadow) {
+            $this->writeLine($conn, $layout['leftPad'] . $shadowRow);
+        }
         $this->writeLine($conn, '');
     }
 
