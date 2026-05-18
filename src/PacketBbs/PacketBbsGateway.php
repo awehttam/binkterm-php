@@ -801,17 +801,14 @@ class PacketBbsGateway
             return $err;
         }
 
-        // args = "<to_username_or_name> <subject words...>"
+        // args = "<to_username_or_name_or_ftn_address> <subject words...>"
         $parts = preg_split('/\s+/', $args, 2);
         if (count($parts) < 2 || $parts[0] === '' || $parts[1] === '') {
-            return 'Use: SEND <user> <subject>';
+            return 'Use: SEND <user|addr> <subject>';
         }
 
-        $toName = $parts[0];
+        [$toName, $toAddress] = $this->resolveNetmailRecipient($parts[0]);
         $subject = $parts[1];
-
-        // Look up recipient to get their FidoNet address
-        $toAddress = $this->resolveUserAddress($toName);
 
         $this->startCompose($nodeId, 'netmail', [
             'to_name'    => $toName,
@@ -821,6 +818,25 @@ class PacketBbsGateway
         ]);
 
         return $renderer->renderComposePrompt('netmail', $toName, $subject);
+    }
+
+    /**
+     * Resolve the PacketBBS SEND destination into a display name and FTN address.
+     *
+     * Accepts either a raw FTN address or a local username/real name. For local
+     * users, the stored FTN address is preferred and the system address remains
+     * the fallback when the user has no specific AKA configured.
+     *
+     * @return array{0:string,1:string}
+     */
+    private function resolveNetmailRecipient(string $destination): array
+    {
+        $destination = trim($destination);
+        if ($this->isFidonetAddress($destination)) {
+            return [$destination, $destination];
+        }
+
+        return [$destination, $this->resolveUserAddress($destination)];
     }
 
     /**
@@ -848,6 +864,11 @@ class PacketBbsGateway
         } catch (\Exception $e) {
             return '';
         }
+    }
+
+    private function isFidonetAddress(string $address): bool
+    {
+        return preg_match('/^\d+:\d+\/\d+(?:\.\d+)?(?:@\w+)?$/', trim($address)) === 1;
     }
 
     // -------------------------------------------------------------------------

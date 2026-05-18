@@ -22,7 +22,7 @@ Assume these practical payload ceilings for user-visible text:
 | Transport | Maximum payload |
 |---|---:|
 | ASCII SMS | 160 chars |
-| MeshCore | 200 chars |
+| MeshCore | 150 chars |
 | Meshtastic | 200 chars |
 
 AX.25 can carry more, but it should still use the same sparse command grammar so operators can move between transports without learning a different shell.
@@ -32,7 +32,7 @@ AX.25 can carry more, but it should still use the same sparse command grammar so
 The current interface is already terse, but several parts still optimize for rows and columns more than actual transport budgets:
 
 1. `src/PacketBbs/PacketBbsTextRenderer.php` pages lists by row count and width, not by total character budget.
-2. A `meshcore` page can currently exceed 200 characters once headers, body lines, and footers are counted.
+2. A `meshcore` page can currently exceed 150 characters once headers, body lines, and footers are counted.
 3. The command set has accumulated multiple aliases (`MAIL`, `NM`, `NETMAIL`, `READ`, `NR`, `R`, etc.), which is good for compatibility but noisy for low-friction onboarding.
 4. Paging is list-oriented rather than task-oriented. The user often has to remember whether they were in `MAIL`, `AREAS`, or a message body.
 5. Compose mode is functional, but not especially radio-friendly. It assumes multi-packet focus and does not expose draft state very clearly.
@@ -82,7 +82,7 @@ Keep transport-specific rendering in profiles, but make them operate on payload 
 | Profile | Soft target | Hard cap | Notes |
 |---|---:|---:|---|
 | `sms` | 120 | 160 | Aggressive abbreviation, one-screen replies |
-| `meshcore` | 160 | 200 | Normal compact mode |
+| `meshcore` | 120 | 150 | Normal compact mode |
 | `meshtastic` | 160 | 200 | Same budget as MeshCore; keep output almost identical |
 | `tnc` | 320 | configurable | Same commands, less aggressive truncation |
 

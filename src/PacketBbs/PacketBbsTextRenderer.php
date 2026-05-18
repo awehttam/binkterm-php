@@ -21,23 +21,20 @@ namespace BinktermPHP\PacketBbs;
 class PacketBbsTextRenderer
 {
     private const PAGE_SIZES = [
-        'meshcore'   => 5,
+        'meshcore'   => 3,
         'meshtastic' => 4,
         'tnc'        => 8,
     ];
 
     /** Body lines per page when paginating long messages. */
     private const MSG_PAGE_SIZES = [
-        'meshcore'   => 4,
+        'meshcore'   => 1,
         'meshtastic' => 3,
         'tnc'        => 8,
     ];
 
-    /** Raw character threshold above which a message body is paginated. */
-    private const MSG_BODY_THRESHOLD = 120;
-
     private const LINE_WIDTHS = [
-        'meshcore'   => 42,
+        'meshcore'   => 34,
         'meshtastic' => 34,
         'tnc'        => 64,
     ];
@@ -62,14 +59,14 @@ class PacketBbsTextRenderer
 
     /**
      * Count body pages for a message, applying the configured lines-per-page.
-     * Returns 1 when the raw body text is within the pagination threshold.
+     * Returns 1 when the wrapped body fits on a single page.
      */
     public function countBodyPages(string $text): int
     {
-        if (strlen($text) <= self::MSG_BODY_THRESHOLD) {
+        $lines = $this->wrapBody($text);
+        if (count($lines) <= $this->msgPageSize) {
             return 1;
         }
-        $lines = $this->wrapBody($text);
         return (int)ceil(max(1, count($lines)) / $this->msgPageSize);
     }
 
@@ -89,8 +86,8 @@ class PacketBbsTextRenderer
                 '(N)ETMAIL list mail',
                 '(R)EAD id read msg',
                 '(Y) id reply to msg',
-                '(S)END user subj compose',
-                '(EP) post in current area',
+                '(S)END user|addr subj',
+                '(P)OST in current area',
                 '(BU)LLETINS list / (BU) # read',
                 '(U)STATUS show context',
                 '(M)ORE next page',
@@ -103,7 +100,7 @@ class PacketBbsTextRenderer
             return implode("\n", [
                 'H N',
                 'N:list  R id:read',
-                'Y id:reply  S u subj:send',
+                'Y id:reply  S to subj:send',
                 'M:more  B:back',
             ]);
         }
@@ -112,15 +109,15 @@ class PacketBbsTextRenderer
             return implode("\n", [
                 'H A',
                 'A:list/open  AREA tag:open',
-                'R id:read  EP:post here',
+                'R id:read  P:post here',
                 'M:more  B:back',
             ]);
         }
 
         if (in_array($topic, ['POST', 'P', 'EP'], true)) {
             return implode("\n", [
-                'H EP',
-                'EP: post in current area',
+                'H P',
+                'P/EP: post in current area',
                 'No area? use T tag',
                 'Subj? Msg: /S /C',
             ]);
@@ -148,15 +145,17 @@ class PacketBbsTextRenderer
             $area = (string)($context['current_area']['display'] ?? $context['current_area']['tag'] ?? 'area');
             return implode("\n", [
                 'Area ' . $this->truncate($area, 24),
-                'R id | EP post | A list | U status',
+                'R id | P post | A list | U status',
                 'Q leave area | QUIT end session',
             ]);
         }
 
         return implode("\n", [
-            'H: L username code | A areas | N mail',
-            'T tag | R id | Y id | EP post',
-            'M more | B back | U status | Q quit',
+            'GEN L user code | W | BU #',
+            'GEN U/Q | M/B',
+            'NET N | R/Y id | S to subj',
+            'ECHO A | T tag | P subj',
+            'Use FULLHELP for full help',
         ]);
     }
 
