@@ -21,23 +21,20 @@ namespace BinktermPHP\PacketBbs;
 class PacketBbsTextRenderer
 {
     private const PAGE_SIZES = [
-        'meshcore'   => 5,
+        'meshcore'   => 3,
         'meshtastic' => 4,
         'tnc'        => 8,
     ];
 
     /** Body lines per page when paginating long messages. */
     private const MSG_PAGE_SIZES = [
-        'meshcore'   => 4,
+        'meshcore'   => 1,
         'meshtastic' => 3,
         'tnc'        => 8,
     ];
 
-    /** Raw character threshold above which a message body is paginated. */
-    private const MSG_BODY_THRESHOLD = 120;
-
     private const LINE_WIDTHS = [
-        'meshcore'   => 42,
+        'meshcore'   => 34,
         'meshtastic' => 34,
         'tnc'        => 64,
     ];
@@ -62,14 +59,14 @@ class PacketBbsTextRenderer
 
     /**
      * Count body pages for a message, applying the configured lines-per-page.
-     * Returns 1 when the raw body text is within the pagination threshold.
+     * Returns 1 when the wrapped body fits on a single page.
      */
     public function countBodyPages(string $text): int
     {
-        if (strlen($text) <= self::MSG_BODY_THRESHOLD) {
+        $lines = $this->wrapBody($text);
+        if (count($lines) <= $this->msgPageSize) {
             return 1;
         }
-        $lines = $this->wrapBody($text);
         return (int)ceil(max(1, count($lines)) / $this->msgPageSize);
     }
 
@@ -89,7 +86,7 @@ class PacketBbsTextRenderer
                 '(N)ETMAIL list mail',
                 '(R)EAD id read msg',
                 '(Y) id reply to msg',
-                '(S)END user subj compose',
+                '(S)END user|addr subj',
                 '(EP) post in current area',
                 '(BU)LLETINS list / (BU) # read',
                 '(U)STATUS show context',
@@ -103,7 +100,7 @@ class PacketBbsTextRenderer
             return implode("\n", [
                 'H N',
                 'N:list  R id:read',
-                'Y id:reply  S u subj:send',
+                'Y id:reply  S to subj:send',
                 'M:more  B:back',
             ]);
         }
@@ -155,7 +152,7 @@ class PacketBbsTextRenderer
 
         return implode("\n", [
             'H: L username code | A areas | N mail',
-            'T tag | R id | Y id | EP post',
+            'T tag | S to subj | R id | Y id',
             'M more | B back | U status | Q quit',
         ]);
     }

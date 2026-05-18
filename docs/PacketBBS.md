@@ -195,7 +195,7 @@ Typical response:
 
 ```text
 H: L username code | A areas | N mail
-T tag | R id | Y id | EP post
+T tag | S to subj | R id | Y id
 M more | B back | U status | Q quit
 ```
 
@@ -255,7 +255,7 @@ Posted to LVLY_TEST.
 | `MAIL` | `N`, `NM`, or `NETMAIL` | List netmail. |
 | `READ <id>` | `R <id>` or `NR <id>` | Read a netmail or current-list message by ID. `R` without an ID reopens the current message when one is active. |
 | `REPLY <id>` | `Y <id>`, `RP <id>`, or `NRP <id>` | Reply to a specific message. `REPLY` without an ID replies to the current message when context is clear. |
-| `SEND <user> <subject>` | `S <user> <subject>` or `NS <user> <subject>` | Start a new netmail draft in one step. |
+| `SEND <user-or-ftn-address> <subject>` | `S <user-or-ftn-address> <subject>` or `NS <user-or-ftn-address> <subject>` | Start a new netmail draft in one step. The destination may be a local user or a literal FTN address. |
 
 #### Echomail / Current Area Context
 
@@ -406,14 +406,20 @@ If a message is already open, `REPLY` without an ID uses the current message.
 Start new netmail:
 
 ```text
-SEND <user> <subject>
+SEND <user-or-ftn-address> <subject>
 ```
 
 Compatibility aliases:
 
 ```text
-S <user> <subject>
-NS <user> <subject>
+S <user-or-ftn-address> <subject>
+NS <user-or-ftn-address> <subject>
+```
+
+For a direct FTN destination, use the address in the first slot:
+
+```text
+SEND 1:234/56 Test message
 ```
 
 ### Echomail
@@ -665,7 +671,7 @@ R <id>, M:more B:back
 
 #### Long messages
 
-If a message body exceeds 120 characters, it is split into pages. The first page shows a progress footer:
+If a message body wraps beyond the current interface profile's per-page limit, it is split into pages. The first page shows a progress footer:
 
 ```text
 1/3 M:more B:back
@@ -735,7 +741,7 @@ The `interface` request field controls line width and page size:
 
 | Interface | List page size | Msg page size | Width | Intended use |
 |---|---:|---:|---:|---|
-| `meshcore` | 5 | 4 | 42 | Default compact radio text. |
+| `meshcore` | 3 | 1 | 34 | Compact mode tuned to stay within MeshCore's 150-character transport limit. |
 | `meshtastic` | 4 | 3 | 34 | Smaller packets and narrower displays. |
 | `tnc` | 8 | 8 | 64 | Larger text frames. |
 
