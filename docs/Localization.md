@@ -1,5 +1,55 @@
 # Localization in BinktermPHP
 
+## Sysop Quick Guide
+
+Localization is BinktermPHP's language system for the web UI, API messages, and terminal/BBS strings. It decides which language a visitor sees, loads the matching catalogs from `config/i18n/`, and falls back safely to the default locale when a requested language or translation key is unavailable.
+
+### How Locale Detection Works
+
+For normal web requests, BinktermPHP resolves the active locale in this order:
+
+1. `?locale=` in the current request URL
+2. The logged-in user's saved language preference (`user_settings.locale`)
+3. The `binktermphp_locale` cookie from an earlier visit
+4. The browser's `Accept-Language` header
+5. `I18N_DEFAULT_LOCALE` from `.env`
+
+Important behavior:
+
+- Locale codes are normalized, so `fr_ca`, `fr-CA`, and `FR-ca` all resolve consistently.
+- Regional variants fall back to the base language when possible. For example, if the browser sends `es-MX` and BinktermPHP supports `es` but not `es-MX`, it will use `es`.
+- After a locale is resolved, BinktermPHP writes it back to the `binktermphp_locale` cookie for one year so future anonymous visits stay in the same language.
+- If a locale is not supported at all, BinktermPHP falls back to `I18N_DEFAULT_LOCALE`.
+
+### `.env` Configuration
+
+The main sysop controls are in `.env`:
+
+```ini
+I18N_DEFAULT_LOCALE=en
+I18N_SUPPORTED_LOCALES=en,es,fr,de,it
+I18N_LOG_MISSING_KEYS=false
+I18N_MISSING_KEYS_LOG_FILE=
+```
+
+- `I18N_DEFAULT_LOCALE`: The final fallback language. Use a locale code such as `en` or `fr`.
+- `I18N_SUPPORTED_LOCALES`: Optional comma-separated allowlist of languages users may select. If unset, BinktermPHP auto-discovers locales by scanning `config/i18n/<locale>/`.
+- `I18N_LOG_MISSING_KEYS`: When `true`, logs missing translation keys so you can spot incomplete catalogs.
+- `I18N_MISSING_KEYS_LOG_FILE`: Optional explicit log file for missing-key entries. If blank, missing-key warnings go to the normal server logger.
+
+Practical examples:
+
+- To run an English-only system, set `I18N_DEFAULT_LOCALE=en` and `I18N_SUPPORTED_LOCALES=en`.
+- To offer only bundled English and Spanish, set `I18N_SUPPORTED_LOCALES=en,es`.
+- To add a new language without pinning the list, create `config/i18n/<locale>/` and leave `I18N_SUPPORTED_LOCALES` unset so auto-discovery can find it.
+
+### What Sysops Usually Need To Do
+
+- Set `I18N_DEFAULT_LOCALE` to the language you want as the system fallback.
+- Decide whether to pin `I18N_SUPPORTED_LOCALES` or let BinktermPHP auto-discover locale directories.
+- Let users choose their own language in their account settings if you want per-user persistence.
+- Use **Admin → BBS Settings → Language Overrides** when you want to customize individual phrases without editing the shipped catalogs.
+
 BinktermPHP uses a key-based localization system covering Twig templates, PHP route/controller code, and client-side JavaScript. Translation catalogs live under `config/i18n/` and are loaded on demand by locale.
 
 ---

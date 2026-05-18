@@ -447,6 +447,7 @@ return [
     'errors.admin.packet_bbs.node_not_found' => 'Node nicht gefunden',
     'errors.admin.packet_bbs.key_generate_failed' => 'Failed to generate key.',
     'errors.admin.packet_bbs.request_failed' => 'Request failed.',
+    'errors.admin.packet_bbs.save_failed' => 'Speichern fehlgeschlagen.',
     'errors.admin.insecure_nodes.create_failed' => 'Failed to add insecure node',
     'errors.admin.insecure_nodes.update_failed' => 'insecure node konnte nicht aktualisiert werden',
     'errors.admin.insecure_nodes.delete_failed' => 'insecure node konnte nicht gelöscht werden',
