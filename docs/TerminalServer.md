@@ -63,8 +63,9 @@ Each transport daemon has additional extension requirements — see
 - Press `B` in the netmail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. The status bar label toggles between **Bookmark** and **Unsave** to reflect the current state.
 - Press `E` in the netmail viewer to forward the current message to the logged-in user's email address. Requires outbound email to be configured on the BBS; an error is shown inline if it is not.
 - Press `B` in the echomail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. Bookmarked messages appear under the **Saved** filter in the web interface.
-- Press `T` in the echomail viewer to download the current message as a plain-text `.txt` file via ZMODEM. The filename is derived from the message subject. Requires `lrzsz` (`sz`/`rz`) installed on the server.
+- Press `T` in the echomail viewer to download the current message as a plain-text `.txt` file via ZMODEM. The filename is derived from the message subject. Uses the built-in ZMODEM implementation by default; no additional software required.
 - Press `E` in the echomail viewer to forward the current message to the logged-in user's email address. Requires outbound email to be configured on the BBS; an error is shown inline if it is not.
+- Press `S` from the echoarea list to **search all subscribed echomail areas**. Enter a search term (minimum 2 characters); results from all areas are shown in a flat list with the area tag prepended to the From column. Press `S` from within a specific area's message list to **search that area only**. When opening a message from search results, matching text is highlighted in the message body (white text on yellow background).
 
 ### Full-Screen Message Editor
 
@@ -400,37 +401,44 @@ The terminal server uses the BinktermPHP web API for most operations. It also ma
 All API requests include cookie-based session management, automatic retry with
 exponential backoff, and optional SSL certificate verification.
 
-## ZMODEM Requirements (Non-Windows)
+## ZMODEM File Transfers
 
-On non-Windows hosts, file transfer support uses external `sz`/`rz` binaries
-from the `lrzsz` package, falling back to the built-in PHP ZMODEM implementation
-when the binaries are not found.
+BinktermPHP includes a built-in PHP ZMODEM implementation that is used by
+default. It is preferred over external `sz`/`rz` binaries because it correctly
+handles Telnet IAC (0xFF) byte escaping, which external tools are not aware of.
+No additional software is required.
 
 - **Default behavior:** terminal file transfers are disabled by default.
-- Install `lrzsz` to enable ZMODEM download/upload in file areas.
-- If `sz`/`rz` are not found, the built-in PHP implementation is used automatically.
 - To enable terminal file transfers, set the following in `.env`:
 
 ```ini
 TERMINAL_FILE_TRANSFERS=true
 ```
 
-When enabled, ensure `sz` and `rz` are present (typically via `lrzsz`) and
-available in `PATH`, or specify their paths explicitly:
+The built-in implementation handles both downloads (`sz`) and uploads (`rz`).
+
+### Optional: external sz/rz binaries
+
+External `sz`/`rz` binaries from the `lrzsz` package are supported but must be
+explicitly opted into by the sysop. To allow the external binaries to be used,
+set:
+
+```ini
+TELNET_ZMODEM_FORCE_PHP=false
+```
+
+When this is set, the server checks for `sz`/`rz` in `PATH` and uses them if
+found; if the binaries are not present the built-in PHP implementation is used
+as a fallback. You can specify explicit paths instead of relying on `PATH`:
 
 ```ini
 TELNET_SZ_BIN=/usr/bin/sz
 TELNET_RZ_BIN=/usr/bin/rz
 ```
 
-### Forcing the built-in PHP ZMODEM implementation
-
-To bypass external `sz`/`rz` binaries and always use the built-in PHP ZMODEM
-implementation (useful for testing or if external binaries are unreliable):
-
-```ini
-TELNET_ZMODEM_FORCE_PHP=true
-```
+> **Note:** External `sz`/`rz` binaries do not handle Telnet IAC escaping. They
+> work correctly over SSH but may produce corrupt transfers over plain Telnet
+> connections that pass binary 0xFF bytes in the data stream.
 
 ## Related Documentation
 

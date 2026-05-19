@@ -93,6 +93,10 @@ class EchomailHandler
             if ($result['action'] === 'redraw') {
                 continue;
             }
+            if ($result['action'] === 'search') {
+                $this->searchAllAreas($conn, $state, $session);
+                continue;
+            }
             if ($result['action'] === 'select') {
                 $area   = $result['area'];
                 $tag    = $area['tag'] ?? '';
@@ -102,6 +106,459 @@ class EchomailHandler
                 $this->showMessages($conn, $state, $session, $tag, $domain);
             }
         }
+    }
+
+    /**
+     * Prompt for a search term and display matching messages within a single echoarea.
+     *
+     * @param string $area Echoarea identifier (tag@domain)
+     */
+    private function searchInArea($conn, array &$state, string $session, string $area): void
+    {
+        $locale = $state['locale'];
+
+        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::safeWrite($conn, $this->server->t(
+            'ui.terminalserver.echomail.search_messages_prompt',
+            'Search messages: ',
+            [], $locale
+        ));
+
+        $term = $this->server->readLineWithIdleCheck($conn, $state);
+        if ($term === null) {
+            return;
+        }
+        $term = trim($term);
+
+        if (strlen($term) < 2) {
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.echomail.search_term_too_short', 'Search term must be at least 2 characters.', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
+
+        TelnetUtils::showWorkingOverlay($conn, $state, $this->server, 'Searching...');
+
+        $response = TelnetUtils::apiRequest(
+            $this->apiBase, 'GET',
+            '/api/messages/search?' . http_build_query(['q' => $term, 'type' => 'echomail', 'echoarea' => $area]),
+            null, $session
+        );
+
+        $messages = $response['data']['messages'] ?? [];
+
+        if (empty($messages)) {
+            TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Search',
+                $this->server->t('ui.terminalserver.echomail.search_no_results', 'No messages found for \'{term}\'.', ['term' => $term], $locale),
+                'info');
+            return;
+        }
+
+        $this->showAreaSearchResults($conn, $state, $session, $term, $area, $messages);
+    }
+
+    /**
+     * Display a paginated list of within-area search results and allow reading individual messages.
+     *
+     * Uses the standard message list format (no area tag prefix since all results share the same area).
+     * Prev/next in the viewer navigates the flat search result list, not the area message list.
+     *
+     * @param string $area       Echoarea identifier (tag@domain), used for compose
+     * @param array  $allMessages Full flat list of search result messages from the API
+     */
+    private function showAreaSearchResults($conn, array &$state, string $session, string $term, string $area, array $allMessages): void
+    {
+        $perPage    = MailUtils::getMessagesPerPage($state);
+        $totalPages = max(1, (int)ceil(count($allMessages) / $perPage));
+        $page       = 1;
+        $selectedIndex = 0;
+
+        while (true) {
+            $offset       = ($page - 1) * $perPage;
+            $pageMessages = array_slice($allMessages, $offset, $perPage);
+
+            $title = TelnetUtils::colorize(
+                $this->server->t(
+                    'ui.terminalserver.echomail.search_results_header',
+                    'Search: {term} (page {page}/{total})',
+                    ['term' => $term, 'page' => $page, 'total' => $totalPages],
+                    $state['locale']
+                ),
+                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+            );
+
+            $result = TelnetUtils::runMessageList(
+                $conn, $state, $this->server, $title, $pageMessages, $page, $totalPages, $selectedIndex
+            );
+            $selectedIndex = $result['selectedIndex'];
+
+            switch ($result['action']) {
+                case 'disconnect':
+                case 'quit':
+                    return;
+                case 'prev':
+                    if ($page > 1) { $page--; $selectedIndex = 0; }
+                    break;
+                case 'next':
+                    if ($page < $totalPages) { $page++; $selectedIndex = 0; }
+                    break;
+                case 'compose':
+                    $this->compose($conn, $state, $session, $area, null);
+                    break;
+                case 'read':
+                    $absIndex    = $offset + $result['index'];
+                    $newAbsIndex = $this->displaySearchMessage($conn, $state, $session, $allMessages, $absIndex, $term);
+                    $page        = max(1, (int)floor($newAbsIndex / $perPage) + 1);
+                    $selectedIndex = $newAbsIndex - ($page - 1) * $perPage;
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Prompt for a search term and display matching echomail messages across all subscribed areas.
+     *
+     * Calls GET /api/messages/search?q=<term>&type=echomail, then presents results
+     * in a paginated selectable list.  Selecting a message opens it in the viewer.
+     */
+    private function searchAllAreas($conn, array &$state, string $session): void
+    {
+        $locale = $state['locale'];
+
+        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::safeWrite($conn, $this->server->t(
+            'ui.terminalserver.echomail.search_messages_prompt',
+            'Search messages: ',
+            [], $locale
+        ));
+
+        $term = $this->server->readLineWithIdleCheck($conn, $state);
+        if ($term === null) {
+            return;
+        }
+        $term = trim($term);
+
+        if (strlen($term) < 2) {
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.echomail.search_term_too_short', 'Search term must be at least 2 characters.', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
+
+        TelnetUtils::showWorkingOverlay($conn, $state, $this->server, 'Searching...');
+
+        $response = TelnetUtils::apiRequest(
+            $this->apiBase, 'GET',
+            '/api/messages/search?' . http_build_query(['q' => $term, 'type' => 'echomail']),
+            null, $session
+        );
+
+        $messages = $response['data']['messages'] ?? [];
+
+        if (empty($messages)) {
+            TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Search',
+                $this->server->t('ui.terminalserver.echomail.search_no_results', 'No messages found for \'{term}\'.', ['term' => $term], $locale),
+                'info');
+            return;
+        }
+
+        $this->showSearchResults($conn, $state, $session, $term, $messages);
+    }
+
+    /**
+     * Display a paginated list of echomail search results and allow reading individual messages.
+     *
+     * @param array $allMessages Full flat list of search result messages (from API)
+     */
+    private function showSearchResults($conn, array &$state, string $session, string $term, array $allMessages): void
+    {
+        $perPage      = MailUtils::getMessagesPerPage($state);
+        $totalCount   = count($allMessages);
+        $totalPages   = max(1, (int)ceil($totalCount / $perPage));
+        $page         = 1;
+        $selectedIndex = 0;
+
+        while (true) {
+            $offset       = ($page - 1) * $perPage;
+            $pageMessages = array_slice($allMessages, $offset, $perPage);
+            $locale       = $state['locale'];
+
+            // Prepend the echoarea tag to the from_name so the area is visible in the list.
+            $displayMessages = array_map(function (array $msg): array {
+                $copy = $msg;
+                $copy['from_name'] = '[' . ($msg['echoarea'] ?? '?') . '] ' . ($msg['from_name'] ?? '');
+                return $copy;
+            }, $pageMessages);
+
+            $title = TelnetUtils::colorize(
+                $this->server->t(
+                    'ui.terminalserver.echomail.search_results_header',
+                    'Search: {term} (page {page}/{total})',
+                    ['term' => $term, 'page' => $page, 'total' => $totalPages],
+                    $locale
+                ),
+                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+            );
+
+            $cols = $state['cols'] ?? 80;
+            $rows = [];
+            foreach ($displayMessages as $idx => $msg) {
+                $rows[] = TelnetUtils::formatMessageListEntry($msg, $idx + 1, false, $cols, $state);
+            }
+            $server = $this->server;
+            if (method_exists($server, 'encodeForTerminal')) {
+                $rows         = array_map(static fn(string $r): string => $server->encodeForTerminal($r), $rows);
+                $encodedTitle = $server->encodeForTerminal($title);
+            } else {
+                $encodedTitle = $title;
+            }
+
+            $rebuildFn = static function (array &$s) use ($displayMessages, $server, $encodedTitle): array {
+                $newCols = $s['cols'] ?? 80;
+                $newRows = [];
+                foreach ($displayMessages as $idx => $msg) {
+                    $newRows[] = TelnetUtils::formatMessageListEntry($msg, $idx + 1, false, $newCols, $s);
+                }
+                if (method_exists($server, 'encodeForTerminal')) {
+                    $newRows = array_map(static fn(string $r): string => $server->encodeForTerminal($r), $newRows);
+                }
+                return ['rows' => $newRows, 'title' => $encodedTitle];
+            };
+
+            $statusBar = [
+                ['text' => 'U/D',     'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' Move  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'L/R',     'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' Page  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'Enter',   'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' Read  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'Q',       'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' Quit',   'color' => TelnetUtils::ANSI_BLUE],
+            ];
+
+            $result = TelnetUtils::runSelectableList(
+                $conn, $state, $this->server,
+                $encodedTitle, $rows, $page, $totalPages, $selectedIndex,
+                $statusBar, [], $rebuildFn
+            );
+            $selectedIndex = $result['selectedIndex'];
+
+            switch ($result['action']) {
+                case 'disconnect':
+                case 'quit':
+                    return;
+                case 'prev':
+                    if ($page > 1) { $page--; $selectedIndex = 0; }
+                    break;
+                case 'next':
+                    if ($page < $totalPages) { $page++; $selectedIndex = 0; }
+                    break;
+                case 'select':
+                    $absIndex    = $offset + $result['index'];
+                    $newAbsIndex = $this->displaySearchMessage($conn, $state, $session, $allMessages, $absIndex, $term);
+                    $page        = max(1, (int)floor($newAbsIndex / $perPage) + 1);
+                    $selectedIndex = $newAbsIndex - ($page - 1) * $perPage;
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Open a single echomail search result in the message viewer.
+     *
+     * Prev/next navigate the flat $allMessages array across area boundaries.
+     * Returns the index of the message that was active when the user quit.
+     *
+     * @param array $allMessages Full flat search result list
+     * @param int   $index       Zero-based index into $allMessages to open
+     * @return int The index active when the viewer was closed
+     */
+    private function displaySearchMessage($conn, array &$state, string $session, array $allMessages, int $index, string $searchTerm = ''): int
+    {
+        while (true) {
+            $msg = $allMessages[$index] ?? null;
+            if (!$msg) {
+                return $index;
+            }
+
+            $id     = (int)($msg['id'] ?? 0);
+            $tag    = (string)($msg['echoarea'] ?? '');
+            $domain = (string)($msg['echoarea_domain'] ?? '');
+            $area   = $this->formatEchoareaIdentifier($tag, $domain);
+
+            $this->server->logAction($state['username'] ?? 'unknown', "Echomail search: read message #{$id} in {$area}");
+
+            $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
+            $body         = $detail['data']['message_text'] ?? '';
+            $markupFormat = $detail['data']['markup_format'] ?? null;
+            $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
+            $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
+            $kludgeLines  = array_map(fn(string $line): string => $this->server->encodeForTerminal($line), $kludgeLines);
+            $imageRefs    = TerminalMarkupRenderer::extractImageRefs((string)($markupFormat ?? ''), $body);
+            $isSaved      = (bool)($detail['data']['is_saved'] ?? false);
+
+            $fromName    = (string)($msg['from_name'] ?? 'Unknown');
+            $fromAddress = (string)($msg['from_address'] ?? '');
+
+            $buildView = function (array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress, $imageRefs, $searchTerm): array {
+                $cols     = $s['cols'] ?? 80;
+                $width    = max(10, $cols - 2);
+                $charset  = $this->server->getTerminalCharset();
+                $fromLine = $fromAddress ? "{$fromName} <{$fromAddress}>" : $fromName;
+
+                $segments = [
+                    ['text' => 'U/D',          'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Scroll  ',    'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'L/R',          'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'Ctrl-K',       'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Help  ',      'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'Q',            'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Quit',        'color' => TelnetUtils::ANSI_BLUE],
+                ];
+
+                $wrappedLines = $markupFormat !== null
+                    ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
+                    : TelnetUtils::wrapTextLines($body, $width);
+                $wrappedLines = array_map(fn(string $line): string => $this->server->encodeForTerminal($line), $wrappedLines);
+                if ($searchTerm !== '') {
+                    $wrappedLines = $this->highlightSearchTerm($wrappedLines, $searchTerm);
+                }
+
+                return [
+                    'headerLines'  => TelnetUtils::buildMessageHeaderBox($width, [
+                        ['label' => 'From: ', 'value' => $fromLine,                                                      'style' => 'normal'],
+                        ['label' => 'Subj: ', 'value' => $msg['subject'] ?? 'Message',                                  'style' => 'bold'],
+                        ['label' => 'To:   ', 'value' => $msg['to_name'] ?? 'All',                                      'style' => 'dim'],
+                        ['label' => 'Area: ', 'value' => $area,                                                         'style' => 'dim'],
+                        ['label' => 'Date: ', 'value' => TelnetUtils::formatUserDate($msg['date_written'] ?? '', $s),   'style' => 'dim'],
+                    ], $charset),
+                    'wrappedLines' => $wrappedLines,
+                    'statusLine'   => TelnetUtils::buildStatusBar($segments, $width),
+                ];
+            };
+
+            $apiBase = $this->apiBase;
+            $server  = $this->server;
+            $imageFn = !empty($imageRefs)
+                ? static function (int $idx) use ($conn, &$state, $server, $imageRefs, $apiBase): void {
+                    TelnetUtils::showSixelImageViewer($conn, $state, $server, $imageRefs[$idx], count($imageRefs), $apiBase);
+                }
+                : null;
+
+            $view      = $buildView($state);
+            $locale    = $state['locale'] ?? 'en';
+            $helpItems = [
+                ['key' => 'PgUp / PgDn', 'label' => $this->server->t('ui.terminalserver.message.help_page',       'Scroll one page',            [], $locale)],
+                ['key' => 'H',           'label' => $this->server->t('ui.terminalserver.message.help_headers',    'View message headers',        [], $locale)],
+                ['key' => 'B',           'label' => $this->server->t('ui.terminalserver.echomail.help_bookmark',  'Bookmark / unsave message',   [], $locale)],
+                ['key' => 'T',           'label' => $this->server->t('ui.terminalserver.echomail.help_text_dl',   'Download as .txt (ZMODEM)',   [], $locale)],
+                ['key' => 'E',           'label' => $this->server->t('ui.terminalserver.echomail.help_email_fwd', 'Forward to my email address', [], $locale)],
+            ];
+            if (!empty($imageRefs)) {
+                $helpItems[] = ['key' => 'I', 'label' => $this->server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
+            }
+
+            $result = TelnetUtils::runMessageViewer(
+                $conn, $state, $this->server,
+                $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
+                $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView,
+                $imageRefs, $imageFn, ['b' => 'save', 't' => 'download', 'e' => 'emailforward'], $helpItems
+            );
+
+            switch ($result['action']) {
+                case 'quit':
+                    return $index;
+                case 'prev':
+                    if ($index > 0) { $index--; }
+                    break;
+                case 'next':
+                    if ($index < count($allMessages) - 1) { $index++; }
+                    break;
+                case 'reply':
+                    TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+                    $this->compose($conn, $state, $session, $area, $detail['data'] ?? $msg);
+                    TelnetUtils::setCursorVisible($conn, true);
+                    return $index;
+                case 'save':
+                    $csrfToken = $state['csrf_token'] ?? null;
+                    if ($isSaved) {
+                        TelnetUtils::apiRequest($this->apiBase, 'DELETE', '/api/messages/echomail/' . $id . '/save', null, $session, 3, $csrfToken);
+                        $confirmMsg = 'Message removed from saved.';
+                    } else {
+                        TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/messages/echomail/' . $id . '/save', null, $session, 3, $csrfToken);
+                        $confirmMsg = 'Message saved.';
+                    }
+                    $isSaved = !$isSaved;
+                    $detail['data']['is_saved'] = $isSaved;
+                    TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Bookmark', $confirmMsg, 'info');
+                    break;
+                case 'download':
+                    $this->downloadAsText($conn, $state, $session, $id, $msg['subject'] ?? 'message');
+                    break;
+                case 'emailforward':
+                    $csrfToken = $state['csrf_token'] ?? null;
+                    TelnetUtils::showWorkingOverlay($conn, $state, $this->server, 'Forwarding message to email...');
+                    $fwdResult = TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/messages/echomail/' . $id . '/forward-email', null, $session, 3, $csrfToken);
+                    if ($fwdResult['status'] === 200) {
+                        TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Email Forward', 'Forwarded to your email address.', 'info');
+                    } else {
+                        $errMsg = $fwdResult['data']['error'] ?? 'Failed to forward message.';
+                        TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Email Forward', $errMsg, 'error');
+                    }
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Wrap each case-insensitive match of $term in the given lines with ANSI yellow highlighting.
+     *
+     * The replacement is ANSI-aware: ANSI escape sequences are passed through unchanged so that
+     * existing color codes in markup-rendered bodies are not accidentally matched.
+     *
+     * @param string[] $lines Encoded, post-render body lines (may contain ANSI escape sequences)
+     * @param string   $term  Search term entered by the user
+     * @return string[]
+     */
+    private function highlightSearchTerm(array $lines, string $term): array
+    {
+        if ($term === '') {
+            return $lines;
+        }
+        $pattern   = '/' . preg_quote($term, '/') . '/iu';
+        $ansiSplit = '/(\033\[[0-9;]*m)/';
+        return array_map(function (string $line) use ($pattern, $ansiSplit): string {
+            // Split on ANSI escape sequences, keeping them as captured delimiters.
+            $parts  = preg_split($ansiSplit, $line, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$line];
+            $result = '';
+            foreach ($parts as $part) {
+                if (preg_match($ansiSplit, $part)) {
+                    $result .= $part; // ANSI escape — pass through unchanged
+                } else {
+                    $result .= preg_replace_callback($pattern, static function (array $m): string {
+                        return "\033[43;97m" . $m[0] . "\033[0m";
+                    }, $part) ?? $part;
+                }
+            }
+            return $result;
+        }, $lines);
     }
 
     /**
@@ -368,6 +825,9 @@ class EchomailHandler
                     $term = trim($term);
                     return ['action' => 'filter', 'filter' => ($term !== '' ? $term : null), 'page' => 1];
                 }
+                if ($lower === 's') {
+                    return ['action' => 'search', 'page' => $page];
+                }
                 if ($lower === 'c' && $searchFilter !== null) {
                     return ['action' => 'filter', 'filter' => null, 'page' => 1];
                 }
@@ -400,6 +860,9 @@ class EchomailHandler
                     if ($onPageChange) { ($onPageChange)($page); }
                 }
                 return ['action' => 'redraw', 'page' => $page];
+            }
+            if ($input === 's') {
+                return ['action' => 'search', 'page' => $page];
             }
             if ($input === 'c' && $searchFilter !== null) {
                 return ['action' => 'filter', 'filter' => null, 'page' => 1];
@@ -477,7 +940,11 @@ class EchomailHandler
                 $this->server->t('ui.terminalserver.echomail.messages_header', 'Echomail: {area} (page {page}/{total})', ['area' => $area, 'page' => $page, 'total' => $totalPages], $state['locale']),
                 TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             );
-            $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $messages, $page, $totalPages, $selectedIndex);
+            $result = TelnetUtils::runMessageList(
+                $conn, $state, $this->server, $title, $messages, $page, $totalPages, $selectedIndex,
+                ['s' => 'search'],
+                [['text' => 'S', 'color' => TelnetUtils::ANSI_RED], ['text' => ' Search', 'color' => TelnetUtils::ANSI_BLUE]]
+            );
             $selectedIndex = $result['selectedIndex'];
             $currentSelectedId = isset($messages[$selectedIndex]['id']) ? (int)$messages[$selectedIndex]['id'] : null;
             $this->saveEchomailState($session, $positions, $area, $page, $currentSelectedId, $state['csrf_token'] ?? null);
@@ -500,6 +967,9 @@ class EchomailHandler
                     break;
                 case 'read':
                     [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $area, $page, $perPage, $totalPages, $result['index']);
+                    break;
+                case 'search':
+                    $this->searchInArea($conn, $state, $session, $area);
                     break;
             }
         }

@@ -16,6 +16,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader)
   - [Echomail Download as Text in Terminal Reader](#echomail-download-as-text-in-terminal-reader)
   - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader)
+  - [Echomail Search in Terminal](#echomail-search-in-terminal)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer)
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
@@ -35,6 +36,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader-1)
   - [Echomail Download as Text in Terminal Reader](#echomail-download-as-text-in-terminal-reader-1)
   - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader-1)
+  - [Echomail Search in Terminal](#echomail-search-in-terminal-1)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
@@ -77,7 +79,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Download netmail as plain text**: terminal users can now press `T` while reading a netmail message to download it as a `.txt` file via ZMODEM. The downloaded file contains the message headers and body in plain text, matching the equivalent download button in the web interface. ZMODEM must be supported by the connecting terminal application.
 - Terminal users can now **forward a netmail message to their email address** by pressing `E` in the netmail message viewer. Requires outbound email to be configured on the BBS.
 - Terminal users can now **forward an echomail message to their email address** by pressing `E` in the echomail message viewer. Requires outbound email to be configured on the BBS.
+- **Echomail full-text search in the terminal**: pressing `S` from the echoarea list searches all subscribed areas; pressing `S` from within a specific area's message list searches that area only. Search results are shown in a paginated list; opening a result highlights the matched term in white on yellow in the message body.
 - **Ctrl-K help overlay in the terminal message viewer**: all terminal message readers (netmail and echomail) now show a framed keyboard-reference panel when the user presses `Ctrl-K`. The panel lists every available key binding, including secondary actions that are not shown on the status bar. The overlay responds to terminal resize events while it is open and propagates any resize back to the message viewer when it is dismissed. The status bar in both readers has been trimmed to the five most-used actions (scroll, prev/next, reply, Ctrl-K help, and quit); all other keys are documented exclusively in the Ctrl-K overlay.
+- **ZMODEM documentation corrected**: `docs/TerminalServer.md` previously stated that external `sz`/`rz` binaries from `lrzsz` were required and that the built-in PHP ZMODEM implementation was a fallback. This was incorrect. The built-in PHP implementation is the default and preferred path because it correctly handles Telnet IAC (0xFF) byte escaping. External binaries are an opt-in option that requires the sysop to explicitly set `TELNET_ZMODEM_FORCE_PHP=false` in `.env`. No code change; documentation only. No upgrade action is required.
 
 ### PacketBBS
 
@@ -281,6 +285,20 @@ This matches the equivalent **Forward to email** option in the web interface. Th
 Terminal users can now forward an echomail message to their account email address by pressing `E` while reading it in the terminal echomail viewer. The key appears in the Ctrl-K help overlay but not on the status bar. A "Forwarding..." indicator appears immediately while the request is in flight; on completion a colour-coded dialog confirms success (blue) or reports the error (red) and is dismissed with Enter.
 
 This matches the equivalent **Forward to email** option in the web interface and mirrors the same feature already available in the netmail viewer. The feature requires outbound email to be configured on the BBS. No additional sysop configuration is needed beyond that.
+
+---
+
+### Echomail Search in Terminal {#echomail-search-in-terminal-1}
+
+Terminal users can now search echomail messages by keyword from two places.
+
+**Global search** — press `S` from the echoarea list (the screen that shows all your subscribed areas). You are prompted for a search term (minimum two characters). Results from all subscribed areas are shown together in a paginated list; the area tag appears prepended to the From column so you can tell at a glance which area each message came from. Navigate the list with the arrow keys and press Enter to open a message.
+
+**Area-specific search** — press `S` from within a specific area's message list. The search is scoped to that area only and results are shown in the same format as the regular message list for that area, including the Compose key.
+
+When reading a message opened from search results, any occurrence of the search term in the message body is highlighted in white text on a yellow background, consistent with the search result highlighting in the web interface. Navigating to the previous or next message within the result set preserves the highlight.
+
+No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
 
 ---
 

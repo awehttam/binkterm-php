@@ -152,6 +152,31 @@ Terminal code may use shared internal classes from `src/` when they are transpor
 
 Calling authenticated local API endpoints through `TelnetUtils::apiRequest()` is acceptable, including endpoints protected by CSRF, because the terminal server handles that protocol explicitly.
 
+### apiRequest response structure
+
+`TelnetUtils::apiRequest()` always returns:
+
+```php
+[
+    'status' => $httpCode,   // int HTTP status code (200, 400, 404, …)
+    'data'   => $parsedBody, // the decoded JSON body — never the root array itself
+    'error'  => null|string,
+]
+```
+
+**The parsed JSON body is always one level deep under `['data']`.** Never access top-level keys from the API response directly on the return value:
+
+```php
+// WRONG — 'messages' is in the JSON body, not at the apiRequest return level
+$messages = $response['messages'] ?? [];
+
+// CORRECT
+$messages = $response['data']['messages'] ?? [];
+$item     = $response['data']['item'] ?? null;
+```
+
+This mistake produces silently empty results with no error, which makes it hard to diagnose.
+
 ### CSRF tokens are required for all mutating API calls
 
 **Every POST, PUT, PATCH, or DELETE call via `TelnetUtils::apiRequest()` must pass the CSRF token** as the 7th argument — omitting it causes a 403. The token lives in `$state['csrf_token']`:
