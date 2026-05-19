@@ -51,6 +51,9 @@ Each transport daemon has additional extension requirements — see
 - Dynamic pagination based on terminal rows
 - Terminal resize events are processed in real time during key-wait loops — the main menu re-renders immediately when the window is resized, without requiring a keypress
 - On narrow terminals, the fallback main-menu header truncates cleanly and prefers keeping the BBS name visible before dropping the clock
+- On short terminals, all selector screens (netmail inbox, echomail list, file areas, etc.) clip content from the **bottom** — the title row and header are always rendered first and never scrolled off. The status bar is always anchored to the last terminal row.
+- On narrow terminals, list rows are ANSI-aware truncated at the right edge so colors (bold unread, cyan row numbers, etc.) are preserved. The status bar is likewise hard-capped to one line so it cannot wrap and cause the screen to scroll.
+- The main menu clips lower menu sections from the bottom on short terminals so the box header (status line, box border, "Main Menu" title) always remains visible.
 
 ### Message Browsing
 
@@ -75,6 +78,7 @@ Each transport daemon has additional extension requirements — see
 - The generic terminal selector now supports **multi-select state** for callers that need bulk actions. In the echomail message list, press `Space` to toggle the highlighted message in or out of the selection set; selected rows show a `*` marker.
 - Press `Ctrl-K` in any terminal selector list to open the key-binding help overlay. The overlay now includes the list-specific secondary actions that were removed from the status bar.
 - Press `M` from an echomail area's message list to **mark the selected messages as read**. The terminal prompts for confirmation, submits the selected message IDs to the same bulk-read API used by the web interface, then redraws the list so unread indicators clear immediately.
+- Press `Space` in the netmail inbox list to toggle the highlighted message in or out of the selection set (green `*` marker); press `M` to **mark the selected messages as read**. Multi-select and M are available in the inbox only — not the Sent folder. Ctrl-K shows both keys in the help overlay.
 - Press `O` from the netmail message list to **change the list sort order**. The terminal netmail reader now exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user opens netmail from the terminal.
 - Press `O` from an echomail area's message list to **change the list sort order**. The terminal reader exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user re-enters an echomail area from the terminal.
 - Terminal confirmation and selection dialogs now redraw on live resize. If the user resizes the window while a centered terminal dialog is open, both the background screen and the dialog reflow to the new dimensions instead of waiting for the dialog to close.

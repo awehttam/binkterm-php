@@ -991,7 +991,8 @@ class TelnetUtils
         int $selectedIndex,
         array $extraKeys = [],
         array $extraStatusSegments = [],
-        array $options = []
+        array $options = [],
+        array $helpItems = []
     ): array {
         $cols = $state['cols'] ?? 80;
         $selectedIds = array_fill_keys(array_map('intval', $options['selectedMessageIds'] ?? []), true);
@@ -1059,7 +1060,8 @@ class TelnetUtils
             $statusBar,
             array_merge(['c' => 'compose'], $extraKeys),
             $rebuildFn,
-            $listOptions
+            $listOptions,
+            $helpItems
         );
 
         // Map the generic 'select' action to the message-specific 'read' action.
@@ -1136,7 +1138,7 @@ class TelnetUtils
         }
 
         $termRows = $state['rows'] ?? 24;
-        $inputRow = max(1, $termRows - 1);
+        $inputRow = max(1, $termRows);
 
         self::safeWrite($conn, "\033[2J\033[H");
         self::writeLine($conn, $title);
@@ -1216,6 +1218,35 @@ class TelnetUtils
     }
 
     /**
+     * Truncate a string to at most $maxVisible printable characters while preserving
+     * ANSI SGR escape sequences so colors are not lost on narrow terminals.
+     */
+    private static function truncateAnsi(string $text, int $maxVisible): string
+    {
+        $result  = '';
+        $visible = 0;
+        $i       = 0;
+        $len     = strlen($text);
+
+        while ($i < $len && $visible < $maxVisible) {
+            if ($text[$i] === "\033" && $i + 1 < $len && $text[$i + 1] === '[') {
+                $end = strpos($text, 'm', $i + 2);
+                if ($end !== false) {
+                    $result .= substr($text, $i, $end - $i + 1);
+                    $i = $end + 1;
+                } else {
+                    $result .= $text[$i++];
+                }
+            } else {
+                $result .= $text[$i++];
+                $visible++;
+            }
+        }
+
+        return $result . self::ANSI_RESET;
+    }
+
+    /**
      * Re-render a single selectable-list row in-place without redrawing the screen.
      *
      * When selected, ANSI sequences are stripped from the row before applying the
@@ -1249,12 +1280,20 @@ class TelnetUtils
             $display = $row;
         }
 
-        if (!$selected) {
-            return $display;
+        $plain   = self::stripAnsi($display);
+        $maxCols = max(1, $cols - 1);
+
+        if ($selected) {
+            $text = substr($plain, 0, $maxCols);
+            return self::colorize(str_pad($text, $maxCols), self::ANSI_BG_BLUE . self::ANSI_BOLD);
         }
 
-        $plain = self::stripAnsi($display);
-        return self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD);
+        // Prevent line-wrap on stale or oversized rows when terminal is narrow
+        if (strlen($plain) > $cols) {
+            return self::truncateAnsi($display, $cols);
+        }
+
+        return $display;
     }
 
     /**
@@ -1309,7 +1348,8 @@ class TelnetUtils
         $termRows     = $state['rows'] ?? 24;
         $rowCount     = count($rows);
         $listStartRow = 2;
-        $inputRow     = max(1, $termRows - 1);
+        $inputRow     = max(1, $termRows);
+        $maxDisplayRows = max(1, $inputRow - $listStartRow);
         $selectedRows = array_fill_keys(array_map('intval', $options['selectedRows'] ?? []), true);
         $toggleKey    = strtolower((string)($options['toggleKey'] ?? 'x'));
         $showMarker   = !empty($options['multiSelect']);
@@ -1318,7 +1358,7 @@ class TelnetUtils
         self::safeWrite($conn, "\033[2J\033[H");
         self::writeLine($conn, $title);
 
-        foreach ($rows as $idx => $row) {
+        foreach (array_slice($rows, 0, $maxDisplayRows) as $idx => $row) {
             self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
         }
 
@@ -1344,7 +1384,8 @@ class TelnetUtils
             if ($newCols !== $cols || $newTermRows !== $termRows) {
                 $cols      = $newCols;
                 $termRows  = $newTermRows;
-                $inputRow  = max(1, $termRows - 1);
+                $inputRow  = max(1, $termRows);
+                $maxDisplayRows = max(1, $inputRow - $listStartRow);
                 if ($rebuildFn !== null) {
                     $rebuilt       = $rebuildFn($state);
                     $rows          = $rebuilt['rows'];
@@ -1356,7 +1397,7 @@ class TelnetUtils
                 $statusLine = self::buildStatusBar($statusBar, $cols);
                 self::safeWrite($conn, "\033[2J\033[H");
                 self::writeLine($conn, $title);
-                foreach ($rows as $idx => $row) {
+                foreach (array_slice($rows, 0, $maxDisplayRows) as $idx => $row) {
                     self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
                 }
                 self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
@@ -1408,7 +1449,8 @@ class TelnetUtils
                 if (($newCols !== $cols || $newTermRows !== $termRows) && $rebuildFn !== null) {
                     $cols      = $newCols;
                     $termRows  = $newTermRows;
-                    $inputRow  = max(1, $termRows - 1);
+                    $inputRow  = max(1, $termRows);
+                    $maxDisplayRows = max(1, $inputRow - $listStartRow);
                     $rebuilt   = $rebuildFn($state);
                     $rows      = $rebuilt['rows'];
                     $title     = $rebuilt['title'];
@@ -1419,7 +1461,7 @@ class TelnetUtils
                 $statusLine = self::buildStatusBar($statusBar, $cols);
                 self::safeWrite($conn, "\033[2J\033[H");
                 self::writeLine($conn, $title);
-                foreach ($rows as $idx => $row) {
+                foreach (array_slice($rows, 0, $maxDisplayRows) as $idx => $row) {
                     self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
                 }
                 self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
@@ -1654,7 +1696,12 @@ class TelnetUtils
         if (!self::$ansiColorEnabled) {
             $plain = '';
             foreach ($segments as $segment) {
-                $plain .= $segment['text'] ?? '';
+                $remaining = $width - strlen($plain);
+                if ($remaining <= 0) {
+                    break;
+                }
+                $text = $segment['text'] ?? '';
+                $plain .= strlen($text) <= $remaining ? $text : substr($text, 0, $remaining);
             }
             if (strlen($plain) < $width) {
                 $plain .= str_repeat(' ', $width - strlen($plain));
@@ -1666,20 +1713,23 @@ class TelnetUtils
         $blue = self::ANSI_BLUE;
         $reset = self::ANSI_RESET;
 
-        $plain = '';
-        foreach ($segments as $segment) {
-            $plain .= $segment['text'] ?? '';
-        }
-        $pad = max(0, $width - strlen($plain));
-
+        $used = 0;
         $line = '';
         foreach ($segments as $segment) {
-            $text = $segment['text'] ?? '';
+            if ($used >= $width) {
+                break;
+            }
+            $text      = $segment['text'] ?? '';
+            $remaining = $width - $used;
+            if (strlen($text) > $remaining) {
+                $text = substr($text, 0, $remaining);
+            }
             $color = $segment['color'] ?? $blue;
             $line .= $bg . $color . $text;
+            $used += strlen($text);
         }
-        if ($pad > 0) {
-            $line .= $bg . $blue . str_repeat(' ', $pad);
+        if ($used < $width) {
+            $line .= $bg . $blue . str_repeat(' ', $width - $used);
         }
 
         return $line . $reset;

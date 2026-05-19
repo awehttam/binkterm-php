@@ -19,8 +19,6 @@ class FileHandler
     /** Whether the session is over SSH (no TELNET IAC escaping needed). */
     private bool $isSsh;
 
-    private const FILES_PER_PAGE = 10;
-
     private function zdbg(string $message): void
     {
         $val = (string)\BinktermPHP\Config::env('TELNET_ZMODEM_DEBUG', 'false');
@@ -57,7 +55,7 @@ class FileHandler
     public function show($conn, array &$state, string $session): void
     {
         $page    = 1;
-        $perPage = self::FILES_PER_PAGE;
+        $perPage = MailUtils::getMessagesPerPage($state);
         $locale  = $state['locale'] ?? '';
 
         while (true) {
@@ -109,7 +107,7 @@ class FileHandler
     private function showFiles($conn, array &$state, string $session, array $area): void
     {
         $page             = 1;
-        $perPage          = self::FILES_PER_PAGE;
+        $perPage          = MailUtils::getMessagesPerPage($state);
         $locale           = $state['locale'] ?? '';
         $areaId           = (int)($area['id'] ?? 0);
         $areaTag          = $area['tag'] ?? '';

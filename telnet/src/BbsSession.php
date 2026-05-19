@@ -485,6 +485,7 @@ class BbsSession
                 $this->writeLine($conn, '');
             } else {
                 $cols      = $state['cols'] ?? 80;
+                $termRows  = $state['rows'] ?? 24;
                 $menuWidth = min(76, $cols - 4);
                 $innerWidth= $menuWidth - 4;
                 $menuLeft  = max(0, (int)floor(($cols - $menuWidth) / 2));
@@ -666,6 +667,14 @@ class BbsSession
                     $rows[] = [$this->menuItemCol(strtoupper($quitKey), $lblQuit, $colWidth, $state), $empty];
                 }
 
+                // Overhead: status(1) + blank(1) + box-top(1) + title(1) + divider(1)
+                //           + box-bottom(1) + trailing-blank(1) = 7 fixed rows.
+                // Clip menu rows so the total never causes the terminal to scroll.
+                $maxMenuRows = max(0, $termRows - 8);
+                if (count($rows) > $maxMenuRows) {
+                    $rows = array_slice($rows, 0, $maxMenuRows);
+                }
+
                 foreach ($rows as [$left, $right]) {
                     $line = $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE)
                         . ' ' . $left . '  ' . $right . ' '
@@ -678,7 +687,6 @@ class BbsSession
                 // Dashboard widgets: sidebar (wide screens) or bottom bar (narrow).
                 // Row layout: 1=status, 2=blank, 3=box-top, 4=title, 5=divider,
                 // 6…5+count($rows)=menu items, 6+count($rows)=box-bottom.
-                $termRows     = $state['rows'] ?? 24;
                 $boxStartRow  = 3;
                 $boxBottomRow = 6 + count($rows);
                 $this->renderMenuWidgets($conn, $state, $dashboardStats, $menuLeft, $menuWidth, $boxStartRow, $boxBottomRow, $termRows);
