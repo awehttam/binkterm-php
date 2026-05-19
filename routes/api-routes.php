@@ -10851,6 +10851,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $nodes[] = [
                 'address'     => $node['full_address'],
                 'system_name' => $node['system_name'] ?? '',
+                'sysop_name'  => $node['sysop_name']  ?? '',
                 'location'    => $node['location']     ?? '',
                 'domain'      => $node['domain']       ?? '',
             ];

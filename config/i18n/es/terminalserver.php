@@ -97,6 +97,8 @@ return [
     // --- Shared UI prompts ---
     'ui.terminalserver.server.press_any_key'           => 'Presione cualquier tecla para volver...',
     'ui.terminalserver.server.press_continue'          => 'Presione cualquier tecla para continuar...',
+    'ui.terminalserver.server.confirm_yes'             => 'Confirmar',
+    'ui.terminalserver.server.confirm_no'              => 'Cancelar',
 
     // --- Message editor (full screen) ---
     'ui.terminalserver.editor.title'                   => 'EDITOR DE MENSAJES - MODO PANTALLA COMPLETA',
@@ -129,6 +131,12 @@ return [
     'ui.terminalserver.compose.tagline_default'        => 'Etiqueta # [{default}] (Enter para predeterminada): ',
     'ui.terminalserver.compose.tagline_none'           => 'Etiqueta # (Enter para ninguna): ',
     'ui.terminalserver.compose.message_cancelled'      => 'Mensaje cancelado (vacío).',
+    'ui.terminalserver.compose.address_book_hint'      => '[? Libreta de direcciones]',
+    'ui.terminalserver.compose.address_book_search'    => 'Buscar nombre o dirección (Enter para cancelar): ',
+    'ui.terminalserver.compose.address_book_title'     => 'Búsqueda en libreta de direcciones',
+    'ui.terminalserver.compose.address_book_no_results'=> 'No se encontraron coincidencias.',
+    'ui.terminalserver.compose.address_book_source_ab' => 'AB',
+    'ui.terminalserver.compose.address_book_source_nl' => 'NL',
 
     // --- Echomail ---
     'ui.terminalserver.echomail.no_areas'              => 'No estás suscrito a ninguna área.',
@@ -164,6 +172,11 @@ return [
     'ui.terminalserver.netmail.attachments_none'       => 'No hay archivos adjuntos en este mensaje.',
     'ui.terminalserver.netmail.attachments_header'     => 'Adjuntos:',
     'ui.terminalserver.netmail.attachment_download_prompt' => 'Adjunto # para descargar (Enter para cancelar): ',
+    'ui.terminalserver.netmail.delete_confirm_title'     => '¿Eliminar mensaje?',
+    'ui.terminalserver.netmail.delete_confirm_body'      => 'Esta acción no se puede deshacer.',
+    'ui.terminalserver.netmail.deleting'                 => 'Eliminando...',
+    'ui.terminalserver.netmail.delete_success'           => '✓ Mensaje eliminado.',
+    'ui.terminalserver.netmail.delete_failed'            => '✗ Error al eliminar: {error}',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'La cabina de votación está deshabilitada.',

@@ -66,16 +66,16 @@ class TelnetUtils
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 
-            if ($method === 'POST' || $method === 'PUT') {
+            if (in_array($method, ['POST', 'PUT', 'DELETE', 'PATCH'], true)) {
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
                 if ($payload !== null) {
                     $json    = json_encode($payload);
                     $headers[] = 'Content-Type: application/json';
                     $headers[] = 'Content-Length: ' . strlen($json);
-                    if ($csrfToken !== null) {
-                        $headers[] = 'X-CSRF-Token: ' . $csrfToken;
-                    }
                     curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+                }
+                if ($csrfToken !== null) {
+                    $headers[] = 'X-CSRF-Token: ' . $csrfToken;
                 }
             }
 
@@ -449,7 +449,8 @@ class TelnetUtils
         array $kludgeLines = [],
         ?callable $rebuildFn = null,
         array $imageRefs = [],
-        ?callable $imageFn = null
+        ?callable $imageFn = null,
+        array $extraKeys = []
     ): array {
         $headerCount = count($headerLines);
         $lastRows    = $state['rows'] ?? $rows;
@@ -547,6 +548,15 @@ class TelnetUtils
             if ($key === 'CHAR:r' || $key === 'CHAR:R')      return ['action' => 'reply', 'offset' => $offset];
             if ($allowDownloadAction && ($key === 'CHAR:z' || $key === 'CHAR:Z')) {
                 return ['action' => 'download', 'offset' => $offset];
+            }
+
+            // Caller-supplied extra key bindings (char keys and named keys like 'DELETE')
+            if (!empty($extraKeys)) {
+                $lookup = str_starts_with($key, 'CHAR:') ? strtolower(substr($key, 5)) : $key;
+                if (isset($extraKeys[$lookup])) {
+                    self::setCursorVisible($conn, true);
+                    return ['action' => $extraKeys[$lookup], 'offset' => $offset];
+                }
             }
         }
     }
@@ -1344,6 +1354,136 @@ class TelnetUtils
     }
 
     /**
+     * Display a centered confirmation dialog overlay and wait for a keypress.
+     *
+     * Draws the dialog on top of existing screen content without clearing it.
+     * The caller should trigger a full redraw (e.g. set $fullRedraw = true) after
+     * this returns if the underlying screen needs to be restored.
+     *
+     * @param array  $choices Map of lowercase char => label, e.g. ['y' => 'Confirm', 'n' => 'Cancel']
+     * @param string $default Char to return on disconnect or bare Enter; must be a key in $choices.
+     * @return string The chosen lowercase char.
+     */
+    public static function showConfirmDialog(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        string $message,
+        array $choices = ['y' => 'Confirm', 'n' => 'Cancel'],
+        string $default = 'n'
+    ): string {
+        $rows    = $state['rows'] ?? 24;
+        $cols    = $state['cols'] ?? 80;
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+        // Box-drawing characters
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        // Build plain-text key hint string for width calculation
+        $hintParts = [];
+        foreach ($choices as $char => $label) {
+            $hintParts[] = ['char' => strtoupper((string)$char), 'label' => (string)$label];
+        }
+        $sep       = '    ';
+        $plainHint = implode($sep, array_map(fn($p) => $p['char'] . ') ' . $p['label'], $hintParts));
+        $hintsLen  = mb_strlen($plainHint);
+
+        // Inner width: fits all content, capped to terminal width
+        $innerWidth = max(
+            24,
+            min(
+                max(mb_strlen($message) + 2, mb_strlen($title) + 4, $hintsLen + 4),
+                min($cols - 6, 58)
+            )
+        );
+        $boxWidth = $innerWidth + 2;
+
+        // Top border with centered title embedded in the rule
+        $titleLine = ' ' . $title . ' ';
+        $titleLen  = mb_strlen($titleLine);
+        $totalHz   = max(0, $innerWidth - $titleLen);
+        $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
+                        . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+        $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+        $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+        // Message row
+        $msgContent = str_pad(mb_substr($message, 0, $innerWidth - 2), $innerWidth - 2);
+        $msgRow     = $vt . ' ' . $msgContent . ' ' . $vt;
+
+        // Hint row padding
+        $leftPad  = max(0, (int)floor(($innerWidth - $hintsLen) / 2));
+        $rightPad = max(0, $innerWidth - $hintsLen - $leftPad);
+
+        // Center dialog on screen
+        $dialogHeight = 6; // top + empty + message + empty + hints + bottom
+        $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+        $startCol = max(1, (int)round(($cols - $boxWidth)    / 2));
+
+        $ansi  = self::$ansiColorEnabled;
+        $bg    = self::ANSI_BG_BLUE;
+        $rst   = self::ANSI_RESET;
+        $frame = $bg . "\033[1;37m"; // bold white on dark blue
+        $body  = $bg . "\033[37m";   // normal white on dark blue
+
+        $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+            self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+        };
+
+        self::safeWrite($conn, "\033[?25l"); // hide cursor while drawing
+
+        $r = $startRow;
+        if ($ansi) {
+            $draw($r++, $frame . $topBorder . $rst);
+            $draw($r++, $body  . $emptyRow  . $rst);
+            $draw($r++, $body  . $msgRow    . $rst);
+            $draw($r++, $body  . $emptyRow  . $rst);
+
+            $hintContent = str_repeat(' ', $leftPad);
+            foreach ($hintParts as $i => $part) {
+                if ($i > 0) {
+                    $hintContent .= $body . $sep;
+                }
+                $hintContent .= self::ANSI_RED . self::ANSI_BOLD . $part['char']
+                              . $body . ') ' . $part['label'];
+            }
+            $hintContent .= str_repeat(' ', $rightPad);
+            $draw($r++, $body . $vt . $hintContent . $body . $vt . $rst);
+            $draw($r,   $frame . $btmBorder . $rst);
+        } else {
+            $draw($r++, $topBorder);
+            $draw($r++, $emptyRow);
+            $draw($r++, $msgRow);
+            $draw($r++, $emptyRow);
+            $draw($r++, $vt . str_repeat(' ', $leftPad) . $plainHint . str_repeat(' ', $rightPad) . $vt);
+            $draw($r,   $btmBorder);
+        }
+
+        self::safeWrite($conn, "\033[?25h"); // restore cursor
+
+        // Read a keypress — only accept keys in $choices
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+            if ($key === null || $key === 'ENTER') {
+                return $default;
+            }
+            if (str_starts_with($key, 'CHAR:')) {
+                $char = strtolower(substr($key, 5));
+                if (isset($choices[$char])) {
+                    return $char;
+                }
+            }
+        }
+    }
+
+    /**
      * Encode UTF-8 header field text to match the box charset.
      *
      * CP437 boxes are already emitted as raw OEM bytes, so only the text fields
@@ -1567,6 +1707,163 @@ class TelnetUtils
         }
 
         return null;
+    }
+
+    /**
+     * Interactive address book / nodelist picker.
+     *
+     * Prompts for a search term, queries both the address book and nodelist APIs,
+     * then presents the merged results through runSelectableList() so the user can
+     * navigate with Up/Down/Enter or type a row number.
+     *
+     * Returns an array with 'name' and 'address' on selection, or null on cancel.
+     *
+     * @param resource $conn
+     * @param string   $apiBase
+     * @param string   $session
+     * @param string   $locale
+     * @return array{name:string,address:string}|null
+     */
+    public static function runAddressPicker($conn, array &$state, $server, string $apiBase, string $session, string $locale): ?array
+    {
+        while (true) {
+            self::safeWrite($conn, "\033[2J\033[H");
+            $titleText = $server->t('ui.terminalserver.compose.address_book_title', 'Address Book Search', [], $locale);
+            self::writeLine($conn, self::colorize($titleText, self::ANSI_CYAN . self::ANSI_BOLD));
+            self::writeLine($conn, '');
+
+            $searchPrompt = self::colorize(
+                $server->t('ui.terminalserver.compose.address_book_search', 'Search name or address (Enter to cancel): ', [], $locale),
+                self::ANSI_CYAN
+            );
+            $query = $server->prompt($conn, $state, $searchPrompt, true);
+            if ($query === null || trim($query) === '') {
+                return null;
+            }
+            $query = trim($query);
+
+            // Fetch address book entries (no trailing slash, matches route; + encoding valid in query strings)
+            $abResp    = self::apiRequest($apiBase, 'GET', '/api/address-book?search=' . urlencode($query), null, $session);
+            $abEntries = $abResp['data']['entries'] ?? [];
+
+            // Fetch nodelist entries
+            $nlResp = self::apiRequest($apiBase, 'GET', '/api/nodelist/search?q=' . urlencode($query), null, $session);
+            $nlNodes = $nlResp['data']['nodes'] ?? [];
+
+            // Build unified result list; address book takes priority, deduplicate by address
+            $results = [];
+            $seenAddresses = [];
+
+            $abTag = $server->t('ui.terminalserver.compose.address_book_source_ab', 'AB', [], $locale);
+            foreach ($abEntries as $entry) {
+                $addr = trim((string)($entry['node_address'] ?? ''));
+                $name = trim((string)($entry['name'] ?? ''));
+                if ($name === '' && $addr === '') {
+                    continue;
+                }
+                $key = strtolower($addr);
+                if ($addr !== '' && isset($seenAddresses[$key])) {
+                    continue;
+                }
+                if ($addr !== '') {
+                    $seenAddresses[$key] = true;
+                }
+                $results[] = ['name' => $name, 'address' => $addr, 'tag' => $abTag];
+            }
+
+            $nlTag = $server->t('ui.terminalserver.compose.address_book_source_nl', 'NL', [], $locale);
+            foreach ($nlNodes as $node) {
+                $addr       = trim((string)($node['address']     ?? ''));
+                $sysopName  = trim((string)($node['sysop_name']  ?? ''));
+                $systemName = trim((string)($node['system_name'] ?? ''));
+                if ($addr === '') {
+                    continue;
+                }
+                $key = strtolower($addr);
+                if (isset($seenAddresses[$key])) {
+                    continue;
+                }
+                $seenAddresses[$key] = true;
+                $results[] = [
+                    'name'    => $sysopName !== '' ? $sysopName : $systemName,
+                    'address' => $addr,
+                    'tag'     => $nlTag,
+                ];
+            }
+
+            if (empty($results)) {
+                self::safeWrite($conn, "\033[2J\033[H");
+                self::writeLine($conn, self::colorize(
+                    $server->t('ui.terminalserver.compose.address_book_no_results', 'No matches found.', [], $locale),
+                    self::ANSI_YELLOW
+                ));
+                self::writeLine($conn, '');
+                self::writeLine($conn, self::colorize(
+                    $server->t('ui.terminalserver.server.press_any_key', 'Press any key to search again, or Ctrl+C to cancel...', [], $locale),
+                    self::ANSI_DIM
+                ));
+                $key = $server->readKeyWithIdleCheck($conn, $state);
+                if ($key === null) {
+                    return null;
+                }
+                continue;
+            }
+
+            // Row formatter — closure so runSelectableList can call it on resize.
+            // Visible layout per row: "NNN) " (5) + name + "  " + addr (18) + "  " + "[XX]" (4) = cols-1
+            $addrWidth = 18;
+            $formatRows = static function(array $s) use ($results, $server, $query, $locale, $addrWidth): array {
+                $cols      = $s['cols'] ?? 80;
+                $nameWidth = max(10, $cols - 5 - 2 - $addrWidth - 2 - 4 - 1);
+                $rows      = [];
+                foreach ($results as $idx => $r) {
+                    $num  = sprintf('%3d', $idx + 1);
+                    $name = mb_substr(str_pad($r['name'], $nameWidth), 0, $nameWidth);
+                    $addr = mb_substr(str_pad($r['address'], $addrWidth), 0, $addrWidth);
+                    $tag  = '[' . $r['tag'] . ']';
+                    $rows[] = self::colorize($num . ') ', self::ANSI_YELLOW)
+                        . $name . '  '
+                        . self::colorize($addr, self::ANSI_CYAN)
+                        . '  ' . self::colorize($tag, self::ANSI_DIM);
+                }
+                $titleLine = self::colorize(
+                    $server->t('ui.terminalserver.compose.address_book_title', 'Address Book Search', [], $locale)
+                    . ' — "' . $query . '"',
+                    self::ANSI_CYAN . self::ANSI_BOLD
+                );
+                return ['rows' => $rows, 'title' => $titleLine];
+            };
+
+            $built = $formatRows($state);
+            $statusBar = [
+                ['text' => 'Up/Dn', 'color' => self::ANSI_RED],
+                ['text' => ' Select  ', 'color' => self::ANSI_BLUE],
+                ['text' => 'Enter',    'color' => self::ANSI_RED],
+                ['text' => ' Confirm  ', 'color' => self::ANSI_BLUE],
+                ['text' => 'Q',        'color' => self::ANSI_RED],
+                ['text' => ' Cancel',  'color' => self::ANSI_BLUE],
+            ];
+
+            $result = self::runSelectableList(
+                $conn, $state, $server,
+                $built['title'], $built['rows'],
+                1, 1, 0, $statusBar,
+                [],
+                $formatRows
+            );
+
+            if ($result['action'] === 'select') {
+                $chosen = $results[$result['index']] ?? null;
+                if ($chosen !== null) {
+                    return ['name' => $chosen['name'], 'address' => $chosen['address']];
+                }
+            }
+
+            if ($result['action'] === 'disconnect') {
+                return null;
+            }
+            // quit / any other action — loop back to search prompt
+        }
     }
 
     /**

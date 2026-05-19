@@ -2550,6 +2550,7 @@ class BbsSession
         if ($char === self::KEY_PGUP)   { return ['PGUP',   false, false]; }
         if ($char === self::KEY_PGDOWN) { return ['PGDOWN', false, false]; }
         if ($char === self::KEY_SHIFT_TAB) { return ['SHIFT_TAB', false, false]; }
+        if ($char === self::KEY_DELETE)    { return ['DELETE',    false, false]; }
 
         $ord = ord($char[0]);
         if ($ord === 9)                          { return ['TAB',       false, false]; }

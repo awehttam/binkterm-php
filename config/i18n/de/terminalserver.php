@@ -101,6 +101,8 @@ return [
     // --- Shared UI prompts ---
     'ui.terminalserver.server.press_any_key'           => 'Beliebige Taste drücken zum Zurückkehren...',
     'ui.terminalserver.server.press_continue'          => 'Beliebige Taste drücken zum Fortfahren...',
+    'ui.terminalserver.server.confirm_yes'             => 'Bestätigen',
+    'ui.terminalserver.server.confirm_no'              => 'Abbrechen',
 
     // --- Message editor (full screen) ---
     'ui.terminalserver.editor.title'                   => 'NACHRICHTENEDITOR - VOLLBILDMODUS',
@@ -133,6 +135,12 @@ return [
     'ui.terminalserver.compose.tagline_default'        => 'Tagline # [{default}] (Enter für Standard): ',
     'ui.terminalserver.compose.tagline_none'           => 'Tagline # (Enter für Keine): ',
     'ui.terminalserver.compose.message_cancelled'      => 'Nachricht abgebrochen (leer).',
+    'ui.terminalserver.compose.address_book_hint'      => '[? Adressbuch]',
+    'ui.terminalserver.compose.address_book_search'    => 'Name oder Adresse suchen (Enter zum Abbrechen): ',
+    'ui.terminalserver.compose.address_book_title'     => 'Adressbuch-Suche',
+    'ui.terminalserver.compose.address_book_no_results'=> 'Keine Treffer gefunden.',
+    'ui.terminalserver.compose.address_book_source_ab' => 'AB',
+    'ui.terminalserver.compose.address_book_source_nl' => 'NL',
 
     // --- Echomail ---
     'ui.terminalserver.echomail.no_areas'              => 'Sie sind in keinen Bereichen angemeldet.',
@@ -168,6 +176,11 @@ return [
     'ui.terminalserver.netmail.attachments_none'       => 'Keine Dateianhänge an dieser Nachricht.',
     'ui.terminalserver.netmail.attachments_header'     => 'Anhänge:',
     'ui.terminalserver.netmail.attachment_download_prompt' => 'Anhang Nr. zum Herunterladen (Enter zum Abbrechen): ',
+    'ui.terminalserver.netmail.delete_confirm_title'     => 'Nachricht löschen?',
+    'ui.terminalserver.netmail.delete_confirm_body'      => 'Dies kann nicht rückgängig gemacht werden.',
+    'ui.terminalserver.netmail.deleting'                 => 'Wird gelöscht...',
+    'ui.terminalserver.netmail.delete_success'           => '✓ Nachricht gelöscht.',
+    'ui.terminalserver.netmail.delete_failed'            => '✗ Löschen fehlgeschlagen: {error}',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'Abstimmungsbereich ist deaktiviert.',
