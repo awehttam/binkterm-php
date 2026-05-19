@@ -46,7 +46,10 @@ When the developer explicitly signs off on the work:
 ### 4a. Documentation
 
 - Check `docs/DEVELOPER_GUIDE.md`'s Doc Maintenance Checklist for subsystem→doc pairings and update any affected docs.
-- Read the current version from `src/Version.php`.
+- Read the current version from `src/Version.php` using the public method (the `VERSION` constant is private):
+  ```bash
+  php -r "require 'src/Version.php'; echo BinktermPHP\Version::getVersion();"
+  ```
 - Add a concise entry to the matching `docs/UPGRADING_x.y.z.md` (the file for the current version) describing what changed, why it matters, and any upgrade action required. Follow the UPGRADING voice rules from `/bump-version`: self-contained, no assumed shared context.
 
 ### 4b. Implementation Notes on the Issue
