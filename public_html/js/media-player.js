@@ -310,10 +310,10 @@
         anchor.addEventListener('click', handler);
     }
 
-    function injectAfter(anchor, el) {
+    function injectAfter(anchor, el, opts) {
         var isMedia = el.tagName === 'VIDEO' || el.tagName === 'AUDIO';
         var isRetroAudio = el.classList && el.classList.contains('bink-retro-audio');
-        if (isAutoMode()) {
+        if (isAutoMode() || (opts && opts.forceAuto)) {
             insertEmbed(anchor, el, isMedia, isRetroAudio);
         } else {
             attachClickMenu(anchor, el, isMedia, isRetroAudio);
@@ -452,7 +452,7 @@
                 var provider = PLATFORM_PROVIDERS[i];
                 var m = href.match(provider.pattern);
                 if (m) {
-                    injectAfter(anchor, buildIframe(provider.embed(m), provider.name));
+                    injectAfter(anchor, buildIframe(provider.embed(m), provider.name), opts);
                     return;
                 }
             }
@@ -461,13 +461,13 @@
         var path = stripQuery(href);
 
         if (typeAllowed('retroAudio', opts) && RETRO_AUDIO_EXTS.test(path)) {
-            injectAfter(anchor, buildRetroAudio(href));
+            injectAfter(anchor, buildRetroAudio(href), opts);
         } else if (typeAllowed('video', opts) && VIDEO_EXTS.test(path)) {
-            injectAfter(anchor, buildVideo(href));
+            injectAfter(anchor, buildVideo(href), opts);
         } else if (typeAllowed('audio', opts) && AUDIO_EXTS.test(path)) {
-            injectAfter(anchor, buildAudio(href));
+            injectAfter(anchor, buildAudio(href), opts);
         } else if (typeAllowed('image', opts) && (IMAGE_EXTS.test(path) || hasKnownImageUrlPrefix(href))) {
-            injectAfter(anchor, buildImage(href));
+            injectAfter(anchor, buildImage(href), opts);
         } else {
             if (typeAllowed('proxy', opts)) {
                 var proxyProvider = matchProxyProvider(href);

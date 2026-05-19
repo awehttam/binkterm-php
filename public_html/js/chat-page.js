@@ -327,7 +327,7 @@
         body.className = 'chat-message-body';
         if (msg.markup_html) {
             body.innerHTML = msg.markup_html;
-            if (window.BinkMediaPlayer) BinkMediaPlayer.scan(body, { types: ['image'] });
+            if (window.BinkMediaPlayer) BinkMediaPlayer.scan(body, { forceAuto: true });
         } else {
             body.innerHTML = escapeHtml(msg.body || '');
         }
