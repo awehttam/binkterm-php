@@ -89,6 +89,9 @@ class PacketBbsTextRenderer
                 '(S)END user|addr subj',
                 '(P)OST in current area',
                 '(BU)LLETINS list / (BU) # read',
+                '(SA) [area] term search echomail',
+                '(SM) term search netmail',
+                '(WX) [city] current weather',
                 '(CL) list rooms/DMs',
                 '(C)HAT [room|user] enter chat/DM',
                 '(U)STATUS show context',
@@ -346,6 +349,76 @@ class PacketBbsTextRenderer
             $lines[] = 'R <id>, RP <id>';
         }
         return implode("\n", $lines);
+    }
+
+    /**
+     * Echomail search results. Shows area tag per row since results span areas.
+     */
+    public function renderEchomailSearchResults(array $messages, string $query, string $area, int $page, int $totalPages): string
+    {
+        $scope  = $area !== '' ? $this->formatAreaForDisplay($area) : 'all';
+        $header = sprintf('SA "%s" %s %d/%d', $this->truncate($query, 12), $scope, $page, $totalPages);
+        $lines  = [$header];
+        foreach ($messages as $m) {
+            $areaTag = strtoupper((string)($m['echoarea'] ?? $m['tag'] ?? '?'));
+            $from    = $this->truncate($m['from_name'] ?? '?', 8);
+            $prefix  = sprintf('%d %s %s ', (int)$m['id'], $areaTag, $from);
+            $subj    = $this->truncate($m['subject'] ?? '(no subject)', max(6, $this->lineWidth - mb_strlen($prefix)));
+            $lines[] = $prefix . $subj;
+        }
+        $lines[] = $page < $totalPages ? 'R <id>, M:more B:back' : 'R <id>, RP <id>';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Netmail search results.
+     */
+    public function renderNetmailSearchResults(array $messages, string $query, int $page, int $totalPages): string
+    {
+        $lines = [sprintf('SM "%s" %d/%d', $this->truncate($query, 14), $page, $totalPages)];
+        foreach ($messages as $m) {
+            $unread = empty($m['read_at']) ? '*' : ' ';
+            $from   = $this->truncate($m['from_name'] ?? '?', 10);
+            $prefix = sprintf('%s%d %s ', $unread, (int)$m['id'], $from);
+            $subj   = $this->truncate($m['subject'] ?? '(no subject)', max(8, $this->lineWidth - mb_strlen($prefix)));
+            $lines[] = $prefix . $subj;
+        }
+        $lines[] = $page < $totalPages ? 'R <id>, M:more B:back' : 'R <id>, RP <id>';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Render current weather from an OpenWeatherMap /data/2.5/weather response.
+     * Output is kept to 3-4 lines to fit within radio frame budgets.
+     */
+    public function renderWeather(array $data): string
+    {
+        $city    = (string)($data['name'] ?? 'Unknown');
+        $country = (string)($data['sys']['country'] ?? '');
+        $loc     = $country !== '' ? $city . ', ' . $country : $city;
+
+        $condDesc = ucfirst((string)($data['weather'][0]['description'] ?? 'Unknown'));
+        $tempC    = round((float)($data['main']['temp'] ?? 0));
+        $tempF    = round($tempC * 9 / 5 + 32);
+        $humidity = (int)($data['main']['humidity'] ?? 0);
+
+        $windSpeedMs  = (float)($data['wind']['speed'] ?? 0);
+        $windKph      = round($windSpeedMs * 3.6);
+        $windDeg      = (int)($data['wind']['deg'] ?? 0);
+        $windDir      = $this->windDirection($windDeg);
+
+        $lines = [
+            sprintf('WX %s', $this->truncate($loc, $this->lineWidth - 3)),
+            sprintf('%s %d°C/%d°F', $this->truncate($condDesc, 18), $tempC, $tempF),
+            sprintf('Wind %s %dkph Hum %d%%', $windDir, $windKph, $humidity),
+        ];
+        return implode("\n", $lines);
+    }
+
+    private function windDirection(int $deg): string
+    {
+        $dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        return $dirs[(int)round($deg / 45) % 8];
     }
 
     private function formatAreaForDisplay(string $area): string

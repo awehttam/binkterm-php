@@ -24,6 +24,8 @@
   - [Compose Mode](#compose-mode)
   - [Bulletins](#bulletins)
   - [Chat](#chat)
+  - [Weather](#weather)
+  - [Search](#search)
   - [Paging](#paging)
   - [Quit](#quit)
 - [Output Profiles](#output-profiles)
@@ -276,6 +278,9 @@ Posted to LVLY_TEST.
 | `STATUS` | `U` | Show current area, list, message, or draft state. |
 | `BULLETINS` | `BU` | List active bulletins. `BU <id>` reads bulletin number `<id>`. |
 | `CHAT` | `C` | Enter the default chat room. `CHAT <room>` enters a named room. `CHAT <user>` opens a DM with that user. `CHAT LIST` or `CL` lists available rooms. |
+| `SEARCHAREAS <term>` | `SA <term>` | Search echomail. Searches the current area if one is active, otherwise all areas. `SA <area> <term>` restricts to a specific subscribed area. |
+| `SEARCHMAIL <term>` | `SM <term>` | Search netmail for the logged-in user. |
+| `WEATHER` | `WX` | Show current weather for the bridge node's location (if coordinates are set). `WX <city>` looks up any city by name. |
 | `QUIT` | `Q` | Context-aware: exits the current area if one is active, or ends the PacketBBS session from the top level. Use the full word `QUIT` to end the session unconditionally from anywhere. |
 | `WEBSITE` | `WEB` | Show the BBS website URL. |
 
@@ -771,6 +776,108 @@ From inside any chat context you can jump directly to another room or open a DM 
 CHAT Tech
 CHAT bob
 ```
+
+### Weather
+
+Show current weather for the bridge node's configured location:
+
+```text
+WX
+```
+
+Look up any city by name:
+
+```text
+WX Seattle
+WX London, UK
+```
+
+Example response:
+
+```text
+WX Seattle, US
+Partly Cloudy 14°C/57°F
+Wind SW 18kph Hum 72%
+```
+
+`WX` without a city uses the coordinates set on the bridge node in **Admin → Packet BBS Nodes**. If no coordinates are configured, the command returns an error and prompts for a city name.
+
+Weather requires a `WEATHER_API_KEY` environment variable set to a valid [OpenWeatherMap](https://openweathermap.org/api) API key. If the key is not configured, `WX` returns an error.
+
+### Search
+
+#### Search Echomail
+
+Search across all subscribed areas, or within a specific area:
+
+```text
+SA <term>
+```
+
+```text
+SA LVLY_CHAT <term>
+```
+
+If a current area is active (set with `AREA`), `SA <term>` without an explicit area restricts the search to that area automatically.
+
+Example:
+
+```text
+SA linux
+```
+
+Response:
+
+```text
+SA "linux" all 1/2
+44 LINUX Bob kernel panic
+12 LVLY_CHAT alice Re: linux
+15 LVLY_CHAT alice linux tools
+R <id>, M:more B:back
+```
+
+With a current area active:
+
+```text
+AREA LVLY_CHAT
+SA linux
+```
+
+Response:
+
+```text
+SA "linux" LVLY_CHAT 1/1
+12 LVLY_CHAT alice Re: linux
+15 LVLY_CHAT alice linux tools
+R <id>, RP <id>
+```
+
+Results from multiple areas show the area tag on each row. Use `R <id>` to read a result. `M` and `B` page through results.
+
+#### Search Netmail
+
+Search your own netmail:
+
+```text
+SM <term>
+```
+
+Example:
+
+```text
+SM meeting
+```
+
+Response:
+
+```text
+SM "meeting" 1/1
+*12 Bob Re: Meeting
+ 15 Alice Meeting notes
+R <id>, RP <id>
+```
+
+`*` marks unread messages. Use `R <id>` to read a result.
 
 ### Paging
 
