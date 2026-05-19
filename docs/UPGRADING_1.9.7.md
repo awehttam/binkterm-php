@@ -68,6 +68,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Terminal Server
 
 - The shared terminal server now includes **Local Chat** from the main menu. Telnet and SSH users can open room chat, switch rooms and DMs, view online users from the left navigation pane, read Markdown-rendered messages, and send new messages without leaving the terminal session.
+- Terminal Local Chat no longer rings the terminal bell when new chat messages arrive. Instead, unread room and DM entries that are not currently open are highlighted in green in the left navigation pane so users still get a visible attention indicator without an audible beep.
 - The terminal main menu now reacts to live terminal resize events. On Telnet NAWS updates and SSH window-change events, the menu redraws to the new dimensions without requiring an extra keypress, and dashboard widgets are re-laid out using cached stats rather than triggering another API call.
 - The terminal netmail reader now provides a **Sent folder**. Users can press `S` from the message list to toggle between the Inbox and Sent views. The active folder is remembered across sessions.
 - The terminal message viewer now exposes inline image viewing more broadly. The existing `I` image-viewer flow still supports Markdown `![alt](url)` images, and now also detects bare direct image URLs in regular message bodies when they end in `.png`, `.jpg`, `.jpeg`, or `.gif`.
@@ -149,6 +150,8 @@ The terminal client currently provides:
 - a larger message pane with Markdown rendering
 - a bottom compose box with `Enter` to send and `Ctrl+E` for multiline compose
 - API-backed polling for live updates while the chat screen is open
+
+Terminal Local Chat no longer sends terminal bell characters when new messages arrive. Unread rooms and direct-message conversations that are not currently open are instead highlighted in green in the left navigation pane, while the existing unread count badge remains visible.
 
 No post-upgrade admin action is required for this feature. If Local Chat is already enabled in **Admin -> BBS Settings**, it becomes available automatically to terminal users after the upgraded daemons are restarted.
 

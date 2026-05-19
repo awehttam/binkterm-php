@@ -245,6 +245,7 @@ Local chat supports:
 - room selection from an in-chat navigation pane
 - direct messages to online users and known DM contacts
 - unread badges for rooms and DMs during the current chat session
+- unread room and DM entries highlighted in green when they are not currently open
 - online user display in the left navigation pane
 - message polling with automatic updates while the chat screen is open
 - scrollback with **PgUp/PgDn**
@@ -275,6 +276,9 @@ separate right-hand online-users sidebar.
 Chat messages are rendered as terminal Markdown, matching the message-body
 renderer used by echomail and netmail viewers. Sender and timestamp are shown
 as a header line above each rendered message body.
+
+Incoming local chat messages do not emit terminal bell characters. New unread
+rooms and DMs are indicated visually in the navigation pane instead.
 
 On narrower terminals the chat client switches to a stacked layout so rooms/DMs,
 messages, and the compose box still fit on screen.
