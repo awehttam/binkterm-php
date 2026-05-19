@@ -160,6 +160,7 @@ return [
     'ui.terminalserver.echomail.post_failed'           => '✗ Failed to post echomail: {error}',
     'ui.terminalserver.echomail.help_bookmark'         => 'Bookmark / unsave message',
     'ui.terminalserver.echomail.help_text_dl'          => 'Download as .txt (ZMODEM)',
+    'ui.terminalserver.echomail.help_email_fwd'        => 'Forward to my email address',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'No netmail messages.',

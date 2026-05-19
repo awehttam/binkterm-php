@@ -755,8 +755,9 @@ class EchomailHandler
             $helpItems = [
                 ['key' => 'PgUp / PgDn', 'label' => $this->server->t('ui.terminalserver.message.help_page',      'Scroll one page',             [], $locale)],
                 ['key' => 'H',           'label' => $this->server->t('ui.terminalserver.message.help_headers',   'View message headers',         [], $locale)],
-                ['key' => 'B',           'label' => $this->server->t('ui.terminalserver.echomail.help_bookmark', 'Bookmark / unsave message',    [], $locale)],
+                ['key' => 'B',           'label' => $this->server->t('ui.terminalserver.echomail.help_bookmark',  'Bookmark / unsave message',    [], $locale)],
                 ['key' => 'T',           'label' => $this->server->t('ui.terminalserver.echomail.help_text_dl',  'Download as .txt (ZMODEM)',    [], $locale)],
+                ['key' => 'E',           'label' => $this->server->t('ui.terminalserver.echomail.help_email_fwd', 'Forward to my email address',  [], $locale)],
             ];
             if (!empty($imageRefs)) {
                 $helpItems[] = ['key' => 'I', 'label' => $this->server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
@@ -766,7 +767,7 @@ class EchomailHandler
                 $conn, $state, $this->server,
                 $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
                 $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView,
-                $imageRefs, $imageFn, ['b' => 'save', 't' => 'download'], $helpItems
+                $imageRefs, $imageFn, ['b' => 'save', 't' => 'download', 'e' => 'emailforward'], $helpItems
             );
 
             switch ($result['action']) {
@@ -800,6 +801,17 @@ class EchomailHandler
                     break;
                 case 'download':
                     $this->downloadAsText($conn, $state, $session, (int)$id, $msg['subject'] ?? 'message');
+                    break;
+                case 'emailforward':
+                    $csrfToken = $state['csrf_token'] ?? null;
+                    TelnetUtils::showWorkingOverlay($conn, $state, $this->server, 'Forwarding message to email...');
+                    $fwdResult = TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/messages/echomail/' . $id . '/forward-email', null, $session, 3, $csrfToken);
+                    if ($fwdResult['status'] === 200) {
+                        TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Email Forward', 'Forwarded to your email address.', 'info');
+                    } else {
+                        $errMsg = $fwdResult['data']['error'] ?? 'Failed to forward message.';
+                        TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Email Forward', $errMsg, 'error');
+                    }
                     break;
             }
         }

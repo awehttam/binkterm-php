@@ -160,6 +160,7 @@ return [
     'ui.terminalserver.echomail.post_failed'           => '✗ Error al publicar echomail: {error}',
     'ui.terminalserver.echomail.help_bookmark'         => 'Marcar / desmarcar mensaje',
     'ui.terminalserver.echomail.help_text_dl'          => 'Descargar como .txt (ZMODEM)',
+    'ui.terminalserver.echomail.help_email_fwd'        => 'Reenviar a mi correo electronico',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'No hay mensajes de netmail.',

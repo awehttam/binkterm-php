@@ -160,6 +160,7 @@ return [
     'ui.terminalserver.echomail.post_failed'           => '✗ Impossibile pubblicare echomail: {error}',
     'ui.terminalserver.echomail.help_bookmark'         => 'Aggiungi / rimuovi segnalibro',
     'ui.terminalserver.echomail.help_text_dl'          => 'Scarica come .txt (ZMODEM)',
+    'ui.terminalserver.echomail.help_email_fwd'        => 'Inoltra al mio indirizzo email',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Nessun messaggio netmail.',

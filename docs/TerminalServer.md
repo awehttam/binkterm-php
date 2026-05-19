@@ -64,6 +64,7 @@ Each transport daemon has additional extension requirements — see
 - Press `E` in the netmail viewer to forward the current message to the logged-in user's email address. Requires outbound email to be configured on the BBS; an error is shown inline if it is not.
 - Press `B` in the echomail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. Bookmarked messages appear under the **Saved** filter in the web interface.
 - Press `T` in the echomail viewer to download the current message as a plain-text `.txt` file via ZMODEM. The filename is derived from the message subject. Requires `lrzsz` (`sz`/`rz`) installed on the server.
+- Press `E` in the echomail viewer to forward the current message to the logged-in user's email address. Requires outbound email to be configured on the BBS; an error is shown inline if it is not.
 
 ### Full-Screen Message Editor
 
@@ -392,6 +393,7 @@ The terminal server uses the BinktermPHP web API for most operations. It also ma
 | `/api/messages/echomail/{id}/save` | POST | Bookmark (save) an echomail message |
 | `/api/messages/echomail/{id}/save` | DELETE | Remove bookmark from an echomail message |
 | `/api/messages/echomail/{id}/download` | GET | Download echomail message as plain text (used by `T` key in viewer) |
+| `/api/messages/echomail/{id}/forward-email` | POST | Forward echomail message to the logged-in user's email address (used by `E` key in viewer) |
 | `/api/messages/echomail/post` | POST | Post echomail message |
 | `/api/dashboard/stats` | GET | Main menu dashboard widgets (unread counts, online users, bulletins, credits) |
 

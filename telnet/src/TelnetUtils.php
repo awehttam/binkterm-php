@@ -1743,7 +1743,7 @@ class TelnetUtils
         $topBorder  = $tl . str_repeat($hz, $innerWidth) . $tr;
         $btmBorder  = $bl . str_repeat($hz, $innerWidth) . $br;
 
-        $dialogHeight = 4; // top + empty + message + bottom
+        $dialogHeight = 3; // top + message + bottom
         $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
         $startCol = max(1, (int)round(($cols - $boxWidth)    / 2));
 
@@ -1762,12 +1762,10 @@ class TelnetUtils
         $r = $startRow;
         if ($ansi) {
             $draw($r++, $frame . $topBorder . $rst);
-            $draw($r++, $body  . $emptyRow  . $rst);
             $draw($r++, $body  . $msgRow    . $rst);
             $draw($r,   $frame . $btmBorder . $rst);
         } else {
             $draw($r++, $topBorder);
-            $draw($r++, $emptyRow);
             $draw($r++, $msgRow);
             $draw($r,   $btmBorder);
         }
