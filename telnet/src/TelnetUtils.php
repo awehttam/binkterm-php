@@ -1712,6 +1712,161 @@ class TelnetUtils
     }
 
     /**
+     * Draw a centered "please wait" overlay and return immediately (no key read).
+     * Intended to be drawn before a blocking operation; a subsequent showAlertDialog
+     * call will naturally overdraw it.
+     */
+    public static function showWorkingOverlay(
+        $conn,
+        array &$state,
+        $server,
+        string $message
+    ): void {
+        $rows    = $state['rows'] ?? 24;
+        $cols    = $state['cols'] ?? 80;
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        $innerWidth = max(24, min(mb_strlen($message) + 4, min($cols - 6, 58)));
+        $boxWidth   = $innerWidth + 2;
+
+        $msgContent = str_pad(mb_substr($message, 0, $innerWidth - 2), $innerWidth - 2);
+        $msgRow     = $vt . ' ' . $msgContent . ' ' . $vt;
+        $emptyRow   = $vt . str_repeat(' ', $innerWidth) . $vt;
+        $topBorder  = $tl . str_repeat($hz, $innerWidth) . $tr;
+        $btmBorder  = $bl . str_repeat($hz, $innerWidth) . $br;
+
+        $dialogHeight = 4; // top + empty + message + bottom
+        $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+        $startCol = max(1, (int)round(($cols - $boxWidth)    / 2));
+
+        $ansi  = self::$ansiColorEnabled;
+        $bg    = self::ANSI_BG_BLUE;
+        $rst   = self::ANSI_RESET;
+        $frame = $bg . "\033[1;37m";
+        $body  = $bg . "\033[37m";
+
+        $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+            self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+        };
+
+        self::safeWrite($conn, "\033[?25l");
+
+        $r = $startRow;
+        if ($ansi) {
+            $draw($r++, $frame . $topBorder . $rst);
+            $draw($r++, $body  . $emptyRow  . $rst);
+            $draw($r++, $body  . $msgRow    . $rst);
+            $draw($r,   $frame . $btmBorder . $rst);
+        } else {
+            $draw($r++, $topBorder);
+            $draw($r++, $emptyRow);
+            $draw($r++, $msgRow);
+            $draw($r,   $btmBorder);
+        }
+    }
+
+    /**
+     * Show a centered alert dialog dismissed with Enter.
+     *
+     * @param string $style 'info' (blue background) or 'error' (red background)
+     */
+    public static function showAlertDialog(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        string $message,
+        string $style = 'info'
+    ): void {
+        $rows    = $state['rows'] ?? 24;
+        $cols    = $state['cols'] ?? 80;
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        $hint = 'Press Enter to continue';
+
+        $innerWidth = max(
+            24,
+            min(
+                max(mb_strlen($message) + 2, mb_strlen($title) + 4, mb_strlen($hint) + 4),
+                min($cols - 6, 58)
+            )
+        );
+        $boxWidth = $innerWidth + 2;
+
+        $titleLine = ' ' . $title . ' ';
+        $titleLen  = mb_strlen($titleLine);
+        $totalHz   = max(0, $innerWidth - $titleLen);
+        $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
+                        . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+        $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+        $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+        $msgContent  = str_pad(mb_substr($message, 0, $innerWidth - 2), $innerWidth - 2);
+        $msgRow      = $vt . ' ' . $msgContent . ' ' . $vt;
+        $hintLen     = mb_strlen($hint);
+        $hintLeftPad = max(0, (int)floor(($innerWidth - $hintLen) / 2));
+        $hintRightPad = max(0, $innerWidth - $hintLen - $hintLeftPad);
+
+        $dialogHeight = 6; // top + empty + message + empty + hint + bottom
+        $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+        $startCol = max(1, (int)round(($cols - $boxWidth)    / 2));
+
+        $ansi  = self::$ansiColorEnabled;
+        $bg    = $style === 'error' ? self::ANSI_BG_RED : self::ANSI_BG_BLUE;
+        $rst   = self::ANSI_RESET;
+        $frame = $bg . "\033[1;37m";
+        $body  = $bg . "\033[37m";
+
+        $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+            self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+        };
+
+        self::safeWrite($conn, "\033[?25l");
+
+        $r = $startRow;
+        if ($ansi) {
+            $draw($r++, $frame . $topBorder . $rst);
+            $draw($r++, $body  . $emptyRow  . $rst);
+            $draw($r++, $body  . $msgRow    . $rst);
+            $draw($r++, $body  . $emptyRow  . $rst);
+            $draw($r++, $body . $vt . str_repeat(' ', $hintLeftPad) . "\033[3m" . $hint . "\033[23m" . str_repeat(' ', $hintRightPad) . $body . $vt . $rst);
+            $draw($r,   $frame . $btmBorder . $rst);
+        } else {
+            $draw($r++, $topBorder);
+            $draw($r++, $emptyRow);
+            $draw($r++, $msgRow);
+            $draw($r++, $emptyRow);
+            $draw($r++, $vt . str_repeat(' ', $hintLeftPad) . $hint . str_repeat(' ', $hintRightPad) . $vt);
+            $draw($r,   $btmBorder);
+        }
+
+        self::safeWrite($conn, "\033[?25h");
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+            if ($key === null || $key === 'ENTER') {
+                return;
+            }
+        }
+    }
+
+    /**
      * Encode UTF-8 header field text to match the box charset.
      *
      * CP437 boxes are already emitted as raw OEM bytes, so only the text fields

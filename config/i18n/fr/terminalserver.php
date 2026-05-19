@@ -316,6 +316,7 @@ return [
     'ui.terminalserver.netmail.help_delete'   => 'Supprimer le message',
     'ui.terminalserver.netmail.help_bookmark' => 'Marquer / démarquer le message',
     'ui.terminalserver.netmail.help_text_dl'  => 'Télécharger en .txt (ZMODEM)',
+    'ui.terminalserver.netmail.help_email_fwd' => 'Transférer vers mon adresse email',
 
     // Files - folder/file navigation
     'ui.terminalserver.files.enter_folder_or_file' => 'Saisissez un numéro de dossier pour le parcourir, ou un numéro de fichier pour afficher ses détails.',

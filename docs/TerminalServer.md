@@ -61,6 +61,7 @@ Each transport daemon has additional extension requirements — see
 - ANSI color support for enhanced readability
 - Netmail reader supports **Inbox** and **Sent** folder views — press `S` from the message list to toggle. The active folder is persisted per user across sessions. In Sent view, the message header shows the recipient (`To:`) instead of the sender, and replying pre-fills the original recipient's address.
 - Press `B` in the netmail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. The status bar label toggles between **Bookmark** and **Unsave** to reflect the current state.
+- Press `E` in the netmail viewer to forward the current message to the logged-in user's email address. Requires outbound email to be configured on the BBS; an error is shown inline if it is not.
 - Press `B` in the echomail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. Bookmarked messages appear under the **Saved** filter in the web interface.
 - Press `T` in the echomail viewer to download the current message as a plain-text `.txt` file via ZMODEM. The filename is derived from the message subject. Requires `lrzsz` (`sz`/`rz`) installed on the server.
 
@@ -385,6 +386,7 @@ The terminal server uses the BinktermPHP web API for most operations. It also ma
 | `/api/messages/netmail/{id}/save` | POST | Bookmark (save) a netmail message |
 | `/api/messages/netmail/{id}/save` | DELETE | Remove bookmark from a netmail message |
 | `/api/messages/netmail/send` | POST | Send netmail message |
+| `/api/messages/netmail/{id}/forward-email` | POST | Forward netmail message to the logged-in user's email address |
 | `/api/messages/echomail` | GET | List echomail messages |
 | `/api/messages/echomail/{id}` | GET | Get echomail message details (includes `is_saved` flag) |
 | `/api/messages/echomail/{id}/save` | POST | Bookmark (save) an echomail message |

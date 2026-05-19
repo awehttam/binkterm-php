@@ -373,6 +373,7 @@ return [
     'ui.terminalserver.netmail.help_delete'            => 'Delete message',
     'ui.terminalserver.netmail.help_bookmark'          => 'Bookmark / unsave message',
     'ui.terminalserver.netmail.help_text_dl'           => 'Download as .txt (ZMODEM)',
+    'ui.terminalserver.netmail.help_email_fwd'         => 'Forward to my email address',
     'ui.terminalserver.server.menu.bulletins' => 'U) Bulletins',
     'ui.terminalserver.bulletins.title' => 'Bulletins',
     'ui.terminalserver.bulletins.none' => 'No bulletins are available.',

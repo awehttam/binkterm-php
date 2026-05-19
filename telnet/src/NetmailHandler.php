@@ -494,6 +494,7 @@ class NetmailHandler
                 ['key' => 'X',           'label' => $this->server->t('ui.terminalserver.netmail.help_delete',    'Delete message',               [], $locale)],
                 ['key' => 'B',           'label' => $this->server->t('ui.terminalserver.netmail.help_bookmark',  'Bookmark / unsave message',    [], $locale)],
                 ['key' => 'T',           'label' => $this->server->t('ui.terminalserver.netmail.help_text_dl',   'Download as .txt (ZMODEM)',    [], $locale)],
+                ['key' => 'E',           'label' => $this->server->t('ui.terminalserver.netmail.help_email_fwd', 'Forward to my email address',  [], $locale)],
             ];
             if ($hasAttachments) {
                 $helpItems[] = ['key' => 'Z', 'label' => $this->server->t('ui.terminalserver.message.help_download', 'Download attachment (ZMODEM)', [], $locale)];
@@ -516,7 +517,7 @@ class NetmailHandler
                 $buildView,
                 $imageRefs,
                 $imageFn,
-                ['x' => 'delete', 'DELETE' => 'delete', 'b' => 'save', 't' => 'textdownload'],
+                ['x' => 'delete', 'DELETE' => 'delete', 'b' => 'save', 't' => 'textdownload', 'e' => 'emailforward'],
                 $helpItems
             );
 
@@ -558,18 +559,29 @@ class NetmailHandler
                         return [$page, max(0, $index - 1)];
                     }
                     break;
+                case 'emailforward':
+                    $csrfToken = $state['csrf_token'] ?? null;
+                    TelnetUtils::showWorkingOverlay($conn, $state, $this->server, 'Forwarding message to email...');
+                    $fwdResult = TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/messages/netmail/' . $id . '/forward-email', null, $session, 3, $csrfToken);
+                    if ($fwdResult['data']['success'] ?? false) {
+                        TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Email Forward', 'Forwarded to your email address.', 'info');
+                    } else {
+                        $errMsg = $fwdResult['data']['error'] ?? 'Failed to forward message.';
+                        TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Email Forward', $errMsg, 'error');
+                    }
+                    break;
                 case 'save':
                     $csrfToken = $state['csrf_token'] ?? null;
                     if ($isSaved) {
                         TelnetUtils::apiRequest($this->apiBase, 'DELETE', '/api/messages/netmail/' . $id . '/save', null, $session, 3, $csrfToken);
-                        $confirmMsg = 'Unsaved.';
+                        $confirmMsg = 'Message removed from saved.';
                     } else {
                         TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/messages/netmail/' . $id . '/save', null, $session, 3, $csrfToken);
-                        $confirmMsg = 'Saved.';
+                        $confirmMsg = 'Message saved.';
                     }
                     $isSaved = !$isSaved;
                     $detail['data']['is_saved'] = $isSaved;
-                    TelnetUtils::safeWrite($conn, "\r\n" . $confirmMsg . "\r\n");
+                    TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Bookmark', $confirmMsg, 'info');
                     break;
             }
         }

@@ -373,6 +373,7 @@ return [
     'ui.terminalserver.netmail.help_delete'            => 'Elimina messaggio',
     'ui.terminalserver.netmail.help_bookmark'          => 'Aggiungi / rimuovi segnalibro',
     'ui.terminalserver.netmail.help_text_dl'           => 'Scarica come .txt (ZMODEM)',
+    'ui.terminalserver.netmail.help_email_fwd'         => 'Inoltra al mio indirizzo email',
     'ui.terminalserver.server.menu.bulletins' => 'U) Bollettini',
     'ui.terminalserver.bulletins.title' => 'Bollettini',
     'ui.terminalserver.bulletins.none' => 'Nessun bollettino disponibile.',

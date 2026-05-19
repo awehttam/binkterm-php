@@ -369,6 +369,7 @@ return [
     'ui.terminalserver.netmail.help_delete'            => 'Eliminar mensaje',
     'ui.terminalserver.netmail.help_bookmark'          => 'Marcar / desmarcar mensaje',
     'ui.terminalserver.netmail.help_text_dl'           => 'Descargar como .txt (ZMODEM)',
+    'ui.terminalserver.netmail.help_email_fwd'         => 'Reenviar a mi correo electronico',
     'ui.terminalserver.server.menu.bulletins' => 'U) Boletines',
     'ui.terminalserver.bulletins.title' => 'Boletines',
     'ui.terminalserver.bulletins.none' => 'No hay boletines disponibles.',

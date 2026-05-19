@@ -73,6 +73,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Terminal users can now **bookmark an echomail message** for later reference by pressing `B` in the echomail message viewer. Pressing `B` again unsaves it. Bookmarked messages appear under the Saved filter in the web interface. No upgrade action is required.
 - **Address book / nodelist lookup in netmail compose**: when composing a new netmail in the terminal, typing `?` at the To Name or To Address prompt opens an interactive picker. The picker searches both the user's address book and the FTN nodelist, merges the results (address book entries take priority; duplicates by FTN address are suppressed), and lets the user select with the arrow keys or by typing a row number. Selecting an entry pre-fills both To Name (sysop name for nodelist entries, stored name for address book entries) and To Address as editable defaults.
 - **Download netmail as plain text**: terminal users can now press `T` while reading a netmail message to download it as a `.txt` file via ZMODEM. The downloaded file contains the message headers and body in plain text, matching the equivalent download button in the web interface. ZMODEM must be supported by the connecting terminal application.
+- Terminal users can now **forward a netmail message to their email address** by pressing `E` in the netmail message viewer. Requires outbound email to be configured on the BBS.
 - **Ctrl-K help overlay in the terminal message viewer**: all terminal message readers (netmail and echomail) now show a framed keyboard-reference panel when the user presses `Ctrl-K`. The panel lists every available key binding, including secondary actions that are not shown on the status bar. The overlay responds to terminal resize events while it is open and propagates any resize back to the message viewer when it is dismissed. The status bar in both readers has been trimmed to the five most-used actions (scroll, prev/next, reply, Ctrl-K help, and quit); all other keys are documented exclusively in the Ctrl-K overlay.
 
 ### PacketBBS
@@ -261,6 +262,14 @@ Terminal users can now download an echomail message as a plain `.txt` file by pr
 This matches the equivalent **Download .txt** button in the web interface and mirrors the same feature already available in the netmail viewer.
 
 No sysop configuration is required.
+
+---
+
+### Forward Netmail to Email in Terminal Reader
+
+Terminal users can now forward a netmail message to their account email address by pressing `E` while reading it in the terminal netmail viewer. The key appears in the Ctrl-K help overlay but not on the status bar. A "Forwarding..." indicator appears immediately while the request is in flight; on completion a colour-coded dialog confirms success (blue) or reports the error (red) and is dismissed with Enter.
+
+This matches the equivalent **Forward to email** option in the web interface. The feature requires outbound email to be configured on the BBS — the same requirement as the web equivalent. No additional sysop configuration is needed beyond that.
 
 ---
 

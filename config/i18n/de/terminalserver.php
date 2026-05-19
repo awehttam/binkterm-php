@@ -371,6 +371,7 @@ return [
     'ui.terminalserver.netmail.help_delete'            => 'Nachricht löschen',
     'ui.terminalserver.netmail.help_bookmark'          => 'Nachricht mit Lesezeichen versehen / entfernen',
     'ui.terminalserver.netmail.help_text_dl'           => 'Als .txt herunterladen (ZMODEM)',
+    'ui.terminalserver.netmail.help_email_fwd'         => 'An meine E-Mail-Adresse weiterleiten',
 
     // --- Bulletins ---
     'ui.terminalserver.bulletins.title'                => 'Bulletins',

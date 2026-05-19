@@ -789,14 +789,14 @@ class EchomailHandler
                     $csrfToken = $state['csrf_token'] ?? null;
                     if ($isSaved) {
                         TelnetUtils::apiRequest($this->apiBase, 'DELETE', '/api/messages/echomail/' . $id . '/save', null, $session, 3, $csrfToken);
-                        $confirmMsg = 'Unsaved.';
+                        $confirmMsg = 'Message removed from saved.';
                     } else {
                         TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/messages/echomail/' . $id . '/save', null, $session, 3, $csrfToken);
-                        $confirmMsg = 'Saved.';
+                        $confirmMsg = 'Message saved.';
                     }
                     $isSaved = !$isSaved;
                     $detail['data']['is_saved'] = $isSaved;
-                    TelnetUtils::safeWrite($conn, "\r\n" . $confirmMsg . "\r\n");
+                    TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Bookmark', $confirmMsg, 'info');
                     break;
                 case 'download':
                     $this->downloadAsText($conn, $state, $session, (int)$id, $msg['subject'] ?? 'message');
