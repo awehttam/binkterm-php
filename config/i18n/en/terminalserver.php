@@ -158,6 +158,7 @@ return [
     'ui.terminalserver.echomail.posting'               => 'Posting echomail...',
     'ui.terminalserver.echomail.post_success'          => '✓ Echomail posted successfully!',
     'ui.terminalserver.echomail.post_failed'           => '✗ Failed to post echomail: {error}',
+    'ui.terminalserver.echomail.help_bookmark'         => 'Bookmark / unsave message',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'No netmail messages.',

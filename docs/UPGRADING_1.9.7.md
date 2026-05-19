@@ -12,6 +12,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Netmail Address Book / Nodelist Lookup in Compose](#netmail-address-book--nodelist-lookup-in-compose)
   - [Netmail Delete in Terminal Reader](#netmail-delete-in-terminal-reader)
   - [Netmail Bookmark in Terminal Reader](#netmail-bookmark-in-terminal-reader)
+  - [Echomail Bookmark in Terminal Reader](#echomail-bookmark-in-terminal-reader)
   - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer)
   - [PacketBBS](#packetbbs)
@@ -28,6 +29,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Terminal Charset Setting Honoured](#terminal-charset-setting-honoured)
   - [Netmail Address Book / Nodelist Lookup in Compose](#netmail-address-book--nodelist-lookup-in-compose-1)
   - [Netmail Delete in Terminal Reader](#netmail-delete-in-terminal-reader-1)
+  - [Echomail Bookmark in Terminal Reader](#echomail-bookmark-in-terminal-reader-1)
   - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader-1)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
 - [PacketBBS](#packetbbs-1)
@@ -66,6 +68,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Terminal charset preference honoured**: the user's saved terminal character set preference (ASCII, CP437, or UTF-8) is now correctly respected. Previously a saved ASCII preference could be silently overridden by terminal auto-detection on UTF-8 capable clients.
 - Terminal users can now **delete a netmail message** from the message viewer by pressing `X` or the `Del` key. A confirmation dialog appears before the message is removed.
 - Terminal users can now **bookmark a netmail message** for later reference by pressing `B` in the message viewer. The status bar label toggles between **Bookmark** (unsaved) and **Unsave** (already saved). Bookmarked messages appear under the Saved filter in the web interface. No upgrade action is required.
+- Terminal users can now **bookmark an echomail message** for later reference by pressing `B` in the echomail message viewer. Pressing `B` again unsaves it. Bookmarked messages appear under the Saved filter in the web interface. No upgrade action is required.
 - **Address book / nodelist lookup in netmail compose**: when composing a new netmail in the terminal, typing `?` at the To Name or To Address prompt opens an interactive picker. The picker searches both the user's address book and the FTN nodelist, merges the results (address book entries take priority; duplicates by FTN address are suppressed), and lets the user select with the arrow keys or by typing a row number. Selecting an entry pre-fills both To Name (sysop name for nodelist entries, stored name for address book entries) and To Address as editable defaults.
 - **Download netmail as plain text**: terminal users can now press `T` while reading a netmail message to download it as a `.txt` file via ZMODEM. The downloaded file contains the message headers and body in plain text, matching the equivalent download button in the web interface. ZMODEM must be supported by the connecting terminal application.
 - **Ctrl-K help overlay in the terminal message viewer**: all terminal message readers (netmail and echomail) now show a framed keyboard-reference panel when the user presses `Ctrl-K`. The panel lists every available key binding, including secondary actions that are not shown on the status bar. The overlay responds to terminal resize events while it is open and propagates any resize back to the message viewer when it is dismissed. The status bar in both readers has been trimmed to the five most-used actions (scroll, prev/next, reply, Ctrl-K help, and quit); all other keys are documented exclusively in the Ctrl-K overlay.
@@ -222,6 +225,18 @@ Terminal users can now delete a netmail message directly from the message viewer
 Both the sender and the recipient may delete their copy of a message. The same ownership rules that govern deletion in the web interface apply here.
 
 A pre-existing bug in the terminal key decoder has also been fixed as part of this change: the `Del` key sequence (`\033[3~`) was not recognized by the interactive session key reader, causing it to be silently ignored in all full-screen terminal views. The key now works reliably across the entire terminal interface.
+
+No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+
+---
+
+### Echomail Bookmark in Terminal Reader {#echomail-bookmark-in-terminal-reader-1}
+
+Terminal users can now bookmark an echomail message for later reference by pressing `B` while reading it in the terminal message viewer. Pressing `B` on an already-saved message removes the bookmark. A brief confirmation line ("Saved." or "Unsaved.") is displayed after each action.
+
+Bookmarked echomail messages appear under the **Saved** filter in the web interface, alongside saved netmail and other message types. The feature uses the same `POST /api/messages/echomail/{id}/save` and `DELETE /api/messages/echomail/{id}/save` endpoints as the web UI.
+
+The `B` key is listed in the Ctrl-K help overlay for the echomail viewer. It is not shown on the status bar (which is reserved for primary navigation keys).
 
 No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
 

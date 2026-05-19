@@ -698,6 +698,7 @@ class EchomailHandler
             $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
             $kludgeLines  = array_map(fn(string $line): string => $this->server->encodeForTerminal($line), $kludgeLines);
             $imageRefs    = TerminalMarkupRenderer::extractImageRefs((string)($markupFormat ?? ''), $body);
+            $isSaved      = (bool)($detail['data']['is_saved'] ?? false);
 
             $fromName    = $msg['from_name'] ?? 'Unknown';
             $fromAddress = $msg['from_address'] ?? '';
@@ -752,8 +753,9 @@ class EchomailHandler
             $view   = $buildView($state);
             $locale = $state['locale'] ?? 'en';
             $helpItems = [
-                ['key' => 'PgUp / PgDn', 'label' => $this->server->t('ui.terminalserver.message.help_page',    'Scroll one page',      [], $locale)],
-                ['key' => 'H',           'label' => $this->server->t('ui.terminalserver.message.help_headers', 'View message headers',  [], $locale)],
+                ['key' => 'PgUp / PgDn', 'label' => $this->server->t('ui.terminalserver.message.help_page',      'Scroll one page',             [], $locale)],
+                ['key' => 'H',           'label' => $this->server->t('ui.terminalserver.message.help_headers',   'View message headers',         [], $locale)],
+                ['key' => 'B',           'label' => $this->server->t('ui.terminalserver.echomail.help_bookmark', 'Bookmark / unsave message',    [], $locale)],
             ];
             if (!empty($imageRefs)) {
                 $helpItems[] = ['key' => 'I', 'label' => $this->server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
@@ -763,7 +765,7 @@ class EchomailHandler
                 $conn, $state, $this->server,
                 $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
                 $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView,
-                $imageRefs, $imageFn, [], $helpItems
+                $imageRefs, $imageFn, ['b' => 'save'], $helpItems
             );
 
             switch ($result['action']) {
@@ -782,6 +784,19 @@ class EchomailHandler
                     $this->compose($conn, $state, $session, $area, $detail['data'] ?? $msg);
                     TelnetUtils::setCursorVisible($conn, true);
                     return [$page, $index];
+                case 'save':
+                    $csrfToken = $state['csrf_token'] ?? null;
+                    if ($isSaved) {
+                        TelnetUtils::apiRequest($this->apiBase, 'DELETE', '/api/messages/echomail/' . $id . '/save', null, $session, 3, $csrfToken);
+                        $confirmMsg = 'Unsaved.';
+                    } else {
+                        TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/messages/echomail/' . $id . '/save', null, $session, 3, $csrfToken);
+                        $confirmMsg = 'Saved.';
+                    }
+                    $isSaved = !$isSaved;
+                    $detail['data']['is_saved'] = $isSaved;
+                    TelnetUtils::safeWrite($conn, "\r\n" . $confirmMsg . "\r\n");
+                    break;
             }
         }
     }

@@ -162,6 +162,7 @@ return [
     'ui.terminalserver.echomail.posting'               => 'Echomail wird veröffentlicht...',
     'ui.terminalserver.echomail.post_success'          => '✓ Echomail erfolgreich veröffentlicht!',
     'ui.terminalserver.echomail.post_failed'           => '✗ Echomail konnte nicht veröffentlicht werden: {error}',
+    'ui.terminalserver.echomail.help_bookmark'         => 'Nachricht mit Lesezeichen versehen / entfernen',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Keine Netmail-Nachrichten.',

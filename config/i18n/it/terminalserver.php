@@ -158,6 +158,7 @@ return [
     'ui.terminalserver.echomail.posting'               => 'Pubblicazione echomail...',
     'ui.terminalserver.echomail.post_success'          => '✓ Echomail pubblicata correttamente!',
     'ui.terminalserver.echomail.post_failed'           => '✗ Impossibile pubblicare echomail: {error}',
+    'ui.terminalserver.echomail.help_bookmark'         => 'Aggiungi / rimuovi segnalibro',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Nessun messaggio netmail.',
