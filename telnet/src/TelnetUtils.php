@@ -1168,6 +1168,9 @@ class TelnetUtils
         $subject   = $msg['subject'] ?? '(no subject)';
         $dateShort = self::formatUserDate($msg['date_written'] ?? '', $state, false);
         $line      = self::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
+        if (empty($msg['is_read'])) {
+            $line = self::colorize($line, self::ANSI_BOLD);
+        }
         if ($selected) {
             $line = self::colorize($line, self::ANSI_BG_BLUE . self::ANSI_BOLD);
         }

@@ -59,6 +59,7 @@ Each transport daemon has additional extension requirements — see
 - View message details with headers
 - Thread awareness and proper message display
 - ANSI color support for enhanced readability
+- **Unread messages are displayed in bold** in both the echomail and netmail message lists. Once a message is opened and marked read, it renders at normal weight the next time the list is shown.
 - Netmail reader supports **Inbox** and **Sent** folder views — press `S` from the message list to toggle. The active folder is persisted per user across sessions. In Sent view, the message header shows the recipient (`To:`) instead of the sender, and replying pre-fills the original recipient's address.
 - Press `B` in the netmail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. The status bar label toggles between **Bookmark** and **Unsave** to reflect the current state.
 - Press `E` in the netmail viewer to forward the current message to the logged-in user's email address. Requires outbound email to be configured on the BBS; an error is shown inline if it is not.
