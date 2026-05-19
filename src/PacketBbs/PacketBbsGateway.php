@@ -160,9 +160,10 @@ class PacketBbsGateway
             case 'ABOUT':
                 return $renderer->renderAbout($this->getBbsName(), Config::getSiteUrl());
 
-            case 'HELPFULL':
+            case 'HF':
             case 'FULLHELP':
             case 'HELPFUL':
+            case 'HELPFULL':
                 return $renderer->renderHelp($verb, $this->getBbsName(), $state);
 
             case 'L':

@@ -270,7 +270,7 @@ Posted to LVLY_TEST.
 | Full command | Short code | Description |
 |---|---|---|
 | `HELP` | `H` | Show general help or contextual help such as `H MAIL` or `H U`. |
-| `HELPFULL` | `FULLHELP` or `HELPFUL` | Show verbose help with full command names. |
+| `FULLHELP` | `HF` | Show verbose help with full command names. Aliases: `HELPFUL`, `HELPFULL`. |
 | `LOGIN <user> <code>` | `L <user> <code>` | Log in using PacketBBS TOTP. |
 | `WHO` | `W` | Show who is online. |
 | `STATUS` | `U` | Show current area, list, message, or draft state. |

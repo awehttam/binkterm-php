@@ -77,7 +77,7 @@ class PacketBbsTextRenderer
     {
         $topic = strtoupper(trim($topic));
 
-        if (in_array($topic, ['HELPFULL', 'FULLHELP', 'HELPFUL'], true)) {
+        if (in_array($topic, ['HF', 'FULLHELP', 'HELPFUL', 'HELPFULL'], true)) {
             return implode("\n", [
                 'FULL HELP',
                 '(L)OGIN username code',
@@ -169,7 +169,7 @@ class PacketBbsTextRenderer
             'GEN U/Q | M/B',
             'NET N | R/Y id | S to subj',
             'ECHO A | T tag | P subj',
-            'CHAT CL C [room|user] | FULLHELP',
+            'CHAT CL C [room|user] | HF:fullhelp',
         ]);
     }
 
