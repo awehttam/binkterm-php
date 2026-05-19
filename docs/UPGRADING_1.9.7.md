@@ -15,6 +15,7 @@ Make sure you have a current backup of your database and files before upgrading.
     - [New Interface Types](#new-interface-types)
     - [Auto-add policy sync change](#auto-add-policy-sync-change)
   - [Web Interface](#web-interface)
+    - [Chat Inline Media](#chat-inline-media)
   - [Developer Tooling](#developer-tooling)
 - [Runtime Requirements](#runtime-requirements-1)
 - [Terminal Server](#terminal-server-1)
@@ -31,6 +32,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [New Interface Types](#new-interface-types-1)
   - [Auto-add policy sync change](#auto-add-policy-sync-change-1)
 - [Web Interface](#web-interface-1)
+  - [Chat Inline Media](#chat-inline-media-1)
 - [Developer Tooling](#developer-tooling-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -79,6 +81,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Web Interface
 
+- Links posted to chat rooms and direct messages are now processed by the inline media player. Images, video files, retro audio files, and platform embeds (YouTube, etc.) render automatically below the link in the chat thread.
 - Inline code (`code`) in Markdown-rendered content now renders in the theme's normal text color on all dark themes (dark, amber, greenterm, cyberpunk). Bootstrap's default pink/red code color was difficult to read against dark backgrounds.
 
 ### Developer Tooling
@@ -265,6 +268,21 @@ Previously, saving a MeshCore node always queued a `set_autoadd_config` device c
 ---
 
 ## Web Interface
+
+### Chat Inline Media
+
+Links posted to chat rooms and direct messages are now processed by the inline media player. Recognized content renders automatically below the link in the chat thread — no clicks required, regardless of the user's personal **Media Render Mode** preference in their web settings (that preference governs echomail and netmail only).
+
+Supported content types:
+
+| Category | Formats / Providers |
+|---|---|
+| Images | `.png` `.jpg` `.jpeg` `.gif` `.webp` `.svg` and known image CDN prefixes |
+| Video | `.mp4` `.webm` `.ogv` `.mov` |
+| Retro audio | `.sid` `.mod` `.xm` `.it` `.s3m` `.stm` `.amf` `.669` `.mptm` `.midi` |
+| Platform embeds | YouTube, Odysee, BitChute, Brighteon, PeerTube, Rumble, SoundCloud, Twitter/X, TikTok, ReverbNation, Bastyon |
+
+No sysop configuration is required. The global **Admin → BBS Settings → Media Player** toggle still controls whether the media player is active at all; if it is disabled site-wide, chat media rendering is also disabled.
 
 ### Dark Theme Inline Code Color
 

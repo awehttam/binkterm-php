@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v896';
+const CACHE_NAME = 'binkcache-v897';
 
 // Static assets to precache
 const staticAssets = [

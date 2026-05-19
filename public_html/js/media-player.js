@@ -310,10 +310,10 @@
         anchor.addEventListener('click', handler);
     }
 
-    function injectAfter(anchor, el) {
+    function injectAfter(anchor, el, opts) {
         var isMedia = el.tagName === 'VIDEO' || el.tagName === 'AUDIO';
         var isRetroAudio = el.classList && el.classList.contains('bink-retro-audio');
-        if (isAutoMode()) {
+        if (isAutoMode() || (opts && opts.forceAuto)) {
             insertEmbed(anchor, el, isMedia, isRetroAudio);
         } else {
             attachClickMenu(anchor, el, isMedia, isRetroAudio);
@@ -435,38 +435,51 @@
         return false;
     }
 
-    function resolveAnchor(anchor) {
+    /**
+     * @param {string} type  One of: 'image', 'video', 'audio', 'retroAudio', 'platform', 'oembed', 'proxy'
+     * @param {Object|null} opts  scan() opts; when opts.types is an array, only listed types are processed
+     */
+    function typeAllowed(type, opts) {
+        return !opts || !opts.types || opts.types.indexOf(type) !== -1;
+    }
+
+    function resolveAnchor(anchor, opts) {
         var href = anchor.href;
         if (!href || !/^https?:\/\//i.test(href)) return;
 
-        for (var i = 0; i < PLATFORM_PROVIDERS.length; i++) {
-            var provider = PLATFORM_PROVIDERS[i];
-            var m = href.match(provider.pattern);
-            if (m) {
-                injectAfter(anchor, buildIframe(provider.embed(m), provider.name));
-                return;
+        if (typeAllowed('platform', opts)) {
+            for (var i = 0; i < PLATFORM_PROVIDERS.length; i++) {
+                var provider = PLATFORM_PROVIDERS[i];
+                var m = href.match(provider.pattern);
+                if (m) {
+                    injectAfter(anchor, buildIframe(provider.embed(m), provider.name), opts);
+                    return;
+                }
             }
         }
 
         var path = stripQuery(href);
 
-        if (RETRO_AUDIO_EXTS.test(path)) {
-            injectAfter(anchor, buildRetroAudio(href));
-        } else if (VIDEO_EXTS.test(path)) {
-            injectAfter(anchor, buildVideo(href));
-        } else if (AUDIO_EXTS.test(path)) {
-            injectAfter(anchor, buildAudio(href));
-        } else if (IMAGE_EXTS.test(path) || hasKnownImageUrlPrefix(href)) {
-            injectAfter(anchor, buildImage(href));
+        if (typeAllowed('retroAudio', opts) && RETRO_AUDIO_EXTS.test(path)) {
+            injectAfter(anchor, buildRetroAudio(href), opts);
+        } else if (typeAllowed('video', opts) && VIDEO_EXTS.test(path)) {
+            injectAfter(anchor, buildVideo(href), opts);
+        } else if (typeAllowed('audio', opts) && AUDIO_EXTS.test(path)) {
+            injectAfter(anchor, buildAudio(href), opts);
+        } else if (typeAllowed('image', opts) && (IMAGE_EXTS.test(path) || hasKnownImageUrlPrefix(href))) {
+            injectAfter(anchor, buildImage(href), opts);
         } else {
-            var proxyProvider = matchProxyProvider(href);
-            if (proxyProvider) {
-                resolveViaProxy(anchor, href);
-                return;
+            if (typeAllowed('proxy', opts)) {
+                var proxyProvider = matchProxyProvider(href);
+                if (proxyProvider) {
+                    resolveViaProxy(anchor, href);
+                    return;
+                }
             }
-
-            var oembedProvider = matchOembedProvider(href);
-            if (oembedProvider) resolveOembed(anchor, href, oembedProvider);
+            if (typeAllowed('oembed', opts)) {
+                var oembedProvider = matchOembedProvider(href);
+                if (oembedProvider) resolveOembed(anchor, href, oembedProvider);
+            }
         }
     }
 
@@ -494,7 +507,7 @@
             var anchor = anchors[i];
             if (anchor.dataset.binkMediaProcessed) continue;
             anchor.dataset.binkMediaProcessed = '1';
-            resolveAnchor(anchor);
+            resolveAnchor(anchor, opts);
         }
     }
 
