@@ -13,6 +13,8 @@ use BinktermPHP\TelnetServer\TelnetServer;
  */
 class NetmailHandler
 {
+    private const ALLOWED_SORTS = ['date_desc', 'date_asc', 'subject', 'author'];
+
     /** @var TelnetServer The telnet server instance */
     private BbsSession $server;
 
@@ -55,12 +57,13 @@ class NetmailHandler
         $selectedIndex = 0;
         $selectedMessageId = $savedState['selected_message_id'];
         $folder        = $savedState['folder'];
+        $sort          = $savedState['sort'];
 
-        $extraKeys = ['s' => 'toggle_folder'];
+        $extraKeys = ['o' => 'order', 's' => 'toggle_folder'];
         $locale    = $state['locale'] ?? 'en';
 
         while (true) {
-            [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage, $folder);
+            [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage, $folder, $sort);
 
             if (!$messages) {
                 if ($page > 1 && $totalPages > 0) {
@@ -86,7 +89,7 @@ class NetmailHandler
                     $folder = 'inbox';
                     $page   = 1;
                     $selectedIndex = 0;
-                    $this->saveListState($session, $page, null, $folder, $state['csrf_token'] ?? null);
+                    $this->saveListState($session, $page, null, $folder, $sort, $state['csrf_token'] ?? null);
                     continue;
                 }
 
@@ -116,6 +119,8 @@ class NetmailHandler
                     return $msg;
                 }, $messages);
                 $extraStatusSegments = [
+                    ['text' => 'O',        'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Sort  ',  'color' => TelnetUtils::ANSI_BLUE],
                     ['text' => '  S',       'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' ' . $toggleLabel, 'color' => TelnetUtils::ANSI_BLUE],
                 ];
@@ -125,6 +130,8 @@ class NetmailHandler
                 $toggleLabel   = 'Sent';
                 $displayMessages = $messages;
                 $extraStatusSegments = [
+                    ['text' => 'O',       'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Sort  ', 'color' => TelnetUtils::ANSI_BLUE],
                     ['text' => '  S',      'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' ' . $toggleLabel, 'color' => TelnetUtils::ANSI_BLUE],
                 ];
@@ -137,7 +144,7 @@ class NetmailHandler
             $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $displayMessages, $page, $totalPages, $selectedIndex, $extraKeys, $extraStatusSegments);
             $selectedIndex = $result['selectedIndex'];
             $currentSelectedId = isset($messages[$selectedIndex]['id']) ? (int)$messages[$selectedIndex]['id'] : null;
-            $this->saveListState($session, $page, $currentSelectedId, $folder, $state['csrf_token'] ?? null);
+            $this->saveListState($session, $page, $currentSelectedId, $folder, $sort, $state['csrf_token'] ?? null);
 
             switch ($result['action']) {
                 case 'disconnect':
@@ -155,14 +162,24 @@ class NetmailHandler
                 case 'compose':
                     $this->compose($conn, $state, $session, null);
                     break;
+                case 'order':
+                    $newSort = $this->promptForSort($conn, $state, $sort, $title, $displayMessages, $selectedIndex, $folder);
+                    if ($newSort !== $sort) {
+                        $sort = $newSort;
+                        $page = 1;
+                        $selectedIndex = 0;
+                        $selectedMessageId = null;
+                        $this->saveListState($session, $page, null, $folder, $sort, $state['csrf_token'] ?? null);
+                    }
+                    break;
                 case 'toggle_folder':
                     $folder        = $folder === 'inbox' ? 'sent' : 'inbox';
                     $page          = 1;
                     $selectedIndex = 0;
-                    $this->saveListState($session, $page, null, $folder, $state['csrf_token'] ?? null);
+                    $this->saveListState($session, $page, null, $folder, $sort, $state['csrf_token'] ?? null);
                     break;
                 case 'read':
-                    [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $page, $perPage, $totalPages, $result['index'], $folder);
+                    [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $page, $perPage, $totalPages, $result['index'], $folder, $sort);
                     break;
             }
         }
@@ -401,10 +418,10 @@ class NetmailHandler
      * @param int $id Message ID for fetching full details
      * @return void
      */
-    private function displayMessage($conn, array &$state, string $session, int $page, int $perPage, int $totalPages, int $index, string $folder = 'inbox'): array
+    private function displayMessage($conn, array &$state, string $session, int $page, int $perPage, int $totalPages, int $index, string $folder = 'inbox', string $sort = 'date_desc'): array
     {
         while (true) {
-            [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage, $folder);
+            [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage, $folder, $sort);
             $msg = $messages[$index] ?? null;
             if (!$msg) {
                 return [$page, 0];
@@ -593,13 +610,14 @@ class NetmailHandler
      * @param string $folder 'inbox' or 'sent'
      * @return array [messages, totalPages]
      */
-    private function fetchMessagesPage(string $session, int $page, int $perPage, string $folder = 'inbox'): array
+    private function fetchMessagesPage(string $session, int $page, int $perPage, string $folder = 'inbox', string $sort = 'date_desc'): array
     {
         $filter = $folder === 'sent' ? 'sent' : 'all';
+        $sort = $this->normalizeSort($sort);
         $response = TelnetUtils::apiRequest(
             $this->apiBase,
             'GET',
-            '/api/messages/netmail?page=' . $page . '&per_page=' . $perPage . '&filter=' . $filter,
+            '/api/messages/netmail?page=' . $page . '&per_page=' . $perPage . '&filter=' . $filter . '&sort=' . urlencode($sort),
             null,
             $session
         );
@@ -614,7 +632,7 @@ class NetmailHandler
     /**
      * Load saved netmail list state from user meta.
      *
-     * @return array{page:int, selected_message_id:?int, folder:string}
+     * @return array{page:int, selected_message_id:?int, folder:string, sort:string}
      */
     private function loadSavedListState(string $session): array
     {
@@ -630,24 +648,27 @@ class NetmailHandler
         $page = (int)($settings['terminal_netmail_page'] ?? 1);
         $selectedId = (int)($settings['terminal_netmail_selected_message_id'] ?? 0);
         $savedFolder = (string)($settings['terminal_netmail_folder'] ?? 'inbox');
+        $sort = $this->normalizeSort(is_string($settings['terminal_netmail_sort'] ?? null) ? $settings['terminal_netmail_sort'] : null);
         $folder = in_array($savedFolder, ['inbox', 'sent'], true) ? $savedFolder : 'inbox';
 
         return [
             'page' => max(1, $page),
             'selected_message_id' => $selectedId > 0 ? $selectedId : null,
             'folder' => $folder,
+            'sort' => $sort,
         ];
     }
 
     /**
      * Save netmail list state to user meta.
      */
-    private function saveListState(string $session, int $page, ?int $selectedMessageId, string $folder = 'inbox', ?string $csrfToken = null): void
+    private function saveListState(string $session, int $page, ?int $selectedMessageId, string $folder = 'inbox', string $sort = 'date_desc', ?string $csrfToken = null): void
     {
         $payload = [
             'terminal_netmail_page' => max(1, $page),
             'terminal_netmail_selected_message_id' => $selectedMessageId,
             'terminal_netmail_folder' => $folder,
+            'terminal_netmail_sort' => $this->normalizeSort($sort),
         ];
 
         TelnetUtils::apiRequest(
@@ -673,6 +694,82 @@ class NetmailHandler
         }
 
         return null;
+    }
+
+    private function normalizeSort(?string $sort): string
+    {
+        return in_array($sort, self::ALLOWED_SORTS, true) ? $sort : 'date_desc';
+    }
+
+    private function promptForSort(
+        $conn,
+        array &$state,
+        string $currentSort,
+        string $title,
+        array $messages,
+        int $selectedIndex,
+        string $folder
+    ): string {
+        $locale = $state['locale'] ?? 'en';
+        $currentSort = $this->normalizeSort($currentSort);
+        $sortLabels = [
+            'date_desc' => $this->server->t('ui.terminalserver.echomail.sort_newest', 'Newest', [], $locale),
+            'date_asc' => $this->server->t('ui.terminalserver.echomail.sort_oldest', 'Oldest', [], $locale),
+            'subject' => $this->server->t('ui.terminalserver.echomail.sort_subject', 'Subject', [], $locale),
+            'author' => $this->server->t('ui.terminalserver.echomail.sort_author', 'Author', [], $locale),
+        ];
+        $sortKeys = [
+            'date_desc' => '1',
+            'date_asc' => '2',
+            'subject' => '3',
+            'author' => '4',
+        ];
+        $choiceToSort = array_flip($sortKeys);
+        $toggleLabel = $folder === 'sent' ? 'Inbox' : 'Sent';
+        $redrawFn = function (array &$dialogState) use ($conn, $title, $messages, $selectedIndex, $toggleLabel): void {
+            TelnetUtils::renderMessageListScreen(
+                $conn,
+                $dialogState,
+                $this->server,
+                $title,
+                $messages,
+                $selectedIndex,
+                [
+                    ['text' => 'O', 'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Sort  ', 'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'S', 'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' ' . $toggleLabel, 'color' => TelnetUtils::ANSI_BLUE],
+                ]
+            );
+        };
+
+        $choice = TelnetUtils::showConfirmDialog(
+            $conn,
+            $state,
+            $this->server,
+            $this->server->t('ui.terminalserver.echomail.sort_title', 'Sort Order', [], $locale),
+            $this->server->t(
+                'ui.terminalserver.echomail.sort_prompt',
+                'Current: {sort}',
+                ['sort' => $sortLabels[$currentSort] ?? $sortLabels['date_desc']],
+                $locale
+            ),
+            [
+                '1' => $sortLabels['date_desc'],
+                '2' => $sortLabels['date_asc'],
+                '3' => $sortLabels['subject'],
+                '4' => $sortLabels['author'],
+                'q' => $this->server->t('ui.terminalserver.server.cancel', 'Cancel', [], $locale),
+            ],
+            $sortKeys[$currentSort] ?? '1',
+            $redrawFn
+        );
+
+        if ($choice === 'q') {
+            return $currentSort;
+        }
+
+        return $this->normalizeSort($choiceToSort[$choice] ?? $currentSort);
     }
 
     /**

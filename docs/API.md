@@ -7358,7 +7358,7 @@ Confirmation of update
 
 **Requires authentication**
 
-Fetches saved terminal navigation state for the authenticated user, including mail-reader positions, the saved echomail sort selection, and the last selected local chat target. Used to restore UI state across sessions.
+Fetches saved terminal navigation state for the authenticated user, including mail-reader positions, the saved netmail and echomail sort selections, and the last selected local chat target. Used to restore UI state across sessions.
 
 **Response** _(JSON)_
 
@@ -7367,7 +7367,7 @@ User mail navigation state
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
-| `settings` | object | State object with terminal_netmail_page, terminal_netmail_selected_message_id, terminal_echomail_areas_page, terminal_echomail_positions, terminal_echomail_sort, and terminal_chat_target |
+| `settings` | object | State object with terminal_netmail_page, terminal_netmail_selected_message_id, terminal_netmail_folder, terminal_netmail_sort, terminal_echomail_areas_page, terminal_echomail_positions, terminal_echomail_sort, and terminal_chat_target |
 
 ---
 
@@ -7375,7 +7375,7 @@ User mail navigation state
 
 **Requires authentication**
 
-Persists terminal navigation state for the authenticated user, including mail-reader positions, the saved echomail sort selection, and the last selected local chat target. Accepts both wrapped and flat request formats. Integer fields must be positive or null; terminal_echomail_positions and terminal_chat_target accept JSON string or object.
+Persists terminal navigation state for the authenticated user, including mail-reader positions, the saved netmail and echomail sort selections, and the last selected local chat target. Accepts both wrapped and flat request formats. Integer fields must be positive or null; terminal_echomail_positions and terminal_chat_target accept JSON string or object.
 
 **Request Body** _(JSON)_
 
@@ -7386,6 +7386,8 @@ Mail state to update (wrapped or flat)
 | `settings` | object | No | Wrapped settings object (alternative to flat format) |
 | `terminal_netmail_page` | integer | No | Current netmail page (≥1 or null) |
 | `terminal_netmail_selected_message_id` | integer | No | Selected netmail message ID (≥1 or null) |
+| `terminal_netmail_folder` | string | No | Saved netmail folder: `inbox` or `sent` |
+| `terminal_netmail_sort` | string | No | Saved netmail list sort: `date_desc`, `date_asc`, `subject`, or `author` |
 | `terminal_echomail_areas_page` | integer | No | Current echomail areas page (≥1 or null) |
 | `terminal_echomail_positions` | object|string | No | Area positions as JSON object or string |
 | `terminal_echomail_sort` | string | No | Saved echomail list sort: `date_desc`, `date_asc`, `subject`, or `author` |

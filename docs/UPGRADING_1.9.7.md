@@ -73,6 +73,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Terminal Local Chat no longer rings the terminal bell when new chat messages arrive. Instead, unread room and DM entries that are not currently open are highlighted in green in the left navigation pane so users still get a visible attention indicator without an audible beep.
 - The terminal main menu now reacts to live terminal resize events. On Telnet NAWS updates and SSH window-change events, the menu redraws to the new dimensions without requiring an extra keypress, and dashboard widgets are re-laid out using cached stats rather than triggering another API call.
 - The terminal netmail reader now provides a **Sent folder**. Users can press `S` from the message list to toggle between the Inbox and Sent views. The active folder is remembered across sessions.
+- The terminal netmail reader now provides **sort options**. Users can press `O` from the netmail message list to choose Newest first, Oldest first, By subject, or By author, matching the web UI. The selected sort is remembered per user across terminal sessions.
 - The terminal message viewer now exposes inline image viewing more broadly. The existing `I` image-viewer flow still supports Markdown `![alt](url)` images, and now also detects bare direct image URLs in regular message bodies when they end in `.png`, `.jpg`, `.jpeg`, or `.gif`.
 - SSH terminal startup now discards any client input bytes already queued during PTY/shell setup before handing control to the BBS session. This prevents some SSH clients from accidentally skipping login or menu screens with phantom startup keypresses.
 - **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
@@ -183,6 +184,14 @@ The terminal netmail message list now includes a Sent folder. From the message l
 When reading a message in the Sent view, the header shows the recipient (`To:`) rather than the sender, since the sender is always the logged-in user. Pressing `R` to reply from the Sent view pre-fills the recipient fields with the original message's addressee rather than the sender.
 
 No sysop configuration is required. The daemon restart that follows a normal upgrade is sufficient.
+
+### Netmail Sort Options in Terminal Reader
+
+The terminal netmail message list now supports the same four sort modes as the web netmail UI. Press `O` from the netmail list to choose **Newest first**, **Oldest first**, **By subject**, or **By author**.
+
+The selected sort is stored per user and restored the next time that user opens netmail from the terminal. The same saved sort applies to both Inbox and Sent views.
+
+No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
 
 ### Configurable Terminal Idle Timeout
 
