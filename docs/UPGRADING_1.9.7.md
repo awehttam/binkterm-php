@@ -12,7 +12,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
-    - [AX.25 TNC (KISS) Interface Type](#ax25-tnc-kiss-interface-type)
+    - [New Interface Types](#new-interface-types)
     - [Auto-add policy sync change](#auto-add-policy-sync-change)
   - [Web Interface](#web-interface)
   - [Developer Tooling](#developer-tooling)
@@ -28,7 +28,7 @@ Make sure you have a current backup of your database and files before upgrading.
     - [Admin node list](#admin-node-list)
     - [Admin node edit modal](#admin-node-edit-modal)
     - [Node info modal](#node-info-modal)
-  - [AX.25 TNC (KISS) Interface Type](#ax25-tnc-kiss-interface-type-1)
+  - [New Interface Types](#new-interface-types-1)
   - [Auto-add policy sync change](#auto-add-policy-sync-change-1)
 - [Web Interface](#web-interface-1)
 - [Developer Tooling](#developer-tooling-1)
@@ -69,9 +69,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - The **PacketBBS Nodes** dashboard card now appears in the sidebar (between the Voting Booth and Echo Areas cards). Each node name is a link that opens its info modal. The location description is shown beneath the name; nodes with no description show a placeholder.
 - The node edit modal in **Admin → Packet BBS Nodes** is now a two-column layout. The **Auto-Add Contact Policy** section occupies the right column. The **Link to BBS Account** field has been removed; use the standard `LOGIN <user> <code>` authenticator flow instead. The Handle/Callsign field now shows the BBS hostname as placeholder text and includes a note that the value should match the MeshCore node name.
 
-#### AX.25 TNC (KISS) Interface Type
+#### New Interface Types
 
-- The Interface Type dropdown in the node registration modal now includes **AX.25 TNC (KISS)** alongside MeshCore. The companion bridge adapter is available as a separate package at [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss) (experimental).
+- The Interface Type dropdown in the node registration modal now includes **Meshtastic** (experimental) and **AX.25 TNC (KISS)** alongside MeshCore. Companion bridge adapters are available as separate packages: [awehttam/binktermphp-meshtasticbridge](https://github.com/awehttam/binktermphp-meshtasticbridge) for Meshtastic (TCP or USB serial) and [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss) for AX.25 packet radio.
 
 #### Auto-add policy sync change
 
@@ -248,11 +248,15 @@ The public node info modal (opened by clicking a node on the PacketBBS Nodes pag
 
 The **QR code** and **Public Key** sections are now only shown for MeshCore nodes. AX.25 TNC (KISS) nodes authenticate by callsign and have no cryptographic public key, so those fields are suppressed for that interface type.
 
-### AX.25 TNC (KISS) Interface Type
+### New Interface Types
 
-The node registration modal now includes **AX.25 TNC (KISS)** as a selectable interface type. Registering a node with this type sets the output profile to 8 lines × 64 columns per page, tuned for packet radio frame sizes.
+Two new interface types are now available in the node registration modal alongside the existing MeshCore option:
 
-The companion bridge adapter — a standalone PHP daemon that connects a KISS TNC (hardware or Direwolf) to the PacketBBS API — is available separately at [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss). The adapter is currently experimental. No BBS migration is required; the interface type string is stored as-is on the existing `packet_bbs_nodes` table.
+**Meshtastic** connects BinktermPHP to a Meshtastic network via TCP or USB serial. The companion bridge adapter is available at [awehttam/binktermphp-meshtasticbridge](https://github.com/awehttam/binktermphp-meshtasticbridge). This adapter is currently experimental and untested.
+
+**AX.25 TNC (KISS)** connects BinktermPHP to AX.25 packet radio via a hardware or software TNC (e.g. Direwolf). Registering a node with this type sets the output profile to 8 lines × 64 columns per page, tuned for packet radio frame sizes. The companion bridge adapter is available at [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss). This adapter is currently experimental.
+
+No BBS migration is required for either type; the interface type string is stored as-is on the existing `packet_bbs_nodes` table.
 
 ### Auto-add policy sync change
 
