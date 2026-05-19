@@ -213,6 +213,13 @@ return [
     'ui.terminalserver.echomail.unsubscribe_prompt'    => '{area} abbestellen?',
     'ui.terminalserver.echomail.unsubscribe_success'   => '{area} abbestellt.',
     'ui.terminalserver.echomail.unsubscribe_failed'    => 'Fehler beim Abbestellen von {area}.',
+    'ui.terminalserver.echomail.crosspost_prompt'      => 'In anderen Bereichen kreuzposten? [y/N]: ',
+    'ui.terminalserver.echomail.crosspost_header'      => 'Kreuzposten ({count}/{max} ausgewählt):',
+    'ui.terminalserver.echomail.crosspost_help_confirm'=> 'Bestätigen und fortfahren',
+    'ui.terminalserver.echomail.crosspost_help_skip'   => 'Kreuzposten überspringen',
+    'ui.terminalserver.echomail.crosspost_at_limit'    => 'Kreuzpost-Limit ({max}) erreicht.',
+    'ui.terminalserver.echomail.crosspost_no_areas'    => 'Keine anderen abonnierten Bereiche verfügbar.',
+    'ui.terminalserver.echomail.crosspost_posting_to'  => 'Auch gepostet in: {areas}',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Keine Netmail-Nachrichten.',
@@ -233,6 +240,12 @@ return [
     'ui.terminalserver.netmail.delete_success'           => '✓ Nachricht gelöscht.',
     'ui.terminalserver.netmail.delete_failed'            => '✗ Löschen fehlgeschlagen: {error}',
     'ui.terminalserver.netmail.text_download_fetch_failed' => 'Nachrichtentext konnte nicht abgerufen werden.',
+    'ui.terminalserver.netmail.mark_selected_title'   => 'Auswahl als gelesen markieren',
+    'ui.terminalserver.netmail.mark_selected_status'  => 'Gelesen',
+    'ui.terminalserver.netmail.mark_selected_prompt'  => '{count} ausgewählte Nachricht(en) als gelesen markieren?',
+    'ui.terminalserver.netmail.mark_selected_success' => 'Ausgewählte Nachrichten wurden als gelesen markiert.',
+    'ui.terminalserver.netmail.mark_selected_failed'  => 'Ausgewählte Nachrichten konnten nicht als gelesen markiert werden.',
+    'ui.terminalserver.netmail.mark_selected_none'    => 'Es sind keine Nachrichten ausgewählt.',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'Abstimmungsbereich ist deaktiviert.',
@@ -444,6 +457,7 @@ return [
     'ui.terminalserver.netmail.help_bookmark'          => 'Nachricht mit Lesezeichen versehen / entfernen',
     'ui.terminalserver.netmail.help_text_dl'           => 'Als .txt herunterladen (ZMODEM)',
     'ui.terminalserver.netmail.help_email_fwd'         => 'An meine E-Mail-Adresse weiterleiten',
+    'ui.terminalserver.netmail.help_mark_selected'     => 'Ausgewählte Nachrichten als gelesen markieren',
 
     // --- Bulletins ---
     'ui.terminalserver.bulletins.title'                => 'Bulletins',

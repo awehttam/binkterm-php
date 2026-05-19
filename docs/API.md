@@ -3873,6 +3873,7 @@ Marks a device command as executed. The bridge calls this after dispatching the 
 | `GET` | [`/api/messages/netmail/{id}/download`](#get-apimessagesnetmailiddownload) | Yes | Download a netmail message as a plain text file with headers. |
 | `POST` | [`/api/messages/netmail/{id}/edit`](#post-apimessagesnetmailidedit) | Yes | Edit netmail message metadata (art format, charset). |
 | `POST` | [`/api/messages/netmail/bulk-delete`](#post-apimessagesnetmailbulk-delete) | Yes | Delete multiple netmail messages in bulk. |
+| `POST` | [`/api/messages/netmail/read`](#post-apimessagesnetmailread) | Yes | Mark multiple netmail messages as read in bulk. |
 | `GET` | [`/api/messages/echomail`](#get-apimessagesechomail) | Yes | List echomail messages from subscribed areas with filtering. |
 | `POST` | [`/api/messages/echomail/read`](#post-apimessagesechomailread) | Yes | Mark multiple echomail messages as read in bulk. |
 | `POST` | [`/api/messages/echomail/delete`](#post-apimessagesechomaildelete) | Yes | Delete multiple echomail messages (admin only). |
@@ -4162,6 +4163,35 @@ Deletion summary with localization support
 | Status | Description |
 |--------|-------------|
 | 400 | message_ids missing, empty, or not an array |
+
+---
+
+#### `POST /api/messages/netmail/read`
+
+**Requires authentication**
+
+Marks one or more netmail messages as read for the authenticated user. Uses upsert semantics — already-read messages are silently updated. Fires a BinkStream `message_read` event so other open tabs reflect the change immediately.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `messageIds` | array<integer> | Yes | Non-empty array of netmail message IDs |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation succeeded |
+| `marked` | integer | Number of messages processed |
+| `total` | integer | Total messages requested |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | messageIds missing, empty, or not an array |
+| 500 | Database error |
 
 ---
 

@@ -1238,6 +1238,30 @@ class EchomailHandler
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.compose_title', '=== Compose Echomail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.area_label', 'Area: {area}', ['area' => $area], $state['locale']), TelnetUtils::ANSI_MAGENTA));
+
+        $crossPostAreas = [];
+        if (empty($reply['id'])) {
+            $bbsConfig    = \BinktermPHP\BbsConfig::getConfig();
+            $maxCrossPost = (int)($bbsConfig['max_cross_post_areas'] ?? 5);
+            if ($maxCrossPost >= 2) {
+                $cpAnswer = $this->server->prompt(
+                    $conn, $state,
+                    TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.crosspost_prompt', 'Cross-post to other areas? [y/N]: ', [], $state['locale']), TelnetUtils::ANSI_CYAN),
+                    true
+                );
+                if ($cpAnswer === null) {
+                    return;
+                }
+                if (strtolower(trim($cpAnswer)) === 'y') {
+                    $picked = $this->pickCrossPostAreas($conn, $state, $session, $area, $maxCrossPost);
+                    if ($picked === null) {
+                        return;
+                    }
+                    $crossPostAreas = $picked;
+                }
+            }
+        }
+
         TelnetUtils::writeLine($conn, '');
 
         if ($reply && !empty($reply['id'])) {
@@ -1349,11 +1373,11 @@ class EchomailHandler
         }
 
         $payload = [
-            'type' => 'echomail',
-            'echoarea' => $area,
-            'to_name' => $toName,
-            'subject' => $subject,
-            'message_text' => $messageText
+            'type'         => 'echomail',
+            'echoarea'     => $area,
+            'to_name'      => $toName,
+            'subject'      => $subject,
+            'message_text' => $messageText,
         ];
         if (!empty($reply['id'])) {
             $payload['reply_to_id'] = $reply['id'];
@@ -1361,8 +1385,17 @@ class EchomailHandler
         if ($selectedTagline !== '') {
             $payload['tagline'] = $selectedTagline;
         }
+        if (!empty($crossPostAreas)) {
+            $payload['cross_post_areas'] = $crossPostAreas;
+        }
 
         TelnetUtils::writeLine($conn, '');
+        if (!empty($crossPostAreas)) {
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.echomail.crosspost_posting_to', 'Also posting to: {areas}', ['areas' => implode(', ', $crossPostAreas)], $state['locale']),
+                TelnetUtils::ANSI_MAGENTA
+            ));
+        }
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.posting', 'Posting echomail...', [], $state['locale']), TelnetUtils::ANSI_CYAN));
         $result = MailUtils::sendMessage($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
         if ($result['success']) {
@@ -1373,6 +1406,86 @@ class EchomailHandler
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.post_failed', '✗ Failed to post echomail: {error}', ['error' => $result['error'] ?? 'Unknown error'], $state['locale']), TelnetUtils::ANSI_RED));
         }
         TelnetUtils::writeLine($conn, '');
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
+        $this->server->readKeyWithIdleCheck($conn, $state);
+    }
+
+    /**
+     * Interactive multi-select echoarea picker for cross-posting.
+     *
+     * Shows subscribed areas (excluding the primary) as a checkbox list.
+     * Space bar toggles each area; Enter confirms the current selection; Q skips cross-posting.
+     *
+     * @param resource $conn        Socket connection to client
+     * @param array    &$state      Terminal state
+     * @param string   $session     Session token
+     * @param string   $primaryArea Primary echoarea identifier (tag@domain)
+     * @param int      $maxAreas    Maximum number of additional cross-post areas allowed
+     * @return array|null           Selected 'tag@domain' strings (empty = no cross-post), null on disconnect
+     */
+    private function pickCrossPostAreas($conn, array &$state, string $session, string $primaryArea, int $maxAreas): ?array
+    {
+        $locale   = $state['locale'];
+        $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/echoareas?subscribed_only=true', null, $session);
+        $allAreas = array_values(array_filter(
+            $response['data']['echoareas'] ?? [],
+            fn(array $a): bool => $this->formatEchoareaIdentifier($a['tag'] ?? '', $a['domain'] ?? '') !== $primaryArea
+        ));
+
+        if (empty($allAreas)) {
+            TelnetUtils::showAlertDialog(
+                $conn, $state, $this->server,
+                $this->server->t('ui.terminalserver.echomail.compose_title', '=== Compose Echomail ===', [], $locale),
+                $this->server->t('ui.terminalserver.echomail.crosspost_no_areas', 'No other subscribed areas available.', [], $locale),
+                'info'
+            );
+            return [];
+        }
+
+        $items = [];
+        foreach ($allAreas as $a) {
+            $tag    = str_pad(substr($a['tag']    ?? '', 0, 20), 20);
+            $domain = str_pad(substr($a['domain'] ?? '', 0, 10), 10);
+            $desc   = substr($a['description'] ?? '', 0, 30);
+            $items[] = "{$tag}  {$domain}  {$desc}";
+        }
+
+        $titleFn = function (int $count) use ($maxAreas, $locale): string {
+            return $this->server->t(
+                'ui.terminalserver.echomail.crosspost_header',
+                'Cross-post ({count}/{max} selected):',
+                ['count' => $count, 'max' => $maxAreas],
+                $locale
+            );
+        };
+
+        $result = TelnetUtils::showCheckboxListDialog(
+            $conn, $state, $this->server,
+            $titleFn,
+            $items,
+            [],
+            $maxAreas,
+            $this->server->t('ui.terminalserver.echomail.crosspost_at_limit', 'Cross-post limit ({max}) reached.', ['max' => $maxAreas], $locale),
+            $this->server->t('ui.terminalserver.echomail.crosspost_help_confirm', 'Confirm and continue', [], $locale),
+            $this->server->t('ui.terminalserver.echomail.crosspost_help_skip', 'Skip cross-posting', [], $locale)
+        );
+
+        if ($result === null) {
+            return null;
+        }
+        if ($result['action'] === 'quit') {
+            return [];
+        }
+
+        // Map selected indices back to tag@domain strings
+        $selectedTags = [];
+        foreach ($result['selected'] as $idx) {
+            $area = $allAreas[$idx] ?? null;
+            if ($area !== null) {
+                $selectedTags[] = $this->formatEchoareaIdentifier($area['tag'] ?? '', $area['domain'] ?? '');
+            }
+        }
+        return $selectedTags;
     }
 
     /**

@@ -209,6 +209,13 @@ return [
     'ui.terminalserver.echomail.unsubscribe_prompt'    => 'Annullare l\'iscrizione a {area}?',
     'ui.terminalserver.echomail.unsubscribe_success'   => 'Iscrizione a {area} annullata.',
     'ui.terminalserver.echomail.unsubscribe_failed'    => 'Impossibile annullare l\'iscrizione a {area}.',
+    'ui.terminalserver.echomail.crosspost_prompt'      => 'Pubblicare in altre aree? [y/N]: ',
+    'ui.terminalserver.echomail.crosspost_header'      => 'Pubblicazione incrociata ({count}/{max} selezionati):',
+    'ui.terminalserver.echomail.crosspost_help_confirm'=> 'Conferma e continua',
+    'ui.terminalserver.echomail.crosspost_help_skip'   => 'Salta la pubblicazione incrociata',
+    'ui.terminalserver.echomail.crosspost_at_limit'    => 'Limite di pubblicazioni incrociate ({max}) raggiunto.',
+    'ui.terminalserver.echomail.crosspost_no_areas'    => 'Nessun\'altra area iscritta disponibile.',
+    'ui.terminalserver.echomail.crosspost_posting_to'  => 'Pubblicazione anche in: {areas}',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Nessun messaggio netmail.',
@@ -229,6 +236,12 @@ return [
     'ui.terminalserver.netmail.delete_success'           => '✓ Messaggio eliminato.',
     'ui.terminalserver.netmail.delete_failed'            => '✗ Eliminazione non riuscita: {error}',
     'ui.terminalserver.netmail.text_download_fetch_failed' => 'Impossibile recuperare il testo del messaggio.',
+    'ui.terminalserver.netmail.mark_selected_title'   => 'Segna selezione come letta',
+    'ui.terminalserver.netmail.mark_selected_status'  => 'Segna letti',
+    'ui.terminalserver.netmail.mark_selected_prompt'  => 'Segnare {count} messaggio/i selezionato/i come letto/i?',
+    'ui.terminalserver.netmail.mark_selected_success' => 'I messaggi selezionati sono stati segnati come letti.',
+    'ui.terminalserver.netmail.mark_selected_failed'  => 'Impossibile segnare i messaggi selezionati come letti.',
+    'ui.terminalserver.netmail.mark_selected_none'    => 'Nessun messaggio selezionato.',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'La cabina di voto è disabilitata.',
@@ -446,6 +459,7 @@ return [
     'ui.terminalserver.netmail.help_bookmark'          => 'Aggiungi / rimuovi segnalibro',
     'ui.terminalserver.netmail.help_text_dl'           => 'Scarica come .txt (ZMODEM)',
     'ui.terminalserver.netmail.help_email_fwd'         => 'Inoltra al mio indirizzo email',
+    'ui.terminalserver.netmail.help_mark_selected'     => 'Segna i messaggi selezionati come letti',
     'ui.terminalserver.server.menu.bulletins' => 'U) Bollettini',
     'ui.terminalserver.bulletins.title' => 'Bollettini',
     'ui.terminalserver.bulletins.none' => 'Nessun bollettino disponibile.',

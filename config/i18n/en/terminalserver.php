@@ -209,6 +209,13 @@ return [
     'ui.terminalserver.echomail.unsubscribe_prompt'    => 'Unsubscribe from {area}?',
     'ui.terminalserver.echomail.unsubscribe_success'   => 'Unsubscribed from {area}.',
     'ui.terminalserver.echomail.unsubscribe_failed'    => 'Failed to unsubscribe from {area}.',
+    'ui.terminalserver.echomail.crosspost_prompt'      => 'Cross-post to other areas? [y/N]: ',
+    'ui.terminalserver.echomail.crosspost_header'      => 'Cross-post ({count}/{max} selected):',
+    'ui.terminalserver.echomail.crosspost_help_confirm'=> 'Confirm and continue',
+    'ui.terminalserver.echomail.crosspost_help_skip'   => 'Skip cross-posting',
+    'ui.terminalserver.echomail.crosspost_at_limit'    => 'Cross-post limit ({max}) reached.',
+    'ui.terminalserver.echomail.crosspost_no_areas'    => 'No other subscribed areas available.',
+    'ui.terminalserver.echomail.crosspost_posting_to'  => 'Also posting to: {areas}',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'No netmail messages.',
@@ -229,6 +236,12 @@ return [
     'ui.terminalserver.netmail.delete_success'          => '✓ Message deleted.',
     'ui.terminalserver.netmail.delete_failed'           => '✗ Failed to delete: {error}',
     'ui.terminalserver.netmail.text_download_fetch_failed' => 'Could not fetch message text.',
+    'ui.terminalserver.netmail.mark_selected_title'   => 'Mark Selected Read',
+    'ui.terminalserver.netmail.mark_selected_status'  => 'Mark Read',
+    'ui.terminalserver.netmail.mark_selected_prompt'  => 'Mark {count} selected message(s) as read?',
+    'ui.terminalserver.netmail.mark_selected_success' => 'Selected messages marked as read.',
+    'ui.terminalserver.netmail.mark_selected_failed'  => 'Failed to mark selected messages as read.',
+    'ui.terminalserver.netmail.mark_selected_none'    => 'No messages are selected.',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'Voting booth is disabled.',
@@ -446,6 +459,7 @@ return [
     'ui.terminalserver.netmail.help_bookmark'          => 'Bookmark / unsave message',
     'ui.terminalserver.netmail.help_text_dl'           => 'Download as .txt (ZMODEM)',
     'ui.terminalserver.netmail.help_email_fwd'         => 'Forward to my email address',
+    'ui.terminalserver.netmail.help_mark_selected'     => 'Mark selected messages as read',
     'ui.terminalserver.server.menu.bulletins' => 'U) Bulletins',
     'ui.terminalserver.bulletins.title' => 'Bulletins',
     'ui.terminalserver.bulletins.none' => 'No bulletins are available.',

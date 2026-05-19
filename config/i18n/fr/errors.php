@@ -46,6 +46,8 @@ return [
     'errors.messages.netmail.not_found' => 'Message introuvable',
     'errors.messages.netmail.delete_failed' => 'Échec de la suppression du message',
     'errors.messages.netmail.bulk_delete.invalid_input' => 'Une liste d\'identifiants de messages non vide est requise',
+    'errors.messages.netmail.bulk_read.invalid_input' => 'Une liste d\'identifiants de messages non vide est requise',
+    'errors.messages.netmail.bulk_read.failed' => 'Échec du marquage des messages comme lus',
     'errors.messages.echomail.bulk_read.invalid_input' => 'Une liste d\'identifiants de messages non vide est requise',
     'errors.messages.echomail.bulk_read.failed' => 'Échec du marquage des messages comme lus',
     'errors.messages.echomail.bulk_delete.admin_required' => 'Des privilèges administrateur sont requis',

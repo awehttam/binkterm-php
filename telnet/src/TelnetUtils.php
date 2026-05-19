@@ -2178,6 +2178,261 @@ class TelnetUtils
     }
 
     /**
+     * Shows a centered dialog overlay with a scrollable checkbox list.
+     *
+     * Items are displayed with [ ] / [*] prefix based on selection state. The cursor
+     * (>) highlights the current row. Space toggles; Enter confirms; Q skips.
+     * Scroll indicators appear when the list overflows the dialog height.
+     * On terminal resize the old dialog region is erased before redrawing.
+     *
+     * @param resource  $conn            Socket connection
+     * @param array     &$state          Terminal state
+     * @param object    $server          Server instance
+     * @param callable  $titleFn         fn(int $selectedCount): string — title text, called on each redraw
+     * @param string[]  $items           Plain-text item labels (one per row)
+     * @param int[]     $selectedIndices Initially selected item indices (0-based)
+     * @param int       $maxSelect       Max selections allowed (0 = unlimited)
+     * @param string    $atLimitMessage  Message shown when trying to exceed $maxSelect
+     * @param string    $hintConfirm     Enter key label in hint area
+     * @param string    $hintSkip        Q key label in hint area
+     * @return array|null ['action'=>'confirm'|'quit', 'selected'=>int[]], or null on disconnect
+     */
+    public static function showCheckboxListDialog(
+        $conn,
+        array &$state,
+        $server,
+        callable $titleFn,
+        array $items,
+        array $selectedIndices = [],
+        int $maxSelect = 0,
+        string $atLimitMessage = '',
+        string $hintConfirm = 'Done',
+        string $hintSkip = 'Skip'
+    ): ?array {
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+            $sepL = '├'; $sepR = '┤';
+            $arrowUp = '▲'; $arrowDn = '▼';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+            $sepL = "\xc3"; $sepR = "\xb4";
+            $arrowUp = "\x1e"; $arrowDn = "\x1f";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+            $sepL = '+'; $sepR = '+';
+            $arrowUp = '^'; $arrowDn = 'v';
+        }
+
+        $ansi   = self::$ansiColorEnabled;
+        $bg     = self::ANSI_BG_BLUE;
+        $rst    = self::ANSI_RESET;
+        $frame  = $bg . "\033[1;37m";
+        $body   = $bg . "\033[37m";
+        $hilite = $bg . "\033[1;33m"; // bold yellow for highlighted row
+        $dim    = $bg . "\033[2;37m";  // dimmed for scroll indicators
+
+        $cursorIdx    = 0;
+        $scrollOffset = 0;
+        $selected     = array_values($selectedIndices);
+        $itemCount    = count($items);
+        $hintStr      = "Space Toggle  Enter {$hintConfirm}  Q {$hintSkip}";
+
+        // Track bounds of the last render so we can erase it before the next
+        $lastBounds = null; // ['row' => int, 'col' => int, 'w' => int, 'h' => int]
+
+        $renderDialog = function () use (
+            &$cursorIdx, &$scrollOffset, &$selected, &$lastBounds,
+            $conn, &$state, $titleFn, $items, $itemCount,
+            $tl, $tr, $bl, $br, $hz, $vt, $sepL, $sepR,
+            $arrowUp, $arrowDn, $hintStr,
+            $ansi, $bg, $rst, $frame, $body, $hilite, $dim
+        ): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+
+            $innerWidth   = max(30, min(64, $cols - 6));
+            $boxWidth     = $innerWidth + 2;
+            $maxListRows  = max(3, min($itemCount, $rows - 9));
+            // rows: top + scrollUp + list + scrollDn + separator + hint + bottom
+            $dialogHeight = 7 + $maxListRows;
+            $startRow     = max(1, (int)round(($rows - $dialogHeight) / 2));
+            $startCol     = max(1, (int)round(($cols - $boxWidth)    / 2));
+
+            // Erase the previous render region before drawing at the (possibly new) position
+            if ($lastBounds !== null) {
+                $blank = str_repeat(' ', $lastBounds['w']);
+                for ($er = $lastBounds['row']; $er < $lastBounds['row'] + $lastBounds['h']; $er++) {
+                    self::safeWrite($conn, "\033[{$er};{$lastBounds['col']}H{$blank}");
+                }
+            }
+            $lastBounds = ['row' => $startRow, 'col' => $startCol, 'w' => $boxWidth, 'h' => $dialogHeight];
+
+            // keep cursor in view
+            if ($cursorIdx < $scrollOffset) {
+                $scrollOffset = $cursorIdx;
+            } elseif ($cursorIdx >= $scrollOffset + $maxListRows) {
+                $scrollOffset = $cursorIdx - $maxListRows + 1;
+            }
+
+            $hasAbove = $scrollOffset > 0;
+            $hasBelow = ($scrollOffset + $maxListRows) < $itemCount;
+
+            $rawTitle   = $titleFn(count($selected));
+            $plainTitle = ' ' . self::stripAnsi($rawTitle) . ' ';
+            $titleLen   = mb_strlen($plainTitle);
+            $totalHz    = max(0, $innerWidth - $titleLen);
+            $topBorder  = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $plainTitle
+                . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $midBorder  = $sepL . str_repeat($hz, $innerWidth) . $sepR;
+            $btmBorder  = $bl . str_repeat($hz, $innerWidth) . $br;
+
+            $hintLen      = mb_strlen($hintStr);
+            $hintLeftPad  = max(0, (int)floor(($innerWidth - $hintLen) / 2));
+            $hintRightPad = max(0, $innerWidth - $hintLen - $hintLeftPad);
+
+            // Scroll indicator rows: spaces with arrow glyph flush-right
+            $buildScrollRow = static function (string $glyph) use ($innerWidth, $vt): string {
+                return $vt . str_repeat(' ', $innerWidth - 2) . $glyph . ' ' . $vt;
+            };
+            $scrollUpRow = $buildScrollRow($arrowUp);
+            $scrollDnRow = $buildScrollRow($arrowDn);
+            $emptyRow    = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                // scroll-up indicator row
+                if ($hasAbove) {
+                    $draw($r++, $dim . $scrollUpRow . $rst);
+                } else {
+                    $draw($r++, $body . $emptyRow . $rst);
+                }
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $hasAbove ? $scrollUpRow : $emptyRow);
+            }
+
+            $labelWidth = $innerWidth - 6; // "> [*] " = 6 chars; row fills innerWidth exactly
+            for ($i = 0; $i < $maxListRows; $i++) {
+                $itemIdx = $scrollOffset + $i;
+                if ($itemIdx >= $itemCount) {
+                    if ($ansi) {
+                        $draw($r++, $body . $emptyRow . $rst);
+                    } else {
+                        $draw($r++, $emptyRow);
+                    }
+                    continue;
+                }
+                $isSel   = in_array($itemIdx, $selected, true);
+                $isCur   = ($itemIdx === $cursorIdx);
+                $check   = $isSel ? '[*]' : '[ ]';
+                $cursor  = $isCur ? '>' : ' ';
+                $label   = str_pad(mb_substr((string)($items[$itemIdx] ?? ''), 0, $labelWidth), $labelWidth);
+                $rowText = "{$cursor} {$check} {$label}";
+                if ($ansi) {
+                    $color = $isCur ? $hilite : $body;
+                    $draw($r++, $color . $vt . $rowText . $body . $vt . $rst);
+                } else {
+                    $draw($r++, $vt . $rowText . $vt);
+                }
+            }
+
+            if ($ansi) {
+                // scroll-down indicator row
+                if ($hasBelow) {
+                    $draw($r++, $dim . $scrollDnRow . $rst);
+                } else {
+                    $draw($r++, $body . $emptyRow . $rst);
+                }
+                $draw($r++, $frame . $midBorder . $rst);
+                $draw($r++, $body . $vt . str_repeat(' ', $hintLeftPad) . "\033[3m" . $hintStr . "\033[23m" . str_repeat(' ', $hintRightPad) . $body . $vt . $rst);
+                $draw($r,   $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $hasBelow ? $scrollDnRow : $emptyRow);
+                $draw($r++, $midBorder);
+                $draw($r++, $vt . str_repeat(' ', $hintLeftPad) . $hintStr . str_repeat(' ', $hintRightPad) . $vt);
+                $draw($r,   $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[?25h");
+        };
+
+        $renderDialog();
+
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $renderDialog();
+                continue;
+            }
+
+            if ($key === null) {
+                return null;
+            }
+
+            if ($key === 'ENTER') {
+                return ['action' => 'confirm', 'selected' => $selected];
+            }
+
+            if ($key === 'UP' || $key === 'CHAR:k') {
+                if ($cursorIdx > 0) {
+                    $cursorIdx--;
+                    $renderDialog();
+                }
+                continue;
+            }
+
+            if ($key === 'DOWN' || $key === 'CHAR:j') {
+                if ($cursorIdx < $itemCount - 1) {
+                    $cursorIdx++;
+                    $renderDialog();
+                }
+                continue;
+            }
+
+            if (!str_starts_with($key, 'CHAR:')) {
+                continue;
+            }
+
+            $char = substr($key, 5);
+
+            if (strtolower($char) === 'q') {
+                return ['action' => 'quit', 'selected' => []];
+            }
+
+            if ($char === ' ') {
+                if (in_array($cursorIdx, $selected, true)) {
+                    $selected = array_values(array_filter($selected, fn(int $i): bool => $i !== $cursorIdx));
+                    $renderDialog();
+                } elseif ($maxSelect === 0 || count($selected) < $maxSelect) {
+                    $selected[] = $cursorIdx;
+                    sort($selected);
+                    $renderDialog();
+                } elseif ($atLimitMessage !== '') {
+                    self::showAlertDialog($conn, $state, $server, '', $atLimitMessage, 'error');
+                    $renderDialog();
+                }
+                continue;
+            }
+        }
+    }
+
+    /**
      * Encode UTF-8 header field text to match the box charset.
      *
      * CP437 boxes are already emitted as raw OEM bytes, so only the text fields

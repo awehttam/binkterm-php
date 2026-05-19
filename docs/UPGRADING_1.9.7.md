@@ -18,9 +18,11 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader)
   - [Echomail Search in Terminal](#echomail-search-in-terminal)
   - [Echomail Sort Options in Terminal](#echomail-sort-options-in-terminal)
+  - [Netmail Bulk Mark Selected as Read in Terminal](#netmail-bulk-mark-selected-as-read-in-terminal)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer)
   - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation)
   - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal)
+  - [Cross-post Echomail to Multiple Areas from Terminal](#cross-post-echomail-to-multiple-areas-from-terminal)
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
@@ -41,6 +43,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader-1)
   - [Echomail Search in Terminal](#echomail-search-in-terminal-1)
   - [Echomail Sort Options in Terminal](#echomail-sort-options-in-terminal-1)
+  - [Netmail Bulk Mark Selected as Read in Terminal](#netmail-bulk-mark-selected-as-read-in-terminal-1)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
   - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation-1)
   - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal-1)
@@ -333,6 +336,21 @@ No sysop configuration is required. The change takes effect when the upgraded da
 
 ---
 
+### Netmail Bulk Mark Selected as Read in Terminal
+
+Terminal users can now mark multiple netmail inbox messages as read in one action without opening each one individually.
+
+**How it works:**
+
+- In the netmail inbox list, press `Space` to toggle the highlighted message in or out of the selection set. Selected messages show a green `*` marker to the left of the row.
+- Press `M` to mark all selected messages as read. A confirmation prompt appears; pressing `Y` submits the message IDs to the new `POST /api/messages/netmail/read` endpoint. On success the selection is cleared and the list redraws with updated unread indicators.
+- Multi-select and the `M` key are available in the **inbox only**. The Sent folder does not expose them.
+- `Ctrl-K` opens the key-binding help overlay, which lists both `Space` (Toggle selection) and `M` (Mark selected messages as read).
+
+No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+
+---
+
 ### Ctrl-K Help Overlay in Terminal Message Viewer
 
 The terminal netmail and echomail message viewers now provide a universal keyboard-reference panel accessible with `Ctrl-K`. The overlay draws a framed panel listing every available key binding for the current viewer context — including secondary actions such as header viewer (`H`), delete (`X`), bookmark (`B`), and text download (`T`) that are not shown on the status bar.
@@ -397,6 +415,16 @@ The terminal file browser now matches the selector-style interaction already use
 Opening a file from the terminal browser now shows a centered file-info modal instead of a plain full-screen text page. The modal redraws cleanly on terminal resize, keeps long descriptions scrollable with Up/Down or PgUp/PgDn, and still allows direct `D` download from the detail view.
 
 No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+
+---
+
+## Cross-post Echomail to Multiple Areas from Terminal
+
+Terminal users can now cross-post a new echomail message to multiple subscribed areas in a single operation, matching the capability already available in the web interface.
+
+When composing a **new** message (not a reply), the terminal compose flow asks "Cross-post to other areas? [y/N]:" immediately after displaying the destination area. Answering `y` opens a checkbox picker showing all other subscribed areas. Up/Down arrows navigate the list, Space toggles selection, Enter confirms the selection, and Q skips cross-posting entirely. Scroll indicators (▲/▼) appear when the list overflows the dialog height. The number of additional areas is limited by the **Max cross-post areas** BBS setting (configurable in Admin → BBS Settings; default 5).
+
+No migration or configuration change is required. The cross-post limit is already stored in `bbs.json` as `max_cross_post_areas` and defaults to 5 if absent.
 
 ---
 

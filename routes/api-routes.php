@@ -5538,6 +5538,66 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    // Netmail bulk read endpoint - must come before parameterized routes
+    SimpleRouter::post('/messages/netmail/read', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $messageIds = $input['messageIds'] ?? [];
+
+        if (empty($messageIds) || !is_array($messageIds)) {
+            http_response_code(400);
+            apiError('errors.messages.netmail.bulk_read.invalid_input', apiLocalizedText('errors.messages.netmail.bulk_read.invalid_input', 'A non-empty message ID list is required', $user));
+            return;
+        }
+
+        $userId = (int)$user['user_id'];
+        $db = Database::getInstance()->getPdo();
+        $marked = 0;
+
+        try {
+            $db->beginTransaction();
+            $stmt = $db->prepare("
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
+                VALUES (?, ?, 'netmail', NOW())
+                ON CONFLICT (user_id, message_id, message_type) DO UPDATE SET
+                    read_at = EXCLUDED.read_at
+            ");
+
+            foreach ($messageIds as $id) {
+                $stmt->execute([$userId, (int)$id]);
+                $marked++;
+            }
+
+            $db->commit();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            getServerLogger()->error('[netmail bulk read] Failed to persist read status: ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.messages.netmail.bulk_read.failed', apiLocalizedText('errors.messages.netmail.bulk_read.failed', 'Failed to mark messages as read', $user));
+            return;
+        }
+
+        try {
+            \BinktermPHP\Realtime\BinkStream::emit($db, 'message_read', [
+                'message_ids' => array_map('intval', $messageIds),
+                'message_type' => 'netmail',
+            ], $userId);
+        } catch (\Throwable $e) {
+            getServerLogger()->warning('[netmail bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
+        }
+
+        echo json_encode([
+            'success' => true,
+            'marked' => $marked,
+            'total' => count($messageIds)
+        ]);
+    });
+
     SimpleRouter::get('/messages/netmail/{id}', function($id) {
         $user = RouteHelper::requireAuth();
 

@@ -59,8 +59,8 @@ class NetmailHandler
         $folder        = $savedState['folder'];
         $sort          = $savedState['sort'];
 
-        $extraKeys = ['o' => 'order', 's' => 'toggle_folder'];
-        $locale    = $state['locale'] ?? 'en';
+        $locale             = $state['locale'] ?? 'en';
+        $selectedMessageIds = [];
 
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage, $folder, $sort);
@@ -118,22 +118,35 @@ class NetmailHandler
                     $msg['from_name'] = $msg['to_name'] ?? $msg['from_name'];
                     return $msg;
                 }, $messages);
+                $extraKeys = ['o' => 'order', 's' => 'toggle_folder'];
                 $extraStatusSegments = [
                     ['text' => 'O',        'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' Sort  ',  'color' => TelnetUtils::ANSI_BLUE],
                     ['text' => '  S',       'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' ' . $toggleLabel, 'color' => TelnetUtils::ANSI_BLUE],
                 ];
+                $multiSelectOptions = [];
+                $helpItems = [];
             } else {
                 $titleKey      = 'ui.terminalserver.netmail.inbox_header';
                 $titleFallback = 'Netmail Inbox (page {page}/{total}):';
                 $toggleLabel   = 'Sent';
                 $displayMessages = $messages;
+                $extraKeys = ['m' => 'mark_selected_read', 'o' => 'order', 's' => 'toggle_folder'];
                 $extraStatusSegments = [
                     ['text' => 'O',       'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' Sort  ', 'color' => TelnetUtils::ANSI_BLUE],
                     ['text' => '  S',      'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' ' . $toggleLabel, 'color' => TelnetUtils::ANSI_BLUE],
+                ];
+                $multiSelectOptions = [
+                    'multiSelect'        => true,
+                    'toggleKey'          => ' ',
+                    'selectedMessageIds' => $selectedMessageIds,
+                ];
+                $helpItems = [
+                    ['key' => 'Space', 'label' => $this->server->t('ui.terminalserver.list.help_toggle_selection', 'Toggle selection', [], $locale)],
+                    ['key' => 'M',     'label' => $this->server->t('ui.terminalserver.netmail.help_mark_selected', 'Mark selected messages as read', [], $locale)],
                 ];
             }
 
@@ -141,7 +154,7 @@ class NetmailHandler
                 $this->server->t($titleKey, $titleFallback, ['page' => $page, 'total' => $totalPages], $locale),
                 TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             );
-            $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $displayMessages, $page, $totalPages, $selectedIndex, $extraKeys, $extraStatusSegments);
+            $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $displayMessages, $page, $totalPages, $selectedIndex, $extraKeys, $extraStatusSegments, $multiSelectOptions, $helpItems);
             $selectedIndex = $result['selectedIndex'];
             $currentSelectedId = isset($messages[$selectedIndex]['id']) ? (int)$messages[$selectedIndex]['id'] : null;
             $this->saveListState($session, $page, $currentSelectedId, $folder, $sort, $state['csrf_token'] ?? null);
@@ -173,10 +186,65 @@ class NetmailHandler
                     }
                     break;
                 case 'toggle_folder':
-                    $folder        = $folder === 'inbox' ? 'sent' : 'inbox';
-                    $page          = 1;
-                    $selectedIndex = 0;
+                    $folder             = $folder === 'inbox' ? 'sent' : 'inbox';
+                    $page               = 1;
+                    $selectedIndex      = 0;
+                    $selectedMessageIds = [];
                     $this->saveListState($session, $page, null, $folder, $sort, $state['csrf_token'] ?? null);
+                    break;
+                case 'toggle_select':
+                    $messageId = isset($messages[$result['index']]['id']) ? (int)$messages[$result['index']]['id'] : 0;
+                    if ($messageId > 0) {
+                        if (in_array($messageId, $selectedMessageIds, true)) {
+                            $selectedMessageIds = array_values(array_filter(
+                                $selectedMessageIds,
+                                static fn(int $id): bool => $id !== $messageId
+                            ));
+                        } else {
+                            $selectedMessageIds[] = $messageId;
+                        }
+                    }
+                    break;
+                case 'mark_selected_read':
+                    $selectedCount = count($selectedMessageIds);
+                    if ($selectedCount === 0) {
+                        TelnetUtils::showAlertDialog(
+                            $conn,
+                            $state,
+                            $this->server,
+                            $this->server->t('ui.terminalserver.netmail.mark_selected_title', 'Mark Selected Read', [], $locale),
+                            $this->server->t('ui.terminalserver.netmail.mark_selected_none', 'No messages are selected.', [], $locale),
+                            'error'
+                        );
+                        break;
+                    }
+                    $choice = TelnetUtils::showConfirmDialog(
+                        $conn,
+                        $state,
+                        $this->server,
+                        $this->server->t('ui.terminalserver.netmail.mark_selected_title', 'Mark Selected Read', [], $locale),
+                        $this->server->t('ui.terminalserver.netmail.mark_selected_prompt', 'Mark {count} selected message(s) as read?', ['count' => $selectedCount], $locale),
+                        [
+                            'y' => $this->server->t('ui.terminalserver.server.confirm_yes', 'Confirm', [], $locale),
+                            'n' => $this->server->t('ui.terminalserver.server.confirm_no', 'Cancel', [], $locale),
+                        ],
+                        'n'
+                    );
+                    if ($choice === 'y') {
+                        $markResult = $this->markSelectedMessagesRead($session, $selectedMessageIds, $locale, $state['csrf_token'] ?? null);
+                        TelnetUtils::showAlertDialog(
+                            $conn,
+                            $state,
+                            $this->server,
+                            $this->server->t('ui.terminalserver.netmail.mark_selected_title', 'Mark Selected Read', [], $locale),
+                            $markResult['message'],
+                            $markResult['success'] ? 'info' : 'error'
+                        );
+                        if ($markResult['success']) {
+                            $selectedMessageIds = [];
+                            $this->server->logAction($state['username'] ?? 'unknown', "Netmail: marked {$selectedCount} selected messages read");
+                        }
+                    }
                     break;
                 case 'read':
                     [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $page, $perPage, $totalPages, $result['index'], $folder, $sort);
@@ -1098,6 +1166,46 @@ class NetmailHandler
         }
 
         return round($bytes / 1048576, 1) . ' MB';
+    }
+
+    /**
+     * Mark a selected set of netmail messages as read for the current user.
+     *
+     * @param int[] $messageIds
+     * @return array{success:bool,message:string}
+     */
+    private function markSelectedMessagesRead(string $session, array $messageIds, string $locale, ?string $csrfToken): array
+    {
+        $messageIds = array_values(array_unique(array_filter(array_map('intval', $messageIds), static fn(int $id): bool => $id > 0)));
+
+        if ($messageIds === []) {
+            return [
+                'success' => false,
+                'message' => $this->server->t('ui.terminalserver.netmail.mark_selected_none', 'No messages are selected.', [], $locale),
+            ];
+        }
+
+        $result = TelnetUtils::apiRequest(
+            $this->apiBase,
+            'POST',
+            '/api/messages/netmail/read',
+            ['messageIds' => $messageIds],
+            $session,
+            3,
+            $csrfToken
+        );
+
+        if (($result['status'] ?? 0) === 200 && !empty($result['data']['success'])) {
+            return [
+                'success' => true,
+                'message' => $this->server->t('ui.terminalserver.netmail.mark_selected_success', 'Selected messages marked as read.', [], $locale),
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => $this->server->t('ui.terminalserver.netmail.mark_selected_failed', 'Failed to mark selected messages as read.', [], $locale),
+        ];
     }
 
     /**

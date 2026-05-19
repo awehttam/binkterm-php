@@ -57,6 +57,8 @@ return [
     'errors.messages.netmail.not_found' => 'Messaggio non trovato',
     'errors.messages.netmail.delete_failed' => 'Impossibile eliminare il messaggio',
     'errors.messages.netmail.bulk_delete.invalid_input' => 'È richiesto un elenco non vuoto di ID messaggio',
+    'errors.messages.netmail.bulk_read.invalid_input' => 'È richiesto un elenco non vuoto di ID messaggio',
+    'errors.messages.netmail.bulk_read.failed' => 'Impossibile segnare i messaggi come letti',
     'errors.messages.echomail.bulk_read.invalid_input' => 'È richiesto un elenco non vuoto di ID messaggio',
     'errors.messages.echomail.bulk_read.failed' => 'Impossibile segnare i messaggi come letti',
     'errors.messages.echomail.bulk_delete.admin_required' => 'Sono richiesti privilegi di amministratore',

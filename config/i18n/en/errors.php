@@ -57,6 +57,8 @@ return [
     'errors.messages.netmail.not_found' => 'Message not found',
     'errors.messages.netmail.delete_failed' => 'Failed to delete message',
     'errors.messages.netmail.bulk_delete.invalid_input' => 'A non-empty message ID list is required',
+    'errors.messages.netmail.bulk_read.invalid_input' => 'A non-empty message ID list is required',
+    'errors.messages.netmail.bulk_read.failed' => 'Failed to mark messages as read',
     'errors.messages.echomail.bulk_read.invalid_input' => 'A non-empty message ID list is required',
     'errors.messages.echomail.bulk_read.failed' => 'Failed to mark messages as read',
     'errors.messages.echomail.bulk_delete.admin_required' => 'Admin privileges are required',
