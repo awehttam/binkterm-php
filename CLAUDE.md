@@ -216,3 +216,4 @@ The following project-scoped skills are available in `.claude/commands/`. When a
 - **`/usercredits-workflow`** — 5-place checklist for adding new UserCredit types
 - **`/logging-guide`** — log file table, per-context code patterns, log levels, adding a new log file
 - **`/new-webdoor`** — manifest requirement, SDK require path, API independence rule
+- **`/tackleissue <issue#>`** — assign, plan, implement, and close a GitHub issue

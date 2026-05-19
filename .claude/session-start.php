@@ -5,6 +5,7 @@ $skills = [
     '/usercredits-workflow — 5-place checklist for new UserCredit types',
     '/logging-guide — log file table, per-context code patterns',
     '/new-webdoor — manifest requirement, SDK require path',
+    '/tackleissue <issue#> — assign, plan, implement, and close a GitHub issue',
 ];
 echo json_encode([
     'systemMessage' => 'Welcome to BinktermPHP\'s Claude environment.' . PHP_EOL . PHP_EOL . 'Project skills (invoke with /skill-name):' . PHP_EOL . implode(PHP_EOL, $skills),
