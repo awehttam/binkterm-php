@@ -1989,7 +1989,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.last_post_subject as last_subject,
                     e.last_post_author  as last_author,
                     e.last_post_date    as last_date,
-                    e.allow_media
+                    e.allow_media,
+                    ues_my.is_active as subscribed
                 FROM echoareas e";
 
         // Add subscription filtering if requested
@@ -2015,7 +2016,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     FROM user_echoarea_subscriptions
                     WHERE is_active = TRUE
                     GROUP BY echoarea_id
-                ) sub_counts ON e.id = sub_counts.echoarea_id";
+                ) sub_counts ON e.id = sub_counts.echoarea_id
+                LEFT JOIN user_echoarea_subscriptions ues_my ON e.id = ues_my.echoarea_id AND ues_my.user_id = ? AND ues_my.is_active = TRUE";
 
         $params[] = $userId;
         foreach ($ignoreFilter['params'] as $param) {
@@ -2024,6 +2026,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         foreach ($moderationFilter['params'] as $param) {
             $params[] = $param;
         }
+        $params[] = $userId; // for ues_my subscription status JOIN
 
         if ($subscribedOnly === 'true') {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions

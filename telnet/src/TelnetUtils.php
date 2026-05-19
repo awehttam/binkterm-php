@@ -1034,6 +1034,8 @@ class TelnetUtils
             ['text' => ' Quit',      'color' => self::ANSI_BLUE],
         ];
         if (!empty($extraStatusSegments)) {
+            // Ensure a two-space gap between the base "Q Quit" and the first extra segment.
+            $statusBar[array_key_last($statusBar)]['text'] .= '  ';
             $statusBar = array_merge($statusBar, $extraStatusSegments);
         }
 

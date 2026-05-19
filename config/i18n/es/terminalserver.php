@@ -165,6 +165,18 @@ return [
     'ui.terminalserver.echomail.help_bookmark'         => 'Marcar / desmarcar mensaje',
     'ui.terminalserver.echomail.help_text_dl'          => 'Descargar como .txt (ZMODEM)',
     'ui.terminalserver.echomail.help_email_fwd'        => 'Reenviar a mi correo electronico',
+    'ui.terminalserver.echomail.areas_all_header'      => 'Todas las echoareas (página {page}/{total}):',
+    'ui.terminalserver.echomail.no_areas_browse_hint'  => 'Presione A para ver todas las áreas, Q para salir.',
+    'ui.terminalserver.echomail.no_areas_all'          => 'No hay echoareas disponibles.',
+    'ui.terminalserver.echomail.subscribe_title'       => '¿Suscribirse?',
+    'ui.terminalserver.echomail.subscribe_prompt'      => '¿Suscribirse a {area}?',
+    'ui.terminalserver.echomail.subscribe_and_browse'  => 'Suscribir y explorar',
+    'ui.terminalserver.echomail.browse_only'           => 'Solo explorar',
+    'ui.terminalserver.echomail.subscribe_failed'      => 'Error al suscribirse a {area}.',
+    'ui.terminalserver.echomail.unsubscribe_title'     => 'Cancelar suscripción',
+    'ui.terminalserver.echomail.unsubscribe_prompt'    => '¿Cancelar suscripción a {area}?',
+    'ui.terminalserver.echomail.unsubscribe_success'   => 'Suscripción cancelada de {area}.',
+    'ui.terminalserver.echomail.unsubscribe_failed'    => 'Error al cancelar suscripción de {area}.',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'No hay mensajes de netmail.',

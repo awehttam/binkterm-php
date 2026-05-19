@@ -165,6 +165,18 @@ return [
     'ui.terminalserver.echomail.help_bookmark'         => 'Aggiungi / rimuovi segnalibro',
     'ui.terminalserver.echomail.help_text_dl'          => 'Scarica come .txt (ZMODEM)',
     'ui.terminalserver.echomail.help_email_fwd'        => 'Inoltra al mio indirizzo email',
+    'ui.terminalserver.echomail.areas_all_header'      => 'Tutte le echoareas (pagina {page}/{total}):',
+    'ui.terminalserver.echomail.no_areas_browse_hint'  => 'Premi A per vedere tutte le aree, Q per uscire.',
+    'ui.terminalserver.echomail.no_areas_all'          => 'Nessuna echoarea disponibile.',
+    'ui.terminalserver.echomail.subscribe_title'       => 'Iscriversi?',
+    'ui.terminalserver.echomail.subscribe_prompt'      => 'Iscriversi a {area}?',
+    'ui.terminalserver.echomail.subscribe_and_browse'  => 'Iscriviti e sfoglia',
+    'ui.terminalserver.echomail.browse_only'           => 'Solo sfoglia',
+    'ui.terminalserver.echomail.subscribe_failed'      => 'Iscrizione a {area} non riuscita.',
+    'ui.terminalserver.echomail.unsubscribe_title'     => 'Annulla iscrizione',
+    'ui.terminalserver.echomail.unsubscribe_prompt'    => 'Annullare l\'iscrizione a {area}?',
+    'ui.terminalserver.echomail.unsubscribe_success'   => 'Iscrizione a {area} annullata.',
+    'ui.terminalserver.echomail.unsubscribe_failed'    => 'Impossibile annullare l\'iscrizione a {area}.',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Nessun messaggio netmail.',

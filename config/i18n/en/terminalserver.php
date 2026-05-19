@@ -165,6 +165,18 @@ return [
     'ui.terminalserver.echomail.help_bookmark'         => 'Bookmark / unsave message',
     'ui.terminalserver.echomail.help_text_dl'          => 'Download as .txt (ZMODEM)',
     'ui.terminalserver.echomail.help_email_fwd'        => 'Forward to my email address',
+    'ui.terminalserver.echomail.areas_all_header'      => 'All Echoareas (page {page}/{total}):',
+    'ui.terminalserver.echomail.no_areas_browse_hint'  => 'Press A to browse all areas, Q to quit.',
+    'ui.terminalserver.echomail.no_areas_all'          => 'No echo areas available.',
+    'ui.terminalserver.echomail.subscribe_title'       => 'Subscribe?',
+    'ui.terminalserver.echomail.subscribe_prompt'      => 'Subscribe to {area}?',
+    'ui.terminalserver.echomail.subscribe_and_browse'  => 'Subscribe & Browse',
+    'ui.terminalserver.echomail.browse_only'           => 'Browse Only',
+    'ui.terminalserver.echomail.subscribe_failed'      => 'Failed to subscribe to {area}.',
+    'ui.terminalserver.echomail.unsubscribe_title'     => 'Unsubscribe',
+    'ui.terminalserver.echomail.unsubscribe_prompt'    => 'Unsubscribe from {area}?',
+    'ui.terminalserver.echomail.unsubscribe_success'   => 'Unsubscribed from {area}.',
+    'ui.terminalserver.echomail.unsubscribe_failed'    => 'Failed to unsubscribe from {area}.',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'No netmail messages.',

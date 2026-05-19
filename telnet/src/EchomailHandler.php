@@ -51,15 +51,51 @@ class EchomailHandler
         $perPage         = MailUtils::getMessagesPerPage($state);
         $showInterestKey = \BinktermPHP\Config::env('ENABLE_INTERESTS') === 'true';
         $searchFilter    = null;
+        $allAreasMode    = false;
 
         while (true) {
-            $response = TelnetUtils::apiRequest(
-                $this->apiBase, 'GET', '/api/echoareas?subscribed_only=true', null, $session
-            );
+            $locale = $state['locale'];
+            $url    = $allAreasMode
+                ? '/api/echoareas'
+                : '/api/echoareas?subscribed_only=true';
+            $response = TelnetUtils::apiRequest($this->apiBase, 'GET', $url, null, $session);
             $allAreas = $response['data']['echoareas'] ?? [];
 
             if (!$allAreas) {
-                TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.echomail.no_areas', 'You are not subscribed to any areas.', [], $state['locale']));
+                if (!$allAreasMode) {
+                    // No subscribed areas — show a hint and let the user press A or Q
+                    TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+                    TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                        $this->server->t('ui.terminalserver.echomail.no_areas', 'You are not subscribed to any areas.', [], $locale),
+                        TelnetUtils::ANSI_YELLOW
+                    ));
+                    TelnetUtils::writeLine($conn, '');
+                    TelnetUtils::writeLine($conn, $this->server->t(
+                        'ui.terminalserver.echomail.no_areas_browse_hint',
+                        'Press A to browse all areas, Q to quit.',
+                        [],
+                        $locale
+                    ));
+                    while (true) {
+                        $key = $this->server->readKeyWithIdleCheck($conn, $state);
+                        if ($key === null) {
+                            return;
+                        }
+                        if (str_starts_with($key, 'CHAR:')) {
+                            $char = strtolower(substr($key, 5));
+                            if ($char === 'q') {
+                                return;
+                            }
+                            if ($char === 'a') {
+                                $allAreasMode = true;
+                                $page = 1;
+                                break;
+                            }
+                        }
+                    }
+                    continue;
+                }
+                TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.echomail.no_areas_all', 'No echo areas available.', [], $locale));
                 return;
             }
 
@@ -67,45 +103,140 @@ class EchomailHandler
                 ? $this->filterAreas($allAreas, $searchFilter)
                 : $allAreas;
 
+            $headerKey      = $allAreasMode ? 'ui.terminalserver.echomail.areas_all_header' : 'ui.terminalserver.echomail.areas_header';
+            $headerFallback = $allAreasMode ? 'All Echoareas (page {page}/{total}):' : 'Echoareas (page {page}/{total}):';
+
             $result = $this->pickEchoarea(
                 $conn, $state, $filteredAreas, $page, $perPage,
-                $this->server->t('ui.terminalserver.echomail.areas_header', 'Echoareas (page {page}/{total}):', [], $state['locale']),
+                $this->server->t($headerKey, $headerFallback, [], $locale),
                 $showInterestKey,
                 function(int $newPage) use ($session, &$state) {
                     $this->saveEchoareasPage($session, $newPage, $state['csrf_token'] ?? null);
                 },
-                $searchFilter
+                $searchFilter,
+                $allAreasMode
             );
             $page = $result['page'];
 
-            if ($result['action'] === 'quit') {
-                return;
-            }
-            if ($result['action'] === 'filter') {
-                $searchFilter = $result['filter'];
-                $page = 1;
-                continue;
-            }
-            if ($result['action'] === 'interests') {
-                $this->browseByInterest($conn, $state, $session);
-                continue;
-            }
-            if ($result['action'] === 'redraw') {
-                continue;
-            }
-            if ($result['action'] === 'search') {
-                $this->searchAllAreas($conn, $state, $session);
-                continue;
-            }
-            if ($result['action'] === 'select') {
-                $area   = $result['area'];
-                $tag    = $area['tag'] ?? '';
-                $domain = $area['domain'] ?? '';
-                $areaLabel = $this->formatEchoareaIdentifier($tag, $domain);
-                $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$areaLabel}");
-                $this->showMessages($conn, $state, $session, $tag, $domain);
+            switch ($result['action']) {
+                case 'quit':
+                    return;
+
+                case 'allareas':
+                    $allAreasMode = !$allAreasMode;
+                    $page         = 1;
+                    $searchFilter = null;
+                    break;
+
+                case 'filter':
+                    $searchFilter = $result['filter'];
+                    $page         = 1;
+                    break;
+
+                case 'interests':
+                    $this->browseByInterest($conn, $state, $session);
+                    break;
+
+                case 'search':
+                    $this->searchAllAreas($conn, $state, $session);
+                    break;
+
+                case 'unsubscribe':
+                    $area = $result['area'] ?? null;
+                    if (!$area || empty($area['subscribed'])) {
+                        break; // nothing to unsubscribe
+                    }
+                    $areaLabel = $this->formatEchoareaIdentifier($area['tag'] ?? '', $area['domain'] ?? '');
+                    $choice    = TelnetUtils::showConfirmDialog(
+                        $conn, $state, $this->server,
+                        $this->server->t('ui.terminalserver.echomail.unsubscribe_title', 'Unsubscribe', [], $locale),
+                        $this->server->t('ui.terminalserver.echomail.unsubscribe_prompt', 'Unsubscribe from {area}?', ['area' => $areaLabel], $locale),
+                        [
+                            'y' => $this->server->t('ui.terminalserver.server.confirm_yes', 'Confirm', [], $locale),
+                            'n' => $this->server->t('ui.terminalserver.server.confirm_no',  'Cancel',  [], $locale),
+                        ],
+                        'n'
+                    );
+                    if ($choice === 'y') {
+                        $ok  = $this->callUnsubscribeArea($session, (int)($area['id'] ?? 0), $state['csrf_token'] ?? null);
+                        $msg = $ok
+                            ? $this->server->t('ui.terminalserver.echomail.unsubscribe_success', 'Unsubscribed from {area}.', ['area' => $areaLabel], $locale)
+                            : $this->server->t('ui.terminalserver.echomail.unsubscribe_failed', 'Failed to unsubscribe from {area}.', ['area' => $areaLabel], $locale);
+                        TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Unsubscribe', $msg, $ok ? 'info' : 'error');
+                        if ($ok) {
+                            $this->server->logAction($state['username'] ?? 'unknown', "Echomail: unsubscribed from {$areaLabel}");
+                        }
+                    }
+                    break;
+
+                case 'select':
+                    $area      = $result['area'];
+                    $tag       = $area['tag'] ?? '';
+                    $domain    = $area['domain'] ?? '';
+                    $areaLabel = $this->formatEchoareaIdentifier($tag, $domain);
+
+                    if ($allAreasMode && empty($area['subscribed'])) {
+                        $choice = TelnetUtils::showConfirmDialog(
+                            $conn, $state, $this->server,
+                            $this->server->t('ui.terminalserver.echomail.subscribe_title', 'Subscribe?', [], $locale),
+                            $this->server->t('ui.terminalserver.echomail.subscribe_prompt', 'Subscribe to {area}?', ['area' => $areaLabel], $locale),
+                            [
+                                's' => $this->server->t('ui.terminalserver.echomail.subscribe_and_browse', 'Subscribe & Browse', [], $locale),
+                                'b' => $this->server->t('ui.terminalserver.echomail.browse_only', 'Browse Only', [], $locale),
+                                'q' => $this->server->t('ui.terminalserver.server.confirm_no', 'Cancel', [], $locale),
+                            ],
+                            'b'
+                        );
+                        if ($choice === 'q') {
+                            break;
+                        }
+                        if ($choice === 's') {
+                            $ok = $this->callSubscribeArea($session, (int)($area['id'] ?? 0), $state['csrf_token'] ?? null);
+                            if (!$ok) {
+                                TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Subscribe',
+                                    $this->server->t('ui.terminalserver.echomail.subscribe_failed', 'Failed to subscribe to {area}.', ['area' => $areaLabel], $locale),
+                                    'error');
+                                break;
+                            }
+                            $this->server->logAction($state['username'] ?? 'unknown', "Echomail: subscribed to {$areaLabel}");
+                        }
+                    }
+
+                    $this->server->logAction($state['username'] ?? 'unknown', "Echomail: entered area {$areaLabel}");
+                    $this->showMessages($conn, $state, $session, $tag, $domain);
+                    break;
             }
         }
+    }
+
+    /**
+     * Subscribe the current user to an echoarea via the subscriptions API.
+     *
+     * @return bool True on success
+     */
+    private function callSubscribeArea(string $session, int $echoareaId, ?string $csrfToken): bool
+    {
+        $result = TelnetUtils::apiRequest(
+            $this->apiBase, 'POST', '/api/subscriptions/user',
+            ['action' => 'subscribe', 'echoarea_id' => $echoareaId],
+            $session, 3, $csrfToken
+        );
+        return ($result['status'] === 200) && !empty($result['data']['success']);
+    }
+
+    /**
+     * Unsubscribe the current user from an echoarea via the subscriptions API.
+     *
+     * @return bool True on success
+     */
+    private function callUnsubscribeArea(string $session, int $echoareaId, ?string $csrfToken): bool
+    {
+        $result = TelnetUtils::apiRequest(
+            $this->apiBase, 'POST', '/api/subscriptions/user',
+            ['action' => 'unsubscribe', 'echoarea_id' => $echoareaId],
+            $session, 3, $csrfToken
+        );
+        return ($result['status'] === 200) && !empty($result['data']['success']);
     }
 
     /**
@@ -732,7 +863,8 @@ class EchomailHandler
         string $title,
         bool $showInterestKey,
         ?callable $onPageChange,
-        ?string $searchFilter = null
+        ?string $searchFilter = null,
+        bool $allAreasMode = false
     ): array {
         $locale     = $state['locale'];
         $totalPages = max(1, (int)ceil(count($allAreas) / $perPage));
@@ -754,14 +886,18 @@ class EchomailHandler
             ? $this->server->encodeForTerminal($styledHeader)
             : $styledHeader;
 
-        $buildRows = function (array $pageAreas): array {
+        $buildRows = function (array $pageAreas) use ($allAreasMode): array {
             $rows = [];
             foreach ($pageAreas as $idx => $area) {
+                $subscribed = !empty($area['subscribed']);
+                $tagWidth   = $allAreasMode ? 16 : 20;
                 $row = $this->renderEchoAreaSelectionLine(
                     $idx + 1,
-                    (string)substr($area['tag'] ?? '', 0, 20),
+                    (string)substr($area['tag'] ?? '', 0, $tagWidth),
                     (string)substr($area['domain'] ?? '', 0, 10),
-                    (string)substr($area['description'] ?? '', 0, 40)
+                    (string)substr($area['description'] ?? '', 0, 38),
+                    $allAreasMode,
+                    $subscribed
                 );
                 if (method_exists($this->server, 'encodeForTerminal')) {
                     $row = $this->server->encodeForTerminal($row);
@@ -779,7 +915,7 @@ class EchomailHandler
             )];
         }
 
-        $extraKeys = ['/' => 'filter', 's' => 'search'];
+        $extraKeys = ['/' => 'filter', 's' => 'search', 'a' => 'allareas', 'u' => 'unsubscribe'];
         if ($showInterestKey) {
             $extraKeys['i'] = 'interests';
         }
@@ -787,13 +923,18 @@ class EchomailHandler
             $extraKeys['c'] = 'clearfilter';
         }
 
+        $allAreasLabel = $allAreasMode ? 'My Areas' : 'All';
         $statusBar = [
-            ['text' => 'U/D',      'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Move  ',  'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'L/R',      'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Page  ',  'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => '/',        'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Filter  ', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'U/D',               'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Move  ',           'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'L/R',               'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Page  ',           'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => '/',                 'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Filter  ',         'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'A',                 'color' => TelnetUtils::ANSI_RED],
+            ['text' => " {$allAreasLabel}  ", 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'U',                 'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Unsub  ',          'color' => TelnetUtils::ANSI_BLUE],
         ];
         if ($showInterestKey) {
             $statusBar[] = ['text' => 'I',           'color' => TelnetUtils::ANSI_RED];
@@ -835,6 +976,16 @@ class EchomailHandler
                 $index = $result['index'];
                 if (isset($areas[$index])) {
                     return ['action' => 'select', 'area' => $areas[$index], 'page' => $page];
+                }
+                return ['action' => 'redraw', 'page' => $page];
+
+            case 'allareas':
+                return ['action' => 'allareas', 'page' => $page];
+
+            case 'unsubscribe':
+                $index = $result['index'];
+                if (isset($areas[$index])) {
+                    return ['action' => 'unsubscribe', 'area' => $areas[$index], 'page' => $page];
                 }
                 return ['action' => 'redraw', 'page' => $page];
 
@@ -1414,14 +1565,24 @@ class EchomailHandler
 
     /**
      * Render one echoarea option with cyan number hotkey and blue ")" accent.
+     *
+     * @param bool $showBadge  When true, prefix a [+] / [ ] subscription badge
+     * @param bool $subscribed Used with $showBadge to choose which badge to display
      */
-    private function renderEchoAreaSelectionLine(int $num, string $tag, string $domain, string $desc): string
+    private function renderEchoAreaSelectionLine(int $num, string $tag, string $domain, string $desc, bool $showBadge = false, bool $subscribed = true): string
     {
-        $suffix = sprintf(' %-20s %-10s %s', $tag, $domain, $desc);
+        $badge = '';
+        if ($showBadge) {
+            $badge = $subscribed
+                ? TelnetUtils::colorize('[+]', TelnetUtils::ANSI_GREEN) . ' '
+                : TelnetUtils::colorize('[ ]', TelnetUtils::ANSI_DIM) . ' ';
+        }
+        $tagWidth = $showBadge ? 16 : 20;
+        $suffix   = sprintf(' %-' . $tagWidth . 's %-10s %s', $tag, $domain, $desc);
         return ' '
             . TelnetUtils::colorize(sprintf('%2d', $num), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
             . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
-            . $suffix;
+            . ' ' . $badge . ltrim($suffix);
     }
 
     /**

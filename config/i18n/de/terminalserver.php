@@ -169,6 +169,18 @@ return [
     'ui.terminalserver.echomail.help_bookmark'         => 'Nachricht mit Lesezeichen versehen / entfernen',
     'ui.terminalserver.echomail.help_text_dl'          => 'Als .txt herunterladen (ZMODEM)',
     'ui.terminalserver.echomail.help_email_fwd'        => 'An meine E-Mail-Adresse weiterleiten',
+    'ui.terminalserver.echomail.areas_all_header'      => 'Alle Echobereiche (Seite {page}/{total}):',
+    'ui.terminalserver.echomail.no_areas_browse_hint'  => 'Drücken Sie A, um alle Bereiche zu durchsuchen, Q zum Beenden.',
+    'ui.terminalserver.echomail.no_areas_all'          => 'Keine Echobereiche verfügbar.',
+    'ui.terminalserver.echomail.subscribe_title'       => 'Abonnieren?',
+    'ui.terminalserver.echomail.subscribe_prompt'      => '{area} abonnieren?',
+    'ui.terminalserver.echomail.subscribe_and_browse'  => 'Abonnieren & Durchsuchen',
+    'ui.terminalserver.echomail.browse_only'           => 'Nur durchsuchen',
+    'ui.terminalserver.echomail.subscribe_failed'      => 'Fehler beim Abonnieren von {area}.',
+    'ui.terminalserver.echomail.unsubscribe_title'     => 'Abbestellen',
+    'ui.terminalserver.echomail.unsubscribe_prompt'    => '{area} abbestellen?',
+    'ui.terminalserver.echomail.unsubscribe_success'   => '{area} abbestellt.',
+    'ui.terminalserver.echomail.unsubscribe_failed'    => 'Fehler beim Abbestellen von {area}.',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Keine Netmail-Nachrichten.',
