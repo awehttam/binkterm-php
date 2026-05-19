@@ -164,6 +164,9 @@ class PacketBbsGateway
             case 'FULLHELP':
             case 'HELPFUL':
             case 'HELPFULL':
+                if (empty($session['user_id'])) {
+                    return $renderer->renderAbout($this->getBbsName(), Config::getSiteUrl());
+                }
                 return $renderer->renderHelp($verb, $this->getBbsName(), $state);
 
             case 'L':
