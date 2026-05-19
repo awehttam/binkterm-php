@@ -19,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Echomail Search in Terminal](#echomail-search-in-terminal)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer)
   - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation)
+  - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal)
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
@@ -40,6 +41,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Echomail Search in Terminal](#echomail-search-in-terminal-1)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
   - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation-1)
+  - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal-1)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
@@ -84,6 +86,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Echomail full-text search in the terminal**: pressing `S` from the echoarea list searches all subscribed areas; pressing `S` from within a specific area's message list searches that area only. Search results are shown in a paginated list; opening a result highlights the matched term in white on yellow in the message body.
 - **Ctrl-K help overlay in the terminal message viewer**: all terminal message readers (netmail and echomail) now show a framed keyboard-reference panel when the user presses `Ctrl-K`. The panel lists every available key binding, including secondary actions that are not shown on the status bar. The overlay responds to terminal resize events while it is open and propagates any resize back to the message viewer when it is dismissed. The status bar in both readers has been trimmed to the five most-used actions (scroll, prev/next, reply, Ctrl-K help, and quit); all other keys are documented exclusively in the Ctrl-K overlay.
 - **Echoarea list and interests picker navigation**: the echoarea list and the interests browser now use the same navigable list interface as message lists — arrow keys move the highlight cursor, Left/Right arrows change pages, Enter selects, and a status bar shows available actions. Number type-to-jump still works. The list redraws on terminal resize. No upgrade action is required.
+- **Subscribe/unsubscribe to echoareas from terminal**: press `A` to toggle between your subscribed areas and all available areas. In all-areas view each row shows a `[+]`/`[ ]` subscription badge. Selecting an unsubscribed area offers Subscribe & Browse, Browse Only, or Cancel. Press `U` on any area to unsubscribe via a confirmation dialog. No upgrade action is required.
 - **ZMODEM documentation corrected**: `docs/TerminalServer.md` previously stated that external `sz`/`rz` binaries from `lrzsz` were required and that the built-in PHP ZMODEM implementation was a fallback. This was incorrect. The built-in PHP implementation is the default and preferred path because it correctly handles Telnet IAC (0xFF) byte escaping. External binaries are an opt-in option that requires the sysop to explicitly set `TELNET_ZMODEM_FORCE_PHP=false` in `.env`. No code change; documentation only. No upgrade action is required.
 
 ### PacketBBS
@@ -335,6 +338,28 @@ The `/` filter, `S` cross-area search, `C` clear-filter, and `I` interests keys 
 **What changed for the interests browser:**
 
 The interests picker uses the same widget: arrow keys or number+Enter to select an interest, Q to return.
+
+No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+
+---
+
+### Subscribe and Unsubscribe to Echoareas from Terminal {#subscribe-and-unsubscribe-to-echoareas-from-terminal-1}
+
+Terminal users can now subscribe and unsubscribe to echo areas without leaving the terminal, matching the controls available in the web interface.
+
+**Browsing all areas** — press `A` from the echoarea list to switch from your subscribed areas to the full list of available areas on this BBS. Press `A` again to return to your subscribed list. When you switch to all-areas view, each row shows a `[+]` badge if you are subscribed or a `[ ]` badge if you are not.
+
+**Subscribing** — while in all-areas view, navigate to an area you are not subscribed to and press Enter. A dialog appears offering three choices:
+
+- **S) Subscribe & Browse** — subscribes you to the area and then opens its message list
+- **B) Browse Only** — opens the message list without subscribing
+- **Q) Cancel** — returns to the area list
+
+**Unsubscribing** — press `U` on any area (in either subscribed or all-areas view) to open a confirmation dialog. Confirm with `Y` to unsubscribe; any other key cancels. After a successful unsubscribe the list refreshes automatically.
+
+**Empty subscribed list** — if you have no subscribed areas (for example on a new account), the terminal shows a hint and waits for you to press `A` (browse all) or `Q` (quit) rather than returning immediately. This allows you to discover and subscribe to areas in a single flow.
+
+`GET /api/echoareas` now includes a `subscribed` boolean field on each area object, indicating whether the authenticated user is currently subscribed. Clients that do not use this field are unaffected.
 
 No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
 
