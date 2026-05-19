@@ -81,7 +81,7 @@ Each transport daemon has additional extension requirements — see
 - Press `Space` in the netmail inbox list to toggle the highlighted message in or out of the selection set (green `*` marker); press `M` to **mark the selected messages as read**. Multi-select and M are available in the inbox only — not the Sent folder. Ctrl-K shows both keys in the help overlay.
 - Press `O` from the netmail message list to **change the list sort order**. The terminal netmail reader now exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user opens netmail from the terminal.
 - Press `O` from an echomail area's message list to **change the list sort order**. The terminal reader exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user re-enters an echomail area from the terminal.
-- When composing a **new** echomail message (not a reply), the compose flow asks "Cross-post to other areas? [y/N]:" immediately after showing the destination area. Answering `y` opens a checkbox picker listing all other subscribed areas. Use Up/Down arrows to navigate, Space to toggle each area, Enter to confirm, or Q to skip cross-posting. The number of additional areas is capped by the **Max cross-post areas** setting in the BBS admin (default 5). Scroll indicators (▲/▼) appear when the list is taller than the visible dialog area.
+- When composing a **new** echomail message (not a reply), the compose flow asks "Cross-post to other areas? [y/N]:" immediately after showing the destination area. Answering `y` opens a checkbox picker listing all other subscribed areas. Use Up/Down arrows to navigate, Space to toggle each area, Enter to confirm, or Q to skip cross-posting. The number of additional areas is capped by the **Max cross-post areas** setting in the BBS admin (default 5). Scroll indicators (▲/▼) appear when the list is taller than the visible dialog area. If the terminal is resized while this picker is open, the compose-flow background is cleared and the picker is redrawn at the new size so old dialog content does not remain on screen.
 - Terminal confirmation and selection dialogs now redraw on live resize. If the user resizes the window while a centered terminal dialog is open, both the background screen and the dialog reflow to the new dimensions instead of waiting for the dialog to close.
 
 ### Full-Screen Message Editor
@@ -89,6 +89,7 @@ Each transport daemon has additional extension requirements — see
 - Arrow key navigation (Up, Down, Left, Right, Home, End, Page Up, Page Down)
 - Insert and edit text at any cursor position
 - Delete characters with Backspace/Delete
+- The editor now uses the same framed blue panel style as the other terminal overlays, with a titled top border, bordered compose area, and a footer hint row. The `Ctrl-K` help screen uses the same dialog treatment instead of dropping to an unframed text page.
 - Line operations:
   - Enter: Insert new line at cursor
   - Ctrl+Y: Delete entire current line

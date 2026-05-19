@@ -2669,54 +2669,178 @@ class BbsSession
      */
     private function fullScreenEditor($conn, array &$state, string $initialText = '', array $editorContext = []): string
     {
-        $rows = $state['rows'] ?? 24;
-        $cols = $state['cols'] ?? 80;
+        $rows      = $state['rows'] ?? 24;
+        $cols      = $state['cols'] ?? 80;
         if ($this->debug) { $this->log("Editor: {$cols}x{$rows}"); }
 
-        $this->safeWrite($conn, "\033[2J\033[H\033[?25h");
-        $width     = min($cols - 2, 70);
-        $separator = str_repeat('=', $width);
         $title     = $editorContext['title'] ?? $this->t('ui.terminalserver.editor.title', 'MESSAGE EDITOR - FULL SCREEN MODE', [], $state['locale']);
         $shortcuts = $editorContext['shortcuts'] ?? $this->t('ui.terminalserver.editor.shortcuts', 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', [], $state['locale']);
         $saved     = $editorContext['saved'] ?? $this->t('ui.terminalserver.editor.saved', 'Message saved and ready to send.', [], $state['locale']);
 
-        $headerLines = 0;
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($title, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($shortcuts, self::ANSI_YELLOW)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-
         $lines     = $initialText !== '' ? explode("\n", $initialText) ?: [''] : [''];
-        $editorWidth = max(10, $cols - 2);
         $cursorRow = 0;
         $cursorCol = 0;
-        [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
         $viewTop   = 0;
-        $startRow  = $headerLines + 1;
-        $maxRows   = max(10, $rows - $startRow - 2);
+
+        $chars         = $this->getLineDrawingChars();
+        $ansi          = $this->ansiColorEnabled;
+        $rst           = self::ANSI_RESET;
+        $bg            = self::ANSI_BG_BLUE;
+        $frame         = $bg . "\033[1;37m";
+        $body          = $bg . "\033[37m";
+        $topBorder     = '';
+        $midBorder     = '';
+        $bottomBorder  = '';
+        $footerText    = '';
+        $editorWidth   = 0;
+        $maxRows       = 0;
+        $cursorBaseCol = 3;
+
+        $rebuildLayout = function () use (
+            &$state,
+            &$rows,
+            &$cols,
+            &$chars,
+            &$topBorder,
+            &$midBorder,
+            &$bottomBorder,
+            &$footerText,
+            &$editorWidth,
+            &$maxRows,
+            $title,
+            $shortcuts
+        ): void {
+            $rows       = $state['rows'] ?? 24;
+            $cols       = $state['cols'] ?? 80;
+            $chars      = $this->getLineDrawingChars();
+            $innerWidth = max(18, $cols - 2);
+            $editorWidth = max(10, $innerWidth - 2);
+            $maxRows     = max(3, $rows - 4);
+
+            $titleLine = ' ' . $title . ' ';
+            $titleLen  = mb_strlen($titleLine);
+            $totalHz   = max(0, $innerWidth - $titleLen);
+            $topBorder = $this->encodeForTerminal(
+                $chars['tl']
+                . str_repeat($chars['h_bold'], (int)floor($totalHz / 2))
+                . $titleLine
+                . str_repeat($chars['h_bold'], (int)ceil($totalHz / 2))
+                . $chars['tr']
+            );
+            $midBorder = $this->encodeForTerminal(
+                $chars['l_tee'] . str_repeat($chars['h'], $innerWidth) . $chars['r_tee']
+            );
+            $bottomBorder = $this->encodeForTerminal(
+                $chars['bl'] . str_repeat($chars['h'], $innerWidth) . $chars['br']
+            );
+
+            $footerPlain = mb_substr($shortcuts, 0, $editorWidth);
+            $footerText  = $this->encodeForTerminal($this->mbStrPad($footerPlain, $editorWidth, ' ', STR_PAD_BOTH));
+        };
+
+        $rebuildLayout();
+        [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
 
         $this->setEcho($conn, $state, false);
         $this->safeWrite($conn, "\033[?25h");
 
-        while (true) {
-            $this->safeWrite($conn, "\033[{$startRow};1H\033[J");
+        $renderEditor = function () use (
+            $conn,
+            &$lines,
+            &$cursorRow,
+            &$cursorCol,
+            &$viewTop,
+            &$rows,
+            &$cols,
+            &$editorWidth,
+            &$maxRows,
+            &$topBorder,
+            &$midBorder,
+            &$bottomBorder,
+            &$footerText,
+            &$chars,
+            $ansi,
+            $frame,
+            $body,
+            $rst,
+            $cursorBaseCol
+        ): void {
+            $vert = $this->encodeForTerminal($chars['v']);
+            $this->safeWrite($conn, "\033[2J\033[H\033[?25l");
 
             $maxTop = max(0, count($lines) - $maxRows);
-            if ($viewTop > $maxTop)                        { $viewTop = $maxTop; }
-            if ($cursorRow < $viewTop)                     { $viewTop = $cursorRow; }
-            elseif ($cursorRow >= $viewTop + $maxRows)     { $viewTop = $cursorRow - $maxRows + 1; }
-
-            foreach (array_slice($lines, $viewTop, $maxRows) as $idx => $line) {
-                $this->safeWrite($conn, "\033[" . ($startRow + $idx) . ";1H" . substr($line, 0, $cols - 1));
+            if ($viewTop > $maxTop) {
+                $viewTop = $maxTop;
+            }
+            if ($cursorRow < $viewTop) {
+                $viewTop = $cursorRow;
+            } elseif ($cursorRow >= $viewTop + $maxRows) {
+                $viewTop = $cursorRow - $maxRows + 1;
             }
 
-            $displayRow = $startRow + ($cursorRow - $viewTop);
-            $displayCol = $cursorCol + 1;
-            $this->safeWrite($conn, "\033[{$displayRow};{$displayCol}H");
+            if ($ansi) {
+                $this->safeWrite($conn, "\033[1;1H" . $frame . $topBorder . $rst);
+            } else {
+                $this->safeWrite($conn, "\033[1;1H" . $topBorder);
+            }
 
+            for ($idx = 0; $idx < $maxRows; $idx++) {
+                $line = $lines[$viewTop + $idx] ?? '';
+                $text = $this->encodeForTerminal($this->mbStrPad(mb_substr($line, 0, $editorWidth), $editorWidth));
+                $row  = 2 + $idx;
+                if ($ansi) {
+                    $this->safeWrite(
+                        $conn,
+                        "\033[{$row};1H" . $frame . $vert . $body . ' ' . $text . ' ' . $frame . $vert . $rst
+                    );
+                } else {
+                    $this->safeWrite($conn, "\033[{$row};1H" . $vert . ' ' . $text . ' ' . $vert);
+                }
+            }
+
+            $separatorRow = $maxRows + 2;
+            $footerRow    = $maxRows + 3;
+            $bottomRow    = $maxRows + 4;
+            if ($ansi) {
+                $this->safeWrite($conn, "\033[{$separatorRow};1H" . $frame . $midBorder . $rst);
+                $this->safeWrite(
+                    $conn,
+                    "\033[{$footerRow};1H" . $frame . $vert . $body . ' ' . $footerText . ' ' . $frame . $vert . $rst
+                );
+                $this->safeWrite($conn, "\033[{$bottomRow};1H" . $frame . $bottomBorder . $rst);
+            } else {
+                $this->safeWrite($conn, "\033[{$separatorRow};1H" . $midBorder);
+                $this->safeWrite($conn, "\033[{$footerRow};1H" . $vert . ' ' . $footerText . ' ' . $vert);
+                $this->safeWrite($conn, "\033[{$bottomRow};1H" . $bottomBorder);
+            }
+
+            $displayRow = 2 + ($cursorRow - $viewTop);
+            $displayCol = $cursorBaseCol + $cursorCol;
+            $this->safeWrite($conn, "\033[{$displayRow};{$displayCol}H\033[?25h");
+        };
+
+        $renderEditor();
+        $lastRows = $rows;
+        $lastCols = $cols;
+
+        while (true) {
             $char = $this->readRawChar($conn, $state);
             if ($char === null) { $this->setEcho($conn, $state, true); return ''; }
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $rebuildLayout();
+                [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
+                $renderEditor();
+                if ($char === "\x00") {
+                    continue;
+                }
+            } elseif ($char === "\x00") {
+                continue;
+            }
 
             $ord = ord($char[0]);
 
@@ -2725,18 +2849,19 @@ class BbsSession
             if ($ord === 25) { // Ctrl+Y — delete line
                 if (count($lines) > 1) { array_splice($lines, $cursorRow, 1); if ($cursorRow >= count($lines)) { $cursorRow = count($lines) - 1; } $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); }
                 else { $lines[0] = ''; $cursorCol = 0; }
+                $renderEditor();
                 continue;
             }
-            if ($ord === 11) { $this->showEditorHelp($conn, $state, $editorContext); continue; }  // Ctrl+K
-            if ($ord === 1)  { $cursorCol = 0; continue; }  // Ctrl+A
-            if ($ord === 5)  { $cursorCol = strlen($lines[$cursorRow]); continue; }  // Ctrl+E
+            if ($ord === 11) { $this->showEditorHelp($conn, $state, $editorContext); $renderEditor(); continue; }  // Ctrl+K
+            if ($ord === 1)  { $cursorCol = 0; $renderEditor(); continue; }  // Ctrl+A
+            if ($ord === 5)  { $cursorCol = strlen($lines[$cursorRow]); $renderEditor(); continue; }  // Ctrl+E
 
-            if ($char === self::KEY_UP)    { if ($cursorRow > 0)                    { $cursorRow--; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } continue; }
-            if ($char === self::KEY_DOWN)  { if ($cursorRow < count($lines) - 1)    { $cursorRow++; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } continue; }
-            if ($char === self::KEY_LEFT)  { if ($cursorCol > 0) { $cursorCol--; } elseif ($cursorRow > 0) { $cursorRow--; $cursorCol = strlen($lines[$cursorRow]); } continue; }
-            if ($char === self::KEY_RIGHT) { if ($cursorCol < strlen($lines[$cursorRow])) { $cursorCol++; } elseif ($cursorRow < count($lines) - 1) { $cursorRow++; $cursorCol = 0; } continue; }
-            if ($char === self::KEY_HOME)  { $cursorCol = 0; continue; }
-            if ($char === self::KEY_END)   { $cursorCol = strlen($lines[$cursorRow]); continue; }
+            if ($char === self::KEY_UP)    { if ($cursorRow > 0)                    { $cursorRow--; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } $renderEditor(); continue; }
+            if ($char === self::KEY_DOWN)  { if ($cursorRow < count($lines) - 1)    { $cursorRow++; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } $renderEditor(); continue; }
+            if ($char === self::KEY_LEFT)  { if ($cursorCol > 0) { $cursorCol--; } elseif ($cursorRow > 0) { $cursorRow--; $cursorCol = strlen($lines[$cursorRow]); } $renderEditor(); continue; }
+            if ($char === self::KEY_RIGHT) { if ($cursorCol < strlen($lines[$cursorRow])) { $cursorCol++; } elseif ($cursorRow < count($lines) - 1) { $cursorRow++; $cursorCol = 0; } $renderEditor(); continue; }
+            if ($char === self::KEY_HOME)  { $cursorCol = 0; $renderEditor(); continue; }
+            if ($char === self::KEY_END)   { $cursorCol = strlen($lines[$cursorRow]); $renderEditor(); continue; }
 
             if ($ord === 13 || $ord === 10) {
                 if ($ord === 13) {
@@ -2748,6 +2873,7 @@ class BbsSession
                 $lines[$cursorRow] = $before;
                 array_splice($lines, $cursorRow + 1, 0, [$after]);
                 $cursorRow++; $cursorCol = 0;
+                $renderEditor();
                 continue;
             }
 
@@ -2763,6 +2889,7 @@ class BbsSession
                     $cursorRow--;
                 }
                 [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
+                $renderEditor();
                 continue;
             }
             if ($char === self::KEY_DELETE) {
@@ -2773,17 +2900,19 @@ class BbsSession
                     array_splice($lines, $cursorRow + 1, 1);
                 }
                 [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
+                $renderEditor();
                 continue;
             }
             if ($ord >= 32 && $ord < 127) {
                 $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol) . $char . substr($lines[$cursorRow], $cursorCol);
                 $cursorCol++;
                 [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
+                $renderEditor();
             }
         }
 
         $this->setEcho($conn, $state, true);
-        $this->safeWrite($conn, "\033[" . ($startRow + $maxRows + 1) . ";1H");
+        $this->safeWrite($conn, "\033[" . ($maxRows + 5) . ";1H");
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize($saved, self::ANSI_GREEN));
         $this->writeLine($conn, '');
@@ -2847,23 +2976,141 @@ class BbsSession
      */
     private function showEditorHelp($conn, array &$state, array $editorContext = []): void
     {
-        $this->safeWrite($conn, "\033[2J\033[H");
         $helpTitle = $editorContext['help_title'] ?? $this->t('ui.terminalserver.editor.help.title', 'MESSAGE EDITOR HELP', [], $state['locale']);
         $helpSave = $editorContext['help_save'] ?? $this->t('ui.terminalserver.editor.help.save', 'Ctrl+Z = Save message and send', [], $state['locale']);
         $helpCancel = $editorContext['help_cancel'] ?? $this->t('ui.terminalserver.editor.help.cancel', 'Ctrl+C = Cancel and discard message', [], $state['locale']);
-        $this->writeLine($conn, $this->colorize($helpTitle, self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.separator',   '-------------------',                  [], $state['locale']), self::ANSI_CYAN));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.navigate',    'Arrow Keys = Navigate cursor',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.edit',        'Backspace/Delete = Edit text',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.help',        'Ctrl+K = Help',                       [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.start_of_line','Ctrl+A = Start of line',             [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.end_of_line', 'Ctrl+E = End of line',                [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.delete_line', 'Ctrl+Y = Delete entire line',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($helpSave, self::ANSI_GREEN));
-        $this->writeLine($conn, $this->colorize($helpCancel, self::ANSI_RED));
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), self::ANSI_YELLOW));
-        $this->readRawChar($conn, $state);
+        $helpLines = [
+            $this->t('ui.terminalserver.editor.help.navigate', 'Arrow Keys = Navigate cursor', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.edit', 'Backspace/Delete = Edit text', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.help', 'Ctrl+K = Help', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.start_of_line', 'Ctrl+A = Start of line', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.end_of_line', 'Ctrl+E = End of line', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.delete_line', 'Ctrl+Y = Delete entire line', [], $state['locale']),
+            $helpSave,
+            $helpCancel,
+            '',
+            $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']),
+        ];
+
+        $ansi = $this->ansiColorEnabled;
+        $rst  = self::ANSI_RESET;
+        $bg   = self::ANSI_BG_BLUE;
+        $frame = $bg . "\033[1;37m";
+        $body  = $bg . "\033[37m";
+        $chars = $this->getLineDrawingChars();
+        $topBorder = '';
+        $bottomBorder = '';
+        $startRow = 1;
+        $startCol = 1;
+        $innerWidth = 0;
+
+        $rebuildLayout = function () use (
+            &$state,
+            &$chars,
+            &$topBorder,
+            &$bottomBorder,
+            &$startRow,
+            &$startCol,
+            &$innerWidth,
+            $helpTitle,
+            $helpLines
+        ): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+            $chars = $this->getLineDrawingChars();
+
+            $longest = mb_strlen($helpTitle) + 4;
+            foreach ($helpLines as $line) {
+                $longest = max($longest, mb_strlen($line) + 2);
+            }
+
+            $innerWidth = max(24, min($longest, $cols - 6));
+            $boxWidth   = $innerWidth + 2;
+            $boxHeight  = count($helpLines) + 2;
+            $startRow   = max(1, (int)round(($rows - $boxHeight) / 2));
+            $startCol   = max(1, (int)round(($cols - $boxWidth) / 2));
+
+            $titleLine   = ' ' . $helpTitle . ' ';
+            $titleLen    = mb_strlen($titleLine);
+            $totalHz     = max(0, $innerWidth - $titleLen);
+            $topBorder   = $this->encodeForTerminal(
+                $chars['tl']
+                . str_repeat($chars['h_bold'], (int)floor($totalHz / 2))
+                . $titleLine
+                . str_repeat($chars['h_bold'], (int)ceil($totalHz / 2))
+                . $chars['tr']
+            );
+            $bottomBorder = $this->encodeForTerminal(
+                $chars['bl'] . str_repeat($chars['h'], $innerWidth) . $chars['br']
+            );
+        };
+
+        $render = function () use (
+            $conn,
+            &$state,
+            &$chars,
+            &$topBorder,
+            &$bottomBorder,
+            &$startRow,
+            &$startCol,
+            &$innerWidth,
+            $helpLines,
+            $ansi,
+            $frame,
+            $body,
+            $rst
+        ): void {
+            $vert = $this->encodeForTerminal($chars['v']);
+            $this->safeWrite($conn, "\033[2J\033[H\033[?25l");
+            if ($ansi) {
+                $this->safeWrite($conn, "\033[{$startRow};{$startCol}H" . $frame . $topBorder . $rst);
+            } else {
+                $this->safeWrite($conn, "\033[{$startRow};{$startCol}H" . $topBorder);
+            }
+
+            foreach ($helpLines as $idx => $line) {
+                $row    = $startRow + 1 + $idx;
+                $padded = $this->encodeForTerminal($this->mbStrPad(mb_substr($line, 0, $innerWidth - 2), $innerWidth - 2));
+                if ($ansi) {
+                    $this->safeWrite(
+                        $conn,
+                        "\033[{$row};{$startCol}H" . $frame . $vert . $body . ' ' . $padded . ' ' . $frame . $vert . $rst
+                    );
+                } else {
+                    $this->safeWrite($conn, "\033[{$row};{$startCol}H" . $vert . ' ' . $padded . ' ' . $vert);
+                }
+            }
+
+            $bottomRow = $startRow + count($helpLines) + 1;
+            if ($ansi) {
+                $this->safeWrite($conn, "\033[{$bottomRow};{$startCol}H" . $frame . $bottomBorder . $rst);
+            } else {
+                $this->safeWrite($conn, "\033[{$bottomRow};{$startCol}H" . $bottomBorder);
+            }
+            $this->safeWrite($conn, "\033[?25h");
+        };
+
+        $rebuildLayout();
+        $render();
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $this->readKeyWithIdleCheck($conn, $state);
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $rebuildLayout();
+                $render();
+                continue;
+            }
+            if ($key === null || $key === 'ENTER' || $key === 'CHAR:q' || $key === 'CHAR:Q' || chr(11) === ($key[0] ?? '')) {
+                break;
+            }
+            break;
+        }
         $this->safeWrite($conn, "\033[?25h");
     }
 

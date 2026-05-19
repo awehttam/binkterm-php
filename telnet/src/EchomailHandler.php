@@ -1458,6 +1458,10 @@ class EchomailHandler
                 $locale
             );
         };
+        $redrawFn = static function (array &$dialogState) use ($conn): void {
+            unset($dialogState);
+            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+        };
 
         $result = TelnetUtils::showCheckboxListDialog(
             $conn, $state, $this->server,
@@ -1467,7 +1471,8 @@ class EchomailHandler
             $maxAreas,
             $this->server->t('ui.terminalserver.echomail.crosspost_at_limit', 'Cross-post limit ({max}) reached.', ['max' => $maxAreas], $locale),
             $this->server->t('ui.terminalserver.echomail.crosspost_help_confirm', 'Confirm and continue', [], $locale),
-            $this->server->t('ui.terminalserver.echomail.crosspost_help_skip', 'Skip cross-posting', [], $locale)
+            $this->server->t('ui.terminalserver.echomail.crosspost_help_skip', 'Skip cross-posting', [], $locale),
+            $redrawFn
         );
 
         if ($result === null) {

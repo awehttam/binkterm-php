@@ -2195,6 +2195,7 @@ class TelnetUtils
      * @param string    $atLimitMessage  Message shown when trying to exceed $maxSelect
      * @param string    $hintConfirm     Enter key label in hint area
      * @param string    $hintSkip        Q key label in hint area
+     * @param callable|null $redrawFn    Optional callback invoked on terminal resize before dialog redraw
      * @return array|null ['action'=>'confirm'|'quit', 'selected'=>int[]], or null on disconnect
      */
     public static function showCheckboxListDialog(
@@ -2207,7 +2208,8 @@ class TelnetUtils
         int $maxSelect = 0,
         string $atLimitMessage = '',
         string $hintConfirm = 'Done',
-        string $hintSkip = 'Skip'
+        string $hintSkip = 'Skip',
+        ?callable $redrawFn = null
     ): ?array {
         $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
         if ($charset === 'utf8') {
@@ -2238,11 +2240,8 @@ class TelnetUtils
         $itemCount    = count($items);
         $hintStr      = "Space Toggle  Enter {$hintConfirm}  Q {$hintSkip}";
 
-        // Track bounds of the last render so we can erase it before the next
-        $lastBounds = null; // ['row' => int, 'col' => int, 'w' => int, 'h' => int]
-
         $renderDialog = function () use (
-            &$cursorIdx, &$scrollOffset, &$selected, &$lastBounds,
+            &$cursorIdx, &$scrollOffset, &$selected,
             $conn, &$state, $titleFn, $items, $itemCount,
             $tl, $tr, $bl, $br, $hz, $vt, $sepL, $sepR,
             $arrowUp, $arrowDn, $hintStr,
@@ -2258,15 +2257,6 @@ class TelnetUtils
             $dialogHeight = 7 + $maxListRows;
             $startRow     = max(1, (int)round(($rows - $dialogHeight) / 2));
             $startCol     = max(1, (int)round(($cols - $boxWidth)    / 2));
-
-            // Erase the previous render region before drawing at the (possibly new) position
-            if ($lastBounds !== null) {
-                $blank = str_repeat(' ', $lastBounds['w']);
-                for ($er = $lastBounds['row']; $er < $lastBounds['row'] + $lastBounds['h']; $er++) {
-                    self::safeWrite($conn, "\033[{$er};{$lastBounds['col']}H{$blank}");
-                }
-            }
-            $lastBounds = ['row' => $startRow, 'col' => $startCol, 'w' => $boxWidth, 'h' => $dialogHeight];
 
             // keep cursor in view
             if ($cursorIdx < $scrollOffset) {
@@ -2377,6 +2367,9 @@ class TelnetUtils
             if ($newRows !== $lastRows || $newCols !== $lastCols) {
                 $lastRows = $newRows;
                 $lastCols = $newCols;
+                if ($redrawFn !== null) {
+                    $redrawFn($state);
+                }
                 $renderDialog();
                 continue;
             }
