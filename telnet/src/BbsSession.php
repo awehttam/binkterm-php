@@ -2674,7 +2674,16 @@ class BbsSession
         if ($this->debug) { $this->log("Editor: {$cols}x{$rows}"); }
 
         $title     = $editorContext['title'] ?? $this->t('ui.terminalserver.editor.title', 'MESSAGE EDITOR - FULL SCREEN MODE', [], $state['locale']);
-        $shortcuts = $editorContext['shortcuts'] ?? $this->t('ui.terminalserver.editor.shortcuts', 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', [], $state['locale']);
+        $saveHandler = $editorContext['save_handler'] ?? null;
+        $draftEnabled = is_callable($saveHandler);
+        $shortcuts = $editorContext['shortcuts'] ?? $this->t(
+            $draftEnabled ? 'ui.terminalserver.editor.shortcuts_with_draft' : 'ui.terminalserver.editor.shortcuts',
+            $draftEnabled
+                ? 'Ctrl+S=Save Draft  Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel'
+                : 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel',
+            [],
+            $state['locale']
+        );
         $saved     = $editorContext['saved'] ?? $this->t('ui.terminalserver.editor.saved', 'Message saved and ready to send.', [], $state['locale']);
 
         $lines     = $initialText !== '' ? explode("\n", $initialText) ?: [''] : [''];
@@ -2688,13 +2697,16 @@ class BbsSession
         $bg            = self::ANSI_BG_BLUE;
         $frame         = $bg . "\033[1;37m";
         $body          = $bg . "\033[37m";
+        $footerBody    = $body;
         $topBorder     = '';
         $midBorder     = '';
         $bottomBorder  = '';
         $footerText    = '';
+        $defaultFooterText = '';
         $editorWidth   = 0;
         $maxRows       = 0;
         $cursorBaseCol = 3;
+        $footerNoticeActive = false;
 
         $rebuildLayout = function () use (
             &$state,
@@ -2705,10 +2717,13 @@ class BbsSession
             &$midBorder,
             &$bottomBorder,
             &$footerText,
+            &$defaultFooterText,
+            &$footerBody,
             &$editorWidth,
             &$maxRows,
             $title,
-            $shortcuts
+            $shortcuts,
+            $body
         ): void {
             $rows       = $state['rows'] ?? 24;
             $cols       = $state['cols'] ?? 80;
@@ -2735,7 +2750,9 @@ class BbsSession
             );
 
             $footerPlain = mb_substr($shortcuts, 0, $editorWidth);
-            $footerText  = $this->encodeForTerminal($this->mbStrPad($footerPlain, $editorWidth, ' ', STR_PAD_BOTH));
+            $defaultFooterText = $this->encodeForTerminal($this->mbStrPad($footerPlain, $editorWidth, ' ', STR_PAD_BOTH));
+            $footerText  = $defaultFooterText;
+            $footerBody  = $body;
         };
 
         $rebuildLayout();
@@ -2758,6 +2775,7 @@ class BbsSession
             &$midBorder,
             &$bottomBorder,
             &$footerText,
+            &$footerBody,
             &$chars,
             $ansi,
             $frame,
@@ -2805,7 +2823,7 @@ class BbsSession
                 $this->safeWrite($conn, "\033[{$separatorRow};1H" . $frame . $midBorder . $rst);
                 $this->safeWrite(
                     $conn,
-                    "\033[{$footerRow};1H" . $frame . $vert . $body . ' ' . $footerText . ' ' . $frame . $vert . $rst
+                    "\033[{$footerRow};1H" . $frame . $vert . $footerBody . ' ' . $footerText . ' ' . $frame . $vert . $rst
                 );
                 $this->safeWrite($conn, "\033[{$bottomRow};1H" . $frame . $bottomBorder . $rst);
             } else {
@@ -2842,10 +2860,41 @@ class BbsSession
                 continue;
             }
 
+            if ($footerNoticeActive) {
+                $footerNoticeActive = false;
+                $footerBody = $body;
+                $footerText = $defaultFooterText;
+            }
+
             $ord = ord($char[0]);
 
             if ($ord === 26) { break; }  // Ctrl+Z — send
             if ($ord === 3)  { $this->setEcho($conn, $state, true); $this->writeLine($conn, ''); $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.cancelled', 'Message cancelled.', [], $state['locale']), self::ANSI_RED)); return ''; }
+            if ($ord === 19 && $draftEnabled) { // Ctrl+S — save draft
+                $draftResult = $saveHandler(implode("\n", $lines));
+                $noticeText = '';
+                $noticeColor = self::ANSI_GREEN;
+                if (is_array($draftResult) && !empty($draftResult['success'])) {
+                    $noticeText = trim((string)($draftResult['message'] ?? ''));
+                    if ($noticeText === '') {
+                        $noticeText = $this->t('ui.terminalserver.editor.draft_saved', 'Draft saved.', [], $state['locale']);
+                    }
+                } else {
+                    $noticeText = trim((string)($draftResult['error'] ?? ''));
+                    if ($noticeText === '') {
+                        $noticeText = $this->t('ui.terminalserver.editor.draft_save_failed', 'Failed to save draft.', [], $state['locale']);
+                    }
+                    $noticeColor = self::ANSI_RED;
+                }
+                $noticePlain = mb_substr($noticeText, 0, $editorWidth);
+                $footerText = $this->encodeForTerminal($this->mbStrPad($noticePlain, $editorWidth, ' ', STR_PAD_BOTH));
+                if ($ansi) {
+                    $footerBody = $bg . ($noticeColor === self::ANSI_RED ? "\033[1;31m" : "\033[1;32m");
+                }
+                $footerNoticeActive = true;
+                $renderEditor();
+                continue;
+            }
             if ($ord === 25) { // Ctrl+Y — delete line
                 if (count($lines) > 1) { array_splice($lines, $cursorRow, 1); if ($cursorRow >= count($lines)) { $cursorRow = count($lines) - 1; } $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); }
                 else { $lines[0] = ''; $cursorCol = 0; }
@@ -2979,6 +3028,8 @@ class BbsSession
         $helpTitle = $editorContext['help_title'] ?? $this->t('ui.terminalserver.editor.help.title', 'MESSAGE EDITOR HELP', [], $state['locale']);
         $helpSave = $editorContext['help_save'] ?? $this->t('ui.terminalserver.editor.help.save', 'Ctrl+Z = Save message and send', [], $state['locale']);
         $helpCancel = $editorContext['help_cancel'] ?? $this->t('ui.terminalserver.editor.help.cancel', 'Ctrl+C = Cancel and discard message', [], $state['locale']);
+        $helpDraft = $editorContext['help_draft'] ?? $this->t('ui.terminalserver.editor.help.save_draft', 'Ctrl+S = Save draft and keep editing', [], $state['locale']);
+        $draftEnabled = is_callable($editorContext['save_handler'] ?? null);
         $helpLines = [
             $this->t('ui.terminalserver.editor.help.navigate', 'Arrow Keys = Navigate cursor', [], $state['locale']),
             $this->t('ui.terminalserver.editor.help.edit', 'Backspace/Delete = Edit text', [], $state['locale']),
@@ -2986,6 +3037,7 @@ class BbsSession
             $this->t('ui.terminalserver.editor.help.start_of_line', 'Ctrl+A = Start of line', [], $state['locale']),
             $this->t('ui.terminalserver.editor.help.end_of_line', 'Ctrl+E = End of line', [], $state['locale']),
             $this->t('ui.terminalserver.editor.help.delete_line', 'Ctrl+Y = Delete entire line', [], $state['locale']),
+            ...($draftEnabled ? [$helpDraft] : []),
             $helpSave,
             $helpCancel,
             '',

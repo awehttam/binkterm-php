@@ -267,13 +267,14 @@ class NetmailHandler
      */
     public function compose($conn, array &$state, string $session, ?array $reply = null): void
     {
-        $action = $reply ? "Netmail: composing reply to msg #{$reply['id']}" : "Netmail: composing new message";
+        $isReply = $reply !== null;
+        $reply = $reply ?? [];
+        $action = $isReply ? "Netmail: composing reply to msg #{$reply['id']}" : "Netmail: composing new message";
         $this->server->logAction($state['username'] ?? 'unknown', $action);
-        TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.compose_title', '=== Compose Netmail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
-        TelnetUtils::writeLine($conn, '');
+        $currentDraftId = 0;
+        $draftToken = bin2hex(random_bytes(8));
 
-        if ($reply && !empty($reply['id'])) {
+        if ($isReply && !empty($reply['id'])) {
             $detail = TelnetUtils::apiRequest(
                 $this->apiBase,
                 'GET',
@@ -288,7 +289,78 @@ class NetmailHandler
 
         $toNameDefault = $reply['replyto_name'] ?? $reply['from_name'] ?? '';
         $toAddressDefault = $reply['replyto_address'] ?? $reply['from_address'] ?? '';
-        $subjectDefault = $reply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
+        $subjectDefault = $isReply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
+        $selectedTagline = '';
+        $initialText = '';
+
+        if ($isReply) {
+            $originalBody = $reply['message_text'] ?? '';
+            $originalAuthor = $reply['from_name'] ?? 'Unknown';
+            if ($originalBody !== '') {
+                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
+            }
+        }
+
+        $existingDrafts = MailUtils::getDrafts($this->apiBase, $session, 'netmail');
+        if (!$isReply && !empty($existingDrafts)) {
+            while (true) {
+                $choice = TelnetUtils::showConfirmDialog(
+                    $conn,
+                    $state,
+                    $this->server,
+                    $this->server->t('ui.terminalserver.compose.drafts_prompt_title', 'Drafts Found', [], $state['locale']),
+                    $this->server->t('ui.terminalserver.compose.drafts_prompt_message', 'Resume a saved draft or start a new message?', [], $state['locale']),
+                    [
+                        'r' => $this->server->t('ui.terminalserver.compose.resume_draft', 'Resume Draft', [], $state['locale']),
+                        'n' => $this->server->t('ui.terminalserver.compose.new_message', 'New Message', [], $state['locale']),
+                        'c' => $this->server->t('ui.terminalserver.compose.cancel_compose', 'Cancel', [], $state['locale']),
+                    ],
+                    'n'
+                );
+
+                if ($choice === 'c') {
+                    return;
+                }
+                if ($choice === 'n') {
+                    break;
+                }
+
+                $picked = MailUtils::pickDraft(
+                    $conn,
+                    $state,
+                    $this->server,
+                    $this->apiBase,
+                    $session,
+                    'netmail',
+                    $state['csrf_token'] ?? null
+                );
+                if ($picked === null) {
+                    return;
+                }
+                if (($picked['action'] ?? '') !== 'resume' || !is_array($picked['draft'] ?? null)) {
+                    continue;
+                }
+
+                $draft = $picked['draft'];
+                $currentDraftId = (int)($draft['id'] ?? 0);
+                $toNameDefault = (string)($draft['to_name'] ?? $toNameDefault);
+                $toAddressDefault = (string)($draft['to_address'] ?? $toAddressDefault);
+                $subjectDefault = (string)($draft['subject'] ?? $subjectDefault);
+                $initialText = (string)($draft['message_text'] ?? $initialText);
+                if (is_array($draft['meta'] ?? null)) {
+                    $selectedTagline = (string)($draft['meta']['tagline'] ?? $selectedTagline);
+                    $draftToken = (string)($draft['meta']['terminal_draft_token'] ?? $draftToken);
+                }
+                if (!empty($draft['reply_to_id'])) {
+                    $reply['id'] = (int)$draft['reply_to_id'];
+                }
+                break;
+            }
+        }
+
+        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.compose_title', '=== Compose Netmail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        TelnetUtils::writeLine($conn, '');
 
         $abHint = TelnetUtils::colorize(
             ' ' . $this->server->t('ui.terminalserver.compose.address_book_hint', '[? Address Book]', [], $state['locale']),
@@ -388,7 +460,6 @@ class NetmailHandler
 
         $cols = $state['cols'] ?? 80;
 
-        $selectedTagline = '';
         $taglines = MailUtils::getTaglines($this->apiBase, $session);
         $defaultTagline = MailUtils::getUserDefaultTagline($this->apiBase, $session);
         if (!empty($taglines)) {
@@ -399,7 +470,14 @@ class NetmailHandler
                 TelnetUtils::writeLine($conn, sprintf(' %d) %s', $idx + 1, $tagline));
             }
             $defaultIndex = 0;
-            if ($defaultTagline !== '') {
+            if ($selectedTagline !== '') {
+                foreach ($taglines as $idx => $tagline) {
+                    if (trim($tagline) === $selectedTagline) {
+                        $defaultIndex = $idx + 1;
+                        break;
+                    }
+                }
+            } elseif ($defaultTagline !== '') {
                 foreach ($taglines as $idx => $tagline) {
                     if (trim($tagline) === $defaultTagline) {
                         $defaultIndex = $idx + 1;
@@ -427,19 +505,45 @@ class NetmailHandler
             }
         }
 
-        // If replying, quote the original message
-        $initialText = '';
-        if ($reply) {
-            $originalBody = $reply['message_text'] ?? '';
-            $originalAuthor = $reply['from_name'] ?? 'Unknown';
-            if ($originalBody !== '') {
-                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
-            }
+        if ($currentDraftId === 0) {
+            $signature = MailUtils::getUserSignature($this->apiBase, $session);
+            $initialText = MailUtils::appendSignatureToCompose($initialText, $signature);
         }
-        $signature = MailUtils::getUserSignature($this->apiBase, $session);
-        $initialText = MailUtils::appendSignatureToCompose($initialText, $signature);
 
-        $messageText = $this->server->readMultiline($conn, $state, $cols, $initialText);
+        $saveDraftHandler = function(string $draftText) use (
+            $session,
+            $state,
+            $toName,
+            $toAddress,
+            $subject,
+            $selectedTagline,
+            &$currentDraftId,
+            $draftToken,
+            $reply
+        ): array {
+            $payload = [
+                'type' => 'netmail',
+                'draft_id' => $currentDraftId > 0 ? $currentDraftId : null,
+                'to_name' => $toName,
+                'to_address' => $toAddress,
+                'subject' => $subject,
+                'message_text' => $draftText,
+                'reply_to_id' => !empty($reply['id']) ? $reply['id'] : null,
+                'meta' => [
+                    'tagline' => $selectedTagline !== '' ? $selectedTagline : null,
+                    'terminal_draft_token' => $draftToken,
+                ],
+            ];
+            $result = MailUtils::saveDraft($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
+            if (!empty($result['success']) && !empty($result['draft_id'])) {
+                $currentDraftId = (int)$result['draft_id'];
+            }
+            return $result;
+        };
+
+        $messageText = $this->server->readMultiline($conn, $state, $cols, $initialText, [
+            'save_handler' => $saveDraftHandler,
+        ]);
         if ($messageText === '') {
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.message_cancelled', 'Message cancelled (empty).', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
@@ -464,6 +568,9 @@ class NetmailHandler
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.sending', 'Sending netmail...', [], $state['locale']), TelnetUtils::ANSI_CYAN));
         $result = MailUtils::sendMessage($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
         if ($result['success']) {
+            if ($currentDraftId > 0) {
+                MailUtils::deleteDraft($this->apiBase, $session, $currentDraftId, $state['csrf_token'] ?? null);
+            }
             $this->server->logAction($state['username'] ?? 'unknown', "Netmail: sent message to {$toName} subject=\"{$subject}\"");
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.send_success', '✓ Netmail sent successfully!', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
         } else {

@@ -1233,17 +1233,90 @@ class EchomailHandler
      */
     public function compose($conn, array &$state, string $session, string $area, ?array $reply = null): void
     {
-        $action = $reply ? "Echomail: composing reply to msg #{$reply['id']} in {$area}" : "Echomail: composing new message in {$area}";
+        $isReply = $reply !== null;
+        $reply = $reply ?? [];
+        $action = $isReply ? "Echomail: composing reply to msg #{$reply['id']} in {$area}" : "Echomail: composing new message in {$area}";
         $this->server->logAction($state['username'] ?? 'unknown', $action);
+        $currentDraftId = 0;
+        $draftToken = bin2hex(random_bytes(8));
+        $selectedTagline = '';
+        $crossPostAreas = [];
+        $initialText = '';
+
+        if ($isReply) {
+            $originalBody = $reply['message_text'] ?? '';
+            $originalAuthor = $reply['from_name'] ?? 'Unknown';
+            if ($originalBody !== '') {
+                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
+            }
+        }
+
+        $existingDrafts = MailUtils::getDrafts($this->apiBase, $session, 'echomail');
+        if (!$isReply && !empty($existingDrafts)) {
+            while (true) {
+                $choice = TelnetUtils::showConfirmDialog(
+                    $conn,
+                    $state,
+                    $this->server,
+                    $this->server->t('ui.terminalserver.compose.drafts_prompt_title', 'Drafts Found', [], $state['locale']),
+                    $this->server->t('ui.terminalserver.compose.drafts_prompt_message', 'Resume a saved draft or start a new message?', [], $state['locale']),
+                    [
+                        'r' => $this->server->t('ui.terminalserver.compose.resume_draft', 'Resume Draft', [], $state['locale']),
+                        'n' => $this->server->t('ui.terminalserver.compose.new_message', 'New Message', [], $state['locale']),
+                        'c' => $this->server->t('ui.terminalserver.compose.cancel_compose', 'Cancel', [], $state['locale']),
+                    ],
+                    'n'
+                );
+
+                if ($choice === 'c') {
+                    return;
+                }
+                if ($choice === 'n') {
+                    break;
+                }
+
+                $picked = MailUtils::pickDraft(
+                    $conn,
+                    $state,
+                    $this->server,
+                    $this->apiBase,
+                    $session,
+                    'echomail',
+                    $state['csrf_token'] ?? null
+                );
+                if ($picked === null) {
+                    return;
+                }
+                if (($picked['action'] ?? '') !== 'resume' || !is_array($picked['draft'] ?? null)) {
+                    continue;
+                }
+
+                $draft = $picked['draft'];
+                $currentDraftId = (int)($draft['id'] ?? 0);
+                $area = (string)($draft['echoarea'] ?? $area);
+                $initialText = (string)($draft['message_text'] ?? $initialText);
+                if (is_array($draft['meta'] ?? null)) {
+                    $selectedTagline = (string)($draft['meta']['tagline'] ?? $selectedTagline);
+                    $crossPostAreas = is_array($draft['meta']['cross_post_areas'] ?? null) ? array_values($draft['meta']['cross_post_areas']) : $crossPostAreas;
+                    $draftToken = (string)($draft['meta']['terminal_draft_token'] ?? $draftToken);
+                }
+                if (!empty($draft['reply_to_id'])) {
+                    $reply['id'] = (int)$draft['reply_to_id'];
+                }
+                $reply['from_name'] = (string)($draft['to_name'] ?? ($reply['from_name'] ?? 'All'));
+                $reply['subject'] = (string)($draft['subject'] ?? ($reply['subject'] ?? ''));
+                break;
+            }
+        }
+
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.compose_title', '=== Compose Echomail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.area_label', 'Area: {area}', ['area' => $area], $state['locale']), TelnetUtils::ANSI_MAGENTA));
 
-        $crossPostAreas = [];
         if (empty($reply['id'])) {
             $bbsConfig    = \BinktermPHP\BbsConfig::getConfig();
             $maxCrossPost = (int)($bbsConfig['max_cross_post_areas'] ?? 5);
-            if ($maxCrossPost >= 2) {
+            if ($maxCrossPost >= 2 && $currentDraftId === 0) {
                 $cpAnswer = $this->server->prompt(
                     $conn, $state,
                     TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.crosspost_prompt', 'Cross-post to other areas? [y/N]: ', [], $state['locale']), TelnetUtils::ANSI_CYAN),
@@ -1264,7 +1337,7 @@ class EchomailHandler
 
         TelnetUtils::writeLine($conn, '');
 
-        if ($reply && !empty($reply['id'])) {
+        if (!empty($reply['id'])) {
             $detail = TelnetUtils::apiRequest(
                 $this->apiBase,
                 'GET',
@@ -1278,7 +1351,11 @@ class EchomailHandler
         }
 
         $toNameDefault = $reply['from_name'] ?? 'All';
-        $subjectDefault = $reply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
+        $subjectDefault = $isReply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
+        if ($currentDraftId > 0) {
+            $toNameDefault = (string)($reply['from_name'] ?? $toNameDefault);
+            $subjectDefault = (string)($reply['subject'] ?? $subjectDefault);
+        }
 
         $toNamePrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.to_name', 'To Name: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
         if ($toNameDefault) {
@@ -1314,7 +1391,6 @@ class EchomailHandler
 
         $cols = $state['cols'] ?? 80;
 
-        $selectedTagline = '';
         $taglines = MailUtils::getTaglines($this->apiBase, $session);
         $defaultTagline = MailUtils::getUserDefaultTagline($this->apiBase, $session);
         if (!empty($taglines)) {
@@ -1325,7 +1401,14 @@ class EchomailHandler
                 TelnetUtils::writeLine($conn, sprintf(' %d) %s', $idx + 1, $tagline));
             }
             $defaultIndex = 0;
-            if ($defaultTagline !== '') {
+            if ($selectedTagline !== '') {
+                foreach ($taglines as $idx => $tagline) {
+                    if (trim($tagline) === $selectedTagline) {
+                        $defaultIndex = $idx + 1;
+                        break;
+                    }
+                }
+            } elseif ($defaultTagline !== '') {
                 foreach ($taglines as $idx => $tagline) {
                     if (trim($tagline) === $defaultTagline) {
                         $defaultIndex = $idx + 1;
@@ -1353,19 +1436,47 @@ class EchomailHandler
             }
         }
 
-        // If replying, quote the original message
-        $initialText = '';
-        if ($reply) {
-            $originalBody = $reply['message_text'] ?? '';
-            $originalAuthor = $reply['from_name'] ?? 'Unknown';
-            if ($originalBody !== '') {
-                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
-            }
+        if ($currentDraftId === 0) {
+            $signature = MailUtils::getUserSignature($this->apiBase, $session);
+            $initialText = MailUtils::appendSignatureToCompose($initialText, $signature);
         }
-        $signature = MailUtils::getUserSignature($this->apiBase, $session);
-        $initialText = MailUtils::appendSignatureToCompose($initialText, $signature);
 
-        $messageText = $this->server->readMultiline($conn, $state, $cols, $initialText);
+        $saveDraftHandler = function(string $draftText) use (
+            $session,
+            $state,
+            $area,
+            $toName,
+            $subject,
+            $selectedTagline,
+            $crossPostAreas,
+            &$currentDraftId,
+            $draftToken,
+            $reply
+        ): array {
+            $payload = [
+                'type' => 'echomail',
+                'draft_id' => $currentDraftId > 0 ? $currentDraftId : null,
+                'echoarea' => $area,
+                'to_name' => $toName,
+                'subject' => $subject,
+                'message_text' => $draftText,
+                'reply_to_id' => !empty($reply['id']) ? $reply['id'] : null,
+                'meta' => [
+                    'tagline' => $selectedTagline !== '' ? $selectedTagline : null,
+                    'cross_post_areas' => $crossPostAreas,
+                    'terminal_draft_token' => $draftToken,
+                ],
+            ];
+            $result = MailUtils::saveDraft($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
+            if (!empty($result['success']) && !empty($result['draft_id'])) {
+                $currentDraftId = (int)$result['draft_id'];
+            }
+            return $result;
+        };
+
+        $messageText = $this->server->readMultiline($conn, $state, $cols, $initialText, [
+            'save_handler' => $saveDraftHandler,
+        ]);
         if ($messageText === '') {
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.message_cancelled', 'Message cancelled (empty).', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
@@ -1399,6 +1510,9 @@ class EchomailHandler
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.posting', 'Posting echomail...', [], $state['locale']), TelnetUtils::ANSI_CYAN));
         $result = MailUtils::sendMessage($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
         if ($result['success']) {
+            if ($currentDraftId > 0) {
+                MailUtils::deleteDraft($this->apiBase, $session, $currentDraftId, $state['csrf_token'] ?? null);
+            }
             $this->server->logAction($state['username'] ?? 'unknown', "Echomail: posted message to {$area} subject=\"{$subject}\"");
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.echomail.post_success', '✓ Echomail posted successfully!', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
         } else {

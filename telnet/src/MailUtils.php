@@ -11,6 +11,270 @@ namespace BinktermPHP\TelnetServer;
 class MailUtils
 {
     /**
+     * Save a draft via the shared draft API.
+     *
+     * @return array{success:bool,draft_id?:int,error?:string,message?:string}
+     */
+    public static function saveDraft(string $apiBase, string $session, array $payload, ?string $csrfToken = null): array
+    {
+        $result = TelnetUtils::apiRequest($apiBase, 'POST', '/api/messages/draft', $payload, $session, 3, $csrfToken);
+        $success = ($result['status'] ?? 0) === 200 && !empty($result['data']['success']);
+
+        if ($success) {
+            return [
+                'success' => true,
+                'draft_id' => (int)($result['data']['draft_id'] ?? 0),
+                'message' => (string)($result['data']['message'] ?? ''),
+            ];
+        }
+
+        return [
+            'success' => false,
+            'error' => (string)($result['data']['error'] ?? $result['error'] ?? 'Failed to save draft'),
+        ];
+    }
+
+    /**
+     * Fetch the user's drafts, optionally filtered by message type.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public static function getDrafts(string $apiBase, string $session, ?string $type = null): array
+    {
+        $path = '/api/messages/drafts';
+        if ($type !== null && $type !== '') {
+            $path .= '?type=' . urlencode($type);
+        }
+
+        $result = TelnetUtils::apiRequest($apiBase, 'GET', $path, null, $session);
+        if (($result['status'] ?? 0) !== 200) {
+            return [];
+        }
+
+        return is_array($result['data']['drafts'] ?? null) ? $result['data']['drafts'] : [];
+    }
+
+    /**
+     * Fetch a specific draft by ID.
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function getDraft(string $apiBase, string $session, int $draftId): ?array
+    {
+        $result = TelnetUtils::apiRequest($apiBase, 'GET', '/api/messages/drafts/' . $draftId, null, $session);
+        if (($result['status'] ?? 0) !== 200 || !is_array($result['data']['draft'] ?? null)) {
+            return null;
+        }
+
+        return $result['data']['draft'];
+    }
+
+    /**
+     * Delete a draft by ID.
+     *
+     * @return array{success:bool,error?:string}
+     */
+    public static function deleteDraft(string $apiBase, string $session, int $draftId, ?string $csrfToken = null): array
+    {
+        $result = TelnetUtils::apiRequest($apiBase, 'DELETE', '/api/messages/drafts/' . $draftId, null, $session, 3, $csrfToken);
+        $success = ($result['status'] ?? 0) === 200 && !empty($result['data']['success']);
+
+        if ($success) {
+            return ['success' => true];
+        }
+
+        return [
+            'success' => false,
+            'error' => (string)($result['data']['error'] ?? $result['error'] ?? 'Failed to delete draft'),
+        ];
+    }
+
+    /**
+     * Interactive picker for terminal netmail/echomail drafts.
+     *
+     * @return array{action:'resume'|'cancel',draft?:array<string,mixed>}|null
+     */
+    public static function pickDraft(
+        $conn,
+        array &$state,
+        $server,
+        string $apiBase,
+        string $session,
+        string $type,
+        ?string $csrfToken = null
+    ): ?array {
+        $locale = $state['locale'] ?? 'en';
+        $selectedIndex = 0;
+        $page = 1;
+
+        while (true) {
+            $drafts = self::getDrafts($apiBase, $session, $type);
+            if ($drafts === []) {
+                return ['action' => 'cancel'];
+            }
+
+            $perPage = max(1, ($state['rows'] ?? 24) - 3);
+            $totalPages = max(1, (int)ceil(count($drafts) / $perPage));
+            $page = min(max(1, $page), $totalPages);
+            $offset = ($page - 1) * $perPage;
+            $pageDrafts = array_slice($drafts, $offset, $perPage);
+            $selectedIndex = min($selectedIndex, max(0, count($pageDrafts) - 1));
+
+            $title = TelnetUtils::colorize(
+                $server->t(
+                    'ui.terminalserver.compose.drafts_title',
+                    '{type} Drafts (page {page}/{total})',
+                    [
+                        'type' => $type === 'echomail'
+                            ? $server->t('ui.terminalserver.compose.echomail_label', 'Echomail', [], $locale)
+                            : $server->t('ui.terminalserver.compose.netmail_label', 'Netmail', [], $locale),
+                        'page' => $page,
+                        'total' => $totalPages,
+                    ],
+                    $locale
+                ),
+                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+            );
+
+            $buildRows = static function(array $draftRows, array $renderState) use ($server, $type, $locale): array {
+                $cols = $renderState['cols'] ?? 80;
+                $rows = [];
+                $idx = 1;
+                foreach ($draftRows as $draft) {
+                    $num = sprintf('%3d', $idx++);
+                    $subject = trim((string)($draft['subject'] ?? ''));
+                    if ($subject === '') {
+                        $subject = $server->t('ui.terminalserver.compose.no_subject', '(No Subject)', [], $locale);
+                    }
+                    $target = $type === 'echomail'
+                        ? trim((string)($draft['echoarea'] ?? ''))
+                        : trim((string)($draft['to_name'] ?? ''));
+                    if ($target === '') {
+                        $target = $type === 'echomail'
+                            ? $server->t('ui.terminalserver.compose.no_area', 'No area', [], $locale)
+                            : $server->t('ui.terminalserver.compose.unknown', 'Unknown', [], $locale);
+                    }
+                    $date = TelnetUtils::formatUserDate((string)($draft['updated_at'] ?? ''), $renderState, false);
+                    $targetWidth = max(10, min(24, (int)floor($cols * 0.28)));
+                    $dateWidth = 16;
+                    $subjectWidth = max(10, $cols - 5 - 2 - $targetWidth - 2 - $dateWidth - 1);
+                    $rows[] = TelnetUtils::colorize($num . ') ', TelnetUtils::ANSI_YELLOW)
+                        . mb_substr(str_pad($subject, $subjectWidth), 0, $subjectWidth)
+                        . '  '
+                        . TelnetUtils::colorize(mb_substr(str_pad($target, $targetWidth), 0, $targetWidth), TelnetUtils::ANSI_CYAN)
+                        . '  '
+                        . TelnetUtils::colorize(mb_substr(str_pad($date, $dateWidth), 0, $dateWidth), TelnetUtils::ANSI_DIM);
+                }
+                return $rows;
+            };
+
+            $rows = $buildRows($pageDrafts, $state);
+            $statusBar = [
+                ['text' => 'Enter',  'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' ' . $server->t('ui.terminalserver.compose.drafts_status_resume', 'Resume', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'X',      'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' ' . $server->t('ui.terminalserver.compose.drafts_status_delete', 'Delete', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'L/R',    'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' ' . $server->t('ui.terminalserver.compose.drafts_status_page', 'Page', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'Q',      'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' ' . $server->t('ui.terminalserver.compose.drafts_status_back', 'Back', [], $locale), 'color' => TelnetUtils::ANSI_BLUE],
+            ];
+            $helpItems = [
+                ['key' => 'X', 'label' => $server->t('ui.terminalserver.compose.drafts_delete_selected', 'Delete selected draft', [], $locale)],
+            ];
+
+            $rebuildFn = function(array &$resizeState) use ($buildRows, $pageDrafts, $title): array {
+                return ['rows' => $buildRows($pageDrafts, $resizeState), 'title' => $title];
+            };
+
+            $result = TelnetUtils::runSelectableList(
+                $conn,
+                $state,
+                $server,
+                $title,
+                $rows,
+                $page,
+                $totalPages,
+                $selectedIndex,
+                $statusBar,
+                ['x' => 'delete'],
+                $rebuildFn,
+                [],
+                $helpItems
+            );
+            $selectedIndex = $result['selectedIndex'];
+
+            switch ($result['action']) {
+                case 'disconnect':
+                    return null;
+                case 'quit':
+                    return ['action' => 'cancel'];
+                case 'prev':
+                    if ($page > 1) {
+                        $page--;
+                        $selectedIndex = 0;
+                    }
+                    break;
+                case 'next':
+                    if ($page < $totalPages) {
+                        $page++;
+                        $selectedIndex = 0;
+                    }
+                    break;
+                case 'delete':
+                    $draft = $pageDrafts[$result['index']] ?? null;
+                    if ($draft === null) {
+                        break;
+                    }
+                    $choice = TelnetUtils::showConfirmDialog(
+                        $conn,
+                        $state,
+                        $server,
+                        $server->t('ui.terminalserver.compose.drafts_delete_title', 'Delete Draft', [], $locale),
+                        $server->t('ui.terminalserver.compose.drafts_delete_confirm', 'Delete this draft?', [], $locale),
+                        [
+                            'y' => $server->t('ui.terminalserver.server.confirm_yes', 'Confirm', [], $locale),
+                            'n' => $server->t('ui.terminalserver.server.confirm_no', 'Cancel', [], $locale),
+                        ],
+                        'n'
+                    );
+                    if ($choice === 'y') {
+                        $deleteResult = self::deleteDraft($apiBase, $session, (int)($draft['id'] ?? 0), $csrfToken);
+                        if (empty($deleteResult['success'])) {
+                            TelnetUtils::showAlertDialog(
+                                $conn,
+                                $state,
+                                $server,
+                                $server->t('ui.terminalserver.compose.drafts_title_short', 'Drafts', [], $locale),
+                                (string)($deleteResult['error'] ?? $server->t('ui.terminalserver.compose.drafts_delete_failed', 'Failed to delete draft.', [], $locale)),
+                                'error'
+                            );
+                        }
+                    }
+                    break;
+                case 'select':
+                    $draft = $pageDrafts[$result['index']] ?? null;
+                    if ($draft === null) {
+                        break;
+                    }
+                    $fullDraft = self::getDraft($apiBase, $session, (int)($draft['id'] ?? 0));
+                    if ($fullDraft === null) {
+                        TelnetUtils::showAlertDialog(
+                            $conn,
+                            $state,
+                            $server,
+                            $server->t('ui.terminalserver.compose.drafts_title_short', 'Drafts', [], $locale),
+                            $server->t('ui.terminalserver.compose.drafts_load_failed', 'Failed to load draft.', [], $locale),
+                            'error'
+                        );
+                        break;
+                    }
+                    return ['action' => 'resume', 'draft' => $fullDraft];
+            }
+        }
+    }
+
+    /**
      * Send a netmail or echomail message via API
      *
      * @param string $apiBase Base URL for API requests

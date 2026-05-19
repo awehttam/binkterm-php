@@ -82,6 +82,7 @@ Each transport daemon has additional extension requirements — see
 - Press `O` from the netmail message list to **change the list sort order**. The terminal netmail reader now exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user opens netmail from the terminal.
 - Press `O` from an echomail area's message list to **change the list sort order**. The terminal reader exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user re-enters an echomail area from the terminal.
 - In the terminal **netmail address picker** (opened with `?` at **To Name** or **To Address**), address-book autocomplete now also includes matching **local BBS users** by real name or username. Typing `sysop` returns the configured local system sysop as a local-delivery target, matching the web compose behavior.
+- When entering **netmail** or **echomail** compose from the terminal, the server now checks for saved drafts of that message type. If any exist, the user is prompted to **Resume Draft**, **New Message**, or **Cancel**. Choosing resume opens a selector-style drafts picker with the same keyboard navigation as other terminal lists; pressing `X` deletes the highlighted draft after confirmation.
 - When composing a **new** echomail message (not a reply), the compose flow asks "Cross-post to other areas? [y/N]:" immediately after showing the destination area. Answering `y` opens a checkbox picker listing all other subscribed areas. Use Up/Down arrows to navigate, Space to toggle each area, Enter to confirm, or Q to skip cross-posting. The number of additional areas is capped by the **Max cross-post areas** setting in the BBS admin (default 5). Scroll indicators (▲/▼) appear when the list is taller than the visible dialog area. If the terminal is resized while this picker is open, the compose-flow background is cleared and the picker is redrawn at the new size so old dialog content does not remain on screen.
 - Terminal confirmation and selection dialogs now redraw on live resize. If the user resizes the window while a centered terminal dialog is open, both the background screen and the dialog reflow to the new dimensions instead of waiting for the dialog to close.
 
@@ -95,10 +96,12 @@ Each transport daemon has additional extension requirements — see
   - Enter: Insert new line at cursor
   - Ctrl+Y: Delete entire current line
 - Save/Cancel operations:
+  - Ctrl+S: Save draft and keep editing (compose only)
   - Ctrl+Z: Save message and send
   - Ctrl+C: Cancel and discard message
 - Visual feedback with colorized prompts
 - Message quoting when replying
+- If a compose flow was resumed from a saved draft, sending the message deletes that draft automatically.
 
 ### Security
 
