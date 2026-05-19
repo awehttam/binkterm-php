@@ -1056,6 +1056,82 @@ class TelnetUtils
     }
 
     /**
+     * Render a message list screen without entering the interactive key loop.
+     *
+     * Useful for repainting the current background behind a modal dialog after a
+     * terminal resize, while keeping the same message-list formatting and status
+     * bar layout as runMessageList().
+     *
+     * @param resource $conn
+     * @param array    $state
+     * @param object   $server
+     * @param string   $title
+     * @param array    $messages
+     * @param int      $selectedIndex
+     * @param array    $extraStatusSegments
+     * @return void
+     */
+    public static function renderMessageListScreen(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        array $messages,
+        int $selectedIndex,
+        array $extraStatusSegments = []
+    ): void {
+        $cols = $state['cols'] ?? 80;
+        $rows = [];
+        foreach ($messages as $idx => $msg) {
+            $rows[] = self::formatMessageListEntry($msg, $idx + 1, false, $cols, $state);
+        }
+        if (method_exists($server, 'encodeForTerminal')) {
+            $rows = array_map(
+                static fn(string $row): string => $server->encodeForTerminal($row),
+                $rows
+            );
+            $title = $server->encodeForTerminal($title);
+        }
+
+        $statusBar = [
+            ['text' => 'U/D',        'color' => self::ANSI_RED],
+            ['text' => ' Move  ',    'color' => self::ANSI_BLUE],
+            ['text' => 'L/R',        'color' => self::ANSI_RED],
+            ['text' => ' Page  ',    'color' => self::ANSI_BLUE],
+            ['text' => 'C',          'color' => self::ANSI_RED],
+            ['text' => ' Compose  ', 'color' => self::ANSI_BLUE],
+            ['text' => 'Enter',      'color' => self::ANSI_RED],
+            ['text' => ' Read  ',    'color' => self::ANSI_BLUE],
+            ['text' => 'Q',          'color' => self::ANSI_RED],
+            ['text' => ' Quit',      'color' => self::ANSI_BLUE],
+        ];
+        if (!empty($extraStatusSegments)) {
+            $statusBar[array_key_last($statusBar)]['text'] .= '  ';
+            $statusBar = array_merge($statusBar, $extraStatusSegments);
+        }
+
+        $termRows = $state['rows'] ?? 24;
+        $inputRow = max(1, $termRows - 1);
+
+        self::safeWrite($conn, "\033[2J\033[H");
+        self::writeLine($conn, $title);
+
+        foreach ($rows as $idx => $row) {
+            $plain = self::stripAnsi($row);
+            if ($idx === $selectedIndex) {
+                self::writeLine($conn, self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD));
+            } else {
+                self::writeLine($conn, $row);
+            }
+        }
+
+        $statusLine = self::buildStatusBar($statusBar, $cols);
+        self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
+        self::safeWrite($conn, $statusLine . "\r");
+        self::safeWrite($conn, "\033[{$inputRow};1H");
+    }
+
+    /**
      * Format a single message list entry line with optional highlight.
      *
      * @param array  $msg       Message summary array
@@ -1601,10 +1677,9 @@ class TelnetUtils
         string $title,
         string $message,
         array $choices = ['y' => 'Confirm', 'n' => 'Cancel'],
-        string $default = 'n'
+        string $default = 'n',
+        ?callable $redrawFn = null
     ): string {
-        $rows    = $state['rows'] ?? 24;
-        $cols    = $state['cols'] ?? 80;
         $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
 
         // Box-drawing characters
@@ -1621,86 +1696,177 @@ class TelnetUtils
         foreach ($choices as $char => $label) {
             $hintParts[] = ['char' => strtoupper((string)$char), 'label' => (string)$label];
         }
-        $sep       = '    ';
-        $plainHint = implode($sep, array_map(fn($p) => $p['char'] . ') ' . $p['label'], $hintParts));
-        $hintsLen  = mb_strlen($plainHint);
-
-        // Inner width: fits all content, capped to terminal width
-        $innerWidth = max(
-            24,
-            min(
-                max(mb_strlen($message) + 2, mb_strlen($title) + 4, $hintsLen + 4),
-                min($cols - 6, 58)
-            )
+        $sep = '    ';
+        $hintTokens = array_map(
+            static fn(array $p): array => [
+                'char' => $p['char'],
+                'label' => $p['label'],
+                'plain' => $p['char'] . ') ' . $p['label'],
+            ],
+            $hintParts
         );
-        $boxWidth = $innerWidth + 2;
-
-        // Top border with centered title embedded in the rule
-        $titleLine = ' ' . $title . ' ';
-        $titleLen  = mb_strlen($titleLine);
-        $totalHz   = max(0, $innerWidth - $titleLen);
-        $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
-                        . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
-        $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
-        $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
-
-        // Message row
-        $msgContent = str_pad(mb_substr($message, 0, $innerWidth - 2), $innerWidth - 2);
-        $msgRow     = $vt . ' ' . $msgContent . ' ' . $vt;
-
-        // Hint row padding
-        $leftPad  = max(0, (int)floor(($innerWidth - $hintsLen) / 2));
-        $rightPad = max(0, $innerWidth - $hintsLen - $leftPad);
-
-        // Center dialog on screen
-        $dialogHeight = 6; // top + empty + message + empty + hints + bottom
-        $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
-        $startCol = max(1, (int)round(($cols - $boxWidth)    / 2));
 
         $ansi  = self::$ansiColorEnabled;
         $bg    = self::ANSI_BG_BLUE;
         $rst   = self::ANSI_RESET;
         $frame = $bg . "\033[1;37m"; // bold white on dark blue
         $body  = $bg . "\033[37m";   // normal white on dark blue
+        $renderDialog = function () use (
+            $conn,
+            &$state,
+            $title,
+            $message,
+            $hintTokens,
+            $sep,
+            $tl,
+            $tr,
+            $bl,
+            $br,
+            $hz,
+            $vt,
+            $ansi,
+            $frame,
+            $body,
+            $rst
+        ): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+            $maxInnerWidth = max(24, $cols - 6);
+            $messageWidth  = max(10, $maxInnerWidth - 2);
+            $messageLines  = self::wrapTextLines($message, $messageWidth);
+            $messageMaxLen = 0;
+            foreach ($messageLines as $line) {
+                $messageMaxLen = max($messageMaxLen, mb_strlen($line));
+            }
 
-        $draw = static function(int $r, string $line) use ($conn, $startCol): void {
-            self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            $hintLines = [];
+            $currentHintLine = [];
+            $currentHintLen = 0;
+            $hintWrapWidth = max(10, $maxInnerWidth - 2);
+            foreach ($hintTokens as $token) {
+                $tokenLen = mb_strlen($token['plain']);
+                $projectedLen = $currentHintLine === [] ? $tokenLen : $currentHintLen + mb_strlen($sep) + $tokenLen;
+                if ($currentHintLine !== [] && $projectedLen > $hintWrapWidth) {
+                    $hintLines[] = $currentHintLine;
+                    $currentHintLine = [$token];
+                    $currentHintLen = $tokenLen;
+                } else {
+                    $currentHintLine[] = $token;
+                    $currentHintLen = $projectedLen;
+                }
+            }
+            if ($currentHintLine !== []) {
+                $hintLines[] = $currentHintLine;
+            }
+            if ($hintLines === []) {
+                $hintLines[] = [];
+            }
+
+            $buildPlainHintLine = static function(array $lineTokens) use ($sep): string {
+                return implode($sep, array_map(static fn(array $token): string => $token['plain'], $lineTokens));
+            };
+
+            $hintMaxLen = 0;
+            foreach ($hintLines as $lineTokens) {
+                $hintMaxLen = max($hintMaxLen, mb_strlen($buildPlainHintLine($lineTokens)));
+            }
+
+            $innerWidth = max(
+                24,
+                min(
+                    max($messageMaxLen + 2, mb_strlen($title) + 4, $hintMaxLen + 4),
+                    $maxInnerWidth
+                )
+            );
+            $boxWidth = $innerWidth + 2;
+
+            $titleLine = ' ' . $title . ' ';
+            $titleLen  = mb_strlen($titleLine);
+            $totalHz   = max(0, $innerWidth - $titleLen);
+            $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
+                . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+            $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+            $msgRows = [];
+            foreach ($messageLines as $messageLine) {
+                $msgContent = str_pad(mb_substr($messageLine, 0, $innerWidth - 2), $innerWidth - 2);
+                $msgRows[]  = $vt . ' ' . $msgContent . ' ' . $vt;
+            }
+
+            $dialogHeight = 1 + 1 + count($msgRows) + 1 + count($hintLines) + 1;
+            $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+            $startCol = max(1, (int)round(($cols - $boxWidth) / 2));
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                $draw($r++, $body . $emptyRow . $rst);
+                foreach ($msgRows as $msgRow) {
+                    $draw($r++, $body . $msgRow . $rst);
+                }
+                $draw($r++, $body . $emptyRow . $rst);
+
+                foreach ($hintLines as $lineTokens) {
+                    $plainHintLine = $buildPlainHintLine($lineTokens);
+                    $hintLineLen   = mb_strlen($plainHintLine);
+                    $leftPad       = max(0, (int)floor(($innerWidth - $hintLineLen) / 2));
+                    $rightPad      = max(0, $innerWidth - $hintLineLen - $leftPad);
+
+                    $hintContent = str_repeat(' ', $leftPad);
+                    foreach ($lineTokens as $i => $token) {
+                        if ($i > 0) {
+                            $hintContent .= $body . $sep;
+                        }
+                        $hintContent .= self::ANSI_RED . self::ANSI_BOLD . $token['char']
+                            . $body . ') ' . $token['label'];
+                    }
+                    $hintContent .= str_repeat(' ', $rightPad);
+                    $draw($r++, $body . $vt . $hintContent . $body . $vt . $rst);
+                }
+                $draw($r, $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $emptyRow);
+                foreach ($msgRows as $msgRow) {
+                    $draw($r++, $msgRow);
+                }
+                $draw($r++, $emptyRow);
+                foreach ($hintLines as $lineTokens) {
+                    $plainHintLine = $buildPlainHintLine($lineTokens);
+                    $hintLineLen   = mb_strlen($plainHintLine);
+                    $leftPad       = max(0, (int)floor(($innerWidth - $hintLineLen) / 2));
+                    $rightPad      = max(0, $innerWidth - $hintLineLen - $leftPad);
+                    $draw($r++, $vt . str_repeat(' ', $leftPad) . $plainHintLine . str_repeat(' ', $rightPad) . $vt);
+                }
+                $draw($r, $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[?25h");
         };
 
-        self::safeWrite($conn, "\033[?25l"); // hide cursor while drawing
-
-        $r = $startRow;
-        if ($ansi) {
-            $draw($r++, $frame . $topBorder . $rst);
-            $draw($r++, $body  . $emptyRow  . $rst);
-            $draw($r++, $body  . $msgRow    . $rst);
-            $draw($r++, $body  . $emptyRow  . $rst);
-
-            $hintContent = str_repeat(' ', $leftPad);
-            foreach ($hintParts as $i => $part) {
-                if ($i > 0) {
-                    $hintContent .= $body . $sep;
-                }
-                $hintContent .= self::ANSI_RED . self::ANSI_BOLD . $part['char']
-                              . $body . ') ' . $part['label'];
-            }
-            $hintContent .= str_repeat(' ', $rightPad);
-            $draw($r++, $body . $vt . $hintContent . $body . $vt . $rst);
-            $draw($r,   $frame . $btmBorder . $rst);
-        } else {
-            $draw($r++, $topBorder);
-            $draw($r++, $emptyRow);
-            $draw($r++, $msgRow);
-            $draw($r++, $emptyRow);
-            $draw($r++, $vt . str_repeat(' ', $leftPad) . $plainHint . str_repeat(' ', $rightPad) . $vt);
-            $draw($r,   $btmBorder);
-        }
-
-        self::safeWrite($conn, "\033[?25h"); // restore cursor
+        $renderDialog();
 
         // Read a keypress — only accept keys in $choices
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
         while (true) {
             $key = $server->readKeyWithIdleCheck($conn, $state);
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                if ($redrawFn !== null) {
+                    $redrawFn($state);
+                }
+                $renderDialog();
+            }
             if ($key === null || $key === 'ENTER') {
                 return $default;
             }

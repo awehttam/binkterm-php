@@ -9737,6 +9737,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'terminal_netmail_folder' => $meta->getValue((int)$userId, 'terminal_netmail_folder'),
             'terminal_echomail_areas_page' => $meta->getValue((int)$userId, 'terminal_echomail_areas_page'),
             'terminal_echomail_positions' => $meta->getValue((int)$userId, 'terminal_echomail_positions'),
+            'terminal_echomail_sort' => $meta->getValue((int)$userId, 'terminal_echomail_sort'),
             'terminal_chat_target' => $meta->getValue((int)$userId, 'terminal_chat_target'),
         ];
 
@@ -9826,6 +9827,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
             $meta->setValue((int)$userId, 'terminal_echomail_positions', $encoded);
+        }
+
+        if (array_key_exists('terminal_echomail_sort', $settings)) {
+            $sort = $settings['terminal_echomail_sort'];
+            if ($sort === null || $sort === '') {
+                $meta->setValue((int)$userId, 'terminal_echomail_sort', null);
+            } elseif (in_array($sort, ['date_desc', 'date_asc', 'subject', 'author'], true)) {
+                $meta->setValue((int)$userId, 'terminal_echomail_sort', $sort);
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_echomail_sort']);
+                return;
+            }
         }
 
         if (array_key_exists('terminal_netmail_folder', $settings)) {

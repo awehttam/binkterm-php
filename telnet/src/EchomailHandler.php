@@ -13,6 +13,8 @@ use BinktermPHP\TelnetServer\TelnetServer;
  */
 class EchomailHandler
 {
+    private const ALLOWED_SORTS = ['date_desc', 'date_asc', 'subject', 'author'];
+
     /** @var TelnetServer The telnet server instance */
     private BbsSession $server;
 
@@ -1038,6 +1040,7 @@ class EchomailHandler
         $this->server->logAction($state['username'] ?? 'unknown', "Echomail: read message list for {$area}");
         $savedState    = $this->loadSavedListState($session);
         $positions     = $savedState['positions'];
+        $sort          = $savedState['sort'];
         $areaPosition  = $positions[$area] ?? null;
         $page          = max(1, (int)($areaPosition['page'] ?? 1));
         $perPage       = MailUtils::getMessagesPerPage($state);
@@ -1050,7 +1053,7 @@ class EchomailHandler
         }
 
         while (true) {
-            [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage);
+            [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage, $sort);
 
             if (!$messages) {
                 if ($page > 1 && $totalPages > 0) {
@@ -1081,12 +1084,17 @@ class EchomailHandler
             );
             $result = TelnetUtils::runMessageList(
                 $conn, $state, $this->server, $title, $messages, $page, $totalPages, $selectedIndex,
-                ['s' => 'search'],
-                [['text' => 'S', 'color' => TelnetUtils::ANSI_RED], ['text' => ' Search', 'color' => TelnetUtils::ANSI_BLUE]]
+                ['o' => 'order', 's' => 'search'],
+                [
+                    ['text' => 'O', 'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Sort  ', 'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'S', 'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Search', 'color' => TelnetUtils::ANSI_BLUE],
+                ]
             );
             $selectedIndex = $result['selectedIndex'];
             $currentSelectedId = isset($messages[$selectedIndex]['id']) ? (int)$messages[$selectedIndex]['id'] : null;
-            $this->saveEchomailState($session, $positions, $area, $page, $currentSelectedId, $state['csrf_token'] ?? null);
+            $this->saveEchomailState($session, $positions, $area, $page, $currentSelectedId, $sort, $state['csrf_token'] ?? null);
 
             switch ($result['action']) {
                 case 'disconnect':
@@ -1105,7 +1113,14 @@ class EchomailHandler
                     $this->compose($conn, $state, $session, $area, null);
                     break;
                 case 'read':
-                    [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $area, $page, $perPage, $totalPages, $result['index']);
+                    [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $area, $page, $perPage, $totalPages, $result['index'], $sort);
+                    break;
+                case 'order':
+                    $newSort = $this->promptForSort($conn, $state, $sort, $title, $messages, $selectedIndex);
+                    if ($newSort !== $sort) {
+                        $sort = $newSort;
+                        $this->saveEchomailState($session, $positions, $area, $page, $currentSelectedId, $sort, $state['csrf_token'] ?? null);
+                    }
                     break;
                 case 'search':
                     $this->searchInArea($conn, $state, $session, $area);
@@ -1285,11 +1300,11 @@ class EchomailHandler
      * @param string $area Echoarea tag@domain
      * @return void
      */
-    private function displayMessage($conn, array &$state, string $session, string $area, int $page, int $perPage, int $totalPages, int $index): array
+    private function displayMessage($conn, array &$state, string $session, string $area, int $page, int $perPage, int $totalPages, int $index, string $sort): array
     {
 
         while (true) {
-            [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage);
+            [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage, $sort);
             $msg = $messages[$index] ?? null;
             if (!$msg) {
                 return [$page, 0];
@@ -1546,12 +1561,13 @@ class EchomailHandler
      *
      * @return array [messages, totalPages]
      */
-    private function fetchMessagesPage(string $session, string $area, int $page, int $perPage): array
+    private function fetchMessagesPage(string $session, string $area, int $page, int $perPage, string $sort): array
     {
+        $sort = $this->normalizeSort($sort);
         $response = TelnetUtils::apiRequest(
             $this->apiBase,
             'GET',
-            '/api/messages/echomail/' . urlencode($area) . '?page=' . $page . '&per_page=' . $perPage,
+            '/api/messages/echomail/' . urlencode($area) . '?page=' . $page . '&per_page=' . $perPage . '&sort=' . urlencode($sort),
             null,
             $session
         );
@@ -1598,7 +1614,7 @@ class EchomailHandler
     /**
      * Load saved echomail browser state from user meta.
      *
-     * @return array{areas_page:int, positions:array<string,array{page:int,selected_message_id:?int}>}
+     * @return array{areas_page:int, positions:array<string,array{page:int,selected_message_id:?int}>, sort:string}
      */
     private function loadSavedListState(string $session): array
     {
@@ -1612,6 +1628,7 @@ class EchomailHandler
 
         $settings = $response['data']['settings'] ?? [];
         $areasPage = (int)($settings['terminal_echomail_areas_page'] ?? 1);
+        $sort = $this->normalizeSort(is_string($settings['terminal_echomail_sort'] ?? null) ? $settings['terminal_echomail_sort'] : null);
         $positionsRaw = $settings['terminal_echomail_positions'] ?? '';
         $positions = [];
         if (is_string($positionsRaw) && trim($positionsRaw) !== '') {
@@ -1640,6 +1657,7 @@ class EchomailHandler
         return [
             'areas_page' => max(1, $areasPage),
             'positions' => $positions,
+            'sort' => $sort,
         ];
     }
 
@@ -1652,6 +1670,7 @@ class EchomailHandler
         string $area,
         int $page,
         ?int $selectedMessageId,
+        string $sort,
         ?string $csrfToken = null
     ): void
     {
@@ -1662,6 +1681,7 @@ class EchomailHandler
 
         $payload = [
             'terminal_echomail_positions' => $positions,
+            'terminal_echomail_sort' => $this->normalizeSort($sort),
         ];
 
         TelnetUtils::apiRequest(
@@ -1703,6 +1723,74 @@ class EchomailHandler
         }
 
         return null;
+    }
+
+    private function normalizeSort(?string $sort): string
+    {
+        return in_array($sort, self::ALLOWED_SORTS, true) ? $sort : 'date_desc';
+    }
+
+    private function promptForSort($conn, array &$state, string $currentSort, string $title, array $messages, int $selectedIndex): string
+    {
+        $locale = $state['locale'] ?? 'en';
+        $currentSort = $this->normalizeSort($currentSort);
+        $sortLabels = [
+            'date_desc' => $this->server->t('ui.terminalserver.echomail.sort_newest', 'Newest', [], $locale),
+            'date_asc' => $this->server->t('ui.terminalserver.echomail.sort_oldest', 'Oldest', [], $locale),
+            'subject' => $this->server->t('ui.terminalserver.echomail.sort_subject', 'Subject', [], $locale),
+            'author' => $this->server->t('ui.terminalserver.echomail.sort_author', 'Author', [], $locale),
+        ];
+        $sortKeys = [
+            'date_desc' => '1',
+            'date_asc' => '2',
+            'subject' => '3',
+            'author' => '4',
+        ];
+        $choiceToSort = array_flip($sortKeys);
+        $redrawFn = function (array &$dialogState) use ($conn, $title, $messages, $selectedIndex): void {
+            TelnetUtils::renderMessageListScreen(
+                $conn,
+                $dialogState,
+                $this->server,
+                $title,
+                $messages,
+                $selectedIndex,
+                [
+                    ['text' => 'O', 'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Sort  ', 'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'S', 'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Search', 'color' => TelnetUtils::ANSI_BLUE],
+                ]
+            );
+        };
+
+        $choice = TelnetUtils::showConfirmDialog(
+            $conn,
+            $state,
+            $this->server,
+            $this->server->t('ui.terminalserver.echomail.sort_title', 'Sort Order', [], $locale),
+            $this->server->t(
+                'ui.terminalserver.echomail.sort_prompt',
+                'Current: {sort}',
+                ['sort' => $sortLabels[$currentSort] ?? $sortLabels['date_desc']],
+                $locale
+            ),
+            [
+                '1' => $sortLabels['date_desc'],
+                '2' => $sortLabels['date_asc'],
+                '3' => $sortLabels['subject'],
+                '4' => $sortLabels['author'],
+                'q' => $this->server->t('ui.terminalserver.server.cancel', 'Cancel', [], $locale),
+            ],
+            $sortKeys[$currentSort] ?? '1',
+            $redrawFn
+        );
+
+        if ($choice === 'q') {
+            return $currentSort;
+        }
+
+        return $this->normalizeSort($choiceToSort[$choice] ?? $currentSort);
     }
 
 }

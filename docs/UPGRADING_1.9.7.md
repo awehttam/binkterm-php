@@ -17,6 +17,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Echomail Download as Text in Terminal Reader](#echomail-download-as-text-in-terminal-reader)
   - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader)
   - [Echomail Search in Terminal](#echomail-search-in-terminal)
+  - [Echomail Sort Options in Terminal](#echomail-sort-options-in-terminal)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer)
   - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation)
   - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal)
@@ -39,6 +40,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Echomail Download as Text in Terminal Reader](#echomail-download-as-text-in-terminal-reader-1)
   - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader-1)
   - [Echomail Search in Terminal](#echomail-search-in-terminal-1)
+  - [Echomail Sort Options in Terminal](#echomail-sort-options-in-terminal-1)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
   - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation-1)
   - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal-1)
@@ -85,6 +87,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Terminal users can now **forward a netmail message to their email address** by pressing `E` in the netmail message viewer. Requires outbound email to be configured on the BBS.
 - Terminal users can now **forward an echomail message to their email address** by pressing `E` in the echomail message viewer. Requires outbound email to be configured on the BBS.
 - **Echomail full-text search in the terminal**: pressing `S` from the echoarea list searches all subscribed areas; pressing `S` from within a specific area's message list searches that area only. Search results are shown in a paginated list; opening a result highlights the matched term in white on yellow in the message body.
+- **Echomail sort options in the terminal**: pressing `O` from an echomail area's message list opens a dialog with the same four sort modes as the web UI: Newest first, Oldest first, By subject, and By author. The user's selected sort is saved and restored the next time they open echomail in the terminal.
 - **Ctrl-K help overlay in the terminal message viewer**: all terminal message readers (netmail and echomail) now show a framed keyboard-reference panel when the user presses `Ctrl-K`. The panel lists every available key binding, including secondary actions that are not shown on the status bar. The overlay responds to terminal resize events while it is open and propagates any resize back to the message viewer when it is dismissed. The status bar in both readers has been trimmed to the five most-used actions (scroll, prev/next, reply, Ctrl-K help, and quit); all other keys are documented exclusively in the Ctrl-K overlay.
 - **Echoarea list and interests picker navigation**: the echoarea list and the interests browser now use the same navigable list interface as message lists — arrow keys move the highlight cursor, Left/Right arrows change pages, Enter selects, and a status bar shows available actions. Number type-to-jump still works. The list redraws on terminal resize. No upgrade action is required.
 - **Subscribe/unsubscribe to echoareas from terminal**: press `A` to toggle between your subscribed areas and all available areas. In all-areas view each row shows a `[+]`/`[ ]` subscription badge. Selecting an unsubscribed area offers Subscribe & Browse, Browse Only, or Cancel. Press `U` on any area to unsubscribe via a confirmation dialog. No upgrade action is required.
@@ -218,6 +221,12 @@ Nine styles are available:
 Styles that require characters outside the connecting client's character set fall back automatically: Heavy → Classic and Rounded → Single on CP437 terminals; all non-ASCII styles → ASCII on ASCII-only terminals. The Classic style is the default and matches the existing look from earlier releases.
 
 ### Terminal Charset Setting Honoured
+
+### Echomail Sort Options in Terminal
+
+The terminal echomail message list now supports the same four list-order choices as the web interface. While viewing messages in an echo area, press `O` to open a centered sort dialog and choose **Newest first**, **Oldest first**, **By subject**, or **By author**.
+
+The selected sort is saved in the user's terminal mail state and restored automatically the next time that user opens an echomail area from the terminal. No sysop configuration is required.
 
 A user's saved terminal character set preference (ASCII, CP437, or UTF-8, set from **Terminal Settings** in the terminal session) is now correctly applied. Previously, a preference explicitly saved as **ASCII** could be silently promoted to UTF-8 when connecting from a UTF-8-capable terminal, causing box-drawing characters to appear even when the user had opted out. The saved preference now takes precedence over auto-detection in all cases.
 

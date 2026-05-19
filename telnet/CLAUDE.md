@@ -37,7 +37,7 @@ The admin save route (`POST /api/admin/appearance/term-menu-keys`) derives its v
 | Sixel image viewer | `TelnetUtils::showSixelImageViewer()` |
 | Message header box (From/To/Date/Subj) | `TelnetUtils::buildMessageHeaderBox()` |
 | Status bar from segments array | `TelnetUtils::buildStatusBar()` |
-| Centered confirmation dialog overlay | `TelnetUtils::showConfirmDialog()` |
+| Centered confirmation / multi-option dialog overlay | `TelnetUtils::showConfirmDialog()` |
 | Centered alert/notice dialog (Enter to dismiss, color-coded info/error) | `TelnetUtils::showAlertDialog($conn, $state, $server, $title, $message, $style)` — `$style` is `'info'` (blue) or `'error'` (red) |
 | Centered "please wait" overlay (draws immediately, no key read; overdraw with showAlertDialog when done) | `TelnetUtils::showWorkingOverlay($conn, $state, $server, $message)` |
 | ANSI-wrapped text lines | `TelnetUtils::wrapTextLines()` |
