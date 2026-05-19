@@ -159,6 +159,7 @@ return [
     'ui.terminalserver.echomail.post_success'          => '✓ Echomail posted successfully!',
     'ui.terminalserver.echomail.post_failed'           => '✗ Failed to post echomail: {error}',
     'ui.terminalserver.echomail.help_bookmark'         => 'Bookmark / unsave message',
+    'ui.terminalserver.echomail.help_text_dl'          => 'Download as .txt (ZMODEM)',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'No netmail messages.',

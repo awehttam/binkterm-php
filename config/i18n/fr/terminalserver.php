@@ -127,6 +127,7 @@ return [
     'ui.terminalserver.echomail.post_success' => '✓ Echomail publié avec succès !',
     'ui.terminalserver.echomail.post_failed' => '✗ Échec de la publication de l\'echomail : {error}',
     'ui.terminalserver.echomail.help_bookmark' => 'Marquer / démarquer le message',
+    'ui.terminalserver.echomail.help_text_dl'  => 'Télécharger en .txt (ZMODEM)',
     'ui.terminalserver.netmail.no_messages' => 'Aucun message netmail.',
     'ui.terminalserver.netmail.no_sent_messages' => 'Aucun netmail envoyé.',
     'ui.terminalserver.netmail.inbox_header' => 'Boîte de réception Netmail (page {page}/{total}) :',

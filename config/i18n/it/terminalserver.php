@@ -159,6 +159,7 @@ return [
     'ui.terminalserver.echomail.post_success'          => '✓ Echomail pubblicata correttamente!',
     'ui.terminalserver.echomail.post_failed'           => '✗ Impossibile pubblicare echomail: {error}',
     'ui.terminalserver.echomail.help_bookmark'         => 'Aggiungi / rimuovi segnalibro',
+    'ui.terminalserver.echomail.help_text_dl'          => 'Scarica come .txt (ZMODEM)',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Nessun messaggio netmail.',

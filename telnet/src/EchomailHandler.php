@@ -756,6 +756,7 @@ class EchomailHandler
                 ['key' => 'PgUp / PgDn', 'label' => $this->server->t('ui.terminalserver.message.help_page',      'Scroll one page',             [], $locale)],
                 ['key' => 'H',           'label' => $this->server->t('ui.terminalserver.message.help_headers',   'View message headers',         [], $locale)],
                 ['key' => 'B',           'label' => $this->server->t('ui.terminalserver.echomail.help_bookmark', 'Bookmark / unsave message',    [], $locale)],
+                ['key' => 'T',           'label' => $this->server->t('ui.terminalserver.echomail.help_text_dl',  'Download as .txt (ZMODEM)',    [], $locale)],
             ];
             if (!empty($imageRefs)) {
                 $helpItems[] = ['key' => 'I', 'label' => $this->server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
@@ -765,7 +766,7 @@ class EchomailHandler
                 $conn, $state, $this->server,
                 $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
                 $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView,
-                $imageRefs, $imageFn, ['b' => 'save'], $helpItems
+                $imageRefs, $imageFn, ['b' => 'save', 't' => 'download'], $helpItems
             );
 
             switch ($result['action']) {
@@ -797,8 +798,126 @@ class EchomailHandler
                     $detail['data']['is_saved'] = $isSaved;
                     TelnetUtils::safeWrite($conn, "\r\n" . $confirmMsg . "\r\n");
                     break;
+                case 'download':
+                    $this->downloadAsText($conn, $state, $session, (int)$id, $msg['subject'] ?? 'message');
+                    break;
             }
         }
+    }
+
+    /**
+     * Download the current echomail message as a plain-text .txt file via ZMODEM.
+     *
+     * @param resource $conn
+     * @param array    $state
+     * @param string   $session
+     * @param int      $id      Message ID
+     * @param string   $subject Message subject (used to derive the filename)
+     */
+    private function downloadAsText($conn, array &$state, string $session, int $id, string $subject): void
+    {
+        $locale = $state['locale'] ?? 'en';
+
+        if (!ZmodemTransfer::canDownload()) {
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t(
+                    'ui.terminalserver.files.transfer_unavailable',
+                    'ZMODEM disabled: install lrzsz (sz/rz) on the server to enable transfers.',
+                    [],
+                    $locale
+                ),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_DIM
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
+
+        $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . $id . '/download', null, $session);
+        $content  = $response['data']['raw'] ?? null;
+
+        if ($response['status'] !== 200 || $content === null || $content === '') {
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t(
+                    'ui.terminalserver.netmail.text_download_fetch_failed',
+                    'Could not fetch message text.',
+                    [],
+                    $locale
+                ),
+                TelnetUtils::ANSI_RED
+            ));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_DIM
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
+
+        $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $subject);
+        $safeName = trim((string)$safeName, '_');
+        if ($safeName === '') {
+            $safeName = 'message';
+        }
+        $filename = $safeName . '.txt';
+        $tmpPath  = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'binkterm_' . uniqid() . '_' . $filename;
+
+        if (file_put_contents($tmpPath, $content) === false) {
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t(
+                    'ui.terminalserver.netmail.text_download_fetch_failed',
+                    'Could not fetch message text.',
+                    [],
+                    $locale
+                ),
+                TelnetUtils::ANSI_RED
+            ));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_DIM
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
+
+        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.files.download_starting', 'Starting ZMODEM download: {name}', ['name' => $filename], $locale),
+            TelnetUtils::ANSI_CYAN
+        ));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.files.download_hint', 'Start ZMODEM receive in your terminal now...', [], $locale),
+            TelnetUtils::ANSI_DIM
+        ));
+        sleep(1);
+
+        $ok = ZmodemTransfer::send($conn, $tmpPath, $filename, !($state['isSsh'] ?? false));
+        @unlink($tmpPath);
+
+        TelnetUtils::writeLine($conn, '');
+        if ($ok) {
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.files.download_done', 'Transfer complete.', [], $locale),
+                TelnetUtils::ANSI_GREEN
+            ));
+        } else {
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.files.download_failed', 'Transfer failed or was cancelled.', [], $locale),
+                TelnetUtils::ANSI_RED
+            ));
+        }
+
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+            TelnetUtils::ANSI_DIM
+        ));
+        $this->server->readKeyWithIdleCheck($conn, $state);
     }
 
     /**

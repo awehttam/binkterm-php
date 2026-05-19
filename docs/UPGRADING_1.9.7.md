@@ -14,6 +14,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Netmail Bookmark in Terminal Reader](#netmail-bookmark-in-terminal-reader)
   - [Echomail Bookmark in Terminal Reader](#echomail-bookmark-in-terminal-reader)
   - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader)
+  - [Echomail Download as Text in Terminal Reader](#echomail-download-as-text-in-terminal-reader)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer)
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
@@ -31,6 +32,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Netmail Delete in Terminal Reader](#netmail-delete-in-terminal-reader-1)
   - [Echomail Bookmark in Terminal Reader](#echomail-bookmark-in-terminal-reader-1)
   - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader-1)
+  - [Echomail Download as Text in Terminal Reader](#echomail-download-as-text-in-terminal-reader-1)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
@@ -247,6 +249,16 @@ No sysop configuration is required. The change takes effect when the upgraded da
 Terminal users can now download the message they are currently reading as a plain `.txt` file by pressing `T`. The download uses BinktermPHP's built-in ZMODEM implementation and requires a ZMODEM-capable terminal application (e.g. SyncTERM, NetRunner, most terminal emulators with ZMODEM receive support).
 
 The downloaded file contains the message headers (From, To, Date, Subject) and the full message body in plain text, equivalent to the **Download .txt** button available in the web interface.
+
+No sysop configuration is required.
+
+---
+
+### Echomail Download as Text in Terminal Reader
+
+Terminal users can now download an echomail message as a plain `.txt` file by pressing `T` while reading it in the terminal echomail viewer. The key appears in the Ctrl-K help overlay. The download uses ZMODEM and requires a ZMODEM-capable terminal application. The filename is derived from the message subject.
+
+This matches the equivalent **Download .txt** button in the web interface and mirrors the same feature already available in the netmail viewer.
 
 No sysop configuration is required.
 

@@ -163,6 +163,7 @@ return [
     'ui.terminalserver.echomail.post_success'          => '✓ Echomail erfolgreich veröffentlicht!',
     'ui.terminalserver.echomail.post_failed'           => '✗ Echomail konnte nicht veröffentlicht werden: {error}',
     'ui.terminalserver.echomail.help_bookmark'         => 'Nachricht mit Lesezeichen versehen / entfernen',
+    'ui.terminalserver.echomail.help_text_dl'          => 'Als .txt herunterladen (ZMODEM)',
 
     // --- Netmail ---
     'ui.terminalserver.netmail.no_messages'            => 'Keine Netmail-Nachrichten.',

@@ -62,6 +62,7 @@ Each transport daemon has additional extension requirements — see
 - Netmail reader supports **Inbox** and **Sent** folder views — press `S` from the message list to toggle. The active folder is persisted per user across sessions. In Sent view, the message header shows the recipient (`To:`) instead of the sender, and replying pre-fills the original recipient's address.
 - Press `B` in the netmail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. The status bar label toggles between **Bookmark** and **Unsave** to reflect the current state.
 - Press `B` in the echomail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. Bookmarked messages appear under the **Saved** filter in the web interface.
+- Press `T` in the echomail viewer to download the current message as a plain-text `.txt` file via ZMODEM. The filename is derived from the message subject. Requires `lrzsz` (`sz`/`rz`) installed on the server.
 
 ### Full-Screen Message Editor
 
@@ -388,6 +389,7 @@ The terminal server uses the BinktermPHP web API for most operations. It also ma
 | `/api/messages/echomail/{id}` | GET | Get echomail message details (includes `is_saved` flag) |
 | `/api/messages/echomail/{id}/save` | POST | Bookmark (save) an echomail message |
 | `/api/messages/echomail/{id}/save` | DELETE | Remove bookmark from an echomail message |
+| `/api/messages/echomail/{id}/download` | GET | Download echomail message as plain text (used by `T` key in viewer) |
 | `/api/messages/echomail/post` | POST | Post echomail message |
 | `/api/dashboard/stats` | GET | Main menu dashboard widgets (unread counts, online users, bulletins, credits) |
 
