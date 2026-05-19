@@ -1591,9 +1591,13 @@ class PacketBbsGateway
      */
     private function handleWeather(array $session, string $nodeId, string $args, string $bridgeNodeId, PacketBbsTextRenderer $renderer): string
     {
-        $apiKey = \BinktermPHP\Config::env('WEATHER_API_KEY', '');
+        $weatherConfigPath = dirname(__DIR__, 2) . '/config/weather.json';
+        $weatherConfig = is_readable($weatherConfigPath)
+            ? json_decode(file_get_contents($weatherConfigPath), true)
+            : null;
+        $apiKey = (string)($weatherConfig['api_key'] ?? \BinktermPHP\Config::env('WEATHER_API_KEY', ''));
         if ($apiKey === '') {
-            return 'Weather not configured. Ask sysop to set WEATHER_API_KEY.';
+            return 'Weather not configured. Ask sysop to set the API key in Admin -> Weather Report.';
         }
 
         $city = trim($args);

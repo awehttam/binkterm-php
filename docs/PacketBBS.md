@@ -802,7 +802,7 @@ Wind SW 18kph Hum 72%
 
 `WX` without a city uses the coordinates set on the bridge node in **Admin → Packet BBS Nodes**. If no coordinates are configured, the command returns an error and prompts for a city name.
 
-Weather requires a `WEATHER_API_KEY` environment variable set to a valid [OpenWeatherMap](https://openweathermap.org/api) API key. If the key is not configured, `WX` returns an error.
+Weather uses the OpenWeatherMap API key configured under **Admin → Weather Report**. If no key is configured, `WX` returns an error.
 
 ### Search
 
