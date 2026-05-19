@@ -617,34 +617,42 @@ class EchomailHandler
             return;
         }
 
-        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->server->t('ui.terminalserver.echomail.interests_title', 'Browse by Interest', [], $locale),
-            TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-        ));
-        TelnetUtils::writeLine($conn, '');
-
+        $interestRows = [];
         foreach ($interests as $idx => $interest) {
-            $num        = $idx + 1;
             $name       = (string)($interest['name'] ?? '');
             $subscribed = !empty($interest['subscribed']);
             $badge      = $subscribed
                 ? TelnetUtils::colorize('[+]', TelnetUtils::ANSI_GREEN)
                 : TelnetUtils::colorize('[ ]', TelnetUtils::ANSI_DIM);
-            TelnetUtils::writeLine($conn, sprintf(' %2d) %s %s', $num, $badge, $name));
+            $interestRows[] = ' '
+                . TelnetUtils::colorize(sprintf('%2d', $idx + 1), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
+                . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
+                . ' ' . $badge . ' ' . $name;
         }
 
-        TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, $this->server->t(
-            'ui.terminalserver.echomail.interests_prompt', 'Enter # to browse, Q to return:', [], $locale
-        ));
+        $interestTitle = TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.echomail.interests_title', 'Browse by Interest', [], $locale),
+            TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+        );
+        $interestStatusBar = [
+            ['text' => 'U/D',      'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Move  ',  'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Enter',    'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Select  ', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Q',        'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Quit',    'color' => TelnetUtils::ANSI_BLUE],
+        ];
 
-        $choice = $this->server->prompt($conn, $state, '> ', true);
-        if ($choice === null || strtolower(trim($choice)) === 'q' || trim($choice) === '') {
+        $interestResult = TelnetUtils::runSelectableList(
+            $conn, $state, $this->server,
+            $interestTitle, $interestRows, 1, 1, 0,
+            $interestStatusBar, [], null
+        );
+
+        if ($interestResult['action'] === 'disconnect' || $interestResult['action'] === 'quit') {
             return;
         }
-
-        $idx = (int)trim($choice) - 1;
+        $idx = $interestResult['index'];
         if (!isset($interests[$idx])) {
             return;
         }
@@ -704,10 +712,10 @@ class EchomailHandler
     }
 
     /**
-     * Render a paginated echo area list and read one keypress/selection.
+     * Render a paginated echo area list using the standard selectable-list widget.
      *
      * Returns an array with:
-     *   'action' => 'quit' | 'select' | 'interests' | 'redraw' | 'filter'
+     *   'action' => 'quit' | 'select' | 'interests' | 'redraw' | 'filter' | 'search'
      *   'area'   => array   (only when action === 'select')
      *   'filter' => ?string (only when action === 'filter'; null means clear)
      *   'page'   => int     (current page after the action)
@@ -732,147 +740,127 @@ class EchomailHandler
         $offset     = ($page - 1) * $perPage;
         $areas      = array_slice($allAreas, $offset, $perPage);
 
-        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-
-        // Substitute {page}/{total} into the title
         $header = str_replace(['{page}', '{total}'], [$page, $totalPages], $title);
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($header, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
-
         if ($searchFilter !== null) {
-            $filterLine = $this->server->t(
+            $header .= ' — ' . $this->server->t(
                 'ui.terminalserver.echomail.areas_filter',
                 'Filter: {term} ({count} results)',
                 ['term' => $searchFilter, 'count' => count($allAreas)],
                 $locale
             );
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($filterLine, TelnetUtils::ANSI_YELLOW));
         }
+        $styledHeader  = TelnetUtils::colorize($header, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD);
+        $encodedHeader = method_exists($this->server, 'encodeForTerminal')
+            ? $this->server->encodeForTerminal($styledHeader)
+            : $styledHeader;
 
-        if (empty($areas) && $searchFilter !== null) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+        $buildRows = function (array $pageAreas): array {
+            $rows = [];
+            foreach ($pageAreas as $idx => $area) {
+                $row = $this->renderEchoAreaSelectionLine(
+                    $idx + 1,
+                    (string)substr($area['tag'] ?? '', 0, 20),
+                    (string)substr($area['domain'] ?? '', 0, 10),
+                    (string)substr($area['description'] ?? '', 0, 40)
+                );
+                if (method_exists($this->server, 'encodeForTerminal')) {
+                    $row = $this->server->encodeForTerminal($row);
+                }
+                $rows[] = $row;
+            }
+            return $rows;
+        };
+
+        $rows = $buildRows($areas);
+        if (empty($rows)) {
+            $rows = [TelnetUtils::colorize(
                 $this->server->t('ui.terminalserver.echomail.areas_no_results', 'No areas match your search.', [], $locale),
                 TelnetUtils::ANSI_YELLOW
-            ));
+            )];
         }
 
-        foreach ($areas as $idx => $area) {
-            TelnetUtils::writeLine($conn, $this->renderEchoAreaSelectionLine(
-                $idx + 1,
-                (string)substr($area['tag'] ?? '', 0, 20),
-                (string)substr($area['domain'] ?? '', 0, 10),
-                (string)substr($area['description'] ?? '', 0, 40)
-            ));
-        }
-
-        TelnetUtils::writeLine($conn, '');
+        $extraKeys = ['/' => 'filter', 's' => 'search'];
         if ($showInterestKey) {
-            $navKey = $this->server->t('ui.terminalserver.echomail.areas_nav_interests', 'Enter #, n/p (next/prev), / (search), i (by interest), q (quit)', [], $locale);
-        } else {
-            $navKey = $this->server->t('ui.terminalserver.echomail.areas_nav', 'Enter #, n/p (next/prev), / (search), q (quit)', [], $locale);
+            $extraKeys['i'] = 'interests';
         }
         if ($searchFilter !== null) {
-            $navKey .= ', ' . $this->server->t('ui.terminalserver.echomail.areas_nav_clear', 'c (clear filter)', [], $locale);
+            $extraKeys['c'] = 'clearfilter';
         }
-        TelnetUtils::writeLine($conn, $navKey);
 
-        $buffer = '';
-        while (true) {
-            $key = $this->server->readKeyWithIdleCheck($conn, $state);
-            if ($key === null) {
+        $statusBar = [
+            ['text' => 'U/D',      'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Move  ',  'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'L/R',      'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Page  ',  'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => '/',        'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Filter  ', 'color' => TelnetUtils::ANSI_BLUE],
+        ];
+        if ($showInterestKey) {
+            $statusBar[] = ['text' => 'I',           'color' => TelnetUtils::ANSI_RED];
+            $statusBar[] = ['text' => ' Interests  ', 'color' => TelnetUtils::ANSI_BLUE];
+        }
+        $statusBar[] = ['text' => 'Q',    'color' => TelnetUtils::ANSI_RED];
+        $statusBar[] = ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE];
+
+        $rebuildFn = function (array &$s) use ($areas, $encodedHeader, $buildRows): array {
+            return ['rows' => $buildRows($areas), 'title' => $encodedHeader];
+        };
+
+        $result = TelnetUtils::runSelectableList(
+            $conn, $state, $this->server,
+            $encodedHeader, $rows, $page, $totalPages, 0,
+            $statusBar, $extraKeys, $rebuildFn
+        );
+
+        switch ($result['action']) {
+            case 'disconnect':
+            case 'quit':
                 return ['action' => 'quit', 'page' => $page];
-            }
 
-            $input = null;
-            if ($key === 'ENTER') {
-                $input = strtolower(trim($buffer));
-                $buffer = '';
-            } elseif ($key === 'BACKSPACE') {
-                if ($buffer !== '') {
-                    $buffer = substr($buffer, 0, -1);
-                    TelnetUtils::safeWrite($conn, "\x08 \x08");
-                }
-                continue;
-            } elseif (str_starts_with($key, 'CHAR:')) {
-                $char  = substr($key, 5);
-                $lower = strtolower($char);
-                if ($lower === 'q') {
-                    return ['action' => 'quit', 'page' => $page];
-                }
-                if ($lower === 'i' && $showInterestKey) {
-                    return ['action' => 'interests', 'page' => $page];
-                }
-                if ($lower === 'n') {
-                    if ($page < $totalPages) {
-                        $page++;
-                        if ($onPageChange) { ($onPageChange)($page); }
-                    }
-                    return ['action' => 'redraw', 'page' => $page];
-                }
-                if ($lower === 'p') {
-                    if ($page > 1) {
-                        $page--;
-                        if ($onPageChange) { ($onPageChange)($page); }
-                    }
-                    return ['action' => 'redraw', 'page' => $page];
-                }
-                if ($char === '/') {
-                    TelnetUtils::writeLine($conn, '');
-                    TelnetUtils::safeWrite($conn, $this->server->t('ui.terminalserver.echomail.areas_search_prompt', 'Search: ', [], $locale));
-                    $term = $this->server->readLineWithIdleCheck($conn, $state);
-                    if ($term === null) {
-                        return ['action' => 'quit', 'page' => $page];
-                    }
-                    $term = trim($term);
-                    return ['action' => 'filter', 'filter' => ($term !== '' ? $term : null), 'page' => 1];
-                }
-                if ($lower === 's') {
-                    return ['action' => 'search', 'page' => $page];
-                }
-                if ($lower === 'c' && $searchFilter !== null) {
-                    return ['action' => 'filter', 'filter' => null, 'page' => 1];
-                }
-                if (ctype_digit($char)) {
-                    $buffer .= $char;
-                    TelnetUtils::safeWrite($conn, $char);
-                }
-                continue;
-            } else {
-                continue;
-            }
-
-            // ENTER was pressed — evaluate $input
-            if ($input === '' || $input === 'q') {
-                return ['action' => 'quit', 'page' => $page];
-            }
-            if ($input === 'i' && $showInterestKey) {
-                return ['action' => 'interests', 'page' => $page];
-            }
-            if ($input === 'n') {
+            case 'next':
                 if ($page < $totalPages) {
                     $page++;
                     if ($onPageChange) { ($onPageChange)($page); }
                 }
                 return ['action' => 'redraw', 'page' => $page];
-            }
-            if ($input === 'p') {
+
+            case 'prev':
                 if ($page > 1) {
                     $page--;
                     if ($onPageChange) { ($onPageChange)($page); }
                 }
                 return ['action' => 'redraw', 'page' => $page];
-            }
-            if ($input === 's') {
-                return ['action' => 'search', 'page' => $page];
-            }
-            if ($input === 'c' && $searchFilter !== null) {
+
+            case 'select':
+                $index = $result['index'];
+                if (isset($areas[$index])) {
+                    return ['action' => 'select', 'area' => $areas[$index], 'page' => $page];
+                }
+                return ['action' => 'redraw', 'page' => $page];
+
+            case 'interests':
+                return ['action' => 'interests', 'page' => $page];
+
+            case 'filter':
+                TelnetUtils::writeLine($conn, '');
+                TelnetUtils::safeWrite($conn, $this->server->t(
+                    'ui.terminalserver.echomail.areas_search_prompt', 'Search: ', [], $locale
+                ));
+                $term = $this->server->readLineWithIdleCheck($conn, $state);
+                if ($term === null) {
+                    return ['action' => 'quit', 'page' => $page];
+                }
+                $term = trim($term);
+                return ['action' => 'filter', 'filter' => ($term !== '' ? $term : null), 'page' => 1];
+
+            case 'clearfilter':
                 return ['action' => 'filter', 'filter' => null, 'page' => 1];
-            }
-            $choice = (int)$input;
-            if ($choice > 0 && $choice <= count($areas)) {
-                return ['action' => 'select', 'area' => $areas[$choice - 1], 'page' => $page];
-            }
-            // Invalid input — redraw
-            return ['action' => 'redraw', 'page' => $page];
+
+            case 'search':
+                return ['action' => 'search', 'page' => $page];
+
+            default:
+                return ['action' => 'redraw', 'page' => $page];
         }
     }
 

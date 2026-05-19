@@ -18,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader)
   - [Echomail Search in Terminal](#echomail-search-in-terminal)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer)
+  - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation)
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
@@ -38,6 +39,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader-1)
   - [Echomail Search in Terminal](#echomail-search-in-terminal-1)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
+  - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation-1)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
@@ -81,6 +83,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Terminal users can now **forward an echomail message to their email address** by pressing `E` in the echomail message viewer. Requires outbound email to be configured on the BBS.
 - **Echomail full-text search in the terminal**: pressing `S` from the echoarea list searches all subscribed areas; pressing `S` from within a specific area's message list searches that area only. Search results are shown in a paginated list; opening a result highlights the matched term in white on yellow in the message body.
 - **Ctrl-K help overlay in the terminal message viewer**: all terminal message readers (netmail and echomail) now show a framed keyboard-reference panel when the user presses `Ctrl-K`. The panel lists every available key binding, including secondary actions that are not shown on the status bar. The overlay responds to terminal resize events while it is open and propagates any resize back to the message viewer when it is dismissed. The status bar in both readers has been trimmed to the five most-used actions (scroll, prev/next, reply, Ctrl-K help, and quit); all other keys are documented exclusively in the Ctrl-K overlay.
+- **Echoarea list and interests picker navigation**: the echoarea list and the interests browser now use the same navigable list interface as message lists — arrow keys move the highlight cursor, Left/Right arrows change pages, Enter selects, and a status bar shows available actions. Number type-to-jump still works. The list redraws on terminal resize. No upgrade action is required.
 - **ZMODEM documentation corrected**: `docs/TerminalServer.md` previously stated that external `sz`/`rz` binaries from `lrzsz` were required and that the built-in PHP ZMODEM implementation was a fallback. This was incorrect. The built-in PHP implementation is the default and preferred path because it correctly handles Telnet IAC (0xFF) byte escaping. External binaries are an opt-in option that requires the sysop to explicitly set `TELNET_ZMODEM_FORCE_PHP=false` in `.env`. No code change; documentation only. No upgrade action is required.
 
 ### PacketBBS
@@ -311,6 +314,29 @@ The overlay responds to terminal resize events while it is open, and any resize 
 The bottom status bar in both the netmail and echomail readers has been trimmed to the five primary actions (scroll, previous/next, reply, Ctrl-K help, quit). All remaining key bindings are documented exclusively in the Ctrl-K overlay, keeping the status bar readable on narrow terminals.
 
 No sysop configuration is required.
+
+---
+
+### Echoarea List and Interests Picker Navigation {#echoarea-list-and-interests-picker-navigation-1}
+
+The echoarea list (the screen showing your subscribed echo areas) and the interests browser (opened with `I` when Interests is enabled) now use the same `runSelectableList` widget used by message lists throughout the terminal server.
+
+**What changed for the echoarea list:**
+
+- **Arrow Up/Down** moves the highlight cursor through the list — no longer need to type a number and press Enter just to move focus
+- **Arrow Left/Right** (or `n`/`p`) change pages
+- **Enter** selects the highlighted area
+- Typing a number jumps the cursor to that row; pressing Enter confirms — the existing number-entry workflow is unchanged
+- A **status bar** at the bottom replaces the plain-text navigation hint, matching the style used by message lists
+- The list **redraws immediately on terminal resize** without requiring a keypress
+
+The `/` filter, `S` cross-area search, `C` clear-filter, and `I` interests keys continue to work exactly as before; the filter key is now shown on the status bar.
+
+**What changed for the interests browser:**
+
+The interests picker uses the same widget: arrow keys or number+Enter to select an interest, Q to return.
+
+No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
 
 ---
 
