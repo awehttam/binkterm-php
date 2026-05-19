@@ -23,6 +23,9 @@
     - [Area Search](#area-search)
   - [Compose Mode](#compose-mode)
   - [Bulletins](#bulletins)
+  - [Chat](#chat)
+  - [Weather](#weather)
+  - [Search](#search)
   - [Paging](#paging)
   - [Quit](#quit)
 - [Output Profiles](#output-profiles)
@@ -269,11 +272,15 @@ Posted to LVLY_TEST.
 | Full command | Short code | Description |
 |---|---|---|
 | `HELP` | `H` | Show general help or contextual help such as `H MAIL` or `H U`. |
-| `HELPFULL` | `FULLHELP` or `HELPFUL` | Show verbose help with full command names. |
+| `FULLHELP` | `HF` | Show verbose help with full command names. Aliases: `HELPFUL`, `HELPFULL`. |
 | `LOGIN <user> <code>` | `L <user> <code>` | Log in using PacketBBS TOTP. |
 | `WHO` | `W` | Show who is online. |
 | `STATUS` | `U` | Show current area, list, message, or draft state. |
 | `BULLETINS` | `BU` | List active bulletins. `BU <id>` reads bulletin number `<id>`. |
+| `CHAT` | `C` | Enter the default chat room. `CHAT <room>` enters a named room. `CHAT <user>` opens a DM with that user. `CHAT LIST` or `CL` lists available rooms. |
+| `SEARCHAREAS <term>` | `SA <term>` | Search echomail. Searches the current area if one is active, otherwise all areas. `SA <area> <term>` restricts to a specific subscribed area. |
+| `SEARCHMAIL <term>` | `SM <term>` | Search netmail for the logged-in user. |
+| `WEATHER` | `WX` | Show current weather for the bridge node's location (if coordinates are set). `WX <city>` looks up any city by name. |
 | `QUIT` | `Q` | Context-aware: exits the current area if one is active, or ends the PacketBBS session from the top level. Use the full word `QUIT` to end the session unconditionally from anywhere. |
 | `WEBSITE` | `WEB` | Show the BBS website URL. |
 
@@ -695,6 +702,182 @@ BU for list
 ```
 
 Reading a bulletin marks it as read for your account. The `*` will disappear from the list on your next `BU`.
+
+### Chat
+
+PacketBBS supports real-time chat rooms and direct messages (DMs). Chat uses the same rooms as the web and terminal interfaces.
+
+Enter the default room:
+
+```text
+CHAT
+```
+
+Short form:
+
+```text
+C
+```
+
+Enter a named room:
+
+```text
+CHAT General
+```
+
+Open a DM with another user (by username):
+
+```text
+CHAT alice
+```
+
+List available rooms:
+
+```text
+CHAT LIST
+```
+
+Alias:
+
+```text
+CL
+```
+
+Example room list response:
+
+```text
+Rooms: General, Tech, Off-Topic
+C <room> to enter
+```
+
+Once inside a room or DM, any text that is not a recognised command is posted as a message. Incoming messages from other users are delivered to your node via the outbound queue and arrive as separate pushes from the bridge.
+
+#### In-Chat Commands
+
+| Command | Short code | Description |
+|---|---|---|
+| `CHAT` | `C` | Refresh the current room or DM at the latest page. `CHAT <room>` switches to a different room. |
+| `CHAT LIST` | `CL` | List available rooms without leaving the current context. |
+| `WHO` | `W` | Show who is online. |
+| `STATUS` | `U` | Show the current chat context (room name or `DM:<user>`). |
+| `MORE` | `M` | Show older messages (page back in history). |
+| `PREV` | `B` or `P` | Show newer messages (page forward toward current). |
+| `HELP` | `H` or `?` | Show in-chat help. |
+| `Q` or `/C` | | Exit the room or DM and return to the main context. Session stays active. |
+| `QUIT` | | End the PacketBBS session unconditionally. |
+
+Any other text is posted as a chat message.
+
+#### Switching Contexts
+
+From inside any chat context you can jump directly to another room or open a DM without going back to the main context first:
+
+```text
+CHAT Tech
+CHAT bob
+```
+
+### Weather
+
+Show current weather for the bridge node's configured location:
+
+```text
+WX
+```
+
+Look up any city by name:
+
+```text
+WX Seattle
+WX London, UK
+```
+
+Example response:
+
+```text
+WX Seattle, US
+Partly Cloudy 14°C/57°F
+Wind SW 18kph Hum 72%
+```
+
+`WX` without a city uses the coordinates set on the bridge node in **Admin → Packet BBS Nodes**. If no coordinates are configured, the command returns an error and prompts for a city name.
+
+Weather uses the OpenWeatherMap API key configured under **Admin → Weather Report**. If no key is configured, `WX` returns an error.
+
+### Search
+
+#### Search Echomail
+
+Search across all subscribed areas, or within a specific area:
+
+```text
+SA <term>
+```
+
+```text
+SA LVLY_CHAT <term>
+```
+
+If a current area is active (set with `AREA`), `SA <term>` without an explicit area restricts the search to that area automatically.
+
+Example:
+
+```text
+SA linux
+```
+
+Response:
+
+```text
+SA "linux" all 1/2
+44 LINUX Bob kernel panic
+12 LVLY_CHAT alice Re: linux
+15 LVLY_CHAT alice linux tools
+R <id>, M:more B:back
+```
+
+With a current area active:
+
+```text
+AREA LVLY_CHAT
+SA linux
+```
+
+Response:
+
+```text
+SA "linux" LVLY_CHAT 1/1
+12 LVLY_CHAT alice Re: linux
+15 LVLY_CHAT alice linux tools
+R <id>, RP <id>
+```
+
+Results from multiple areas show the area tag on each row. Use `R <id>` to read a result. `M` and `B` page through results.
+
+#### Search Netmail
+
+Search your own netmail:
+
+```text
+SM <term>
+```
+
+Example:
+
+```text
+SM meeting
+```
+
+Response:
+
+```text
+SM "meeting" 1/1
+*12 Bob Re: Meeting
+ 15 Alice Meeting notes
+R <id>, RP <id>
+```
+
+`*` marks unread messages. Use `R <id>` to read a result.
 
 ### Paging
 

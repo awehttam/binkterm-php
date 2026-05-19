@@ -160,9 +160,13 @@ class PacketBbsGateway
             case 'ABOUT':
                 return $renderer->renderAbout($this->getBbsName(), Config::getSiteUrl());
 
-            case 'HELPFULL':
+            case 'HF':
             case 'FULLHELP':
             case 'HELPFUL':
+            case 'HELPFULL':
+                if (empty($session['user_id'])) {
+                    return $renderer->renderAbout($this->getBbsName(), Config::getSiteUrl());
+                }
                 return $renderer->renderHelp($verb, $this->getBbsName(), $state);
 
             case 'L':
@@ -263,6 +267,18 @@ class PacketBbsGateway
                     return $this->handleChatList($session, $nodeId, $renderer);
                 }
                 return $this->handleChat($session, $nodeId, $args, $renderer);
+
+            case 'SA':
+            case 'SEARCHAREAS':
+                return $this->handleSearchEchomail($session, $nodeId, $args, 1, $renderer);
+
+            case 'SM':
+            case 'SEARCHMAIL':
+                return $this->handleSearchNetmail($session, $nodeId, $args, 1, $renderer);
+
+            case 'WX':
+            case 'WEATHER':
+                return $this->handleWeather($session, $nodeId, $args, $authNodeId, $renderer);
 
             case 'WEB':
             case 'WEBSITE':
@@ -1451,6 +1467,14 @@ class PacketBbsGateway
             return $this->handleEchomailList($session, $nodeId, $ctx['area'], $page, $renderer);
         }
 
+        if (($ctx['type'] ?? '') === 'search_echomail') {
+            return $this->executeEchomailSearch($session, $nodeId, (string)($ctx['query'] ?? ''), (string)($ctx['area'] ?? ''), $page, $renderer);
+        }
+
+        if (($ctx['type'] ?? '') === 'search_netmail') {
+            return $this->executeNetmailSearch($session, $nodeId, (string)($ctx['query'] ?? ''), $page, $renderer);
+        }
+
         if (($ctx['type'] ?? '') === 'message') {
             $msgId   = (int)($ctx['id'] ?? 0);
             $msgType = $ctx['msg_type'] ?? 'netmail';
@@ -1521,6 +1545,14 @@ class PacketBbsGateway
             return $this->handleEchomailList($session, $nodeId, $ctx['area'], $page, $renderer);
         }
 
+        if (($ctx['type'] ?? '') === 'search_echomail') {
+            return $this->executeEchomailSearch($session, $nodeId, (string)($ctx['query'] ?? ''), (string)($ctx['area'] ?? ''), $page, $renderer);
+        }
+
+        if (($ctx['type'] ?? '') === 'search_netmail') {
+            return $this->executeNetmailSearch($session, $nodeId, (string)($ctx['query'] ?? ''), $page, $renderer);
+        }
+
         if (($ctx['type'] ?? '') === 'message') {
             $msgId   = (int)($ctx['id'] ?? 0);
             $msgType = $ctx['msg_type'] ?? 'netmail';
@@ -1549,6 +1581,190 @@ class PacketBbsGateway
         }
 
         return 'No context.';
+    }
+
+    // -------------------------------------------------------------------------
+    // Weather handler
+    // -------------------------------------------------------------------------
+
+    /**
+     * Fetch current weather via OpenWeatherMap and render a compact radio response.
+     * WX           — use bridge node's lat/lon if configured, otherwise error
+     * WX <city>    — look up by city name
+     */
+    private function handleWeather(array $session, string $nodeId, string $args, string $bridgeNodeId, PacketBbsTextRenderer $renderer): string
+    {
+        $weatherConfigPath = dirname(__DIR__, 2) . '/config/weather.json';
+        $weatherConfig = is_readable($weatherConfigPath)
+            ? json_decode(file_get_contents($weatherConfigPath), true)
+            : null;
+        $apiKey = (string)($weatherConfig['api_key'] ?? \BinktermPHP\Config::env('WEATHER_API_KEY', ''));
+        if ($apiKey === '') {
+            return 'Weather not configured. Ask sysop to set the API key in Admin -> Weather Report.';
+        }
+
+        $city = trim($args);
+
+        if ($city === '') {
+            $node = $this->db->prepare(
+                'SELECT lat, lon, location FROM packet_bbs_nodes WHERE node_id = ? LIMIT 1'
+            );
+            $node->execute([$bridgeNodeId]);
+            $row = $node->fetch(\PDO::FETCH_ASSOC);
+
+            if (empty($row['lat']) || empty($row['lon'])) {
+                return 'Use: WX <city>. Node has no location set.';
+            }
+
+            $url = sprintf(
+                'https://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s&units=metric',
+                urlencode((string)$row['lat']),
+                urlencode((string)$row['lon']),
+                urlencode($apiKey)
+            );
+        } else {
+            $url = sprintf(
+                'https://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s&units=metric',
+                urlencode($city),
+                urlencode($apiKey)
+            );
+        }
+
+        $ctx  = stream_context_create(['http' => ['timeout' => 8, 'user_agent' => 'BinktermPHP PacketBBS']]);
+        $raw  = @file_get_contents($url, false, $ctx);
+
+        if ($raw === false) {
+            return 'Weather fetch failed. Try again later.';
+        }
+
+        $data = json_decode($raw, true);
+        if (!is_array($data)) {
+            return 'Weather data error.';
+        }
+
+        $cod = (int)($data['cod'] ?? 200);
+        if ($cod === 404) {
+            return sprintf('City "%s" not found.', $this->truncateForChat($city, 20));
+        }
+        if ($cod !== 200) {
+            return 'Weather unavailable.';
+        }
+
+        return $renderer->renderWeather($data);
+    }
+
+    // -------------------------------------------------------------------------
+    // Search handlers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Parse SA arguments: optional area prefix, then query. Falls back to
+     * current area when no explicit area token is given.
+     */
+    private function handleSearchEchomail(array $session, string $nodeId, string $args, int $page, PacketBbsTextRenderer $renderer): string
+    {
+        if ($err = $this->requireLogin($session)) {
+            return $err;
+        }
+        if (trim($args) === '') {
+            return 'Use: SA <term> or SA <area> <term>';
+        }
+
+        $area  = '';
+        $query = $args;
+
+        $parts = preg_split('/\s+/', $args, 2);
+        $firstToken = $parts[0] ?? '';
+        $rest       = trim($parts[1] ?? '');
+
+        if ($firstToken !== '' && $rest !== '') {
+            $resolved = $this->resolveSubscribedEchoarea((int)$session['user_id'], $firstToken);
+            if ($resolved) {
+                $area  = $this->formatAreaIdentifier((string)$resolved['tag'], (string)($resolved['domain'] ?? ''));
+                $query = $rest;
+            }
+        }
+
+        if ($area === '') {
+            $state = $this->getSessionState($session);
+            $area  = (string)($state['current_area']['display'] ?? '');
+        }
+
+        return $this->executeEchomailSearch($session, $nodeId, $query, $area, $page, $renderer);
+    }
+
+    /**
+     * Run the echomail search query (re-used by M/MORE pagination).
+     */
+    private function executeEchomailSearch(array $session, string $nodeId, string $query, string $area, int $page, PacketBbsTextRenderer $renderer): string
+    {
+        if (trim($query) === '') {
+            return 'Use: SA <term>';
+        }
+
+        $results   = $this->messageHandler->searchMessages($query, 'echomail', $area !== '' ? $area : null, (int)$session['user_id']);
+        $pageSize   = $renderer->getPageSize();
+        $total      = count($results);
+        $totalPages = max(1, (int)ceil($total / $pageSize));
+
+        if ($total === 0) {
+            return sprintf('No results for "%s".', $this->truncateForChat($query, 20));
+        }
+
+        if ($page > $totalPages) {
+            return 'End.';
+        }
+
+        $paged = array_slice($results, ($page - 1) * $pageSize, $pageSize);
+
+        $this->sessionRepo->update($nodeId, [
+            'pagination_cursor'  => $page,
+            'pagination_context' => json_encode(['type' => 'search_echomail', 'query' => $query, 'area' => $area]),
+        ]);
+
+        return $renderer->renderEchomailSearchResults($paged, $query, $area, $page, $totalPages);
+    }
+
+    /**
+     * Search netmail for the logged-in user.
+     */
+    private function handleSearchNetmail(array $session, string $nodeId, string $query, int $page, PacketBbsTextRenderer $renderer): string
+    {
+        if ($err = $this->requireLogin($session)) {
+            return $err;
+        }
+        if (trim($query) === '') {
+            return 'Use: SM <term>';
+        }
+        return $this->executeNetmailSearch($session, $nodeId, $query, $page, $renderer);
+    }
+
+    /**
+     * Run the netmail search query (re-used by M/MORE pagination).
+     */
+    private function executeNetmailSearch(array $session, string $nodeId, string $query, int $page, PacketBbsTextRenderer $renderer): string
+    {
+        $results   = $this->messageHandler->searchMessages($query, 'netmail', null, (int)$session['user_id']);
+        $pageSize   = $renderer->getPageSize();
+        $total      = count($results);
+        $totalPages = max(1, (int)ceil($total / $pageSize));
+
+        if ($total === 0) {
+            return sprintf('No mail matching "%s".', $this->truncateForChat($query, 20));
+        }
+
+        if ($page > $totalPages) {
+            return 'End.';
+        }
+
+        $paged = array_slice($results, ($page - 1) * $pageSize, $pageSize);
+
+        $this->sessionRepo->update($nodeId, [
+            'pagination_cursor'  => $page,
+            'pagination_context' => json_encode(['type' => 'search_netmail', 'query' => $query]),
+        ]);
+
+        return $renderer->renderNetmailSearchResults($paged, $query, $page, $totalPages);
     }
 
     // -------------------------------------------------------------------------
