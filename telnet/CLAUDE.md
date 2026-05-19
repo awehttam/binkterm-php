@@ -24,6 +24,53 @@ Menu actions are data-driven via the key map in `AppearanceConfig`. Every action
 
 The admin save route (`POST /api/admin/appearance/term-menu-keys`) derives its valid action list from `array_keys(AppearanceConfig::DEFAULT_TERM_MENU_KEYS)` automatically — no route change needed when adding an action.
 
+## Reusable UI Widgets
+
+**Always use existing `TelnetUtils` widgets before writing custom UI.** The utility class provides a set of high-level, tested components for all common terminal UI patterns. Duplicating their logic in handler code creates inconsistency and bugs.
+
+| Need | Use |
+|------|-----|
+| Full-screen scrollable message reader | `TelnetUtils::runMessageViewer()` |
+| Paginated selectable list with keyboard nav | `TelnetUtils::runSelectableList()` |
+| Pre-built message list with compose/read actions | `TelnetUtils::runMessageList()` |
+| Scrollable kludge/header overlay | `TelnetUtils::runKludgeViewer()` (called internally by viewer) |
+| Sixel image viewer | `TelnetUtils::showSixelImageViewer()` |
+| Message header box (From/To/Date/Subj) | `TelnetUtils::buildMessageHeaderBox()` |
+| Status bar from segments array | `TelnetUtils::buildStatusBar()` |
+| Centered confirmation dialog overlay | `TelnetUtils::showConfirmDialog()` |
+| ANSI-wrapped text lines | `TelnetUtils::wrapTextLines()` |
+| Address book / nodelist picker (search → select → return name+address) | `TelnetUtils::runAddressPicker()` |
+
+### Adding actions to the message viewer
+
+`runMessageViewer()` accepts an `$extraKeys` array that maps lowercase characters to action name strings. Use this instead of wrapping the viewer in custom key-reading logic:
+
+```php
+// In $buildView closure — add key hint to status bar:
+$segments[] = ['text' => 'X',        'color' => TelnetUtils::ANSI_RED];
+$segments[] = ['text' => ' Delete  ','color' => TelnetUtils::ANSI_BLUE];
+
+// Pass the binding to the viewer:
+$result = TelnetUtils::runMessageViewer(
+    $conn, $state, $this->server,
+    $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
+    $state['rows'] ?? 24, 0, $allowDownload,
+    $kludgeLines, $buildView, $imageRefs, $imageFn,
+    ['x' => 'delete']   // <-- extra keys
+);
+
+// Handle in the switch:
+case 'delete':
+    $this->doDelete(...);
+    break;
+```
+
+### Extending widgets
+
+If a widget genuinely lacks a capability needed by multiple features, extend it in `TelnetUtils` — don't work around it in the handler. The `$extraKeys` mechanism itself is an example of this: it was added once so all handlers can use it.
+
+**When adding a new reusable widget or extending an existing one, update the widget table above in this file.** The table is the first place anyone looks before writing new terminal UI code — keep it current.
+
 ## Data Access
 
 The terminal server is a trusted first-party runtime component of BinktermPHP. Code under `telnet/src/` and `ssh/` does not need to treat the rest of the application as a strictly remote system, but it must still respect clear boundaries.
@@ -50,6 +97,21 @@ Terminal code may use shared internal classes from `src/` when they are transpor
 
 Calling authenticated local API endpoints through `TelnetUtils::apiRequest()` is acceptable, including endpoints protected by CSRF, because the terminal server handles that protocol explicitly.
 
+### CSRF tokens are required for all mutating API calls
+
+**Every POST, PUT, PATCH, or DELETE call via `TelnetUtils::apiRequest()` must pass the CSRF token** as the 7th argument — omitting it causes a 403. The token lives in `$state['csrf_token']`:
+
+```php
+// CORRECT
+TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/some/endpoint', $payload, $session, 3, $state['csrf_token'] ?? null);
+TelnetUtils::apiRequest($this->apiBase, 'DELETE', '/api/some/endpoint', null, $session, 3, $state['csrf_token'] ?? null);
+
+// WRONG — 403 at runtime, no error at write time
+TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/some/endpoint', $payload, $session);
+```
+
+GET requests do not need the token.
+
 ```text
 ✅ TelnetUtils::apiRequest($base, 'GET', '/api/user/settings', null, $session);
 ✅ $doors = (new DoorManager())->getEnabledDoors();
@@ -60,4 +122,5 @@ Calling authenticated local API endpoints through `TelnetUtils::apiRequest()` is
 
 ❌ Calling controllers, form handlers, or web-only helpers from terminal code
 ❌ Reimplementing business rules in terminal-side SQL when a shared service already owns them
+❌ POST/DELETE via apiRequest() without passing $state['csrf_token'] ?? null as the 7th argument
 ```

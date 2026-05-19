@@ -205,33 +205,85 @@ class NetmailHandler
         $toAddressDefault = $reply['replyto_address'] ?? $reply['from_address'] ?? '';
         $subjectDefault = $reply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
 
-        $toNamePrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.to_name', 'To Name: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
-        if ($toNameDefault) {
-            $toNamePrompt .= TelnetUtils::colorize("[{$toNameDefault}] ", TelnetUtils::ANSI_YELLOW);
-        }
-        $toName = $this->server->prompt($conn, $state, $toNamePrompt, true);
-        if ($toName === null) {
-            return;
-        }
-        if (trim($toName) === '') {
-            if ($toNameDefault !== '') {
-                $toName = $toNameDefault;
-            } else {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.no_recipient', 'Recipient name required. Message cancelled.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
+        $abHint = TelnetUtils::colorize(
+            ' ' . $this->server->t('ui.terminalserver.compose.address_book_hint', '[? Address Book]', [], $state['locale']),
+            TelnetUtils::ANSI_DIM
+        );
+
+        // Helper: redraw the compose header after returning from the picker
+        $redrawHeader = function() use ($conn, $state): void {
+            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.netmail.compose_title', '=== Compose Netmail ===', [], $state['locale']),
+                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+            ));
+            TelnetUtils::writeLine($conn, '');
+        };
+
+        // --- To Name ---
+        $toNameLabel = $this->server->t('ui.terminalserver.compose.to_name', 'To Name: ', [], $state['locale']);
+        $toNameBase  = TelnetUtils::colorize($toNameLabel, TelnetUtils::ANSI_CYAN);
+
+        $buildToNamePrompt = function(string $default) use ($toNameBase, $abHint): string {
+            if ($default !== '') {
+                return $toNameBase . TelnetUtils::colorize("[{$default}] ", TelnetUtils::ANSI_YELLOW);
+            }
+            return $toNameBase . $abHint . ' ';
+        };
+
+        $toName = null;
+        while ($toName === null) {
+            $input = $this->server->prompt($conn, $state, $buildToNamePrompt($toNameDefault), true);
+            if ($input === null) {
                 return;
             }
+            if (trim($input) === '?') {
+                $picked = TelnetUtils::runAddressPicker($conn, $state, $this->server, $this->apiBase, $session, $state['locale']);
+                $redrawHeader();
+                if ($picked !== null) {
+                    $toNameDefault    = $picked['name'];
+                    $toAddressDefault = $picked['address'];
+                }
+                continue; // re-show To Name prompt with the picked default
+            }
+            $resolved = trim($input) !== '' ? trim($input) : $toNameDefault;
+            if ($resolved === '') {
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                    $this->server->t('ui.terminalserver.compose.no_recipient', 'Recipient name required. Message cancelled.', [], $state['locale']),
+                    TelnetUtils::ANSI_YELLOW
+                ));
+                return;
+            }
+            $toName = $resolved;
         }
 
-        $toAddressPrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.to_address', 'To Address: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
-        if ($toAddressDefault) {
-            $toAddressPrompt .= TelnetUtils::colorize("[{$toAddressDefault}] ", TelnetUtils::ANSI_YELLOW);
-        }
-        $toAddress = $this->server->prompt($conn, $state, $toAddressPrompt, true);
-        if ($toAddress === null) {
-            return;
-        }
-        if ($toAddress === '' && $toAddressDefault !== '') {
-            $toAddress = $toAddressDefault;
+        // --- To Address ---
+        $toAddressLabel = $this->server->t('ui.terminalserver.compose.to_address', 'To Address: ', [], $state['locale']);
+        $toAddressBase  = TelnetUtils::colorize($toAddressLabel, TelnetUtils::ANSI_CYAN);
+
+        $buildToAddressPrompt = function(string $default) use ($toAddressBase, $abHint): string {
+            if ($default !== '') {
+                return $toAddressBase . TelnetUtils::colorize("[{$default}] ", TelnetUtils::ANSI_YELLOW);
+            }
+            return $toAddressBase . $abHint . ' ';
+        };
+
+        $toAddress = null;
+        while ($toAddress === null) {
+            $input = $this->server->prompt($conn, $state, $buildToAddressPrompt($toAddressDefault), true);
+            if ($input === null) {
+                return;
+            }
+            if (trim($input) === '?') {
+                $picked = TelnetUtils::runAddressPicker($conn, $state, $this->server, $this->apiBase, $session, $state['locale']);
+                $redrawHeader();
+                if ($picked !== null) {
+                    $toAddressDefault = $picked['address'];
+                }
+                continue; // re-show To Address prompt with the picked default
+            }
+            $toAddress = trim($input) !== '' ? trim($input) : $toAddressDefault;
         }
 
         $subjectPrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.subject', 'Subject: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
@@ -377,10 +429,11 @@ class NetmailHandler
 
             $hasAttachments = !empty($attachments);
             $isSentFolder   = $folder === 'sent';
+            $isSaved        = (bool)($detail['data']['is_saved'] ?? false);
 
             // Closure that rebuilds all layout-dependent view components from current $state.
             // Called once on open and again whenever the terminal is resized.
-            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs, $isSentFolder): array {
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs, $isSentFolder, &$isSaved): array {
                 $cols    = $s['cols'] ?? 80;
                 $width   = max(10, $cols - 2);
                 $charset = $this->server->getTerminalCharset();
@@ -415,8 +468,13 @@ class NetmailHandler
                     $segments[] = ['text' => 'I',        'color' => TelnetUtils::ANSI_RED];
                     $segments[] = ['text' => $imageHint, 'color' => TelnetUtils::ANSI_BLUE];
                 }
+                $segments[] = ['text' => 'X',        'color' => TelnetUtils::ANSI_RED];
+                $segments[] = ['text' => ' Delete  ','color' => TelnetUtils::ANSI_BLUE];
                 $segments[] = ['text' => 'H',        'color' => TelnetUtils::ANSI_RED];
                 $segments[] = ['text' => ' Headers  ','color' => TelnetUtils::ANSI_BLUE];
+                $bookmarkLabel = $isSaved ? ' Unsave  ' : ' Bookmark  ';
+                $segments[] = ['text' => 'B',            'color' => TelnetUtils::ANSI_RED];
+                $segments[] = ['text' => $bookmarkLabel, 'color' => TelnetUtils::ANSI_BLUE];
                 $segments[] = ['text' => 'Q',        'color' => TelnetUtils::ANSI_RED];
                 $segments[] = ['text' => ' Quit',    'color' => TelnetUtils::ANSI_BLUE];
 
@@ -459,7 +517,8 @@ class NetmailHandler
                 $kludgeLines,
                 $buildView,
                 $imageRefs,
-                $imageFn
+                $imageFn,
+                ['x' => 'delete', 'DELETE' => 'delete', 'b' => 'save']
             );
 
             switch ($result['action']) {
@@ -489,6 +548,25 @@ class NetmailHandler
                 case 'download':
                     $this->downloadAttachment($conn, $state, $attachments);
                     TelnetUtils::setCursorVisible($conn, true);
+                    break;
+                case 'delete':
+                    $deleted = $this->confirmAndDeleteMessage($conn, $state, $session, (int)$id);
+                    if ($deleted) {
+                        return [$page, max(0, $index - 1)];
+                    }
+                    break;
+                case 'save':
+                    $csrfToken = $state['csrf_token'] ?? null;
+                    if ($isSaved) {
+                        TelnetUtils::apiRequest($this->apiBase, 'DELETE', '/api/messages/netmail/' . $id . '/save', null, $session, 3, $csrfToken);
+                        $confirmMsg = 'Unsaved.';
+                    } else {
+                        TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/messages/netmail/' . $id . '/save', null, $session, 3, $csrfToken);
+                        $confirmMsg = 'Saved.';
+                    }
+                    $isSaved = !$isSaved;
+                    $detail['data']['is_saved'] = $isSaved;
+                    TelnetUtils::safeWrite($conn, "\r\n" . $confirmMsg . "\r\n");
                     break;
             }
         }
@@ -580,6 +658,73 @@ class NetmailHandler
         }
 
         return null;
+    }
+
+    /**
+     * Prompt for delete confirmation and delete the message if confirmed.
+     *
+     * @return bool True if the message was successfully deleted.
+     */
+    private function confirmAndDeleteMessage($conn, array &$state, string $session, int $id): bool
+    {
+        $locale = $state['locale'] ?? 'en';
+
+        $choice = TelnetUtils::showConfirmDialog(
+            $conn, $state, $this->server,
+            $this->server->t('ui.terminalserver.netmail.delete_confirm_title', 'Delete Message?', [], $locale),
+            $this->server->t('ui.terminalserver.netmail.delete_confirm_body', 'This cannot be undone.', [], $locale),
+            ['y' => $this->server->t('ui.terminalserver.server.confirm_yes', 'Confirm', [], $locale),
+             'n' => $this->server->t('ui.terminalserver.server.confirm_no',  'Cancel',  [], $locale)],
+            'n'
+        );
+
+        if ($choice !== 'y') {
+            return false;
+        }
+
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.netmail.deleting', 'Deleting...', [], $locale),
+            TelnetUtils::ANSI_CYAN
+        ));
+
+        $result = TelnetUtils::apiRequest(
+            $this->apiBase,
+            'DELETE',
+            '/api/messages/netmail/' . $id,
+            null,
+            $session,
+            3,
+            $state['csrf_token'] ?? null
+        );
+
+        if (($result['status'] ?? 0) === 200 && !empty($result['data']['success'])) {
+            $this->server->logAction($state['username'] ?? 'unknown', "Netmail: deleted message #{$id}");
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.netmail.delete_success', '✓ Message deleted.', [], $locale),
+                TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD
+            ));
+        } else {
+            $error = $result['data']['error'] ?? ($result['error'] ?? 'Unknown error');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.netmail.delete_failed', '✗ Failed to delete: {error}', ['error' => $error], $locale),
+                TelnetUtils::ANSI_RED
+            ));
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_DIM
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return false;
+        }
+
+        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+            TelnetUtils::ANSI_DIM
+        ));
+        $this->server->readKeyWithIdleCheck($conn, $state);
+        return true;
     }
 
     /**

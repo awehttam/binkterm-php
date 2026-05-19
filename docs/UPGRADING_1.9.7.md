@@ -9,6 +9,9 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Terminal Server](#terminal-server)
   - [Configurable Border Style](#configurable-border-style)
   - [Terminal Charset Setting Honoured](#terminal-charset-setting-honoured)
+  - [Netmail Address Book / Nodelist Lookup in Compose](#netmail-address-book--nodelist-lookup-in-compose)
+  - [Netmail Delete in Terminal Reader](#netmail-delete-in-terminal-reader)
+  - [Netmail Bookmark in Terminal Reader](#netmail-bookmark-in-terminal-reader)
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
@@ -21,6 +24,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Server](#terminal-server-1)
   - [Configurable Border Style](#configurable-border-style)
   - [Terminal Charset Setting Honoured](#terminal-charset-setting-honoured)
+  - [Netmail Address Book / Nodelist Lookup in Compose](#netmail-address-book--nodelist-lookup-in-compose-1)
+  - [Netmail Delete in Terminal Reader](#netmail-delete-in-terminal-reader-1)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
@@ -55,6 +60,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Idle Timeout** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
 - **Configurable border style**: the box-drawing style used for all terminal frames and viewers can now be set per-system via **Admin → BBS Settings → Appearance → Terminal Server → Border Style**. Nine styles are available (Classic, Double, Single, Heavy, Rounded, Minimal, Mixed, Shadow, ASCII). Styles that require characters not supported by the connecting client's character set fall back automatically.
 - **Terminal charset preference honoured**: the user's saved terminal character set preference (ASCII, CP437, or UTF-8) is now correctly respected. Previously a saved ASCII preference could be silently overridden by terminal auto-detection on UTF-8 capable clients.
+- Terminal users can now **delete a netmail message** from the message viewer by pressing `X` or the `Del` key. A confirmation dialog appears before the message is removed.
+- Terminal users can now **bookmark a netmail message** for later reference by pressing `B` in the message viewer. The status bar label toggles between **Bookmark** (unsaved) and **Unsave** (already saved). Bookmarked messages appear under the Saved filter in the web interface. No upgrade action is required.
+- **Address book / nodelist lookup in netmail compose**: when composing a new netmail in the terminal, typing `?` at the To Name or To Address prompt opens an interactive picker. The picker searches both the user's address book and the FTN nodelist, merges the results (address book entries take priority; duplicates by FTN address are suppressed), and lets the user select with the arrow keys or by typing a row number. Selecting an entry pre-fills both To Name (sysop name for nodelist entries, stored name for address book entries) and To Address as editable defaults.
 
 ### PacketBBS
 
@@ -186,6 +194,30 @@ Styles that require characters outside the connecting client's character set fal
 A user's saved terminal character set preference (ASCII, CP437, or UTF-8, set from **Terminal Settings** in the terminal session) is now correctly applied. Previously, a preference explicitly saved as **ASCII** could be silently promoted to UTF-8 when connecting from a UTF-8-capable terminal, causing box-drawing characters to appear even when the user had opted out. The saved preference now takes precedence over auto-detection in all cases.
 
 Users who were affected do not need to change anything — their existing setting will now be respected on next login.
+
+### Netmail Address Book / Nodelist Lookup in Compose
+
+When composing a new netmail from the terminal, users can now look up recipients without typing an FTN address from memory. Typing `?` at either the **To Name** or **To Address** prompt opens an interactive address picker.
+
+The picker prompts for a search term, then queries both the user's personal address book and the FTN nodelist simultaneously. Results are merged into a single list — address book entries appear first and duplicates (matched by FTN address) are suppressed. The list is navigable with the Up/Down arrow keys or by typing a row number; pressing Enter confirms the selection and pressing `Q` returns to the search prompt for a new query.
+
+Selecting an entry pre-fills both **To Name** and **To Address** as editable defaults. The To Name field is populated with the sysop name from the nodelist (not the BBS system name), or the stored contact name from the address book. The user can accept the pre-filled values by pressing Enter or type to override them before proceeding.
+
+The picker is implemented as a reusable `TelnetUtils::runAddressPicker()` widget and responds correctly to terminal resize events.
+
+No sysop configuration is required.
+
+---
+
+### Netmail Delete in Terminal Reader
+
+Terminal users can now delete a netmail message directly from the message viewer. Pressing `X` or the `Del` key while reading a message opens a centered confirmation dialog. Pressing `Y` deletes the message and returns to the message list; any other key cancels and returns to the message.
+
+Both the sender and the recipient may delete their copy of a message. The same ownership rules that govern deletion in the web interface apply here.
+
+A pre-existing bug in the terminal key decoder has also been fixed as part of this change: the `Del` key sequence (`\033[3~`) was not recognized by the interactive session key reader, causing it to be silently ignored in all full-screen terminal views. The key now works reliably across the entire terminal interface.
+
+No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
 
 ---
 
