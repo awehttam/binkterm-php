@@ -252,6 +252,7 @@ class AddressBookController
     {
         $searchTerm = '%' . $query . '%';
         $exactTerm  = $query . '%';
+        $normalizedQuery = trim((string)$query);
 
         $stmt = $this->db->prepare("
             SELECT ab.id, ab.name, ab.messaging_user_id, ab.node_address, ab.email, ab.always_crashmail,
@@ -283,7 +284,100 @@ class AddressBookController
 
         $stmt->execute([$userId, $searchTerm, $searchTerm, $searchTerm, $exactTerm, $exactTerm, $exactTerm, $limit]);
 
-        return $stmt->fetchAll();
+        $entries = $stmt->fetchAll();
+        $results = [];
+        $seenMessagingIds = [];
+        $seenNames = [];
+
+        $addResult = static function (array $entry) use (&$results, &$seenMessagingIds, &$seenNames): void {
+            $messagingId = strtolower(trim((string)($entry['messaging_user_id'] ?? '')));
+            $name        = strtolower(trim((string)($entry['name'] ?? '')));
+
+            if ($messagingId !== '' && isset($seenMessagingIds[$messagingId])) {
+                return;
+            }
+            if ($name !== '' && isset($seenNames[$name])) {
+                return;
+            }
+
+            if ($messagingId !== '') {
+                $seenMessagingIds[$messagingId] = true;
+            }
+            if ($name !== '') {
+                $seenNames[$name] = true;
+            }
+
+            $results[] = $entry;
+        };
+
+        foreach ($entries as $entry) {
+            $addResult($entry);
+        }
+
+        if (strcasecmp($normalizedQuery, 'sysop') === 0) {
+            try {
+                $sysopName = trim((string)\BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getSystemSysop());
+            } catch (\Throwable $e) {
+                $sysopName = '';
+            }
+
+            if ($sysopName !== '') {
+                $addResult([
+                    'id' => null,
+                    'name' => $sysopName,
+                    'messaging_user_id' => $sysopName,
+                    'node_address' => '',
+                    'email' => null,
+                    'always_crashmail' => false,
+                    'node_system_name' => '',
+                    'node_domain' => '',
+                ]);
+            }
+        }
+
+        $remaining = max(0, $limit - count($results));
+        if ($remaining > 0) {
+            $userStmt = $this->db->prepare("
+                SELECT id, username, real_name
+                FROM users
+                WHERE is_active = TRUE
+                  AND (
+                    real_name ILIKE ?
+                    OR username ILIKE ?
+                  )
+                ORDER BY
+                    CASE
+                        WHEN real_name ILIKE ? THEN 1
+                        WHEN username ILIKE ? THEN 2
+                        ELSE 3
+                    END,
+                    real_name ASC,
+                    username ASC
+                LIMIT ?
+            ");
+            $userStmt->execute([$searchTerm, $searchTerm, $exactTerm, $exactTerm, $remaining]);
+
+            foreach ($userStmt->fetchAll() as $user) {
+                $realName = trim((string)($user['real_name'] ?? ''));
+                $username = trim((string)($user['username'] ?? ''));
+                if ($realName === '' && $username === '') {
+                    continue;
+                }
+
+                $addResult([
+                    'id' => null,
+                    'name' => $realName !== '' ? $realName : $username,
+                    'messaging_user_id' => $username !== '' ? $username : $realName,
+                    'node_address' => '',
+                    'email' => null,
+                    'always_crashmail' => false,
+                    'node_system_name' => '',
+                    'node_domain' => '',
+                ]);
+            }
+        }
+
+        return array_slice($results, 0, $limit);
     }
 
     /**

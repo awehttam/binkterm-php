@@ -151,7 +151,7 @@ Reminder send result
 | `POST` | [`/api/address-book/`](#post-apiaddress-book) | Yes | Create a new address book entry. |
 | `PUT` | [`/api/address-book/{id}`](#put-apiaddress-bookid) | Yes | Update an existing address book entry. |
 | `DELETE` | [`/api/address-book/{id}`](#delete-apiaddress-bookid) | Yes | Delete an address book entry. |
-| `GET` | [`/api/address-book/search/{query}`](#get-apiaddress-booksearchquery) | Yes | Search address book entries for autocomplete. |
+| `GET` | [`/api/address-book/search/{query}`](#get-apiaddress-booksearchquery) | Yes | Search address book entries plus matching local users for autocomplete. |
 | `GET` | [`/api/address-book/stats`](#get-apiaddress-bookstats) | Yes | Get address book statistics for the user. |
 
 #### `GET /api/address-book/`
@@ -319,7 +319,7 @@ Deletion confirmation
 
 **Requires authentication**
 
-Performs a full-text search on the authenticated user's address book entries, returning a limited result set suitable for autocomplete UI. Limits results to 10 by default, maximum 20. Query string is URL-decoded before search.
+Performs an autocomplete search for the authenticated user. Results include the user's address book entries plus matching local BBS users by real name or username, returned in a shared entry shape suitable for compose UI pickers. Limits results to 10 by default, maximum 20. Query string is URL-decoded before search.
 
 **Path Parameters**
 
@@ -335,12 +335,12 @@ Performs a full-text search on the authenticated user's address book entries, re
 
 **Response** _(JSON)_
 
-Array of matching address book entries
+Array of matching autocomplete entries
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `entries` | array | Matching address book entries (limited) |
+| `entries` | array | Matching address-book and local-user entries (limited) |
 
 **Error Responses**
 

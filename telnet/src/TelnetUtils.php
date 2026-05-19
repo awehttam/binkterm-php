@@ -2684,8 +2684,8 @@ class TelnetUtils
             }
             $query = trim($query);
 
-            // Fetch address book entries (no trailing slash, matches route; + encoding valid in query strings)
-            $abResp    = self::apiRequest($apiBase, 'GET', '/api/address-book?search=' . urlencode($query), null, $session);
+            // Fetch address book autocomplete results, which also include local-user matches.
+            $abResp    = self::apiRequest($apiBase, 'GET', '/api/address-book/search/' . rawurlencode($query), null, $session);
             $abEntries = $abResp['data']['entries'] ?? [];
 
             // Fetch nodelist entries
