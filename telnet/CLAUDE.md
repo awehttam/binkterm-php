@@ -30,7 +30,7 @@ The admin save route (`POST /api/admin/appearance/term-menu-keys`) derives its v
 
 | Need | Use |
 |------|-----|
-| Full-screen scrollable message reader | `TelnetUtils::runMessageViewer()` |
+| Full-screen scrollable message reader (Ctrl-K help overlay built in) | `TelnetUtils::runMessageViewer()` |
 | Paginated selectable list with keyboard nav | `TelnetUtils::runSelectableList()` |
 | Pre-built message list with compose/read actions | `TelnetUtils::runMessageList()` |
 | Scrollable kludge/header overlay | `TelnetUtils::runKludgeViewer()` (called internally by viewer) |
@@ -41,22 +41,44 @@ The admin save route (`POST /api/admin/appearance/term-menu-keys`) derives its v
 | ANSI-wrapped text lines | `TelnetUtils::wrapTextLines()` |
 | Address book / nodelist picker (search → select → return name+address) | `TelnetUtils::runAddressPicker()` |
 
+### Status bar discipline
+
+The bottom status bar has limited width. Keep it to the **most-used primary actions only** — typically scroll, prev/next, reply, and quit. Every other key belongs exclusively in the Ctrl-K help overlay; do not put secondary keys in both places.
+
+```
+✅ Status bar:  U/D Scroll  L/R Prev/Next  R Reply  Ctrl-K Help  Q Quit
+❌ Status bar:  U/D Scroll  PgUp/PgDn Page  L/R Prev/Next  R Reply  H Headers  X Delete  B Bookmark  T .txt  Q Quit
+```
+
+**Ctrl-K is the universal help key** across all terminal contexts (message viewer, editor, chat). When adding a new key binding to any message viewer:
+
+1. Add it to the `$helpItems` array passed to `runMessageViewer()` so it appears in the Ctrl-K overlay.
+2. Only add it to the status bar `$segments` if it truly belongs among the handful of primary actions.
+
 ### Adding actions to the message viewer
 
-`runMessageViewer()` accepts an `$extraKeys` array that maps lowercase characters to action name strings. Use this instead of wrapping the viewer in custom key-reading logic:
+`runMessageViewer()` accepts an `$extraKeys` array that maps lowercase characters to action name strings, and a `$helpItems` array listing all key bindings for the Ctrl-K overlay. Use these instead of wrapping the viewer in custom key-reading logic:
 
 ```php
-// In $buildView closure — add key hint to status bar:
-$segments[] = ['text' => 'X',        'color' => TelnetUtils::ANSI_RED];
-$segments[] = ['text' => ' Delete  ','color' => TelnetUtils::ANSI_BLUE];
+// Build the full key list for the Ctrl-K help overlay:
+$helpItems = [
+    ['key' => 'PgUp / PgDn', 'label' => $this->server->t('ui.terminalserver.message.help_page', 'Scroll one page', [], $locale)],
+    ['key' => 'X',           'label' => $this->server->t('ui.terminalserver.netmail.help_delete', 'Delete message', [], $locale)],
+    // ... all keys, including those not shown in the status bar
+];
 
-// Pass the binding to the viewer:
+// In $buildView closure — status bar shows primary actions only:
+$segments[] = ['text' => 'Ctrl-K',  'color' => TelnetUtils::ANSI_RED];
+$segments[] = ['text' => ' Help  ', 'color' => TelnetUtils::ANSI_BLUE];
+
+// Pass both to the viewer:
 $result = TelnetUtils::runMessageViewer(
     $conn, $state, $this->server,
     $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
     $state['rows'] ?? 24, 0, $allowDownload,
     $kludgeLines, $buildView, $imageRefs, $imageFn,
-    ['x' => 'delete']   // <-- extra keys
+    ['x' => 'delete'],  // $extraKeys
+    $helpItems          // $helpItems — shown in Ctrl-K overlay
 );
 
 // Handle in the switch:
@@ -64,6 +86,37 @@ case 'delete':
     $this->doDelete(...);
     break;
 ```
+
+### Terminal resize
+
+**All full-screen UI must respond to terminal resize events.** When a user resizes their terminal window, the client sends a NAWS (Negotiate About Window Size) update that lands in `$state['rows']` and `$state['cols']` during the next `readKeyWithIdleCheck()` call.
+
+The standard pattern is to snapshot dimensions before the key loop, then compare after each read:
+
+```php
+$lastRows = $state['rows'] ?? 24;
+$lastCols = $state['cols'] ?? 80;
+
+while (true) {
+    $key = $server->readKeyWithIdleCheck($conn, $state);
+
+    $newRows = $state['rows'] ?? $lastRows;
+    $newCols = $state['cols'] ?? $lastCols;
+    if ($newRows !== $lastRows || $newCols !== $lastCols) {
+        $lastRows = $newRows;
+        $lastCols = $newCols;
+        // recalculate layout, then redraw
+        $rebuildLayout();
+        $render();
+    }
+
+    // ... normal key handling ...
+}
+```
+
+Layout-dependent variables (frame dimensions, wrapped line counts, status bar width, border strings) must be recalculated on every resize. Capture them by reference (`&$var`) in any render closure so a single `$rebuildLayout()` call propagates the new dimensions without recreating the closure.
+
+`runMessageViewer()` already handles this via its `$rebuildFn` callback — pass a `$buildView` closure and the widget manages resize internally. Custom full-screen loops in handlers must implement the pattern above themselves.
 
 ### Extending widgets
 

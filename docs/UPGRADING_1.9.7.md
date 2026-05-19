@@ -12,6 +12,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Netmail Address Book / Nodelist Lookup in Compose](#netmail-address-book--nodelist-lookup-in-compose)
   - [Netmail Delete in Terminal Reader](#netmail-delete-in-terminal-reader)
   - [Netmail Bookmark in Terminal Reader](#netmail-bookmark-in-terminal-reader)
+  - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader)
+  - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer)
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
@@ -26,6 +28,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Terminal Charset Setting Honoured](#terminal-charset-setting-honoured)
   - [Netmail Address Book / Nodelist Lookup in Compose](#netmail-address-book--nodelist-lookup-in-compose-1)
   - [Netmail Delete in Terminal Reader](#netmail-delete-in-terminal-reader-1)
+  - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader-1)
+  - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
@@ -63,6 +67,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - Terminal users can now **delete a netmail message** from the message viewer by pressing `X` or the `Del` key. A confirmation dialog appears before the message is removed.
 - Terminal users can now **bookmark a netmail message** for later reference by pressing `B` in the message viewer. The status bar label toggles between **Bookmark** (unsaved) and **Unsave** (already saved). Bookmarked messages appear under the Saved filter in the web interface. No upgrade action is required.
 - **Address book / nodelist lookup in netmail compose**: when composing a new netmail in the terminal, typing `?` at the To Name or To Address prompt opens an interactive picker. The picker searches both the user's address book and the FTN nodelist, merges the results (address book entries take priority; duplicates by FTN address are suppressed), and lets the user select with the arrow keys or by typing a row number. Selecting an entry pre-fills both To Name (sysop name for nodelist entries, stored name for address book entries) and To Address as editable defaults.
+- **Download netmail as plain text**: terminal users can now press `T` while reading a netmail message to download it as a `.txt` file via ZMODEM. The downloaded file contains the message headers and body in plain text, matching the equivalent download button in the web interface. ZMODEM must be supported by the connecting terminal application.
+- **Ctrl-K help overlay in the terminal message viewer**: all terminal message readers (netmail and echomail) now show a framed keyboard-reference panel when the user presses `Ctrl-K`. The panel lists every available key binding, including secondary actions that are not shown on the status bar. The overlay responds to terminal resize events while it is open and propagates any resize back to the message viewer when it is dismissed. The status bar in both readers has been trimmed to the five most-used actions (scroll, prev/next, reply, Ctrl-K help, and quit); all other keys are documented exclusively in the Ctrl-K overlay.
 
 ### PacketBBS
 
@@ -218,6 +224,28 @@ Both the sender and the recipient may delete their copy of a message. The same o
 A pre-existing bug in the terminal key decoder has also been fixed as part of this change: the `Del` key sequence (`\033[3~`) was not recognized by the interactive session key reader, causing it to be silently ignored in all full-screen terminal views. The key now works reliably across the entire terminal interface.
 
 No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+
+---
+
+### Netmail Download as Text in Terminal Reader
+
+Terminal users can now download the message they are currently reading as a plain `.txt` file by pressing `T`. The download uses BinktermPHP's built-in ZMODEM implementation and requires a ZMODEM-capable terminal application (e.g. SyncTERM, NetRunner, most terminal emulators with ZMODEM receive support).
+
+The downloaded file contains the message headers (From, To, Date, Subject) and the full message body in plain text, equivalent to the **Download .txt** button available in the web interface.
+
+No sysop configuration is required.
+
+---
+
+### Ctrl-K Help Overlay in Terminal Message Viewer
+
+The terminal netmail and echomail message viewers now provide a universal keyboard-reference panel accessible with `Ctrl-K`. The overlay draws a framed panel listing every available key binding for the current viewer context — including secondary actions such as header viewer (`H`), delete (`X`), bookmark (`B`), and text download (`T`) that are not shown on the status bar.
+
+The overlay responds to terminal resize events while it is open, and any resize that occurs while the overlay is visible is propagated back to the message viewer when the overlay is dismissed, so the reader always displays at the correct dimensions.
+
+The bottom status bar in both the netmail and echomail readers has been trimmed to the five primary actions (scroll, previous/next, reply, Ctrl-K help, quit). All remaining key bindings are documented exclusively in the Ctrl-K overlay, keeping the status bar readable on narrow terminals.
+
+No sysop configuration is required.
 
 ---
 

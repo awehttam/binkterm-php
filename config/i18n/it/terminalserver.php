@@ -177,6 +177,7 @@ return [
     'ui.terminalserver.netmail.deleting'                 => 'Eliminazione...',
     'ui.terminalserver.netmail.delete_success'           => '✓ Messaggio eliminato.',
     'ui.terminalserver.netmail.delete_failed'            => '✗ Eliminazione non riuscita: {error}',
+    'ui.terminalserver.netmail.text_download_fetch_failed' => 'Impossibile recuperare il testo del messaggio.',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'La cabina di voto è disabilitata.',
@@ -358,6 +359,18 @@ return [
 
     'ui.terminalserver.message.headers_title'          => '=== Intestazioni messaggio ===',
     'ui.terminalserver.message.no_headers'             => '(Nessuna intestazione messaggio)',
+    'ui.terminalserver.message.help_title'             => 'Tasti disponibili',
+    'ui.terminalserver.message.help_scroll'            => 'Scorri di una riga',
+    'ui.terminalserver.message.help_page'              => 'Scorri di una pagina',
+    'ui.terminalserver.message.help_prev_next'         => 'Messaggio precedente / successivo',
+    'ui.terminalserver.message.help_reply'             => 'Rispondi',
+    'ui.terminalserver.message.help_headers'           => 'Visualizza intestazioni messaggio',
+    'ui.terminalserver.message.help_download'          => 'Scarica allegato (ZMODEM)',
+    'ui.terminalserver.message.help_images'            => 'Visualizza immagine/i incorporata/e',
+    'ui.terminalserver.message.help_quit'              => 'Esci / chiudi messaggio',
+    'ui.terminalserver.netmail.help_delete'            => 'Elimina messaggio',
+    'ui.terminalserver.netmail.help_bookmark'          => 'Aggiungi / rimuovi segnalibro',
+    'ui.terminalserver.netmail.help_text_dl'           => 'Scarica come .txt (ZMODEM)',
     'ui.terminalserver.server.menu.bulletins' => 'U) Bollettini',
     'ui.terminalserver.bulletins.title' => 'Bollettini',
     'ui.terminalserver.bulletins.none' => 'Nessun bollettino disponibile.',

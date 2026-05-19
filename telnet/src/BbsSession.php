@@ -2567,6 +2567,7 @@ class BbsSession
         if ($ord === 10)                         { return ['ENTER',     false, false]; }
         if ($ord === 8 || $ord === 127)          { return ['BACKSPACE', false, false]; }
         if ($ord >= 32 && $ord < 127)            { return ['CHAR:' . $char, false, false]; }
+        if ($ord === 11)                         { return ['CTRL_K',   false, false]; }
 
         return ['', false, false];
     }

@@ -177,6 +177,7 @@ return [
     'ui.terminalserver.netmail.deleting'                => 'Deleting...',
     'ui.terminalserver.netmail.delete_success'          => '✓ Message deleted.',
     'ui.terminalserver.netmail.delete_failed'           => '✗ Failed to delete: {error}',
+    'ui.terminalserver.netmail.text_download_fetch_failed' => 'Could not fetch message text.',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'Voting booth is disabled.',
@@ -358,6 +359,18 @@ return [
 
     'ui.terminalserver.message.headers_title'          => '=== Message Headers ===',
     'ui.terminalserver.message.no_headers'             => '(No message headers)',
+    'ui.terminalserver.message.help_title'             => 'Key Bindings',
+    'ui.terminalserver.message.help_scroll'            => 'Scroll one line',
+    'ui.terminalserver.message.help_page'              => 'Scroll one page',
+    'ui.terminalserver.message.help_prev_next'         => 'Previous / next message',
+    'ui.terminalserver.message.help_reply'             => 'Reply',
+    'ui.terminalserver.message.help_headers'           => 'View message headers',
+    'ui.terminalserver.message.help_download'          => 'Download attachment (ZMODEM)',
+    'ui.terminalserver.message.help_images'            => 'View inline image(s)',
+    'ui.terminalserver.message.help_quit'              => 'Quit / close message',
+    'ui.terminalserver.netmail.help_delete'            => 'Delete message',
+    'ui.terminalserver.netmail.help_bookmark'          => 'Bookmark / unsave message',
+    'ui.terminalserver.netmail.help_text_dl'           => 'Download as .txt (ZMODEM)',
     'ui.terminalserver.server.menu.bulletins' => 'U) Bulletins',
     'ui.terminalserver.bulletins.title' => 'Bulletins',
     'ui.terminalserver.bulletins.none' => 'No bulletins are available.',

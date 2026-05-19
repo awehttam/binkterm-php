@@ -302,6 +302,18 @@ return [
 
     'ui.terminalserver.message.headers_title' => '=== En-têtes du message ===',
     'ui.terminalserver.message.no_headers'    => '(Aucun en-tête de message)',
+    'ui.terminalserver.message.help_title'    => 'Raccourcis clavier',
+    'ui.terminalserver.message.help_scroll'   => 'Défiler d\'une ligne',
+    'ui.terminalserver.message.help_page'     => 'Défiler d\'une page',
+    'ui.terminalserver.message.help_prev_next'=> 'Message précédent / suivant',
+    'ui.terminalserver.message.help_reply'    => 'Répondre',
+    'ui.terminalserver.message.help_headers'  => 'Afficher les en-têtes du message',
+    'ui.terminalserver.message.help_download' => 'Télécharger la pièce jointe (ZMODEM)',
+    'ui.terminalserver.message.help_images'   => 'Afficher la ou les images intégrées',
+    'ui.terminalserver.message.help_quit'     => 'Quitter / fermer le message',
+    'ui.terminalserver.netmail.help_delete'   => 'Supprimer le message',
+    'ui.terminalserver.netmail.help_bookmark' => 'Marquer / démarquer le message',
+    'ui.terminalserver.netmail.help_text_dl'  => 'Télécharger en .txt (ZMODEM)',
 
     // Files - folder/file navigation
     'ui.terminalserver.files.enter_folder_or_file' => 'Saisissez un numéro de dossier pour le parcourir, ou un numéro de fichier pour afficher ses détails.',
@@ -317,6 +329,7 @@ return [
     'ui.terminalserver.netmail.deleting' => 'Suppression...',
     'ui.terminalserver.netmail.delete_success' => '✓ Message supprimé.',
     'ui.terminalserver.netmail.delete_failed' => '✗ Échec de la suppression : {error}',
+    'ui.terminalserver.netmail.text_download_fetch_failed' => 'Impossible de récupérer le texte du message.',
     'ui.terminalserver.server.menu.bulletins' => 'U) Bulletins',
     'ui.terminalserver.bulletins.title' => 'Bulletins',
     'ui.terminalserver.bulletins.none' => 'Aucun bulletin disponible.',

@@ -181,6 +181,7 @@ return [
     'ui.terminalserver.netmail.deleting'                 => 'Wird gelöscht...',
     'ui.terminalserver.netmail.delete_success'           => '✓ Nachricht gelöscht.',
     'ui.terminalserver.netmail.delete_failed'            => '✗ Löschen fehlgeschlagen: {error}',
+    'ui.terminalserver.netmail.text_download_fetch_failed' => 'Nachrichtentext konnte nicht abgerufen werden.',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'Abstimmungsbereich ist deaktiviert.',
@@ -356,6 +357,18 @@ return [
     // --- Message headers ---
     'ui.terminalserver.message.headers_title'          => '=== Nachrichtenkopfzeilen ===',
     'ui.terminalserver.message.no_headers'             => '(Keine Nachrichtenkopfzeilen)',
+    'ui.terminalserver.message.help_title'             => 'Tastenbelegung',
+    'ui.terminalserver.message.help_scroll'            => 'Eine Zeile scrollen',
+    'ui.terminalserver.message.help_page'              => 'Eine Seite scrollen',
+    'ui.terminalserver.message.help_prev_next'         => 'Vorherige / nächste Nachricht',
+    'ui.terminalserver.message.help_reply'             => 'Antworten',
+    'ui.terminalserver.message.help_headers'           => 'Nachrichtenkopfzeilen anzeigen',
+    'ui.terminalserver.message.help_download'          => 'Anhang herunterladen (ZMODEM)',
+    'ui.terminalserver.message.help_images'            => 'Eingebettetes Bild(er) anzeigen',
+    'ui.terminalserver.message.help_quit'              => 'Beenden / Nachricht schliessen',
+    'ui.terminalserver.netmail.help_delete'            => 'Nachricht löschen',
+    'ui.terminalserver.netmail.help_bookmark'          => 'Nachricht mit Lesezeichen versehen / entfernen',
+    'ui.terminalserver.netmail.help_text_dl'           => 'Als .txt herunterladen (ZMODEM)',
 
     // --- Bulletins ---
     'ui.terminalserver.bulletins.title'                => 'Bulletins',

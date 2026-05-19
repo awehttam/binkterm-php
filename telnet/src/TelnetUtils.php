@@ -450,7 +450,8 @@ class TelnetUtils
         ?callable $rebuildFn = null,
         array $imageRefs = [],
         ?callable $imageFn = null,
-        array $extraKeys = []
+        array $extraKeys = [],
+        array $helpItems = []
     ): array {
         $headerCount = count($headerLines);
         $lastRows    = $state['rows'] ?? $rows;
@@ -508,6 +509,44 @@ class TelnetUtils
             // Returning from the kludge viewer requires a full redraw
             if ($key === 'CHAR:h' || $key === 'CHAR:H') {
                 self::runKludgeViewer($conn, $state, $server, $kludgeLines, $lastRows);
+                // Overlay may have received NAWS resize events — apply them now so the
+                // viewer redraws at the correct size rather than waiting for the next key.
+                $newRows = $state['rows'] ?? $lastRows;
+                $newCols = $state['cols'] ?? $lastCols;
+                if (($newRows !== $lastRows || $newCols !== $lastCols) && $rebuildFn !== null) {
+                    $rebuilt      = $rebuildFn($state);
+                    $headerLines  = $rebuilt['headerLines'];
+                    $wrappedLines = $rebuilt['wrappedLines'];
+                    $statusLine   = $rebuilt['statusLine'];
+                    $headerCount  = count($headerLines);
+                    $bodyHeight   = max(1, $newRows - $headerCount - 1);
+                    $maxOffset    = max(0, count($wrappedLines) - $bodyHeight);
+                    $offset       = min($offset, $maxOffset);
+                    $lastRows     = $newRows;
+                    $lastCols     = $newCols;
+                }
+                $fullRedraw = true;
+                continue;
+            }
+
+            // Help overlay — shows all available key bindings
+            if ($key === 'CTRL_K') {
+                self::showHelpOverlay($conn, $state, $server, $helpItems, $allowDownloadAction, !empty($imageRefs), $lastRows);
+                // Same resize-on-return handling as the kludge viewer above.
+                $newRows = $state['rows'] ?? $lastRows;
+                $newCols = $state['cols'] ?? $lastCols;
+                if (($newRows !== $lastRows || $newCols !== $lastCols) && $rebuildFn !== null) {
+                    $rebuilt      = $rebuildFn($state);
+                    $headerLines  = $rebuilt['headerLines'];
+                    $wrappedLines = $rebuilt['wrappedLines'];
+                    $statusLine   = $rebuilt['statusLine'];
+                    $headerCount  = count($headerLines);
+                    $bodyHeight   = max(1, $newRows - $headerCount - 1);
+                    $maxOffset    = max(0, count($wrappedLines) - $bodyHeight);
+                    $offset       = min($offset, $maxOffset);
+                    $lastRows     = $newRows;
+                    $lastCols     = $newCols;
+                }
                 $fullRedraw = true;
                 continue;
             }
@@ -612,6 +651,195 @@ class TelnetUtils
             if ($key === 'END')    { $offset = $maxOffset;                                 }
             if ($key === 'PGUP')   { $offset = max(0, $offset - $bodyHeight);              }
             if ($key === 'PGDOWN') { $offset = min($maxOffset, $offset + $bodyHeight);     }
+        }
+    }
+
+    /**
+     * Display a framed full-screen overlay listing all key bindings for the message viewer.
+     *
+     * Renders a dark-blue panel with charset-aware box-drawing borders, the title
+     * embedded in the top rule, and two-column key/label rows. Shows built-in viewer
+     * keys plus any caller-supplied extras from $helpItems. Dismissed by Q, Enter, or Ctrl-K.
+     *
+     * @param resource $conn
+     * @param array    $state
+     * @param object   $server
+     * @param array    $helpItems        Caller-supplied keys: [['key'=>string,'label'=>string], ...]
+     * @param bool     $hasAttachments   Whether the Z (download attachment) key is active
+     * @param bool     $hasImages        Whether the I (image viewer) key is active
+     * @param int      $rows
+     */
+    private static function showHelpOverlay(
+        $conn,
+        array &$state,
+        $server,
+        array $helpItems,
+        bool $hasAttachments,
+        bool $hasImages,
+        int $rows
+    ): void {
+        $locale  = $state['locale'] ?? 'en';
+        $cols    = $state['cols'] ?? 80;
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+        $ansi    = self::$ansiColorEnabled;
+
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        $builtIn = [
+            ['key' => 'Up / Down',    'label' => $server->t('ui.terminalserver.message.help_scroll',    'Scroll one line',        [], $locale)],
+            ['key' => 'PgUp / PgDn',  'label' => $server->t('ui.terminalserver.message.help_page',      'Scroll one page',        [], $locale)],
+            ['key' => 'Left / Right', 'label' => $server->t('ui.terminalserver.message.help_prev_next', 'Previous / next message', [], $locale)],
+            ['key' => 'R',            'label' => $server->t('ui.terminalserver.message.help_reply',      'Reply',                  [], $locale)],
+            ['key' => 'H',            'label' => $server->t('ui.terminalserver.message.help_headers',    'View message headers',   [], $locale)],
+        ];
+        if ($hasAttachments) {
+            $builtIn[] = ['key' => 'Z', 'label' => $server->t('ui.terminalserver.message.help_download', 'Download attachment (ZMODEM)', [], $locale)];
+        }
+        if ($hasImages) {
+            $builtIn[] = ['key' => 'I', 'label' => $server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
+        }
+        $builtIn[] = ['key' => 'Q / Enter', 'label' => $server->t('ui.terminalserver.message.help_quit', 'Quit / close message', [], $locale)];
+
+        $allItems = array_merge($builtIn, $helpItems);
+
+        // Key column: wide enough for the longest key name (content-based, never changes)
+        $keyWidth = 0;
+        foreach ($allItems as $item) {
+            $keyWidth = max($keyWidth, mb_strlen($item['key']));
+        }
+
+        // Title line is constant (locale doesn't change mid-session)
+        $title     = $server->t('ui.terminalserver.message.help_title', 'Key Bindings', [], $locale);
+        $titleLine = ' ' . $title . ' ';
+        $titleLen  = mb_strlen($titleLine);
+
+        $rst   = self::ANSI_RESET;
+        $bg    = self::ANSI_BG_BLUE;
+        $frame = $bg . "\033[1;37m";  // bold white on dark blue  — borders
+        $body  = $bg . "\033[37m";    // normal white on dark blue — content
+        $keyC  = $bg . "\033[1;31m";  // bold red on dark blue     — key names
+
+        // Layout variables — shared by reference between $rebuildLayout and $render
+        // so a single $rebuildLayout() call is enough to update what $render() draws.
+        $innerWidth = 0;
+        $labelWidth = 0;
+        $bodyHeight = 0;
+        $btmRow     = 0;
+        $topBorder  = '';
+        $btmBorder  = '';
+        $statusLine = '';
+        $maxOffset  = 0;
+        $offset     = 0;
+
+        $rebuildLayout = function() use (
+            &$rows, &$cols,
+            &$innerWidth, &$labelWidth, &$bodyHeight, &$btmRow,
+            &$topBorder, &$btmBorder, &$statusLine,
+            &$maxOffset, &$offset,
+            $allItems, $keyWidth, $tl, $tr, $bl, $br, $hz, $titleLine, $titleLen
+        ): void {
+            $innerWidth = max(10, $cols - 2);
+            $labelWidth = max(1, $innerWidth - $keyWidth - 3);
+            $bodyHeight = max(1, $rows - 3);
+            $btmRow     = $rows - 1;
+
+            $totalHz   = max(0, $innerWidth - $titleLen);
+            $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
+                            . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+            $statusLine = self::buildStatusBar([
+                ['text' => 'Q',      'color' => self::ANSI_RED],
+                ['text' => ' Close', 'color' => self::ANSI_BLUE],
+            ], $cols);
+
+            $maxOffset = max(0, count($allItems) - $bodyHeight);
+            $offset    = min($offset, $maxOffset);
+        };
+
+        $render = static function() use (
+            $conn, &$rows, &$btmRow, &$innerWidth, &$labelWidth, &$bodyHeight,
+            $allItems, $keyWidth, &$offset, &$topBorder, &$btmBorder, &$statusLine,
+            $vt, $frame, $body, $keyC, $rst, $ansi
+        ): void {
+            self::safeWrite($conn, "\033[2J\033[?25l");
+
+            if ($ansi) {
+                self::safeWrite($conn, "\033[1;1H" . $frame . $topBorder . $rst);
+                for ($i = 0; $i < $bodyHeight; $i++) {
+                    $r    = 2 + $i;
+                    $item = $allItems[$offset + $i] ?? null;
+                    self::safeWrite($conn, "\033[{$r};1H" . $body . $vt);
+                    if ($item !== null) {
+                        $k   = str_pad(mb_substr($item['key'],   0, $keyWidth), $keyWidth);
+                        $lbl = mb_substr($item['label'], 0, $labelWidth);
+                        $pad = str_repeat(' ', max(0, $labelWidth - mb_strlen($lbl)));
+                        self::safeWrite($conn, ' ' . $keyC . $k . $body . '  ' . $lbl . $pad . $vt . $rst);
+                    } else {
+                        self::safeWrite($conn, str_repeat(' ', $innerWidth) . $vt . $rst);
+                    }
+                }
+                self::safeWrite($conn, "\033[{$btmRow};1H" . $frame . $btmBorder . $rst);
+            } else {
+                self::safeWrite($conn, "\033[1;1H" . $topBorder);
+                for ($i = 0; $i < $bodyHeight; $i++) {
+                    $r    = 2 + $i;
+                    $item = $allItems[$offset + $i] ?? null;
+                    self::safeWrite($conn, "\033[{$r};1H" . $vt);
+                    if ($item !== null) {
+                        $k   = str_pad(mb_substr($item['key'],   0, $keyWidth), $keyWidth);
+                        $lbl = mb_substr($item['label'], 0, $labelWidth);
+                        $pad = str_repeat(' ', max(0, $labelWidth - mb_strlen($lbl)));
+                        self::safeWrite($conn, ' ' . $k . '  ' . $lbl . $pad . $vt);
+                    } else {
+                        self::safeWrite($conn, str_repeat(' ', $innerWidth) . $vt);
+                    }
+                }
+                self::safeWrite($conn, "\033[{$btmRow};1H" . $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[{$rows};1H" . $statusLine . "\033[?25h");
+        };
+
+        $rebuildLayout();
+        $render();
+
+        $lastRows = $rows;
+        $lastCols = $cols;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            // Respond to terminal resize (NAWS may update $state during readKeyWithIdleCheck)
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $rows     = $newRows;
+                $cols     = $newCols;
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $rebuildLayout();
+                $render();
+            }
+
+            if ($key === null || $key === 'ENTER' || $key === 'CHAR:q' || $key === 'CHAR:Q' || $key === 'CTRL_K') {
+                break;
+            }
+            $changed = false;
+            if ($key === 'UP'      && $offset > 0)          { $offset--; $changed = true; }
+            if ($key === 'DOWN'    && $offset < $maxOffset)  { $offset++; $changed = true; }
+            if ($key === 'HOME'    && $offset > 0)           { $offset = 0; $changed = true; }
+            if ($key === 'END'     && $offset < $maxOffset)  { $offset = $maxOffset; $changed = true; }
+            if ($key === 'PGUP')   { $new = max(0, $offset - $bodyHeight);    if ($new !== $offset) { $offset = $new; $changed = true; } }
+            if ($key === 'PGDOWN') { $new = min($maxOffset, $offset + $bodyHeight); if ($new !== $offset) { $offset = $new; $changed = true; } }
+            if ($changed) {
+                $render();
+            }
         }
     }
 

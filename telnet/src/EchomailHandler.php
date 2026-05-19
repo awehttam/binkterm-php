@@ -713,22 +713,15 @@ class EchomailHandler
                 $segments = [
                     ['text' => 'U/D',          'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' Scroll  ',    'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'PgUp/PgDn',    'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Page  ',      'color' => TelnetUtils::ANSI_BLUE],
                     ['text' => 'L/R',          'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
                     ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'H',            'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Headers  ',   'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'Ctrl-K',       'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Help  ',      'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'Q',            'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Quit',        'color' => TelnetUtils::ANSI_BLUE],
                 ];
-                if (!empty($imageRefs)) {
-                    $imageHint = count($imageRefs) === 1 ? ' Image  ' : ' Images  ';
-                    $segments[] = ['text' => 'I',         'color' => TelnetUtils::ANSI_RED];
-                    $segments[] = ['text' => $imageHint,  'color' => TelnetUtils::ANSI_BLUE];
-                }
-                $segments[] = ['text' => 'Q',    'color' => TelnetUtils::ANSI_RED];
-                $segments[] = ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE];
 
                 $wrappedLines = $markupFormat !== null
                     ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
@@ -757,11 +750,20 @@ class EchomailHandler
                 : null;
 
             $view   = $buildView($state);
+            $locale = $state['locale'] ?? 'en';
+            $helpItems = [
+                ['key' => 'PgUp / PgDn', 'label' => $this->server->t('ui.terminalserver.message.help_page',    'Scroll one page',      [], $locale)],
+                ['key' => 'H',           'label' => $this->server->t('ui.terminalserver.message.help_headers', 'View message headers',  [], $locale)],
+            ];
+            if (!empty($imageRefs)) {
+                $helpItems[] = ['key' => 'I', 'label' => $this->server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
+            }
+
             $result = TelnetUtils::runMessageViewer(
                 $conn, $state, $this->server,
                 $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
                 $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView,
-                $imageRefs, $imageFn
+                $imageRefs, $imageFn, [], $helpItems
             );
 
             switch ($result['action']) {
