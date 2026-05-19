@@ -676,7 +676,8 @@ class TelnetUtils
         array $helpItems,
         bool $hasAttachments,
         bool $hasImages,
-        int $rows
+        int $rows,
+        ?array $builtInItems = null
     ): void {
         $locale  = $state['locale'] ?? 'en';
         $cols    = $state['cols'] ?? 80;
@@ -691,20 +692,22 @@ class TelnetUtils
             $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
         }
 
-        $builtIn = [
+        $builtIn = $builtInItems ?? [
             ['key' => 'Up / Down',    'label' => $server->t('ui.terminalserver.message.help_scroll',    'Scroll one line',        [], $locale)],
             ['key' => 'PgUp / PgDn',  'label' => $server->t('ui.terminalserver.message.help_page',      'Scroll one page',        [], $locale)],
             ['key' => 'Left / Right', 'label' => $server->t('ui.terminalserver.message.help_prev_next', 'Previous / next message', [], $locale)],
             ['key' => 'R',            'label' => $server->t('ui.terminalserver.message.help_reply',      'Reply',                  [], $locale)],
             ['key' => 'H',            'label' => $server->t('ui.terminalserver.message.help_headers',    'View message headers',   [], $locale)],
         ];
-        if ($hasAttachments) {
-            $builtIn[] = ['key' => 'Z', 'label' => $server->t('ui.terminalserver.message.help_download', 'Download attachment (ZMODEM)', [], $locale)];
+        if ($builtInItems === null) {
+            if ($hasAttachments) {
+                $builtIn[] = ['key' => 'Z', 'label' => $server->t('ui.terminalserver.message.help_download', 'Download attachment (ZMODEM)', [], $locale)];
+            }
+            if ($hasImages) {
+                $builtIn[] = ['key' => 'I', 'label' => $server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
+            }
+            $builtIn[] = ['key' => 'Q / Enter', 'label' => $server->t('ui.terminalserver.message.help_quit', 'Quit / close message', [], $locale)];
         }
-        if ($hasImages) {
-            $builtIn[] = ['key' => 'I', 'label' => $server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
-        }
-        $builtIn[] = ['key' => 'Q / Enter', 'label' => $server->t('ui.terminalserver.message.help_quit', 'Quit / close message', [], $locale)];
 
         $allItems = array_merge($builtIn, $helpItems);
 
@@ -987,14 +990,22 @@ class TelnetUtils
         int $totalPages,
         int $selectedIndex,
         array $extraKeys = [],
-        array $extraStatusSegments = []
+        array $extraStatusSegments = [],
+        array $options = []
     ): array {
         $cols = $state['cols'] ?? 80;
+        $selectedIds = array_fill_keys(array_map('intval', $options['selectedMessageIds'] ?? []), true);
+        $selectedRows = [];
+        $markerWidth = !empty($options['multiSelect']) ? 1 : 0;
+        $contentCols = max(20, $cols - $markerWidth);
 
         // Pre-format rows without selection highlight; runSelectableList handles highlighting.
         $rows = [];
         foreach ($messages as $idx => $msg) {
-            $rows[] = self::formatMessageListEntry($msg, $idx + 1, false, $cols, $state);
+            if (!empty($selectedIds[(int)($msg['id'] ?? 0)])) {
+                $selectedRows[] = $idx;
+            }
+            $rows[] = self::formatMessageListEntry($msg, $idx + 1, false, $contentCols, $state);
         }
         if (method_exists($server, 'encodeForTerminal')) {
             $rows = array_map(
@@ -1006,11 +1017,12 @@ class TelnetUtils
 
         // Rebuild rows at the new terminal width on resize.
         $encodedTitle = $title;
-        $rebuildFn = static function(array &$s) use ($messages, $server, $encodedTitle): array {
+        $rebuildFn = static function(array &$s) use ($messages, $server, $encodedTitle, $markerWidth): array {
             $newCols = $s['cols'] ?? 80;
+            $contentCols = max(20, $newCols - $markerWidth);
             $newRows = [];
             foreach ($messages as $idx => $msg) {
-                $newRows[] = TelnetUtils::formatMessageListEntry($msg, $idx + 1, false, $newCols, $s);
+                $newRows[] = TelnetUtils::formatMessageListEntry($msg, $idx + 1, false, $contentCols, $s);
             }
             if (method_exists($server, 'encodeForTerminal')) {
                 $newRows = array_map(
@@ -1039,12 +1051,15 @@ class TelnetUtils
             $statusBar = array_merge($statusBar, $extraStatusSegments);
         }
 
+        $listOptions = $options;
+        $listOptions['selectedRows'] = $selectedRows;
         $result = self::runSelectableList(
             $conn, $state, $server,
             $title, $rows, $page, $totalPages, $selectedIndex,
             $statusBar,
             array_merge(['c' => 'compose'], $extraKeys),
-            $rebuildFn
+            $rebuildFn,
+            $listOptions
         );
 
         // Map the generic 'select' action to the message-specific 'read' action.
@@ -1078,12 +1093,20 @@ class TelnetUtils
         string $title,
         array $messages,
         int $selectedIndex,
-        array $extraStatusSegments = []
+        array $extraStatusSegments = [],
+        array $options = []
     ): void {
         $cols = $state['cols'] ?? 80;
+        $selectedIds = array_fill_keys(array_map('intval', $options['selectedMessageIds'] ?? []), true);
+        $selectedRows = [];
+        $markerWidth = !empty($options['multiSelect']) ? 1 : 0;
+        $contentCols = max(20, $cols - $markerWidth);
         $rows = [];
         foreach ($messages as $idx => $msg) {
-            $rows[] = self::formatMessageListEntry($msg, $idx + 1, false, $cols, $state);
+            if (!empty($selectedIds[(int)($msg['id'] ?? 0)])) {
+                $selectedRows[$idx] = true;
+            }
+            $rows[] = self::formatMessageListEntry($msg, $idx + 1, false, $contentCols, $state);
         }
         if (method_exists($server, 'encodeForTerminal')) {
             $rows = array_map(
@@ -1103,7 +1126,9 @@ class TelnetUtils
             ['text' => 'Enter',      'color' => self::ANSI_RED],
             ['text' => ' Read  ',    'color' => self::ANSI_BLUE],
             ['text' => 'Q',          'color' => self::ANSI_RED],
-            ['text' => ' Quit',      'color' => self::ANSI_BLUE],
+            ['text' => ' Quit  ',    'color' => self::ANSI_BLUE],
+            ['text' => 'Ctrl-K',     'color' => self::ANSI_RED],
+            ['text' => ' Help',      'color' => self::ANSI_BLUE],
         ];
         if (!empty($extraStatusSegments)) {
             $statusBar[array_key_last($statusBar)]['text'] .= '  ';
@@ -1116,13 +1141,9 @@ class TelnetUtils
         self::safeWrite($conn, "\033[2J\033[H");
         self::writeLine($conn, $title);
 
+        $showMarker = !empty($options['multiSelect']);
         foreach ($rows as $idx => $row) {
-            $plain = self::stripAnsi($row);
-            if ($idx === $selectedIndex) {
-                self::writeLine($conn, self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD));
-            } else {
-                self::writeLine($conn, $row);
-            }
+            self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
         }
 
         $statusLine = self::buildStatusBar($statusBar, $cols);
@@ -1204,20 +1225,33 @@ class TelnetUtils
      * @param int      $listStartRow Screen row where the list begins (1-based)
      * @param int      $cols         Terminal column width
      */
-    private static function renderSelectableListLine($conn, array $rows, int $idx, bool $selected, int $listStartRow, int $cols): void
+    private static function renderSelectableListLine($conn, array $rows, int $idx, bool $selected, int $listStartRow, int $cols, bool $marked = false, bool $showMarker = false): void
     {
         if (!isset($rows[$idx])) {
             return;
         }
-        $plain = self::stripAnsi($rows[$idx]);
-        if ($selected) {
-            $line = self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD);
-        } else {
-            $line = $rows[$idx];
-        }
+        $line = self::buildSelectableListDisplayLine($rows[$idx], $selected, $marked, $cols, $showMarker);
         $row = $listStartRow + $idx;
         self::safeWrite($conn, "\033[{$row};1H\033[K");
         self::safeWrite($conn, $line);
+    }
+
+    private static function buildSelectableListDisplayLine(string $row, bool $selected, bool $marked, int $cols, bool $showMarker = false): string
+    {
+        if ($showMarker) {
+            $display = $marked
+                ? self::colorize('*', self::ANSI_GREEN . self::ANSI_BOLD) . $row
+                : ' ' . $row;
+        } else {
+            $display = $row;
+        }
+
+        if (!$selected) {
+            return $display;
+        }
+
+        $plain = self::stripAnsi($display);
+        return self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD);
     }
 
     /**
@@ -1264,25 +1298,25 @@ class TelnetUtils
         int $selectedIndex,
         array $statusBar,
         array $extraKeys = [],
-        ?callable $rebuildFn = null
+        ?callable $rebuildFn = null,
+        array $options = [],
+        array $helpItems = []
     ): array {
         $cols         = $state['cols'] ?? 80;
         $termRows     = $state['rows'] ?? 24;
         $rowCount     = count($rows);
         $listStartRow = 2;
         $inputRow     = max(1, $termRows - 1);
+        $selectedRows = array_fill_keys(array_map('intval', $options['selectedRows'] ?? []), true);
+        $toggleKey    = strtolower((string)($options['toggleKey'] ?? 'x'));
+        $showMarker   = !empty($options['multiSelect']);
 
         // --- Render full screen ---
         self::safeWrite($conn, "\033[2J\033[H");
         self::writeLine($conn, $title);
 
         foreach ($rows as $idx => $row) {
-            $plain = self::stripAnsi($row);
-            if ($idx === $selectedIndex) {
-                self::writeLine($conn, self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD));
-            } else {
-                self::writeLine($conn, $row);
-            }
+            self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
         }
 
         $statusLine = self::buildStatusBar($statusBar, $cols);
@@ -1320,12 +1354,7 @@ class TelnetUtils
                 self::safeWrite($conn, "\033[2J\033[H");
                 self::writeLine($conn, $title);
                 foreach ($rows as $idx => $row) {
-                    $plain = self::stripAnsi($row);
-                    if ($idx === $selectedIndex) {
-                        self::writeLine($conn, self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD));
-                    } else {
-                        self::writeLine($conn, $row);
-                    }
+                    self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
                 }
                 self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
                 self::safeWrite($conn, $statusLine . "\r");
@@ -1346,12 +1375,62 @@ class TelnetUtils
                 continue;
             }
 
+            if ($key === 'CTRL_K') {
+                $overlayItems = $helpItems;
+                $listLocale   = $state['locale'] ?? 'en';
+                if (!empty($options['multiSelect'])) {
+                    array_unshift($overlayItems, [
+                        'key' => 'Space',
+                        'label' => $server->t('ui.terminalserver.list.help_toggle_selection', 'Toggle selection', [], $listLocale),
+                    ]);
+                }
+                self::showHelpOverlay(
+                    $conn,
+                    $state,
+                    $server,
+                    $overlayItems,
+                    false,
+                    false,
+                    $termRows,
+                    [
+                        ['key' => 'Up / Down',   'label' => $server->t('ui.terminalserver.list.help_move_selection', 'Move selection', [], $listLocale)],
+                        ['key' => 'Left / Right', 'label' => $server->t('ui.terminalserver.list.help_prev_page', 'Previous / next page', [], $listLocale)],
+                        ['key' => '1-9',          'label' => $server->t('ui.terminalserver.list.help_jump_row', 'Jump to row', [], $listLocale)],
+                        ['key' => 'Enter',        'label' => $server->t('ui.terminalserver.list.help_open_selected', 'Open selected item', [], $listLocale)],
+                        ['key' => 'Q / Enter',    'label' => $server->t('ui.terminalserver.list.help_close_help', 'Close help', [], $listLocale)],
+                    ]
+                );
+                $newCols     = $state['cols'] ?? $cols;
+                $newTermRows = $state['rows'] ?? $termRows;
+                if (($newCols !== $cols || $newTermRows !== $termRows) && $rebuildFn !== null) {
+                    $cols      = $newCols;
+                    $termRows  = $newTermRows;
+                    $inputRow  = max(1, $termRows - 1);
+                    $rebuilt   = $rebuildFn($state);
+                    $rows      = $rebuilt['rows'];
+                    $title     = $rebuilt['title'];
+                    $rowCount  = count($rows);
+                    $selectedIndex = min($selectedIndex, max(0, $rowCount - 1));
+                }
+                $buffer     = '';
+                $statusLine = self::buildStatusBar($statusBar, $cols);
+                self::safeWrite($conn, "\033[2J\033[H");
+                self::writeLine($conn, $title);
+                foreach ($rows as $idx => $row) {
+                    self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
+                }
+                self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
+                self::safeWrite($conn, $statusLine . "\r");
+                self::safeWrite($conn, "\033[{$inputRow};1H");
+                continue;
+            }
+
             if ($key === 'UP') {
                 if ($selectedIndex > 0) {
                     $prev = $selectedIndex;
                     $selectedIndex--;
-                    self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols);
-                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols);
+                    self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols, isset($selectedRows[$prev]), $showMarker);
+                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols, isset($selectedRows[$selectedIndex]), $showMarker);
                 }
                 self::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                 continue;
@@ -1361,8 +1440,8 @@ class TelnetUtils
                 if ($selectedIndex < $rowCount - 1) {
                     $prev = $selectedIndex;
                     $selectedIndex++;
-                    self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols);
-                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols);
+                    self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols, isset($selectedRows[$prev]), $showMarker);
+                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols, isset($selectedRows[$selectedIndex]), $showMarker);
                 }
                 self::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                 continue;
@@ -1416,6 +1495,19 @@ class TelnetUtils
                     if ($page > 1) { return ['action' => 'prev', 'index' => 0, 'selectedIndex' => 0]; }
                     continue;
                 }
+                if (!empty($options['multiSelect']) && $lower === $toggleKey) {
+                    if (isset($selectedRows[$selectedIndex])) {
+                        unset($selectedRows[$selectedIndex]);
+                    } else {
+                        $selectedRows[$selectedIndex] = true;
+                    }
+                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true, $listStartRow, $cols, isset($selectedRows[$selectedIndex]), $showMarker);
+                    return [
+                        'action' => 'toggle_select',
+                        'index' => $selectedIndex,
+                        'selectedIndex' => $selectedIndex,
+                    ];
+                }
                 if (isset($extraKeys[$lower])) {
                     return ['action' => $extraKeys[$lower], 'index' => $selectedIndex, 'selectedIndex' => $selectedIndex];
                 }
@@ -1427,8 +1519,8 @@ class TelnetUtils
                         $prev          = $selectedIndex;
                         $selectedIndex = $num - 1;
                         if ($prev !== $selectedIndex) {
-                            self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols);
-                            self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols);
+                            self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols, isset($selectedRows[$prev]), $showMarker);
+                            self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols, isset($selectedRows[$selectedIndex]), $showMarker);
                         }
                         self::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                     }

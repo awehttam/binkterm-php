@@ -116,7 +116,8 @@ class EchomailHandler
                     $this->saveEchoareasPage($session, $newPage, $state['csrf_token'] ?? null);
                 },
                 $searchFilter,
-                $allAreasMode
+                $allAreasMode,
+                $this->buildEchoareaHelpItems($locale, $showInterestKey, $searchFilter !== null, $allAreasMode)
             );
             $page = $result['page'];
 
@@ -866,7 +867,8 @@ class EchomailHandler
         bool $showInterestKey,
         ?callable $onPageChange,
         ?string $searchFilter = null,
-        bool $allAreasMode = false
+        bool $allAreasMode = false,
+        array $helpItems = []
     ): array {
         $locale     = $state['locale'];
         $totalPages = max(1, (int)ceil(count($allAreas) / $perPage));
@@ -927,23 +929,17 @@ class EchomailHandler
 
         $allAreasLabel = $allAreasMode ? 'My Areas' : 'All';
         $statusBar = [
-            ['text' => 'U/D',               'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Move  ',           'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'L/R',               'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Page  ',           'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => '/',                 'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Filter  ',         'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'A',                 'color' => TelnetUtils::ANSI_RED],
-            ['text' => " {$allAreasLabel}  ", 'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'U',                 'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Unsub  ',          'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'U/D',        'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Move  ',    'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'L/R',        'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Page  ',    'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Enter',      'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Select  ',  'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Q',          'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Quit  ',    'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Ctrl-K',     'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' ' . $this->server->t('ui.terminalserver.list.status_help', 'Help', [], $locale), 'color' => TelnetUtils::ANSI_BLUE],
         ];
-        if ($showInterestKey) {
-            $statusBar[] = ['text' => 'I',           'color' => TelnetUtils::ANSI_RED];
-            $statusBar[] = ['text' => ' Interests  ', 'color' => TelnetUtils::ANSI_BLUE];
-        }
-        $statusBar[] = ['text' => 'Q',    'color' => TelnetUtils::ANSI_RED];
-        $statusBar[] = ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE];
 
         $rebuildFn = function (array &$s) use ($areas, $encodedHeader, $buildRows): array {
             return ['rows' => $buildRows($areas), 'title' => $encodedHeader];
@@ -952,7 +948,7 @@ class EchomailHandler
         $result = TelnetUtils::runSelectableList(
             $conn, $state, $this->server,
             $encodedHeader, $rows, $page, $totalPages, 0,
-            $statusBar, $extraKeys, $rebuildFn
+            $statusBar, $extraKeys, $rebuildFn, [], $helpItems
         );
 
         switch ($result['action']) {
@@ -1018,6 +1014,36 @@ class EchomailHandler
     }
 
     /**
+     * Build secondary echoarea-list help items for the Ctrl-K overlay.
+     *
+     * @return array<int, array{key:string,label:string}>
+     */
+    private function buildEchoareaHelpItems(string $locale, bool $showInterestKey, bool $hasSearchFilter, bool $allAreasMode): array
+    {
+        $items = [
+            ['key' => '/', 'label' => $this->server->t('ui.terminalserver.echomail.help_filter_areas', 'Filter areas', [], $locale)],
+            ['key' => 'S', 'label' => $this->server->t('ui.terminalserver.echomail.help_search_areas', 'Search areas', [], $locale)],
+            ['key' => 'A', 'label' => $this->server->t(
+                'ui.terminalserver.echomail.help_toggle_allareas',
+                $allAreasMode ? 'Switch to My Areas' : 'Switch to All Areas',
+                [],
+                $locale
+            )],
+            ['key' => 'U', 'label' => $this->server->t('ui.terminalserver.echomail.help_unsubscribe_area', 'Unsubscribe selected area', [], $locale)],
+        ];
+
+        if ($hasSearchFilter) {
+            $items[] = ['key' => 'C', 'label' => $this->server->t('ui.terminalserver.echomail.help_clear_filter', 'Clear filter', [], $locale)];
+        }
+
+        if ($showInterestKey) {
+            $items[] = ['key' => 'I', 'label' => $this->server->t('ui.terminalserver.echomail.help_browse_interests', 'Browse by interest', [], $locale)];
+        }
+
+        return $items;
+    }
+
+    /**
      * Display echomail message list for a specific echoarea
      *
      * Shows a list of echomail messages for the selected area with options to:
@@ -1051,6 +1077,7 @@ class EchomailHandler
         if ($selectedMessageId !== null && $selectedMessageId < 1) {
             $selectedMessageId = null;
         }
+        $selectedMessageIds = [];
 
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage, $sort);
@@ -1084,12 +1111,20 @@ class EchomailHandler
             );
             $result = TelnetUtils::runMessageList(
                 $conn, $state, $this->server, $title, $messages, $page, $totalPages, $selectedIndex,
-                ['o' => 'order', 's' => 'search'],
+                ['m' => 'mark_selected_read', 'o' => 'order', 's' => 'search'],
                 [
-                    ['text' => 'O', 'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Sort  ', 'color' => TelnetUtils::ANSI_BLUE],
                     ['text' => 'S', 'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' Search', 'color' => TelnetUtils::ANSI_BLUE],
+                ],
+                [
+                    'multiSelect' => true,
+                    'toggleKey' => ' ',
+                    'selectedMessageIds' => $selectedMessageIds,
+                ],
+                [
+                    ['key' => 'Space', 'label' => $this->server->t('ui.terminalserver.list.help_toggle_selection', 'Toggle selection', [], $state['locale'])],
+                    ['key' => 'M', 'label' => $this->server->t('ui.terminalserver.echomail.mark_selected_status', 'Mark Read', [], $state['locale'])],
+                    ['key' => 'O', 'label' => $this->server->t('ui.terminalserver.echomail.sort_title', 'Sort Order', [], $state['locale'])],
                 ]
             );
             $selectedIndex = $result['selectedIndex'];
@@ -1114,6 +1149,60 @@ class EchomailHandler
                     break;
                 case 'read':
                     [$page, $selectedIndex] = $this->displayMessage($conn, $state, $session, $area, $page, $perPage, $totalPages, $result['index'], $sort);
+                    break;
+                case 'toggle_select':
+                    $messageId = isset($messages[$result['index']]['id']) ? (int)$messages[$result['index']]['id'] : 0;
+                    if ($messageId > 0) {
+                        if (in_array($messageId, $selectedMessageIds, true)) {
+                            $selectedMessageIds = array_values(array_filter(
+                                $selectedMessageIds,
+                                static fn(int $id): bool => $id !== $messageId
+                            ));
+                        } else {
+                            $selectedMessageIds[] = $messageId;
+                        }
+                    }
+                    break;
+                case 'mark_selected_read':
+                    $selectedCount = count($selectedMessageIds);
+                    if ($selectedCount === 0) {
+                        TelnetUtils::showAlertDialog(
+                            $conn,
+                            $state,
+                            $this->server,
+                            $this->server->t('ui.terminalserver.echomail.mark_selected_title', 'Mark Selected Read', [], $state['locale']),
+                            $this->server->t('ui.terminalserver.echomail.mark_selected_none', 'No messages are selected.', [], $state['locale']),
+                            'error'
+                        );
+                        break;
+                    }
+                    $choice = TelnetUtils::showConfirmDialog(
+                        $conn,
+                        $state,
+                        $this->server,
+                        $this->server->t('ui.terminalserver.echomail.mark_selected_title', 'Mark Selected Read', [], $state['locale']),
+                        $this->server->t('ui.terminalserver.echomail.mark_selected_prompt', 'Mark {count} selected message(s) as read?', ['count' => $selectedCount], $state['locale']),
+                        [
+                            'y' => $this->server->t('ui.terminalserver.server.confirm_yes', 'Confirm', [], $state['locale']),
+                            'n' => $this->server->t('ui.terminalserver.server.confirm_no', 'Cancel', [], $state['locale']),
+                        ],
+                        'n'
+                    );
+                    if ($choice === 'y') {
+                        $markResult = $this->markSelectedMessagesRead($session, $selectedMessageIds, $state['locale'], $state['csrf_token'] ?? null);
+                        TelnetUtils::showAlertDialog(
+                            $conn,
+                            $state,
+                            $this->server,
+                            $this->server->t('ui.terminalserver.echomail.mark_selected_title', 'Mark Selected Read', [], $state['locale']),
+                            $markResult['message'],
+                            $markResult['success'] ? 'info' : 'error'
+                        );
+                        if ($markResult['success']) {
+                            $selectedMessageIds = [];
+                            $this->server->logAction($state['username'] ?? 'unknown', "Echomail: marked {$selectedCount} selected messages read in {$area}");
+                        }
+                    }
                     break;
                 case 'order':
                     $newSort = $this->promptForSort($conn, $state, $sort, $title, $messages, $selectedIndex);
@@ -1577,6 +1666,46 @@ class EchomailHandler
         $messages = array_slice($allMessages, 0, $perPage);
 
         return [$messages, (int)$totalPages];
+    }
+
+    /**
+     * Mark a selected set of echomail messages as read for the current user.
+     *
+     * @param int[] $messageIds
+     * @return array{success:bool,message:string}
+     */
+    private function markSelectedMessagesRead(string $session, array $messageIds, string $locale, ?string $csrfToken): array
+    {
+        $messageIds = array_values(array_unique(array_filter(array_map('intval', $messageIds), static fn(int $id): bool => $id > 0)));
+
+        if ($messageIds === []) {
+            return [
+                'success' => false,
+                'message' => $this->server->t('ui.terminalserver.echomail.mark_selected_none', 'No messages are selected.', [], $locale),
+            ];
+        }
+
+        $result = TelnetUtils::apiRequest(
+            $this->apiBase,
+            'POST',
+            '/api/messages/echomail/read',
+            ['messageIds' => $messageIds],
+            $session,
+            3,
+            $csrfToken
+        );
+
+        if (($result['status'] ?? 0) === 200 && !empty($result['data']['success'])) {
+            return [
+                'success' => true,
+                'message' => $this->server->t('ui.terminalserver.echomail.mark_selected_success', 'Selected messages marked as read.', [], $locale),
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => $this->server->t('ui.terminalserver.echomail.mark_selected_failed', 'Failed to mark selected messages as read.', [], $locale),
+        ];
     }
 
     /**
