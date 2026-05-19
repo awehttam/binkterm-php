@@ -23,6 +23,7 @@
     - [Area Search](#area-search)
   - [Compose Mode](#compose-mode)
   - [Bulletins](#bulletins)
+  - [Chat](#chat)
   - [Paging](#paging)
   - [Quit](#quit)
 - [Output Profiles](#output-profiles)
@@ -274,6 +275,7 @@ Posted to LVLY_TEST.
 | `WHO` | `W` | Show who is online. |
 | `STATUS` | `U` | Show current area, list, message, or draft state. |
 | `BULLETINS` | `BU` | List active bulletins. `BU <id>` reads bulletin number `<id>`. |
+| `CHAT` | `C` | Enter the default chat room. `CHAT <room>` enters a named room. `CHAT <user>` opens a DM with that user. `CHAT LIST` or `CL` lists available rooms. |
 | `QUIT` | `Q` | Context-aware: exits the current area if one is active, or ends the PacketBBS session from the top level. Use the full word `QUIT` to end the session unconditionally from anywhere. |
 | `WEBSITE` | `WEB` | Show the BBS website URL. |
 
@@ -695,6 +697,80 @@ BU for list
 ```
 
 Reading a bulletin marks it as read for your account. The `*` will disappear from the list on your next `BU`.
+
+### Chat
+
+PacketBBS supports real-time chat rooms and direct messages (DMs). Chat uses the same rooms as the web and terminal interfaces.
+
+Enter the default room:
+
+```text
+CHAT
+```
+
+Short form:
+
+```text
+C
+```
+
+Enter a named room:
+
+```text
+CHAT General
+```
+
+Open a DM with another user (by username):
+
+```text
+CHAT alice
+```
+
+List available rooms:
+
+```text
+CHAT LIST
+```
+
+Alias:
+
+```text
+CL
+```
+
+Example room list response:
+
+```text
+Rooms: General, Tech, Off-Topic
+C <room> to enter
+```
+
+Once inside a room or DM, any text that is not a recognised command is posted as a message. Incoming messages from other users are delivered to your node via the outbound queue and arrive as separate pushes from the bridge.
+
+#### In-Chat Commands
+
+| Command | Short code | Description |
+|---|---|---|
+| `CHAT` | `C` | Refresh the current room or DM at the latest page. `CHAT <room>` switches to a different room. |
+| `CHAT LIST` | `CL` | List available rooms without leaving the current context. |
+| `WHO` | `W` | Show who is online. |
+| `STATUS` | `U` | Show the current chat context (room name or `DM:<user>`). |
+| `MORE` | `M` | Show older messages (page back in history). |
+| `PREV` | `B` or `P` | Show newer messages (page forward toward current). |
+| `HELP` | `H` or `?` | Show in-chat help. |
+| `Q` or `/C` | | Exit the room or DM and return to the main context. Session stays active. |
+| `QUIT` | | End the PacketBBS session unconditionally. |
+
+Any other text is posted as a chat message.
+
+#### Switching Contexts
+
+From inside any chat context you can jump directly to another room or open a DM without going back to the main context first:
+
+```text
+CHAT Tech
+CHAT bob
+```
 
 ### Paging
 
