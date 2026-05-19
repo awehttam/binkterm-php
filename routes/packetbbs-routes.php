@@ -190,17 +190,26 @@ SimpleRouter::post('/api/meshcore/advert', function () {
     //         location collisions with a pre-existing manually-added entry.
     $db->beginTransaction();
 
-    // The CTE removes any manually-added or stale entry that occupies the target
-    // (ssid, latitude, longitude) before the UPDATE runs, preventing a unique-constraint
-    // violation when a known node moves to a location already held by a different row.
+    // Remove any row that occupies the target (ssid, latitude, longitude) with a different
+    // public_key before the UPDATE runs. This must be a separate statement: PostgreSQL CTE
+    // sub-statements run concurrently with the same snapshot, so a DELETE inside a WITH
+    // clause does not satisfy the unique-constraint check fired by the UPDATE in the same
+    // statement.
+    $cleanupStmt = $db->prepare("
+        DELETE FROM cwn_networks
+        WHERE ssid      = :ssid
+          AND latitude  = :latitude
+          AND longitude = :longitude
+          AND (public_key IS DISTINCT FROM :public_key)
+    ");
+    $cleanupStmt->execute([
+        ':ssid'       => $name,
+        ':latitude'   => $latitude,
+        ':longitude'  => $longitude,
+        ':public_key' => $pubKeyHex,
+    ]);
+
     $updateStmt = $db->prepare("
-        WITH conflict_cleanup AS (
-            DELETE FROM cwn_networks
-            WHERE ssid      = :cte_ssid
-              AND latitude  = :cte_latitude
-              AND longitude = :cte_longitude
-              AND (public_key IS DISTINCT FROM :cte_public_key)
-        )
         UPDATE cwn_networks
         SET ssid         = :ssid,
             latitude     = :latitude,
@@ -214,16 +223,12 @@ SimpleRouter::post('/api/meshcore/advert', function () {
         RETURNING id
     ");
     $updateStmt->execute([
-        ':cte_ssid'       => $name,
-        ':cte_latitude'   => $latitude,
-        ':cte_longitude'  => $longitude,
-        ':cte_public_key' => $pubKeyHex,
-        ':public_key'     => $pubKeyHex,
-        ':ssid'           => $name,
-        ':latitude'       => $latitude,
-        ':longitude'      => $longitude,
-        ':hop_count'      => $hopCount,
-        ':network_type'   => $advType,
+        ':public_key'  => $pubKeyHex,
+        ':ssid'        => $name,
+        ':latitude'    => $latitude,
+        ':longitude'   => $longitude,
+        ':hop_count'   => $hopCount,
+        ':network_type' => $advType,
     ]);
     $row = $updateStmt->fetch(\PDO::FETCH_ASSOC);
 
