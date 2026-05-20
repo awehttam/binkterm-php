@@ -24,6 +24,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal)
   - [Cross-post Echomail to Multiple Areas from Terminal](#cross-post-echomail-to-multiple-areas-from-terminal)
   - [Terminal Message Drafts](#terminal-message-drafts)
+  - [Terminal Who's Online Popup and Public Profile Viewer](#terminal-whos-online-popup-and-public-profile-viewer)
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
@@ -48,6 +49,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
   - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation-1)
   - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal-1)
+  - [Terminal Who's Online Popup and Public Profile Viewer](#terminal-whos-online-popup-and-public-profile-viewer)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
@@ -101,6 +103,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Cross-post area picker resize redraw fix**: when composing a new echomail message and opening the cross-post checkbox picker, resizing the terminal now clears and redraws the compose-flow background before re-centering the dialog. This prevents ghosted dialog frames and underlying message-list artifacts from remaining on screen after a resize. No upgrade action is required.
 - **Terminal full-screen editor visual refresh**: the shared terminal full-screen editor now uses the same framed blue panel style as other terminal dialogs and overlays. The editor `Ctrl-K` help screen now uses the same framed treatment, and the editor redraws to the new geometry when the terminal is resized while it is open. No upgrade action is required.
 - **Terminal message drafts for netmail and echomail**: the terminal compose flow now detects existing drafts before opening the editor, offers a resume picker, and adds `Ctrl+S` inside the full-screen editor to save a draft without leaving compose. Resumed drafts can be deleted from the picker with `X`, and successfully sending a resumed draft removes it automatically. No upgrade action is required.
+- **Terminal Who's Online popup and public profile viewer**: the terminal Who's Online action now opens a centered selectable popup instead of a plain text dump. Selecting a user opens a reusable terminal public-profile viewer that shows username, full name, location, and biography. No upgrade action is required.
 - **Terminal file browser selector and file info modal**: the file area list and per-area file list in the terminal server now use the same selector-style navigation as echomail, including arrow-key movement, page changes, Enter-to-open, and status-bar actions. Opening a file now shows a centered file-info modal with scrolling support instead of a plain full-screen detail page. No upgrade action is required.
 - **ZMODEM documentation corrected**: `docs/TerminalServer.md` previously stated that external `sz`/`rz` binaries from `lrzsz` were required and that the built-in PHP ZMODEM implementation was a fallback. This was incorrect. The built-in PHP implementation is the default and preferred path because it correctly handles Telnet IAC (0xFF) byte escaping. External binaries are an opt-in option that requires the sysop to explicitly set `TELNET_ZMODEM_FORCE_PHP=false` in `.env`. No code change; documentation only. No upgrade action is required.
 - **Unread messages bolded in terminal message lists**: echomail and netmail message lists now render unread rows in bold ANSI text. Once a message is opened and marked read, it displays at normal weight the next time the list is shown. No upgrade action is required.
@@ -453,6 +456,18 @@ Terminal netmail and echomail compose now share the existing draft backend used 
 When a user starts a new compose flow in the terminal and saved drafts already exist for that message type, the terminal first prompts to **Resume Draft**, **New Message**, or **Cancel**. Choosing resume opens a selector-style drafts picker with the same keyboard navigation as the other terminal lists. Pressing `X` in that picker deletes the highlighted draft after confirmation.
 
 Inside the full-screen editor, `Ctrl+S` now saves the current message as a draft and keeps the user in the editor so they can continue writing. `Ctrl+Z` remains the send key. If the user resumed an existing draft and then sends successfully, that draft is deleted automatically so stale copies do not accumulate.
+
+No sysop configuration is required. The feature becomes available after the upgraded Telnet and SSH daemons are restarted.
+
+---
+
+## Terminal Who's Online Popup and Public Profile Viewer
+
+The terminal **Who's Online** main-menu action now opens a centered selectable popup instead of rendering a plain scrolling text list. The popup shows currently active users from the existing `/api/whosonline` endpoint, and pressing Enter on a highlighted user opens a read-only terminal profile viewer.
+
+The new terminal public-profile viewer displays only public fields: **username**, **full name**, **location**, and **biography**. It is implemented as a reusable terminal viewer rather than a one-off Who's Online screen so other terminal features can link to public user profiles later without duplicating UI code.
+
+To support this, the API now also exposes `GET /api/user/public-profile/{id}` for authenticated callers. The endpoint returns only the public profile fields needed by the terminal viewer and does not include private account data.
 
 No sysop configuration is required. The feature becomes available after the upgraded Telnet and SSH daemons are restarted.
 

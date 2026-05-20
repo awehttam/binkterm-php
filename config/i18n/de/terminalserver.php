@@ -92,6 +92,8 @@ return [
     // --- Who's Online ---
     'ui.terminalserver.server.whos_online.title'       => 'Wer ist online (letzte {minutes} Minuten)',
     'ui.terminalserver.server.whos_online.empty'       => 'Keine Benutzer online.',
+    'ui.terminalserver.server.whos_online.status_view' => 'Profil ansehen',
+    'ui.terminalserver.server.whos_online.status_back' => 'Zurück',
 
     // --- Idle timeout ---
     'ui.terminalserver.server.idle.disconnect'         => 'Inaktivitäts-Timeout - Verbindung wird getrennt...',
@@ -127,6 +129,17 @@ return [
     'ui.terminalserver.editor.help.save_draft'         => 'Strg+S = Entwurf speichern und weiterbearbeiten',
     'ui.terminalserver.editor.help.save'               => 'Strg+Z = Nachricht speichern und senden',
     'ui.terminalserver.editor.help.cancel'             => 'Strg+C = Nachricht abbrechen und verwerfen',
+
+    // --- Public profile viewer ---
+    'ui.terminalserver.profile.title'                  => 'Benutzerprofil',
+    'ui.terminalserver.profile.username'               => 'Benutzername',
+    'ui.terminalserver.profile.real_name'              => 'Vollständiger Name',
+    'ui.terminalserver.profile.location'               => 'Standort',
+    'ui.terminalserver.profile.biography'              => 'Biografie',
+    'ui.terminalserver.profile.not_specified'          => 'Nicht angegeben',
+    'ui.terminalserver.profile.empty_biography'        => 'Keine Biografie vorhanden.',
+    'ui.terminalserver.profile.load_failed'            => 'Benutzerprofil konnte nicht geladen werden.',
+    'ui.terminalserver.profile.status_back'            => 'Zurück',
 
     // --- Compose (shared between netmail and echomail) ---
     'ui.terminalserver.compose.drafts_prompt_title'    => 'Entwürfe gefunden',

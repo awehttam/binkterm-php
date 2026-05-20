@@ -6494,6 +6494,7 @@ Open Graph metadata or error
 | `GET` | [`/api/user/echomail-ignore-rules`](#get-apiuserechomail-ignore-rules) | Yes | Retrieve all echomail ignore rules for the authenticated user. |
 | `DELETE` | [`/api/user/echomail-ignore-rules/{id}`](#delete-apiuserechomail-ignore-rulesid) | Yes | Delete an echomail ignore rule for the authenticated user. |
 | `GET` | [`/api/user/profile`](#get-apiuserprofile) | Yes | Retrieve the authenticated user's profile information. |
+| `GET` | [`/api/user/public-profile/{id}`](#get-apiuserpublic-profileid) | Yes | Retrieve public profile information for an active user by ID. |
 | `POST` | [`/api/user/change-password`](#post-apiuserchange-password) | Yes | Change the authenticated user's password. |
 | `POST` | [`/api/user/profile`](#post-apiuserprofile) | Yes | Update the authenticated user's profile information. |
 | `GET` | [`/api/user/stats`](#get-apiuserstats) | Yes | Retrieve message and file transfer statistics for the authenticated user. |
@@ -6599,6 +6600,41 @@ User profile data
 | `profile.email` | string | User email address |
 | `profile.location` | string | User location |
 | `profile.about_me` | string | User bio/about section |
+
+---
+
+#### `GET /api/user/public-profile/{id}`
+
+**Requires authentication**
+
+Returns a limited public profile for an active user. This endpoint is intended for authenticated client features such as the terminal Who's Online profile viewer and returns only public-facing fields rather than account management data.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | User ID of the active user whose public profile should be loaded |
+
+**Response** _(JSON)_
+
+Public profile fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` on success |
+| `profile` | object | Public profile data |
+| `profile.user_id` | integer | User ID |
+| `profile.username` | string | Username |
+| `profile.real_name` | string | Full/real name (may be empty) |
+| `profile.location` | string | Location (may be empty) |
+| `profile.about_me` | string | Biography/about-me text (may be empty) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 404 | User not found |
 
 ---
 

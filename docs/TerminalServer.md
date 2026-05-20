@@ -35,6 +35,7 @@ Each transport daemon has additional extension requirements — see
 - Interests (tag-based content interests when enabled)
 - Door launcher integration (DOS doors, native doors, and configured door menu)
 - Who's Online display
+- Reusable public profile viewer for terminal user lookups
 - Full-screen message editor with cursor navigation and line editing controls
 - ANSI color and screen-aware rendering (auto-detected on Telnet via TTYPE negotiation)
 - Sixel image rendering for terminal clients that support it
@@ -85,6 +86,7 @@ Each transport daemon has additional extension requirements — see
 - When entering **netmail** or **echomail** compose from the terminal, the server now checks for saved drafts of that message type. If any exist, the user is prompted to **Resume Draft**, **New Message**, or **Cancel**. Choosing resume opens a selector-style drafts picker with the same keyboard navigation as other terminal lists; pressing `X` deletes the highlighted draft after confirmation.
 - When composing a **new** echomail message (not a reply), the compose flow asks "Cross-post to other areas? [y/N]:" immediately after showing the destination area. Answering `y` opens a checkbox picker listing all other subscribed areas. Use Up/Down arrows to navigate, Space to toggle each area, Enter to confirm, or Q to skip cross-posting. The number of additional areas is capped by the **Max cross-post areas** setting in the BBS admin (default 5). Scroll indicators (▲/▼) appear when the list is taller than the visible dialog area. If the terminal is resized while this picker is open, the compose-flow background is cleared and the picker is redrawn at the new size so old dialog content does not remain on screen.
 - Terminal confirmation and selection dialogs now redraw on live resize. If the user resizes the window while a centered terminal dialog is open, both the background screen and the dialog reflow to the new dimensions instead of waiting for the dialog to close.
+- The **Who's Online** main-menu action now opens a centered selectable popup instead of a plain text page. Highlight a user and press Enter to open a reusable terminal **public profile viewer** that shows username, full name, location, and biography. The profile view is read-only and uses the same resize-aware framed viewer style as other terminal reading screens.
 
 ### Full-Screen Message Editor
 

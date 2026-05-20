@@ -7614,6 +7614,41 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    SimpleRouter::get('/user/public-profile/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare('
+            SELECT id, username, real_name, location, about_me
+            FROM users
+            WHERE id = ? AND is_active = TRUE
+            LIMIT 1
+        ');
+        $stmt->execute([(int)$id]);
+        $targetUser = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$targetUser) {
+            apiError(
+                'errors.user.stats.user_not_found',
+                apiLocalizedText('errors.user.stats.user_not_found', 'User not found', $user),
+                404
+            );
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'profile' => [
+                'user_id' => (int)$targetUser['id'],
+                'username' => (string)($targetUser['username'] ?? ''),
+                'real_name' => (string)($targetUser['real_name'] ?? ''),
+                'location' => (string)($targetUser['location'] ?? ''),
+                'about_me' => (string)($targetUser['about_me'] ?? ''),
+            ],
+        ]);
+    })->where(['id' => '[0-9]+']);
+
     SimpleRouter::post('/user/change-password', function() {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');

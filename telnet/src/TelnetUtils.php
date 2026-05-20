@@ -1578,6 +1578,236 @@ class TelnetUtils
     }
 
     /**
+     * Show a centered selectable list dialog overlay and wait for selection.
+     *
+     * @param resource $conn
+     * @param array    &$state
+     * @param object   $server
+     * @param string   $title
+     * @param string[] $items
+     * @param string   $hintSelect
+     * @param string   $hintBack
+     * @param int      $selectedIndex
+     * @param callable|null $redrawFn Invoked on resize before redrawing the dialog.
+     * @return array{action:'select'|'quit',index:int}|null Null on disconnect.
+     */
+    public static function showSelectableDialog(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        array $items,
+        string $hintSelect = 'Select',
+        string $hintBack = 'Back',
+        int $selectedIndex = 0,
+        ?callable $redrawFn = null
+    ): ?array {
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+            $sepL = '├'; $sepR = '┤';
+            $arrowUp = '▲'; $arrowDn = '▼';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+            $sepL = "\xc3"; $sepR = "\xb4";
+            $arrowUp = "\x1e"; $arrowDn = "\x1f";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+            $sepL = '+'; $sepR = '+';
+            $arrowUp = '^'; $arrowDn = 'v';
+        }
+
+        $ansi   = self::$ansiColorEnabled;
+        $bg     = self::ANSI_BG_BLUE;
+        $rst    = self::ANSI_RESET;
+        $frame  = $bg . "\033[1;37m";
+        $body   = $bg . "\033[37m";
+        $hilite = $bg . "\033[1;33m";
+        $dim    = $bg . "\033[2;37m";
+
+        $cursorIdx = min(max(0, $selectedIndex), max(0, count($items) - 1));
+        $scrollOffset = 0;
+        $itemCount = count($items);
+        $hintStr = "Enter {$hintSelect}  Q {$hintBack}";
+        $encodedHint = self::encodeHeaderTextForCharset($hintStr, $charset);
+        $plainTitleText = self::stripAnsi($title);
+
+        $renderDialog = function () use (
+            &$cursorIdx, &$scrollOffset,
+            $conn, &$state, $plainTitleText, $items, $itemCount,
+            $tl, $tr, $bl, $br, $hz, $vt, $sepL, $sepR,
+            $arrowUp, $arrowDn, $hintStr, $encodedHint, $charset,
+            $ansi, $rst, $frame, $body, $hilite, $dim
+        ): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+
+            $plainItems = array_map(static fn(string $item): string => self::stripAnsi($item), $items);
+            $longestItem = 0;
+            foreach ($plainItems as $item) {
+                $longestItem = max($longestItem, mb_strlen($item));
+            }
+
+            $innerWidth = max(
+                28,
+                min(
+                    max(mb_strlen($plainTitleText) + 4, $longestItem + 4, mb_strlen($hintStr) + 4),
+                    min($cols - 6, 72)
+                )
+            );
+            $boxWidth = $innerWidth + 2;
+            $maxListRows = max(3, min($itemCount, $rows - 8));
+            $dialogHeight = 6 + $maxListRows;
+            $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+            $startCol = max(1, (int)round(($cols - $boxWidth) / 2));
+
+            if ($cursorIdx < $scrollOffset) {
+                $scrollOffset = $cursorIdx;
+            } elseif ($cursorIdx >= $scrollOffset + $maxListRows) {
+                $scrollOffset = $cursorIdx - $maxListRows + 1;
+            }
+
+            $hasAbove = $scrollOffset > 0;
+            $hasBelow = ($scrollOffset + $maxListRows) < $itemCount;
+
+            $titleLen = mb_strlen(' ' . $plainTitleText . ' ');
+            $totalHz = max(0, $innerWidth - $titleLen);
+            $encodedTitle = self::encodeHeaderTextForCharset($plainTitleText, $charset);
+            $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . ' ' . $encodedTitle . ' '
+                . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $midBorder = $sepL . str_repeat($hz, $innerWidth) . $sepR;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+
+            $hintLen = mb_strlen($hintStr);
+            $hintLeftPad = max(0, (int)floor(($innerWidth - $hintLen) / 2));
+            $hintRightPad = max(0, $innerWidth - $hintLen - $hintLeftPad);
+
+            $buildScrollRow = static function (string $glyph) use ($innerWidth, $vt): string {
+                return $vt . str_repeat(' ', $innerWidth - 2) . $glyph . ' ' . $vt;
+            };
+            $scrollUpRow = $buildScrollRow($arrowUp);
+            $scrollDnRow = $buildScrollRow($arrowDn);
+            $emptyRow = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                $draw($r++, ($hasAbove ? $dim . $scrollUpRow : $body . $emptyRow) . $rst);
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $hasAbove ? $scrollUpRow : $emptyRow);
+            }
+
+            $labelWidth = $innerWidth;
+            for ($i = 0; $i < $maxListRows; $i++) {
+                $itemIdx = $scrollOffset + $i;
+                if ($itemIdx >= $itemCount) {
+                    $line = $emptyRow;
+                    if ($ansi) {
+                        $draw($r++, $body . $line . $rst);
+                    } else {
+                        $draw($r++, $line);
+                    }
+                    continue;
+                }
+
+                $isCur = ($itemIdx === $cursorIdx);
+                $plain = str_pad(mb_substr($plainItems[$itemIdx], 0, $labelWidth - 2), $labelWidth - 2);
+                $encodedPlain = self::encodeHeaderTextForCharset(rtrim($plain), $charset);
+                $rowLabel = str_pad($encodedPlain, $labelWidth - 2);
+                $rowText = ($isCur ? '> ' : '  ') . $rowLabel;
+                if ($ansi) {
+                    $color = $isCur ? $hilite : $body;
+                    $draw($r++, $color . $vt . $rowText . $body . $vt . $rst);
+                } else {
+                    $draw($r++, $vt . $rowText . $vt);
+                }
+            }
+
+            if ($ansi) {
+                $draw($r++, ($hasBelow ? $dim . $scrollDnRow : $body . $emptyRow) . $rst);
+                $draw($r++, $frame . $midBorder . $rst);
+                $draw($r++, $body . $vt . str_repeat(' ', $hintLeftPad) . "\033[3m" . $encodedHint . "\033[23m" . str_repeat(' ', $hintRightPad) . $body . $vt . $rst);
+                $draw($r, $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $hasBelow ? $scrollDnRow : $emptyRow);
+                $draw($r++, $midBorder);
+                $draw($r++, $vt . str_repeat(' ', $hintLeftPad) . $encodedHint . str_repeat(' ', $hintRightPad) . $vt);
+                $draw($r, $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[?25h");
+        };
+
+        $renderDialog();
+
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                if ($redrawFn !== null) {
+                    $redrawFn($state);
+                }
+                $renderDialog();
+                continue;
+            }
+
+            if ($key === null) {
+                return null;
+            }
+
+            if ($key === 'ENTER') {
+                return ['action' => 'select', 'index' => $cursorIdx];
+            }
+
+            if ($key === 'UP') {
+                if ($cursorIdx > 0) {
+                    $cursorIdx--;
+                    $renderDialog();
+                }
+                continue;
+            }
+
+            if ($key === 'DOWN') {
+                if ($cursorIdx < $itemCount - 1) {
+                    $cursorIdx++;
+                    $renderDialog();
+                }
+                continue;
+            }
+
+            if (!str_starts_with($key, 'CHAR:')) {
+                continue;
+            }
+
+            $char = substr($key, 5);
+            if (strtolower($char) === 'q') {
+                return ['action' => 'quit', 'index' => $cursorIdx];
+            }
+            if (ctype_digit($char)) {
+                $choice = (int)$char;
+                if ($choice > 0 && $choice <= $itemCount) {
+                    $cursorIdx = $choice - 1;
+                    $renderDialog();
+                }
+            }
+        }
+    }
+
+    /**
      * Show an inline image-number prompt on the status bar and read a number (1–99).
      *
      * Overwrites the status line with "View image [1-N]: ", echoes each digit as the
@@ -1802,6 +2032,81 @@ class TelnetUtils
 
         $lines[] = $frame . $bl . $hFill . $br . $rst;
         return $lines;
+    }
+
+    /**
+     * Display a read-only public user profile viewer.
+     *
+     * @param resource $conn
+     * @param array    &$state
+     * @param object   $server
+     * @param array    $profile
+     * @return void
+     */
+    public static function showPublicProfileViewer($conn, array &$state, $server, array $profile): void
+    {
+        $locale = $state['locale'] ?? 'en';
+        $buildView = function(array $s) use ($server, $profile, $locale): array {
+            $cols = $s['cols'] ?? 80;
+            $width = max(40, $cols - 2);
+            $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+            $notSpecified = $server->t('ui.terminalserver.profile.not_specified', 'Not specified', [], $locale);
+            $bioLabel = $server->t('ui.terminalserver.profile.biography', 'Biography', [], $locale);
+            $realName = trim((string)($profile['real_name'] ?? ''));
+            $location = trim((string)($profile['location'] ?? ''));
+            $bioText = trim((string)($profile['about_me'] ?? ''));
+            if ($bioText === '') {
+                $bioText = $server->t('ui.terminalserver.profile.empty_biography', 'No biography provided.', [], $locale);
+            }
+
+            $bodyWidth = max(20, $width - 4);
+            $bodyLines = array_merge(
+                [self::colorize($bioLabel, self::ANSI_CYAN . self::ANSI_BOLD), ''],
+                TerminalMarkupRenderer::render('markdown', $bioText, $bodyWidth)
+            );
+            $bodyLines = array_map(fn(string $line): string => $server->encodeForTerminal($line), $bodyLines);
+
+            $segments = [
+                ['text' => 'U/D',       'color' => self::ANSI_RED],
+                ['text' => ' Scroll  ', 'color' => self::ANSI_BLUE],
+                ['text' => 'Q',         'color' => self::ANSI_RED],
+                ['text' => ' ' . $server->t('ui.terminalserver.profile.status_back', 'Back', [], $locale), 'color' => self::ANSI_BLUE],
+            ];
+
+            return [
+                'headerLines' => self::buildMessageHeaderBox($width, [
+                    ['label' => $server->t('ui.terminalserver.profile.username', 'Username', [], $locale) . ': ', 'value' => (string)($profile['username'] ?? $notSpecified), 'style' => 'bold'],
+                    ['label' => $server->t('ui.terminalserver.profile.real_name', 'Full Name', [], $locale) . ': ', 'value' => $realName !== '' ? $realName : $notSpecified, 'style' => 'normal'],
+                    ['label' => $server->t('ui.terminalserver.profile.location', 'Location', [], $locale) . ': ', 'value' => $location !== '' ? $location : $notSpecified, 'style' => 'dim'],
+                ], $charset),
+                'wrappedLines' => $bodyLines,
+                'statusLine' => self::buildStatusBar($segments, $width),
+            ];
+        };
+
+        $helpItems = [
+            ['key' => 'PgUp / PgDn', 'label' => $server->t('ui.terminalserver.message.help_page', 'Scroll one page', [], $locale)],
+        ];
+
+        $view = $buildView($state);
+        self::runMessageViewer(
+            $conn,
+            $state,
+            $server,
+            $view['headerLines'],
+            $view['wrappedLines'],
+            $view['statusLine'],
+            $state['rows'] ?? 24,
+            0,
+            false,
+            [],
+            $buildView,
+            [],
+            null,
+            [],
+            $helpItems
+        );
     }
 
     /**
