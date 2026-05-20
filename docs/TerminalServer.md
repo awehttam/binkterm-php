@@ -110,6 +110,12 @@ To add a third shell implementation:
 
 The current shell layer is intentionally small so a third shell can be added without rewriting existing feature handlers.
 
+#### Shell abstraction exemptions
+
+Some handlers intentionally do not use the shell abstraction and must remain on fixed plain-text prompt flows:
+
+- **`QwkMenuHandler`** — QWK reader software and expect-style automation scripts rely on parsing specific prompt strings (`> `, conference numbers, format prompts) to navigate the QWK menu programmatically. Routing this flow through a TUI shell would break those scripts. `QwkMenuHandler` must stay on plain `prompt()`/`writeLine()` calls and must not be refactored to call shell methods.
+
 ### Screen-Aware Display
 
 - Automatically detects terminal dimensions via NAWS (Negotiate About Window Size)

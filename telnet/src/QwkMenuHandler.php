@@ -14,6 +14,11 @@ use BinktermPHP\Qwk\RepProcessor;
  * supports scripted HTTP Basic Auth downloads. Format changes and conference
  * listing are also available. Business logic is delegated to QwkBuilder and
  * the /api/qwk/* endpoints.
+ *
+ * NOTE: This handler intentionally does NOT use TerminalShellInterface.
+ * QWK reader software and expect-style automation scripts parse specific
+ * prompt strings to navigate this menu programmatically. A TUI shell would
+ * break those scripts, so all rendering must remain on plain prompt()/writeLine() calls.
  */
 class QwkMenuHandler
 {
