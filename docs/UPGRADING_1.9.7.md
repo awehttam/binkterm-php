@@ -43,6 +43,7 @@ This release is primarily a terminal server and PacketBBS update, with miscellan
   - [Terminal Resize Repaint](#terminal-resize-repaint)
   - [Ctrl-C Cancels Compose Prompts](#ctrl-c-cancels-compose-prompts)
   - [Terminal Who's Online Popup and Public Profile Viewer](#terminal-whos-online-popup-and-public-profile-viewer)
+  - [DOS Door Return Path Stability](#dos-door-return-path-stability)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
@@ -99,6 +100,7 @@ This release is primarily a terminal server and PacketBBS update, with miscellan
 - **Terminal file browser selector and file info modal**: the file area list and per-area file list in the terminal server now use the same selector-style navigation as echomail, including arrow-key movement, page changes, Enter-to-open, and status-bar actions. Opening a file now shows a centered file-info modal with scrolling support instead of a plain full-screen detail page. No upgrade action is required.
 - **ZMODEM documentation corrected**: `docs/TerminalServer.md` previously stated that external `sz`/`rz` binaries from `lrzsz` were required and that the built-in PHP ZMODEM implementation was a fallback. This was incorrect. The built-in PHP implementation is the default and preferred path because it correctly handles Telnet IAC (0xFF) byte escaping. External binaries are an opt-in option that requires the sysop to explicitly set `TELNET_ZMODEM_FORCE_PHP=false` in `.env`. No code change; documentation only. No upgrade action is required.
 - **Unread messages bolded in terminal message lists**: echomail and netmail message lists now render unread rows in bold ANSI text. Once a message is opened and marked read, it displays at normal weight the next time the list is shown. No upgrade action is required.
+- **DOS door return-path stability**: after a DOS door exits, the terminal server now restores the telnet socket's original blocking mode before returning to the normal BBS UI. This prevents prompt-driven screens such as the nodelist browser and door menu from immediately dropping back to the main menu after a door session. No sysop configuration is required.
 
 ### PacketBBS
 
@@ -128,6 +130,7 @@ This release is primarily a terminal server and PacketBBS update, with miscellan
 - Clicking a username in the web local chat thread now opens a context menu for all users. The first action opens that user's public profile page. Admins still see Kick and Ban in room chat from the same menu.
 - Links posted to chat rooms and direct messages are now processed by the inline media player. Images, video files, retro audio files, and platform embeds (YouTube, etc.) render automatically below the link in the chat thread.
 - Inline code (`code`) in Markdown-rendered content now renders in the theme's normal text color on all dark themes (dark, amber, greenterm, cyberpunk). Bootstrap's default pink/red code color was difficult to read against dark backgrounds.
+- The echomail/netmail compose form now uses the same advanced **Insert Image** picker in Plain text, StyleCodes, and Markdown modes. Uploading, picking a previously uploaded image, pasting from the clipboard, and inserting by URL are now available consistently across all compose modes. No upgrade action is required.
 
 ### Developer Tooling
 
@@ -505,6 +508,14 @@ The new terminal public-profile viewer displays only public fields: **username**
 To support this, the API now also exposes `GET /api/user/public-profile/{id}` for authenticated callers. The endpoint returns only the public profile fields needed by the terminal viewer and does not include private account data.
 
 No sysop configuration is required. The feature becomes available after the upgraded Telnet and SSH daemons are restarted.
+
+---
+
+### DOS Door Return Path Stability
+
+The DOS door relay now restores the telnet client socket to its pre-door blocking mode before control returns to the regular terminal session. This keeps prompt-driven terminal flows operating normally after a door exits, including reopening the door menu, entering the nodelist browser, and using other line-input screens from the main menu.
+
+No sysop configuration is required. The change takes effect when the upgraded Telnet daemon is restarted.
 
 ---
 
