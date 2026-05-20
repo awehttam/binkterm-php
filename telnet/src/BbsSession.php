@@ -74,6 +74,7 @@ class BbsSession
     private int $tlsPort;
     private ?Logger $logger;
     private bool $asciiTextMode;
+    private bool $syncTermStatusLineDisabled = false;
     /** @var string Terminal character set: 'utf8', 'cp437', or 'ascii' */
     private string $terminalCharset = 'ascii';
     /** @var bool Whether ANSI color is enabled for this terminal */
@@ -1755,7 +1756,7 @@ class BbsSession
                             if ($this->debug) { $this->log("probe NAWS: {$w}x{$h}"); }
                         } elseif ($sbOpt === self::OPT_TTYPE && strlen($sbData) >= 2 && ord($sbData[0]) === 0) {
                             $ttype = trim(substr($sbData, 1));
-                            $this->recordTerminalType($state, $ttype);
+                            $this->recordTerminalType($conn, $state, $ttype);
                         }
                         $inSb   = false;
                         $sbOpt  = -1;
@@ -3307,7 +3308,7 @@ class BbsSession
                 }
                 if ($sbOpt === self::OPT_TTYPE && strlen($sbData) >= 2 && ord($sbData[0]) === 0) {
                     $ttype = trim(substr($sbData, 1));
-                    $this->recordTerminalType($state, $ttype);
+                    $this->recordTerminalType($conn, $state, $ttype);
                 }
                 // If no more data is waiting right now, return immediately rather than
                 // blocking on the next fread. Key-wait loops that check for state changes
@@ -3530,7 +3531,7 @@ class BbsSession
      * Store and log the detected TELNET terminal type.
      * Logs once per distinct value per session.
      */
-    private function recordTerminalType(array &$state, string $ttype): void
+    private function recordTerminalType($conn, array &$state, string $ttype): void
     {
         $normalized = strtoupper(trim($ttype));
         if ($normalized === '') {
@@ -3548,7 +3549,36 @@ class BbsSession
         if ($this->terminalCharset === 'utf8' && $this->asciiTextMode) {
             $this->terminalCharset = 'ascii';
         }
+        $this->applyTerminalQuirks($conn, $normalized);
         $this->log("TTYPE detected: {$normalized}");
+    }
+
+    /**
+     * Apply one-time terminal-specific compatibility tweaks.
+     *
+     * SyncTERM commonly reserves a local bottom status line, which leaves the
+     * BBS rendering against fewer visible rows than the negotiated size would
+     * suggest. Ask SyncTERM to disable that local status line so the bottom row
+     * becomes part of the main display area again.
+     *
+     * @param resource $conn
+     */
+    private function applyTerminalQuirks($conn, string $terminalType): void
+    {
+        if ($this->syncTermStatusLineDisabled) {
+            return;
+        }
+
+        if (str_contains($terminalType, 'SYNCTERM')) {
+            // VT320 DECSSDT: CSI 0 $ ~ = no status line. SyncTERM will return
+            // the bottom row to the main display area instead of reserving it
+            // for its own local indicator bar.
+            $this->safeWrite($conn, "\033[0\$~");
+            $this->syncTermStatusLineDisabled = true;
+            if ($this->debug) {
+                $this->log('Applied SyncTERM compatibility: disabled local status line');
+            }
+        }
     }
 
     /**
