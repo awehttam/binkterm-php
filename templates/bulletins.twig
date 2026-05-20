@@ -12,17 +12,16 @@
     .bulletin-body {
         min-height: 260px;
     }
+    .bulletin-plain-body,
+    .bulletin-viewer .message-preformatted {
+        font-family: ui-monospace, 'Cascadia Code', 'Cascadia Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+    }
     .bulletin-plain-body {
         white-space: pre-wrap;
-        font-family: var(--bs-font-monospace);
-    }
-    .bulletin-ansi-container {
-        overflow-x: auto;
-        overflow-y: hidden;
-    }
-    .bulletin-ansi-container .bulletin-ansi-body {
-        white-space: pre;
-        overflow: visible;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        font-size: 0.875rem;
+        line-height: 1.5;
     }
 </style>
 {% endblock %}
@@ -76,10 +75,7 @@ function renderBulletinBody(bulletin) {
         return bulletin.body_html || '';
     }
 
-    return `
-        <div class="ansi-art-container bulletin-ansi-container">
-            <pre class="ansi-art bulletin-ansi-body mb-0">${renderAnsiTerminal(bulletin.body || '', 80, 500)}</pre>
-        </div>`;
+    return `<pre class="message-preformatted mb-0">${renderAnsiTerminal(bulletin.body || '', 80, 500)}</pre>`;
 }
 
 function showBulletin() {

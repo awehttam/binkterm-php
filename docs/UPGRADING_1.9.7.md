@@ -4,7 +4,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 **1.9.7 requires PHP 8.2 or newer.** If your server is still on PHP 8.1 or earlier, upgrade PHP first and verify the runtime before replacing application files or running `php scripts/setup.php`. The application will not run correctly on older versions.
 
-This release is primarily a terminal server and PacketBBS update, with miscellaneous web interface improvements alongside. The terminal server gains over two dozen new capabilities: bookmarks, full-text search, and sort options for both netmail and echomail; address book and FTN nodelist lookup in netmail compose; message delete, plain-text download, and forward-to-email from the reader; multi-area cross-posting; message drafts with in-editor save; an ignore-rule manager accessible without leaving the session; a selectable Who's Online popup with a public profile viewer; and a redesigned file browser with a modal detail view. These sit alongside system-wide improvements including resize-aware repaints across all overlays, a configurable border style, a configurable main menu key map, configurable idle timeouts, and a Ctrl-K reference overlay that documents every key binding without cluttering the status bar. On the PacketBBS side, radio operators can now join local BBS chat rooms; two new interface types — Meshtastic and AX.25 TNC (KISS) — join MeshCore in the node registration modal; and bridge nodes gain optional location and description fields. In the web interface, chat rooms now render inline media automatically and inline code is rendered correctly on dark themes.
+This release is primarily a terminal server and PacketBBS update, with miscellaneous web interface improvements alongside. The terminal server gains over two dozen new capabilities: bookmarks, full-text search, and sort options for both netmail and echomail; address book and FTN nodelist lookup in netmail compose; message delete, plain-text download, and forward-to-email from the reader; multi-area cross-posting; message drafts with in-editor save; an ignore-rule manager accessible without leaving the session; a selectable Who's Online popup with a public profile viewer; and a redesigned file browser with a modal detail view. These sit alongside system-wide improvements including resize-aware repaints across all overlays, a configurable border style, a configurable main menu key map, configurable idle timeouts, and a Ctrl-K reference overlay that documents every key binding without cluttering the status bar. On the PacketBBS side, radio operators can now join local BBS chat rooms; two new interface types — Meshtastic and AX.25 TNC (KISS) — join MeshCore in the node registration modal; and bridge nodes gain optional location and description fields. In the web interface, chat rooms now render inline media automatically, inline code is rendered correctly on dark themes, and the bulletin viewer has been updated to display text with the same preformatted style and modern system font as the message reader.
 
 ## Table of Contents
 
@@ -51,6 +51,7 @@ This release is primarily a terminal server and PacketBBS update, with miscellan
 - [Web Interface](#web-interface-1)
   - [Chat Inline Media](#chat-inline-media)
   - [Dark Theme Inline Code Color](#dark-theme-inline-code-color)
+  - [Bulletin Viewer Rendering](#bulletin-viewer-rendering)
 - [Developer Tooling](#developer-tooling-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -603,6 +604,12 @@ No sysop configuration is required. The global **Admin → BBS Settings → Medi
 ### Dark Theme Inline Code Color
 
 Bootstrap 5's default color for inline `code` elements (`#d63384`, a pink/red) is difficult to read against dark backgrounds. The dark, amber, greenterm, and cyberpunk themes now override this with the theme's normal text color.
+
+No sysop action is required.
+
+### Bulletin Viewer Rendering
+
+The bulletin viewer now renders plain-text bulletin bodies using the same preformatted style as the message reader. Text wraps to the container width rather than overflowing into a horizontal scrollbar, and the font has been updated to the system UI monospace stack (Cascadia Code on Windows 11, SF Mono on macOS, Consolas on older Windows) instead of Courier New.
 
 No sysop action is required.
 
