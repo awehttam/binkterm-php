@@ -3074,6 +3074,7 @@ return [
     'ui.chat.lobby' => 'Lobby',
     'ui.chat.load_older_messages' => 'Load older messages',
     'ui.chat.type_message_placeholder' => 'Type a message...',
+    'ui.chat.view_profile' => 'View Profile',
     'ui.chat.kick' => 'Kick',
     'ui.chat.ban' => 'Ban',
     'ui.chat.no_one_online' => 'No one online',

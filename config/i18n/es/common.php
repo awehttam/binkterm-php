@@ -3057,6 +3057,7 @@ return [
     'ui.chat.lobby' => 'Lobby',
     'ui.chat.load_older_messages' => 'Cargar mensajes anteriores',
     'ui.chat.type_message_placeholder' => 'Escriba un mensaje...',
+    'ui.chat.view_profile' => 'Ver perfil',
     'ui.chat.kick' => 'Expulsar',
     'ui.chat.ban' => 'Banear',
     'ui.chat.no_one_online' => 'Nadie en linea',

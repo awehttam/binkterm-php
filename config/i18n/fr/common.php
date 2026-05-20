@@ -2509,6 +2509,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.chat.lobby' => 'Accueil',
     'ui.chat.load_older_messages' => 'Charger les anciens messages',
     'ui.chat.type_message_placeholder' => 'Saisir un message...',
+    'ui.chat.view_profile' => 'Voir le profil',
     'ui.chat.kick' => 'Expulser',
     'ui.chat.ban' => 'Bannir',
     'ui.chat.no_one_online' => 'Personne en ligne',

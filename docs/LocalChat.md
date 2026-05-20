@@ -39,6 +39,8 @@ Messages are stored permanently in the `chat_messages` table. Real-time delivery
 
 The browser chat UI uses BinkStream (WebSocket or SSE) for live delivery with a polling fallback when a real-time stream is not active.
 
+Clicking a poster's username in the web chat thread opens a context menu. All users can use this menu to open the poster's public profile. Admin users in room chat also see moderation actions in the same menu.
+
 ### Terminal Server
 
 The shared terminal server exposes Local Chat from the main menu for both Telnet and SSH users.
@@ -137,6 +139,8 @@ These commands work only in room messages, not in DMs. Admins cannot moderate th
 ### Moderation API
 
 `POST /api/chat/moderate` accepts `room_id`, `user_id`, and `action` (`kick` or `ban`). This endpoint requires admin authentication.
+
+In the web UI, these admin-only actions are exposed from the username context menu on room messages. The same menu is still available to regular users, but only the public profile action is shown to them.
 
 ### How bans are enforced
 

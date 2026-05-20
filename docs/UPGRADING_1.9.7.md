@@ -49,6 +49,7 @@ This release is primarily a terminal server and PacketBBS update, with miscellan
   - [New Interface Types](#new-interface-types-1)
   - [Auto-add policy sync change](#auto-add-policy-sync-change-1)
 - [Web Interface](#web-interface-1)
+  - [Chat Profile Popup](#chat-profile-popup)
   - [Chat Inline Media](#chat-inline-media)
   - [Dark Theme Inline Code Color](#dark-theme-inline-code-color)
   - [Bulletin Viewer Rendering](#bulletin-viewer-rendering)
@@ -124,6 +125,7 @@ This release is primarily a terminal server and PacketBBS update, with miscellan
 
 ### Web Interface
 
+- Clicking a username in the web local chat thread now opens a context menu for all users. The first action opens that user's public profile page. Admins still see Kick and Ban in room chat from the same menu.
 - Links posted to chat rooms and direct messages are now processed by the inline media player. Images, video files, retro audio files, and platform embeds (YouTube, etc.) render automatically below the link in the chat thread.
 - Inline code (`code`) in Markdown-rendered content now renders in the theme's normal text color on all dark themes (dark, amber, greenterm, cyberpunk). Bootstrap's default pink/red code color was difficult to read against dark backgrounds.
 
@@ -585,6 +587,16 @@ Previously, saving a MeshCore node always queued a `set_autoadd_config` device c
 ---
 
 ## Web Interface
+
+### Chat Profile Popup
+
+Clicking a username in the web local chat thread now opens a small context menu for every user, not just admins.
+
+The first menu item is **View Profile**, which opens the clicked poster's public profile page. This applies to both room messages and direct-message threads.
+
+For admins in room chat, the same menu still includes **Kick** and **Ban**. For regular users, only the profile action is shown.
+
+No sysop configuration is required. The change takes effect as soon as the updated JavaScript and service-worker cache are deployed.
 
 ### Chat Inline Media
 
