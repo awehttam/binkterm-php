@@ -280,6 +280,8 @@ return [
     'ui.terminalserver.netmail.mark_selected_success' => 'Los mensajes seleccionados se marcaron como leídos.',
     'ui.terminalserver.netmail.mark_selected_failed'  => 'No se pudieron marcar los mensajes seleccionados como leídos.',
     'ui.terminalserver.netmail.mark_selected_none'    => 'No hay mensajes seleccionados.',
+    'ui.terminalserver.netmail.status_forward'        => 'Reenv.',
+    'ui.terminalserver.netmail.help_forward_ftn'      => 'Reenviar a otra dirección FTN',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'La cabina de votación está deshabilitada.',

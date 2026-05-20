@@ -284,6 +284,8 @@ return [
     'ui.terminalserver.netmail.mark_selected_success' => 'Ausgewählte Nachrichten wurden als gelesen markiert.',
     'ui.terminalserver.netmail.mark_selected_failed'  => 'Ausgewählte Nachrichten konnten nicht als gelesen markiert werden.',
     'ui.terminalserver.netmail.mark_selected_none'    => 'Es sind keine Nachrichten ausgewählt.',
+    'ui.terminalserver.netmail.status_forward'        => 'Wltg.',
+    'ui.terminalserver.netmail.help_forward_ftn'      => 'An andere FTN-Adresse weiterleiten',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'Abstimmungsbereich ist deaktiviert.',

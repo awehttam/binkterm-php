@@ -267,14 +267,22 @@ class NetmailHandler
      */
     public function compose($conn, array &$state, string $session, ?array $reply = null): void
     {
-        $isReply = $reply !== null;
+        $hasReplyContext = $reply !== null;
         $reply = $reply ?? [];
-        $action = $isReply ? "Netmail: composing reply to msg #{$reply['id']}" : "Netmail: composing new message";
+        $replyId = (int)($reply['id'] ?? 0);
+        $composeMode = $reply['compose_mode'] ?? ($hasReplyContext ? 'reply' : 'new');
+        $isReply = $composeMode === 'reply';
+        $isForward = $composeMode === 'forward';
+        $action = match ($composeMode) {
+            'reply' => "Netmail: composing reply to msg #{$replyId}",
+            'forward' => "Netmail: forwarding msg #{$replyId}",
+            default => "Netmail: composing new message",
+        };
         $this->server->logAction($state['username'] ?? 'unknown', $action);
         $currentDraftId = 0;
         $draftToken = bin2hex(random_bytes(8));
 
-        if ($isReply && !empty($reply['id'])) {
+        if (($isReply || $isForward) && !empty($reply['id'])) {
             $detail = TelnetUtils::apiRequest(
                 $this->apiBase,
                 'GET',
@@ -287,9 +295,15 @@ class NetmailHandler
             }
         }
 
-        $toNameDefault = $reply['replyto_name'] ?? $reply['from_name'] ?? '';
-        $toAddressDefault = $reply['replyto_address'] ?? $reply['from_address'] ?? '';
-        $subjectDefault = $isReply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
+        if ($isForward) {
+            $toNameDefault = '';
+            $toAddressDefault = '';
+            $subjectDefault = 'Fwd: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? ''));
+        } else {
+            $toNameDefault = $reply['replyto_name'] ?? $reply['from_name'] ?? '';
+            $toAddressDefault = $reply['replyto_address'] ?? $reply['from_address'] ?? '';
+            $subjectDefault = $isReply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
+        }
         $selectedTagline = '';
         $initialText = '';
 
@@ -299,10 +313,18 @@ class NetmailHandler
             if ($originalBody !== '') {
                 $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
             }
+        } elseif ($isForward) {
+            $originalBody = $reply['message_text'] ?? '';
+            $originalAuthor = trim((string)($reply['from_name'] ?? 'Unknown'));
+            $forwardHeader = '--- Forwarded message from ' . ($originalAuthor !== '' ? $originalAuthor : 'Unknown') . ' ---';
+            $initialText = $forwardHeader;
+            if ($originalBody !== '') {
+                $initialText .= "\n\n" . MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
+            }
         }
 
         $existingDrafts = MailUtils::getDrafts($this->apiBase, $session, 'netmail');
-        if (!$isReply && !empty($existingDrafts)) {
+        if (!$isReply && !$isForward && !empty($existingDrafts)) {
             while (true) {
                 $choice = TelnetUtils::showConfirmDialog(
                     $conn,
@@ -648,11 +670,13 @@ class NetmailHandler
                     ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
                     ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
                     ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'Ctrl-K',       'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Help  ',      'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'Q',            'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Quit',        'color' => TelnetUtils::ANSI_BLUE],
                 ];
+                $segments[] = ['text' => 'F', 'color' => TelnetUtils::ANSI_RED];
+                $segments[] = ['text' => ' ' . $this->server->t('ui.terminalserver.netmail.status_forward', 'Fwd', [], $s['locale'] ?? 'en') . '  ', 'color' => TelnetUtils::ANSI_BLUE];
+                $segments[] = ['text' => 'Ctrl-K', 'color' => TelnetUtils::ANSI_RED];
+                $segments[] = ['text' => ' Help  ', 'color' => TelnetUtils::ANSI_BLUE];
+                $segments[] = ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED];
+                $segments[] = ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE];
 
                 $wrappedLines = $markupFormat !== null
                     ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
@@ -688,12 +712,16 @@ class NetmailHandler
                 ['key' => 'T',           'label' => $this->server->t('ui.terminalserver.netmail.help_text_dl',   'Download as .txt (ZMODEM)',    [], $locale)],
                 ['key' => 'E',           'label' => $this->server->t('ui.terminalserver.netmail.help_email_fwd', 'Forward to my email address',  [], $locale)],
             ];
+            $helpItems[] = ['key' => 'F', 'label' => $this->server->t('ui.terminalserver.netmail.help_forward_ftn', 'Forward to another FTN address', [], $locale)];
             if ($hasAttachments) {
                 $helpItems[] = ['key' => 'Z', 'label' => $this->server->t('ui.terminalserver.message.help_download', 'Download attachment (ZMODEM)', [], $locale)];
             }
             if (!empty($imageRefs)) {
                 $helpItems[] = ['key' => 'I', 'label' => $this->server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
             }
+
+            $viewerExtraKeys = ['x' => 'delete', 'DELETE' => 'delete', 'b' => 'save', 't' => 'textdownload', 'e' => 'emailforward'];
+            $viewerExtraKeys['f'] = 'forward';
 
             $result = TelnetUtils::runMessageViewer(
                 $conn,
@@ -709,7 +737,7 @@ class NetmailHandler
                 $buildView,
                 $imageRefs,
                 $imageFn,
-                ['x' => 'delete', 'DELETE' => 'delete', 'b' => 'save', 't' => 'textdownload', 'e' => 'emailforward'],
+                $viewerExtraKeys,
                 $helpItems
             );
 
@@ -735,6 +763,14 @@ class NetmailHandler
                         ]);
                     }
                     $this->compose($conn, $state, $session, $replyData);
+                    TelnetUtils::setCursorVisible($conn, true);
+                    return [$page, $index];
+                case 'forward':
+                    TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+                    $forwardData = $detail['data'] ?? $msg;
+                    $forwardData['compose_mode'] = 'forward';
+                    unset($forwardData['replyto_name'], $forwardData['replyto_address']);
+                    $this->compose($conn, $state, $session, $forwardData);
                     TelnetUtils::setCursorVisible($conn, true);
                     return [$page, $index];
                 case 'download':

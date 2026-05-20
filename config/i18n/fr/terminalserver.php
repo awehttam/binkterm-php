@@ -455,6 +455,8 @@ return [
     'ui.terminalserver.netmail.mark_selected_success' => 'Les messages sélectionnés ont été marqués comme lus.',
     'ui.terminalserver.netmail.mark_selected_failed'  => 'Impossible de marquer les messages sélectionnés comme lus.',
     'ui.terminalserver.netmail.mark_selected_none'    => 'Aucun message n\'est sélectionné.',
+    'ui.terminalserver.netmail.status_forward'        => 'Transf',
+    'ui.terminalserver.netmail.help_forward_ftn'      => 'Transférer vers une autre adresse FTN',
     'ui.terminalserver.server.menu.bulletins' => 'U) Bulletins',
     'ui.terminalserver.bulletins.title' => 'Bulletins',
     'ui.terminalserver.bulletins.none' => 'Aucun bulletin disponible.',

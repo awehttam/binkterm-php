@@ -280,6 +280,8 @@ return [
     'ui.terminalserver.netmail.mark_selected_success' => 'I messaggi selezionati sono stati segnati come letti.',
     'ui.terminalserver.netmail.mark_selected_failed'  => 'Impossibile segnare i messaggi selezionati come letti.',
     'ui.terminalserver.netmail.mark_selected_none'    => 'Nessun messaggio selezionato.',
+    'ui.terminalserver.netmail.status_forward'        => 'Inol.',
+    'ui.terminalserver.netmail.help_forward_ftn'      => 'Inoltra a un altro indirizzo FTN',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'La cabina di voto è disabilitata.',

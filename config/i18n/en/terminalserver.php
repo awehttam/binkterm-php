@@ -280,6 +280,8 @@ return [
     'ui.terminalserver.netmail.mark_selected_success' => 'Selected messages marked as read.',
     'ui.terminalserver.netmail.mark_selected_failed'  => 'Failed to mark selected messages as read.',
     'ui.terminalserver.netmail.mark_selected_none'    => 'No messages are selected.',
+    'ui.terminalserver.netmail.status_forward'        => 'Fwd',
+    'ui.terminalserver.netmail.help_forward_ftn'      => 'Forward to another FTN address',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'Voting booth is disabled.',
