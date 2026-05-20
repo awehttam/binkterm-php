@@ -124,6 +124,23 @@
                         </div>
                     </div>
 
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="feedThreadReplies" name="thread_replies">
+                                <label class="form-check-label fw-semibold" for="feedThreadReplies">
+                                    {{ t('ui.admin.auto_feed.thread_replies') }}
+                                </label>
+                                <div class="form-text">{{ t('ui.admin.auto_feed.thread_replies_help') }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4" id="threadLookupLimitGroup" style="display:none;">
+                            <label for="feedThreadLookupLimit" class="form-label">{{ t('ui.admin.auto_feed.thread_lookup_limit') }}</label>
+                            <input type="number" class="form-control" id="feedThreadLookupLimit" name="thread_lookup_limit" value="1000" min="100" max="10000">
+                            <div class="form-text">{{ t('ui.admin.auto_feed.thread_lookup_limit_help') }}</div>
+                        </div>
+                    </div>
+
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="feedActive" name="active" checked>
                         <label class="form-check-label" for="feedActive">
@@ -191,6 +208,10 @@ $(document).ready(function() {
             if (/^https?:\/\/(www\.)?bsky\.app\/profile\//i.test($(this).val())) {
                 $('#feedSourceType').val('bluesky');
             }
+        });
+
+        $('#feedThreadReplies').on('change', function() {
+            $('#threadLookupLimitGroup').toggle($(this).is(':checked'));
         });
 
         $('#feedUserSearch').on('input', function() {
@@ -339,6 +360,9 @@ function showAddFeedModal() {
     $('#feedActive').prop('checked', true);
     $('#feedMaxArticles').val(10);
     $('#feedSourceType').val('rss');
+    $('#feedThreadReplies').prop('checked', false);
+    $('#feedThreadLookupLimit').val(1000);
+    $('#threadLookupLimitGroup').hide();
     setSelectedFeedUser(null);
     $('#feedModal').modal('show');
 }
@@ -362,6 +386,10 @@ function editFeed(id) {
             });
             $('#feedMaxArticles').val(feed.max_articles_per_check || 10);
             $('#feedActive').prop('checked', feed.active);
+            const threadReplies = !!feed.thread_replies;
+            $('#feedThreadReplies').prop('checked', threadReplies);
+            $('#feedThreadLookupLimit').val(feed.thread_lookup_limit || 1000);
+            $('#threadLookupLimitGroup').toggle(threadReplies);
             $('#feedModal').modal('show');
         })
         .fail(function() {
@@ -384,7 +412,9 @@ function saveFeed() {
         echoarea_id: parseInt($('#feedEchoarea').val()),
         post_as_user_id: parseInt($('#feedUser').val(), 10),
         max_articles_per_check: parseInt($('#feedMaxArticles').val()),
-        active: $('#feedActive').is(':checked')
+        active: $('#feedActive').is(':checked'),
+        thread_replies: $('#feedThreadReplies').is(':checked'),
+        thread_lookup_limit: parseInt($('#feedThreadLookupLimit').val()) || 1000
     };
 
     const url = currentFeedId ? `/admin/api/auto-feed/feeds/${currentFeedId}` : '/admin/api/auto-feed/feeds';

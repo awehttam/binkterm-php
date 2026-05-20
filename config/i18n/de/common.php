@@ -2416,6 +2416,10 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.auto_feed.last_check' => 'Last Check',
     'ui.admin.auto_feed.actions' => 'Aktionen',
     'ui.admin.auto_feed.user_prefix' => 'Benutzer #',
+    'ui.admin.auto_feed.thread_replies' => 'Antworten verketten',
+    'ui.admin.auto_feed.thread_replies_help' => 'Antwortnachrichten anhand von RE:/Fwd:-Betreff-Präfixen in bestehenden Echomail-Nachrichten verketten',
+    'ui.admin.auto_feed.thread_lookup_limit' => 'Suchtiefe',
+    'ui.admin.auto_feed.thread_lookup_limit_help' => 'Anzahl der zuletzt empfangenen Nachrichten, die bei der Suche nach einer Elternnachricht durchsucht werden',
 
     // Echo Areas Page
     'ui.echoareas.page_title' => 'Echo-Bereiche',

@@ -167,15 +167,14 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
         return 0;
     }
 
-    // Post new articles to echoarea
+    // Post new articles to echoarea.
+    // Articles arrive newest-first from the feed; reverse so parents are written
+    // to the DB before their replies within the same batch, enabling within-run threading.
+    $newestGuid = $newArticles[0]['guid'] ?? null;
     $posted = 0;
-    $firstArticleGuid = null;
-    foreach ($newArticles as $article) {
+    foreach (array_reverse($newArticles) as $article) {
         try {
             postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose);
-            if ($firstArticleGuid === null) {
-                $firstArticleGuid = $article['guid'];
-            }
             $posted++;
         } catch (Exception $e) {
             echo sprintf("[Feed #%d] Failed to post item '%s': %s\n",
@@ -183,10 +182,10 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
         }
     }
 
-    // Update last article GUID to the first (newest) article posted
-    if ($firstArticleGuid !== null) {
+    // Track the newest article GUID (first in original feed order) for deduplication.
+    if ($newestGuid !== null) {
         $stmt = $db->prepare("UPDATE auto_feed_sources SET last_article_guid = ? WHERE id = ?");
-        $stmt->execute([$firstArticleGuid, $feed['id']]);
+        $stmt->execute([$newestGuid, $feed['id']]);
     }
 
     // Update last check time
@@ -607,6 +606,68 @@ function filterNewArticles($db, $feedId, $articles) {
 }
 
 /**
+ * Strip RE:/Fwd: and similar reply prefixes from a subject, handling multiple levels.
+ *
+ * @param string $subject Raw subject
+ * @return string Subject with all reply prefixes removed
+ */
+function stripReplyPrefixes(string $subject): string
+{
+    $pattern = '/^(re|fwd?|aw|sv)\s*:\s*/iu';
+    do {
+        $prev = $subject;
+        $subject = (string)preg_replace($pattern, '', $subject);
+    } while ($subject !== $prev);
+    return trim($subject);
+}
+
+/**
+ * Find the echomail ID of the most recent message that appears to be the parent
+ * of a reply, by matching the stripped subject against recent messages in the area.
+ * Returns null when the given subject has no reply prefix or no parent is found.
+ *
+ * @param PDO $db Database connection
+ * @param int $echoareaId Echoarea to search within
+ * @param string $subject Raw subject of the article being posted
+ * @param int $limit Maximum number of recent messages to scan
+ * @return int|null Parent echomail ID, or null
+ */
+function findParentMessageId(PDO $db, int $echoareaId, string $subject, int $limit = 1000): ?int
+{
+    $base = stripReplyPrefixes($subject);
+    if (strtolower($base) === strtolower(trim($subject))) {
+        return null; // no reply prefix — not a reply
+    }
+    $baseLower = strtolower($base);
+
+    // Fast path: exact case-insensitive match on the bare subject
+    $stmt = $db->prepare(
+        "SELECT id FROM echomail
+         WHERE echoarea_id = ? AND LOWER(subject) = ?
+         ORDER BY date_received DESC LIMIT 1"
+    );
+    $stmt->execute([$echoareaId, $baseLower]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
+        return (int)$row['id'];
+    }
+
+    // Slow path: scan recent messages and strip prefixes in PHP to handle RE: chains
+    $stmt = $db->prepare(
+        "SELECT id, subject FROM echomail
+         WHERE echoarea_id = ?
+         ORDER BY date_received DESC LIMIT ?"
+    );
+    $stmt->execute([$echoareaId, $limit]);
+    foreach ($stmt as $row) {
+        if (strtolower(stripReplyPrefixes((string)$row['subject'])) === $baseLower) {
+            return (int)$row['id'];
+        }
+    }
+    return null;
+}
+
+/**
  * Post an article to echoarea
  *
  * @param PDO $db Database connection
@@ -625,9 +686,19 @@ function postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose) 
     // Post to echoarea
     $subject = truncate($article['title'], 72); // FTN subject line limit
 
+    // Attempt subject-based threading when enabled for this feed
+    $replyToId = null;
+    if (!empty($feed['thread_replies'])) {
+        $lookupLimit = max(100, (int)($feed['thread_lookup_limit'] ?? 1000));
+        $replyToId = findParentMessageId($db, (int)$feed['echoarea_id'], $article['title'], $lookupLimit);
+    }
+
     if ($verbose) {
         echo sprintf("  Posting: %s\n", $subject);
         echo sprintf("    Echo: %s @ %s\n", $feed['echoarea_tag'], $feed['echoarea_domain'] ?: '(blank)');
+        if ($replyToId !== null) {
+            echo sprintf("    Threading as reply to message ID: %d\n", $replyToId);
+        }
     }
 
     $messageId = $messageHandler->postEchomail(
@@ -637,7 +708,7 @@ function postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose) 
         'All',
         $subject,
         $body,
-        null,       // replyToId
+        $replyToId, // null unless threading detected a parent
         'BinktermPHP Auto Feed', // tagline
         false,      // skipCredits
         null,       // markupType

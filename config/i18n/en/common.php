@@ -2434,6 +2434,10 @@ return [
     'ui.admin.auto_feed.last_check' => 'Last Check',
     'ui.admin.auto_feed.actions' => 'Actions',
     'ui.admin.auto_feed.user_prefix' => 'User #',
+    'ui.admin.auto_feed.thread_replies' => 'Thread Replies',
+    'ui.admin.auto_feed.thread_replies_help' => 'Attempt to thread reply messages by matching RE:/Fwd: subject prefixes against existing echomail in this area',
+    'ui.admin.auto_feed.thread_lookup_limit' => 'Thread Lookup Limit',
+    'ui.admin.auto_feed.thread_lookup_limit_help' => 'Number of recent messages to scan when searching for a reply parent',
 
     // Echo Areas Page
     'ui.echoareas.page_title' => 'Echo Areas',

@@ -53,6 +53,7 @@ In the web interface, chat rooms now render inline media automatically, inline c
   - [Terminal Who's Online Popup and Public Profile Viewer](#terminal-whos-online-popup-and-public-profile-viewer)
   - [DOS Door Return Path Stability](#dos-door-return-path-stability)
   - [Terminal Interface Style Preference](#terminal-interface-style-preference)
+  - [Empty Echomail Area Entry](#empty-echomail-area-entry)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
@@ -63,6 +64,8 @@ In the web interface, chat rooms now render inline media automatically, inline c
   - [Chat Inline Media](#chat-inline-media)
   - [Dark Theme Inline Code Color](#dark-theme-inline-code-color)
   - [Bulletin Viewer Rendering](#bulletin-viewer-rendering)
+- [Auto Feed](#auto-feed-1)
+  - [Reply Threading](#reply-threading)
 - [Developer Tooling](#developer-tooling-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -142,10 +145,15 @@ In the web interface, chat rooms now render inline media automatically, inline c
 - Inline code (`code`) in Markdown-rendered content now renders in the theme's normal text color on all dark themes (dark, amber, greenterm, cyberpunk). Bootstrap's default pink/red code color was difficult to read against dark backgrounds.
 - The echomail/netmail compose form now uses the same advanced **Insert Image** picker in Plain text, StyleCodes, and Markdown modes. Uploading, picking a previously uploaded image, pasting from the clipboard, and inserting by URL are now available consistently across all compose modes. No upgrade action is required.
 
+### Auto Feed
+
+- The Auto Feed script now supports optional reply threading per feed. When **Thread Replies** is enabled for a feed, articles with `RE:`/`Fwd:` subject prefixes are posted as replies to their matching parent message in the echoarea. The lookup depth is configurable. Run `php scripts/setup.php` to apply the required migration.
+
 ### Developer Tooling
 
 - The root `CLAUDE.md` contributor guide has been split into subdirectory-scoped files and on-demand skill scripts, reducing context load when working in specific parts of the codebase. No action required for sysops.
 - A `session-start.php` script has been added to `.claude/` to print available project skills at the start of each Claude Code session.
+- **OpenRouter AI provider**: [OpenRouter](https://openrouter.ai) is now available as a fourth AI service provider. Set `OPENROUTER_API_KEY` in `.env` to enable it. No upgrade action is required for systems not using OpenRouter.
 
 ---
 
@@ -550,6 +558,14 @@ No migration is required. The idle timeout fields remain in the same form as bef
 
 ---
 
+### Empty Echomail Area Entry
+
+Entering an echomail area that contains no messages now opens the message list interface rather than immediately returning the user to the echoarea list. The area title and status bar are displayed so the user can press `C` to compose a new message or `Q` to return.
+
+No migration or configuration change is required.
+
+---
+
 ## PacketBBS
 
 ### Local Chat {#local-chat-packetbbs-1}
@@ -686,6 +702,41 @@ A `Doc Maintenance Checklist` section was also added to `docs/DEVELOPER_GUIDE.md
 `.claude/session-start.php` has been added and is now tracked in git. It prints a welcome message and the list of available project skills at the start of each new Claude Code session. The `CLAUDE.md` instructions were updated to require that any new skill file be registered in both the Skills list in `CLAUDE.md` and in `session-start.php`.
 
 No sysop action is required for any of these changes.
+
+---
+
+## Auto Feed
+
+### Reply Threading
+
+The Auto Feed script (`scripts/rss_poster.php`) can now thread reply messages under their parent posts when a feed comes from a source — such as groups.io — that uses `RE:` subject prefixes to indicate replies.
+
+Threading is **opt-in per feed**. To enable it, open the feed in **Admin → Auto Feed**, check **Thread Replies**, and set a **Thread Lookup Limit** (default 1000). The lookup limit controls how many recent echomail messages in the target area are scanned when searching for a parent; raise it for high-volume areas, lower it to reduce scan overhead.
+
+**How it works:** when the script posts an article whose subject begins with a reply prefix (`Re:`, `RE:`, `Fwd:`, `FW:`, or similar — multiple stacked prefixes are handled), it strips the prefix(es), looks up the most recent message in the echoarea with a matching base subject, and sets that message as the `reply_to_id`. If no parent is found the article is posted as a top-level message instead.
+
+Within a single run, articles are posted oldest-first so that a parent message lands in the database before any replies from the same batch, enabling same-run threading for burst imports.
+
+**Migration:** run `php scripts/setup.php` to apply the migration that adds `thread_replies` and `thread_lookup_limit` columns to `auto_feed_sources`. Existing feeds default to threading disabled and require no other change.
+
+---
+
+### OpenRouter AI Provider
+
+[OpenRouter](https://openrouter.ai) is now a supported AI service provider alongside OpenAI, Anthropic, and Ollama. It acts as a gateway to many upstream models through a single API key, and includes an `openrouter/auto` routing mode that selects the best available model automatically.
+
+To enable it, add to `.env`:
+
+```ini
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_DEFAULT_MODEL=openrouter/auto
+OPENROUTER_SUPPORTS_TOOLS=true
+AI_DEFAULT_PROVIDER=openrouter
+```
+
+OpenRouter returns the actual USD cost of each request in the response body, so cost tracking works automatically for all models including `openrouter/auto` — no pricing env vars are needed. See `docs/AIProviders.md` for full configuration details.
+
+No upgrade action is required for systems not using OpenRouter.
 
 ## Upgrade Instructions
 

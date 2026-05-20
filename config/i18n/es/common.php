@@ -2416,6 +2416,10 @@ return [
     'ui.admin.auto_feed.last_check' => 'Ultima verificacion',
     'ui.admin.auto_feed.actions' => 'Acciones',
     'ui.admin.auto_feed.user_prefix' => 'Usuario #',
+    'ui.admin.auto_feed.thread_replies' => 'Agrupar respuestas',
+    'ui.admin.auto_feed.thread_replies_help' => 'Intentar agrupar los mensajes de respuesta detectando prefijos RE:/Fwd: en el asunto',
+    'ui.admin.auto_feed.thread_lookup_limit' => 'Límite de búsqueda',
+    'ui.admin.auto_feed.thread_lookup_limit_help' => 'Número de mensajes recientes a analizar al buscar el mensaje padre',
 
     // Echo Areas Page
     'ui.echoareas.page_title' => 'Areas de eco',
