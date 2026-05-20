@@ -74,9 +74,11 @@ class TelnetUtils
                 'dim' => self::ANSI_BG_BLUE . "\033[2;37m",
             ],
             'status_bar' => [
-                'bg' => self::ANSI_BG_WHITE,
-                'text' => self::ANSI_BLUE,
-                'fill' => self::ANSI_BLUE,
+                'bg'    => self::ANSI_BG_WHITE,
+                'text'  => self::ANSI_BLUE,
+                'fill'  => self::ANSI_BLUE,
+                'key'   => self::ANSI_RED,   // key binding name color
+                'label' => self::ANSI_BLUE,  // key label text color
             ],
             'header_box' => [
                 'bg' => self::ANSI_BG_BLUE,
@@ -753,12 +755,12 @@ class TelnetUtils
         $profile = self::getDefaultStyleProfile();
         $statusBar = $profile['status_bar'] ?? [];
         $statusLine = self::buildStatusBar([
-            ['text' => 'U/D',      'color' => $statusBar['text'] ?? self::ANSI_RED],
-            ['text' => ' Scroll  ', 'color' => $statusBar['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'PgUp/PgDn', 'color' => $statusBar['text'] ?? self::ANSI_RED],
-            ['text' => ' Page  ',  'color' => $statusBar['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'Q',        'color' => $statusBar['text'] ?? self::ANSI_RED],
-            ['text' => ' Close',   'color' => $statusBar['fill'] ?? self::ANSI_BLUE],
+            ['text' => 'U/D',      'color' => $statusBar['key']   ?? self::ANSI_RED],
+            ['text' => ' Scroll  ', 'color' => $statusBar['label'] ?? self::ANSI_BLUE],
+            ['text' => 'PgUp/PgDn', 'color' => $statusBar['key']  ?? self::ANSI_RED],
+            ['text' => ' Page  ',  'color' => $statusBar['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Q',        'color' => $statusBar['key']   ?? self::ANSI_RED],
+            ['text' => ' Close',   'color' => $statusBar['label'] ?? self::ANSI_BLUE],
         ], $width, $statusBar);
 
         while (true) {
@@ -1168,16 +1170,16 @@ class TelnetUtils
         $profile = self::getDefaultStyleProfile();
         $statusBarProfile = $profile['status_bar'] ?? [];
         $statusBar = [
-            ['text' => 'U/D',        'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Move  ',    'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'L/R',        'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Page  ',    'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'C',          'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Compose  ', 'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'Enter',      'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Read  ',    'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'Q',          'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Quit',      'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
+            ['text' => 'U/D',        'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Move  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'L/R',        'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Page  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'C',          'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Compose  ', 'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Enter',      'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Read  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Q',          'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Quit',      'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
         ];
         if (!empty($extraStatusSegments)) {
             // Ensure a two-space gap between the base "Q Quit" and the first extra segment.
@@ -1254,18 +1256,18 @@ class TelnetUtils
         $profile = self::getDefaultStyleProfile();
         $statusBarProfile = $profile['status_bar'] ?? [];
         $statusBar = [
-            ['text' => 'U/D',        'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Move  ',    'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'L/R',        'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Page  ',    'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'C',          'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Compose  ', 'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'Enter',      'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Read  ',    'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'Q',          'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Quit  ',    'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
-            ['text' => 'Ctrl-K',     'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
-            ['text' => ' Help',      'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
+            ['text' => 'U/D',        'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Move  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'L/R',        'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Page  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'C',          'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Compose  ', 'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Enter',      'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Read  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Q',          'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Quit  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Ctrl-K',     'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Help',      'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
         ];
         if (!empty($extraStatusSegments)) {
             $statusBar[array_key_last($statusBar)]['text'] .= '  ';

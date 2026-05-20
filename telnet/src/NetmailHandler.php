@@ -648,9 +648,13 @@ class NetmailHandler
             $isSentFolder   = $folder === 'sent';
             $isSaved        = (bool)($detail['data']['is_saved'] ?? false);
 
+            $sbProfile      = TelnetUtils::getDefaultStyleProfile()['status_bar'];
+            $keyColor       = $sbProfile['key']   ?? TelnetUtils::ANSI_RED;
+            $lblColor       = $sbProfile['label'] ?? TelnetUtils::ANSI_BLUE;
+
             // Closure that rebuilds all layout-dependent view components from current $state.
             // Called once on open and again whenever the terminal is resized.
-            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs, $isSentFolder, &$isSaved): array {
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs, $isSentFolder, &$isSaved, $keyColor, $lblColor): array {
                 $cols    = $s['cols'] ?? 80;
                 $width   = max(10, $cols - 2);
                 $charset = $this->server->getTerminalCharset();
@@ -667,19 +671,19 @@ class NetmailHandler
                 $nameLine = $nameAddress ? "{$nameValue} <{$nameAddress}>" : $nameValue;
 
                 $segments = [
-                    ['text' => 'U/D',          'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Scroll  ',    'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'L/R',          'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'U/D',          'color' => $keyColor],
+                    ['text' => ' Scroll  ',    'color' => $lblColor],
+                    ['text' => 'L/R',          'color' => $keyColor],
+                    ['text' => ' Prev/Next  ', 'color' => $lblColor],
+                    ['text' => 'R',            'color' => $keyColor],
+                    ['text' => ' Reply  ',     'color' => $lblColor],
                 ];
-                $segments[] = ['text' => 'F', 'color' => TelnetUtils::ANSI_RED];
-                $segments[] = ['text' => ' ' . $this->server->t('ui.terminalserver.netmail.status_forward', 'Fwd', [], $s['locale'] ?? 'en') . '  ', 'color' => TelnetUtils::ANSI_BLUE];
-                $segments[] = ['text' => 'Ctrl-K', 'color' => TelnetUtils::ANSI_RED];
-                $segments[] = ['text' => ' Help  ', 'color' => TelnetUtils::ANSI_BLUE];
-                $segments[] = ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED];
-                $segments[] = ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE];
+                $segments[] = ['text' => 'F', 'color' => $keyColor];
+                $segments[] = ['text' => ' ' . $this->server->t('ui.terminalserver.netmail.status_forward', 'Fwd', [], $s['locale'] ?? 'en') . '  ', 'color' => $lblColor];
+                $segments[] = ['text' => 'Ctrl-K', 'color' => $keyColor];
+                $segments[] = ['text' => ' Help  ', 'color' => $lblColor];
+                $segments[] = ['text' => 'Q', 'color' => $keyColor];
+                $segments[] = ['text' => ' Quit', 'color' => $lblColor];
 
                 $wrappedLines = $markupFormat !== null
                     ? TerminalMarkupRenderer::render($markupFormat, $body, $width)

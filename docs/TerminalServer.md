@@ -46,75 +46,7 @@ Each transport daemon has additional extension requirements — see
 
 ## Features
 
-### Terminal Shell Layer
-
-Terminal feature handlers target a shared shell abstraction instead of binding directly to either raw prompt loops or `TelnetUtils` widgets. A shell is responsible for common UI intents such as selecting from a list, prompting for free-form text, choosing a single-key action, showing read-only text, and displaying alerts.
-
-#### Available Shells
-
-| Shell | Selection | Free-form text | Single-key actions | Read-only text | Alerts | Typical use |
-|-------|-----------|----------------|--------------------|----------------|--------|-------------|
-| `TuiShell` | Framed selector widgets | Framed input dialogs | Framed single-key modals | Paged framed viewers | Framed alerts | Normal-size terminals |
-| `LineShell` | Prompt-driven numbered menus | Plain text prompts | Immediate single-key reads | Plain text screens | Plain text notices | Narrow or low-capability terminals |
-
-Selection is automatic by default:
-
-- `TuiShell` is used when the terminal is large enough for the framed UI
-- `LineShell` is used when the terminal is very small, or when `term_shell_mode` is explicitly set to `line`
-- `TuiShell` can be forced with `term_shell_mode = tui`
-
-#### `TerminalShellInterface`
-
-All shells implement the same intent-level methods:
-
-- `chooseFromList(...)` for selectable lists
-- `promptText(...)` for free-form entry
-- `promptKey(...)` for single-key action prompts
-- `showText(...)` for read-only screens
-- `showAlert(...)` for short notices and confirmations
-
-#### `TuiShell`
-
-`TuiShell` is the full-screen shell implementation. It uses the shared selector and dialog widgets to keep interaction consistent with the rest of the framed terminal UI.
-
-Capabilities:
-
-- `chooseFromList(...)` uses `runSelectableList()`
-- `promptText(...)` uses a framed input dialog
-- `promptKey(...)` uses a framed single-key confirmation-style dialog
-- `showText(...)` uses a paged framed text viewer
-- `showAlert(...)` uses a framed alert dialog
-
-#### `LineShell`
-
-`LineShell` is the plain terminal fallback. It preserves the same feature behavior but renders with simple text and immediate key handling.
-
-Capabilities:
-
-- `chooseFromList(...)` renders a numbered menu and reads a text response
-- `promptText(...)` prints a prompt and reads one line of text
-- `promptKey(...)` reads a single key immediately, without requiring Enter
-- `showText(...)` prints wrapped text and waits for any key
-- `showAlert(...)` reuses the plain text display path
-
-#### Adding a New Shell
-
-To add a third shell implementation:
-
-1. Create a new class in `telnet/src/` that implements `TerminalShellInterface`.
-2. Implement the five intent methods in the new class.
-3. Update `TerminalShellFactory::create()` to return the new shell when the desired mode, terminal profile, or runtime condition matches.
-4. If the shell needs a user-facing override, extend the session state contract so `term_shell_mode` can select it explicitly.
-5. Keep handler code shell-agnostic: feature handlers should call the interface methods, not shell-specific helpers.
-6. Update this document with the new shell name, selection rules, and supported capabilities.
-
-The current shell layer is intentionally small so a third shell can be added without rewriting existing feature handlers.
-
-#### Shell abstraction exemptions
-
-Some handlers intentionally do not use the shell abstraction and must remain on fixed plain-text prompt flows:
-
-- **`QwkMenuHandler`** — QWK reader software and expect-style automation scripts rely on parsing specific prompt strings (`> `, conference numbers, format prompts) to navigate the QWK menu programmatically. Routing this flow through a TUI shell would break those scripts. `QwkMenuHandler` must stay on plain `prompt()`/`writeLine()` calls and must not be refactored to call shell methods.
+The terminal server uses a shell abstraction layer (`TuiShell` for normal-size terminals, `LineShell` for narrow or low-capability sessions) to present UI intents consistently across feature handlers. For architecture details, the widget reference, shell selection rules, style profile, and developer patterns see [Terminal Server Developer Guide](TerminalServerDevGuide.md).
 
 ### Screen-Aware Display
 
@@ -416,15 +348,7 @@ After login, the server displays any pending system news before presenting the m
 
 ## Shared Session Model
 
-Both transport daemons run the same `BbsSession` flow after connection setup:
-
-1. Transport handshake and authentication entry
-2. Pre-login menu (Login / Register / Reset password / QWK / Quit)
-3. Main menu and feature handlers (Netmail, Echomail, Files, Doors, Bulletins, Polls, QWK, etc.)
-4. Logout and session cleanup
-
-Because the feature handlers are shared, behavior and capabilities remain
-consistent across Telnet and SSH.
+Both transport daemons run the same `BbsSession` flow: transport handshake → pre-login menu → authentication → main menu and feature handlers → logout. Because the feature handlers are shared, behavior and capabilities remain consistent across Telnet and SSH. For the full session lifecycle and `$state` key reference see [Terminal Server Developer Guide](TerminalServerDevGuide.md).
 
 ## Transport-Specific Notes
 
@@ -487,36 +411,6 @@ with color-coded indicators:
 
 - **Windows**: Single connection only (no `pcntl_fork` support)
 - **Linux/macOS**: Multiple concurrent connections supported via process forking
-
-## API Endpoints
-
-The terminal server uses the BinktermPHP web API for most operations. It also makes a small number of direct calls to the database and filesystem: session validation (`Auth`), login activity tracking (`ActivityTracker`), nodelist presence check, feature flags (`BbsConfig`, `BinkpConfig`), and system news (`AppearanceConfig`). The table below lists the primary API endpoints. Additional endpoints are called by individual feature handlers (polls, shoutbox, bulletins, file areas, QWK, interests, BBS directory, nodelist, user settings, etc.).
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/auth/login` | POST | User authentication |
-| `/api/auth/logout` | POST | Session logout |
-| `/api/config/session-init` | GET | Single post-login call that returns user settings (timezone, locale, date format), terminal settings (charset, ANSI color), idle timeout thresholds, and main menu key bindings |
-| `/api/messages/netmail` | GET | List netmail messages (`filter=all` for inbox, `filter=sent` for sent folder; `sort=date_desc|date_asc|subject|author`) |
-| `/api/messages/netmail/{id}` | GET | Get netmail message details (includes `is_saved` flag) |
-| `/api/messages/netmail/{id}/save` | POST | Bookmark (save) a netmail message |
-| `/api/messages/netmail/{id}/save` | DELETE | Remove bookmark from a netmail message |
-| `/api/messages/netmail/send` | POST | Send netmail message |
-| `/api/messages/netmail/{id}/forward-email` | POST | Forward netmail message to the logged-in user's email address |
-| `/api/messages/echomail` | GET | List echomail messages |
-| `/api/messages/echomail/{id}` | GET | Get echomail message details (includes `is_saved` flag) |
-| `/api/messages/echomail/{id}/save` | POST | Bookmark (save) an echomail message |
-| `/api/messages/echomail/{id}/save` | DELETE | Remove bookmark from an echomail message |
-| `/api/messages/echomail/{id}/download` | GET | Download echomail message as plain text (used by `T` key in viewer) |
-| `/api/messages/echomail/{id}/forward-email` | POST | Forward echomail message to the logged-in user's email address (used by `E` key in viewer) |
-| `/api/messages/echomail/post` | POST | Post echomail message |
-| `/api/messages/echomail/ignore-rules` | POST | Create an echomail ignore rule (used by `G` in viewer) |
-| `/api/user/echomail-ignore-rules` | GET | List the user's echomail ignore rules (used by `G` on echoarea list) |
-| `/api/user/echomail-ignore-rules/{id}` | DELETE | Delete an echomail ignore rule |
-| `/api/dashboard/stats` | GET | Main menu dashboard widgets (unread counts, online users, bulletins, credits) |
-
-All API requests include cookie-based session management, automatic retry with
-exponential backoff, and optional SSL certificate verification.
 
 ## ZMODEM File Transfers
 

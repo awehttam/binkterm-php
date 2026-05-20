@@ -40,13 +40,14 @@ class TuiShell implements TerminalShellInterface
             return null;
         }
 
+        $sb = $this->styleProfile['status_bar'] ?? [];
         $statusBar = $options['status_bar'] ?? [
-            ['text' => 'U/D',   'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Move  ','color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'Enter', 'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Select  ', 'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'Q',     'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Back', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'U/D',       'color' => $sb['key']   ?? TelnetUtils::ANSI_RED],
+            ['text' => ' Move  ',   'color' => $sb['label'] ?? TelnetUtils::ANSI_BLUE],
+            ['text' => 'Enter',     'color' => $sb['key']   ?? TelnetUtils::ANSI_RED],
+            ['text' => ' Select  ', 'color' => $sb['label'] ?? TelnetUtils::ANSI_BLUE],
+            ['text' => 'Q',         'color' => $sb['key']   ?? TelnetUtils::ANSI_RED],
+            ['text' => ' Back',     'color' => $sb['label'] ?? TelnetUtils::ANSI_BLUE],
         ];
 
         $selectedIndex = max(0, (int)($options['selected_index'] ?? 0));

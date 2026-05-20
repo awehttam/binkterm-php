@@ -551,25 +551,29 @@ class EchomailHandler
             $fromName    = (string)($msg['from_name'] ?? 'Unknown');
             $fromAddress = (string)($msg['from_address'] ?? '');
 
-            $buildView = function (array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress, $imageRefs, $searchTerm): array {
+            $sbProfile   = TelnetUtils::getDefaultStyleProfile()['status_bar'];
+            $keyColor    = $sbProfile['key']   ?? TelnetUtils::ANSI_RED;
+            $lblColor    = $sbProfile['label'] ?? TelnetUtils::ANSI_BLUE;
+
+            $buildView = function (array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress, $imageRefs, $searchTerm, $keyColor, $lblColor): array {
                 $cols     = $s['cols'] ?? 80;
                 $width    = max(10, $cols - 2);
                 $charset  = $this->server->getTerminalCharset();
                 $fromLine = $fromAddress ? "{$fromName} <{$fromAddress}>" : $fromName;
 
                 $segments = [
-                    ['text' => 'U/D',          'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Scroll  ',    'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'L/R',          'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'F',            'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' ' . $this->server->t('ui.terminalserver.echomail.status_forward', 'Fwd', [], $s['locale'] ?? 'en') . '  ', 'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'Ctrl-K',       'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Help  ',      'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'Q',            'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Quit',        'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'U/D',          'color' => $keyColor],
+                    ['text' => ' Scroll  ',    'color' => $lblColor],
+                    ['text' => 'L/R',          'color' => $keyColor],
+                    ['text' => ' Prev/Next  ', 'color' => $lblColor],
+                    ['text' => 'R',            'color' => $keyColor],
+                    ['text' => ' Reply  ',     'color' => $lblColor],
+                    ['text' => 'F',            'color' => $keyColor],
+                    ['text' => ' ' . $this->server->t('ui.terminalserver.echomail.status_forward', 'Fwd', [], $s['locale'] ?? 'en') . '  ', 'color' => $lblColor],
+                    ['text' => 'Ctrl-K',       'color' => $keyColor],
+                    ['text' => ' Help  ',      'color' => $lblColor],
+                    ['text' => 'Q',            'color' => $keyColor],
+                    ['text' => ' Quit',        'color' => $lblColor],
                 ];
 
                 $wrappedLines = $markupFormat !== null
@@ -1684,27 +1688,31 @@ class EchomailHandler
             $fromName    = $msg['from_name'] ?? 'Unknown';
             $fromAddress = $msg['from_address'] ?? '';
 
+            $sbProfile   = TelnetUtils::getDefaultStyleProfile()['status_bar'];
+            $keyColor    = $sbProfile['key']   ?? TelnetUtils::ANSI_RED;
+            $lblColor    = $sbProfile['label'] ?? TelnetUtils::ANSI_BLUE;
+
             // Closure that rebuilds all layout-dependent view components from current $state.
             // Called once on open and again whenever the terminal is resized.
-            $buildView = function(array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress, $imageRefs): array {
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress, $imageRefs, $keyColor, $lblColor): array {
                 $cols     = $s['cols'] ?? 80;
                 $width    = max(10, $cols - 2);
                 $charset  = $this->server->getTerminalCharset();
                 $fromLine = $fromAddress ? "{$fromName} <{$fromAddress}>" : $fromName;
 
                 $segments = [
-                    ['text' => 'U/D',          'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Scroll  ',    'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'L/R',          'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'F',            'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' ' . $this->server->t('ui.terminalserver.echomail.status_forward', 'Fwd', [], $s['locale'] ?? 'en') . '  ', 'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'Ctrl-K',       'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Help  ',      'color' => TelnetUtils::ANSI_BLUE],
-                    ['text' => 'Q',            'color' => TelnetUtils::ANSI_RED],
-                    ['text' => ' Quit',        'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'U/D',          'color' => $keyColor],
+                    ['text' => ' Scroll  ',    'color' => $lblColor],
+                    ['text' => 'L/R',          'color' => $keyColor],
+                    ['text' => ' Prev/Next  ', 'color' => $lblColor],
+                    ['text' => 'R',            'color' => $keyColor],
+                    ['text' => ' Reply  ',     'color' => $lblColor],
+                    ['text' => 'F',            'color' => $keyColor],
+                    ['text' => ' ' . $this->server->t('ui.terminalserver.echomail.status_forward', 'Fwd', [], $s['locale'] ?? 'en') . '  ', 'color' => $lblColor],
+                    ['text' => 'Ctrl-K',       'color' => $keyColor],
+                    ['text' => ' Help  ',      'color' => $lblColor],
+                    ['text' => 'Q',            'color' => $keyColor],
+                    ['text' => ' Quit',        'color' => $lblColor],
                 ];
 
                 $wrappedLines = $markupFormat !== null
