@@ -209,9 +209,15 @@ class DoorHandler
         $this->server->safeWrite($conn, chr(255) . chr(251) . chr(1)); // IAC WILL ECHO
         $this->server->safeWrite($conn, chr(255) . chr(254) . chr(1)); // IAC DONT ECHO
 
-        // Door sessions can leave buffered keystrokes or trailing TELNET chatter
-        // queued on the client socket. Drain anything already readable now so
-        // the next termserver screen does not consume phantom input.
+        // Door sessions can leave the terminal in an application/private mode
+        // (alternate screen, hidden cursor, keypad mode, half-finished DCS)
+        // that breaks the next BBS screen. Restore a normal text-terminal state
+        // before we redraw and wait for more input.
+        $this->resetTerminalAfterDoor($conn);
+
+        // Door sessions can also leave buffered keystrokes or trailing TELNET
+        // chatter queued on the client socket. Drain anything already readable
+        // now so the next termserver screen does not consume phantom input.
         $this->drainPendingInput($conn, $state);
 
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
@@ -483,6 +489,35 @@ class DoorHandler
         } finally {
             stream_set_blocking($conn, $previousBlocking);
         }
+    }
+
+    /**
+     * Restore a conservative "normal terminal" state after a DOS door exits.
+     *
+     * Some door clients leave the terminal in alternate-screen, application
+     * keypad/cursor, hidden-cursor, or unfinished DCS/sixel modes. Avoid a full
+     * RIS hard reset here; it is more disruptive than necessary. A soft reset plus
+     * explicit normal-mode toggles is enough to make the next BBS screen usable.
+     *
+     * @param resource $conn
+     */
+    private function resetTerminalAfterDoor($conn): void
+    {
+        if (!is_resource($conn)) {
+            return;
+        }
+
+        // End any stray DCS/sixel payload still being parsed.
+        TelnetUtils::safeWrite($conn, "\033\\");
+
+        // Leave alternate screen buffers before we clear/redraw the normal BBS UI.
+        TelnetUtils::safeWrite($conn, "\033[?1049l\033[?1048l\033[?1047l");
+
+        // DECSTR soft reset plus a few explicit "normal mode" toggles that doors
+        // commonly disturb.
+        TelnetUtils::safeWrite($conn, "\033[!p");
+        TelnetUtils::safeWrite($conn, "\033[0m\017\033(B\033[r\033>\033[?1l\033[?7h");
+        TelnetUtils::setCursorVisible($conn, true);
     }
 
     /**

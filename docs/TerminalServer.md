@@ -34,6 +34,7 @@ Each transport daemon has additional extension requirements — see
 - Nodelist browser (browse Fidonet nodelist entries when available)
 - Interests (tag-based content interests when enabled)
 - Door launcher integration (DOS doors, native doors, and configured door menu)
+- After a DOS door exits, the terminal server sends a soft terminal reset / normal-mode restore sequence before redrawing the BBS UI. This clears common leftover door state such as alternate-screen mode, hidden cursor, application keypad/cursor mode, and incomplete DCS/sixel parsing.
 - Who's Online display
 - Reusable public profile viewer for terminal user lookups
 - Full-screen message editor with cursor navigation and line editing controls
