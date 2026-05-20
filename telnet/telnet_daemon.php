@@ -15,6 +15,10 @@ require_once __DIR__ . '/src/NetmailHandler.php';
 require_once __DIR__ . '/src/EchomailHandler.php';
 require_once __DIR__ . '/src/ShoutboxHandler.php';
 require_once __DIR__ . '/src/BulletinsHandler.php';
+require_once __DIR__ . '/src/TerminalShellInterface.php';
+require_once __DIR__ . '/src/TuiShell.php';
+require_once __DIR__ . '/src/LineShell.php';
+require_once __DIR__ . '/src/TerminalShellFactory.php';
 require_once __DIR__ . '/src/PollsHandler.php';
 require_once __DIR__ . '/src/DoorHandler.php';
 require_once __DIR__ . '/src/ZmodemTransfer.php';
@@ -92,6 +96,7 @@ if (!empty($args['help'])) {
     echo "  --tls-key=FILE    TLS private key PEM file (default: auto-generated)\n";
     echo "  --api-base=URL    API base URL (default: SITE_URL or http://127.0.0.1)\n";
     echo "  --debug           Enable debug mode with verbose logging\n";
+    echo "  --debug-user=NAME Auto-login as the named user for debugging\n";
     echo "  --daemon          Run as background daemon\n";
     echo "  --pid-file=FILE   Write process ID to file (default: data/run/telnetd.pid)\n";
     echo "  --insecure        Disable SSL certificate verification\n";
@@ -108,9 +113,13 @@ $apiBase = buildApiBase($args);
 $debug = !empty($args['debug']);
 $daemonMode = !empty($args['daemon']);
 $insecure = !empty($args['insecure']);
+$debugUser = isset($args['debug-user']) ? trim((string)$args['debug-user']) : '';
 
 // Create telnet server instance
 $server = new TelnetServer($host, $port, $apiBase, $debug, $insecure);
+if ($debugUser !== '') {
+    $server->setDebugUser($debugUser);
+}
 
 // TLS is enabled by default; --no-tls or TELNET_TLS=false disables it
 $tlsDisabled = !empty($args['no-tls']) || Config::env('TELNET_TLS', 'true') === 'false';

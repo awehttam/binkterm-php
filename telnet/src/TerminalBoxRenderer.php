@@ -44,21 +44,53 @@ class TerminalBoxRenderer
      */
     public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt, int $verticalMargin = 2, array $stopKeys = [], array $colorScheme = self::SCHEME_DEFAULT): ?string
     {
-        $layout = $this->buildLayout($state, $verticalMargin, 2);
-        $pages = array_chunk($lines ?: [''], $layout['contentHeight']);
-        $pageCount = count($pages);
+        $pageIndex = 0;
+        $lastRows = (int)($state['rows'] ?? 24);
+        $lastCols = (int)($state['cols'] ?? 80);
 
-        foreach ($pages as $pageIndex => $pageLines) {
+        while (true) {
+            $layout = $this->buildLayout($state, $verticalMargin, 2);
+            $pages = array_chunk($lines ?: [''], $layout['contentHeight']);
+            $pageCount = count($pages);
+            if ($pageIndex >= $pageCount) {
+                $pageIndex = max(0, $pageCount - 1);
+            }
+
+            $pageLines = $pages[$pageIndex] ?? [''];
             $pageLabel = $pageCount > 1 ? sprintf(' (%d/%d)', $pageIndex + 1, $pageCount) : '';
-            $this->renderBox($conn, $state, $title . $pageLabel, $pageLines, $verticalMargin, $colorScheme, 2);
-            $this->writeLine($conn, $this->server->colorizeForTerminal($continuePrompt, TelnetUtils::ANSI_YELLOW));
-            $key = $this->server->readKeyWithIdleCheck($conn, $state);
-            if ($key === null) {
+
+            while (true) {
+                $this->renderBox($conn, $state, $title . $pageLabel, $pageLines, $verticalMargin, $colorScheme, 2);
+                $this->writeLine($conn, $this->server->colorizeForTerminal($continuePrompt, TelnetUtils::ANSI_YELLOW));
+
+                $key = $this->server->readKeyWithIdleCheck($conn, $state);
+                if ($key === null) {
+                    return null;
+                }
+
+                $newRows = (int)($state['rows'] ?? $lastRows);
+                $newCols = (int)($state['cols'] ?? $lastCols);
+                if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                    $lastRows = $newRows;
+                    $lastCols = $newCols;
+                    continue 2;
+                }
+
+                if ($key === '') {
+                    continue;
+                }
+
+                if (!empty($stopKeys) && in_array($key, $stopKeys, true)) {
+                    return $key;
+                }
+                break;
+            }
+
+            if ($pageIndex >= $pageCount - 1) {
                 return null;
             }
-            if (!empty($stopKeys) && in_array($key, $stopKeys, true)) {
-                return $key;
-            }
+
+            $pageIndex++;
         }
 
         return null;
