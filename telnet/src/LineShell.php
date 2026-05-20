@@ -82,14 +82,15 @@ class LineShell implements TerminalShellInterface
         TelnetUtils::writeLine($conn, '');
     }
 
-    private function renderCurrentPageRows($conn, array &$state, string $title, array $rows, int $page, int $totalPages, ?int $selectedIndex = null): void
+    private function renderCurrentPageRows($conn, array &$state, string $title, array $rows, int $page, int $totalPages, ?int $selectedIndex = null, array $markedRows = []): void
     {
         $this->clearAndTitle($conn, $title);
         TelnetUtils::writeLine($conn, sprintf('Page %d/%d', $page, max(1, $totalPages)));
         TelnetUtils::writeLine($conn, '');
 
         foreach ($rows as $offset => $row) {
-            $prefix = $selectedIndex !== null && $offset === $selectedIndex ? '>' : ' ';
+            $isMarked = isset($markedRows[$offset]);
+            $prefix = $isMarked ? '*' : ' ';
             $rowText = sprintf('%s%s', $prefix, $this->stripAnsi((string)$row));
             TelnetUtils::writeLine($conn, $this->fitPlainLine($rowText, $this->wrapWidth($state, 1, 10)));
         }
@@ -306,6 +307,12 @@ class LineShell implements TerminalShellInterface
         }
     }
 
+    private function renderDivider($conn, array &$state): void
+    {
+        $width = min(78, $this->wrapWidth($state, 0));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(str_repeat('-', $width), TelnetUtils::ANSI_DIM));
+    }
+
     private function renderWrappedBlock($conn, array &$state, array $lines, int $padding = 2): void
     {
         foreach ($lines as $line) {
@@ -338,9 +345,9 @@ class LineShell implements TerminalShellInterface
         return max(1, min(max($minimum, (int)($state['rows'] ?? 24) - $reservedRows), $maximum));
     }
 
-    private function renderSelectableListScreen($conn, array &$state, string $title, array $rows, int $page, int $totalPages, ?int $selectedIndex, array $commandLines): void
+    private function renderSelectableListScreen($conn, array &$state, string $title, array $rows, int $page, int $totalPages, ?int $selectedIndex, array $commandLines, array $markedRows = []): void
     {
-        $this->renderCurrentPageRows($conn, $state, $this->stripAnsi($title), $rows, $page, $totalPages, $selectedIndex);
+        $this->renderCurrentPageRows($conn, $state, $this->stripAnsi($title), $rows, $page, $totalPages, $selectedIndex, $markedRows);
         $this->renderFooterLines($conn, $commandLines);
     }
 
@@ -379,12 +386,15 @@ class LineShell implements TerminalShellInterface
         $simpleHeaderLines = $this->simplifyHeaderLinesForLineMode($headerLines);
         $this->clearAndTitle($conn, $this->server->t('ui.terminalserver.message.viewer_title', 'Message', [], $state['locale'] ?? 'en'));
         $this->renderWrappedBlock($conn, $state, $simpleHeaderLines);
-        TelnetUtils::writeLine($conn, '');
+        $this->renderDivider($conn, $state);
         foreach (array_slice($wrappedLines, $offset, $bodyHeight) as $line) {
             TelnetUtils::writeWrapped($conn, $this->stripAnsi((string)$line), $this->wrapWidth($state));
         }
-        TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, sprintf('Showing lines %d-%d of %d', $offset + 1, min(count($wrappedLines), $offset + $bodyHeight), count($wrappedLines)));
+        $this->renderDivider($conn, $state);
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            sprintf('Lines %d-%d of %d', $offset + 1, min(count($wrappedLines), $offset + $bodyHeight), count($wrappedLines)),
+            TelnetUtils::ANSI_DIM
+        ));
         $this->renderFooterLines($conn, $commandLines);
     }
 
@@ -741,7 +751,7 @@ class LineShell implements TerminalShellInterface
             if ($statusLine !== '') {
                 $commandLines[] = $this->stripAnsi($statusLine);
             }
-            $commands = ['Q = back', 'U = up', 'D = down', 'P = page up', 'N = page down', 'L = prev', 'R = reply/next'];
+            $commands = ['Q = back', 'Enter/N = next page', 'P = prev page', 'U/D = scroll', 'L = prev', 'R = reply/next'];
             if (!empty($kludgeLines)) {
                 $commands[] = 'H = headers';
             }
@@ -751,9 +761,10 @@ class LineShell implements TerminalShellInterface
             if (!empty($imageRefs) && $imageFn !== null) {
                 $commands[] = count($imageRefs) === 1 ? 'I = image' : 'I/# = image';
             }
-            foreach (array_keys($extraKeyMap) as $key) {
+            foreach ($extraKeyMap as $key => $action) {
                 if (strlen((string)$key) === 1) {
-                    $commands[] = strtoupper((string)$key) . ' = action';
+                    $label = ucwords(str_replace('_', ' ', (string)$action));
+                    $commands[] = strtoupper((string)$key) . ' = ' . $label;
                 }
             }
             $commandLines[] = implode('  ', $commands);
@@ -771,6 +782,7 @@ class LineShell implements TerminalShellInterface
 
             $choice = trim($choice);
             if ($choice === '') {
+                $offset = min($maxOffset, $offset + $bodyHeight);
                 continue;
             }
             if (strcasecmp($choice, 'q') === 0) {
@@ -862,6 +874,16 @@ class LineShell implements TerminalShellInterface
             );
         }
 
+        if (!empty($options['selectedMessageIds']) && !isset($options['selectedRows'])) {
+            $selectedRows = [];
+            foreach ($messages as $idx => $msg) {
+                if (in_array((int)($msg['id'] ?? 0), $options['selectedMessageIds'], true)) {
+                    $selectedRows[] = $idx;
+                }
+            }
+            $options['selectedRows'] = $selectedRows;
+        }
+
         $result = $this->showSelectableList(
             $conn,
             $state,
@@ -902,7 +924,7 @@ class LineShell implements TerminalShellInterface
         $extraKeyMap = $this->normalizeCommandMap($extraKeys);
         $commandLines = [];
 
-        $renderList = function () use ($conn, &$state, &$title, &$rows, $rebuildFn, $page, $totalPages, $selectedIndex, $options, $extraKeyMap, &$commandLines): void {
+        $renderList = function () use ($conn, &$state, &$title, &$rows, $rebuildFn, $page, $totalPages, $selectedIndex, $options, $extraKeyMap, &$commandLines, &$selectedRows): void {
             if ($rebuildFn !== null) {
                 $rebuilt = (array)$rebuildFn($state);
                 $rows = $rebuilt['rows'] ?? $rows;
@@ -913,13 +935,14 @@ class LineShell implements TerminalShellInterface
             if (!empty($options['multiSelect'])) {
                 $commands[] = 'M# = toggle mark';
             }
-            foreach (array_keys($extraKeyMap) as $key) {
+            foreach ($extraKeyMap as $key => $action) {
                 if (strlen((string)$key) === 1) {
-                    $commands[] = strtoupper((string)$key) . ' = action';
+                    $label = ucwords(str_replace('_', ' ', (string)$action));
+                    $commands[] = strtoupper((string)$key) . ' = ' . $label;
                 }
             }
             $commandLines = [implode('  ', $commands)];
-            $this->renderSelectableListScreen($conn, $state, $title, $rows, $page, $totalPages, $selectedIndex, $commandLines);
+            $this->renderSelectableListScreen($conn, $state, $title, $rows, $page, $totalPages, $selectedIndex, $commandLines, $selectedRows);
         };
 
         while (true) {

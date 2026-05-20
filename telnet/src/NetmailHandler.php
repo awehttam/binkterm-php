@@ -981,7 +981,7 @@ class NetmailHandler
                 'q' => $this->server->t('ui.terminalserver.server.cancel', 'Cancel', [], $locale),
             ],
             $sortKeys[$currentSort] ?? '1',
-            $redrawFn
+            ['redraw_fn' => $redrawFn]
         );
 
         if ($choice === 'q') {
