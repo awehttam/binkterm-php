@@ -209,11 +209,17 @@ class DoorHandler
         $this->server->safeWrite($conn, chr(255) . chr(251) . chr(1)); // IAC WILL ECHO
         $this->server->safeWrite($conn, chr(255) . chr(254) . chr(1)); // IAC DONT ECHO
 
+        // Door sessions can leave buffered keystrokes or trailing TELNET chatter
+        // queued on the client socket. Drain anything already readable now so
+        // the next termserver screen does not consume phantom input.
+        $this->drainPendingInput($conn, $state);
+
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.returned', 'Returned from {name}.', ['name' => $doorName], $state['locale']), TelnetUtils::ANSI_CYAN));
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
         $this->server->readKeyWithIdleCheck($conn, $state);
+        $this->drainPendingInput($conn, $state);
     }
 
     /**
@@ -432,6 +438,51 @@ class DoorHandler
         }
 
         return $out;
+    }
+
+    /**
+     * Discard any telnet-side input that is already queued without blocking.
+     *
+     * After a DOS door exits, some clients leave trailing keypresses or protocol
+     * bytes readable on the socket. If we do not clear them here, the next BBS
+     * menu or submenu can immediately consume them and appear to auto-exit.
+     *
+     * @param resource $conn
+     */
+    private function drainPendingInput($conn, array &$state): void
+    {
+        if (!is_resource($conn)) {
+            return;
+        }
+
+        $meta = stream_get_meta_data($conn);
+        $previousBlocking = (bool)($meta['blocked'] ?? true);
+        stream_set_blocking($conn, false);
+
+        try {
+            while (true) {
+                $read = [$conn];
+                $write = $except = null;
+                $ready = @stream_select($read, $write, $except, 0, 0);
+                if ($ready === false || $ready === 0) {
+                    break;
+                }
+
+                $raw = @fread($conn, 4096);
+                if ($raw === false || $raw === '') {
+                    if (feof($conn)) {
+                        break;
+                    }
+                    continue;
+                }
+
+                // Reuse the door input parser so NAWS updates are still applied
+                // while all buffered keystrokes are discarded.
+                $this->processTelnetInput($raw, $state);
+            }
+        } finally {
+            stream_set_blocking($conn, $previousBlocking);
+        }
     }
 
     /**
@@ -744,4 +795,3 @@ class DoorHandler
         curl_close($ch);
     }
 }
-
