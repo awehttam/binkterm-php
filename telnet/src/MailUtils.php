@@ -98,6 +98,7 @@ class MailUtils
         $conn,
         array &$state,
         $server,
+        ?TerminalShellInterface $shell,
         string $apiBase,
         string $session,
         string $type,
@@ -187,10 +188,10 @@ class MailUtils
                 return ['rows' => $buildRows($pageDrafts, $resizeState), 'title' => $title];
             };
 
-            $result = TelnetUtils::runSelectableList(
+            $shell ??= TerminalShellFactory::create($server, $state);
+            $result = $shell->showSelectableList(
                 $conn,
                 $state,
-                $server,
                 $title,
                 $rows,
                 $page,
@@ -226,10 +227,9 @@ class MailUtils
                     if ($draft === null) {
                         break;
                     }
-                    $choice = TelnetUtils::showConfirmDialog(
+                    $choice = $shell->showConfirmDialog(
                         $conn,
                         $state,
-                        $server,
                         $server->t('ui.terminalserver.compose.drafts_delete_title', 'Delete Draft', [], $locale),
                         $server->t('ui.terminalserver.compose.drafts_delete_confirm', 'Delete this draft?', [], $locale),
                         [
@@ -241,10 +241,9 @@ class MailUtils
                     if ($choice === 'y') {
                         $deleteResult = self::deleteDraft($apiBase, $session, (int)($draft['id'] ?? 0), $csrfToken);
                         if (empty($deleteResult['success'])) {
-                            TelnetUtils::showAlertDialog(
+                            $shell->showAlert(
                                 $conn,
                                 $state,
-                                $server,
                                 $server->t('ui.terminalserver.compose.drafts_title_short', 'Drafts', [], $locale),
                                 (string)($deleteResult['error'] ?? $server->t('ui.terminalserver.compose.drafts_delete_failed', 'Failed to delete draft.', [], $locale)),
                                 'error'
@@ -259,10 +258,9 @@ class MailUtils
                     }
                     $fullDraft = self::getDraft($apiBase, $session, (int)($draft['id'] ?? 0));
                     if ($fullDraft === null) {
-                        TelnetUtils::showAlertDialog(
+                        $shell->showAlert(
                             $conn,
                             $state,
-                            $server,
                             $server->t('ui.terminalserver.compose.drafts_title_short', 'Drafts', [], $locale),
                             $server->t('ui.terminalserver.compose.drafts_load_failed', 'Failed to load draft.', [], $locale),
                             'error'

@@ -28,6 +28,7 @@ Each transport daemon has additional extension requirements — see
 - File areas browsing with ZMODEM downloads and uploads
 - Bulletins (read-only system announcements posted by admins)
 - Polls (view/vote/create where enabled)
+- Terminal shell abstraction for feature-level UI intents, with a widget-backed TUI path and a prompt-driven line shell path for narrow or low-capability sessions
 - Shoutbox (view/post where enabled)
 - Local chat with rooms, direct messages, online users, and moderation shortcuts
 - BBS Directory (browse other BBSes when enabled)
@@ -44,6 +45,70 @@ Each transport daemon has additional extension requirements — see
 - User preferences and settings (editor behavior, display options, and other per-user configuration)
 
 ## Features
+
+### Terminal Shell Layer
+
+Terminal feature handlers target a shared shell abstraction instead of binding directly to either raw prompt loops or `TelnetUtils` widgets. A shell is responsible for common UI intents such as selecting from a list, prompting for free-form text, choosing a single-key action, showing read-only text, and displaying alerts.
+
+#### Available Shells
+
+| Shell | Selection | Free-form text | Single-key actions | Read-only text | Alerts | Typical use |
+|-------|-----------|----------------|--------------------|----------------|--------|-------------|
+| `TuiShell` | Framed selector widgets | Framed input dialogs | Framed single-key modals | Paged framed viewers | Framed alerts | Normal-size terminals |
+| `LineShell` | Prompt-driven numbered menus | Plain text prompts | Immediate single-key reads | Plain text screens | Plain text notices | Narrow or low-capability terminals |
+
+Selection is automatic by default:
+
+- `TuiShell` is used when the terminal is large enough for the framed UI
+- `LineShell` is used when the terminal is very small, or when `term_shell_mode` is explicitly set to `line`
+- `TuiShell` can be forced with `term_shell_mode = tui`
+
+#### `TerminalShellInterface`
+
+All shells implement the same intent-level methods:
+
+- `chooseFromList(...)` for selectable lists
+- `promptText(...)` for free-form entry
+- `promptKey(...)` for single-key action prompts
+- `showText(...)` for read-only screens
+- `showAlert(...)` for short notices and confirmations
+
+#### `TuiShell`
+
+`TuiShell` is the full-screen shell implementation. It uses the shared selector and dialog widgets to keep interaction consistent with the rest of the framed terminal UI.
+
+Capabilities:
+
+- `chooseFromList(...)` uses `runSelectableList()`
+- `promptText(...)` uses a framed input dialog
+- `promptKey(...)` uses a framed single-key confirmation-style dialog
+- `showText(...)` uses a paged framed text viewer
+- `showAlert(...)` uses a framed alert dialog
+
+#### `LineShell`
+
+`LineShell` is the plain terminal fallback. It preserves the same feature behavior but renders with simple text and immediate key handling.
+
+Capabilities:
+
+- `chooseFromList(...)` renders a numbered menu and reads a text response
+- `promptText(...)` prints a prompt and reads one line of text
+- `promptKey(...)` reads a single key immediately, without requiring Enter
+- `showText(...)` prints wrapped text and waits for any key
+- `showAlert(...)` reuses the plain text display path
+
+#### Adding a New Shell
+
+To add a third shell implementation:
+
+1. Create a new class in `telnet/src/` that implements `TerminalShellInterface`.
+2. Implement the five intent methods in the new class.
+3. Update `TerminalShellFactory::create()` to return the new shell when the desired mode, terminal profile, or runtime condition matches.
+4. If the shell needs a user-facing override, extend the session state contract so `term_shell_mode` can select it explicitly.
+5. Keep handler code shell-agnostic: feature handlers should call the interface methods, not shell-specific helpers.
+6. Update this document with the new shell name, selection rules, and supported capabilities.
+
+The current shell layer is intentionally small so a third shell can be added without rewriting existing feature handlers.
 
 ### Screen-Aware Display
 
@@ -115,6 +180,7 @@ Each transport daemon has additional extension requirements — see
 - **Login Attempts**: Limited to 3 attempts per connection before the connection is closed
 - **Connection Rate Limiting**: The transport daemon (Telnet/SSH) enforces a per-IP connection rate limit before forking a child process — see [TelnetServer.md](TelnetServer.md) and [SSHServer.md](SSHServer.md) for transport-specific details
 - **Connection Logging**: All login/logout events logged
+- **Telnet debug login shortcut**: `telnet/telnet_daemon.php` accepts `--debug-user=NAME` for trusted local debugging. When set, the daemon creates a real authenticated session for that user and skips the normal login prompts. Use this only in development; it is not intended for production access.
 
 ### Reliability
 
@@ -168,7 +234,7 @@ Stats are refreshed from the API after returning from netmail, echomail, or bull
 - Goodbye message on logout with reminder to visit website
 - Unread and new message counts shown on main menu items (netmail: unread count; echomail: new since last visit)
 - Live dashboard widgets alongside the main menu (see above)
-- Shoutbox screens use the same centered framed panel style as other terminal viewers, with separate timestamp/author headers and wrapped message bodies for cleaner readability
+- Shoutbox screens use the same centered framed panel style as other terminal viewers, with separate timestamp/author headers and wrapped message bodies for cleaner readability. The shoutbox viewer supports inline scrolling with Up/Down, PgUp/PgDn, Home, and End so you can page through more than one screen of messages, and shows a vertical scrollbar inside the frame.
 - Helpful command documentation
 
 ### Border and Frame Style

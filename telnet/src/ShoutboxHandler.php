@@ -50,37 +50,52 @@ class ShoutboxHandler
             return;
         }
 
+        $shell = TerminalShellFactory::create($this->server, $state);
+
         if (!$interactive) {
-            $this->renderReadOnly($conn, $state, $session, $limit);
+            $this->renderReadOnly($conn, $state, $session, $limit, $shell);
             return;
         }
 
         $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: entered");
         while (true) {
             $messages = $this->getMessages($session, $limit);
-        $this->renderShoutboxBox(
-            $conn,
-            $state,
-            $this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']),
-            $messages
-        );
-            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.menu', '[P]ost  [R]efresh  [Q]uit: ', [], $state['locale']), TelnetUtils::ANSI_YELLOW), true);
-            if ($choice === null) {
+            $contentWidth = $this->getScrollablePanelContentWidth($state);
+            $lines = $this->buildMessageLines($messages, $state, $contentWidth);
+            $choice = $shell->showScrollablePanel(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']),
+                $lines,
+                [
+                    'status_segments' => $this->buildShoutboxCommandFooter(true),
+                    'extra_keys' => ['p' => 'post', 'r' => 'refresh'],
+                    'color_scheme' => [
+                        'border' => TelnetUtils::ANSI_RED . TelnetUtils::ANSI_BOLD,
+                        'divider' => TelnetUtils::ANSI_RED,
+                        'title_bar' => TelnetUtils::ANSI_BG_RED . TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD,
+                        'body' => "\033[40m\033[37m",
+                        'status_bar_bg' => "\033[40m",
+                        'status_bar_fill' => TelnetUtils::ANSI_BLUE,
+                    ],
+                ]
+            );
+            if ($choice === null || $choice === 'quit') {
                 return;
             }
-
-            $choice = strtolower(trim($choice));
-            if ($choice === '' || $choice === 'r') {
+            if ($choice === 'refresh') {
                 continue;
             }
-            if ($choice === 'q') {
-                return;
-            }
-            if ($choice !== 'p') {
+            if ($choice !== 'post') {
                 continue;
             }
 
-            $message = $this->server->prompt($conn, $state, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.new_shout', 'New shout (blank to cancel): ', [], $state['locale']), TelnetUtils::ANSI_CYAN), true);
+            $message = $shell->promptText(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']),
+                $this->server->t('ui.terminalserver.shoutbox.new_shout', 'New shout (blank to cancel): ', [], $state['locale'])
+            );
             if ($message === null) {
                 return;
             }
@@ -100,79 +115,55 @@ class ShoutboxHandler
                 $state['csrf_token'] ?? null
             );
 
-            TelnetUtils::writeLine($conn, '');
             if (($response['data']['success'] ?? false) === true) {
                 $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: posted message");
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.posted', 'Shout posted.', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
+                $shell->showAlert(
+                    $conn,
+                    $state,
+                    $this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']),
+                    $this->server->t('ui.terminalserver.shoutbox.posted', 'Shout posted.', [], $state['locale']),
+                    'info'
+                );
             } else {
                 $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: post failed: " . ($response['data']['error'] ?? 'unknown'));
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize((string)($response['data']['error'] ?? $this->server->t('ui.terminalserver.shoutbox.post_failed', 'Failed to post shout.', [], $state['locale'])), TelnetUtils::ANSI_RED));
+                $shell->showAlert(
+                    $conn,
+                    $state,
+                    $this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']),
+                    (string)($response['data']['error'] ?? $this->server->t('ui.terminalserver.shoutbox.post_failed', 'Failed to post shout.', [], $state['locale'])),
+                    'error'
+                );
             }
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
-            $this->server->readKeyWithIdleCheck($conn, $state);
         }
     }
 
-    private function renderReadOnly($conn, array &$state, string $session, int $limit): void
+    private function renderReadOnly($conn, array &$state, string $session, int $limit, TerminalShellInterface $shell): void
     {
-        $messages = $this->getMessages($session, $limit);
-        $this->renderShoutboxBox(
-            $conn,
-            $state,
-            $this->server->t('ui.terminalserver.shoutbox.recent_title', 'Recent Shoutbox', [], $state['locale']),
-            $messages,
-            6
-        );
-        TelnetUtils::writeLine(
-            $conn,
-            TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.shoutbox.quick_prompt', 'Press S to shout, or any other key to continue...', [], $state['locale']),
-                TelnetUtils::ANSI_YELLOW
-            )
-        );
-
-        $key = $this->server->readKeyWithIdleCheck($conn, $state);
-        if ($key === null) {
-            return;
-        }
-
-        if ($key === 'CHAR:s' || $key === 'CHAR:S') {
-            TelnetUtils::writeLine($conn, '');
-            $message = $this->server->prompt(
+        while (true) {
+            $messages = $this->getMessages($session, $limit);
+            $contentWidth = $this->getScrollablePanelContentWidth($state);
+            $lines = $this->buildMessageLines($messages, $state, $contentWidth);
+            $choice = $shell->showScrollablePanel(
                 $conn,
                 $state,
-                TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.new_shout', 'New shout (blank to cancel): ', [], $state['locale']), TelnetUtils::ANSI_CYAN),
-                true
-            );
-            if ($message === null) {
-                return;
-            }
-
-            $message = trim($message);
-            if ($message === '') {
-                return;
-            }
-
-            $response = TelnetUtils::apiRequest(
-                $this->apiBase,
-                'POST',
-                '/api/shoutbox',
-                ['message' => $message],
-                $session,
-                3,
-                $state['csrf_token'] ?? null
+                $this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']),
+                $lines,
+                [
+                    'status_segments' => $this->buildShoutboxCommandFooter(false),
+                    'color_scheme' => [
+                        'border' => TelnetUtils::ANSI_RED . TelnetUtils::ANSI_BOLD,
+                        'divider' => TelnetUtils::ANSI_RED,
+                        'title_bar' => TelnetUtils::ANSI_BG_RED . TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD,
+                        'body' => "\033[40m\033[37m",
+                        'status_bar_bg' => "\033[40m",
+                        'status_bar_fill' => TelnetUtils::ANSI_BLUE,
+                    ],
+                ]
             );
 
-            TelnetUtils::writeLine($conn, '');
-            if (($response['data']['success'] ?? false) === true) {
-                $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: posted message");
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.shoutbox.posted', 'Shout posted.', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
-            } else {
-                $this->server->logAction($state['username'] ?? 'unknown', "Shoutbox: post failed: " . ($response['data']['error'] ?? 'unknown'));
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize((string)($response['data']['error'] ?? $this->server->t('ui.terminalserver.shoutbox.post_failed', 'Failed to post shout.', [], $state['locale'])), TelnetUtils::ANSI_RED));
+            if ($choice === null || $choice === 'quit') {
+                return;
             }
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
-            $this->server->readKeyWithIdleCheck($conn, $state);
         }
     }
 
@@ -193,26 +184,47 @@ class ShoutboxHandler
      * @param array<int,array<string,mixed>> $messages
      * @param resource $conn
      */
-    private function renderShoutboxBox($conn, array &$state, string $title, array $messages, int $verticalMargin = 4): void
+    private function renderShoutboxBox($conn, array &$state, string $title, array $messages, int $scrollOffset = 0, ?array $footerSegments = null, int $verticalMargin = 4): array
     {
-        $cols = max(40, (int)($state['cols'] ?? 80));
-        $rows = max(12, (int)($state['rows'] ?? 24));
-        $boxWidth = max(38, min($cols - 4, 96));
-        $contentWidth = max(20, $boxWidth - 4);
-        $boxHeight = max(8, $rows - max(2, $verticalMargin));
-        $contentHeight = max(3, $boxHeight - 4);
+        $layout = $this->getShoutboxLayout($state, 0, $verticalMargin);
+        $contentWidth = max(12, $layout['contentWidth'] - 1);
+        $messageRows = max(1, $layout['contentHeight'] - ($footerSegments === null ? 0 : 1));
 
         $lines = $this->buildMessageLines($messages, $state, $contentWidth);
-        if (count($lines) > $contentHeight) {
-            $lines = array_slice($lines, -(max(1, $contentHeight - 1)));
-            array_unshift($lines, TelnetUtils::colorize('...', TelnetUtils::ANSI_DIM));
+        $maxOffset = max(0, count($lines) - $messageRows);
+        $scrollOffset = max(0, min($scrollOffset, $maxOffset));
+        $visibleLines = array_slice($lines, $scrollOffset, $messageRows);
+        if ($scrollOffset > 0 && $visibleLines !== []) {
+            $visibleLines[0] = TelnetUtils::colorize('...', TelnetUtils::ANSI_DIM) . ' ' . $visibleLines[0];
+        } elseif ($scrollOffset > 0) {
+            $visibleLines[] = TelnetUtils::colorize('...', TelnetUtils::ANSI_DIM);
+        }
+        if ($scrollOffset < $maxOffset && $visibleLines !== []) {
+            $lastIndex = array_key_last($visibleLines);
+            $visibleLines[$lastIndex] = $visibleLines[$lastIndex] . ' ' . TelnetUtils::colorize('...', TelnetUtils::ANSI_DIM);
+        } elseif ($scrollOffset < $maxOffset) {
+            $visibleLines[] = TelnetUtils::colorize('...', TelnetUtils::ANSI_DIM);
         }
 
         $shoutboxLabel = $this->server->t('ui.terminalserver.shoutbox.title', 'Shoutbox', [], $state['locale']);
-        $headerTitle = trim($title) === $shoutboxLabel ? $shoutboxLabel : $shoutboxLabel . ': ' . $title;
+        $messageCount = count($visibleLines) - ($footerSegments === null ? 0 : 1);
+        $pageLabel = $maxOffset > 0 ? sprintf(' (%d-%d/%d)', $scrollOffset + 1, min($scrollOffset + $messageCount, count($lines)), count($lines)) : '';
+        $headerTitle = trim($title) === $shoutboxLabel ? $shoutboxLabel . $pageLabel : $shoutboxLabel . ': ' . $title . $pageLabel;
 
         $renderer = new TerminalBoxRenderer($this->server);
-        $renderer->renderBox($conn, $state, $headerTitle, $lines, $verticalMargin, TerminalBoxRenderer::SCHEME_SHOUTBOX);
+        $renderer->renderBox($conn, $state, $headerTitle, $visibleLines, $verticalMargin, TerminalBoxRenderer::SCHEME_SHOUTBOX, 0);
+        if ($footerSegments !== null) {
+            $this->renderFooterLine($conn, $state, $layout, $footerSegments, $messageRows);
+        }
+        $this->renderScrollbar($conn, $state, $layout, $scrollOffset, $maxOffset, $messageRows);
+
+        return [
+            'contentHeight' => $messageRows,
+            'maxOffset' => $maxOffset,
+            'contentWidth' => $contentWidth,
+            'topPadRows' => $layout['topPadRows'],
+            'leftPadCols' => $layout['leftPadCols'],
+        ];
     }
 
     /**
@@ -278,6 +290,168 @@ class ShoutboxHandler
 
             return mb_strimwidth($line, 0, max(0, $width - 3), '...', 'UTF-8');
         }, $lines);
+    }
+
+    private function normalizeChoiceToken(?string $key): ?string
+    {
+        if ($key === null) {
+            return null;
+        }
+        if ($key === 'UP' || $key === 'DOWN' || $key === 'PGUP' || $key === 'PGDOWN' || $key === 'HOME' || $key === 'END') {
+            return strtolower($key);
+        }
+        if (str_starts_with($key, 'CHAR:')) {
+            return strtolower(substr($key, 5));
+        }
+        if ($key === 'ENTER') {
+            return '';
+        }
+        return strtolower($key);
+    }
+
+    private function getShoutboxLayout(array $state, int $footerLines = 1, int $verticalMargin = 4): array
+    {
+        $cols = max(40, (int)($state['cols'] ?? 80));
+        $rows = max(12, (int)($state['rows'] ?? 24));
+        $boxWidth = max(38, min($cols - 4, 96));
+        $contentWidth = max(20, $boxWidth - 4);
+        $reservedFooter = max(0, $footerLines);
+        $boxHeight = max(8, $rows - max(2, $verticalMargin) - $reservedFooter);
+        $contentHeight = max(3, $boxHeight - 4);
+        $leftPadCols = max(0, (int)floor(($cols - $boxWidth) / 2));
+        $topPadRows = max(0, (int)floor(($rows - $boxHeight - $reservedFooter - 1) / 2));
+
+        return [
+            'boxWidth' => $boxWidth,
+            'contentWidth' => $contentWidth,
+            'contentHeight' => $contentHeight,
+            'leftPadCols' => $leftPadCols,
+            'topPadRows' => $topPadRows,
+        ];
+    }
+
+    private function getScrollablePanelStatusWidth(array $state): int
+    {
+        $cols = max(48, (int)($state['cols'] ?? 80));
+        $boxWidth = max(46, min($cols - 6, 78));
+        return max(24, $boxWidth - 2);
+    }
+
+    private function getScrollablePanelContentWidth(array $state): int
+    {
+        return max(12, $this->getScrollablePanelStatusWidth($state) - 2);
+    }
+
+    private function renderScrollbar($conn, array &$state, array $layout, int $scrollOffset, int $maxOffset, int $messageRows): void
+    {
+        if ($maxOffset <= 0 || $messageRows <= 0) {
+            return;
+        }
+
+        $contentWidth = max(1, (int)$layout['contentWidth']);
+        $leftCol = (int)$layout['leftPadCols'] + 2;
+        $topRow = (int)$layout['topPadRows'] + 3;
+        $thumbStart = (int)floor(($scrollOffset / max(1, $maxOffset)) * max(0, $messageRows - 1));
+        $thumbEnd = (int)floor((min($scrollOffset + $messageRows - 1, $maxOffset) / max(1, $maxOffset)) * max(0, $messageRows - 1));
+
+        for ($row = 0; $row < $messageRows; $row++) {
+            $glyph = ($row >= $thumbStart && $row <= $thumbEnd) ? '█' : '░';
+            $targetRow = $topRow + $row;
+            $targetCol = $leftCol + $contentWidth - 1;
+            TelnetUtils::safeWrite($conn, sprintf("\033[%d;%dH%s", $targetRow, $targetCol, TelnetUtils::colorize($glyph, TelnetUtils::ANSI_MAGENTA . TelnetUtils::ANSI_BOLD)));
+        }
+    }
+
+    private function renderFooterLine($conn, array &$state, array $layout, array $footerSegments, int $messageRows): void
+    {
+        $left = (int)$layout['leftPadCols'] + 3;
+        $row = (int)$layout['topPadRows'] + 3 + max(0, $messageRows);
+        $width = max(1, (int)$layout['contentWidth'] - 2);
+        $plain = '';
+        foreach ($footerSegments as $segment) {
+            $plain .= (string)($segment['text'] ?? '');
+        }
+        $plain = preg_replace('/\s+/', ' ', trim($plain)) ?? trim($plain);
+        $plain = mb_strimwidth($plain, 0, $width, '', 'UTF-8');
+        $pad = str_repeat(' ', max(0, $width - mb_strwidth($plain, 'UTF-8')));
+
+        $line = '';
+        $used = 0;
+        foreach ($footerSegments as $segment) {
+            $text = (string)($segment['text'] ?? '');
+            $color = (string)($segment['color'] ?? '');
+            if ($text === '') {
+                continue;
+            }
+            $remaining = max(0, $width - $used);
+            if ($remaining <= 0) {
+                break;
+            }
+            $chunk = mb_strimwidth($text, 0, $remaining, '', 'UTF-8');
+            if ($chunk === '') {
+                continue;
+            }
+            $line .= $color !== '' ? TelnetUtils::colorize($chunk, $color) : $chunk;
+            $used += mb_strwidth($chunk, 'UTF-8');
+        }
+        $line .= $pad;
+        TelnetUtils::safeWrite($conn, sprintf("\033[%d;%dH%s", $row, $left, $line));
+    }
+
+    /**
+     * @return array<int,array{text:string,color:string}>
+     */
+    private function buildShoutboxCommandFooter(bool $interactive): array
+    {
+        $keyColor = TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD;
+        $labelColor = TelnetUtils::ANSI_BLUE;
+        $divider = TelnetUtils::ANSI_BLUE;
+
+        if ($interactive) {
+            return [
+                ['text' => 'P', 'color' => $keyColor],
+                ['text' => '=', 'color' => $divider],
+                ['text' => 'Post', 'color' => $labelColor],
+                ['text' => '  ', 'color' => ''],
+                ['text' => 'R', 'color' => $keyColor],
+                ['text' => '=', 'color' => $divider],
+                ['text' => 'Refresh', 'color' => $labelColor],
+                ['text' => '  ', 'color' => ''],
+                ['text' => 'Q', 'color' => $keyColor],
+                ['text' => '=', 'color' => $divider],
+                ['text' => 'Quit', 'color' => $labelColor],
+                ['text' => '  ', 'color' => ''],
+                ['text' => 'U/D', 'color' => $keyColor],
+                ['text' => '=', 'color' => $divider],
+                ['text' => 'Scroll', 'color' => $labelColor],
+                ['text' => '  ', 'color' => ''],
+                ['text' => 'PgUp/PgDn', 'color' => $keyColor],
+                ['text' => '=', 'color' => $divider],
+                ['text' => 'Page', 'color' => $labelColor],
+                ['text' => '  ', 'color' => ''],
+                ['text' => 'Home/End', 'color' => $keyColor],
+                ['text' => '=', 'color' => $divider],
+                ['text' => 'Top/Bottom', 'color' => $labelColor],
+            ];
+        }
+
+        return [
+            ['text' => 'U/D', 'color' => $keyColor],
+            ['text' => '=', 'color' => $divider],
+            ['text' => 'Scroll', 'color' => $labelColor],
+            ['text' => '  ', 'color' => ''],
+            ['text' => 'PgUp/PgDn', 'color' => $keyColor],
+            ['text' => '=', 'color' => $divider],
+            ['text' => 'Page', 'color' => $labelColor],
+            ['text' => '  ', 'color' => ''],
+            ['text' => 'Home/End', 'color' => $keyColor],
+            ['text' => '=', 'color' => $divider],
+            ['text' => 'Top/Bottom', 'color' => $labelColor],
+            ['text' => '  ', 'color' => ''],
+            ['text' => 'Q', 'color' => $keyColor],
+            ['text' => '=', 'color' => $divider],
+            ['text' => 'Continue', 'color' => $labelColor],
+        ];
     }
 
 }

@@ -41,6 +41,7 @@ class DoorHandler
      */
     public function show($conn, array &$state, string $session): void
     {
+        $shell = TerminalShellFactory::create($this->server, $state);
         $dosDoors = (new DoorManager())->getEnabledDoors();
         $nativeDoors = (new NativeDoorManager())->getEnabledDoors();
 
@@ -53,11 +54,12 @@ class DoorHandler
         }
 
         if (empty($allDoors)) {
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
-            $this->server->readKeyWithIdleCheck($conn, $state);
+            $shell->showText(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.doors.title', '=== Door Games ===', [], $state['locale']),
+                [$this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale'])]
+            );
             return;
         }
 
@@ -68,75 +70,40 @@ class DoorHandler
         }
 
         while (true) {
-            $this->displayDoorList($conn, $state, $doorList);
+            $items = [];
+            foreach ($doorList as $entry) {
+                $door = $entry['data'];
+                $name = $door['name'] ?? $entry['id'];
+                $desc = trim((string)($door['description'] ?? ''));
+                $creditCost = (int)($door['config']['credit_cost'] ?? 0);
 
-            $choice = $this->server->readLineWithIdleCheck($conn, $state);
-            if ($choice === null || strtolower(trim($choice)) === 'q') {
-                return;
+                $items[] = [
+                    'label' => trim($name . ($creditCost > 0 ? " [{$creditCost} credits]" : '')),
+                    'detail' => $desc,
+                ];
             }
 
-            $idx = (int)trim($choice) - 1;
-            if ($idx >= 0 && $idx < count($doorList)) {
-                $entry = $doorList[$idx];
-                $doorName = $entry['data']['name'] ?? $entry['id'];
-                $this->server->logAction($state['username'] ?? 'unknown', "Doors: launched \"{$doorName}\"");
-                $this->launchDoor($conn, $state, $session, $entry['id'], $doorName);
-                return;
-            }
-
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.invalid', 'Invalid selection.', [], $state['locale']), TelnetUtils::ANSI_RED));
-            sleep(1);
-        }
-    }
-
-    /**
-     * Render the door selection list
-     *
-     * @param resource $conn
-     * @param array $state
-     * @param array $doorList Indexed array of ['id' => string, 'data' => array]
-     */
-    private function displayDoorList($conn, array &$state, array $doorList): void
-    {
-        $cols = $state['cols'] ?? 80;
-
-        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.title', '=== Door Games ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
-        TelnetUtils::writeLine($conn, '');
-
-        foreach ($doorList as $i => $entry) {
-            $num = $i + 1;
-            $door = $entry['data'];
-            $name = $door['name'] ?? $entry['id'];
-            $desc = $door['description'] ?? '';
-            $creditCost = (int)($door['config']['credit_cost'] ?? 0);
-            $timeLimit = (int)($door['time_per_day'] ?? $door['config']['max_time_minutes'] ?? 0);
-
-            $meta = [];
-            if ($timeLimit > 0) {
-                $meta[] = "{$timeLimit} min/day";
-            }
-            if ($creditCost > 0) {
-                $meta[] = "{$creditCost} credits";
-            }
-            $metaStr = $meta ? ' [' . implode(', ', $meta) . ']' : '';
-
-            TelnetUtils::writeLine($conn,
-                TelnetUtils::colorize(str_pad("{$num})", 4), TelnetUtils::ANSI_YELLOW) .
-                TelnetUtils::colorize($name, TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD) .
-                TelnetUtils::colorize($metaStr, TelnetUtils::ANSI_DIM)
+            $selected = $shell->chooseFromList(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.doors.title', '=== Door Games ===', [], $state['locale']),
+                $items,
+                [
+                    'prompt' => $this->server->t('ui.terminalserver.doors.enter_choice', 'Select a door or Q to return: ', [], $state['locale']),
+                    'empty_message' => $this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale']),
+                ]
             );
-
-            if ($desc !== '') {
-                $maxWidth = max(20, $cols - 7);
-                $wrapped = wordwrap($desc, $maxWidth, "\n", true);
-                foreach (explode("\n", $wrapped) as $line) {
-                    TelnetUtils::writeLine($conn, TelnetUtils::colorize('     ' . $line, TelnetUtils::ANSI_DIM));
-                }
+            if ($selected === null) {
+                return;
             }
-        }
 
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.enter_choice', 'Enter number to play, or Q to return: ', [], $state['locale']), TelnetUtils::ANSI_DIM));
+            $entry = $doorList[$selected];
+            $doorName = $entry['data']['name'] ?? $entry['id'];
+            $this->server->logAction($state['username'] ?? 'unknown', "Doors: launched \"{$doorName}\"");
+            $this->launchDoor($conn, $state, $session, $entry['id'], $doorName);
+            // Return to the door menu so users can launch another door or back out explicitly.
+            continue;
+        }
     }
 
     /**

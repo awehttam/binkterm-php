@@ -446,7 +446,7 @@ class BbsSession
 
         $this->showSystemNews($conn, $state);
         $bulletinsHandler->showUnread($conn, $state, $session);
-        $shoutboxHandler->show($conn, $state, $session, 5, false);
+        $shoutboxHandler->show($conn, $state, $session, 20, false);
 
         if (Config::env('ENABLE_INTERESTS') === 'true') {
             $interestsHandler->showOnboardingHintIfNeeded($conn, $state, $session);
@@ -2155,6 +2155,7 @@ class BbsSession
      */
     private function showWhosOnline($conn, array &$state, string $session, ?callable $redrawFn = null): void
     {
+        $shell = TerminalShellFactory::create($this, $state);
         $response = $this->apiRequest('GET', '/api/whosonline', null, $session);
         $rawUsers = $response['data']['users']          ?? [];
         $minutes  = $response['data']['online_minutes'] ?? 15;
@@ -2173,10 +2174,9 @@ class BbsSession
         }
 
         if (!$users) {
-            TelnetUtils::showAlertDialog(
+            $shell->showAlert(
                 $conn,
                 $state,
-                $this,
                 $this->t('ui.terminalserver.server.whos_online.title', "Who's Online (last {minutes} minutes)", ['minutes' => $minutes], $state['locale']),
                 $this->t('ui.terminalserver.server.whos_online.empty', 'No users online.', [], $state['locale']),
                 'info'
@@ -2204,10 +2204,9 @@ class BbsSession
         }, $users);
 
         while (true) {
-            $result = TelnetUtils::showSelectableDialog(
+            $result = $shell->showSelectableDialog(
                 $conn,
                 $state,
-                $this,
                 $title,
                 $items,
                 $this->t('ui.terminalserver.server.whos_online.status_view', 'View Profile', [], $locale),
@@ -2230,10 +2229,9 @@ class BbsSession
 
             $profileResp = $this->apiRequest('GET', '/api/user/public-profile/' . (int)$selectedUser['user_id'], null, $session);
             if (($profileResp['status'] ?? 0) !== 200 || !is_array($profileResp['data']['profile'] ?? null)) {
-                TelnetUtils::showAlertDialog(
+                $shell->showAlert(
                     $conn,
                     $state,
-                    $this,
                     $this->t('ui.terminalserver.profile.title', 'User Profile', [], $locale),
                     $this->t('ui.terminalserver.profile.load_failed', 'Failed to load user profile.', [], $locale),
                     'error'
@@ -2241,7 +2239,7 @@ class BbsSession
                 continue;
             }
 
-            TelnetUtils::showPublicProfileViewer($conn, $state, $this, $profileResp['data']['profile']);
+            $shell->showPublicProfileViewer($conn, $state, $profileResp['data']['profile']);
             if ($redrawFn !== null) {
                 $redrawFn();
             }
@@ -2268,8 +2266,8 @@ class BbsSession
             );
         }
 
-        $boxRenderer = new TerminalBoxRenderer($this);
-        $boxRenderer->showPagedBox(
+        $shell = TerminalShellFactory::create($this, $state);
+        $shell->showPagedBox(
             $conn,
             $state,
             'SYSTEM NEWS',
@@ -2655,7 +2653,36 @@ class BbsSession
         }
         if ($ord === 10)                         { return ['ENTER',     false, false]; }
         if ($ord === 8 || $ord === 127)          { return ['BACKSPACE', false, false]; }
-        if ($ord >= 32 && $ord < 127)            { return ['CHAR:' . $char, false, false]; }
+        if ($ord >= 32 && $ord < 127) {
+            // Menu hotkeys are often typed as "L<Enter>" or similar. Swallow an
+            // immediately queued line terminator so prompt-driven submenu screens
+            // do not see that leftover Enter as an empty response and auto-exit.
+            $read = [$conn]; $write = $except = null;
+            if (@stream_select($read, $write, $except, 0, 50000) > 0) {
+                $next = $this->readRawChar($conn, $state);
+                if ($next !== null) {
+                    $nextOrd = ord($next[0]);
+                    if ($nextOrd === 13) {
+                        // Telnet clients commonly send CRLF or CRNUL for Enter.
+                        // We already consumed the CR; discard one immediate trailing
+                        // LF/NUL as part of the same terminator sequence.
+                        $read = [$conn]; $write = $except = null;
+                        if (@stream_select($read, $write, $except, 0, 50000) > 0) {
+                            $trail = $this->readRawChar($conn, $state);
+                            if ($trail !== null) {
+                                $trailOrd = ord($trail[0]);
+                                if ($trailOrd !== 10 && $trailOrd !== 0) {
+                                    $state['pushback'] = ($state['pushback'] ?? '') . $trail;
+                                }
+                            }
+                        }
+                    } elseif ($nextOrd !== 10 && $nextOrd !== 0) {
+                        $state['pushback'] = ($state['pushback'] ?? '') . $next;
+                    }
+                }
+            }
+            return ['CHAR:' . $char, false, false];
+        }
         if ($ord === 11)                         { return ['CTRL_K',   false, false]; }
 
         return ['', false, false];

@@ -51,6 +51,7 @@ class NetmailHandler
     public function show($conn, array &$state, string $session): void
     {
         $this->server->logAction($state['username'] ?? 'unknown', "Netmail: read message list");
+        $shell = TerminalShellFactory::create($this->server, $state);
         $savedState = $this->loadSavedListState($session);
         $page          = $savedState['page'];
         $perPage       = MailUtils::getMessagesPerPage($state);
@@ -154,7 +155,8 @@ class NetmailHandler
                 $this->server->t($titleKey, $titleFallback, ['page' => $page, 'total' => $totalPages], $locale),
                 TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             );
-            $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $displayMessages, $page, $totalPages, $selectedIndex, $extraKeys, $extraStatusSegments, $multiSelectOptions, $helpItems);
+            $shell = TerminalShellFactory::create($this->server, $state);
+            $result = $shell->showMessageList($conn, $state, $title, $displayMessages, $page, $totalPages, $selectedIndex, $extraKeys, $extraStatusSegments, $multiSelectOptions, $helpItems);
             $selectedIndex = $result['selectedIndex'];
             $currentSelectedId = isset($messages[$selectedIndex]['id']) ? (int)$messages[$selectedIndex]['id'] : null;
             $this->saveListState($session, $page, $currentSelectedId, $folder, $sort, $state['csrf_token'] ?? null);
@@ -208,20 +210,18 @@ class NetmailHandler
                 case 'mark_selected_read':
                     $selectedCount = count($selectedMessageIds);
                     if ($selectedCount === 0) {
-                        TelnetUtils::showAlertDialog(
+                        $shell->showAlert(
                             $conn,
                             $state,
-                            $this->server,
                             $this->server->t('ui.terminalserver.netmail.mark_selected_title', 'Mark Selected Read', [], $locale),
                             $this->server->t('ui.terminalserver.netmail.mark_selected_none', 'No messages are selected.', [], $locale),
                             'error'
                         );
                         break;
                     }
-                    $choice = TelnetUtils::showConfirmDialog(
+                    $choice = $shell->showConfirmDialog(
                         $conn,
                         $state,
-                        $this->server,
                         $this->server->t('ui.terminalserver.netmail.mark_selected_title', 'Mark Selected Read', [], $locale),
                         $this->server->t('ui.terminalserver.netmail.mark_selected_prompt', 'Mark {count} selected message(s) as read?', ['count' => $selectedCount], $locale),
                         [
@@ -232,10 +232,9 @@ class NetmailHandler
                     );
                     if ($choice === 'y') {
                         $markResult = $this->markSelectedMessagesRead($session, $selectedMessageIds, $locale, $state['csrf_token'] ?? null);
-                        TelnetUtils::showAlertDialog(
+                        $shell->showAlert(
                             $conn,
                             $state,
-                            $this->server,
                             $this->server->t('ui.terminalserver.netmail.mark_selected_title', 'Mark Selected Read', [], $locale),
                             $markResult['message'],
                             $markResult['success'] ? 'info' : 'error'
@@ -328,11 +327,11 @@ class NetmailHandler
 
         $existingDrafts = MailUtils::getDrafts($this->apiBase, $session, 'netmail');
         if (!$isReply && !$isForward && !empty($existingDrafts)) {
+            $shell = TerminalShellFactory::create($this->server, $state);
             while (true) {
-                $choice = TelnetUtils::showConfirmDialog(
+                $choice = $shell->showConfirmDialog(
                     $conn,
                     $state,
-                    $this->server,
                     $this->server->t('ui.terminalserver.compose.drafts_prompt_title', 'Drafts Found', [], $state['locale']),
                     $this->server->t('ui.terminalserver.compose.drafts_prompt_message', 'Resume a saved draft or start a new message?', [], $state['locale']),
                     [
@@ -350,10 +349,12 @@ class NetmailHandler
                     break;
                 }
 
+                $shell = TerminalShellFactory::create($this->server, $state);
                 $picked = MailUtils::pickDraft(
                     $conn,
                     $state,
                     $this->server,
+                    $shell,
                     $this->apiBase,
                     $session,
                     'netmail',
@@ -384,44 +385,35 @@ class NetmailHandler
         }
 
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.compose_title', '=== Compose Netmail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
-        TelnetUtils::writeLine($conn, '');
-
-        $abHint = TelnetUtils::colorize(
-            ' ' . $this->server->t('ui.terminalserver.compose.address_book_hint', '[? Address Book]', [], $state['locale']),
-            TelnetUtils::ANSI_DIM
-        );
+        $shell = TerminalShellFactory::create($this->server, $state);
 
         // Helper: redraw the compose header after returning from the picker
         $redrawHeader = function() use ($conn, $state): void {
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.netmail.compose_title', '=== Compose Netmail ===', [], $state['locale']),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, '');
         };
 
         // --- To Name ---
         $toNameLabel = $this->server->t('ui.terminalserver.compose.to_name', 'To Name: ', [], $state['locale']);
         $toNameBase  = TelnetUtils::colorize($toNameLabel, TelnetUtils::ANSI_CYAN);
 
-        $buildToNamePrompt = function(string $default) use ($toNameBase, $abHint): string {
-            if ($default !== '') {
-                return $toNameBase . TelnetUtils::colorize("[{$default}] ", TelnetUtils::ANSI_YELLOW);
-            }
-            return $toNameBase . $abHint . ' ';
+        $buildToNamePrompt = function(string $default) use ($toNameBase): string {
+            return $toNameBase . ' ';
         };
 
         $toName = null;
         while ($toName === null) {
-            $input = $this->server->prompt($conn, $state, $buildToNamePrompt($toNameDefault), true);
+            $input = $shell->promptText(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.netmail.compose_title', 'Compose Netmail', [], $state['locale']),
+                $buildToNamePrompt($toNameDefault),
+                ['prefill' => $toNameDefault, 'footer_hint' => '?=Address Book', 'inline_prompt' => true]
+            );
             if ($input === null) {
                 return;
             }
             if (trim($input) === '?') {
-                $picked = TelnetUtils::runAddressPicker($conn, $state, $this->server, $this->apiBase, $session, $state['locale']);
+                $picked = $shell->showAddressPicker($conn, $state, $this->apiBase, $session);
                 $redrawHeader();
                 if ($picked !== null) {
                     $toNameDefault    = $picked['name'];
@@ -444,21 +436,24 @@ class NetmailHandler
         $toAddressLabel = $this->server->t('ui.terminalserver.compose.to_address', 'To Address: ', [], $state['locale']);
         $toAddressBase  = TelnetUtils::colorize($toAddressLabel, TelnetUtils::ANSI_CYAN);
 
-        $buildToAddressPrompt = function(string $default) use ($toAddressBase, $abHint): string {
-            if ($default !== '') {
-                return $toAddressBase . TelnetUtils::colorize("[{$default}] ", TelnetUtils::ANSI_YELLOW);
-            }
-            return $toAddressBase . $abHint . ' ';
+        $buildToAddressPrompt = function(string $default) use ($toAddressBase): string {
+            return $toAddressBase . ' ';
         };
 
         $toAddress = null;
         while ($toAddress === null) {
-            $input = $this->server->prompt($conn, $state, $buildToAddressPrompt($toAddressDefault), true);
+            $input = $shell->promptText(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.netmail.compose_title', 'Compose Netmail', [], $state['locale']),
+                $buildToAddressPrompt($toAddressDefault),
+                ['prefill' => $toAddressDefault, 'footer_hint' => '?=Address Book', 'inline_prompt' => true]
+            );
             if ($input === null) {
                 return;
             }
             if (trim($input) === '?') {
-                $picked = TelnetUtils::runAddressPicker($conn, $state, $this->server, $this->apiBase, $session, $state['locale']);
+                $picked = $shell->showAddressPicker($conn, $state, $this->apiBase, $session);
                 $redrawHeader();
                 if ($picked !== null) {
                     $toAddressDefault = $picked['address'];
@@ -469,10 +464,13 @@ class NetmailHandler
         }
 
         $subjectPrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.subject', 'Subject: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
-        if ($subjectDefault) {
-            $subjectPrompt .= TelnetUtils::colorize("[{$subjectDefault}] ", TelnetUtils::ANSI_YELLOW);
-        }
-        $subject = $this->server->prompt($conn, $state, $subjectPrompt, true);
+        $subject = $shell->promptText(
+            $conn,
+            $state,
+            $this->server->t('ui.terminalserver.netmail.compose_title', 'Compose Netmail', [], $state['locale']),
+            $subjectPrompt,
+            ['prefill' => $subjectDefault, 'inline_prompt' => true]
+        );
         if ($subject === null) {
             return;
         }
@@ -480,8 +478,8 @@ class NetmailHandler
             $subject = $subjectDefault;
         }
 
-        TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.enter_message', 'Enter your message below:', [], $state['locale']), TelnetUtils::ANSI_GREEN));
+        // TelnetUtils::writeLine($conn, '');
+        // TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.enter_message', 'Enter your message below:', [], $state['locale']), TelnetUtils::ANSI_GREEN));
 
         $cols = $state['cols'] ?? 80;
 
@@ -510,23 +508,22 @@ class NetmailHandler
                     }
                 }
             }
-            $prompt = $defaultIndex > 0
-                ? TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.tagline_default', 'Tagline # [{default}] (Enter for Default): ', ['default' => $defaultIndex], $state['locale']), TelnetUtils::ANSI_CYAN)
-                : TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.tagline_none', 'Tagline # (Enter for None): ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
-            $choice = $this->server->prompt($conn, $state, $prompt, true);
-            if ($choice === null) {
+            $taglineChoices = ['0) None'];
+            foreach ($taglines as $idx => $tagline) {
+                $taglineChoices[] = sprintf('%d) %s', $idx + 1, $tagline);
+            }
+            $choiceIndex = $shell->chooseFromList(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.compose.tagline_title', 'Tagline', [], $state['locale']),
+                $taglineChoices,
+                ['selected_index' => $defaultIndex]
+            );
+            if ($choiceIndex === null) {
                 return;
             }
-            $choice = trim($choice);
-            if ($choice === '') {
-                if ($defaultIndex > 0) {
-                    $selectedTagline = $taglines[$defaultIndex - 1];
-                }
-            } elseif (ctype_digit($choice)) {
-                $num = (int)$choice;
-                if ($num > 0 && $num <= count($taglines)) {
-                    $selectedTagline = $taglines[$num - 1];
-                }
+            if ($choiceIndex > 0) {
+                $selectedTagline = $taglines[$choiceIndex - 1] ?? '';
             }
         }
 
@@ -534,6 +531,8 @@ class NetmailHandler
             $signature = MailUtils::getUserSignature($this->apiBase, $session);
             $initialText = MailUtils::appendSignatureToCompose($initialText, $signature);
         }
+
+        $shell = TerminalShellFactory::create($this->server, $state);
 
         $saveDraftHandler = function(string $draftText) use (
             $session,
@@ -620,6 +619,7 @@ class NetmailHandler
      */
     private function displayMessage($conn, array &$state, string $session, int $page, int $perPage, int $totalPages, int $index, string $folder = 'inbox', string $sort = 'date_desc'): array
     {
+        $shell = TerminalShellFactory::create($this->server, $state);
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage, $folder, $sort);
             $msg = $messages[$index] ?? null;
@@ -726,10 +726,10 @@ class NetmailHandler
             $viewerExtraKeys = ['x' => 'delete', 'DELETE' => 'delete', 'b' => 'save', 't' => 'textdownload', 'e' => 'emailforward'];
             $viewerExtraKeys['f'] = 'forward';
 
-            $result = TelnetUtils::runMessageViewer(
+            $shell = TerminalShellFactory::create($this->server, $state);
+            $result = $shell->showMessageViewer(
                 $conn,
                 $state,
-                $this->server,
                 $view['headerLines'],
                 $view['wrappedLines'],
                 $view['statusLine'],
@@ -741,7 +741,8 @@ class NetmailHandler
                 $imageRefs,
                 $imageFn,
                 $viewerExtraKeys,
-                $helpItems
+                $helpItems,
+                ['help_overlay' => TelnetUtils::getDefaultStyleProfile()['help_overlay']]
             );
 
             switch ($result['action']) {
@@ -792,13 +793,13 @@ class NetmailHandler
                     break;
                 case 'emailforward':
                     $csrfToken = $state['csrf_token'] ?? null;
-                    TelnetUtils::showWorkingOverlay($conn, $state, $this->server, 'Forwarding message to email...');
+                    $shell->showWorkingOverlay($conn, $state, 'Forwarding message to email...');
                     $fwdResult = TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/messages/netmail/' . $id . '/forward-email', null, $session, 3, $csrfToken);
                     if ($fwdResult['data']['success'] ?? false) {
-                        TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Email Forward', 'Forwarded to your email address.', 'info');
+                        $shell->showAlert($conn, $state, 'Email Forward', 'Forwarded to your email address.', 'info');
                     } else {
                         $errMsg = $fwdResult['data']['error'] ?? 'Failed to forward message.';
-                        TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Email Forward', $errMsg, 'error');
+                        $shell->showAlert($conn, $state, 'Email Forward', $errMsg, 'error');
                     }
                     break;
                 case 'save':
@@ -812,7 +813,7 @@ class NetmailHandler
                     }
                     $isSaved = !$isSaved;
                     $detail['data']['is_saved'] = $isSaved;
-                    TelnetUtils::showAlertDialog($conn, $state, $this->server, 'Bookmark', $confirmMsg, 'info');
+                    $shell->showAlert($conn, $state, 'Bookmark', $confirmMsg, 'info');
                     break;
             }
         }
@@ -957,10 +958,10 @@ class NetmailHandler
             );
         };
 
-        $choice = TelnetUtils::showConfirmDialog(
+        $shell = TerminalShellFactory::create($this->server, $state);
+        $choice = $shell->showConfirmDialog(
             $conn,
             $state,
-            $this->server,
             $this->server->t('ui.terminalserver.echomail.sort_title', 'Sort Order', [], $locale),
             $this->server->t(
                 'ui.terminalserver.echomail.sort_prompt',
@@ -995,8 +996,9 @@ class NetmailHandler
     {
         $locale = $state['locale'] ?? 'en';
 
-        $choice = TelnetUtils::showConfirmDialog(
-            $conn, $state, $this->server,
+        $shell = TerminalShellFactory::create($this->server, $state);
+        $choice = $shell->showConfirmDialog(
+            $conn, $state,
             $this->server->t('ui.terminalserver.netmail.delete_confirm_title', 'Delete Message?', [], $locale),
             $this->server->t('ui.terminalserver.netmail.delete_confirm_body', 'This cannot be undone.', [], $locale),
             ['y' => $this->server->t('ui.terminalserver.server.confirm_yes', 'Confirm', [], $locale),

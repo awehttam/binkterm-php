@@ -50,7 +50,7 @@ class BulletinsHandler
      */
     private function showBulletins($conn, array &$state, string $session, array $bulletins, bool $markRead): void
     {
-        $box = new TerminalBoxRenderer($this->server);
+        $shell = TerminalShellFactory::create($this->server, $state);
         $ids = [];
         $width = max(40, min(92, (int)($state['cols'] ?? 80) - 8));
 
@@ -70,7 +70,7 @@ class BulletinsHandler
                 ['current' => $index + 1, 'total' => count($bulletins)],
                 $state['locale']
             );
-            $key = $box->showPagedBox($conn, $state, $title, $lines, $prompt, 2, ['CHAR:s', 'CHAR:S'], TerminalBoxRenderer::SCHEME_BULLETINS);
+            $key = $shell->showPagedBox($conn, $state, $title, $lines, $prompt, 2, ['CHAR:s', 'CHAR:S'], ['color_scheme' => TerminalBoxRenderer::SCHEME_BULLETINS]);
             if ($key === 'CHAR:s' || $key === 'CHAR:S') {
                 break;
             }

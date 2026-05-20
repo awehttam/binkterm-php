@@ -29,34 +29,25 @@ class InterestsHandler
      */
     public function show($conn, array &$state, string $session): void
     {
+        $shell = TerminalShellFactory::create($this->server, $state);
+
         while (true) {
             $userId    = (int)($state['user_id'] ?? 0);
             $interests = $this->fetchInterests($userId);
             $locale    = $state['locale'];
 
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.interests.title', 'Interests', [], $locale),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, '');
-
             if (empty($interests)) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->server->t('ui.terminalserver.interests.none', 'No interests are available.', [], $locale),
-                    TelnetUtils::ANSI_YELLOW
-                ));
-                TelnetUtils::writeLine($conn, '');
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
-                    TelnetUtils::ANSI_YELLOW
-                ));
-                $this->server->readKeyWithIdleCheck($conn, $state);
+                $shell->showText(
+                    $conn,
+                    $state,
+                    $this->server->t('ui.terminalserver.interests.title', 'Interests', [], $locale),
+                    [$this->server->t('ui.terminalserver.interests.none', 'No interests are available.', [], $locale)]
+                );
                 return;
             }
 
+            $items = [];
             foreach ($interests as $idx => $interest) {
-                $num        = $idx + 1;
                 $subscribed = !empty($interest['subscribed']);
                 $badge      = $subscribed
                     ? TelnetUtils::colorize('[+]', TelnetUtils::ANSI_GREEN)
@@ -70,41 +61,39 @@ class InterestsHandler
                     $locale
                 );
 
-                TelnetUtils::writeLine($conn, sprintf(
-                    ' %2d) %s %s %s',
-                    $num,
+                $items[] = sprintf(
+                    '%s %s %s',
                     $badge,
                     $name,
                     TelnetUtils::colorize($countLabel, TelnetUtils::ANSI_DIM)
-                ));
+                );
             }
 
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, $this->server->t(
-                'ui.terminalserver.interests.prompt',
-                'Enter # to view, Q to return:',
-                [],
-                $locale
-            ));
-
-            $choice = $this->server->prompt($conn, $state, '> ', true);
-            if ($choice === null || strtolower(trim($choice)) === 'q' || trim($choice) === '') {
+            $choice = $shell->chooseFromList(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.interests.title', 'Interests', [], $locale),
+                $items,
+                [
+                    'prompt' => '> ',
+                ]
+            );
+            if ($choice === null) {
                 return;
             }
 
-            $idx = (int)trim($choice) - 1;
-            if (!isset($interests[$idx])) {
+            if (!isset($interests[$choice])) {
                 continue;
             }
 
-            $this->server->logAction($state['username'] ?? 'unknown', 'Interests: viewed "' . ($interests[$idx]['name'] ?? '') . '"');
-            $this->showDetail($conn, $state, $session, $interests[$idx]);
+            $this->server->logAction($state['username'] ?? 'unknown', 'Interests: viewed "' . ($interests[$choice]['name'] ?? '') . '"');
+            $this->showDetail($conn, $state, $session, $interests[$choice], $shell);
         }
     }
 
     // ── Detail screen ─────────────────────────────────────────────────────────
 
-    private function showDetail($conn, array &$state, string $session, array $interest): void
+    private function showDetail($conn, array &$state, string $session, array $interest, TerminalShellInterface $shell): void
     {
         $locale = $state['locale'];
         $id     = (int)($interest['id'] ?? 0);
@@ -118,89 +107,48 @@ class InterestsHandler
             }
 
             $subscribed = !empty($fresh['subscribed']);
-            $cols       = max(40, (int)($state['cols'] ?? 80));
-
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                (string)($fresh['name'] ?? ''),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, '');
-
-            if (!empty($fresh['description'])) {
-                TelnetUtils::writeWrapped($conn, (string)$fresh['description'], $cols - 2);
-                TelnetUtils::writeLine($conn, '');
-            }
-
-            $statusLabel = $subscribed
-                ? TelnetUtils::colorize(
-                    $this->server->t('ui.terminalserver.interests.subscribed', 'Subscribed', [], $locale),
-                    TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD
-                )
-                : TelnetUtils::colorize(
-                    $this->server->t('ui.terminalserver.interests.not_subscribed', 'Not subscribed', [], $locale),
-                    TelnetUtils::ANSI_YELLOW
-                );
-            TelnetUtils::writeLine($conn, $this->server->t(
-                'ui.terminalserver.interests.status_label',
-                'Status: {status}',
-                ['status' => ''],
-                $locale
-            ) . $statusLabel);
-            TelnetUtils::writeLine($conn, '');
-
-            // Echo areas inline
             $resp  = TelnetUtils::apiRequest($this->apiBase, 'GET', "/api/interests/{$id}/echoareas", null, $session);
             $areas = $resp['data']['echoareas'] ?? [];
+            $detailLines = $this->buildDetailLines($fresh, $subscribed, $areas, $locale);
+            $shell->renderPanel($conn, $state, (string)($fresh['name'] ?? ''), $detailLines);
+            $actionPrompt = $subscribed
+                ? $this->server->t('ui.terminalserver.interests.current_status_subscribed', 'Current status: Subscribed', [], $locale)
+                : $this->server->t('ui.terminalserver.interests.current_status_unsubscribed', 'Current status: Not subscribed', [], $locale);
+            $allowedKeys = $subscribed ? ['u', 'q'] : ['s', 'q'];
 
-            if (!empty($areas)) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->server->t('ui.terminalserver.interests.areas_heading', 'Echo Areas:', [], $locale),
-                    TelnetUtils::ANSI_BOLD
-                ));
-                foreach ($areas as $area) {
-                    $tag  = strtoupper((string)($area['tag'] ?? ''));
-                    $desc = (string)($area['description'] ?? '');
-                    $line = sprintf('  %-20s %s', $tag, $desc);
-                    TelnetUtils::writeLine($conn, mb_substr($line, 0, $cols - 1));
-                }
-                TelnetUtils::writeLine($conn, '');
-            }
-
-            // Actions
-            if ($subscribed) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->server->t('ui.terminalserver.interests.action_unsubscribe', 'U) Unsubscribe', [], $locale),
-                    TelnetUtils::ANSI_YELLOW
-                ));
-            } else {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->server->t('ui.terminalserver.interests.action_subscribe', 'S) Subscribe', [], $locale),
-                    TelnetUtils::ANSI_GREEN
-                ));
-            }
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.interests.action_quit', 'Q) Back', [], $locale));
-            TelnetUtils::writeLine($conn, '');
-
-            $choice = $this->server->prompt($conn, $state, '> ', true);
+            $choice = $shell->promptKey(
+                $conn,
+                $state,
+                (string)($fresh['name'] ?? ''),
+                $actionPrompt,
+                $allowedKeys,
+                [
+                    'redraw_fn' => function () use ($conn, &$state, $shell, $fresh, $subscribed, $areas, $locale): void {
+                        $shell->renderPanel($conn, $state, (string)($fresh['name'] ?? ''), $this->buildDetailLines($fresh, $subscribed, $areas, $locale));
+                    },
+                    'labels' => $subscribed
+                        ? ['u' => $this->server->t('ui.terminalserver.interests.action_unsubscribe_label', 'Unsubscribe', [], $locale), 'q' => $this->server->t('ui.terminalserver.interests.action_quit_label', 'Back', [], $locale)]
+                        : ['s' => $this->server->t('ui.terminalserver.interests.action_subscribe_label', 'Subscribe', [], $locale), 'q' => $this->server->t('ui.terminalserver.interests.action_quit_label', 'Back', [], $locale)],
+                    'default' => 'q',
+                ]
+            );
             if ($choice === null) {
                 return;
             }
-            $choice = strtolower(trim($choice));
 
             if ($choice === 'q' || $choice === '') {
                 return;
             } elseif ($choice === 's' && !$subscribed) {
-                $this->subscribe($conn, $state, $session, $fresh);
+                $this->subscribe($conn, $state, $session, $fresh, $shell);
             } elseif ($choice === 'u' && $subscribed) {
-                $this->unsubscribe($conn, $state, $session, $fresh);
+                $this->unsubscribe($conn, $state, $session, $fresh, $shell);
             }
         }
     }
 
     // ── Actions ───────────────────────────────────────────────────────────────
 
-    private function subscribe($conn, array &$state, string $session, array $interest): void
+    private function subscribe($conn, array &$state, string $session, array $interest, TerminalShellInterface $shell): void
     {
         $locale = $state['locale'];
         $id     = (int)($interest['id'] ?? 0);
@@ -210,27 +158,27 @@ class InterestsHandler
             [], $session, 3, $state['csrf_token'] ?? null
         );
 
-        TelnetUtils::writeLine($conn, '');
         if (($resp['data']['success'] ?? false) === true) {
             $this->server->logAction($state['username'] ?? 'unknown', 'Interests: subscribed to "' . ($interest['name'] ?? '') . '"');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $shell->showAlert(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.interests.title', 'Interests', [], $locale),
                 $this->server->t('ui.terminalserver.interests.subscribe_ok', 'Subscribed successfully.', [], $locale),
-                TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD
-            ));
+                'info'
+            );
         } else {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $shell->showAlert(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.interests.title', 'Interests', [], $locale),
                 $this->server->t('ui.terminalserver.interests.subscribe_failed', 'Failed to subscribe.', [], $locale),
-                TelnetUtils::ANSI_RED
-            ));
+                'error'
+            );
         }
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $locale),
-            TelnetUtils::ANSI_YELLOW
-        ));
-        $this->server->readKeyWithIdleCheck($conn, $state);
     }
 
-    private function unsubscribe($conn, array &$state, string $session, array $interest): void
+    private function unsubscribe($conn, array &$state, string $session, array $interest, TerminalShellInterface $shell): void
     {
         $locale = $state['locale'];
         $id     = (int)($interest['id'] ?? 0);
@@ -240,24 +188,72 @@ class InterestsHandler
             [], $session, 3, $state['csrf_token'] ?? null
         );
 
-        TelnetUtils::writeLine($conn, '');
         if (($resp['data']['success'] ?? false) === true) {
             $this->server->logAction($state['username'] ?? 'unknown', 'Interests: unsubscribed from "' . ($interest['name'] ?? '') . '"');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $shell->showAlert(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.interests.title', 'Interests', [], $locale),
                 $this->server->t('ui.terminalserver.interests.unsubscribe_ok', 'Unsubscribed successfully.', [], $locale),
-                TelnetUtils::ANSI_GREEN
-            ));
+                'info'
+            );
         } else {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $shell->showAlert(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.interests.title', 'Interests', [], $locale),
                 $this->server->t('ui.terminalserver.interests.unsubscribe_failed', 'Failed to unsubscribe.', [], $locale),
-                TelnetUtils::ANSI_RED
-            ));
+                'error'
+            );
         }
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $locale),
-            TelnetUtils::ANSI_YELLOW
-        ));
-        $this->server->readKeyWithIdleCheck($conn, $state);
+    }
+
+    private function renderDetailScreen($conn, array &$state, array $fresh, bool $subscribed, array $areas, string $locale): void
+    {
+        $shell = TerminalShellFactory::create($this->server, $state);
+        $shell->renderPanel($conn, $state, (string)($fresh['name'] ?? ''), $this->buildDetailLines($fresh, $subscribed, $areas, $locale));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $areas
+     * @return string[]
+     */
+    private function buildDetailLines(array $fresh, bool $subscribed, array $areas, string $locale): array
+    {
+        $lines = [];
+
+        if (!empty($fresh['description'])) {
+            $lines[] = (string)$fresh['description'];
+            $lines[] = '';
+        }
+
+        $statusLabel = $subscribed
+            ? TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.interests.subscribed', 'Subscribed', [], $locale),
+                TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD
+            )
+            : TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.interests.not_subscribed', 'Not subscribed', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            );
+        $lines[] = $this->server->t(
+            'ui.terminalserver.interests.status_label',
+            'Status: {status}',
+            ['status' => ''],
+            $locale
+        ) . $statusLabel;
+        $lines[] = '';
+
+        if (!empty($areas)) {
+            $lines[] = $this->server->t('ui.terminalserver.interests.areas_heading', 'Echo Areas:', [], $locale);
+            foreach ($areas as $area) {
+                $tag  = strtoupper((string)($area['tag'] ?? ''));
+                $desc = (string)($area['description'] ?? '');
+                $lines[] = sprintf('  %-20s %s', $tag, $desc);
+            }
+        }
+
+        return $lines;
     }
 
     // ── DB helpers ────────────────────────────────────────────────────────────

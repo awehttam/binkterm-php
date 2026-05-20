@@ -27,32 +27,24 @@ class BbsListHandler
     public function show($conn, array &$state, string $session): void
     {
         $locale  = $state['locale'];
+        $shell   = TerminalShellFactory::create($this->server, $state);
         $perPage = max(5, ($state['rows'] ?? 24) - 3);
         $page    = 1;
 
         $entries = $this->fetchEntries();
 
         if (empty($entries)) {
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $shell->showText(
+                $conn,
+                $state,
                 $this->server->t(
                     'ui.terminalserver.bbslist.title',
                     'BBS Directory ({total} systems)',
                     ['total' => 0],
                     $locale
                 ),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.bbslist.empty', 'No BBS listings available.', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ));
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ));
-            $this->server->readKeyWithIdleCheck($conn, $state);
+                [$this->server->t('ui.terminalserver.bbslist.empty', 'No BBS listings available.', [], $locale)]
+            );
             return;
         }
 
@@ -112,7 +104,7 @@ class BbsListHandler
                 TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             );
 
-            $result        = TelnetUtils::runSelectableList($conn, $state, $this->server, $title, $rows, $page, $totalPages, $selectedIndex, $statusBar);
+            $result        = $shell->showSelectableList($conn, $state, $title, $rows, $page, $totalPages, $selectedIndex, $statusBar);
             $selectedIndex = $result['selectedIndex'];
 
             switch ($result['action']) {
@@ -132,28 +124,18 @@ class BbsListHandler
                     $entryIndex = ($page - 1) * $perPage + $result['index'];
                     if (isset($entries[$entryIndex])) {
                         $this->server->logAction($state['username'] ?? 'unknown', 'BBS List: viewed "' . ($entries[$entryIndex]['name'] ?? '') . '"');
-                        $this->showDetail($conn, $state, $entries[$entryIndex]);
+                        $this->showDetail($conn, $state, $entries[$entryIndex], $shell);
                     }
                     break;
             }
         }
     }
 
-    private function showDetail($conn, array &$state, array $entry): void
+    private function showDetail($conn, array &$state, array $entry, TerminalShellInterface $shell): void
     {
         $locale = $state['locale'];
         $cols   = max(40, (int)($state['cols'] ?? 80));
-
-        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            (string)($entry['name'] ?? ''),
-            TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-        ));
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            str_repeat('-', min(60, $cols - 2)),
-            TelnetUtils::ANSI_DIM
-        ));
-        TelnetUtils::writeLine($conn, '');
+        $lines  = [];
 
         $fields = [
             ['ui.terminalserver.bbslist.detail.sysop',    'Sysop',    $entry['sysop'] ?? ''],
@@ -177,24 +159,26 @@ class BbsListHandler
                 continue;
             }
             $label = $this->server->t($key, $defaultLabel, [], $locale);
-            TelnetUtils::writeLine($conn, sprintf(
+            $lines[] = sprintf(
                 '  %s %s',
                 TelnetUtils::colorize(str_pad($label . ':', $labelWidth + 1), TelnetUtils::ANSI_BOLD),
                 $value
-            ));
+            );
         }
 
         if (!empty($entry['notes'])) {
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeWrapped($conn, (string)$entry['notes'], $cols - 4);
+            $lines[] = '';
+            foreach (TelnetUtils::wrapTextLines((string)$entry['notes'], max(20, $cols - 4)) as $line) {
+                $lines[] = $line;
+            }
         }
 
-        TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
-            TelnetUtils::ANSI_YELLOW
-        ));
-        $this->server->readKeyWithIdleCheck($conn, $state);
+        $shell->showText(
+            $conn,
+            $state,
+            (string)($entry['name'] ?? ''),
+            $lines
+        );
     }
 
     private function fetchEntries(): array

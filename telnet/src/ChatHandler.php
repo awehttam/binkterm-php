@@ -619,7 +619,7 @@ class ChatHandler
             return;
         }
 
-        $messages = $response['data']['messages'] ?? [];
+        $messages = $this->normalizeChatMessageBatch($response['data']['messages'] ?? []);
         foreach ($messages as &$message) {
             $this->normalizeMessage($message);
             if (($message['id'] ?? 0) > 0) {
@@ -804,7 +804,7 @@ class ChatHandler
 
         $targetKey = $this->targetKey($active['type'], (int)$active['id']);
         $snapshot = [];
-        foreach (($response['data']['messages'] ?? []) as $message) {
+        foreach ($this->normalizeChatMessageBatch($response['data']['messages'] ?? []) as $message) {
             $this->normalizeMessage($message);
             $messageId = (int)($message['id'] ?? 0);
             if ($messageId > 0) {
@@ -827,6 +827,21 @@ class ChatHandler
             'messages' => $mergedMessages,
         ];
         $chat['dirty'] = true;
+    }
+
+    /**
+     * Normalize a chat message batch into oldest-first order for rendering.
+     *
+     * The API returns newest-first snapshots, but the terminal viewport and
+     * merge logic both expect chronological order so the bottom of the pane
+     * can follow live updates naturally.
+     *
+     * @param array<int, array<string, mixed>> $messages
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeChatMessageBatch(array $messages): array
+    {
+        return array_values(array_reverse($messages));
     }
 
     /**
@@ -1526,8 +1541,8 @@ class ChatHandler
             $lines[] = $this->t('ui.terminalserver.chat.help.line7', 'Admins: in a room, focus Online Users and press K or B to moderate.', $state);
         }
 
-        $renderer = new TerminalBoxRenderer($this->server);
-        $renderer->showPagedBox(
+        $shell = TerminalShellFactory::create($this->server, $state);
+        $shell->showPagedBox(
             $conn,
             $state,
             $this->t('ui.terminalserver.chat.help.title', 'Local Chat Help', $state),
@@ -1539,8 +1554,8 @@ class ChatHandler
 
     private function showInfo($conn, array &$state, string $message): void
     {
-        $renderer = new TerminalBoxRenderer($this->server);
-        $renderer->showPagedBox(
+        $shell = TerminalShellFactory::create($this->server, $state);
+        $shell->showPagedBox(
             $conn,
             $state,
             $this->t('ui.terminalserver.chat.title', 'Local Chat', $state),
