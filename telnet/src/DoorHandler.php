@@ -241,90 +241,104 @@ class DoorHandler
      */
     private function relayLoop($conn, array &$state, $wsSock): void
     {
+        $connMeta = stream_get_meta_data($conn);
+        $wsMeta = stream_get_meta_data($wsSock);
+        $connWasBlocking = (bool)($connMeta['blocked'] ?? true);
+        $wsWasBlocking = (bool)($wsMeta['blocked'] ?? true);
+
         stream_set_blocking($conn, false);
         stream_set_blocking($wsSock, false);
 
         $wsBuf = '';
 
-        while (true) {
-            if (!is_resource($conn) || feof($conn)) {
-                break;
-            }
-            if (!is_resource($wsSock) || feof($wsSock)) {
-                break;
-            }
+        try {
+            while (true) {
+                if (!is_resource($conn) || feof($conn)) {
+                    break;
+                }
+                if (!is_resource($wsSock) || feof($wsSock)) {
+                    break;
+                }
 
-            $read = [$conn, $wsSock];
-            $w = $e = null;
+                $read = [$conn, $wsSock];
+                $w = $e = null;
 
-            if (@stream_select($read, $w, $e, 0, 50000) === false) {
-                break;
-            }
+                if (@stream_select($read, $w, $e, 0, 50000) === false) {
+                    break;
+                }
 
-            foreach ($read as $ready) {
-                if ($ready === $conn) {
-                    // --- Telnet client → bridge ---
-                    $raw = @fread($conn, 4096);
-                    if ($raw === false || ($raw === '' && feof($conn))) {
-                        return;
-                    }
-                    if ($raw === '') {
-                        continue;
-                    }
-
-                    // Strip IAC commands (capture NAWS resizes) and convert ANSI escape
-                    // sequences to Doorway protocol scan codes understood by DOS door games
-                    $processed = $this->processTelnetInput($raw, $state);
-                    if ($processed === '') {
-                        continue;
-                    }
-
-                    // Convert CP437 → UTF-8 before sending as WebSocket text frame
-                    $utf8 = function_exists('iconv') ? iconv('CP437', 'UTF-8//IGNORE', $processed) : $processed;
-                    if ($utf8 !== '' && $utf8 !== false) {
-                        $this->wsSend($wsSock, $utf8);
-                    }
-                } else {
-                    // --- Bridge → telnet client ---
-                    $chunk = @fread($wsSock, 4096);
-                    if ($chunk === false || ($chunk === '' && feof($wsSock))) {
-                        return;
-                    }
-                    if ($chunk === '') {
-                        continue;
-                    }
-
-                    $wsBuf .= $chunk;
-
-                    // Consume all complete WebSocket frames from the buffer
-                    while (true) {
-                        $result = $this->wsParseFrame($wsBuf);
-                        if ($result['type'] === 'incomplete') {
-                            break;
-                        }
-                        $wsBuf = $result['remaining'];
-
-                        if ($result['type'] === 'close') {
+                foreach ($read as $ready) {
+                    if ($ready === $conn) {
+                        // --- Telnet client → bridge ---
+                        $raw = @fread($conn, 4096);
+                        if ($raw === false || ($raw === '' && feof($conn))) {
                             return;
                         }
-                        if ($result['type'] === 'ping') {
-                            $this->wsSendPong($wsSock, $result['payload']);
-                            continue;
-                        }
-                        if ($result['type'] === 'pong' || $result['payload'] === '') {
+                        if ($raw === '') {
                             continue;
                         }
 
-                        // Convert UTF-8 → CP437 for the telnet client
-                        $cp437 = function_exists('iconv')
-                            ? iconv('UTF-8', 'CP437//IGNORE', $result['payload'])
-                            : $result['payload'];
+                        // Strip IAC commands (capture NAWS resizes) and convert ANSI escape
+                        // sequences to Doorway protocol scan codes understood by DOS door games
+                        $processed = $this->processTelnetInput($raw, $state);
+                        if ($processed === '') {
+                            continue;
+                        }
 
-                        if ($cp437 !== '' && $cp437 !== false) {
-                            $this->server->safeWrite($conn, $cp437);
+                        // Convert CP437 → UTF-8 before sending as WebSocket text frame
+                        $utf8 = function_exists('iconv') ? iconv('CP437', 'UTF-8//IGNORE', $processed) : $processed;
+                        if ($utf8 !== '' && $utf8 !== false) {
+                            $this->wsSend($wsSock, $utf8);
+                        }
+                    } else {
+                        // --- Bridge → telnet client ---
+                        $chunk = @fread($wsSock, 4096);
+                        if ($chunk === false || ($chunk === '' && feof($wsSock))) {
+                            return;
+                        }
+                        if ($chunk === '') {
+                            continue;
+                        }
+
+                        $wsBuf .= $chunk;
+
+                        // Consume all complete WebSocket frames from the buffer
+                        while (true) {
+                            $result = $this->wsParseFrame($wsBuf);
+                            if ($result['type'] === 'incomplete') {
+                                break;
+                            }
+                            $wsBuf = $result['remaining'];
+
+                            if ($result['type'] === 'close') {
+                                return;
+                            }
+                            if ($result['type'] === 'ping') {
+                                $this->wsSendPong($wsSock, $result['payload']);
+                                continue;
+                            }
+                            if ($result['type'] === 'pong' || $result['payload'] === '') {
+                                continue;
+                            }
+
+                            // Convert UTF-8 → CP437 for the telnet client
+                            $cp437 = function_exists('iconv')
+                                ? iconv('UTF-8', 'CP437//IGNORE', $result['payload'])
+                                : $result['payload'];
+
+                            if ($cp437 !== '' && $cp437 !== false) {
+                                $this->server->safeWrite($conn, $cp437);
+                            }
                         }
                     }
                 }
+            }
+        } finally {
+            if (is_resource($conn)) {
+                stream_set_blocking($conn, $connWasBlocking);
+            }
+            if (is_resource($wsSock)) {
+                stream_set_blocking($wsSock, $wsWasBlocking);
             }
         }
     }
