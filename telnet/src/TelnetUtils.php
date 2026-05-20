@@ -1354,18 +1354,41 @@ class TelnetUtils
         $toggleKey    = strtolower((string)($options['toggleKey'] ?? 'x'));
         $showMarker   = !empty($options['multiSelect']);
 
-        // --- Render full screen ---
-        self::safeWrite($conn, "\033[2J\033[H");
-        self::writeLine($conn, $title);
+        $statusLine = '';
 
-        foreach (array_slice($rows, 0, $maxDisplayRows) as $idx => $row) {
-            self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
-        }
+        // Render closure — always recomputes layout from current $state so it is safe
+        // to call both from within the key loop and as $state['repaint_fn'] from overlays.
+        // Mutable variables ($cols, $termRows, etc.) are captured by reference so that
+        // the key loop sees up-to-date values after each render.
+        $render = function() use (
+            $conn, &$state,
+            &$rows, &$title, &$statusLine, &$selectedIndex, &$selectedRows,
+            &$cols, &$termRows, &$inputRow, &$maxDisplayRows,
+            $showMarker, $listStartRow, $statusBar
+        ): void {
+            $cols           = $state['cols'] ?? 80;
+            $termRows       = $state['rows'] ?? 24;
+            $inputRow       = max(1, $termRows);
+            $maxDisplayRows = max(1, $inputRow - $listStartRow);
+            $statusLine     = self::buildStatusBar($statusBar, $cols);
 
-        $statusLine = self::buildStatusBar($statusBar, $cols);
-        self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
-        self::safeWrite($conn, $statusLine . "\r");
-        self::safeWrite($conn, "\033[{$inputRow};1H");
+            self::safeWrite($conn, "\033[2J\033[H");
+            self::writeLine($conn, $title);
+            foreach (array_slice($rows, 0, $maxDisplayRows) as $idx => $row) {
+                self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
+            }
+            self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
+            self::safeWrite($conn, $statusLine . "\r");
+            self::safeWrite($conn, "\033[{$inputRow};1H");
+        };
+
+        // Register as the active repaint function so overlays shown by the caller
+        // after this function returns can repaint the list on resize.  Intentionally
+        // not restored on exit — the next surface to become active will overwrite it.
+        $state['repaint_fn'] = $render;
+
+        // --- Initial render ---
+        $render();
 
         // --- Key loop ---
         $buffer        = '';
@@ -1382,10 +1405,6 @@ class TelnetUtils
             $newCols     = $state['cols'] ?? $cols;
             $newTermRows = $state['rows'] ?? $termRows;
             if ($newCols !== $cols || $newTermRows !== $termRows) {
-                $cols      = $newCols;
-                $termRows  = $newTermRows;
-                $inputRow  = max(1, $termRows);
-                $maxDisplayRows = max(1, $inputRow - $listStartRow);
                 if ($rebuildFn !== null) {
                     $rebuilt       = $rebuildFn($state);
                     $rows          = $rebuilt['rows'];
@@ -1393,16 +1412,8 @@ class TelnetUtils
                     $rowCount      = count($rows);
                     $selectedIndex = min($selectedIndex, max(0, $rowCount - 1));
                 }
-                $buffer     = '';
-                $statusLine = self::buildStatusBar($statusBar, $cols);
-                self::safeWrite($conn, "\033[2J\033[H");
-                self::writeLine($conn, $title);
-                foreach (array_slice($rows, 0, $maxDisplayRows) as $idx => $row) {
-                    self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
-                }
-                self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
-                self::safeWrite($conn, $statusLine . "\r");
-                self::safeWrite($conn, "\033[{$inputRow};1H");
+                $buffer = '';
+                $render(); // recomputes $cols, $termRows, $inputRow, $maxDisplayRows, $statusLine
             }
 
             if ($key === 'LEFT') {
@@ -1446,27 +1457,17 @@ class TelnetUtils
                 );
                 $newCols     = $state['cols'] ?? $cols;
                 $newTermRows = $state['rows'] ?? $termRows;
-                if (($newCols !== $cols || $newTermRows !== $termRows) && $rebuildFn !== null) {
-                    $cols      = $newCols;
-                    $termRows  = $newTermRows;
-                    $inputRow  = max(1, $termRows);
-                    $maxDisplayRows = max(1, $inputRow - $listStartRow);
-                    $rebuilt   = $rebuildFn($state);
-                    $rows      = $rebuilt['rows'];
-                    $title     = $rebuilt['title'];
-                    $rowCount  = count($rows);
-                    $selectedIndex = min($selectedIndex, max(0, $rowCount - 1));
+                if ($newCols !== $cols || $newTermRows !== $termRows) {
+                    if ($rebuildFn !== null) {
+                        $rebuilt   = $rebuildFn($state);
+                        $rows      = $rebuilt['rows'];
+                        $title     = $rebuilt['title'];
+                        $rowCount  = count($rows);
+                        $selectedIndex = min($selectedIndex, max(0, $rowCount - 1));
+                    }
                 }
-                $buffer     = '';
-                $statusLine = self::buildStatusBar($statusBar, $cols);
-                self::safeWrite($conn, "\033[2J\033[H");
-                self::writeLine($conn, $title);
-                foreach (array_slice($rows, 0, $maxDisplayRows) as $idx => $row) {
-                    self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
-                }
-                self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
-                self::safeWrite($conn, $statusLine . "\r");
-                self::safeWrite($conn, "\033[{$inputRow};1H");
+                $buffer = '';
+                $render(); // always redraws after help, recomputes layout if size changed
                 continue;
             }
 
@@ -2048,7 +2049,7 @@ class TelnetUtils
         $locale = $state['locale'] ?? 'en';
         $buildView = function(array $s) use ($server, $profile, $locale): array {
             $cols = $s['cols'] ?? 80;
-            $width = max(40, $cols - 2);
+            $width = max(10, $cols - 2);
             $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
 
             $notSpecified = $server->t('ui.terminalserver.profile.not_specified', 'Not specified', [], $locale);
@@ -2312,8 +2313,9 @@ class TelnetUtils
             if ($newRows !== $lastRows || $newCols !== $lastCols) {
                 $lastRows = $newRows;
                 $lastCols = $newCols;
-                if ($redrawFn !== null) {
-                    $redrawFn($state);
+                $fn = $redrawFn ?? $state['repaint_fn'] ?? null;
+                if ($fn !== null) {
+                    $fn($state);
                 }
                 $renderDialog();
             }
@@ -2325,6 +2327,186 @@ class TelnetUtils
                 if (isset($choices[$char])) {
                     return $char;
                 }
+            }
+        }
+    }
+
+    /**
+     * Show a centered single-line text input dialog.
+     *
+     * Renders a boxed overlay with a title, an optional prompt line, and an editable
+     * input field pre-filled with $prefill. The user can type, use Backspace/Delete,
+     * and press Enter to confirm or Escape to cancel. The dialog redraws automatically
+     * on terminal resize. If $redrawFn is supplied it is called before each redraw so
+     * the caller can repaint the screen behind the dialog.
+     *
+     * @param resource $conn
+     * @param callable|null $redrawFn  Called with ($state) before each resize redraw
+     * @return string|null  The entered string, or null on Escape / disconnect
+     */
+    public static function showInputDialog(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        string $prompt,
+        string $prefill = '',
+        int $maxLength = 255,
+        ?callable $redrawFn = null
+    ): ?string {
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        $ansi  = self::$ansiColorEnabled;
+        $bg    = self::ANSI_BG_BLUE;
+        $rst   = self::ANSI_RESET;
+        $frame = $bg . "\033[1;37m";
+        $body  = $bg . "\033[37m";
+
+        $value = $prefill;
+
+        // Returns [startRow, startCol, innerWidth, inputRow] for the current terminal size.
+        $layout = static function() use (&$state, $title, $prompt): array {
+            $rows       = $state['rows'] ?? 24;
+            $cols       = $state['cols'] ?? 80;
+            $innerWidth = max(30, min($cols - 6, 60));
+            $hasPrompt  = $prompt !== '';
+            $boxHeight  = $hasPrompt ? 8 : 7; // top + title + empty + [prompt +] input + empty + hint + bottom
+            $startRow   = max(1, (int)round(($rows - $boxHeight) / 2));
+            $startCol   = max(1, (int)round(($cols - ($innerWidth + 2)) / 2));
+            return [$startRow, $startCol, $innerWidth, $hasPrompt];
+        };
+
+        $render = function() use (
+            $conn, &$state, &$value,
+            $title, $prompt,
+            $tl, $tr, $bl, $br, $hz, $vt,
+            $ansi, $frame, $body, $rst,
+            $layout
+        ): array {
+            [$startRow, $startCol, $innerWidth, $hasPrompt] = $layout();
+
+            $titleText  = mb_substr($title, 0, $innerWidth - 2);
+            $titlePad   = (int)floor(($innerWidth - mb_strlen($titleText)) / 2);
+            $titleLine  = str_repeat(' ', $titlePad) . $titleText
+                        . str_repeat(' ', max(0, $innerWidth - mb_strlen($titleText) - $titlePad));
+
+            $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
+            $topBorder = $tl . str_repeat($hz, $innerWidth) . $tr;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+
+            // Input field: value left-aligned, truncated if longer than the field
+            $fieldWidth  = $innerWidth - 2;
+            $displayVal  = mb_substr($value, max(0, mb_strlen($value) - $fieldWidth));
+            $inputContent = $displayVal . str_repeat(' ', max(0, $fieldWidth - mb_strlen($displayVal)));
+            $cursorOffset = mb_strlen($displayVal);
+
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                $draw($r++, $body . $vt . $titleLine . $vt . $rst);
+                $draw($r++, $body . $emptyRow . $rst);
+                if ($hasPrompt) {
+                    $promptText    = mb_substr($prompt, 0, $fieldWidth);
+                    $promptContent = $promptText . str_repeat(' ', max(0, $fieldWidth - mb_strlen($promptText)));
+                    $draw($r++, $body . $vt . ' ' . $promptContent . ' ' . $vt . $rst);
+                }
+                // Input row: highlight the field with a different background
+                $inputRow = $r;
+                $draw($r++, $body . $vt . ' ' . "\033[1;37;44m" . $inputContent . $body . ' ' . $vt . $rst);
+                $draw($r++, $body . $emptyRow . $rst);
+                $hintText    = 'Enter=OK  Esc=Cancel';
+                $hintContent = str_pad(mb_substr($hintText, 0, $fieldWidth), $fieldWidth);
+                $draw($r++, $body . $vt . ' ' . $hintContent . ' ' . $vt . $rst);
+                $draw($r,   $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $vt . $titleLine . $vt);
+                $draw($r++, $emptyRow);
+                if ($hasPrompt) {
+                    $promptText    = mb_substr($prompt, 0, $fieldWidth);
+                    $promptContent = $promptText . str_repeat(' ', max(0, $fieldWidth - mb_strlen($promptText)));
+                    $draw($r++, $vt . ' ' . $promptContent . ' ' . $vt);
+                }
+                $inputRow = $r;
+                $draw($r++, $vt . ' ' . $inputContent . ' ' . $vt);
+                $draw($r++, $emptyRow);
+                $hintText    = 'Enter=OK  Esc=Cancel';
+                $hintContent = str_pad(mb_substr($hintText, 0, $fieldWidth), $fieldWidth);
+                $draw($r++, $vt . ' ' . $hintContent . ' ' . $vt);
+                $draw($r,   $btmBorder);
+            }
+
+            // Place cursor at end of input field and show it
+            $cursorCol = $startCol + 1 + $cursorOffset + 1; // box left + vt + space + chars
+            self::safeWrite($conn, "\033[{$inputRow};{$cursorCol}H\033[?25h");
+
+            return [$inputRow, $startCol, $innerWidth];
+        };
+
+        $render();
+
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $fn = $redrawFn ?? $state['repaint_fn'] ?? null;
+                if ($fn !== null) {
+                    $fn($state);
+                }
+                $render();
+                continue;
+            }
+
+            if ($key === null) {
+                return null;
+            }
+
+            if ($key === 'ENTER') {
+                self::safeWrite($conn, "\033[?25l");
+                return $value;
+            }
+
+            // ESC (bare) returns '' — treat as cancel, along with Ctrl+C
+            if ($key === '' || $key === 'CTRL_C') {
+                self::safeWrite($conn, "\033[?25l");
+                return null;
+            }
+
+            if ($key === 'BACKSPACE' || $key === 'DELETE') {
+                if ($value !== '') {
+                    $value = mb_substr($value, 0, mb_strlen($value) - 1);
+                    $render();
+                }
+                continue;
+            }
+
+            if (str_starts_with($key, 'CHAR:')) {
+                $char = substr($key, 5);
+                if (mb_strlen($value) < $maxLength && $char !== '') {
+                    $value .= $char;
+                    $render();
+                }
+                continue;
             }
         }
     }
@@ -2414,68 +2596,91 @@ class TelnetUtils
             $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
         }
 
-        $hint = 'Press Enter to continue';
-
-        $innerWidth = max(
-            24,
-            min(
-                max(mb_strlen($message) + 2, mb_strlen($title) + 4, mb_strlen($hint) + 4),
-                min($cols - 6, 58)
-            )
-        );
-        $boxWidth = $innerWidth + 2;
-
-        $titleLine = ' ' . $title . ' ';
-        $titleLen  = mb_strlen($titleLine);
-        $totalHz   = max(0, $innerWidth - $titleLen);
-        $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
-                        . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
-        $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
-        $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
-
-        $msgContent  = str_pad(mb_substr($message, 0, $innerWidth - 2), $innerWidth - 2);
-        $msgRow      = $vt . ' ' . $msgContent . ' ' . $vt;
-        $hintLen     = mb_strlen($hint);
-        $hintLeftPad = max(0, (int)floor(($innerWidth - $hintLen) / 2));
-        $hintRightPad = max(0, $innerWidth - $hintLen - $hintLeftPad);
-
-        $dialogHeight = 6; // top + empty + message + empty + hint + bottom
-        $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
-        $startCol = max(1, (int)round(($cols - $boxWidth)    / 2));
-
+        $hint  = 'Press Enter to continue';
         $ansi  = self::$ansiColorEnabled;
         $bg    = $style === 'error' ? self::ANSI_BG_RED : self::ANSI_BG_BLUE;
         $rst   = self::ANSI_RESET;
         $frame = $bg . "\033[1;37m";
         $body  = $bg . "\033[37m";
 
-        $draw = static function(int $r, string $line) use ($conn, $startCol): void {
-            self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+        $renderDialog = function() use ($conn, &$state, $title, $message, $hint, $tl, $tr, $bl, $br, $hz, $vt, $ansi, $frame, $body, $rst): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+
+            $innerWidth = max(
+                24,
+                min(
+                    max(mb_strlen($message) + 2, mb_strlen($title) + 4, mb_strlen($hint) + 4),
+                    min($cols - 6, 58)
+                )
+            );
+            $boxWidth = $innerWidth + 2;
+
+            $titleLine = ' ' . $title . ' ';
+            $titleLen  = mb_strlen($titleLine);
+            $totalHz   = max(0, $innerWidth - $titleLen);
+            $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
+                            . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+            $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+            $msgContent   = str_pad(mb_substr($message, 0, $innerWidth - 2), $innerWidth - 2);
+            $msgRow       = $vt . ' ' . $msgContent . ' ' . $vt;
+            $hintLen      = mb_strlen($hint);
+            $hintLeftPad  = max(0, (int)floor(($innerWidth - $hintLen) / 2));
+            $hintRightPad = max(0, $innerWidth - $hintLen - $hintLeftPad);
+
+            $dialogHeight = 6; // top + empty + message + empty + hint + bottom
+            $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+            $startCol = max(1, (int)round(($cols - $boxWidth)    / 2));
+
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                $draw($r++, $body  . $emptyRow  . $rst);
+                $draw($r++, $body  . $msgRow    . $rst);
+                $draw($r++, $body  . $emptyRow  . $rst);
+                $draw($r++, $body . $vt . str_repeat(' ', $hintLeftPad) . "\033[3m" . $hint . "\033[23m" . str_repeat(' ', $hintRightPad) . $body . $vt . $rst);
+                $draw($r,   $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $emptyRow);
+                $draw($r++, $msgRow);
+                $draw($r++, $emptyRow);
+                $draw($r++, $vt . str_repeat(' ', $hintLeftPad) . $hint . str_repeat(' ', $hintRightPad) . $vt);
+                $draw($r,   $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[?25h");
         };
 
-        self::safeWrite($conn, "\033[?25l");
+        $renderDialog();
 
-        $r = $startRow;
-        if ($ansi) {
-            $draw($r++, $frame . $topBorder . $rst);
-            $draw($r++, $body  . $emptyRow  . $rst);
-            $draw($r++, $body  . $msgRow    . $rst);
-            $draw($r++, $body  . $emptyRow  . $rst);
-            $draw($r++, $body . $vt . str_repeat(' ', $hintLeftPad) . "\033[3m" . $hint . "\033[23m" . str_repeat(' ', $hintRightPad) . $body . $vt . $rst);
-            $draw($r,   $frame . $btmBorder . $rst);
-        } else {
-            $draw($r++, $topBorder);
-            $draw($r++, $emptyRow);
-            $draw($r++, $msgRow);
-            $draw($r++, $emptyRow);
-            $draw($r++, $vt . str_repeat(' ', $hintLeftPad) . $hint . str_repeat(' ', $hintRightPad) . $vt);
-            $draw($r,   $btmBorder);
-        }
-
-        self::safeWrite($conn, "\033[?25h");
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
 
         while (true) {
             $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $fn = $state['repaint_fn'] ?? null;
+                if ($fn !== null) {
+                    $fn($state);
+                }
+                $renderDialog();
+                continue;
+            }
+
             if ($key === null || $key === 'ENTER') {
                 return;
             }

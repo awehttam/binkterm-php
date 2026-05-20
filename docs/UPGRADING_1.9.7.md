@@ -25,6 +25,9 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Cross-post Echomail to Multiple Areas from Terminal](#cross-post-echomail-to-multiple-areas-from-terminal)
   - [Terminal Message Drafts](#terminal-message-drafts)
   - [Terminal Who's Online Popup and Public Profile Viewer](#terminal-whos-online-popup-and-public-profile-viewer)
+  - [Echomail Ignore Rules in Terminal](#echomail-ignore-rules-in-terminal)
+  - [Terminal Resize Repaint](#terminal-resize-repaint)
+  - [Ctrl-C Cancels Compose Prompts](#ctrl-c-cancels-compose-prompts)
   - [PacketBBS](#packetbbs)
     - [Local Chat](#local-chat-packetbbs)
     - [PacketBBS Node Directory](#packetbbs-node-directory)
@@ -83,6 +86,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The terminal message viewer now exposes inline image viewing more broadly. The existing `I` image-viewer flow still supports Markdown `![alt](url)` images, and now also detects bare direct image URLs in regular message bodies when they end in `.png`, `.jpg`, `.jpeg`, or `.gif`.
 - The terminal echomail reader now supports bulk marking selected messages as read. Press `Space` to toggle the highlighted message into the selection set, then press `M` to mark only the selected message IDs as read via the existing bulk-read API. `Ctrl-K` now opens the selector help overlay so the status bar can stay short enough for 80-column terminals.
 - SSH terminal startup now discards any client input bytes already queued during PTY/shell setup before handing control to the BBS session. This prevents some SSH clients from accidentally skipping login or menu screens with phantom startup keypresses.
+- The terminal echomail message viewer now supports **forwarding messages** via the `F` key. Pressing `F` opens a dialog that lets the user choose between forwarding to another subscribed echoarea (opens the standard echomail compose screen pre-filled with a `Fwd:` subject, attribution header, and quoted body) or forwarding as a netmail to an FTN address (hands off to the netmail compose flow). No upgrade steps are required; no configuration changes are needed.
 - **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
 - **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Idle Timeout** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
 - **Configurable border style**: the box-drawing style used for all terminal frames and viewers can now be set per-system via **Admin → BBS Settings → Appearance → Terminal Server → Border Style**. Nine styles are available (Classic, Double, Single, Heavy, Rounded, Minimal, Mixed, Shadow, ASCII). Styles that require characters not supported by the connecting client's character set fall back automatically.
@@ -458,6 +462,32 @@ When a user starts a new compose flow in the terminal and saved drafts already e
 Inside the full-screen editor, `Ctrl+S` now saves the current message as a draft and keeps the user in the editor so they can continue writing. `Ctrl+Z` remains the send key. If the user resumed an existing draft and then sends successfully, that draft is deleted automatically so stale copies do not accumulate.
 
 No sysop configuration is required. The feature becomes available after the upgraded Telnet and SSH daemons are restarted.
+
+---
+
+## Echomail Ignore Rules in Terminal
+
+Two new terminal actions let users manage echomail ignore rules without leaving the BBS session.
+
+**G in the echomail message viewer** — while reading a message, pressing `G` opens an overlay with options to ignore the sender by name only, by name and FTN address, or by name, address, and a subject keyword. The subject keyword field is pre-filled with the current message subject. Any combination of the three fields is submitted to the existing `/api/messages/echomail/ignore-rules` endpoint, matching the behaviour of the web ignore-rule modal.
+
+**G on the echoarea list** — pressing `G` on the echoarea list opens a paginated ignore-rules management screen showing all of the user's current ignore rules. Selecting a rule and pressing `Enter` or `D` prompts for confirmation before deleting it via `DELETE /api/user/echomail-ignore-rules/{id}`.
+
+No sysop configuration is required. Both actions become available after the upgraded daemons are restarted.
+
+---
+
+## Terminal Resize Repaint
+
+Full-screen terminal surfaces now register a repaint closure in `$state['repaint_fn']` while they are active. Overlays (confirm dialogs, alert dialogs, input dialogs) call this closure on terminal resize before redrawing themselves, so the background surface is repainted cleanly at the new dimensions rather than leaving stale content behind. The pattern applies to the echomail and netmail message viewers, the selectable list widget used for the echoarea list and ignore-rules screen, and all overlay dialog types.
+
+Sysop action: none. The change is internal to the terminal rendering stack.
+
+---
+
+## Ctrl-C Cancels Compose Prompts
+
+Pressing `Ctrl-C` at any field prompt during netmail or echomail compose now immediately aborts the compose session and returns to the previous screen. Previously `Ctrl-C` was passed through as a literal character. The line reader now treats byte `0x03` as a cancellation signal, echoing `^C` and returning `null` to the caller, which the compose handlers already handle as an abort.
 
 ---
 

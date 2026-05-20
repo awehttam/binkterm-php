@@ -39,6 +39,7 @@ The admin save route (`POST /api/admin/appearance/term-menu-keys`) derives its v
 | Status bar from segments array | `TelnetUtils::buildStatusBar()` |
 | Centered confirmation / multi-option dialog overlay | `TelnetUtils::showConfirmDialog()` |
 | Centered alert/notice dialog (Enter to dismiss, color-coded info/error) | `TelnetUtils::showAlertDialog($conn, $state, $server, $title, $message, $style)` — `$style` is `'info'` (blue) or `'error'` (red) |
+| Centered single-line text input with pre-fill, resize support, Enter=OK, Esc/Ctrl+C=cancel | `TelnetUtils::showInputDialog($conn, $state, $server, $title, $prompt, $prefill, $maxLength, $redrawFn)` — returns string or null on cancel |
 | Centered "please wait" overlay (draws immediately, no key read; overdraw with showAlertDialog when done) | `TelnetUtils::showWorkingOverlay($conn, $state, $server, $message)` |
 | ANSI-wrapped text lines | `TelnetUtils::wrapTextLines()` |
 | Address book / nodelist picker (search → select → return name+address) | `TelnetUtils::runAddressPicker()` |

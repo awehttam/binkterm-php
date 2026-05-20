@@ -2677,6 +2677,10 @@ class BbsSession
                 if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\r\n"); }
                 return $line;
             }
+            if ($byte === 3) {
+                if (!empty($state['input_echo'])) { $this->safeWrite($conn, "^C\r\n"); }
+                return null;
+            }
             if ($byte === 8 || $byte === 127) {
                 if ($line !== '') {
                     $line = substr($line, 0, -1);

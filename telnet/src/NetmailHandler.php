@@ -314,9 +314,12 @@ class NetmailHandler
                 $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
             }
         } elseif ($isForward) {
-            $originalBody = $reply['message_text'] ?? '';
-            $originalAuthor = trim((string)($reply['from_name'] ?? 'Unknown'));
-            $forwardHeader = '--- Forwarded message from ' . ($originalAuthor !== '' ? $originalAuthor : 'Unknown') . ' ---';
+            $originalBody       = $reply['message_text'] ?? '';
+            $originalAuthor     = trim((string)($reply['from_name'] ?? 'Unknown'));
+            $forwardedFromArea  = (string)($reply['_forwarded_from_area'] ?? '');
+            $forwardHeader = $forwardedFromArea !== ''
+                ? '--- Forwarded from ' . $forwardedFromArea . ' by ' . ($originalAuthor !== '' ? $originalAuthor : 'Unknown') . ' ---'
+                : '--- Forwarded message from ' . ($originalAuthor !== '' ? $originalAuthor : 'Unknown') . ' ---';
             $initialText = $forwardHeader;
             if ($originalBody !== '') {
                 $initialText .= "\n\n" . MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
@@ -380,7 +383,7 @@ class NetmailHandler
             }
         }
 
-        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.compose_title', '=== Compose Netmail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
         TelnetUtils::writeLine($conn, '');
 
