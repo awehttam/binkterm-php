@@ -5,7 +5,7 @@
 - [Welcome to BinktermPHP](#welcome-to-binkterm-php)
 - [Project Architecture](#project-architecture)
 - [Directory Structure](#directory-structure)
-- [Development Workflow](#development-workflow)
+- [Development Workflow (AI Assisted)](#development-workflow-ai-assisted)
 - [API Documentation Generator](#api-documentation-generator)
 - [Localization (i18n)](#localization-i18n)
 - [Credits System](#credits-system-overview)
@@ -218,15 +218,30 @@ binkterm-php/
 
 ---
 
-## Development Workflow
+## Development Workflow (AI Assisted)
 
-### AI-Assisted Development
+### AI Workflows
 
-**`CLAUDE.md`** (repo root) is the primary configuration file for AI coding assistants working on this project. It contains project-specific conventions, architectural context, important gotchas, and skill references that are not obvious from the code alone. Any AI assistant — human or automated — should read it before starting work.
+**Claude is the primary AI development tool for this repository.** Project-specific workflows, guardrails, and subsystem instructions are written first for Claude-based tooling, and other AI agents are expected to follow the same conventions.
 
-**Skills** are reusable, step-by-step workflows stored as Markdown files in `.claude/commands/`. They are invoked inside Claude Code with `/skill-name` (e.g. `/new-migration`, `/bump-version`). Available skills are listed in `CLAUDE.md` and are announced at the start of each Claude Code session via `.claude/session-start.php`. When adding a new skill file, add it to both the skills list in `CLAUDE.md` **and** to `.claude/session-start.php` so it appears in the session banner.
+**`CLAUDE.md` at the repo root** is the starting point for project-wide guidance. It covers global coding conventions, architecture notes, documentation requirements, logging rules, i18n policy, cache-bump reminders, and workflow-specific instructions that apply across the whole codebase.
 
-**OpenAI Codex** (and other agents that follow the `AGENTS.md` convention) are directed to `CLAUDE.md` via `AGENTS.md` at the repo root. This means the same project conventions, guidelines, and context apply regardless of which AI assistant is being used.
+**Subsystem `CLAUDE.md` files** live in specific directories such as `scripts/`, `templates/`, `telnet/`, and `ssh/`. These add local rules for that part of the project. When working inside one of those subsystems, read the nearest `CLAUDE.md` in addition to the root file rather than treating the root file as the only source of guidance.
+
+**Registered skills** are stored in `.claude/commands/` as reusable workflow documents that Claude can invoke by name. Current project skills are:
+
+- `/bump-version`
+- `/logging-guide`
+- `/new-migration`
+- `/new-webdoor`
+- `/tackleissue`
+- `/usercredits-workflow`
+
+These skills are also listed in the root `CLAUDE.md` and announced at session start via `.claude/session-start.php`. When adding a new skill, register it in all three places so the workflow stays discoverable and consistent.
+
+**OpenAI Codex compatibility shim**: the repository includes an `AGENTS.md` file at the root that acts as a compatibility shim for tools that follow the `AGENTS.md` convention instead of Claude's native instruction loading. In practice, that shim points Codex back to the Claude-authored project instructions so the same rules and workflows still apply.
+
+**Claude skills vs. Codex phrasing**: the files in `.claude/commands/` are registered as slash-invoked skills for Claude tooling, but they are not registered as native skills in Codex. In Claude, a workflow may be invoked as `/tackleissue 123`. In Codex, use plain language that asks for the same workflow, for example `let's tackle issue #123` rather than `/tackleissue 123`.
 
 ### Code Conventions
 
