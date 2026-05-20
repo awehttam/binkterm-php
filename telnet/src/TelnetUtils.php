@@ -36,6 +36,23 @@ class TelnetUtils
     }
 
     /**
+     * Return the effective row count for selector-style screens.
+     *
+     * SyncTERM appears to keep its own local bottom status line even when the
+     * negotiated height includes that row. Selector screens anchor their
+     * status/input line to the last row, so reserve one row there for SyncTERM.
+     */
+    private static function getSelectorRows(array $state): int
+    {
+        $rows = (int)($state['rows'] ?? 24);
+        $ttype = strtoupper((string)($state['terminal_type'] ?? ''));
+        if ($ttype !== '' && str_contains($ttype, 'SYNCTERM')) {
+            return max(1, $rows - 1);
+        }
+        return max(1, $rows);
+    }
+
+    /**
      * Make an API request to the BBS
      *
      * @param string $base Base URL for API
@@ -1137,7 +1154,7 @@ class TelnetUtils
             $statusBar = array_merge($statusBar, $extraStatusSegments);
         }
 
-        $termRows = $state['rows'] ?? 24;
+        $termRows = self::getSelectorRows($state);
         $inputRow = max(1, $termRows);
 
         self::safeWrite($conn, "\033[2J\033[H");
@@ -1345,7 +1362,7 @@ class TelnetUtils
         array $helpItems = []
     ): array {
         $cols         = $state['cols'] ?? 80;
-        $termRows     = $state['rows'] ?? 24;
+        $termRows     = self::getSelectorRows($state);
         $rowCount     = count($rows);
         $listStartRow = 2;
         $inputRow     = max(1, $termRows);
@@ -1367,7 +1384,7 @@ class TelnetUtils
             $showMarker, $listStartRow, $statusBar
         ): void {
             $cols           = $state['cols'] ?? 80;
-            $termRows       = $state['rows'] ?? 24;
+            $termRows       = self::getSelectorRows($state);
             $inputRow       = max(1, $termRows);
             $maxDisplayRows = max(1, $inputRow - $listStartRow);
             $statusLine     = self::buildStatusBar($statusBar, $cols);
@@ -1403,7 +1420,7 @@ class TelnetUtils
 
             // Detect terminal resize (NAWS update may have changed state mid-read)
             $newCols     = $state['cols'] ?? $cols;
-            $newTermRows = $state['rows'] ?? $termRows;
+            $newTermRows = self::getSelectorRows($state);
             if ($newCols !== $cols || $newTermRows !== $termRows) {
                 if ($rebuildFn !== null) {
                     $rebuilt       = $rebuildFn($state);
@@ -1456,7 +1473,7 @@ class TelnetUtils
                     ]
                 );
                 $newCols     = $state['cols'] ?? $cols;
-                $newTermRows = $state['rows'] ?? $termRows;
+                $newTermRows = self::getSelectorRows($state);
                 if ($newCols !== $cols || $newTermRows !== $termRows) {
                     if ($rebuildFn !== null) {
                         $rebuilt   = $rebuildFn($state);

@@ -1110,8 +1110,9 @@ class BbsSession
         $lblBull = $this->t('ui.terminalserver.dashboard.label.bulletins', 'Bulletins', [], $locale);
         $lblCred = $this->t('ui.terminalserver.dashboard.label.credits',   'Credits',   [], $locale);
 
-        $dot    = $this->colorize(' · ', self::ANSI_BLUE);
-        $dotLen = 3; // visible width of ' · '
+        $separator = $this->dashboardBottomBarSeparator($state);
+        $dot    = $this->colorize($separator, self::ANSI_BLUE);
+        $dotLen = $this->terminalTextWidth($separator, $state);
         $parts  = [];
         $parts[] = $this->colorize($lblNM  . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['unread_netmail'],   self::ANSI_BOLD);
         $parts[] = $this->colorize($lblECH . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['new_echomail'],     self::ANSI_BOLD);
@@ -1157,6 +1158,18 @@ class BbsSession
         foreach ($lines as $line) {
             $this->writeLine($conn, $pad . $line);
         }
+    }
+
+    /**
+     * Return a charset-safe separator for the narrow-screen dashboard stats bar.
+     */
+    private function dashboardBottomBarSeparator(array $state): string
+    {
+        if ($this->shouldUseAsciiFallback($state) || $this->terminalCharset === 'cp437') {
+            return ' | ';
+        }
+
+        return ' · ';
     }
 
     /**
