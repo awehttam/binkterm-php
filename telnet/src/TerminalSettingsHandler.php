@@ -31,15 +31,18 @@ class TerminalSettingsHandler
         if ($preloaded !== null) {
             $state['terminal_charset']    = $preloaded['terminal_charset']    ?? null;
             $state['terminal_ansi_color'] = $preloaded['terminal_ansi_color'] ?? null;
+            $state['term_shell_mode']     = $preloaded['term_shell_mode']     ?? null;
         } else {
             $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user/terminal-settings', null, $session);
             if (($response['status'] ?? 0) === 200 && isset($response['data']['settings'])) {
                 $settings = $response['data']['settings'];
                 $state['terminal_charset']    = $settings['terminal_charset'] ?? null;
                 $state['terminal_ansi_color'] = $settings['terminal_ansi_color'] ?? null;
+                $state['term_shell_mode']     = $settings['term_shell_mode']     ?? null;
             } else {
                 $state['terminal_charset']    = null;
                 $state['terminal_ansi_color'] = null;
+                $state['term_shell_mode']     = null;
             }
         }
         $this->server->applyTerminalSettings($state);

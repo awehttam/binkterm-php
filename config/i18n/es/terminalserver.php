@@ -403,9 +403,13 @@ return [
     'ui.terminalserver.settings.discarded'             => 'Cambios descartados.',
 
     // Pestaña Terminal
-    'ui.terminalserver.settings.terminal.charset'      => 'Juego de caracteres',
-    'ui.terminalserver.settings.terminal.ansi_color'   => 'Color ANSI',
-    'ui.terminalserver.settings.terminal.run_wizard'   => 'Asistente de detección',
+    'ui.terminalserver.settings.terminal.charset'         => 'Juego de caracteres',
+    'ui.terminalserver.settings.terminal.ansi_color'      => 'Color ANSI',
+    'ui.terminalserver.settings.terminal.shell_mode'      => 'Estilo de interfaz',
+    'ui.terminalserver.settings.terminal.shell_mode_auto' => 'TUI pantalla completa (por defecto)',
+    'ui.terminalserver.settings.terminal.shell_mode_tui'  => 'TUI pantalla completa (siempre)',
+    'ui.terminalserver.settings.terminal.shell_mode_line' => 'Modo línea',
+    'ui.terminalserver.settings.terminal.run_wizard'      => 'Asistente de detección',
 
     // Pestaña Pantalla
     'ui.terminalserver.settings.display.messages_per_page' => 'Mensajes por página',

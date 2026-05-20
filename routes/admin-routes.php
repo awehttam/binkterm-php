@@ -1830,6 +1830,21 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ];
                 }
 
+                if (array_key_exists('terminal_server', $config)) {
+                    $ts = $config['terminal_server'];
+                    if (!is_array($ts)) {
+                        throw new Exception('Invalid terminal_server configuration');
+                    }
+                    $defaultShell = strtolower(trim((string)($ts['default_shell'] ?? 'tui')));
+                    if (!in_array($defaultShell, ['tui', 'line'], true)) {
+                        throw new Exception('Invalid terminal default shell');
+                    }
+                    $config['terminal_server'] = [
+                        'default_shell' => $defaultShell,
+                        'force_shell'   => !empty($ts['force_shell']),
+                    ];
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {

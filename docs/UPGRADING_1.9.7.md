@@ -52,6 +52,7 @@ In the web interface, chat rooms now render inline media automatically, inline c
   - [Ctrl-C Cancels Compose Prompts](#ctrl-c-cancels-compose-prompts)
   - [Terminal Who's Online Popup and Public Profile Viewer](#terminal-whos-online-popup-and-public-profile-viewer)
   - [DOS Door Return Path Stability](#dos-door-return-path-stability)
+  - [Terminal Interface Style Preference](#terminal-interface-style-preference)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
@@ -85,7 +86,8 @@ In the web interface, chat rooms now render inline media automatically, inline c
 - SSH terminal startup now discards any client input bytes already queued during PTY/shell setup before handing control to the BBS session. This prevents some SSH clients from accidentally skipping login or menu screens with phantom startup keypresses.
 - The terminal echomail message viewer now supports **forwarding messages** via the `F` key. Pressing `F` opens a dialog that lets the user choose between forwarding to another subscribed echoarea (opens the standard echomail compose screen pre-filled with a `Fwd:` subject, attribution header, and quoted body) or forwarding as a netmail to an FTN address (hands off to the netmail compose flow). No upgrade steps are required; no configuration changes are needed.
 - **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
-- **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Idle Timeout** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
+- **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Server Settings** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
+- **Terminal interface style preference**: users can now choose their preferred terminal interface style — full-screen TUI or line mode — from terminal settings. Sysops can set a system-wide default and optionally force all sessions to use it regardless of user preference. The **Terminal Idle Timeout** admin section has been renamed **Terminal Server Settings** to accommodate these new controls.
 - **Configurable border style**: the box-drawing style used for all terminal frames and viewers can now be set per-system via **Admin → BBS Settings → Appearance → Terminal Server → Border Style**. Nine styles are available (Classic, Double, Single, Heavy, Rounded, Minimal, Mixed, Shadow, ASCII). Styles that require characters not supported by the connecting client's character set fall back automatically.
 - **Terminal charset preference honoured**: the user's saved terminal character set preference (ASCII, CP437, or UTF-8) is now correctly respected. Previously a saved ASCII preference could be silently overridden by terminal auto-detection on UTF-8 capable clients.
 - Terminal users can now **delete a netmail message** from the message viewer by pressing `X` or the `Del` key. A confirmation dialog appears before the message is removed.
@@ -213,7 +215,7 @@ No sysop configuration is required. The change takes effect when the upgraded da
 
 ### Configurable Terminal Idle Timeout
 
-The idle warning and disconnect timeouts for terminal sessions (Telnet and SSH) are now configurable from **Admin → BBS Settings → Terminal Idle Timeout**. Previously these were hardcoded at 5 minutes to warning and 7 minutes to disconnect; those values are now the defaults and can be changed without editing code or config files. The disconnect timeout must always be set greater than the warning timeout.
+The idle warning and disconnect timeouts for terminal sessions (Telnet and SSH) are now configurable from **Admin → BBS Settings → Terminal Server Settings**. Previously these were hardcoded at 5 minutes to warning and 7 minutes to disconnect; those values are now the defaults and can be changed without editing code or config files. The disconnect timeout must always be set greater than the warning timeout.
 
 No additional admin setup is required. The daemon restart that follows a normal upgrade is sufficient.
 
@@ -524,6 +526,27 @@ No sysop configuration is required. The feature becomes available after the upgr
 The DOS door relay now restores the telnet client socket to its pre-door blocking mode before control returns to the regular terminal session. This keeps prompt-driven terminal flows operating normally after a door exits, including reopening the door menu, entering the nodelist browser, and using other line-input screens from the main menu.
 
 No sysop configuration is required. The change takes effect when the upgraded Telnet daemon is restarted.
+
+---
+
+### Terminal Interface Style Preference
+
+Users can now choose their terminal interface style from terminal settings. The setting appears on the **Terminal** tab under **Interface Style** and offers three options:
+
+| Option | Behaviour |
+|--------|-----------|
+| **Full-screen TUI (default)** | Uses the full-screen TUI unless the sysop's system default is set to line mode |
+| **Full-screen TUI (always)** | Always uses the full-screen TUI regardless of the system default |
+| **Line mode** | Always uses the line-mode shell |
+
+**Sysop controls** — a new **Terminal Server Settings** section in **Admin → BBS Settings** (previously labelled **Terminal Idle Timeout**, which remains in the same section) adds two options:
+
+- **Default interface style** — sets the system-wide default shell (Full-screen TUI or Line mode) used when a user's preference is **Auto** (the default for new users and existing users who have not changed the setting).
+- **Force shell** — when checked, every terminal session uses the system default regardless of the user's own preference. Individual user settings are ignored while this is enabled.
+
+The priority order is: Force shell (sysop) → explicit user preference (TUI or Line) → system default (Auto).
+
+No migration is required. The idle timeout fields remain in the same form as before under the renamed heading. The daemon restart that follows a normal upgrade is sufficient.
 
 ---
 

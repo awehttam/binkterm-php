@@ -64,6 +64,16 @@ class SettingsHandler
             $this->t('ui.terminalserver.settings.terminal.ansi_color', 'ANSI Color', $locale),
             ($termSettings['terminal_ansi_color'] ?? $state['terminal_ansi_color'] ?? 'yes') !== 'no'
         );
+        $shellModeField = new AnsiSelectField(
+            'term_shell_mode',
+            $this->t('ui.terminalserver.settings.terminal.shell_mode', 'Interface Style', $locale),
+            [
+                'auto' => $this->t('ui.terminalserver.settings.terminal.shell_mode_auto', 'Full-screen TUI (default)', $locale),
+                'tui'  => $this->t('ui.terminalserver.settings.terminal.shell_mode_tui',  'Full-screen TUI (always)',  $locale),
+                'line' => $this->t('ui.terminalserver.settings.terminal.shell_mode_line', 'Line mode',                 $locale),
+            ],
+            $termSettings['term_shell_mode'] ?? $state['term_shell_mode'] ?? 'auto'
+        );
         $wizardAction = new AnsiActionField(
             'run_wizard',
             $this->t('ui.terminalserver.settings.terminal.run_wizard', 'Run Detection Wizard', $locale),
@@ -79,6 +89,7 @@ class SettingsHandler
         $terminalForm = new AnsiForm();
         $terminalForm->addField($charsetField)
                      ->addField($colorField)
+                     ->addField($shellModeField)
                      ->addField($wizardAction);
 
         // --- Display tab ---
@@ -315,7 +326,7 @@ class SettingsHandler
             if ($result === 'save') {
                 $this->performSave(
                     $conn, $state, $session,
-                    $charsetField, $colorField,
+                    $charsetField, $colorField, $shellModeField,
                     $displayForm, $messagingForm, $profileForm
                 );
                 continue;
@@ -343,6 +354,7 @@ class SettingsHandler
         string $session,
         AnsiSelectField $charsetField,
         AnsiToggleField $colorField,
+        AnsiSelectField $shellModeField,
         AnsiForm $displayForm,
         AnsiForm $messagingForm,
         AnsiForm $profileForm
@@ -355,12 +367,13 @@ class SettingsHandler
         // ── Terminal settings ────────────────────────────────────────────────
         $newCharset    = (string)$charsetField->getValue();
         $newAnsiColor  = $colorField->getValue() ? 'yes' : 'no';
+        $newShellMode  = (string)$shellModeField->getValue();
 
         $termResp = TelnetUtils::apiRequest(
             $this->apiBase,
             'POST',
             '/api/user/terminal-settings',
-            ['terminal_charset' => $newCharset, 'terminal_ansi_color' => $newAnsiColor],
+            ['terminal_charset' => $newCharset, 'terminal_ansi_color' => $newAnsiColor, 'term_shell_mode' => $newShellMode],
             $session,
             3,
             $csrfToken
@@ -369,6 +382,7 @@ class SettingsHandler
             // Apply immediately so the rest of the session uses the new settings
             $state['terminal_charset']    = $newCharset;
             $state['terminal_ansi_color'] = $newAnsiColor;
+            $state['term_shell_mode']     = $newShellMode;
             $this->server->applyTerminalSettings($state);
         } else {
             $allOk = false;

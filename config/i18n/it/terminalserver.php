@@ -407,9 +407,13 @@ return [
     'ui.terminalserver.settings.discarded'             => 'Modifiche scartate.',
 
     // Terminal tab fields
-    'ui.terminalserver.settings.terminal.charset'      => 'Set di caratteri',
-    'ui.terminalserver.settings.terminal.ansi_color'   => 'Colore ANSI',
-    'ui.terminalserver.settings.terminal.run_wizard'   => 'Esegui configurazione guidata',
+    'ui.terminalserver.settings.terminal.charset'         => 'Set di caratteri',
+    'ui.terminalserver.settings.terminal.ansi_color'      => 'Colore ANSI',
+    'ui.terminalserver.settings.terminal.shell_mode'      => 'Stile interfaccia',
+    'ui.terminalserver.settings.terminal.shell_mode_auto' => 'TUI a schermo intero (predefinito)',
+    'ui.terminalserver.settings.terminal.shell_mode_tui'  => 'TUI a schermo intero (sempre)',
+    'ui.terminalserver.settings.terminal.shell_mode_line' => 'Modalità riga',
+    'ui.terminalserver.settings.terminal.run_wizard'      => 'Esegui configurazione guidata',
 
     // Display tab fields
     'ui.terminalserver.settings.display.messages_per_page' => 'Messaggi per pagina',

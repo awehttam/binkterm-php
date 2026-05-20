@@ -160,6 +160,25 @@ class BbsConfig
         return max(self::getTerminalIdleWarnSeconds() + 60, $minutes * 60);
     }
 
+    /**
+     * @return string The sysop-configured default shell: 'tui' or 'line'.
+     */
+    public static function getTerminalDefaultShell(): string
+    {
+        self::load();
+        $shell = strtolower(trim((string)(self::$config['terminal_server']['default_shell'] ?? 'tui')));
+        return in_array($shell, ['tui', 'line'], true) ? $shell : 'tui';
+    }
+
+    /**
+     * @return bool Whether the sysop forces all sessions to use the system default shell, ignoring user preference.
+     */
+    public static function getTerminalForceShell(): bool
+    {
+        self::load();
+        return !empty(self::$config['terminal_server']['force_shell']);
+    }
+
     public static function getEchomailModerationThreshold(): int
     {
         self::load();

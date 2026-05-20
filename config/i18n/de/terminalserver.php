@@ -405,9 +405,13 @@ return [
     'ui.terminalserver.settings.discarded'             => 'Änderungen verworfen.',
 
     // Terminal tab fields
-    'ui.terminalserver.settings.terminal.charset'      => 'Zeichensatz',
-    'ui.terminalserver.settings.terminal.ansi_color'   => 'ANSI-Farbe',
-    'ui.terminalserver.settings.terminal.run_wizard'   => 'Erkennungsassistenten starten',
+    'ui.terminalserver.settings.terminal.charset'         => 'Zeichensatz',
+    'ui.terminalserver.settings.terminal.ansi_color'      => 'ANSI-Farbe',
+    'ui.terminalserver.settings.terminal.shell_mode'      => 'Oberflächenstil',
+    'ui.terminalserver.settings.terminal.shell_mode_auto' => 'Vollbild-TUI (Standard)',
+    'ui.terminalserver.settings.terminal.shell_mode_tui'  => 'Vollbild-TUI (immer)',
+    'ui.terminalserver.settings.terminal.shell_mode_line' => 'Zeilenmodus',
+    'ui.terminalserver.settings.terminal.run_wizard'      => 'Erkennungsassistenten starten',
 
     // Display tab fields
     'ui.terminalserver.settings.display.messages_per_page' => 'Nachrichten pro Seite',

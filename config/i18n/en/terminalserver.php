@@ -407,9 +407,13 @@ return [
     'ui.terminalserver.settings.discarded'             => 'Changes discarded.',
 
     // Terminal tab fields
-    'ui.terminalserver.settings.terminal.charset'      => 'Character Set',
-    'ui.terminalserver.settings.terminal.ansi_color'   => 'ANSI Color',
-    'ui.terminalserver.settings.terminal.run_wizard'   => 'Run Detection Wizard',
+    'ui.terminalserver.settings.terminal.charset'         => 'Character Set',
+    'ui.terminalserver.settings.terminal.ansi_color'      => 'ANSI Color',
+    'ui.terminalserver.settings.terminal.shell_mode'      => 'Interface Style',
+    'ui.terminalserver.settings.terminal.shell_mode_auto' => 'Full-screen TUI (default)',
+    'ui.terminalserver.settings.terminal.shell_mode_tui'  => 'Full-screen TUI (always)',
+    'ui.terminalserver.settings.terminal.shell_mode_line' => 'Line mode',
+    'ui.terminalserver.settings.terminal.run_wizard'      => 'Run Detection Wizard',
 
     // Display tab fields
     'ui.terminalserver.settings.display.messages_per_page' => 'Messages Per Page',

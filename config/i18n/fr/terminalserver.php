@@ -319,9 +319,13 @@ return [
     'ui.terminalserver.settings.discarded'             => 'Modifications abandonnées.',
 
     // Onglet Terminal
-    'ui.terminalserver.settings.terminal.charset'      => 'Jeu de caractères',
-    'ui.terminalserver.settings.terminal.ansi_color'   => 'Couleur ANSI',
-    'ui.terminalserver.settings.terminal.run_wizard'   => 'Assistant de détection',
+    'ui.terminalserver.settings.terminal.charset'         => 'Jeu de caractères',
+    'ui.terminalserver.settings.terminal.ansi_color'      => 'Couleur ANSI',
+    'ui.terminalserver.settings.terminal.shell_mode'      => 'Style d\'interface',
+    'ui.terminalserver.settings.terminal.shell_mode_auto' => 'TUI plein écran (par défaut)',
+    'ui.terminalserver.settings.terminal.shell_mode_tui'  => 'TUI plein écran (toujours)',
+    'ui.terminalserver.settings.terminal.shell_mode_line' => 'Mode ligne',
+    'ui.terminalserver.settings.terminal.run_wizard'      => 'Assistant de détection',
 
     // Onglet Affichage
     'ui.terminalserver.settings.display.messages_per_page' => 'Messages par page',

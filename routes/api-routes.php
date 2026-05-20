@@ -9792,6 +9792,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $settings = [
             'terminal_charset'    => $meta->getValue((int)$userId, 'terminal_charset'),
             'terminal_ansi_color' => $meta->getValue((int)$userId, 'terminal_ansi_color'),
+            'term_shell_mode'     => $meta->getValue((int)$userId, 'term_shell_mode'),
         ];
         echo json_encode(['success' => true, 'settings' => $settings]);
     });
@@ -9803,7 +9804,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $body     = json_decode(file_get_contents('php://input'), true) ?? [];
         $settings = $body['settings'] ?? $body; // accept both wrapped and flat
-        $allowed  = ['terminal_charset' => ['utf8','cp437','ascii'], 'terminal_ansi_color' => ['yes','no']];
+        $allowed  = ['terminal_charset' => ['utf8','cp437','ascii'], 'terminal_ansi_color' => ['yes','no'], 'term_shell_mode' => ['auto','tui','line']];
         $meta     = new \BinktermPHP\UserMeta();
         foreach ($allowed as $key => $validValues) {
             if (isset($settings[$key])) {
@@ -12599,6 +12600,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'terminal' => [
                 'terminal_charset'    => $meta->getValue((int)$userId, 'terminal_charset'),
                 'terminal_ansi_color' => $meta->getValue((int)$userId, 'terminal_ansi_color'),
+                'term_shell_mode'     => $meta->getValue((int)$userId, 'term_shell_mode'),
             ],
             'idle' => [
                 'warn_seconds'       => \BinktermPHP\BbsConfig::getTerminalIdleWarnSeconds(),
