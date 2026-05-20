@@ -45,6 +45,12 @@ class NodelistBrowserHandler
                 $menuItems,
                 [
                     'prompt' => '> ',
+                    'show_numbers' => false,
+                    'key_to_index' => [
+                        'b' => 0,
+                        's' => 1,
+                    ],
+                    'quit_keys' => ['q'],
                 ]
             );
 

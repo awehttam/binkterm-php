@@ -578,7 +578,7 @@ class BbsSession
                 'interests'  => [$interestsOption, $lblInterests],
             ] as $_action => [$_key, $_label]) {
                 if ($_key !== null) {
-                    $flatItems[] = ['action' => $_action, 'label' => $_label];
+                    $flatItems[] = ['action' => $_action, 'label' => $_label, 'key' => $_key];
                 }
             }
 
@@ -799,7 +799,16 @@ class BbsSession
                 $menuData  = $computeMenuData();
                 $flatItems = $menuData['flatItems'];
                 $title     = $this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']);
-                $listItems = array_map(fn($item) => $item['label'], $flatItems);
+                $listItems = array_map(
+                    fn($item) => '[' . strtoupper((string)($item['key'] ?? '')) . '] ' . $item['label'],
+                    $flatItems
+                );
+                $keyToIndex = [];
+                foreach ($flatItems as $idx => $item) {
+                    if (!empty($item['key'])) {
+                        $keyToIndex[(string)$item['key']] = $idx;
+                    }
+                }
 
                 $selectedIndex = $shell->chooseFromList($conn, $state, $title, $listItems, [
                     'preamble_fn' => function () use ($conn): bool {
@@ -808,6 +817,10 @@ class BbsSession
                         }
                         return TelnetUtils::showScreenIfExists('mainmenu.ans', $this, $conn);
                     },
+                    'prompt' => $this->t('ui.terminalserver.server.menu.select_option', 'Select option:', [], $state['locale']) . ' ',
+                    'key_to_index' => $keyToIndex,
+                    'quit_keys' => array_filter(['q', $menuData['quitKey'] ?? null]),
+                    'show_numbers' => false,
                 ]);
                 $action = $selectedIndex !== null ? ($flatItems[$selectedIndex]['action'] ?? null) : 'quit';
             }
