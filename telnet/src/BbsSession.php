@@ -470,19 +470,145 @@ class BbsSession
                 'interests' => 'i', 'whosonline' => 'w', 'qwk' => 'k',
                 'bbslist' => 'b', 'nodelist'  => 'l', 'localchat' => 'c', 'quit' => 'q',
             ];
-        $keyToAction = []; // populated on each menu render in the else branch below
-        $renderMainMenu = function () use ($conn, &$state, &$dashboardStats, $menuKeys, $config, &$keyToAction): void {
-            $cols      = $state['cols'] ?? 80;
-            $termRows  = $state['rows'] ?? 24;
-            $menuWidth = min(76, $cols - 4);
-            $innerWidth= $menuWidth - 4;
-            $menuLeft  = max(0, (int)floor(($cols - $menuWidth) / 2));
-            $menuPad   = str_repeat(' ', $menuLeft);
-            $systemName= $config->getSystemName();
-            $chars     = $this->getLineDrawingChars();
-            $boxTop    = $this->encodeForTerminal($chars['tl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['tr']);
-            $boxBottom = $this->encodeForTerminal($chars['bl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['br']);
-            $divider   = $this->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $menuWidth - 2) . $chars['r_tee']);
+        // Computes active menu items, key→action map, and section arrays from current state.
+        // Called by both $renderMainMenu (TUI) and the LineShell chooseFromList path.
+        $computeMenuData = function () use (&$state, &$dashboardStats, $menuKeys): array {
+            $locale = $state['locale'];
+
+            $showShoutbox   = BbsConfig::isFeatureEnabled('shoutbox');
+            $showPolls      = BbsConfig::isFeatureEnabled('voting_booth');
+            $showDoors      = BbsConfig::isFeatureEnabled('webdoors');
+            $showFiles      = \BinktermPHP\FileAreaManager::isFeatureEnabled();
+            $showInterests  = Config::env('ENABLE_INTERESTS') === 'true';
+            $showQwk        = BbsConfig::isFeatureEnabled('qwk');
+            $showBbsList    = BbsConfig::isFeatureEnabled('bbs_directory');
+            $showNodelist   = $this->nodelistHasEntries();
+
+            $netmailKey       = $menuKeys['netmail']   ?? null;
+            $echomailKey      = $menuKeys['echomail']  ?? null;
+            $settingsKey      = $menuKeys['settings']  ?? null;
+            $quitKey          = $menuKeys['quit']      ?? null;
+            $localchatKey     = BbsConfig::isFeatureEnabled('chat') && isset($menuKeys['localchat']) ? $menuKeys['localchat'] : null;
+            $shoutboxOption   = $showShoutbox  && isset($menuKeys['shoutbox'])  ? $menuKeys['shoutbox']  : null;
+            $bulletinsOption  = $menuKeys['bulletins'] ?? null;
+            $pollsOption      = $showPolls     && isset($menuKeys['polls'])     ? $menuKeys['polls']     : null;
+            $doorsOption      = $showDoors     && isset($menuKeys['doors'])     ? $menuKeys['doors']     : null;
+            $filesOption      = $showFiles     && isset($menuKeys['files'])     ? $menuKeys['files']     : null;
+            $interestsOption  = $showInterests && isset($menuKeys['interests']) ? $menuKeys['interests'] : null;
+            $qwkOption        = $showQwk       && isset($menuKeys['qwk'])       ? $menuKeys['qwk']       : null;
+            $bbsListOption    = $showBbsList   && isset($menuKeys['bbslist'])   ? $menuKeys['bbslist']   : null;
+            $nodelistOption   = $showNodelist  && isset($menuKeys['nodelist'])  ? $menuKeys['nodelist']  : null;
+            $whosOnlineOption = $menuKeys['whosonline'] ?? null;
+
+            $norm = fn(string $text, string $prefix): string =>
+                $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($text, $prefix), $state);
+
+            $lblNetmail    = $norm($this->t('ui.terminalserver.server.menu.netmail',    'N) Netmail ({count} unread)', ['count' => $dashboardStats['unread_netmail']], $locale), 'N');
+            $lblEchomail   = $norm($this->t('ui.terminalserver.server.menu.echomail',   'E) Echomail ({count} new)',   ['count' => $dashboardStats['new_echomail']], $locale), 'E');
+            $lblQwk        = $norm($this->t('ui.terminalserver.server.menu.qwk',        'K) QWK Offline Mail', [], $locale), 'K');
+            $lblChat       = $norm($this->t('ui.terminalserver.server.menu.chat',       'C) Local Chat', [], $locale), 'C');
+            $lblWhosOnline = $norm($this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale), 'W');
+            $lblShoutbox   = $norm($this->t('ui.terminalserver.server.menu.shoutbox',   'S) Shoutbox', [], $locale), 'S');
+            $lblBulletins  = $norm($this->t('ui.terminalserver.server.menu.bulletins',  'U) Bulletins', [], $locale), 'U');
+            $lblPolls      = $norm($this->t('ui.terminalserver.server.menu.polls',      'P) Polls', [], $locale), 'P');
+            $lblDoors      = $norm($this->t('ui.terminalserver.server.menu.doors',      'D) Door Games', [], $locale), 'D');
+            $lblFiles      = $norm($this->t('ui.terminalserver.server.menu.files',      'F) Files', [], $locale), 'F');
+            $lblBbsList    = $norm($this->t('ui.terminalserver.server.menu.bbs_list',   'B) BBS Directory', [], $locale), 'B');
+            $lblNodelist   = $norm($this->t('ui.terminalserver.server.menu.nodelist',   'L) Node List', [], $locale), 'L');
+            $lblSettings   = $norm($this->t('ui.terminalserver.server.menu.settings',   'T) Settings', [], $locale), 'T');
+            $lblInterests  = $norm($this->t('ui.terminalserver.server.menu.interests',  'I) Interests', [], $locale), 'I');
+            $lblQuit       = $norm($this->t('ui.terminalserver.server.menu.quit',       'Q) Quit', [], $locale), 'Q');
+
+            // Two-column section arrays for TUI rendering: [UPPER_KEY, label]
+            $messagingItems = [];
+            if ($netmailKey !== null)      $messagingItems[] = [strtoupper($netmailKey), $lblNetmail];
+            if ($echomailKey !== null)     $messagingItems[] = [strtoupper($echomailKey), $lblEchomail];
+            if ($qwkOption !== null)       $messagingItems[] = [strtoupper($qwkOption), $lblQwk];
+            if ($bulletinsOption !== null) $messagingItems[] = [strtoupper($bulletinsOption), $lblBulletins];
+
+            $communityItems = [];
+            if ($whosOnlineOption !== null) $communityItems[] = [strtoupper($whosOnlineOption), $lblWhosOnline];
+            if ($localchatKey !== null)    $communityItems[] = [strtoupper($localchatKey), $lblChat];
+            if ($pollsOption !== null)     $communityItems[] = [strtoupper($pollsOption), $lblPolls];
+            if ($shoutboxOption !== null)  $communityItems[] = [strtoupper($shoutboxOption), $lblShoutbox];
+            if ($doorsOption !== null)     $communityItems[] = [strtoupper($doorsOption), $lblDoors];
+
+            $exploreItems = [];
+            if ($bbsListOption !== null)   $exploreItems[] = [strtoupper($bbsListOption), $lblBbsList];
+            if ($nodelistOption !== null)  $exploreItems[] = [strtoupper($nodelistOption), $lblNodelist];
+
+            $filesItems = $filesOption !== null ? [[strtoupper($filesOption), $lblFiles]] : [];
+            $settingsItems = [];
+            if ($settingsKey !== null)     $settingsItems[] = [strtoupper($settingsKey), $lblSettings];
+            if ($interestsOption !== null) $settingsItems[] = [strtoupper($interestsOption), $lblInterests];
+
+            // key → action map (TUI single-key dispatch)
+            $keyToAction = [];
+            foreach ([
+                'netmail'    => $netmailKey,    'echomail'   => $echomailKey,
+                'shoutbox'   => $shoutboxOption,'bulletins'  => $bulletinsOption,
+                'polls'      => $pollsOption,   'localchat'  => $localchatKey,
+                'interests'  => $interestsOption,'qwk'       => $qwkOption,
+                'doors'      => $doorsOption,   'files'      => $filesOption,
+                'bbslist'    => $bbsListOption, 'nodelist'   => $nodelistOption,
+                'whosonline' => $whosOnlineOption,'settings' => $settingsKey,
+                'quit'       => $quitKey,
+            ] as $_action => $_key) {
+                if ($_key !== null) {
+                    $keyToAction[$_key] = $_action;
+                }
+            }
+
+            // Flat ordered items for LineShell chooseFromList (quit omitted — null return = quit)
+            $flatItems = [];
+            foreach ([
+                'netmail'    => [$netmailKey, $lblNetmail],
+                'echomail'   => [$echomailKey, $lblEchomail],
+                'qwk'        => [$qwkOption, $lblQwk],
+                'bulletins'  => [$bulletinsOption, $lblBulletins],
+                'whosonline' => [$whosOnlineOption, $lblWhosOnline],
+                'localchat'  => [$localchatKey, $lblChat],
+                'polls'      => [$pollsOption, $lblPolls],
+                'shoutbox'   => [$shoutboxOption, $lblShoutbox],
+                'doors'      => [$doorsOption, $lblDoors],
+                'bbslist'    => [$bbsListOption, $lblBbsList],
+                'nodelist'   => [$nodelistOption, $lblNodelist],
+                'files'      => [$filesOption, $lblFiles],
+                'settings'   => [$settingsKey, $lblSettings],
+                'interests'  => [$interestsOption, $lblInterests],
+            ] as $_action => [$_key, $_label]) {
+                if ($_key !== null) {
+                    $flatItems[] = ['action' => $_action, 'label' => $_label];
+                }
+            }
+
+            return [
+                'keyToAction'    => $keyToAction,
+                'flatItems'      => $flatItems,
+                'messagingItems' => $messagingItems,
+                'communityItems' => $communityItems,
+                'exploreItems'   => $exploreItems,
+                'filesItems'     => $filesItems,
+                'settingsItems'  => $settingsItems,
+                'quitKey'        => $quitKey,
+                'quitLabel'      => $lblQuit,
+                'locale'         => $locale,
+            ];
+        };
+
+        $keyToAction = [];
+        $renderMainMenu = function () use ($conn, &$state, &$dashboardStats, $config, &$keyToAction, $computeMenuData): void {
+            $cols       = $state['cols'] ?? 80;
+            $termRows   = $state['rows'] ?? 24;
+            $menuWidth  = min(76, $cols - 4);
+            $innerWidth = $menuWidth - 4;
+            $menuLeft   = max(0, (int)floor(($cols - $menuWidth) / 2));
+            $menuPad    = str_repeat(' ', $menuLeft);
+            $systemName = $config->getSystemName();
+            $chars      = $this->getLineDrawingChars();
+            $boxTop     = $this->encodeForTerminal($chars['tl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['tr']);
+            $boxBottom  = $this->encodeForTerminal($chars['bl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['br']);
+            $divider    = $this->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $menuWidth - 2) . $chars['r_tee']);
 
             $this->safeWrite($conn, "\033[2J\033[H");
 
@@ -505,90 +631,22 @@ class BbsSession
             $this->writeLine($conn, $menuPad . $titleLine);
             $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_BLUE));
 
-            $showShoutbox   = BbsConfig::isFeatureEnabled('shoutbox');
-            $showPolls      = BbsConfig::isFeatureEnabled('voting_booth');
-            $showDoors      = BbsConfig::isFeatureEnabled('webdoors');
-            $showFiles      = \BinktermPHP\FileAreaManager::isFeatureEnabled();
-            $showInterests  = Config::env('ENABLE_INTERESTS') === 'true';
-            $showQwk        = BbsConfig::isFeatureEnabled('qwk');
-            $showBbsList    = BbsConfig::isFeatureEnabled('bbs_directory');
-            $showNodelist   = $this->nodelistHasEntries();
-            $locale         = $state['locale'];
-
-            $netmailKey       = $menuKeys['netmail']   ?? null;
-            $echomailKey      = $menuKeys['echomail']  ?? null;
-            $settingsKey      = $menuKeys['settings']  ?? null;
-            $quitKey          = $menuKeys['quit']      ?? null;
-            $localchatKey     = BbsConfig::isFeatureEnabled('chat') && isset($menuKeys['localchat']) ? $menuKeys['localchat'] : null;
-            $shoutboxOption   = $showShoutbox  && isset($menuKeys['shoutbox'])  ? $menuKeys['shoutbox']  : null;
-            $bulletinsOption  = $menuKeys['bulletins'] ?? null;
-            $pollsOption      = $showPolls     && isset($menuKeys['polls'])     ? $menuKeys['polls']     : null;
-            $doorsOption      = $showDoors     && isset($menuKeys['doors'])     ? $menuKeys['doors']     : null;
-            $filesOption      = $showFiles     && isset($menuKeys['files'])     ? $menuKeys['files']     : null;
-            $interestsOption  = $showInterests && isset($menuKeys['interests']) ? $menuKeys['interests'] : null;
-            $qwkOption        = $showQwk       && isset($menuKeys['qwk'])       ? $menuKeys['qwk']       : null;
-            $bbsListOption    = $showBbsList   && isset($menuKeys['bbslist'])   ? $menuKeys['bbslist']   : null;
-            $nodelistOption   = $showNodelist  && isset($menuKeys['nodelist'])  ? $menuKeys['nodelist']  : null;
-            $whosOnlineOption = $menuKeys['whosonline'] ?? null;
-
-            $keyToAction = [];
-            foreach ([
-                'netmail'    => $netmailKey,
-                'echomail'   => $echomailKey,
-                'shoutbox'   => $shoutboxOption,
-                'bulletins'  => $bulletinsOption,
-                'polls'      => $pollsOption,
-                'localchat'  => $localchatKey,
-                'interests'  => $interestsOption,
-                'qwk'        => $qwkOption,
-                'doors'      => $doorsOption,
-                'files'      => $filesOption,
-                'bbslist'    => $bbsListOption,
-                'nodelist'   => $nodelistOption,
-                'whosonline' => $whosOnlineOption,
-                'settings'   => $settingsKey,
-                'quit'       => $quitKey,
-            ] as $_action => $_key) {
-                if ($_key !== null) {
-                    $keyToAction[$_key] = $_action;
-                }
-            }
+            $data = $computeMenuData();
+            $keyToAction    = $data['keyToAction'];
+            $messagingItems = $data['messagingItems'];
+            $communityItems = $data['communityItems'];
+            $exploreItems   = $data['exploreItems'];
+            $filesItems     = $data['filesItems'];
+            $settingsItems  = $data['settingsItems'];
+            $quitKey        = $data['quitKey'];
+            $quitLabel      = $data['quitLabel'];
+            $locale         = $data['locale'];
 
             $colWidth = (int)floor(($menuWidth - 6) / 2);
             $empty    = str_repeat(' ', $colWidth);
 
-            $lblNetmail    = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.netmail',   'N) Netmail ({count} unread)', ['count' => $dashboardStats['unread_netmail']], $locale), 'N'), $state);
-            $lblEchomail   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.echomail',  'E) Echomail ({count} new)',   ['count' => $dashboardStats['new_echomail']], $locale), 'E'), $state);
-            $lblQwk        = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.qwk',       'K) QWK Offline Mail', [], $locale), 'K'), $state);
-            $lblChat       = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.chat',      'C) Local Chat', [], $locale), 'C'), $state);
-            $lblWhosOnline = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale), 'W'), $state);
-            $lblShoutbox   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.shoutbox',  'S) Shoutbox', [], $locale), 'S'), $state);
-            $lblBulletins  = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.bulletins', 'U) Bulletins', [], $locale), 'U'), $state);
-            $lblPolls      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.polls',     'P) Polls', [], $locale), 'P'), $state);
-            $lblDoors      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.doors',     'D) Door Games', [], $locale), 'D'), $state);
-            $lblFiles      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.files',     'F) Files', [], $locale), 'F'), $state);
-            $lblBbsList    = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.bbs_list',  'B) BBS Directory', [], $locale), 'B'), $state);
-            $lblNodelist   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.nodelist',  'L) Node List', [], $locale), 'L'), $state);
-            $lblSettings   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.settings',  'T) Settings', [], $locale), 'T'), $state);
-            $lblInterests  = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.interests', 'I) Interests', [], $locale), 'I'), $state);
-            $lblQuit       = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.quit',      'Q) Quit', [], $locale), 'Q'), $state);
-
             $rows = [];
             $anyPrevSection = false;
-
-            $messagingItems = [];
-            if ($netmailKey !== null) {
-                $messagingItems[] = [strtoupper($netmailKey), $lblNetmail];
-            }
-            if ($echomailKey !== null) {
-                $messagingItems[] = [strtoupper($echomailKey), $lblEchomail];
-            }
-            if ($qwkOption !== null) {
-                $messagingItems[] = [strtoupper($qwkOption), $lblQwk];
-            }
-            if ($bulletinsOption !== null) {
-                $messagingItems[] = [strtoupper($bulletinsOption), $lblBulletins];
-            }
 
             if (!empty($messagingItems)) {
                 $rows[] = [$this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.messaging', 'Messaging', [], $locale), $colWidth, $state), $empty];
@@ -599,31 +657,6 @@ class BbsSession
                     ];
                 }
                 $anyPrevSection = true;
-            }
-
-            $communityItems = [];
-            if ($whosOnlineOption !== null) {
-                $communityItems[] = [strtoupper($whosOnlineOption), $lblWhosOnline];
-            }
-            if ($localchatKey !== null) {
-                $communityItems[] = [strtoupper($localchatKey), $lblChat];
-            }
-            if ($pollsOption !== null) {
-                $communityItems[] = [strtoupper($pollsOption), $lblPolls];
-            }
-            if ($shoutboxOption !== null) {
-                $communityItems[] = [strtoupper($shoutboxOption), $lblShoutbox];
-            }
-            if ($doorsOption !== null) {
-                $communityItems[] = [strtoupper($doorsOption), $lblDoors];
-            }
-
-            $exploreItems = [];
-            if ($bbsListOption !== null) {
-                $exploreItems[] = [strtoupper($bbsListOption), $lblBbsList];
-            }
-            if ($nodelistOption !== null) {
-                $exploreItems[] = [strtoupper($nodelistOption), $lblNodelist];
             }
 
             if (!empty($communityItems) || !empty($exploreItems)) {
@@ -644,15 +677,6 @@ class BbsSession
                 $anyPrevSection = true;
             }
 
-            $filesItems = $filesOption !== null ? [[strtoupper($filesOption), $lblFiles]] : [];
-            $settingsItems = [];
-            if ($settingsKey !== null) {
-                $settingsItems[] = [strtoupper($settingsKey), $lblSettings];
-            }
-            if ($interestsOption !== null) {
-                $settingsItems[] = [strtoupper($interestsOption), $lblInterests];
-            }
-
             if (!empty($filesItems) || !empty($settingsItems)) {
                 if ($anyPrevSection) {
                     $rows[] = [$empty, $empty];
@@ -668,11 +692,10 @@ class BbsSession
                         isset($settingsItems[$j]) ? $this->menuItemCol($settingsItems[$j][0], $settingsItems[$j][1], $colWidth, $state) : $empty,
                     ];
                 }
-                $anyPrevSection = true;
             }
 
             if ($quitKey !== null) {
-                $rows[] = [$this->menuItemCol(strtoupper($quitKey), $lblQuit, $colWidth, $state), $empty];
+                $rows[] = [$this->menuItemCol(strtoupper($quitKey), $quitLabel, $colWidth, $state), $empty];
             }
 
             $maxMenuRows = max(0, $termRows - 8);
@@ -705,64 +728,82 @@ class BbsSession
                 break;
             }
 
-            if (($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("mainmenu.sixel", $this, $conn))
-                || TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
-                $this->writeLine($conn, '');
-            } else {
-                $renderMainMenu();
-            }
+            // Recreate shell each iteration so a resize can switch TUI ↔ Line
+            $shell  = TerminalShellFactory::create($this, $state);
+            $action = null;
 
-            $lastRenderCols = $state['cols'] ?? 80;
-            $lastRenderRows = $state['rows'] ?? 24;
-
-            $choice      = '';
-            $promptShown = false;
-            while ($choice === '') {
-                if (!$promptShown) {
-                    $this->safeWrite($conn, $this->colorize(
-                        $this->t('ui.terminalserver.server.menu.select_option', 'Select option:', [], $state['locale']),
-                        self::ANSI_DIM
-                    ));
-                    $promptShown = true;
+            if ($shell instanceof TuiShell) {
+                // TUI path: framed box (or custom art) + single-key dispatch
+                if (($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("mainmenu.sixel", $this, $conn))
+                    || TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
+                    $this->writeLine($conn, '');
+                    $menuData    = $computeMenuData();
+                    $keyToAction = $menuData['keyToAction'];
+                } else {
+                    $renderMainMenu();
                 }
 
-                $wasIdleWarned = $state['idle_warned'] ?? false;
-                [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
+                $lastRenderCols = $state['cols'] ?? 80;
+                $lastRenderRows = $state['rows'] ?? 24;
 
-                if ($shouldDisconnect) {
-                    $this->logDuration("Idle timeout", $username, $loginTime);
-                    break 2;
-                }
-                if ($key === null) {
-                    $this->logDuration("Disconnected", $username, $loginTime);
-                    break 2;
-                }
-                if ($timedOut) { continue; }
+                $choice      = '';
+                $promptShown = false;
+                while ($choice === '') {
+                    if (!$promptShown) {
+                        $this->safeWrite($conn, $this->colorize(
+                            $this->t('ui.terminalserver.server.menu.select_option', 'Select option:', [], $state['locale']),
+                            self::ANSI_DIM
+                        ));
+                        $promptShown = true;
+                    }
 
-                // Detect terminal resize (NAWS updated $state during readTelnetKeyWithTimeout)
-                $currentCols = $state['cols'] ?? 80;
-                $currentRows = $state['rows'] ?? 24;
-                if ($currentCols !== $lastRenderCols || $currentRows !== $lastRenderRows) {
-                    continue 2; // restart outer loop to re-render menu at new dimensions
-                }
+                    $wasIdleWarned = $state['idle_warned'] ?? false;
+                    [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
 
-                if (str_starts_with($key, 'CHAR:')) {
-                    $char = strtolower(substr($key, 5));
-                    if (isset($keyToAction[$char]) || ctype_digit($char)) {
-                        $choice = $char;
+                    if ($shouldDisconnect) {
+                        $this->logDuration("Idle timeout", $username, $loginTime);
+                        break 2;
+                    }
+                    if ($key === null) {
+                        $this->logDuration("Disconnected", $username, $loginTime);
+                        break 2;
+                    }
+                    if ($timedOut) { continue; }
+
+                    // Detect terminal resize (NAWS updated $state during readTelnetKeyWithTimeout)
+                    $currentCols = $state['cols'] ?? 80;
+                    $currentRows = $state['rows'] ?? 24;
+                    if ($currentCols !== $lastRenderCols || $currentRows !== $lastRenderRows) {
+                        continue 2; // restart outer loop to re-render menu at new dimensions
+                    }
+
+                    if (str_starts_with($key, 'CHAR:')) {
+                        $char = strtolower(substr($key, 5));
+                        if (isset($keyToAction[$char]) || ctype_digit($char)) {
+                            $choice = $char;
+                        }
+                    }
+
+                    // If a non-menu key dismissed the idle warning, redraw the menu so the
+                    // user gets visible confirmation that the session is still active.
+                    if ($wasIdleWarned && !($state['idle_warned'] ?? false) && $choice === '') {
+                        continue 2;
                     }
                 }
 
-                // If a non-menu key dismissed the idle warning, redraw the menu so the
-                // user gets visible confirmation that the session is still active.
-                if ($wasIdleWarned && !($state['idle_warned'] ?? false) && $choice === '') {
-                    continue 2;
-                }
+                if ($choice === '' || $choice === null) { break; }
+                $action = $keyToAction[$choice] ?? null;
+
+            } else {
+                // LineShell path: plain numbered list via chooseFromList
+                $menuData  = $computeMenuData();
+                $flatItems = $menuData['flatItems'];
+                $title     = $this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']);
+                $listItems = array_map(fn($item) => $item['label'], $flatItems);
+
+                $selectedIndex = $shell->chooseFromList($conn, $state, $title, $listItems);
+                $action = $selectedIndex !== null ? ($flatItems[$selectedIndex]['action'] ?? null) : 'quit';
             }
-
-            if ($choice === '' || $choice === null) { break; }
-
-            $action = $keyToAction[$choice] ?? null;
 
             if ($action === 'netmail') {
                 $this->log("Menu: {$username} -> Netmail");
@@ -805,7 +846,7 @@ class BbsSession
                 $nodelistHandler->show($conn, $state, $session);
             } elseif ($action === 'whosonline') {
                 $this->log("Menu: {$username} -> Who's Online");
-                $this->showWhosOnline($conn, $state, $session, $renderMainMenu);
+                $this->showWhosOnline($conn, $state, $session, $shell instanceof TuiShell ? $renderMainMenu : null);
             } elseif ($action === 'settings') {
                 $this->log("Menu: {$username} -> Settings");
                 $settingsHandler->show($conn, $state, $session);

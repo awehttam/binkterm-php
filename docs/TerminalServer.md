@@ -212,9 +212,18 @@ Sixel output requires `img2sixel` from the `libsixel-bin` package to be
 installed and available in `PATH`. If the binary is not found, images are
 silently omitted.
 
+### Main Menu Shell Behavior
+
+The main menu adapts to the active shell:
+
+- **`TuiShell`** (normal-size terminals): renders a framed two-column box with section headers (Messaging, Community/Explore, Files/Settings) and a customizable color status line. Navigation is single-key — press the configured hotkey to enter a feature. When a `mainmenu.ans` or `mainmenu.sixel` art file is present, it is shown instead of the framed box. Terminal resize re-renders the menu immediately.
+- **`LineShell`** (narrow or low-capability terminals): renders a plain numbered list of all enabled features via `chooseFromList`. Type the number to enter a feature, or Q to quit. The `mainmenu.ans` art and dashboard widgets are not shown in this mode.
+
+The shell is selected fresh on each menu loop iteration, so a resize that moves the terminal above the TuiShell threshold (60 cols × 16 rows) will switch from the numbered list to the framed box without a reconnect.
+
 ### Main Menu Dashboard
 
-The main menu displays a live dashboard panel alongside the navigation options. The panel shows the same stats as the web dashboard, sourced from `/api/dashboard/stats`.
+The main menu displays a live dashboard panel alongside the navigation options (TuiShell only). The panel shows the same stats as the web dashboard, sourced from `/api/dashboard/stats`.
 
 **Widgets shown (in priority order):**
 
