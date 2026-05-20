@@ -6,7 +6,9 @@ Make sure you have a current backup of your database and files before upgrading.
 
 This release is primarily a terminal server and PacketBBS update, with miscellaneous web interface improvements alongside. 
 
-The terminal server gains over two dozen new capabilities: bookmarks, full-text search, and sort options for both netmail and echomail; address book and FTN nodelist lookup in netmail compose; message delete, plain-text download, and forward-to-email from the reader; multi-area cross-posting; message drafts with in-editor save; an ignore-rule manager accessible without leaving the session; a selectable Who's Online popup with a public profile viewer; and a redesigned file browser with a modal detail view. These sit alongside system-wide improvements including resize-aware repaints across all overlays, a configurable border style, a configurable main menu key map, configurable idle timeouts, and a Ctrl-K reference overlay that documents every key binding without cluttering the status bar. 
+The terminal server gains over two dozen new capabilities: bookmarks, full-text search, and sort options for both netmail and echomail; address book and FTN nodelist lookup in netmail compose; message delete, plain-text download, and forward-to-email from the reader; multi-area cross-posting; message drafts with in-editor save; an ignore-rule manager accessible without leaving the session; a selectable Who's Online popup with a public profile viewer; and a redesigned file browser with a modal detail view. 
+
+These sit alongside system-wide improvements including resize-aware repaints across all overlays, a configurable border style, a configurable main menu key map, configurable idle timeouts, and a Ctrl-K reference overlay that documents every key binding without cluttering the status bar. 
 
 On the PacketBBS side, radio operators can now join local BBS chat rooms; two new interface types — Meshtastic and AX.25 TNC (KISS) — join MeshCore in the node registration modal; and bridge nodes gain optional location and description fields. 
 
