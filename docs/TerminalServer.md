@@ -149,7 +149,7 @@ silently omitted.
 The main menu adapts to the active shell:
 
 - **`TuiShell`** (normal-size terminals): renders a framed two-column box with section headers (Messaging, Community/Explore, Files/Settings) and a customizable color status line. Navigation is single-key — press the configured hotkey to enter a feature. When a `mainmenu.ans` or `mainmenu.sixel` art file is present, it is shown instead of the framed box. Terminal resize re-renders the menu immediately.
-- **`LineShell`** (narrow or low-capability terminals): renders a plain numbered list of all enabled features via `chooseFromList`. Type the number to enter a feature, or Q to quit. The `mainmenu.ans` art and dashboard widgets are not shown in this mode.
+- **`LineShell`** (narrow or low-capability terminals): renders a plain numbered main menu and keeps the rest of the session in prompt-driven line mode as well. Message lists, selector screens, confirmation prompts, paged readers, and profile/detail views are shown as wrapped text pages with typed commands instead of framed full-screen widgets. When a `mainmenu.ans` or `mainmenu.sixel` art file is present it is shown before the numbered menu prompt; dashboard widgets are still omitted in this mode.
 
 The shell is selected fresh on each menu loop iteration, so a resize that moves the terminal above the TuiShell threshold (60 cols × 16 rows) will switch from the numbered list to the framed box without a reconnect.
 

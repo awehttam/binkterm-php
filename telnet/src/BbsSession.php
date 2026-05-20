@@ -801,7 +801,14 @@ class BbsSession
                 $title     = $this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']);
                 $listItems = array_map(fn($item) => $item['label'], $flatItems);
 
-                $selectedIndex = $shell->chooseFromList($conn, $state, $title, $listItems);
+                $selectedIndex = $shell->chooseFromList($conn, $state, $title, $listItems, [
+                    'preamble_fn' => function () use ($conn): bool {
+                        if ($this->sixelSupported && TelnetUtils::showSixelScreenIfExists('mainmenu.sixel', $this, $conn)) {
+                            return true;
+                        }
+                        return TelnetUtils::showScreenIfExists('mainmenu.ans', $this, $conn);
+                    },
+                ]);
                 $action = $selectedIndex !== null ? ($flatItems[$selectedIndex]['action'] ?? null) : 'quit';
             }
 
