@@ -2,69 +2,55 @@
 
 Make sure you have a current backup of your database and files before upgrading.
 
+**1.9.7 requires PHP 8.2 or newer.** If your server is still on PHP 8.1 or earlier, upgrade PHP first and verify the runtime before replacing application files or running `php scripts/setup.php`. The application will not run correctly on older versions.
+
+This release is primarily a terminal server and PacketBBS update, with miscellaneous web interface improvements alongside. The terminal server gains over two dozen new capabilities: bookmarks, full-text search, and sort options for both netmail and echomail; address book and FTN nodelist lookup in netmail compose; message delete, plain-text download, and forward-to-email from the reader; multi-area cross-posting; message drafts with in-editor save; an ignore-rule manager accessible without leaving the session; a selectable Who's Online popup with a public profile viewer; and a redesigned file browser with a modal detail view. These sit alongside system-wide improvements including resize-aware repaints across all overlays, a configurable border style, a configurable main menu key map, configurable idle timeouts, and a Ctrl-K reference overlay that documents every key binding without cluttering the status bar. On the PacketBBS side, radio operators can now join local BBS chat rooms; two new interface types — Meshtastic and AX.25 TNC (KISS) — join MeshCore in the node registration modal; and bridge nodes gain optional location and description fields. In the web interface, chat rooms now render inline media automatically and inline code is rendered correctly on dark themes.
+
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
-  - [Runtime Requirements](#runtime-requirements)
-  - [Terminal Server](#terminal-server)
+- [Runtime Requirements](#runtime-requirements-1)
+- [Terminal Server](#terminal-server-1)
+  - [Responsive Terminal Resizing](#responsive-terminal-resizing)
+  - [Local Chat](#local-chat-1)
+  - [Terminal Inline Image Viewer Expansion](#terminal-inline-image-viewer-expansion)
+  - [SSH Startup Input Drain](#ssh-startup-input-drain)
+  - [Netmail Sent Folder in Terminal Reader](#netmail-sent-folder-in-terminal-reader)
+  - [Netmail Sort Options in Terminal Reader](#netmail-sort-options-in-terminal-reader)
+  - [Configurable Terminal Idle Timeout](#configurable-terminal-idle-timeout)
+  - [Configurable Terminal Main Menu Keys](#configurable-terminal-main-menu-keys)
   - [Configurable Border Style](#configurable-border-style)
   - [Terminal Charset Setting Honoured](#terminal-charset-setting-honoured)
+  - [Echomail Sort Options in Terminal](#echomail-sort-options-in-terminal)
   - [Netmail Address Book / Nodelist Lookup in Compose](#netmail-address-book--nodelist-lookup-in-compose)
   - [Netmail Delete in Terminal Reader](#netmail-delete-in-terminal-reader)
   - [Netmail Bookmark in Terminal Reader](#netmail-bookmark-in-terminal-reader)
   - [Echomail Bookmark in Terminal Reader](#echomail-bookmark-in-terminal-reader)
   - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader)
   - [Echomail Download as Text in Terminal Reader](#echomail-download-as-text-in-terminal-reader)
+  - [Forward Netmail to Email in Terminal Reader](#forward-netmail-to-email-in-terminal-reader)
   - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader)
   - [Echomail Search in Terminal](#echomail-search-in-terminal)
-  - [Echomail Sort Options in Terminal](#echomail-sort-options-in-terminal)
   - [Netmail Bulk Mark Selected as Read in Terminal](#netmail-bulk-mark-selected-as-read-in-terminal)
   - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer)
   - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation)
   - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal)
+  - [Terminal File Browser Selector and File Info Modal](#terminal-file-browser-selector-and-file-info-modal)
   - [Cross-post Echomail to Multiple Areas from Terminal](#cross-post-echomail-to-multiple-areas-from-terminal)
+  - [Terminal Full-Screen Editor Visual Refresh](#terminal-full-screen-editor-visual-refresh)
   - [Terminal Message Drafts](#terminal-message-drafts)
-  - [Terminal Who's Online Popup and Public Profile Viewer](#terminal-whos-online-popup-and-public-profile-viewer)
   - [Echomail Ignore Rules in Terminal](#echomail-ignore-rules-in-terminal)
   - [Terminal Resize Repaint](#terminal-resize-repaint)
   - [Ctrl-C Cancels Compose Prompts](#ctrl-c-cancels-compose-prompts)
-  - [PacketBBS](#packetbbs)
-    - [Local Chat](#local-chat-packetbbs)
-    - [PacketBBS Node Directory](#packetbbs-node-directory)
-    - [New Interface Types](#new-interface-types)
-    - [Auto-add policy sync change](#auto-add-policy-sync-change)
-  - [Web Interface](#web-interface)
-    - [Chat Inline Media](#chat-inline-media)
-  - [Developer Tooling](#developer-tooling)
-- [Runtime Requirements](#runtime-requirements-1)
-- [Terminal Server](#terminal-server-1)
-  - [Configurable Border Style](#configurable-border-style)
-  - [Terminal Charset Setting Honoured](#terminal-charset-setting-honoured)
-  - [Netmail Address Book / Nodelist Lookup in Compose](#netmail-address-book--nodelist-lookup-in-compose-1)
-  - [Netmail Delete in Terminal Reader](#netmail-delete-in-terminal-reader-1)
-  - [Echomail Bookmark in Terminal Reader](#echomail-bookmark-in-terminal-reader-1)
-  - [Netmail Download as Text in Terminal Reader](#netmail-download-as-text-in-terminal-reader-1)
-  - [Echomail Download as Text in Terminal Reader](#echomail-download-as-text-in-terminal-reader-1)
-  - [Forward Echomail to Email in Terminal Reader](#forward-echomail-to-email-in-terminal-reader-1)
-  - [Echomail Search in Terminal](#echomail-search-in-terminal-1)
-  - [Echomail Sort Options in Terminal](#echomail-sort-options-in-terminal-1)
-  - [Netmail Bulk Mark Selected as Read in Terminal](#netmail-bulk-mark-selected-as-read-in-terminal-1)
-  - [Ctrl-K Help Overlay in Terminal Message Viewer](#ctrl-k-help-overlay-in-terminal-message-viewer-1)
-  - [Echoarea List and Interests Picker Navigation](#echoarea-list-and-interests-picker-navigation-1)
-  - [Subscribe and Unsubscribe to Echoareas from Terminal](#subscribe-and-unsubscribe-to-echoareas-from-terminal-1)
   - [Terminal Who's Online Popup and Public Profile Viewer](#terminal-whos-online-popup-and-public-profile-viewer)
 - [PacketBBS](#packetbbs-1)
   - [Local Chat](#local-chat-packetbbs-1)
   - [PacketBBS Node Directory](#packetbbs-node-directory-1)
-    - [Location Description field](#location-description-field)
-    - [Node description field](#node-description-field)
-    - [Admin node list](#admin-node-list)
-    - [Admin node edit modal](#admin-node-edit-modal)
-    - [Node info modal](#node-info-modal)
   - [New Interface Types](#new-interface-types-1)
   - [Auto-add policy sync change](#auto-add-policy-sync-change-1)
 - [Web Interface](#web-interface-1)
-  - [Chat Inline Media](#chat-inline-media-1)
+  - [Chat Inline Media](#chat-inline-media)
+  - [Dark Theme Inline Code Color](#dark-theme-inline-code-color)
 - [Developer Tooling](#developer-tooling-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -249,15 +235,19 @@ Styles that require characters outside the connecting client's character set fal
 
 ### Terminal Charset Setting Honoured
 
+A user's saved terminal character set preference (ASCII, CP437, or UTF-8, set from **Terminal Settings** in the terminal session) is now correctly applied. Previously, a preference explicitly saved as **ASCII** could be silently promoted to UTF-8 when connecting from a UTF-8-capable terminal, causing box-drawing characters to appear even when the user had opted out. The saved preference now takes precedence over auto-detection in all cases.
+
+Users who were affected do not need to change anything — their existing setting will now be respected on next login.
+
+---
+
 ### Echomail Sort Options in Terminal
 
 The terminal echomail message list now supports the same four list-order choices as the web interface. While viewing messages in an echo area, press `O` to open a centered sort dialog and choose **Newest first**, **Oldest first**, **By subject**, or **By author**.
 
 The selected sort is saved in the user's terminal mail state and restored automatically the next time that user opens an echomail area from the terminal. No sysop configuration is required.
 
-A user's saved terminal character set preference (ASCII, CP437, or UTF-8, set from **Terminal Settings** in the terminal session) is now correctly applied. Previously, a preference explicitly saved as **ASCII** could be silently promoted to UTF-8 when connecting from a UTF-8-capable terminal, causing box-drawing characters to appear even when the user had opted out. The saved preference now takes precedence over auto-detection in all cases.
-
-Users who were affected do not need to change anything — their existing setting will now be respected on next login.
+---
 
 ### Netmail Address Book / Nodelist Lookup in Compose
 
@@ -285,7 +275,19 @@ No sysop configuration is required. The change takes effect when the upgraded da
 
 ---
 
-### Echomail Bookmark in Terminal Reader {#echomail-bookmark-in-terminal-reader-1}
+### Netmail Bookmark in Terminal Reader
+
+Terminal users can now bookmark a netmail message for later reference by pressing `B` while reading it in the terminal netmail viewer. Pressing `B` on an already-saved message removes the bookmark. The status bar label toggles between **Bookmark** (unsaved) and **Unsave** (already saved).
+
+Bookmarked netmail messages appear under the **Saved** filter in the web interface. The feature uses the same bookmark API endpoints as the web UI.
+
+The `B` key is listed in the Ctrl-K help overlay for the netmail viewer. It is not shown on the status bar (which is reserved for primary navigation keys).
+
+No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+
+---
+
+### Echomail Bookmark in Terminal Reader
 
 Terminal users can now bookmark an echomail message for later reference by pressing `B` while reading it in the terminal message viewer. Pressing `B` on an already-saved message removes the bookmark. A brief confirmation line ("Saved." or "Unsaved.") is displayed after each action.
 
@@ -325,7 +327,7 @@ This matches the equivalent **Forward to email** option in the web interface. Th
 
 ---
 
-### Forward Echomail to Email in Terminal Reader {#forward-echomail-to-email-in-terminal-reader-1}
+### Forward Echomail to Email in Terminal Reader
 
 Terminal users can now forward an echomail message to their account email address by pressing `E` while reading it in the terminal echomail viewer. The key appears in the Ctrl-K help overlay but not on the status bar. A "Forwarding..." indicator appears immediately while the request is in flight; on completion a colour-coded dialog confirms success (blue) or reports the error (red) and is dismissed with Enter.
 
@@ -333,7 +335,7 @@ This matches the equivalent **Forward to email** option in the web interface and
 
 ---
 
-### Echomail Search in Terminal {#echomail-search-in-terminal-1}
+### Echomail Search in Terminal
 
 Terminal users can now search echomail messages by keyword from two places.
 
@@ -374,7 +376,7 @@ No sysop configuration is required.
 
 ---
 
-### Echoarea List and Interests Picker Navigation {#echoarea-list-and-interests-picker-navigation-1}
+### Echoarea List and Interests Picker Navigation
 
 The echoarea list (the screen showing your subscribed echo areas) and the interests browser (opened with `I` when Interests is enabled) now use the same `runSelectableList` widget used by message lists throughout the terminal server.
 
@@ -397,7 +399,7 @@ No sysop configuration is required. The change takes effect when the upgraded da
 
 ---
 
-### Subscribe and Unsubscribe to Echoareas from Terminal {#subscribe-and-unsubscribe-to-echoareas-from-terminal-1}
+### Subscribe and Unsubscribe to Echoareas from Terminal
 
 Terminal users can now subscribe and unsubscribe to echo areas without leaving the terminal, matching the controls available in the web interface.
 
@@ -429,7 +431,7 @@ No sysop configuration is required. The change takes effect when the upgraded da
 
 ---
 
-## Cross-post Echomail to Multiple Areas from Terminal
+### Cross-post Echomail to Multiple Areas from Terminal
 
 Terminal users can now cross-post a new echomail message to multiple subscribed areas in a single operation, matching the capability already available in the web interface.
 
@@ -441,7 +443,7 @@ No migration or configuration change is required. The cross-post limit is alread
 
 ---
 
-## Terminal Full-Screen Editor Visual Refresh
+### Terminal Full-Screen Editor Visual Refresh
 
 The shared terminal full-screen editor now matches the visual language used by the other terminal overlays and dialogs. Instead of the older separator-line layout, it renders inside a framed blue panel with a titled top border, bordered compose area, and footer shortcut row.
 
@@ -453,7 +455,7 @@ No sysop configuration is required. The change takes effect when the upgraded Te
 
 ---
 
-## Terminal Message Drafts
+### Terminal Message Drafts
 
 Terminal netmail and echomail compose now share the existing draft backend used by the web interface.
 
@@ -465,7 +467,7 @@ No sysop configuration is required. The feature becomes available after the upgr
 
 ---
 
-## Echomail Ignore Rules in Terminal
+### Echomail Ignore Rules in Terminal
 
 Two new terminal actions let users manage echomail ignore rules without leaving the BBS session.
 
@@ -477,7 +479,7 @@ No sysop configuration is required. Both actions become available after the upgr
 
 ---
 
-## Terminal Resize Repaint
+### Terminal Resize Repaint
 
 Full-screen terminal surfaces now register a repaint closure in `$state['repaint_fn']` while they are active. Overlays (confirm dialogs, alert dialogs, input dialogs) call this closure on terminal resize before redrawing themselves, so the background surface is repainted cleanly at the new dimensions rather than leaving stale content behind. The pattern applies to the echomail and netmail message viewers, the selectable list widget used for the echoarea list and ignore-rules screen, and all overlay dialog types.
 
@@ -485,13 +487,13 @@ Sysop action: none. The change is internal to the terminal rendering stack.
 
 ---
 
-## Ctrl-C Cancels Compose Prompts
+### Ctrl-C Cancels Compose Prompts
 
 Pressing `Ctrl-C` at any field prompt during netmail or echomail compose now immediately aborts the compose session and returns to the previous screen. Previously `Ctrl-C` was passed through as a literal character. The line reader now treats byte `0x03` as a cancellation signal, echoing `^C` and returning `null` to the caller, which the compose handlers already handle as an abort.
 
 ---
 
-## Terminal Who's Online Popup and Public Profile Viewer
+### Terminal Who's Online Popup and Public Profile Viewer
 
 The terminal **Who's Online** main-menu action now opens a centered selectable popup instead of rendering a plain scrolling text list. The popup shows currently active users from the existing `/api/whosonline` endpoint, and pressing Enter on a highlighted user opens a read-only terminal profile viewer.
 
