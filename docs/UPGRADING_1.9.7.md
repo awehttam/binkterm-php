@@ -1,16 +1,23 @@
 # Upgrading to 1.9.7
 
+Welcome to BinktermPHP 1.9.7!
+
 Make sure you have a current backup of your database and files before upgrading.
 
-**1.9.7 requires PHP 8.2 or newer.** If your server is still on PHP 8.1 or earlier, upgrade PHP first and verify the runtime before replacing application files or running `php scripts/setup.php`. The application will not run correctly on older versions.
+This release focused primarily on the terminal server, introducing support for multiple terminal shells and responsive ANSI rendering for better compatibility across different screen sizes and terminal types. Other subsystems — PacketBBS, the web interface, Auto Feed, and developer tooling — received updates alongside the terminal work.
 
-This release is primarily a terminal server and PacketBBS update, with miscellaneous web interface improvements alongside. 
+Other project updates included:
+
+- A sysop guide covering installation, configuration, and ongoing administration is now available from **Admin → Help → Documentation**.
+- BinktermPHP has a new official mascot: **Kludge the Corvid**.
+
+**1.9.7 requires PHP 8.2 or newer.** If your server is still on PHP 8.1 or earlier, upgrade PHP first and verify the runtime before replacing application files or running `php scripts/setup.php`. The application will not run correctly on older versions.
 
 The terminal server gains over two dozen new capabilities: bookmarks, full-text search, and sort options for both netmail and echomail; address book and FTN nodelist lookup in netmail compose; message delete, plain-text download, and forward-to-email from the reader; multi-area cross-posting; message drafts with in-editor save; an ignore-rule manager accessible without leaving the session; a selectable Who's Online popup with a public profile viewer; and a redesigned file browser with a modal detail view. 
 
 These sit alongside system-wide improvements including resize-aware repaints across all overlays, a configurable border style, a configurable main menu key map, configurable idle timeouts, and a Ctrl-K reference overlay that documents every key binding without cluttering the status bar. 
 
-On the PacketBBS side, radio operators can now join local BBS chat rooms; two new interface types — Meshtastic and AX.25 TNC (KISS) — join MeshCore in the node registration modal; and bridge nodes gain optional location and description fields. 
+On the PacketBBS side, radio operators can join local BBS chat rooms; a new PacketBBS Nodes map and directory has been added to the BBS Lists menu; two new interface types — Meshtastic and AX.25 TNC (KISS) — are available alongside MeshCore in the node registration modal; and bridge nodes gain optional location and description fields.
 
 In the web interface, chat rooms now render inline media automatically, inline code is rendered correctly on dark themes, and the bulletin viewer has been updated to display text with the same preformatted style and modern system font as the message reader.
 
@@ -87,35 +94,22 @@ In the web interface, chat rooms now render inline media automatically, inline c
 - The terminal message viewer now exposes inline image viewing more broadly. The existing `I` image-viewer flow still supports Markdown `![alt](url)` images, and now also detects bare direct image URLs in regular message bodies when they end in `.png`, `.jpg`, `.jpeg`, or `.gif`.
 - The terminal echomail reader now supports bulk marking selected messages as read. Press `Space` to toggle the highlighted message into the selection set, then press `M` to mark only the selected message IDs as read via the existing bulk-read API. `Ctrl-K` now opens the selector help overlay so the status bar can stay short enough for 80-column terminals.
 - SSH terminal startup now discards any client input bytes already queued during PTY/shell setup before handing control to the BBS session. This prevents some SSH clients from accidentally skipping login or menu screens with phantom startup keypresses.
-- The terminal echomail message viewer now supports **forwarding messages** via the `F` key. Pressing `F` opens a dialog that lets the user choose between forwarding to another subscribed echoarea (opens the standard echomail compose screen pre-filled with a `Fwd:` subject, attribution header, and quoted body) or forwarding as a netmail to an FTN address (hands off to the netmail compose flow). No upgrade steps are required; no configuration changes are needed.
+- The terminal echomail message viewer now supports **forwarding messages** via the `F` key. Pressing `F` opens a dialog that lets the user choose between forwarding to another subscribed echoarea (opens the standard echomail compose screen pre-filled with a `Fwd:` subject, attribution header, and quoted body) or forwarding as a netmail to an FTN address (hands off to the netmail compose flow). 
 - **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
 - **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Server Settings** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
-- **Terminal interface style preference**: users can now choose their preferred terminal interface style — full-screen TUI or line mode — from terminal settings. Sysops can set a system-wide default and optionally force all sessions to use it regardless of user preference. The **Terminal Idle Timeout** admin section has been renamed **Terminal Server Settings** to accommodate these new controls.
-- **Terminal shell allowlist and plugin registration**: terminal shell selection is now gated by the `.env` allowlist `TERMSERVER_ALLOWEDSHELLS`, and custom shell plugins can be registered from `telnet/shells/*.plugin.php`. Disallowed saved shell preferences now fall back safely to TUI instead of breaking login, and shell-aware shared widgets now honour plugin-provided style profiles more consistently.
+- **Terminal interface style preference**: users can now choose their preferred terminal interface style from terminal settings, but only among shells that the sysop has explicitly enabled. By default only the full-screen TUI is available. Sysops enable additional shells (such as line mode) via `TERMSERVER_ALLOWEDSHELLS` in `.env`, and can set a system-wide default and optionally force all sessions to use it regardless of user preference. The **Terminal Idle Timeout** admin section has been renamed **Terminal Server Settings** to accommodate these new controls.
+- **Terminal shell allowlist and plugin registration**: terminal shell selection is now gated by the `.env` allowlist `TERMSERVER_ALLOWEDSHELLS`, and custom shell plugins can be registered from `telnet/shells/*.plugin.php`. Disallowed saved shell preferences fall back safely to TUI instead of breaking login, and shell-aware shared widgets honour plugin-provided style profiles more consistently.
 - **Configurable border style**: the box-drawing style used for all terminal frames and viewers can now be set per-system via **Admin → BBS Settings → Appearance → Terminal Server → Border Style**. Nine styles are available (Classic, Double, Single, Heavy, Rounded, Minimal, Mixed, Shadow, ASCII). Styles that require characters not supported by the connecting client's character set fall back automatically.
 - **Terminal charset preference honoured**: the user's saved terminal character set preference (ASCII, CP437, or UTF-8) is now correctly respected. Previously a saved ASCII preference could be silently overridden by terminal auto-detection on UTF-8 capable clients.
 - Terminal users can now **delete a netmail message** from the message viewer by pressing `X` or the `Del` key. A confirmation dialog appears before the message is removed.
-- Terminal users can now **bookmark a netmail message** for later reference by pressing `B` in the message viewer. The status bar label toggles between **Bookmark** (unsaved) and **Unsave** (already saved). Bookmarked messages appear under the Saved filter in the web interface. No upgrade action is required.
-- Terminal users can now **bookmark an echomail message** for later reference by pressing `B` in the echomail message viewer. Pressing `B` again unsaves it. Bookmarked messages appear under the Saved filter in the web interface. No upgrade action is required.
-- **Address book / nodelist lookup in netmail compose**: when composing a new netmail in the terminal, typing `?` at the To Name or To Address prompt opens an interactive picker. The picker searches the user's address book, matching local BBS users (by real name and username), and the FTN nodelist. Address-book and local-user results are shown ahead of nodelist results, and nodelist duplicates are suppressed by FTN address. Typing `sysop` returns the configured local system sysop as a local-delivery target, matching the web compose behavior. Selecting an entry pre-fills both To Name and To Address as editable defaults.
+- Terminal users can now **bookmark a netmail message** for later reference by pressing `B` in the message viewer. The status bar label toggles between **Bookmark** (unsaved) and **Unsave** (already saved). Bookmarked messages appear under the Saved filter in the web interface.- Terminal users can now **bookmark an echomail message** for later reference by pressing `B` in the echomail message viewer. Pressing `B` again unsaves it. Bookmarked messages appear under the Saved filter in the web interface.- **Address book / nodelist lookup in netmail compose**: when composing a new netmail in the terminal, typing `?` at the To Name or To Address prompt opens an interactive picker. The picker searches the user's address book, matching local BBS users (by real name and username), and the FTN nodelist. Address-book and local-user results are shown ahead of nodelist results, and nodelist duplicates are suppressed by FTN address. Typing `sysop` returns the configured local system sysop as a local-delivery target, matching the web compose behavior. Selecting an entry pre-fills both To Name and To Address as editable defaults.
 - **Download netmail as plain text**: terminal users can now press `T` while reading a netmail message to download it as a `.txt` file via ZMODEM. The downloaded file contains the message headers and body in plain text, matching the equivalent download button in the web interface. ZMODEM must be supported by the connecting terminal application.
 - Terminal users can now **forward a netmail message to their email address** by pressing `E` in the netmail message viewer. Requires outbound email to be configured on the BBS.
 - Terminal users can now **forward an echomail message to their email address** by pressing `E` in the echomail message viewer. Requires outbound email to be configured on the BBS.
 - **Echomail full-text search in the terminal**: pressing `S` from the echoarea list searches all subscribed areas; pressing `S` from within a specific area's message list searches that area only. Search results are shown in a paginated list; opening a result highlights the matched term in white on yellow in the message body.
 - **Echomail sort options in the terminal**: pressing `O` from an echomail area's message list opens a dialog with the same four sort modes as the web UI: Newest first, Oldest first, By subject, and By author. The user's selected sort is saved and restored the next time they open echomail in the terminal.
-- **Terminal bulk mark-as-read selection for echomail**: the terminal echomail list now supports multi-select before bulk read actions. Press `Space` to toggle the highlighted message into the selection set, then press `M` to mark only those selected message IDs as read via the existing bulk-read API. This matches the web interface's selected-message behavior instead of marking an entire area at once. No upgrade action is required.
-- **Ctrl-K help overlay in the terminal message viewer**: all terminal message readers (netmail and echomail) now show a framed keyboard-reference panel when the user presses `Ctrl-K`. The panel lists every available key binding, including secondary actions that are not shown on the status bar. The overlay responds to terminal resize events while it is open and propagates any resize back to the message viewer when it is dismissed. The status bar in both readers has been trimmed to the five most-used actions (scroll, prev/next, reply, Ctrl-K help, and quit); all other keys are documented exclusively in the Ctrl-K overlay.
-- **Echoarea list and interests picker navigation**: the echoarea list and the interests browser now use the same navigable list interface as message lists — arrow keys move the highlight cursor, Left/Right arrows change pages, Enter selects, and a status bar shows available actions. Number type-to-jump still works. The list redraws on terminal resize. No upgrade action is required.
-- **Subscribe/unsubscribe to echoareas from terminal**: press `A` to toggle between your subscribed areas and all available areas. In all-areas view each row shows a `[+]`/`[ ]` subscription badge. Selecting an unsubscribed area offers Subscribe & Browse, Browse Only, or Cancel. Press `U` on any area to unsubscribe via a confirmation dialog. No upgrade action is required.
-- **Cross-post area picker resize redraw fix**: when composing a new echomail message and opening the cross-post checkbox picker, resizing the terminal now clears and redraws the compose-flow background before re-centering the dialog. This prevents ghosted dialog frames and underlying message-list artifacts from remaining on screen after a resize. No upgrade action is required.
-- **Terminal full-screen editor visual refresh**: the shared terminal full-screen editor now uses the same framed blue panel style as other terminal dialogs and overlays. The editor `Ctrl-K` help screen now uses the same framed treatment, and the editor redraws to the new geometry when the terminal is resized while it is open. No upgrade action is required.
-- **Terminal message drafts for netmail and echomail**: the terminal compose flow now detects existing drafts before opening the editor, offers a resume picker, and adds `Ctrl+S` inside the full-screen editor to save a draft without leaving compose. Resumed drafts can be deleted from the picker with `X`, and successfully sending a resumed draft removes it automatically. No upgrade action is required.
-- **Terminal Who's Online popup and public profile viewer**: the terminal Who's Online action now opens a centered selectable popup instead of a plain text dump. Selecting a user opens a reusable terminal public-profile viewer that shows username, full name, location, and biography. No upgrade action is required.
-- **Terminal file browser selector and file info modal**: the file area list and per-area file list in the terminal server now use the same selector-style navigation as echomail, including arrow-key movement, page changes, Enter-to-open, and status-bar actions. Opening a file now shows a centered file-info modal with scrolling support instead of a plain full-screen detail page. No upgrade action is required.
-- **ZMODEM documentation corrected**: `docs/TerminalServer.md` previously stated that external `sz`/`rz` binaries from `lrzsz` were required and that the built-in PHP ZMODEM implementation was a fallback. This was incorrect. The built-in PHP implementation is the default and preferred path because it correctly handles Telnet IAC (0xFF) byte escaping. External binaries are an opt-in option that requires the sysop to explicitly set `TELNET_ZMODEM_FORCE_PHP=false` in `.env`. No code change; documentation only. No upgrade action is required.
-- **Unread messages bolded in terminal message lists**: echomail and netmail message lists now render unread rows in bold ANSI text. Once a message is opened and marked read, it displays at normal weight the next time the list is shown. No upgrade action is required.
-- **DOS door return-path stability**: after a DOS door exits, the terminal server now restores the telnet socket's original blocking mode before returning to the normal BBS UI. This prevents prompt-driven screens such as the nodelist browser and door menu from immediately dropping back to the main menu after a door session. No sysop configuration is required.
-
+- **Terminal bulk mark-as-read selection for echomail**: the terminal echomail list now supports multi-select before bulk read actions. Press `Space` to toggle the highlighted message into the selection set, then press `M` to mark only those selected message IDs as read via the existing bulk-read API. This matches the web interface's selected-message behavior instead of marking an entire area at once.- **Ctrl-K help overlay in the terminal message viewer**: all terminal message readers (netmail and echomail) now show a framed keyboard-reference panel when the user presses `Ctrl-K`. The panel lists every available key binding, including secondary actions that are not shown on the status bar. The overlay responds to terminal resize events while it is open and propagates any resize back to the message viewer when it is dismissed. The status bar in both readers has been trimmed to the five most-used actions (scroll, prev/next, reply, Ctrl-K help, and quit); all other keys are documented exclusively in the Ctrl-K overlay.
+- **Echoarea list and interests picker navigation**: the echoarea list and the interests browser now use the same navigable list interface as message lists — arrow keys move the highlight cursor, Left/Right arrows change pages, Enter selects, and a status bar shows available actions. Number type-to-jump still works. The list redraws on terminal resize.- **Subscribe/unsubscribe to echoareas from terminal**: press `A` to toggle between your subscribed areas and all available areas. In all-areas view each row shows a `[+]`/`[ ]` subscription badge. Selecting an unsubscribed area offers Subscribe & Browse, Browse Only, or Cancel. Press `U` on any area to unsubscribe via a confirmation dialog.- **Terminal full-screen editor visual refresh**: the shared terminal full-screen editor now uses the same framed blue panel style as other terminal dialogs and overlays. The editor `Ctrl-K` help screen now uses the same framed treatment, and the editor redraws to the new geometry when the terminal is resized while it is open.- **Terminal message drafts for netmail and echomail**: the terminal compose flow now detects existing drafts before opening the editor, offers a resume picker, and adds `Ctrl+S` inside the full-screen editor to save a draft without leaving compose. Resumed drafts can be deleted from the picker with `X`, and successfully sending a resumed draft removes it automatically.- **Terminal Who's Online popup and public profile viewer**: the terminal Who's Online action now opens a centered selectable popup instead of a plain text dump. Selecting a user opens a reusable terminal public-profile viewer that shows username, full name, location, and biography.- **Terminal file browser selector and file info modal**: the file area list and per-area file list in the terminal server now use the same selector-style navigation as echomail, including arrow-key movement, page changes, Enter-to-open, and status-bar actions. Opening a file now shows a centered file-info modal with scrolling support instead of a plain full-screen detail page.- **ZMODEM documentation corrected**: `docs/TerminalServer.md` previously stated that external `sz`/`rz` binaries from `lrzsz` were required and that the built-in PHP ZMODEM implementation was a fallback. This was incorrect. The built-in PHP implementation is the default and preferred path because it correctly handles Telnet IAC (0xFF) byte escaping. External binaries are an opt-in option that requires the sysop to explicitly set `TELNET_ZMODEM_FORCE_PHP=false` in `.env`. No code change; documentation only.- **Unread messages bolded in terminal message lists**: echomail and netmail message lists now render unread rows in bold ANSI text. Once a message is opened and marked read, it displays at normal weight the next time the list is shown.- **DOS door return-path stability**: after a DOS door exits, the terminal server now restores the telnet socket's original blocking mode before returning to the normal BBS UI. This prevents prompt-driven screens such as the nodelist browser and door menu from immediately dropping back to the main menu after a door session. 
 ### PacketBBS
 
 #### Local Chat
@@ -129,11 +123,10 @@ In the web interface, chat rooms now render inline media automatically, inline c
 - A new **PacketBBS Nodes** map and list has been added to the **BBS Lists** menu and is visible when PacketBBS nodes are registered to the BBS.
 - Bridge nodes now have a **Location Description** field (free text, e.g. "Lower Mainland BC"). The public node table and the dashboard widget now show this descriptor instead of GPS coordinates.
 - The **PacketBBS Nodes** dashboard card now appears in the sidebar (between the Voting Booth and Echo Areas cards). Each node name is a link that opens its info modal. The location description is shown beneath the name; nodes with no description show a placeholder.
-- The node edit modal in **Admin → Packet BBS Nodes** is now a two-column layout. The **Auto-Add Contact Policy** section occupies the right column. The **Link to BBS Account** field has been removed; use the standard `LOGIN <user> <code>` authenticator flow instead. The Handle/Callsign field now shows the BBS hostname as placeholder text and includes a note that the value should match the MeshCore node name.
-
+- The node edit modal in **Admin → Packet BBS Nodes** is now a two-column layout. The **Auto-Add Contact Policy** section occupies the right column. The **Link to BBS Account** field has been removed; use the standard `LOGIN <user> <code>` authenticator flow instead.
 #### New Interface Types
 
-- The Interface Type dropdown in the node registration modal now includes **Meshtastic** (experimental) and **AX.25 TNC (KISS)** alongside MeshCore. Companion bridge adapters are available as separate packages: [awehttam/binktermphp-meshtasticbridge](https://github.com/awehttam/binktermphp-meshtasticbridge) for Meshtastic (TCP or USB serial) and [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss) for AX.25 packet radio.
+- The Interface Type dropdown in the node registration modal now includes **Meshtastic** (experimental, untested) and **AX.25 TNC (KISS)** (experimental, limited testing) alongside MeshCore. Companion bridge adapters are available as separate packages: [awehttam/binktermphp-meshtasticbridge](https://github.com/awehttam/binktermphp-meshtasticbridge) for Meshtastic (TCP or USB serial) and [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss) for AX.25 packet radio.
 
 #### Auto-add policy sync change
 
@@ -144,8 +137,7 @@ In the web interface, chat rooms now render inline media automatically, inline c
 - Clicking a username in the web local chat thread now opens a context menu for all users. The first action opens that user's public profile page. Admins still see Kick and Ban in room chat from the same menu.
 - Links posted to chat rooms and direct messages are now processed by the inline media player. Images, video files, retro audio files, and platform embeds (YouTube, etc.) render automatically below the link in the chat thread.
 - Inline code (`code`) in Markdown-rendered content now renders in the theme's normal text color on all dark themes (dark, amber, greenterm, cyberpunk). Bootstrap's default pink/red code color was difficult to read against dark backgrounds.
-- The echomail/netmail compose form now uses the same advanced **Insert Image** picker in Plain text, StyleCodes, and Markdown modes. Uploading, picking a previously uploaded image, pasting from the clipboard, and inserting by URL are now available consistently across all compose modes. No upgrade action is required.
-
+- The echomail/netmail compose form now uses the same advanced **Insert Image** picker in Plain text, StyleCodes, and Markdown modes. Uploading, picking a previously uploaded image, pasting from the clipboard, and inserting by URL are now available consistently across all compose modes.
 ### Auto Feed
 
 - The Auto Feed script now supports optional reply threading per feed. When **Thread Replies** is enabled for a feed, articles with `RE:`/`Fwd:` subject prefixes are posted as replies to their matching parent message in the echoarea. The lookup depth is configurable. Run `php scripts/setup.php` to apply the required migration.
@@ -270,8 +262,7 @@ Users who were affected do not need to change anything — their existing settin
 
 The terminal echomail message list now supports the same four list-order choices as the web interface. While viewing messages in an echo area, press `O` to open a centered sort dialog and choose **Newest first**, **Oldest first**, **By subject**, or **By author**.
 
-The selected sort is saved in the user's terminal mail state and restored automatically the next time that user opens an echomail area from the terminal. No sysop configuration is required.
-
+The selected sort is saved in the user's terminal mail state and restored automatically the next time that user opens an echomail area from the terminal. 
 ---
 
 ### Netmail Address Book / Nodelist Lookup in Compose
@@ -284,7 +275,6 @@ Selecting an entry pre-fills both **To Name** and **To Address** as editable def
 
 The picker is implemented as a reusable `TelnetUtils::runAddressPicker()` widget and responds correctly to terminal resize events.
 
-No sysop configuration is required.
 
 ---
 
@@ -330,7 +320,6 @@ Terminal users can now download the message they are currently reading as a plai
 
 The downloaded file contains the message headers (From, To, Date, Subject) and the full message body in plain text, equivalent to the **Download .txt** button available in the web interface.
 
-No sysop configuration is required.
 
 ---
 
@@ -340,7 +329,6 @@ Terminal users can now download an echomail message as a plain `.txt` file by pr
 
 This matches the equivalent **Download .txt** button in the web interface and mirrors the same feature already available in the netmail viewer.
 
-No sysop configuration is required.
 
 ---
 
@@ -397,7 +385,6 @@ The overlay responds to terminal resize events while it is open, and any resize 
 
 The bottom status bar in both the netmail and echomail readers has been trimmed to the five primary actions (scroll, previous/next, reply, Ctrl-K help, quit). All remaining key bindings are documented exclusively in the Ctrl-K overlay, keeping the status bar readable on narrow terminals.
 
-No sysop configuration is required.
 
 ---
 
@@ -651,7 +638,7 @@ Two new interface types are now available in the node registration modal alongsi
 
 **Meshtastic** connects BinktermPHP to a Meshtastic network via TCP or USB serial. The companion bridge adapter is available at [awehttam/binktermphp-meshtasticbridge](https://github.com/awehttam/binktermphp-meshtasticbridge). This adapter is currently experimental and untested.
 
-**AX.25 TNC (KISS)** connects BinktermPHP to AX.25 packet radio via a hardware or software TNC (e.g. Direwolf). Registering a node with this type sets the output profile to 8 lines × 64 columns per page, tuned for packet radio frame sizes. The companion bridge adapter is available at [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss). This adapter is currently experimental.
+**AX.25 TNC (KISS)** connects BinktermPHP to AX.25 packet radio via a hardware or software TNC (e.g. Direwolf). Registering a node with this type sets the output profile to 8 lines × 64 columns per page, tuned for packet radio frame sizes. The companion bridge adapter is available at [awehttam/binktermphp-ax25kiss](https://github.com/awehttam/binktermphp-ax25kiss). This adapter is experimental with limited testing.
 
 No BBS migration is required for either type; the interface type string is stored as-is on the existing `packet_bbs_nodes` table.
 
