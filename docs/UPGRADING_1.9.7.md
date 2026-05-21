@@ -71,6 +71,8 @@ In the web interface, chat rooms now render inline media automatically, inline c
   - [Chat Inline Media](#chat-inline-media)
   - [Dark Theme Inline Code Color](#dark-theme-inline-code-color)
   - [Bulletin Viewer Rendering](#bulletin-viewer-rendering)
+  - [Echo Areas .NA File Import](#echo-areas-na-file-import)
+  - [CheeseNet Network Added](#cheesenet-network-added)
 - [Auto Feed](#auto-feed-1)
   - [Reply Threading](#reply-threading)
 - [Developer Tooling](#developer-tooling-1)
@@ -137,6 +139,8 @@ In the web interface, chat rooms now render inline media automatically, inline c
 - Links posted to chat rooms and direct messages are now processed by the inline media player. Images, video files, retro audio files, and platform embeds (YouTube, etc.) render automatically below the link in the chat thread.
 - Inline code (`code`) in Markdown-rendered content now renders in the theme's normal text color on all dark themes (dark, amber, greenterm, cyberpunk). Bootstrap's default pink/red code color was difficult to read against dark backgrounds.
 - The echomail/netmail compose form now uses the same advanced **Insert Image** picker in Plain text, StyleCodes, and Markdown modes. Uploading, picking a previously uploaded image, pasting from the clipboard, and inserting by URL are now available consistently across all compose modes.
+- The **Import Echo Areas** admin page now accepts `.NA` files in addition to CSV. A domain selector lets the sysop choose which configured network applies to all areas in the file, with a Local option for areas with no network domain.
+- **CheeseNet** (`cheese`) has been added to the built-in FTN network list. It becomes available in **Admin → Networks** after running `php scripts/setup.php`. No action is required if you are not connecting to CheeseNet.
 ### Auto Feed
 
 - The Auto Feed script now supports optional reply threading per feed. When **Thread Replies** is enabled for a feed, articles with `RE:`/`Fwd:` subject prefixes are posted as replies to their matching parent message in the echoarea. The lookup depth is configurable. Run `php scripts/setup.php` to apply the required migration.
@@ -690,6 +694,25 @@ The column ruler above the ANSI editor textarea in **Admin → Ads and Bulletins
 
 No upgrade action is required.
 
+---
+
+### Echo Areas .NA File Import
+
+The **Import Echo Areas** page in the admin interface now accepts `.NA` files in addition to CSV. A `.NA` file lists echo areas one per line with the tag and description separated by whitespace — the format distributed by many FTN networks alongside their nodelist.
+
+The import page now has two tabs: **CSV File** (unchanged) and **.NA File**. When importing a `.NA` file, a domain selector lets the sysop choose which configured network applies to all areas in the file. The dropdown lists every network domain already set up in **Admin → Networks**, plus a **Local (no domain)** option for areas with no network assignment.
+
+Import semantics are identical to the CSV importer: existing areas with matching tag and domain have their description updated and are reactivated; new areas are created active with default settings; lines beginning with `%` or `;` are treated as comments and skipped.
+
+No migration is required. The feature becomes available as soon as the updated files are deployed.
+
+---
+
+### CheeseNet Network Added
+
+CheeseNet (`cheese`) has been added to the built-in FTN network list. It is a general-community FTN network open to both human and AI participants, with echo areas covering BBS meta, creative pursuits, current events, debate, and more. The network's home page is at [https://futureland.today/cheesenet](https://futureland.today/cheesenet).
+
+Running `php scripts/setup.php` adds a `cheese` row to the `networks` table. CheeseNet then appears in **Admin → Networks** and is available as a domain target when importing echo areas or configuring an uplink. No action is required if you are not connecting to CheeseNet.
 
 ---
 

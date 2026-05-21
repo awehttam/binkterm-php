@@ -1138,8 +1138,18 @@ SimpleRouter::get('/echoareas', function() {
 SimpleRouter::get('/echoareas/import', function() {
     $user = RouteHelper::requireAdmin();
 
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $domains = [];
+    foreach ($binkpConfig->getUplinks() as $uplink) {
+        $d = strtolower(trim($uplink['domain'] ?? ''));
+        if ($d !== '' && !in_array($d, $domains, true)) {
+            $domains[] = $d;
+        }
+    }
+    sort($domains);
+
     $template = new Template();
-    $template->renderResponse('echoareas_import.twig');
+    $template->renderResponse('echoareas_import.twig', ['domains' => $domains]);
 });
 
 SimpleRouter::post('/echoareas/import', function() {
@@ -1149,26 +1159,61 @@ SimpleRouter::post('/echoareas/import', function() {
     $error = null;
     $errorCode = null;
 
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $domains = [];
+    foreach ($binkpConfig->getUplinks() as $uplink) {
+        $d = strtolower(trim($uplink['domain'] ?? ''));
+        if ($d !== '' && !in_array($d, $domains, true)) {
+            $domains[] = $d;
+        }
+    }
+    sort($domains);
+
     try {
-        if (!isset($_FILES['echoareas_csv']) || !is_array($_FILES['echoareas_csv'])) {
-            $errorCode = 'ui.echoareas_import.error_choose_csv';
-            throw new \RuntimeException('');
-        }
+        $format = trim($_POST['import_format'] ?? 'csv');
 
-        $upload = $_FILES['echoareas_csv'];
-        if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            $errorCode = 'ui.echoareas_import.error_upload_failed';
-            throw new \RuntimeException('');
-        }
+        if ($format === 'na') {
+            if (!isset($_FILES['echoareas_na']) || !is_array($_FILES['echoareas_na'])) {
+                $errorCode = 'ui.echoareas_import.error_choose_na';
+                throw new \RuntimeException('');
+            }
 
-        $tmpName = $upload['tmp_name'] ?? '';
-        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
-            $errorCode = 'ui.echoareas_import.error_invalid_upload';
-            throw new \RuntimeException('');
-        }
+            $upload = $_FILES['echoareas_na'];
+            if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                $errorCode = 'ui.echoareas_import.error_upload_failed';
+                throw new \RuntimeException('');
+            }
 
-        $importer = new \BinktermPHP\EchoareaImporter();
-        $summary = $importer->importCsv($tmpName);
+            $tmpName = $upload['tmp_name'] ?? '';
+            if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+                $errorCode = 'ui.echoareas_import.error_invalid_upload';
+                throw new \RuntimeException('');
+            }
+
+            $naDomain = trim($_POST['na_domain'] ?? '');
+            $importer = new \BinktermPHP\EchoareaImporter();
+            $summary = $importer->importNa($tmpName, $naDomain);
+        } else {
+            if (!isset($_FILES['echoareas_csv']) || !is_array($_FILES['echoareas_csv'])) {
+                $errorCode = 'ui.echoareas_import.error_choose_csv';
+                throw new \RuntimeException('');
+            }
+
+            $upload = $_FILES['echoareas_csv'];
+            if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                $errorCode = 'ui.echoareas_import.error_upload_failed';
+                throw new \RuntimeException('');
+            }
+
+            $tmpName = $upload['tmp_name'] ?? '';
+            if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+                $errorCode = 'ui.echoareas_import.error_invalid_upload';
+                throw new \RuntimeException('');
+            }
+
+            $importer = new \BinktermPHP\EchoareaImporter();
+            $summary = $importer->importCsv($tmpName);
+        }
     } catch (\Throwable $e) {
         $error = $e->getMessage();
         if ($error === '') {
@@ -1208,6 +1253,8 @@ SimpleRouter::post('/echoareas/import', function() {
         'import_summary' => $summary,
         'import_error' => $error,
         'import_error_code' => $errorCode,
+        'domains' => $domains,
+        'active_format' => trim($_POST['import_format'] ?? 'csv'),
     ]);
 });
 
