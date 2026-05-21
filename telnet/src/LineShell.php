@@ -733,7 +733,19 @@ class LineShell implements TerminalShellInterface
         $maxOffset = 0;
         $commandLines = [];
 
-        $renderViewer = function () use ($conn, &$state, &$headerLines, &$wrappedLines, &$statusLine, $rows, $rebuildFn, $allowDownloadAction, $kludgeLines, $imageRefs, $imageFn, $extraKeyMap, $helpItems, &$offset, &$bodyHeight, &$maxOffset, &$commandLines): void {
+        $allHelpItems = [];
+        if (!empty($kludgeLines)) {
+            $allHelpItems[] = ['key' => 'H', 'label' => 'View headers'];
+        }
+        if ($allowDownloadAction) {
+            $allHelpItems[] = ['key' => 'Z', 'label' => 'Download message'];
+        }
+        if (!empty($imageRefs) && $imageFn !== null) {
+            $allHelpItems[] = ['key' => count($imageRefs) === 1 ? 'I' : 'I / 1-' . count($imageRefs), 'label' => 'View image'];
+        }
+        $allHelpItems = array_merge($allHelpItems, $helpItems);
+
+        $renderViewer = function () use ($conn, &$state, &$headerLines, &$wrappedLines, &$statusLine, $rows, $rebuildFn, $extraKeyMap, &$offset, &$bodyHeight, &$maxOffset, &$commandLines): void {
             if ($rebuildFn !== null) {
                 $rebuilt = (array)$rebuildFn($state);
                 $headerLines = $rebuilt['headerLines'] ?? $headerLines;
@@ -749,22 +761,7 @@ class LineShell implements TerminalShellInterface
             $offset = min($offset, $maxOffset);
 
             $commandLines = [];
-            if ($statusLine !== '') {
-                $commandLines[] = $this->stripAnsi($statusLine);
-            }
-            $commands = ['Q = back', 'Enter/N = next page', 'P = prev page', 'U/D = scroll', 'L = prev', 'R = reply/next'];
-            if (!empty($kludgeLines)) {
-                $commands[] = 'H = headers';
-            }
-            if ($allowDownloadAction) {
-                $commands[] = 'Z = download';
-            }
-            if (!empty($imageRefs) && $imageFn !== null) {
-                $commands[] = count($imageRefs) === 1 ? 'I = image' : 'I/# = image';
-            }
-            if (!empty($helpItems)) {
-                $commands[] = '? = help';
-            }
+            $commands = ['Q = back', 'N = next', 'P = prev', 'U/D = scroll', 'R = reply', 'Enter = page down', '? = help'];
             $commandLines[] = implode('  ', $commands);
             $this->renderMessageViewerScreen($conn, $state, $headerLines, $wrappedLines, $offset, $bodyHeight, $commandLines);
         };
@@ -795,12 +792,10 @@ class LineShell implements TerminalShellInterface
                 continue;
             }
             if (strcasecmp($choice, 'p') === 0) {
-                $offset = max(0, $offset - $bodyHeight);
-                continue;
+                return ['action' => 'prev', 'offset' => $offset];
             }
             if (strcasecmp($choice, 'n') === 0) {
-                $offset = min($maxOffset, $offset + $bodyHeight);
-                continue;
+                return ['action' => 'next', 'offset' => $offset];
             }
             if (strcasecmp($choice, 'l') === 0) {
                 return ['action' => 'prev', 'offset' => $offset];
@@ -841,8 +836,8 @@ class LineShell implements TerminalShellInterface
                 }
             }
 
-            if ($choice === '?' && !empty($helpItems)) {
-                $lines = array_map(fn($item) => sprintf('%-16s %s', $item['key'] ?? '', $item['label'] ?? ''), $helpItems);
+            if ($choice === '?') {
+                $lines = array_map(fn($item) => sprintf('%-16s %s', $item['key'] ?? '', $item['label'] ?? ''), $allHelpItems);
                 $this->showText($conn, $state, 'Help', $lines);
                 continue;
             }
