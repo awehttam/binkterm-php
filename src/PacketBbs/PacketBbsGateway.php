@@ -139,14 +139,21 @@ class PacketBbsGateway
             return $this->handleComposeLine($session, $nodeId, $command, $renderer);
         }
 
-        if ($this->hasActiveFlow($state)) {
-            return $this->handleFlowInput($session, $nodeId, $command, $renderer);
-        }
-
-        // Parse command verb and arguments
+        // Parse verb early so M/B pagination commands always bypass flow interception
         $parts = preg_split('/\s+/', $command, 2);
         $verb  = strtoupper($parts[0]);
         $args  = trim($parts[1] ?? '');
+
+        if ($verb === 'M' || $verb === 'MORE') {
+            return $this->handleMore($session, $nodeId, $renderer);
+        }
+        if ($verb === 'B' || $verb === 'P' || $verb === 'PREV') {
+            return $this->handlePrev($session, $nodeId, $renderer);
+        }
+
+        if ($this->hasActiveFlow($state)) {
+            return $this->handleFlowInput($session, $nodeId, $command, $renderer);
+        }
 
         switch ($verb) {
             case 'H':
