@@ -762,12 +762,6 @@ class LineShell implements TerminalShellInterface
             if (!empty($imageRefs) && $imageFn !== null) {
                 $commands[] = count($imageRefs) === 1 ? 'I = image' : 'I/# = image';
             }
-            foreach ($extraKeyMap as $key => $action) {
-                if (strlen((string)$key) === 1) {
-                    $label = ucwords(str_replace('_', ' ', (string)$action));
-                    $commands[] = strtoupper((string)$key) . ' = ' . $label;
-                }
-            }
             if (!empty($helpItems)) {
                 $commands[] = '? = help';
             }
@@ -944,12 +938,6 @@ class LineShell implements TerminalShellInterface
             $commands = ['number = select', 'P = prev page', 'N = next page', 'Q = quit'];
             if (!empty($options['multiSelect'])) {
                 $commands[] = 'M# = toggle mark';
-            }
-            foreach ($extraKeyMap as $key => $action) {
-                if (strlen((string)$key) === 1) {
-                    $label = ucwords(str_replace('_', ' ', (string)$action));
-                    $commands[] = strtoupper((string)$key) . ' = ' . $label;
-                }
             }
             if (!empty($helpItems)) {
                 $commands[] = '? = help';
