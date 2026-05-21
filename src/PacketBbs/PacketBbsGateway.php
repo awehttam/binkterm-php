@@ -1517,6 +1517,28 @@ class PacketBbsGateway
                 : $renderer->renderEchomailMessage($msg, $page);
         }
 
+        if (($ctx['type'] ?? '') === 'text_buffer') {
+            $state    = $this->getSessionState($session);
+            $allPages = $state['text_pages'] ?? [];
+            $total    = count($allPages);
+
+            if ($total === 0 || $page > $total) {
+                return 'End.';
+            }
+
+            $content = $allPages[$page - 1];
+            $isLast  = $page >= $total;
+
+            $this->sessionRepo->update($nodeId, [
+                'pagination_cursor'  => $page,
+                'pagination_context' => $isLast ? null : json_encode(['type' => 'text_buffer', 'total' => $total]),
+            ]);
+
+            return $isLast
+                ? $content . "\n{$page}/{$total} B:back"
+                : $content . "\n{$page}/{$total} M:more B:back";
+        }
+
         return 'No more.';
     }
 
@@ -1578,6 +1600,30 @@ class PacketBbsGateway
             return $msgType === 'netmail'
                 ? $renderer->renderNetmailMessage($msg, $page)
                 : $renderer->renderEchomailMessage($msg, $page);
+        }
+
+        if (($ctx['type'] ?? '') === 'text_buffer') {
+            $state    = $this->getSessionState($session);
+            $allPages = $state['text_pages'] ?? [];
+            $total    = count($allPages);
+
+            if ($total === 0 || $page < 1) {
+                return 'Already at first page.';
+            }
+
+            $content = $allPages[$page - 1];
+            $isLast  = $page >= $total;
+
+            $this->sessionRepo->update($nodeId, [
+                'pagination_cursor' => $page,
+            ]);
+
+            if ($page === 1) {
+                return $content . "\n1/{$total} M:more";
+            }
+            return $isLast
+                ? $content . "\n{$page}/{$total} B:back"
+                : $content . "\n{$page}/{$total} M:more B:back";
         }
 
         return 'No context.';
@@ -2175,6 +2221,37 @@ class PacketBbsGateway
             return 'DM:' . (string)$state['current_chat_dm']['username'];
         }
         return (string)($state['current_chat_room']['name'] ?? 'chat');
+    }
+
+    /**
+     * If the response text exceeds the interface transport budget, split it into
+     * pages using the renderer's line-boundary algorithm, persist all pages in
+     * session state, and return the first page with a pagination footer.
+     *
+     * Short responses (and interfaces with no limit) are returned unchanged.
+     * Users page through the remaining content with M / B as usual.
+     */
+    public function paginateIfNeeded(string $nodeId, string $text, string $interface): string
+    {
+        $renderer = new PacketBbsTextRenderer($interface);
+        $pages    = $renderer->splitIntoPages($text);
+
+        if (count($pages) <= 1) {
+            return $text;
+        }
+
+        $total   = count($pages);
+        $session = $this->sessionRepo->load($nodeId) ?? [];
+        $state   = $this->getSessionState($session);
+        $state['text_pages'] = $pages;
+
+        $this->sessionRepo->update($nodeId, [
+            'pagination_cursor'  => 1,
+            'pagination_context' => json_encode(['type' => 'text_buffer', 'total' => $total]),
+            'session_state'      => $state,
+        ]);
+
+        return $pages[0] . "\n1/{$total} M:more";
     }
 
     /**

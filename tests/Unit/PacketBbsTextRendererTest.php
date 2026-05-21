@@ -15,7 +15,7 @@ class PacketBbsTextRendererTest extends TestCase
         $this->assertStringContainsString('GEN U/Q | M/B', $help);
         $this->assertStringContainsString('NET N | R/Y id | S to subj', $help);
         $this->assertStringContainsString('ECHO A | T tag | P subj', $help);
-        $this->assertStringContainsString('Use FULLHELP for full help', $help);
+        $this->assertStringContainsString('HF:fullhelp', $help);
     }
 
     public function testRenderAreaContextHelpShowsCurrentArea(): void
@@ -139,5 +139,64 @@ class PacketBbsTextRendererTest extends TestCase
         ], 1);
 
         $this->assertLessThanOrEqual(150, strlen($output));
+    }
+
+    public function testSplitIntoPagesPassesThroughShortResponse(): void
+    {
+        $renderer = new PacketBbsTextRenderer('meshcore');
+        $short = 'Hi alice. HELP for commands.';
+        $pages = $renderer->splitIntoPages($short);
+        $this->assertCount(1, $pages);
+        $this->assertSame($short, $pages[0]);
+    }
+
+    public function testSplitIntoPagesChunksLongResponseAtNewlines(): void
+    {
+        $renderer = new PacketBbsTextRenderer('meshcore');
+        // 60-char lines: one line = 60, two = 121 (> 150 - 21 = 129), so each line is its own page
+        $long = str_repeat('A', 60) . "\n"
+              . str_repeat('B', 60) . "\n"
+              . str_repeat('C', 60);
+
+        $pages = $renderer->splitIntoPages($long);
+
+        $this->assertGreaterThan(1, count($pages));
+        // Every page must fit within budget plus worst-case footer
+        foreach ($pages as $page) {
+            $this->assertLessThanOrEqual(129, strlen($page)); // 150 - 21 footer reserve
+        }
+        // No content is dropped — all lines appear somewhere across pages
+        $all = implode('', $pages);
+        $this->assertStringContainsString(str_repeat('A', 60), $all);
+        $this->assertStringContainsString(str_repeat('B', 60), $all);
+        $this->assertStringContainsString(str_repeat('C', 60), $all);
+    }
+
+    public function testSplitIntoPagesToncHasNoLimit(): void
+    {
+        $renderer = new PacketBbsTextRenderer('tnc');
+        $long = str_repeat('X', 500);
+        $pages = $renderer->splitIntoPages($long);
+        $this->assertCount(1, $pages);
+        $this->assertSame($long, $pages[0]);
+    }
+
+    public function testSplitIntoPagesFullhelpProducesMultiplePages(): void
+    {
+        $renderer = new PacketBbsTextRenderer('meshcore');
+        $help     = $renderer->renderHelp('FULLHELP');
+        $pages    = $renderer->splitIntoPages($help);
+
+        $this->assertGreaterThan(1, count($pages));
+
+        // Every page content fits within the per-page budget
+        foreach ($pages as $page) {
+            $this->assertLessThanOrEqual(129, strlen($page));
+        }
+
+        // Full help content is preserved across pages
+        $all = implode('', $pages);
+        $this->assertStringContainsString('(L)OGIN username code', $all);
+        $this->assertStringContainsString('(Q)UIT end session', $all);
     }
 }

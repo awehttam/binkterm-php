@@ -98,6 +98,7 @@ SimpleRouter::post('/api/packetbbs/command', function () {
 
     $gateway  = new PacketBbsGateway();
     $response = $gateway->handleCommand($nodeId, $interface, $command, $bridgeNodeId);
+    $response = $gateway->paginateIfNeeded($nodeId, $response, $interface);
 
     header('Content-Type: text/plain; charset=utf-8');
     echo $response;
