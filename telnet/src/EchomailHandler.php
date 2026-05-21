@@ -1110,8 +1110,8 @@ class EchomailHandler
                     $selectedMessageId = null;
                     continue;
                 }
-                TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.echomail.no_messages', 'No echomail messages.', [], $state['locale']));
-                return;
+                // Area is empty — show the message list UI anyway so the user can compose.
+                $totalPages = 1;
             }
 
             if ($selectedMessageId !== null) {
