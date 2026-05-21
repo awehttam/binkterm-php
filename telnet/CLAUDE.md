@@ -5,7 +5,10 @@
 
 ## Documentation
 
-**Keep `docs/TerminalServerDevGuide.md` up to date.** When adding, changing, or removing any terminal server feature (new menu actions, key handling, session flow, API endpoints used, screen slots, editor controls, or platform behaviour), update the relevant section of `docs/TerminalServerDevGuide.md` as part of the same change. This document is the primary reference for the shared BBS session model and its features.
+Two docs must be kept in sync when changing the terminal server:
+
+- **`docs/TerminalServerDevGuide.md`** — developer reference: implementation details, architecture, session flow, API endpoints, screen slots, and editor controls. Update this when changing how something works internally.
+- **`docs/TerminalServer.md`** — sysop guide: user-visible features, key bindings, operational considerations, and anything a sysop needs to know to run or configure the terminal server. Update this when adding, changing, or removing any feature that affects sysop configuration or end-user behaviour.
 
 ## Adding / Modifying / Removing Main Menu Actions
 
@@ -21,6 +24,7 @@ Menu actions are data-driven via the key map in `AppearanceConfig`. Every action
 4. **`config/i18n/*/common.php`** — add/remove `ui.admin.appearance.term_menu_keys.action.<action>` in **every** locale directory (admin UI label).
 5. **`config/i18n/*/terminalserver.php`** — add/remove `ui.terminalserver.server.menu.<action>` in **every** locale directory (built-in text menu label).
 6. **`docs/TerminalServerDevGuide.md`** — update the default key table in the "Customizable Main Menu Keys" section.
+7. **`docs/TerminalServer.md`** — update the sysop-facing key reference so operators know the new action exists and what key triggers it.
 
 The admin save route (`POST /api/admin/appearance/term-menu-keys`) derives its valid action list from `array_keys(AppearanceConfig::DEFAULT_TERM_MENU_KEYS)` automatically — no route change needed when adding an action.
 
