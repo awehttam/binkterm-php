@@ -210,10 +210,10 @@ Some handlers must remain on fixed plain-text flows and must never be routed thr
 
 ## Style Profile
 
-All terminal UI colors are routed through `TelnetUtils::getDefaultStyleProfile()`. Handlers and widgets read colors from this profile instead of hardcoding ANSI constants, so the palette can be changed in one place.
+All terminal UI colors are routed through the terminal style profile. Widgets should read the active session profile with `TelnetUtils::getStyleProfile($state)` so shell or plugin overrides apply consistently; `TelnetUtils::getDefaultStyleProfile()` is only the canonical fallback palette.
 
 ```php
-$profile = TelnetUtils::getDefaultStyleProfile();
+$profile = TelnetUtils::getStyleProfile($state);
 ```
 
 ### Profile Sections

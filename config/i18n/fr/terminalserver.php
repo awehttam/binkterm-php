@@ -418,7 +418,7 @@ return [
     'ui.terminalserver.detect.press_enter'             => 'Appuyez sur Entrée pour continuer...',
 
     'ui.terminalserver.doors.no_doors' => 'Aucun jeu de portes n\'est disponible actuellement.',
-    'ui.terminalserver.doors.title' => '=== Jeux de portes ===',
+    'ui.terminalserver.doors.title' => 'Jeux de portes',
     'ui.terminalserver.doors.enter_choice' => 'Entrez un numéro pour jouer, ou Q pour revenir : ',
     'ui.terminalserver.doors.invalid' => 'Sélection invalide.',
     'ui.terminalserver.doors.launching' => 'Lancement de {name}...',

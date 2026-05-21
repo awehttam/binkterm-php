@@ -51,7 +51,7 @@ class TelnetUtils
                 'body' => self::ANSI_BG_BLUE . "\033[37m",
                 'hint' => self::ANSI_YELLOW,
                 'choice_key' => self::ANSI_CYAN . self::ANSI_BOLD,
-                'choice_label' => self::ANSI_BLUE,
+                'choice_label' => "\033[37m",
             ],
             'help_overlay' => [
                 'bg' => self::ANSI_BG_BLUE,
@@ -2629,7 +2629,7 @@ class TelnetUtils
         );
 
         $ansi  = self::$ansiColorEnabled;
-        $profile = self::getDefaultStyleProfile();
+        $profile = self::getStyleProfile($state);
         $scheme = array_merge($profile['dialog'] ?? [], $colorScheme);
         $bg    = (string)($scheme['bg'] ?? self::ANSI_BG_BLUE);
         $rst   = self::ANSI_RESET;

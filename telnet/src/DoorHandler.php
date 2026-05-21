@@ -57,7 +57,7 @@ class DoorHandler
             $shell->showText(
                 $conn,
                 $state,
-                $this->server->t('ui.terminalserver.doors.title', '=== Door Games ===', [], $state['locale']),
+                $this->server->t('ui.terminalserver.doors.title', 'Door Games', [], $state['locale']),
                 [$this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale'])]
             );
             return;
@@ -86,7 +86,7 @@ class DoorHandler
             $selected = $shell->chooseFromList(
                 $conn,
                 $state,
-                $this->server->t('ui.terminalserver.doors.title', '=== Door Games ===', [], $state['locale']),
+                $this->server->t('ui.terminalserver.doors.title', 'Door Games', [], $state['locale']),
                 $items,
                 [
                     'prompt' => $this->server->t('ui.terminalserver.doors.enter_choice', 'Select a door or Q to return: ', [], $state['locale']),

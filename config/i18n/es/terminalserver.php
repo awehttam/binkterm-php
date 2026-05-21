@@ -503,7 +503,7 @@ return [
 
     // --- Door games ---
     'ui.terminalserver.doors.no_doors'                 => 'No hay puertas disponibles actualmente.',
-    'ui.terminalserver.doors.title'                    => '=== Juegos de Puertas ===',
+    'ui.terminalserver.doors.title'                    => 'Juegos de Puertas',
     'ui.terminalserver.doors.enter_choice'             => 'Ingrese número para jugar, o Q para volver: ',
     'ui.terminalserver.doors.invalid'                  => 'Selección inválida.',
     'ui.terminalserver.doors.launching'                => 'Iniciando {name}...',
