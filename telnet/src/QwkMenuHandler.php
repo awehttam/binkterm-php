@@ -148,7 +148,7 @@ class QwkMenuHandler
             TelnetUtils::writeLine($conn, $this->server->t($quitKey, $quitFallback, [], $locale));
             TelnetUtils::writeLine($conn, '');
 
-            $choice = $this->server->prompt($conn, $state, '> ', true);
+            $choice = $this->server->prompt($conn, $state, 'qwk> ', true);
             if ($choice === null) {
                 return false;
             }
@@ -442,7 +442,7 @@ class QwkMenuHandler
         TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.qwk.format_cancel',      '  Q) Cancel', [], $locale));
         TelnetUtils::writeLine($conn, '');
 
-        $choice = $this->server->prompt($conn, $state, '> ', true);
+        $choice = $this->server->prompt($conn, $state, 'qwk> ', true);
         if ($choice === null) {
             return;
         }
