@@ -175,6 +175,36 @@ class AiService
         return $result;
     }
 
+    /**
+     * Returns the effective system-level default provider name and model based on
+     * AI_DEFAULT_PROVIDER / AI_DEFAULT_MODEL env vars and currently configured providers.
+     *
+     * @return array{provider: string, model: string}|null Null when no providers are configured.
+     */
+    public function getSystemDefault(): ?array
+    {
+        if (empty($this->providers)) {
+            return null;
+        }
+
+        $provider = (string)Config::env('AI_DEFAULT_PROVIDER', '');
+        if ($provider !== '') {
+            $provider = $this->normalizeProviderName($provider);
+        }
+        if ($provider === '' || !isset($this->providers[$provider])) {
+            $provider = isset($this->providers['openai'])
+                ? 'openai'
+                : (string)array_key_first($this->providers);
+        }
+
+        $model = (string)Config::env('AI_DEFAULT_MODEL', '');
+        if ($model === '') {
+            $model = $this->providers[$provider]->getDefaultModel();
+        }
+
+        return ['provider' => $provider, 'model' => $model];
+    }
+
     public static function create(): self
     {
         $service = new self();

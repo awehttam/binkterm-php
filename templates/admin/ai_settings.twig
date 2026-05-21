@@ -19,6 +19,9 @@
                     <div class="{% if not loop.last %}mb-3 pb-3 border-bottom{% endif %}">
                         <div class="d-flex align-items-center mb-2">
                             <strong class="me-2">{{ provider.display_name }}</strong>
+                            {% if provider.configured and provider.name == system_default_provider %}
+                            <span class="badge bg-primary me-1">{{ t('ui.admin.bbs_settings.ai.system_default', {}, 'common') }}</span>
+                            {% endif %}
                             {% if provider.configured %}
                             <span class="badge bg-success">{{ t('ui.admin.bbs_settings.ai.status_enabled', {}, 'common') }}</span>
                             {% else %}

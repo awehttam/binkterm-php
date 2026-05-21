@@ -147,6 +147,7 @@ In the web interface, chat rooms now render inline media automatically, inline c
 - The root `CLAUDE.md` contributor guide has been split into subdirectory-scoped files and on-demand skill scripts, reducing context load when working in specific parts of the codebase. No action required for sysops.
 - A `session-start.php` script has been added to `.claude/` to print available project skills at the start of each Claude Code session.
 - **OpenRouter AI provider**: [OpenRouter](https://openrouter.ai) is now available as a fourth AI service provider. Set `OPENROUTER_API_KEY` in `.env` to enable it. No upgrade action is required for systems not using OpenRouter.
+- **OpenAI (Codex) compatibility shims**: `AGENTS.md` has been updated with compatibility shims for OpenAI Codex and other OpenAI-compatible AI coding agents, directing them to follow the same project conventions defined in `CLAUDE.md`.
 
 ---
 
@@ -188,7 +189,7 @@ When any supported inline images are found, the message body shows numbered `[Im
 
 For safety and predictable `img2sixel` behavior, the terminal-side URL scan is limited to raster formats known to work in this environment. SVG, WebP, and other extensions are not included in the terminal scan. Hosts that serve valid image files as `application/octet-stream` are now accepted when the URL path ends in one of the supported raster extensions, and the downloaded file is validated before conversion.
 
-No sysop configuration is required. If `img2sixel` is already installed, the expanded image-viewer behavior becomes available after the upgraded daemons are restarted.
+If `img2sixel` is already installed, the expanded image-viewer behavior becomes available after the upgraded daemons are restarted.
 
 ### SSH Startup Input Drain
 
@@ -204,7 +205,7 @@ The terminal netmail message list now includes a Sent folder. From the message l
 
 When reading a message in the Sent view, the header shows the recipient (`To:`) rather than the sender, since the sender is always the logged-in user. Pressing `R` to reply from the Sent view pre-fills the recipient fields with the original message's addressee rather than the sender.
 
-No sysop configuration is required. The daemon restart that follows a normal upgrade is sufficient.
+The daemon restart that follows a normal upgrade is sufficient.
 
 ### Netmail Sort Options in Terminal Reader
 
@@ -212,7 +213,7 @@ The terminal netmail message list now supports the same four sort modes as the w
 
 The selected sort is stored per user and restored the next time that user opens netmail from the terminal. The same saved sort applies to both Inbox and Sent views.
 
-No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+The change takes effect when the upgraded daemons are restarted.
 
 ### Configurable Terminal Idle Timeout
 
@@ -286,7 +287,7 @@ Both the sender and the recipient may delete their copy of a message. The same o
 
 A pre-existing bug in the terminal key decoder has also been fixed as part of this change: the `Del` key sequence (`\033[3~`) was not recognized by the interactive session key reader, causing it to be silently ignored in all full-screen terminal views. The key now works reliably across the entire terminal interface.
 
-No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+The change takes effect when the upgraded daemons are restarted.
 
 ---
 
@@ -298,7 +299,7 @@ Bookmarked netmail messages appear under the **Saved** filter in the web interfa
 
 The `B` key is listed in the Ctrl-K help overlay for the netmail viewer. It is not shown on the status bar (which is reserved for primary navigation keys).
 
-No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+The change takes effect when the upgraded daemons are restarted.
 
 ---
 
@@ -310,7 +311,7 @@ Bookmarked echomail messages appear under the **Saved** filter in the web interf
 
 The `B` key is listed in the Ctrl-K help overlay for the echomail viewer. It is not shown on the status bar (which is reserved for primary navigation keys).
 
-No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+The change takes effect when the upgraded daemons are restarted.
 
 ---
 
@@ -358,7 +359,7 @@ Terminal users can now search echomail messages by keyword from two places.
 
 When reading a message opened from search results, any occurrence of the search term in the message body is highlighted in white text on a yellow background, consistent with the search result highlighting in the web interface. Navigating to the previous or next message within the result set preserves the highlight.
 
-No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+The change takes effect when the upgraded daemons are restarted.
 
 ---
 
@@ -373,7 +374,7 @@ Terminal users can now mark multiple netmail inbox messages as read in one actio
 - Multi-select and the `M` key are available in the **inbox only**. The Sent folder does not expose them.
 - `Ctrl-K` opens the key-binding help overlay, which lists both `Space` (Toggle selection) and `M` (Mark selected messages as read).
 
-No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+The change takes effect when the upgraded daemons are restarted.
 
 ---
 
@@ -407,7 +408,7 @@ The `/` filter, `S` cross-area search, `C` clear-filter, and `I` interests keys 
 
 The interests picker uses the same widget: arrow keys or number+Enter to select an interest, Q to return.
 
-No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+The change takes effect when the upgraded daemons are restarted.
 
 ---
 
@@ -429,7 +430,7 @@ Terminal users can now subscribe and unsubscribe to echo areas without leaving t
 
 `GET /api/echoareas` now includes a `subscribed` boolean field on each area object, indicating whether the authenticated user is currently subscribed. Clients that do not use this field are unaffected.
 
-No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+The change takes effect when the upgraded daemons are restarted.
 
 ---
 
@@ -439,7 +440,7 @@ The terminal file browser now matches the selector-style interaction already use
 
 Opening a file from the terminal browser now shows a centered file-info modal instead of a plain full-screen text page. The modal redraws cleanly on terminal resize, keeps long descriptions scrollable with Up/Down or PgUp/PgDn, and still allows direct `D` download from the detail view.
 
-No sysop configuration is required. The change takes effect when the upgraded daemons are restarted.
+The change takes effect when the upgraded daemons are restarted.
 
 ---
 
@@ -463,7 +464,7 @@ The editor `Ctrl-K` help view now uses the same framed dialog treatment instead 
 
 The editor also redraws against the current terminal size when the user resizes the window while composing, so the frame and text area stay aligned with the new dimensions.
 
-No sysop configuration is required. The change takes effect when the upgraded Telnet and SSH daemons are restarted.
+The change takes effect when the upgraded Telnet and SSH daemons are restarted.
 
 ---
 
@@ -475,7 +476,7 @@ When a user starts a new compose flow in the terminal and saved drafts already e
 
 Inside the full-screen editor, `Ctrl+S` now saves the current message as a draft and keeps the user in the editor so they can continue writing. `Ctrl+Z` remains the send key. If the user resumed an existing draft and then sends successfully, that draft is deleted automatically so stale copies do not accumulate.
 
-No sysop configuration is required. The feature becomes available after the upgraded Telnet and SSH daemons are restarted.
+The feature becomes available after the upgraded Telnet and SSH daemons are restarted.
 
 ---
 
@@ -487,7 +488,7 @@ Two new terminal actions let users manage echomail ignore rules without leaving 
 
 **G on the echoarea list** — pressing `G` on the echoarea list opens a paginated ignore-rules management screen showing all of the user's current ignore rules. Selecting a rule and pressing `Enter` or `D` prompts for confirmation before deleting it via `DELETE /api/user/echomail-ignore-rules/{id}`.
 
-No sysop configuration is required. Both actions become available after the upgraded daemons are restarted.
+Both actions become available after the upgraded daemons are restarted.
 
 ---
 
@@ -513,7 +514,7 @@ The new terminal public-profile viewer displays only public fields: **username**
 
 To support this, the API now also exposes `GET /api/user/public-profile/{id}` for authenticated callers. The endpoint returns only the public profile fields needed by the terminal viewer and does not include private account data.
 
-No sysop configuration is required. The feature becomes available after the upgraded Telnet and SSH daemons are restarted.
+The feature becomes available after the upgraded Telnet and SSH daemons are restarted.
 
 ---
 
@@ -521,7 +522,7 @@ No sysop configuration is required. The feature becomes available after the upgr
 
 The DOS door relay now restores the telnet client socket to its pre-door blocking mode before control returns to the regular terminal session. This keeps prompt-driven terminal flows operating normally after a door exits, including reopening the door menu, entering the nodelist browser, and using other line-input screens from the main menu.
 
-No sysop configuration is required. The change takes effect when the upgraded Telnet daemon is restarted.
+The change takes effect when the upgraded Telnet daemon is restarted.
 
 ---
 
@@ -658,7 +659,7 @@ The first menu item is **View Profile**, which opens the clicked poster's public
 
 For admins in room chat, the same menu still includes **Kick** and **Ban**. For regular users, only the profile action is shown.
 
-No sysop configuration is required. The change takes effect as soon as the updated JavaScript and service-worker cache are deployed.
+The change takes effect as soon as the updated JavaScript and service-worker cache are deployed.
 
 ### Chat Inline Media
 
@@ -673,19 +674,17 @@ Supported content types:
 | Retro audio | `.sid` `.mod` `.xm` `.it` `.s3m` `.stm` `.amf` `.669` `.mptm` `.midi` |
 | Platform embeds | YouTube, Odysee, BitChute, Brighteon, PeerTube, Rumble, SoundCloud, Twitter/X, TikTok, ReverbNation, Bastyon |
 
-No sysop configuration is required. The global **Admin → BBS Settings → Media Player** toggle still controls whether the media player is active at all; if it is disabled site-wide, chat media rendering is also disabled.
+The global **Admin → BBS Settings → Media Player** toggle still controls whether the media player is active at all; if it is disabled site-wide, chat media rendering is also disabled.
 
 ### Dark Theme Inline Code Color
 
 Bootstrap 5's default color for inline `code` elements (`#d63384`, a pink/red) is difficult to read against dark backgrounds. The dark, amber, greenterm, and cyberpunk themes now override this with the theme's normal text color.
 
-No sysop action is required.
 
 ### Bulletin Viewer Rendering
 
 The bulletin viewer now renders plain-text bulletin bodies using the same preformatted style as the message reader. Text wraps to the container width rather than overflowing into a horizontal scrollbar, and the font has been updated to the system UI monospace stack (Cascadia Code on Windows 11, SF Mono on macOS, Consolas on older Windows) instead of Courier New.
 
-No sysop action is required.
 
 ---
 
@@ -705,7 +704,8 @@ A `Doc Maintenance Checklist` section was also added to `docs/DEVELOPER_GUIDE.md
 
 `.claude/session-start.php` has been added and is now tracked in git. It prints a welcome message and the list of available project skills at the start of each new Claude Code session. The `CLAUDE.md` instructions were updated to require that any new skill file be registered in both the Skills list in `CLAUDE.md` and in `session-start.php`.
 
-No sysop action is required for any of these changes.
+`AGENTS.md` has been updated with compatibility shims for OpenAI Codex and other OpenAI-compatible AI coding agents, directing them to the same project conventions and workflows defined in `CLAUDE.md` so contributors using either toolchain follow a similar development process. Note that Codex does not load Claude Code skill files directly — the equivalent of a slash command is invoked through natural language instead (e.g. Claude Code: `/tackleissue 42`; Codex: *"let's tackle issue 42"*).
+
 
 ---
 

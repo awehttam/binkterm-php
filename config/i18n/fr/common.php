@@ -4695,7 +4695,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
 
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Activer l\'assistant IA',
-    'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Affiche le bouton assistant IA dans les lecteurs de messages echomail et netmail. Necessite une cle API Anthropic configuree.',
+    'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Affiche le bouton assistant IA dans les lecteurs de messages echomail et netmail.',
 
     // AI Settings page
     'ui.admin.bbs_settings.ai.page_title'           => 'Parametres IA',
@@ -4704,13 +4704,14 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.bbs_settings.ai.configure_link'       => 'Parametres IA',
     'ui.admin.bbs_settings.ai.no_provider_warning'  => 'Aucun fournisseur IA n\'est configure. Ajoutez une cle API OpenAI ou Anthropic dans .env pour activer ces fonctionnalites.',
     'ui.admin.bbs_settings.ai.enable_share_summary' => 'Activer les resumes IA pour les liens de messages partages',
-    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Lorsqu\'il est active, un bouton IA apparait dans la boite de dialogue de partage pour generer une description d\'apercu en une phrase. Necessite un fournisseur IA configure.',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Lorsqu\'il est active, un bouton IA apparait dans la boite de dialogue de partage pour generer une description d\'apercu en une phrase.',
     'ui.admin.bbs_settings.ai.save'                 => 'Enregistrer les parametres IA',
     'ui.admin.bbs_settings.ai.save_failed'          => 'Echec de l\'enregistrement des parametres IA.',
     'ui.admin.bbs_settings.ai.saved_success'                  => 'Parametres IA enregistres.',
     'ui.admin.bbs_settings.ai.share_summary_prompt_label'    => 'Invite systeme du resume de partage',
     'ui.admin.bbs_settings.ai.share_summary_prompt_help'     => 'Invite systeme envoyee a l\'IA lors de la generation des descriptions d\'apercu. Laissez vide pour utiliser la valeur par defaut integree.',
     'ui.admin.bbs_settings.ai.status_title'                => 'Etat des fournisseurs',
+    'ui.admin.bbs_settings.ai.system_default'               => 'Defaut systeme',
     'ui.admin.bbs_settings.ai.status_enabled'              => 'Actif',
     'ui.admin.bbs_settings.ai.status_disabled'             => 'Non configure',
     'ui.admin.bbs_settings.ai.status_default_model'        => 'Modele par defaut',

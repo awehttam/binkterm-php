@@ -4767,7 +4767,7 @@ return [
 
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Abilita assistente AI',
-    'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Mostra il pulsante Assistente AI nei lettori echomail e netmail. Richiede una chiave API Anthropic configurata.',
+    'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Mostra il pulsante Assistente AI nei lettori echomail e netmail.',
 
     // AI Settings page
     'ui.admin.bbs_settings.ai.page_title'           => 'Impostazioni AI',
@@ -4776,13 +4776,14 @@ return [
     'ui.admin.bbs_settings.ai.configure_link'       => 'Impostazioni AI',
     'ui.admin.bbs_settings.ai.no_provider_warning'  => 'Nessun fornitore AI configurato. Aggiungi una chiave API OpenAI o Anthropic nel file .env per abilitare queste funzionalita.',
     'ui.admin.bbs_settings.ai.enable_share_summary' => 'Abilita riepiloghi AI per i link ai messaggi condivisi',
-    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Se abilitato, nel dialogo di condivisione appare un pulsante AI per generare una descrizione di anteprima. Richiede un fornitore AI configurato.',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Se abilitato, nel dialogo di condivisione appare un pulsante AI per generare una descrizione di anteprima.',
     'ui.admin.bbs_settings.ai.save'                 => 'Salva impostazioni AI',
     'ui.admin.bbs_settings.ai.save_failed'          => 'Impossibile salvare le impostazioni AI.',
     'ui.admin.bbs_settings.ai.saved_success'                  => 'Impostazioni AI salvate.',
     'ui.admin.bbs_settings.ai.share_summary_prompt_label'    => 'Prompt di sistema per il riepilogo condivisione',
     'ui.admin.bbs_settings.ai.share_summary_prompt_help'     => 'Prompt di sistema inviato all\'AI durante la generazione delle descrizioni di anteprima. Lasciare vuoto per usare il valore predefinito integrato.',
     'ui.admin.bbs_settings.ai.status_title'                => 'Stato dei fornitori',
+    'ui.admin.bbs_settings.ai.system_default'               => 'Predefinito di sistema',
     'ui.admin.bbs_settings.ai.status_enabled'              => 'Attivo',
     'ui.admin.bbs_settings.ai.status_disabled'             => 'Non configurato',
     'ui.admin.bbs_settings.ai.status_default_model'        => 'Modello predefinito',

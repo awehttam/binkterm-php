@@ -4770,7 +4770,7 @@ return [
 
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Habilitar asistente IA',
-    'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Muestra el boton de asistente IA en los lectores de echomail y netmail. Requiere una clave API de Anthropic configurada.',
+    'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Muestra el boton de asistente IA en los lectores de echomail y netmail.',
 
     // AI Settings page
     'ui.admin.bbs_settings.ai.page_title'           => 'Configuracion de IA',
@@ -4779,13 +4779,14 @@ return [
     'ui.admin.bbs_settings.ai.configure_link'       => 'Configuracion de IA',
     'ui.admin.bbs_settings.ai.no_provider_warning'  => 'No hay ningun proveedor de IA configurado. Agrega una clave API de OpenAI o Anthropic en .env para habilitar estas funciones.',
     'ui.admin.bbs_settings.ai.enable_share_summary' => 'Habilitar resumenes de IA para enlaces de mensajes compartidos',
-    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Cuando esta habilitado, aparece un boton de IA en el dialogo de compartir para generar una descripcion de vista previa. Requiere un proveedor de IA configurado.',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'Cuando esta habilitado, aparece un boton de IA en el dialogo de compartir para generar una descripcion de vista previa.',
     'ui.admin.bbs_settings.ai.save'                 => 'Guardar configuracion de IA',
     'ui.admin.bbs_settings.ai.save_failed'          => 'Error al guardar la configuracion de IA.',
     'ui.admin.bbs_settings.ai.saved_success'                  => 'Configuracion de IA guardada.',
     'ui.admin.bbs_settings.ai.share_summary_prompt_label'    => 'Indicacion del sistema para resumen compartido',
     'ui.admin.bbs_settings.ai.share_summary_prompt_help'     => 'Indicacion del sistema enviada a la IA al generar descripciones de vista previa. Dejar en blanco para usar el valor predeterminado integrado.',
     'ui.admin.bbs_settings.ai.status_title'                => 'Estado de proveedores',
+    'ui.admin.bbs_settings.ai.system_default'               => 'Predeterminado del sistema',
     'ui.admin.bbs_settings.ai.status_enabled'              => 'Habilitado',
     'ui.admin.bbs_settings.ai.status_disabled'             => 'No configurado',
     'ui.admin.bbs_settings.ai.status_default_model'        => 'Modelo predeterminado',

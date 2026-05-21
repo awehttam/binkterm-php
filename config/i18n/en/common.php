@@ -4810,7 +4810,7 @@ return [
 
     // AI Assistant - admin settings
     'ui.admin.bbs_settings.features.enable_ai_assistant' => 'Enable AI Assistant',
-    'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Show the AI Assistant button in echomail and netmail readers. Requires an Anthropic API key to be configured.',
+    'ui.admin.bbs_settings.features.ai_assistant_help'   => 'Show the AI Assistant button in echomail and netmail readers.',
 
     // AI Settings page
     'ui.admin.bbs_settings.ai.page_title'           => 'AI Settings',
@@ -4819,13 +4819,14 @@ return [
     'ui.admin.bbs_settings.ai.configure_link'       => 'AI Settings',
     'ui.admin.bbs_settings.ai.no_provider_warning'  => 'No AI provider is configured. Add an OpenAI or Anthropic API key to .env to enable these features.',
     'ui.admin.bbs_settings.ai.enable_share_summary' => 'Enable AI summaries for shared message links',
-    'ui.admin.bbs_settings.ai.share_summary_help'   => 'When enabled, an AI button appears in the share dialog so users can generate a one-sentence link preview description. Requires an AI provider to be configured.',
+    'ui.admin.bbs_settings.ai.share_summary_help'   => 'When enabled, an AI button appears in the share dialog so users can generate a one-sentence link preview description.',
     'ui.admin.bbs_settings.ai.save'                 => 'Save AI Settings',
     'ui.admin.bbs_settings.ai.save_failed'          => 'Failed to save AI settings.',
     'ui.admin.bbs_settings.ai.saved_success'                  => 'AI settings saved.',
     'ui.admin.bbs_settings.ai.share_summary_prompt_label'    => 'Share summary system prompt',
     'ui.admin.bbs_settings.ai.share_summary_prompt_help'     => 'System prompt sent to the AI when generating link preview descriptions. Leave blank to use the built-in default.',
     'ui.admin.bbs_settings.ai.status_title'                => 'Provider Status',
+    'ui.admin.bbs_settings.ai.system_default'               => 'System default',
     'ui.admin.bbs_settings.ai.status_enabled'              => 'Enabled',
     'ui.admin.bbs_settings.ai.status_disabled'             => 'Not configured',
     'ui.admin.bbs_settings.ai.status_default_model'        => 'Default model',
