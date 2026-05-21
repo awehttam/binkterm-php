@@ -581,7 +581,7 @@ class NetmailHandler
             'subject' => $subject,
             'message_text' => $messageText
         ];
-        if (!empty($reply['id'])) {
+        if ($isReply && !empty($reply['id'])) {
             $payload['reply_to_id'] = $reply['id'];
         }
         if ($selectedTagline !== '') {
