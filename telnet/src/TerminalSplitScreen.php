@@ -121,7 +121,7 @@ class TerminalSplitScreen
      */
     public function render($conn, array $state): void
     {
-        $cols = max(40, (int)($state['cols'] ?? 80));
+        $cols = max(self::MIN_PANE_WIDTH, (int)($state['cols'] ?? 80));
         $rows = max(12, (int)($state['rows'] ?? 24));
 
         $left = 1 + $this->horizontalMargin;
