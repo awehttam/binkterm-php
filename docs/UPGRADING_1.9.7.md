@@ -6,9 +6,9 @@ Make sure you have a current backup of your database and files before upgrading.
 
 This release focused primarily on the terminal server, introducing support for multiple terminal shells and responsive ANSI rendering for better compatibility across different screen sizes and terminal types. Other subsystems — PacketBBS, the web interface, Auto Feed, and developer tooling — received updates alongside the terminal work.
 
-Other project updates included:
+A few other recent project updates are worth highlighting alongside this release:
 
-- A sysop guide covering installation, configuration, and ongoing administration is now available from **Admin → Help → Documentation**.
+- The built-in documentation has been expanded with an **Essential Setup & Operations** section covering Getting Started, Installation, Configuration, and other critical sysop topics. All of it is accessible from **Admin → Help → Documentation**.
 - BinktermPHP has a new official mascot: **Kludge the Corvid**.
 
 **1.9.7 requires PHP 8.2 or newer.** If your server is still on PHP 8.1 or earlier, upgrade PHP first and verify the runtime before replacing application files or running `php scripts/setup.php`. The application will not run correctly on older versions.
