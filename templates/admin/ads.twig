@@ -562,6 +562,7 @@ function openEditor(id) {
 
             const card = document.getElementById('adEditorCard');
             card.classList.remove('d-none');
+            adAnsiEditor?.syncRulerMetrics();
             card.scrollIntoView({ behavior: 'smooth', block: 'start' });
         })
         .catch(error => {

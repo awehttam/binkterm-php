@@ -685,6 +685,12 @@ Bootstrap 5's default color for inline `code` elements (`#d63384`, a pink/red) i
 
 The bulletin viewer now renders plain-text bulletin bodies using the same preformatted style as the message reader. Text wraps to the container width rather than overflowing into a horizontal scrollbar, and the font has been updated to the system UI monospace stack (Cascadia Code on Windows 11, SF Mono on macOS, Consolas on older Windows) instead of Courier New.
 
+### Ad Content Manager Ruler Fix
+
+The column ruler above the ANSI editor textarea in **Admin → Ads and Bulletins → Content Manager** was disappearing after saving an advertisement. The ruler is rendered by a dynamically inserted `<textarea>`, and `form.reset()` — called as part of closing the editor on save — was resetting its content to an empty string because no default value had been set. After this fix the ruler persists correctly across saves without requiring a page reload.
+
+No upgrade action is required.
+
 
 ---
 
