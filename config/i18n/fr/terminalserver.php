@@ -318,6 +318,7 @@ return [
     'ui.terminalserver.settings.hint_navigate_ascii'   => '  Haut/Bas Déplacer   G/D Modifier   [/] Onglets   S) Enreg.   Q) Quitter',
     'ui.terminalserver.settings.discarded'             => 'Modifications abandonnées.',
     'ui.terminalserver.settings.exiting'               => 'Sortie des paramètres.',
+    'ui.terminalserver.settings.line.save_changes'     => 'Enregistrer les modifications',
 
     // Onglet Terminal
     'ui.terminalserver.settings.terminal.charset'         => 'Jeu de caractères',

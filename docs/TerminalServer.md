@@ -271,7 +271,8 @@ ASCII
 
 - **UTF-8 terminal** — all styles render as configured.
 - **CP437 terminal** — Heavy falls back to Classic; Rounded falls back to Single. All other styles are unchanged.
-- **ASCII terminal** (or when ANSI color is disabled) — always renders as ASCII regardless of the configured style.
+- **ASCII terminal** — always renders as ASCII regardless of the configured style.
+- **ANSI color disabled on a UTF-8 or CP437 terminal** — borders still use the normal character-set-appropriate line-drawing glyphs; only color is removed.
 
 ### Customizable Main Menu Keys
 
@@ -368,6 +369,8 @@ New users who register are disconnected after registration and must reconnect to
 ### Terminal Detection Wizard
 
 On first login, if the user has no saved terminal settings, the server runs an auto-detection wizard that tests character set support and color capability, then saves the results. This wizard is skipped on subsequent sessions once settings are stored.
+
+The normal terminal settings screen is part of the shared tabbed settings UI, but the detection wizard itself intentionally remains a simple prompt-driven flow across all shells. This keeps first-run terminal detection working even when full shell rendering cannot yet be assumed to work correctly.
 
 ### System News
 

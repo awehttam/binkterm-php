@@ -1495,9 +1495,10 @@ class BbsSession
      */
     private function getLineDrawingChars(): array
     {
-        // When ANSI color is disabled, keep framing strictly ASCII to avoid
-        // mixed OEM glyph rendering artifacts in monochrome terminal modes.
-        if (!$this->ansiColorEnabled || $this->terminalCharset === 'ascii') {
+        // Border glyphs depend on character-set capability, not color
+        // preference. Monochrome UTF-8/CP437 sessions should still keep their
+        // line-drawing characters; only ASCII terminals need ASCII framing.
+        if ($this->terminalCharset === 'ascii') {
             return $this->borderGlyphs('ascii');
         }
 

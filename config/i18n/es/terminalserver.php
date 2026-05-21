@@ -402,6 +402,7 @@ return [
     'ui.terminalserver.settings.hint_navigate_ascii'   => '  Arriba/Abajo Mover   Izq/Der Cambiar   [/] Pestañas   S) Guardar   Q) Salir',
     'ui.terminalserver.settings.discarded'             => 'Cambios descartados.',
     'ui.terminalserver.settings.exiting'               => 'Saliendo de la configuración.',
+    'ui.terminalserver.settings.line.save_changes'     => 'Guardar cambios',
 
     // Pestaña Terminal
     'ui.terminalserver.settings.terminal.charset'         => 'Juego de caracteres',

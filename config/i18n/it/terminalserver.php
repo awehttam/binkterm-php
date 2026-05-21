@@ -406,6 +406,7 @@ return [
     'ui.terminalserver.settings.hint_navigate_ascii'   => '  Su/Giù Sposta   Sin/Des Cambia   [/] Schede   S) Salva   Q) Esci',
     'ui.terminalserver.settings.discarded'             => 'Modifiche scartate.',
     'ui.terminalserver.settings.exiting'               => 'Uscita dalle impostazioni.',
+    'ui.terminalserver.settings.line.save_changes'     => 'Salva modifiche',
 
     // Terminal tab fields
     'ui.terminalserver.settings.terminal.charset'         => 'Set di caratteri',

@@ -44,6 +44,14 @@ class AnsiSelectField extends AnsiFormField
         $this->currentIndex = ($idx !== false) ? (int)$idx : 0;
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public function getOptions(): array
+    {
+        return $this->options;
+    }
+
     // ── Input handling ───────────────────────────────────────────────────────
 
     public function handleLeft(): bool

@@ -51,6 +51,8 @@ Two concrete shells implement the interface:
 
 **Exception — QWK flows:** `QwkMenuHandler` must bypass the shell abstraction and write raw prompts (`> ` style) that QWK reader automation parses literally. Do not route QWK flows through `$shell`.
 
+**Exception — terminal detection wizard:** `TerminalSettingsHandler::runDetectionWizard()` must also bypass the shell abstraction and stay on direct `prompt()` / `writeLine()` output. The wizard exists to verify charset and ANSI capability before shell-specific rendering can be trusted, so converting it to shell widgets would make the detection path depend on the capability it is trying to detect.
+
 ## Reusable UI Widgets
 
 **Always call `TerminalShellInterface` methods — never call `TelnetUtils` methods directly from a handler.** `TelnetUtils` is the underlying implementation used internally by `TuiShell`; `LineShell` has its own plain-text equivalents. Calling `TelnetUtils` from a handler bypasses the shell contract and breaks line-shell sessions.

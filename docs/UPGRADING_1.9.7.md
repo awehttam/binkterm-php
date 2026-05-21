@@ -555,6 +555,8 @@ Users can now choose their terminal interface style from terminal settings. The 
 
 The priority order is: Force shell (sysop) → explicit user preference (TUI or Line) → system default (Auto).
 
+Line mode now has its own shell-native settings container instead of reusing the ANSI tab widget directly. Users who choose **Line mode** from terminal settings will see a section picker and per-section field lists that follow the line shell's normal prompt-driven interaction model, while TUI users keep the full tabbed screen. The terminal detection wizard intentionally remains a plain prompt flow across all shells because it must still work before shell-specific rendering can be trusted. Separately, turning ANSI color off no longer forces ASCII-only main-menu borders on UTF-8 or CP437 terminals; those sessions now keep their normal monochrome line-drawing characters.
+
 No migration is required. The idle timeout fields remain in the same form as before under the renamed heading. The daemon restart that follows a normal upgrade is sufficient.
 
 ---

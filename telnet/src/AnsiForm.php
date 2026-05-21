@@ -62,6 +62,14 @@ class AnsiForm
         return $this->fields[$this->activeIndex] ?? null;
     }
 
+    /**
+     * @return AnsiFormField[]
+     */
+    public function getFields(): array
+    {
+        return $this->fields;
+    }
+
     // ── Key dispatch helpers ─────────────────────────────────────────────────
 
     /**

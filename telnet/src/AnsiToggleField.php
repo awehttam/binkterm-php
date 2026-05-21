@@ -38,6 +38,17 @@ class AnsiToggleField extends AnsiFormField
 
     public function getValue(): mixed { return $this->on; }
 
+    /**
+     * @return array<string, string>
+     */
+    public function getOptions(): array
+    {
+        return [
+            '1' => $this->labelOn,
+            '0' => $this->labelOff,
+        ];
+    }
+
     public function setValue(mixed $value): void
     {
         if (is_bool($value)) {

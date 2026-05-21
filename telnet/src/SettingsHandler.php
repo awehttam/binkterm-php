@@ -6,9 +6,10 @@ namespace BinktermPHP\TelnetServer;
  * Full-featured BBS settings screen for the telnet/SSH terminal.
  *
  * Mirrors the web settings page across tabs for Terminal, Display,
- * Messaging, Profile, and Account — using the reusable {@see AnsiTabComponent} and
- * {@see AnsiForm} components.  Notifications are omitted because sound
- * delivery is not available over a text terminal connection.
+ * Messaging, Profile, and Account. TUI sessions use the reusable
+ * {@see AnsiTabComponent}; non-TUI shells use a shell-native section picker
+ * backed by the same field objects and save logic. Notifications are omitted
+ * because sound delivery is not available over a text terminal connection.
  *
  * The AI tab is conditionally included when MCP is enabled on the system.
  */
@@ -321,21 +322,19 @@ class SettingsHandler
                     ->addField($viewSessionsAction)
                     ->addField($resetOnboardingAction);
 
-        // ── Build tabs ───────────────────────────────────────────────────────
-        $tabs = new AnsiTabComponent(
-            $this->t('ui.terminalserver.settings.tab_title', 'BBS Settings', $locale),
-            $this->server
-        );
-        $tabs->addTab($this->t('ui.terminalserver.settings.tab_terminal',  'Terminal',  $locale), $terminalForm);
-        $tabs->addTab($this->t('ui.terminalserver.settings.tab_display',  'Display',   $locale), $displayForm);
-        $tabs->addTab($this->t('ui.terminalserver.settings.tab_messaging','Messaging', $locale), $messagingForm);
-        $tabs->addTab($this->t('ui.terminalserver.settings.tab_profile',  'Profile',   $locale), $profileForm);
-        $tabs->addTab($this->t('ui.terminalserver.settings.tab_account',  'Account',   $locale), $accountForm);
+        $tabDefs = [
+            ['label' => $this->t('ui.terminalserver.settings.tab_terminal', 'Terminal', $locale), 'form' => $terminalForm],
+            ['label' => $this->t('ui.terminalserver.settings.tab_display', 'Display', $locale), 'form' => $displayForm],
+            ['label' => $this->t('ui.terminalserver.settings.tab_messaging', 'Messaging', $locale), 'form' => $messagingForm],
+            ['label' => $this->t('ui.terminalserver.settings.tab_profile', 'Profile', $locale), 'form' => $profileForm],
+            ['label' => $this->t('ui.terminalserver.settings.tab_account', 'Account', $locale), 'form' => $accountForm],
+        ];
 
-        // Conditionally add AI tab
         if (!empty($mcpInfo['mcp_enabled'])) {
-            $aiForm = $this->buildAiForm($mcpInfo, $session, $locale);
-            $tabs->addTab($this->t('ui.terminalserver.settings.tab_ai', 'AI', $locale), $aiForm);
+            $tabDefs[] = [
+                'label' => $this->t('ui.terminalserver.settings.tab_ai', 'AI', $locale),
+                'form' => $this->buildAiForm($mcpInfo, $session, $locale),
+            ];
         }
 
         $savedSnapshot = $this->buildSettingsSnapshot(
@@ -347,15 +346,80 @@ class SettingsHandler
             $profileForm
         );
 
-        // ── Run UI ───────────────────────────────────────────────────────────
+        $shell = TerminalShellFactory::create($this->server, $state);
+        if ($shell instanceof TuiShell) {
+            $this->showTuiSettings(
+                $conn,
+                $state,
+                $session,
+                $tabDefs,
+                $savedSnapshot,
+                $charsetField,
+                $colorField,
+                $shellModeField,
+                $displayForm,
+                $messagingForm,
+                $profileForm
+            );
+            return;
+        }
+
+        $this->showShellSettingsPicker(
+            $conn,
+            $state,
+            $session,
+            $shell,
+            $tabDefs,
+            $savedSnapshot,
+            $charsetField,
+            $colorField,
+            $shellModeField,
+            $displayForm,
+            $messagingForm,
+            $profileForm
+        );
+    }
+
+    /**
+     * @param array<int, array{label:string, form:AnsiForm}> $tabDefs
+     * @param array<string, mixed> $savedSnapshot
+     */
+    private function showTuiSettings(
+        $conn,
+        array &$state,
+        string $session,
+        array $tabDefs,
+        array $savedSnapshot,
+        AnsiSelectField $charsetField,
+        AnsiToggleField $colorField,
+        AnsiSelectField $shellModeField,
+        AnsiForm $displayForm,
+        AnsiForm $messagingForm,
+        AnsiForm $profileForm
+    ): void {
+        $locale = $state['locale'] ?? 'en';
+        $tabs = new AnsiTabComponent(
+            $this->t('ui.terminalserver.settings.tab_title', 'BBS Settings', $locale),
+            $this->server
+        );
+        foreach ($tabDefs as $tabDef) {
+            $tabs->addTab($tabDef['label'], $tabDef['form']);
+        }
+
         while (true) {
             $result = $tabs->show($conn, $state, $session);
 
             if ($result === 'save') {
                 if ($this->performSave(
-                    $conn, $state, $session,
-                    $charsetField, $colorField, $shellModeField,
-                    $displayForm, $messagingForm, $profileForm
+                    $conn,
+                    $state,
+                    $session,
+                    $charsetField,
+                    $colorField,
+                    $shellModeField,
+                    $displayForm,
+                    $messagingForm,
+                    $profileForm
                 )) {
                     $savedSnapshot = $this->buildSettingsSnapshot(
                         $charsetField,
@@ -370,7 +434,9 @@ class SettingsHandler
             }
 
             if ($result === 'discard') {
-                $this->showMessage($conn, $state,
+                $this->showMessage(
+                    $conn,
+                    $state,
                     $this->hasPendingSettingsChanges(
                         $savedSnapshot,
                         $charsetField,
@@ -388,6 +454,214 @@ class SettingsHandler
 
             return;
         }
+    }
+
+    /**
+     * @param array<int, array{label:string, form:AnsiForm}> $tabDefs
+     * @param array<string, mixed> $savedSnapshot
+     */
+    private function showShellSettingsPicker(
+        $conn,
+        array &$state,
+        string $session,
+        TerminalShellInterface $shell,
+        array $tabDefs,
+        array $savedSnapshot,
+        AnsiSelectField $charsetField,
+        AnsiToggleField $colorField,
+        AnsiSelectField $shellModeField,
+        AnsiForm $displayForm,
+        AnsiForm $messagingForm,
+        AnsiForm $profileForm
+    ): void {
+        $locale = $state['locale'] ?? 'en';
+        $saveLabel = $this->t('ui.terminalserver.settings.line.save_changes', 'Save Changes', $locale);
+
+        while (true) {
+            $items = [];
+            foreach ($tabDefs as $tabDef) {
+                $items[] = $tabDef['label'];
+            }
+            $items[] = $saveLabel;
+
+            $choice = $shell->chooseFromList(
+                $conn,
+                $state,
+                $this->t('ui.terminalserver.settings.tab_title', 'BBS Settings', $locale),
+                $items
+            );
+
+            if ($choice === null) {
+                $this->showMessage(
+                    $conn,
+                    $state,
+                    $this->hasPendingSettingsChanges(
+                        $savedSnapshot,
+                        $charsetField,
+                        $colorField,
+                        $shellModeField,
+                        $displayForm,
+                        $messagingForm,
+                        $profileForm
+                    )
+                        ? $this->t('ui.terminalserver.settings.discarded', 'Changes discarded.', $locale)
+                        : $this->t('ui.terminalserver.settings.exiting', 'Exiting settings.', $locale),
+                    TelnetUtils::ANSI_DIM
+                );
+                return;
+            }
+
+            if ($choice === count($tabDefs)) {
+                if ($this->performSave(
+                    $conn,
+                    $state,
+                    $session,
+                    $charsetField,
+                    $colorField,
+                    $shellModeField,
+                    $displayForm,
+                    $messagingForm,
+                    $profileForm
+                )) {
+                    $savedSnapshot = $this->buildSettingsSnapshot(
+                        $charsetField,
+                        $colorField,
+                        $shellModeField,
+                        $displayForm,
+                        $messagingForm,
+                        $profileForm
+                    );
+                }
+                continue;
+            }
+
+            $signal = $this->showShellSettingsSection(
+                $conn,
+                $state,
+                $session,
+                $shell,
+                $tabDefs[$choice]['label'],
+                $tabDefs[$choice]['form']
+            );
+            if ($signal === 'quit') {
+                $this->showMessage(
+                    $conn,
+                    $state,
+                    $this->t('ui.terminalserver.settings.discarded', 'Changes discarded.', $locale),
+                    TelnetUtils::ANSI_DIM
+                );
+                return;
+            }
+        }
+    }
+
+    private function showShellSettingsSection(
+        $conn,
+        array &$state,
+        string $session,
+        TerminalShellInterface $shell,
+        string $sectionTitle,
+        AnsiForm $form
+    ): ?string {
+        $fields = $form->getFields();
+        if ($fields === []) {
+            $shell->showText($conn, $state, $sectionTitle, ['(No settings available)']);
+            return null;
+        }
+
+        while (true) {
+            $items = [];
+            foreach ($fields as $field) {
+                $summary = $this->summarizeShellSettingsField($field);
+                if ($summary === '') {
+                    $items[] = $field->getLabel();
+                } else {
+                    $items[] = [
+                        'label' => $field->getLabel(),
+                        'detail' => $summary,
+                    ];
+                }
+            }
+
+            $choice = $shell->chooseFromList($conn, $state, $sectionTitle, $items);
+            if ($choice === null) {
+                return null;
+            }
+
+            $signal = $this->editShellSettingsField($conn, $state, $session, $shell, $fields[$choice]);
+            if ($signal === 'quit') {
+                return 'quit';
+            }
+        }
+    }
+
+    private function summarizeShellSettingsField(AnsiFormField $field): string
+    {
+        if ($field instanceof AnsiSelectField) {
+            $options = $field->getOptions();
+            return (string)($options[(string)$field->getValue()] ?? '');
+        }
+
+        if ($field instanceof AnsiToggleField) {
+            $options = $field->getOptions();
+            return (string)($field->getValue() ? ($options['1'] ?? 'ON') : ($options['0'] ?? 'OFF'));
+        }
+
+        if ($field instanceof AnsiTextField) {
+            return trim($field->renderValue(false, false, false, []));
+        }
+
+        return '';
+    }
+
+    private function editShellSettingsField(
+        $conn,
+        array &$state,
+        string $session,
+        TerminalShellInterface $shell,
+        AnsiFormField $field
+    ): ?string {
+        if (!$field->isEnabled()) {
+            return null;
+        }
+
+        if ($field instanceof AnsiSelectField) {
+            $options = $field->getOptions();
+            $optionKeys = array_keys($options);
+            $currentKey = (string)$field->getValue();
+            $selectedIndex = array_search($currentKey, $optionKeys, true);
+            $choice = $shell->chooseFromList(
+                $conn,
+                $state,
+                $field->getLabel(),
+                array_values($options),
+                ['selected_index' => $selectedIndex === false ? 0 : (int)$selectedIndex]
+            );
+            if ($choice !== null && isset($optionKeys[$choice])) {
+                $field->setValue($optionKeys[$choice]);
+            }
+            return null;
+        }
+
+        if ($field instanceof AnsiToggleField) {
+            $options = $field->getOptions();
+            $optionKeys = array_keys($options);
+            $currentKey = $field->getValue() ? '1' : '0';
+            $selectedIndex = array_search($currentKey, $optionKeys, true);
+            $choice = $shell->chooseFromList(
+                $conn,
+                $state,
+                $field->getLabel(),
+                array_values($options),
+                ['selected_index' => $selectedIndex === false ? 0 : (int)$selectedIndex]
+            );
+            if ($choice !== null && isset($optionKeys[$choice])) {
+                $field->setValue($optionKeys[$choice] === '1');
+            }
+            return null;
+        }
+
+        return $field->handleEnter($conn, $state, $session, $this->server);
     }
 
     // ── Save logic ────────────────────────────────────────────────────────────

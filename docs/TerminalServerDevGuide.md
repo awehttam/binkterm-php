@@ -204,6 +204,7 @@ The shell layer is intentionally minimal so a new shell can be added without rew
 Some handlers must remain on fixed plain-text flows and must never be routed through the shell abstraction:
 
 - **`QwkMenuHandler`** — QWK reader software and expect-style automation scripts parse specific prompt strings (`> `, conference numbers, format prompts) to navigate the QWK menu programmatically. A TUI shell would break those scripts. `QwkMenuHandler` must stay on plain `prompt()`/`writeLine()` calls.
+- **`TerminalSettingsHandler::runDetectionWizard()`** — the terminal detection wizard must stay on plain `prompt()`/`writeLine()` calls for every shell. Its job is to determine whether charset rendering and ANSI color can be trusted at all; if it were converted to shell widgets, the capability-detection path would depend on the very rendering features it is trying to verify.
 
 ---
 
