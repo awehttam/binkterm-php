@@ -3523,6 +3523,7 @@ return [
     'ui.dashboard.new_echoareas_added' => 'Added',
     'ui.dashboard.new_echoareas_show' => 'Show new echo areas',
     'ui.dashboard.new_echoareas_hide' => 'Hide new echo areas',
+    'ui.dashboard.new_echoareas_load_more' => 'Load More',
     'ui.dashboard.manage_subscriptions' => 'Manage Subscriptions',
     'ui.dashboard.manage_interests' => 'Manage Interests',
     'ui.dashboard.echomail_tooltip_new' => 'New echomail since your last visit',

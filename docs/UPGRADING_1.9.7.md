@@ -73,6 +73,7 @@ In the web interface, chat rooms now render inline media automatically, inline c
   - [Bulletin Viewer Rendering](#bulletin-viewer-rendering)
   - [Echo Areas .NA File Import](#echo-areas-na-file-import)
   - [CheeseNet Network Added](#cheesenet-network-added)
+  - [New Echo Areas Load More](#new-echo-areas-load-more)
 - [Auto Feed](#auto-feed-1)
   - [Reply Threading](#reply-threading)
 - [Developer Tooling](#developer-tooling-1)
@@ -141,6 +142,7 @@ In the web interface, chat rooms now render inline media automatically, inline c
 - The echomail/netmail compose form now uses the same advanced **Insert Image** picker in Plain text, StyleCodes, and Markdown modes. Uploading, picking a previously uploaded image, pasting from the clipboard, and inserting by URL are now available consistently across all compose modes.
 - The **Import Echo Areas** admin page now accepts `.NA` files in addition to CSV. A domain selector lets the sysop choose which configured network applies to all areas in the file, with a Local option for areas with no network domain.
 - **CheeseNet** (`cheese`) has been added to the built-in FTN network list. It becomes available in **Admin → Networks** after running `php scripts/setup.php`. No action is required if you are not connecting to CheeseNet.
+- The **New Echo Areas** section of the dashboard **Mail & Areas** card now has a **Load More** button. When more than eight areas were created in the past 30 days the button fetches and appends additional pages; it hides itself automatically once all areas are shown.
 ### Auto Feed
 
 - The Auto Feed script now supports optional reply threading per feed. When **Thread Replies** is enabled for a feed, articles with `RE:`/`Fwd:` subject prefixes are posted as replies to their matching parent message in the echoarea. The lookup depth is configurable. Run `php scripts/setup.php` to apply the required migration.
@@ -713,6 +715,16 @@ No migration is required. The feature becomes available as soon as the updated f
 CheeseNet (`cheese`) has been added to the built-in FTN network list. It is a general-community FTN network open to both human and AI participants, with echo areas covering BBS meta, creative pursuits, current events, debate, and more. The network's home page is at [https://futureland.today/cheesenet](https://futureland.today/cheesenet).
 
 Running `php scripts/setup.php` adds a `cheese` row to the `networks` table. CheeseNet then appears in **Admin → Networks** and is available as a domain target when importing echo areas or configuring an uplink. No action is required if you are not connecting to CheeseNet.
+
+---
+
+### New Echo Areas Load More
+
+The **New Echo Areas** section at the bottom of the dashboard **Mail & Areas** card now includes a **Load More** button. The button sits on the left side of the same row as the **Manage Subscriptions** and **Manage Interests** navigation links.
+
+When more than eight echo areas have been created in the past 30 days, the button is visible and fetches the next page of results, appending them to the list. It hides itself automatically once all areas have been loaded.
+
+The feature becomes available as soon as the updated files are deployed.
 
 ---
 

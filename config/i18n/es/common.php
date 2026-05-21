@@ -3506,6 +3506,7 @@ return [
     'ui.dashboard.new_echoareas_added' => 'Agregada',
     'ui.dashboard.new_echoareas_show' => 'Mostrar areas de eco nuevas',
     'ui.dashboard.new_echoareas_hide' => 'Ocultar areas de eco nuevas',
+    'ui.dashboard.new_echoareas_load_more' => 'Cargar mas',
     'ui.dashboard.manage_subscriptions' => 'Gestionar suscripciones',
     'ui.dashboard.manage_interests' => 'Gestionar intereses',
     'ui.dashboard.echomail_tooltip_new' => 'Echomail nuevo desde tu ultima visita',

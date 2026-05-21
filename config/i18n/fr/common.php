@@ -2870,6 +2870,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.dashboard.new_echoareas_added' => 'Ajoutee',
     'ui.dashboard.new_echoareas_show' => 'Afficher les nouvelles zones echo',
     'ui.dashboard.new_echoareas_hide' => 'Masquer les nouvelles zones echo',
+    'ui.dashboard.new_echoareas_load_more' => 'Charger plus',
     'ui.dashboard.manage_subscriptions' => 'Gérer les abonnements',
     'ui.dashboard.manage_interests' => 'Gérer les intérêts',
     'ui.dashboard.echomail_tooltip_new' => 'Nouveaux echomail depuis votre dernière visite',

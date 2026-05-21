@@ -1951,6 +1951,35 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/echoareas/recent', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $isAdmin = !empty($user['is_admin']);
+        $offset = max(0, (int)($_GET['offset'] ?? 0));
+        $limit = min(50, max(1, (int)($_GET['limit'] ?? 8)));
+
+        $db = Database::getInstance()->getPdo();
+        $sysopFilter = $isAdmin ? "" : " AND COALESCE(is_sysop_only, FALSE) = FALSE";
+
+        $stmt = $db->prepare("
+            SELECT id, tag, domain, description, created_at
+            FROM echoareas
+            WHERE is_active = TRUE
+              AND created_at >= NOW() - INTERVAL '30 days'
+              {$sysopFilter}
+            ORDER BY created_at DESC, tag ASC
+            LIMIT :limit OFFSET :offset
+        ");
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $areas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode(['areas' => $areas]);
+    });
+
     SimpleRouter::get('/echoareas', function() {
         $user = RouteHelper::requireAuth();
 

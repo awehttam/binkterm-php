@@ -3505,6 +3505,7 @@ return [
     'ui.dashboard.new_echoareas_added' => 'Aggiunta',
     'ui.dashboard.new_echoareas_show' => 'Mostra nuove aree echo',
     'ui.dashboard.new_echoareas_hide' => 'Nascondi nuove aree echo',
+    'ui.dashboard.new_echoareas_load_more' => 'Carica altro',
     'ui.dashboard.manage_subscriptions' => 'Gestisci sottoscrizioni',
     'ui.dashboard.manage_interests' => 'Gestisci interessi',
     'ui.dashboard.echomail_tooltip_new' => 'Nuovi echomail dalla tua ultima visita',
