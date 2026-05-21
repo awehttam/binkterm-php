@@ -52,12 +52,18 @@ class NodelistBrowserHandler
             return;
         }
 
-        // Enrich with net counts
+        // Enrich with net and node counts for the top-level network list.
         $db = Database::getInstance()->getPdo();
         foreach ($zones as &$z) {
-            $stmt = $db->prepare("SELECT COUNT(DISTINCT net) FROM nodelist WHERE zone = ? AND domain = ?");
+            $stmt = $db->prepare("
+                SELECT COUNT(DISTINCT net) AS net_count, COUNT(*) AS node_count
+                FROM nodelist
+                WHERE zone = ? AND domain = ?
+            ");
             $stmt->execute([(int)$z['zone'], (string)($z['domain'] ?? '')]);
-            $z['net_count'] = (int)$stmt->fetchColumn();
+            $counts = $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+            $z['net_count'] = (int)($counts['net_count'] ?? 0);
+            $z['node_count'] = (int)($counts['node_count'] ?? 0);
         }
         unset($z);
 
@@ -79,9 +85,14 @@ class NodelistBrowserHandler
                 $domain = (string)($z['domain'] ?? 'unknown');
                 $zone   = (int)$z['zone'];
                 $nets   = (int)$z['net_count'];
-                $label  = $nets === 1
+                $nodes  = (int)($z['node_count'] ?? 0);
+                $netLabel  = $nets === 1
                     ? $this->server->t('ui.terminalserver.nodelist.net_count_one', '1 net', [], $locale)
                     : $this->server->t('ui.terminalserver.nodelist.net_count', '{count} nets', ['count' => $nets], $locale);
+                $nodeLabel = $nodes === 1
+                    ? $this->server->t('ui.terminalserver.nodelist.node_count_one', '1 node', [], $locale)
+                    : $this->server->t('ui.terminalserver.nodelist.node_count', '{count} nodes', ['count' => $nodes], $locale);
+                $label = $netLabel . ', ' . $nodeLabel;
 
                 $rows[] = sprintf(
                     ' %s  Zone %-4d  %s',

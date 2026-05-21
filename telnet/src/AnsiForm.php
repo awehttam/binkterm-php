@@ -136,13 +136,19 @@ class AnsiForm
     {
         $ansiColor = ($state['terminal_ansi_color'] ?? 'yes') !== 'no';
         $isUtf8    = ($state['terminal_charset']    ?? 'utf8') === 'utf8';
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $listScheme = $styleProfile['list'] ?? [];
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $headerColor = (string)($listScheme['title'] ?? (TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        $cursorColor = (string)($listScheme['title'] ?? (TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        $activeLabelColor = (string)($panelScheme['border'] ?? TelnetUtils::ANSI_BOLD);
 
         $lines = [];
 
         if ($this->sectionHeader !== null) {
             $lines[] = '';
             $lines[] = $ansiColor
-                ? TelnetUtils::colorize('  ' . $this->sectionHeader, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
+                ? TelnetUtils::colorize('  ' . $this->sectionHeader, $headerColor)
                 : '  ' . $this->sectionHeader;
         }
 
@@ -159,7 +165,7 @@ class AnsiForm
 
         foreach ($this->fields as $idx => $field) {
             $active = ($idx === $this->activeIndex);
-            $lines[] = $this->renderFieldLine($field, $active, $labelWidth, $cols, $ansiColor, $isUtf8);
+            $lines[] = $this->renderFieldLine($field, $active, $labelWidth, $cols, $ansiColor, $isUtf8, $styleProfile, $cursorColor, $activeLabelColor);
         }
 
         return $lines;
@@ -197,18 +203,23 @@ class AnsiForm
         int           $labelWidth,
         int           $cols,
         bool          $ansiColor,
-        bool          $isUtf8
+        bool          $isUtf8,
+        array         $styleProfile,
+        string        $cursorColor,
+        string        $activeLabelColor
     ): string {
         // ── Action-button layout ─────────────────────────────────────────────
         if ($field->isActionOnly()) {
             $buttonWidth = max(40, $cols - 10);
             $inner       = str_pad($field->getLabel(), $buttonWidth - 4);
+            $dialogScheme = $styleProfile['dialog'] ?? [];
+            $buttonColor = (string)($dialogScheme['hint'] ?? (TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD));
 
             if ($active) {
                 $cursor = $isUtf8 ? '► ' : '> ';
                 if ($ansiColor) {
-                    $cursor = TelnetUtils::colorize($cursor, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD);
-                    $button = TelnetUtils::colorize("[ {$inner} ]", TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD);
+                    $cursor = TelnetUtils::colorize($cursor, $cursorColor);
+                    $button = TelnetUtils::colorize("[ {$inner} ]", $buttonColor);
                 } else {
                     $button = "[ {$inner} ]";
                 }
@@ -226,8 +237,8 @@ class AnsiForm
         if ($active) {
             $cursor = $isUtf8 ? '► ' : '> ';
             if ($ansiColor) {
-                $cursor = TelnetUtils::colorize($cursor, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD);
-                $label  = TelnetUtils::colorize(str_pad($field->getLabel(), $labelWidth), TelnetUtils::ANSI_BOLD);
+                $cursor = TelnetUtils::colorize($cursor, $cursorColor);
+                $label  = TelnetUtils::colorize(str_pad($field->getLabel(), $labelWidth), $activeLabelColor);
             } else {
                 $label = str_pad($field->getLabel(), $labelWidth);
             }
@@ -238,7 +249,7 @@ class AnsiForm
                 : str_pad($field->getLabel(), $labelWidth);
         }
 
-        $valueStr = $field->renderValue($active, $ansiColor, $isUtf8);
+        $valueStr = $field->renderValue($active, $ansiColor, $isUtf8, $styleProfile);
 
         return '  ' . $cursor . $label . '  ' . $valueStr;
     }

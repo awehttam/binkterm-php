@@ -55,8 +55,15 @@
                         <div class="mb-3">
                             <label class="form-label" for="bbsTerminalDefaultShell">{{ t('ui.admin.bbs_settings.terminal_server.default_shell', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="bbsTerminalDefaultShell">
-                                <option value="tui">{{ t('ui.admin.bbs_settings.terminal_server.shell_tui', {}, locale, ['common']) }}</option>
-                                <option value="line">{{ t('ui.admin.bbs_settings.terminal_server.shell_line', {}, locale, ['common']) }}</option>
+                                {% for shell in allowed_terminal_shells %}
+                                    <option value="{{ shell.id }}">
+                                        {% if shell.admin_label_key %}
+                                            {{ t(shell.admin_label_key, {}, locale, ['common']) }}
+                                        {% else %}
+                                            {{ shell.admin_label }}
+                                        {% endif %}
+                                    </option>
+                                {% endfor %}
                             </select>
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_server.default_shell_help', {}, locale, ['common']) }}</small>
                         </div>
@@ -404,7 +411,12 @@ function loadBbsSettings() {
             document.getElementById('bbsIdleWarnMinutes').value = Number.isNaN(idleWarnMinutes) ? 5 : idleWarnMinutes;
             document.getElementById('bbsIdleDisconnectMinutes').value = Number.isNaN(idleDisconnectMinutes) ? 7 : idleDisconnectMinutes;
             const terminalServer = data.config?.terminal_server || {};
-            document.getElementById('bbsTerminalDefaultShell').value = terminalServer.default_shell || 'tui';
+            const terminalDefaultShellEl = document.getElementById('bbsTerminalDefaultShell');
+            const desiredDefaultShell = terminalServer.default_shell || 'tui';
+            const hasDesiredDefaultShell = Array.from(terminalDefaultShellEl.options).some(option => option.value === desiredDefaultShell);
+            terminalDefaultShellEl.value = hasDesiredDefaultShell
+                ? desiredDefaultShell
+                : (terminalDefaultShellEl.options[0]?.value || 'tui');
             document.getElementById('bbsTerminalForceShell').checked = !!terminalServer.force_shell;
             const packetBbs = data.config?.packet_bbs || {};
             const sessionTimeout = parseInt(packetBbs.session_timeout_minutes, 10);
@@ -567,6 +579,11 @@ function saveBbsPacketBbs() {
 }
 
 function saveTerminalIdle() {
+    const defaultShellSelect = document.getElementById('bbsTerminalDefaultShell');
+    if (!defaultShellSelect || defaultShellSelect.options.length === 0) {
+        showBbsTerminalIdleAlert(uiT('ui.admin.bbs_settings.terminal_server.save_failed', 'Failed to save terminal server settings.'), 'danger');
+        return;
+    }
     const warnMinutes = parseInt(document.getElementById('bbsIdleWarnMinutes').value, 10);
     if (Number.isNaN(warnMinutes) || warnMinutes < 1) {
         showBbsTerminalIdleAlert(uiT('ui.admin.bbs_settings.validation.terminal_idle_warn_positive', 'Idle warning timeout must be a positive integer.'), 'danger');
@@ -591,7 +608,7 @@ function saveTerminalIdle() {
                     disconnect_minutes: disconnectMinutes
                 },
                 terminal_server: {
-                    default_shell: document.getElementById('bbsTerminalDefaultShell').value,
+                    default_shell: defaultShellSelect.value,
                     force_shell: document.getElementById('bbsTerminalForceShell').checked
                 }
             });

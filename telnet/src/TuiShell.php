@@ -7,8 +7,8 @@ namespace BinktermPHP\TelnetServer;
  */
 class TuiShell implements TerminalShellInterface
 {
-    private BbsSession $server;
-    private array $styleProfile;
+    protected BbsSession $server;
+    protected array $styleProfile;
 
     public function __construct(BbsSession $server)
     {
@@ -22,9 +22,14 @@ class TuiShell implements TerminalShellInterface
      * This keeps the palette in one place so future configuration can swap the
      * look without changing each widget method.
      */
-    private function buildStyleProfile(): array
+    protected function buildStyleProfile(): array
     {
         return TelnetUtils::getDefaultStyleProfile();
+    }
+
+    public function getStyleProfile(): array
+    {
+        return $this->styleProfile;
     }
 
     public function chooseFromList($conn, array &$state, string $title, array $items, array $options = []): ?int

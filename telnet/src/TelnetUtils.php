@@ -125,6 +125,20 @@ class TelnetUtils
     }
 
     /**
+     * Return the active shell style profile for the current session state.
+     */
+    public static function getStyleProfile(array $state = []): array
+    {
+        $default = self::getDefaultStyleProfile();
+        $active = $state['_shell_style_profile'] ?? null;
+        if (!is_array($active) || $active === []) {
+            return $default;
+        }
+
+        return array_replace_recursive($default, $active);
+    }
+
+    /**
      * Enable or disable ANSI color rendering globally for the active session.
      */
     public static function setAnsiColorEnabled(bool $enabled): void

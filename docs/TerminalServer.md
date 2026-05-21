@@ -20,6 +20,31 @@ Access methods:
 Each transport daemon has additional extension requirements — see
 [TelnetServer.md](TelnetServer.md) and [SSHServer.md](SSHServer.md).
 
+## Shell Availability
+
+The `.env` variable `TERMSERVER_ALLOWEDSHELLS` controls which terminal shell
+modes users and sysops may select. It accepts a space-separated list of shell
+IDs registered with the terminal shell registry. Built-in shell IDs are:
+
+- `tui`
+- `line`
+
+Examples:
+
+- `TERMSERVER_ALLOWEDSHELLS=tui` — only the full-screen TUI shell is selectable
+- `TERMSERVER_ALLOWEDSHELLS=tui line` — both shells are selectable
+- `TERMSERVER_ALLOWEDSHELLS=tui retroglass` — built-in TUI plus a custom shell plugin
+
+If the variable is unset or empty, BinktermPHP defaults to `tui` only. The
+terminal settings screen and **Admin -> BBS Settings -> Terminal Server
+Settings** only show the shells permitted by this allowlist. If an older saved
+preference or other request tries to use a shell that is no longer allowed, the
+session falls back to the TUI shell.
+
+Custom shells can be added by placing plugin definition files in
+`telnet/shells/`. See `telnet/shells/README.md` and
+[TerminalServerDevGuide.md](TerminalServerDevGuide.md) for the plugin format.
+
 ## Core Functionality
 
 - Netmail browsing, reading, composing, replying, and sending
@@ -88,6 +113,7 @@ The terminal server uses a shell abstraction layer (`TuiShell` for normal-size t
 - The generic terminal selector now supports **multi-select state** for callers that need bulk actions. In the echomail message list, press `Space` to toggle the highlighted message in or out of the selection set; selected rows show a `*` marker.
 - Press `Ctrl-K` in any terminal selector list to open the key-binding help overlay. The overlay now includes the list-specific secondary actions that were removed from the status bar.
 - Press `M` from an echomail area's message list to **mark the selected messages as read**. The terminal prompts for confirmation, submits the selected message IDs to the same bulk-read API used by the web interface, then redraws the list so unread indicators clear immediately.
+- The terminal **nodelist browser** shows roll-up counts while browsing. The top-level network list displays both the number of nets and the total number of nodes in each zone/domain, and the per-net list shows the node count for each net before you open it.
 - Press `Space` in the netmail inbox list to toggle the highlighted message in or out of the selection set (green `*` marker); press `M` to **mark the selected messages as read**. Multi-select and M are available in the inbox only — not the Sent folder. Ctrl-K shows both keys in the help overlay.
 - Press `O` from the netmail message list to **change the list sort order**. The terminal netmail reader now exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user opens netmail from the terminal.
 - Press `O` from an echomail area's message list to **change the list sort order**. The terminal reader exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user re-enters an echomail area from the terminal.

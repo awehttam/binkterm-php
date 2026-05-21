@@ -58,7 +58,7 @@ class AnsiActionField extends AnsiFormField
      * The label is used directly; the calling {@see AnsiForm} skips the
      * label/value split layout and renders this as a full-width line.
      */
-    public function renderValue(bool $active, bool $ansiColor, bool $isUtf8): string
+    public function renderValue(bool $active, bool $ansiColor, bool $isUtf8, array $styleProfile = []): string
     {
         // Rendered by AnsiForm::renderFieldLine() using the action-button path.
         return '';

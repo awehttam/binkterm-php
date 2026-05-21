@@ -64,15 +64,34 @@ class SettingsHandler
             $this->t('ui.terminalserver.settings.terminal.ansi_color', 'ANSI Color', $locale),
             ($termSettings['terminal_ansi_color'] ?? $state['terminal_ansi_color'] ?? 'yes') !== 'no'
         );
+        $allowedShells = \BinktermPHP\TerminalShellRegistry::getShellDefinitions(
+            \BinktermPHP\BbsConfig::getAllowedTerminalShells()
+        );
+        $shellModeOptions = [
+            'auto' => $this->t('ui.terminalserver.settings.display.echo_list_system', 'System Default', $locale),
+        ];
+        $allowedShellIds = [];
+        foreach ($allowedShells as $definition) {
+            $shellId = (string)($definition['id'] ?? '');
+            if ($shellId === '') {
+                continue;
+            }
+            $allowedShellIds[] = $shellId;
+            $settingsLabelKey = (string)($definition['settings_label_key'] ?? '');
+            $settingsLabel = (string)($definition['settings_label'] ?? $shellId);
+            $shellModeOptions[$shellId] = $settingsLabelKey !== ''
+                ? $this->t($settingsLabelKey, $settingsLabel, $locale)
+                : $settingsLabel;
+        }
+        $savedShellMode = strtolower((string)($termSettings['term_shell_mode'] ?? $state['term_shell_mode'] ?? 'auto'));
+        if ($savedShellMode !== 'auto' && !in_array($savedShellMode, $allowedShellIds, true)) {
+            $savedShellMode = 'auto';
+        }
         $shellModeField = new AnsiSelectField(
             'term_shell_mode',
             $this->t('ui.terminalserver.settings.terminal.shell_mode', 'Interface Style', $locale),
-            [
-                'auto' => $this->t('ui.terminalserver.settings.terminal.shell_mode_auto', 'Full-screen TUI (default)', $locale),
-                'tui'  => $this->t('ui.terminalserver.settings.terminal.shell_mode_tui',  'Full-screen TUI (always)',  $locale),
-                'line' => $this->t('ui.terminalserver.settings.terminal.shell_mode_line', 'Line mode',                 $locale),
-            ],
-            $termSettings['term_shell_mode'] ?? $state['term_shell_mode'] ?? 'auto'
+            $shellModeOptions,
+            $savedShellMode
         );
         $wizardAction = new AnsiActionField(
             'run_wizard',
@@ -319,22 +338,50 @@ class SettingsHandler
             $tabs->addTab($this->t('ui.terminalserver.settings.tab_ai', 'AI', $locale), $aiForm);
         }
 
+        $savedSnapshot = $this->buildSettingsSnapshot(
+            $charsetField,
+            $colorField,
+            $shellModeField,
+            $displayForm,
+            $messagingForm,
+            $profileForm
+        );
+
         // ── Run UI ───────────────────────────────────────────────────────────
         while (true) {
             $result = $tabs->show($conn, $state, $session);
 
             if ($result === 'save') {
-                $this->performSave(
+                if ($this->performSave(
                     $conn, $state, $session,
                     $charsetField, $colorField, $shellModeField,
                     $displayForm, $messagingForm, $profileForm
-                );
+                )) {
+                    $savedSnapshot = $this->buildSettingsSnapshot(
+                        $charsetField,
+                        $colorField,
+                        $shellModeField,
+                        $displayForm,
+                        $messagingForm,
+                        $profileForm
+                    );
+                }
                 continue;
             }
 
             if ($result === 'discard') {
                 $this->showMessage($conn, $state,
-                    $this->t('ui.terminalserver.settings.discarded', 'Changes discarded.', $locale),
+                    $this->hasPendingSettingsChanges(
+                        $savedSnapshot,
+                        $charsetField,
+                        $colorField,
+                        $shellModeField,
+                        $displayForm,
+                        $messagingForm,
+                        $profileForm
+                    )
+                        ? $this->t('ui.terminalserver.settings.discarded', 'Changes discarded.', $locale)
+                        : $this->t('ui.terminalserver.settings.exiting', 'Exiting settings.', $locale),
                     TelnetUtils::ANSI_DIM
                 );
             }
@@ -358,7 +405,7 @@ class SettingsHandler
         AnsiForm $displayForm,
         AnsiForm $messagingForm,
         AnsiForm $profileForm
-    ): void {
+    ): bool {
         $locale    = $state['locale'] ?? 'en';
         $csrfToken = $state['csrf_token'] ?? null;
         $allOk     = true;
@@ -469,6 +516,51 @@ class SettingsHandler
                 TelnetUtils::ANSI_YELLOW
             );
         }
+
+        return $allOk;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildSettingsSnapshot(
+        AnsiSelectField $charsetField,
+        AnsiToggleField $colorField,
+        AnsiSelectField $shellModeField,
+        AnsiForm $displayForm,
+        AnsiForm $messagingForm,
+        AnsiForm $profileForm
+    ): array {
+        return [
+            'terminal_charset' => (string)$charsetField->getValue(),
+            'terminal_ansi_color' => $colorField->getValue() ? 'yes' : 'no',
+            'term_shell_mode' => (string)$shellModeField->getValue(),
+            'display' => $displayForm->getValues(),
+            'messaging' => $messagingForm->getValues(),
+            'profile' => $profileForm->getValues(),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $savedSnapshot
+     */
+    private function hasPendingSettingsChanges(
+        array $savedSnapshot,
+        AnsiSelectField $charsetField,
+        AnsiToggleField $colorField,
+        AnsiSelectField $shellModeField,
+        AnsiForm $displayForm,
+        AnsiForm $messagingForm,
+        AnsiForm $profileForm
+    ): bool {
+        return $savedSnapshot !== $this->buildSettingsSnapshot(
+            $charsetField,
+            $colorField,
+            $shellModeField,
+            $displayForm,
+            $messagingForm,
+            $profileForm
+        );
     }
 
     private function formatApiError(string $scope, int $status, array $data, ?string $transportError): string
@@ -941,6 +1033,12 @@ class SettingsHandler
         $cols = max(40, (int)($state['cols'] ?? 80));
         $rows = max(12, (int)($state['rows'] ?? 24));
         $chars = $this->server->getTerminalLineDrawingChars();
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $dialogScheme = $styleProfile['dialog'] ?? [];
+        $borderColor = (string)($panelScheme['border'] ?? (TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD));
+        $dividerColor = (string)($panelScheme['divider'] ?? TelnetUtils::ANSI_BLUE);
+        $footerColor = (string)($dialogScheme['body'] ?? TelnetUtils::ANSI_DIM);
 
         $plainMessage = $this->server->encodeForTerminal($message);
         $footer = $this->t('ui.terminalserver.server.continuing', 'Returning to settings...', $state['locale'] ?? 'en');
@@ -967,25 +1065,25 @@ class SettingsHandler
             $this->server->safeWrite($conn, str_repeat("\r\n", $topPadCount));
         }
 
-        $this->server->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($topBorder, TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD));
-        $this->server->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($divider, TelnetUtils::ANSI_BLUE));
+        $this->server->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($topBorder, $borderColor));
+        $this->server->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($divider, $dividerColor));
 
-        $messageLine = $this->server->colorizeForTerminal($vertical, TelnetUtils::ANSI_BLUE)
+        $messageLine = $this->server->colorizeForTerminal($vertical, $dividerColor)
             . ' '
             . ($color !== '' ? TelnetUtils::colorize($fit($plainMessage, $innerWidth), $color) : $fit($plainMessage, $innerWidth))
             . ' '
-            . $this->server->colorizeForTerminal($vertical, TelnetUtils::ANSI_BLUE);
+            . $this->server->colorizeForTerminal($vertical, $dividerColor);
         $this->server->writeLine($conn, $leftPad . $messageLine);
 
-        $footerLine = $this->server->colorizeForTerminal($vertical, TelnetUtils::ANSI_BLUE)
+        $footerLine = $this->server->colorizeForTerminal($vertical, $dividerColor)
             . ' '
-            . $this->server->colorizeForTerminal($fit($footer, $innerWidth), TelnetUtils::ANSI_DIM)
+            . $this->server->colorizeForTerminal($fit($footer, $innerWidth), $footerColor)
             . ' '
-            . $this->server->colorizeForTerminal($vertical, TelnetUtils::ANSI_BLUE);
+            . $this->server->colorizeForTerminal($vertical, $dividerColor);
         $this->server->writeLine($conn, $leftPad . $footerLine);
 
-        $this->server->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($divider, TelnetUtils::ANSI_BLUE));
-        $this->server->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($bottomBorder, TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD));
+        $this->server->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($divider, $dividerColor));
+        $this->server->writeLine($conn, $leftPad . $this->server->colorizeForTerminal($bottomBorder, $borderColor));
         usleep(1400000);
     }
 

@@ -62,7 +62,7 @@ class AnsiToggleField extends AnsiFormField
 
     // ── Rendering ────────────────────────────────────────────────────────────
 
-    public function renderValue(bool $active, bool $ansiColor, bool $isUtf8): string
+    public function renderValue(bool $active, bool $ansiColor, bool $isUtf8, array $styleProfile = []): string
     {
         if ($this->on) {
             $padded = str_pad($this->labelOn,  max(strlen($this->labelOn), strlen($this->labelOff)));

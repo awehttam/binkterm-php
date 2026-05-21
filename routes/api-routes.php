@@ -9804,7 +9804,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $body     = json_decode(file_get_contents('php://input'), true) ?? [];
         $settings = $body['settings'] ?? $body; // accept both wrapped and flat
-        $allowed  = ['terminal_charset' => ['utf8','cp437','ascii'], 'terminal_ansi_color' => ['yes','no'], 'term_shell_mode' => ['auto','tui','line']];
+        $allowedShellModes = array_merge(['auto'], \BinktermPHP\BbsConfig::getAllowedTerminalShells());
+        $allowed  = ['terminal_charset' => ['utf8','cp437','ascii'], 'terminal_ansi_color' => ['yes','no'], 'term_shell_mode' => $allowedShellModes];
         $meta     = new \BinktermPHP\UserMeta();
         foreach ($allowed as $key => $validValues) {
             if (isset($settings[$key])) {

@@ -405,6 +405,7 @@ return [
     'ui.terminalserver.settings.hint_navigate'         => '  ↑↓ Move   ◄► Change   [ ] Tabs   S) Save   Q) Quit',
     'ui.terminalserver.settings.hint_navigate_ascii'   => '  Up/Dn Move   Left/Rt Change   [/] Tabs   S) Save   Q) Quit',
     'ui.terminalserver.settings.discarded'             => 'Changes discarded.',
+    'ui.terminalserver.settings.exiting'               => 'Exiting settings.',
 
     // Terminal tab fields
     'ui.terminalserver.settings.terminal.charset'         => 'Character Set',

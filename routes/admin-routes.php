@@ -492,6 +492,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template = new Template();
         $template->renderResponse('admin/bbs_settings.twig', [
             'timezone_list' => \DateTimeZone::listIdentifiers(),
+            'allowed_terminal_shells' => \BinktermPHP\TerminalShellRegistry::getShellDefinitions(
+                \BinktermPHP\BbsConfig::getAllowedTerminalShells()
+            ),
         ]);
     });
 
@@ -1836,7 +1839,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         throw new Exception('Invalid terminal_server configuration');
                     }
                     $defaultShell = strtolower(trim((string)($ts['default_shell'] ?? 'tui')));
-                    if (!in_array($defaultShell, ['tui', 'line'], true)) {
+                    if (!in_array($defaultShell, \BinktermPHP\BbsConfig::getAllowedTerminalShells(), true)) {
                         throw new Exception('Invalid terminal default shell');
                     }
                     $config['terminal_server'] = [

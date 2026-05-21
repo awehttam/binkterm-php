@@ -91,6 +91,7 @@ In the web interface, chat rooms now render inline media automatically, inline c
 - **Configurable main menu keys**: every terminal main menu action can be remapped to a custom letter or digit via **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**. Actions with no assigned key are removed from the menu. When all actions in a section are disabled the section header is suppressed and the remaining items reflow. The admin UI shows the factory default for each action for reference.
 - **Configurable terminal idle timeout**: the idle warning and disconnect thresholds for terminal sessions are now configurable from **Admin → BBS Settings → Terminal Server Settings** rather than being hardcoded. The defaults remain 5 minutes to warning and 7 minutes to disconnect.
 - **Terminal interface style preference**: users can now choose their preferred terminal interface style — full-screen TUI or line mode — from terminal settings. Sysops can set a system-wide default and optionally force all sessions to use it regardless of user preference. The **Terminal Idle Timeout** admin section has been renamed **Terminal Server Settings** to accommodate these new controls.
+- **Terminal shell allowlist and plugin registration**: terminal shell selection is now gated by the `.env` allowlist `TERMSERVER_ALLOWEDSHELLS`, and custom shell plugins can be registered from `telnet/shells/*.plugin.php`. Disallowed saved shell preferences now fall back safely to TUI instead of breaking login, and shell-aware shared widgets now honour plugin-provided style profiles more consistently.
 - **Configurable border style**: the box-drawing style used for all terminal frames and viewers can now be set per-system via **Admin → BBS Settings → Appearance → Terminal Server → Border Style**. Nine styles are available (Classic, Double, Single, Heavy, Rounded, Minimal, Mixed, Shadow, ASCII). Styles that require characters not supported by the connecting client's character set fall back automatically.
 - **Terminal charset preference honoured**: the user's saved terminal character set preference (ASCII, CP437, or UTF-8) is now correctly respected. Previously a saved ASCII preference could be silently overridden by terminal auto-detection on UTF-8 capable clients.
 - Terminal users can now **delete a netmail message** from the message viewer by pressing `X` or the `Del` key. A confirmation dialog appears before the message is removed.
@@ -555,6 +556,20 @@ Users can now choose their terminal interface style from terminal settings. The 
 The priority order is: Force shell (sysop) → explicit user preference (TUI or Line) → system default (Auto).
 
 No migration is required. The idle timeout fields remain in the same form as before under the renamed heading. The daemon restart that follows a normal upgrade is sufficient.
+
+---
+
+### Terminal Shell Allowlist and Plugin Registration
+
+Terminal shell availability is now controlled by the `.env` variable `TERMSERVER_ALLOWEDSHELLS`. The value is a space-separated allowlist of registered shell IDs such as `tui`, `tui line`, or `tui retroglass`.
+
+If the variable is unset or empty, BinktermPHP defaults to `tui` only. The terminal settings screen and the sysop-facing default shell selector both hide any shell mode that is not currently allowed. If an older saved user preference refers to a shell that is no longer allowed, the session now falls back safely to the TUI shell instead of failing to honor the preference in unpredictable ways.
+
+Custom terminal shells can now be added without editing the built-in factory directly. Plugin definition files placed in `telnet/shells/*.plugin.php` are discovered automatically and may register additional shell IDs and classes. This allows local deployments to add custom terminal shells while still using the same central allowlist and validation path.
+
+The shared terminal shell style profile is also now threaded through more of the common terminal UI, including the main menu, tabbed settings screens, inline text-entry prompts, and editor overlays. Shell plugins that override the style profile should now render more consistently across the shared interface instead of falling back to the default blue palette in those screens.
+
+**Upgrade action:** if you want to expose more than the built-in TUI shell after upgrading, set `TERMSERVER_ALLOWEDSHELLS` in your `.env` file and restart the Telnet and SSH daemons. Custom shells must be registered through `telnet/shells/*.plugin.php` before they can be added to the allowlist.
 
 ---
 

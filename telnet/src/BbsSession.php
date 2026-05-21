@@ -619,17 +619,25 @@ class BbsSession
             $this->safeWrite($conn, $statusLine . "\r");
             $this->safeWrite($conn, "\033[2;1H");
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $menuPad . $this->colorize($boxTop, self::ANSI_BLUE . self::ANSI_BOLD));
+            $styleProfile = TelnetUtils::getStyleProfile($state);
+            $panelScheme = $styleProfile['panel'] ?? [];
+            $listScheme = $styleProfile['list'] ?? [];
+            $borderColor = (string)($panelScheme['border'] ?? (self::ANSI_BLUE . self::ANSI_BOLD));
+            $dividerColor = (string)($panelScheme['divider'] ?? self::ANSI_BLUE);
+            $titleBarColor = (string)($panelScheme['title_bar'] ?? (self::ANSI_BG_BLUE . self::ANSI_CYAN . self::ANSI_BOLD));
+            $titleTextColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
+
+            $this->writeLine($conn, $menuPad . $this->colorize($boxTop, $borderColor));
             $titleLabel = $this->normalizeTerminalTextForClient(
                 $this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']),
                 $state
             );
             $titleText = $this->mbStrPad($titleLabel, $innerWidth, ' ', STR_PAD_BOTH);
-            $titleLine = $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE . self::ANSI_BOLD)
-                . $this->colorize(' ' . $titleText . ' ', self::ANSI_BG_BLUE . self::ANSI_CYAN . self::ANSI_BOLD)
-                . $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE . self::ANSI_BOLD);
+            $titleLine = $this->colorize($this->encodeForTerminal($chars['v']), $borderColor)
+                . $this->colorize(' ' . $titleText . ' ', $titleBarColor !== '' ? $titleBarColor : $titleTextColor)
+                . $this->colorize($this->encodeForTerminal($chars['v']), $borderColor);
             $this->writeLine($conn, $menuPad . $titleLine);
-            $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_BLUE));
+            $this->writeLine($conn, $menuPad . $this->colorize($divider, $dividerColor));
 
             $data = $computeMenuData();
             $keyToAction    = $data['keyToAction'];
@@ -704,13 +712,13 @@ class BbsSession
             }
 
             foreach ($rows as [$left, $right]) {
-                $line = $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE)
+                $line = $this->colorize($this->encodeForTerminal($chars['v']), $dividerColor)
                     . ' ' . $left . '  ' . $right . ' '
-                    . $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE);
+                    . $this->colorize($this->encodeForTerminal($chars['v']), $dividerColor);
                 $this->writeLine($conn, $menuPad . $line);
             }
 
-            $this->writeLine($conn, $menuPad . $this->colorize($boxBottom, self::ANSI_BLUE . self::ANSI_BOLD));
+            $this->writeLine($conn, $menuPad . $this->colorize($boxBottom, $borderColor));
 
             $boxStartRow  = 3;
             $boxBottomRow = 6 + count($rows);
@@ -730,6 +738,16 @@ class BbsSession
 
             // Recreate shell each iteration so a resize can switch TUI ↔ Line
             $shell  = TerminalShellFactory::create($this, $state);
+            if (method_exists($shell, 'getStyleProfile')) {
+                $styleProfile = $shell->getStyleProfile();
+                if (is_array($styleProfile) && $styleProfile !== []) {
+                    $state['_shell_style_profile'] = $styleProfile;
+                } else {
+                    unset($state['_shell_style_profile']);
+                }
+            } else {
+                unset($state['_shell_style_profile']);
+            }
             $action = null;
 
             if ($shell instanceof TuiShell) {
@@ -978,6 +996,11 @@ class BbsSession
      */
     private function renderMainMenuOptionLine(string $hotkey, string $translatedLine, int $menuWidth, array $state): string
     {
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $listScheme = $styleProfile['list'] ?? [];
+        $borderColor = (string)($panelScheme['divider'] ?? self::ANSI_BLUE);
+        $keyColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
         $label = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($translatedLine, $hotkey), $state);
         $hotkeyPrefix = strtoupper($hotkey) . ') ';
         $innerWidth = $menuWidth - 2;
@@ -986,13 +1009,13 @@ class BbsSession
 
         $chars = $this->getLineDrawingChars();
 
-        return $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE)
+        return $this->colorize($this->encodeForTerminal($chars['v']), $borderColor)
             . ' '
-            . $this->colorize(strtoupper($hotkey), self::ANSI_CYAN . self::ANSI_BOLD)
-            . $this->colorize(')', self::ANSI_BLUE)
+            . $this->colorize(strtoupper($hotkey), $keyColor)
+            . $this->colorize(')', $borderColor)
             . ' '
             . $labelPadded
-            . $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE);
+            . $this->colorize($this->encodeForTerminal($chars['v']), $borderColor);
     }
 
     /**
@@ -1001,9 +1024,14 @@ class BbsSession
      */
     private function menuItemCol(string $key, string $label, int $colWidth, array $state): string
     {
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $listScheme = $styleProfile['list'] ?? [];
+        $borderColor = (string)($panelScheme['divider'] ?? self::ANSI_BLUE);
+        $keyColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
         $labelPadded = $this->fitTerminalLabel($label, max(0, $colWidth - 3), $state);
-        return $this->colorize(strtoupper($key), self::ANSI_CYAN . self::ANSI_BOLD)
-            . $this->colorize(')', self::ANSI_BLUE)
+        return $this->colorize(strtoupper($key), $keyColor)
+            . $this->colorize(')', $borderColor)
             . ' '
             . $labelPadded;
     }
@@ -1014,9 +1042,12 @@ class BbsSession
      */
     private function menuHeaderCol(string $text, int $colWidth, array $state): string
     {
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $listScheme = $styleProfile['list'] ?? [];
+        $headerColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
         $label  = '[' . $text . ']';
         $padded = $this->fitTerminalLabel($label, $colWidth, $state);
-        return $this->colorize($padded, self::ANSI_CYAN . self::ANSI_BOLD);
+        return $this->colorize($padded, $headerColor);
     }
 
     /**
@@ -1111,22 +1142,28 @@ class BbsSession
         $divBar = $this->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $innerWidth) . $chars['r_tee']);
         $botBar = $this->encodeForTerminal($chars['bl'] . str_repeat($chars['h'], $innerWidth) . $chars['br']);
 
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $listScheme = $styleProfile['list'] ?? [];
+        $borderColor = (string)($panelScheme['divider'] ?? self::ANSI_BLUE);
+        $headerColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
+
         $titlePadded = $this->fitTerminalLabel($title, $innerWidth, $state);
-        $titleLine   = $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE)
-            . $this->colorize($titlePadded, self::ANSI_CYAN . self::ANSI_BOLD)
-            . $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE);
+        $titleLine   = $this->colorize($this->encodeForTerminal($v), $borderColor)
+            . $this->colorize($titlePadded, $headerColor)
+            . $this->colorize($this->encodeForTerminal($v), $borderColor);
 
         $lines   = [];
-        $lines[] = $this->colorize($topBar, self::ANSI_BLUE);
+        $lines[] = $this->colorize($topBar, $borderColor);
         $lines[] = $titleLine;
-        $lines[] = $this->colorize($divBar, self::ANSI_BLUE);
+        $lines[] = $this->colorize($divBar, $borderColor);
 
         $countWidth = min(5, $innerWidth - 2);
         $labelWidth = max(0, $innerWidth - $countWidth - 1);
 
         foreach ($widgetEntries as $entry) {
             if ($entry === 'DIVIDER') {
-                $lines[] = $this->colorize($divBar, self::ANSI_BLUE);
+                $lines[] = $this->colorize($divBar, $borderColor);
                 continue;
             }
             [$label, $value] = $entry;
@@ -1135,11 +1172,11 @@ class BbsSession
             $innerLine = $this->colorize($labelStr, self::ANSI_DIM)
                 . ' '
                 . $this->colorize($countStr, self::ANSI_BOLD);
-            $lines[]   = $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE)
+            $lines[]   = $this->colorize($this->encodeForTerminal($v), $borderColor)
                 . $innerLine
-                . $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE);
+                . $this->colorize($this->encodeForTerminal($v), $borderColor);
         }
-        $lines[] = $this->colorize($botBar, self::ANSI_BLUE);
+        $lines[] = $this->colorize($botBar, $borderColor);
 
         foreach ($lines as $i => $line) {
             $row = $boxStartRow + $i;
@@ -1243,6 +1280,10 @@ class BbsSession
             return '';
         }
 
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $statusScheme = $styleProfile['status_bar'] ?? [];
+        $statusColor = (string)($statusScheme['fill'] ?? self::ANSI_BLUE);
+
         $systemName = $this->normalizeTerminalTextForClient($systemName, $state);
         $timeStr    = $this->normalizeTerminalTextForClient($timeStr, $state);
 
@@ -1252,14 +1293,14 @@ class BbsSession
 
         if ($systemWidth + $gapWidth + $timeWidth <= $width) {
             return TelnetUtils::buildStatusBar([
-                ['text' => $systemName, 'color' => self::ANSI_BLUE],
-                ['text' => str_repeat(' ', $width - $systemWidth - $timeWidth), 'color' => self::ANSI_BLUE],
-                ['text' => $timeStr, 'color' => self::ANSI_BLUE],
+                ['text' => $systemName, 'color' => $statusColor],
+                ['text' => str_repeat(' ', $width - $systemWidth - $timeWidth), 'color' => $statusColor],
+                ['text' => $timeStr, 'color' => $statusColor],
             ], $width);
         }
 
         return TelnetUtils::buildStatusBar([
-            ['text' => $this->truncateTerminalLabel($systemName, $width, $state, true), 'color' => self::ANSI_BLUE],
+            ['text' => $this->truncateTerminalLabel($systemName, $width, $state, true), 'color' => $statusColor],
         ], $width);
     }
 
@@ -2875,9 +2916,10 @@ class BbsSession
         $chars         = $this->getLineDrawingChars();
         $ansi          = $this->ansiColorEnabled;
         $rst           = self::ANSI_RESET;
-        $bg            = self::ANSI_BG_BLUE;
-        $frame         = $bg . "\033[1;37m";
-        $body          = $bg . "\033[37m";
+        $editorScheme  = TelnetUtils::getStyleProfile($state)['dialog'] ?? [];
+        $bg            = (string)($editorScheme['bg'] ?? self::ANSI_BG_BLUE);
+        $frame         = (string)($editorScheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body          = (string)($editorScheme['body'] ?? ($bg . "\033[37m"));
         $footerBody    = $body;
         $topBorder     = '';
         $midBorder     = '';
@@ -3225,11 +3267,12 @@ class BbsSession
             $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']),
         ];
 
+        $helpScheme = TelnetUtils::getStyleProfile($state)['help_overlay'] ?? [];
         $ansi = $this->ansiColorEnabled;
         $rst  = self::ANSI_RESET;
-        $bg   = self::ANSI_BG_BLUE;
-        $frame = $bg . "\033[1;37m";
-        $body  = $bg . "\033[37m";
+        $bg   = (string)($helpScheme['bg'] ?? self::ANSI_BG_BLUE);
+        $frame = (string)($helpScheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body  = (string)($helpScheme['body'] ?? ($bg . "\033[37m"));
         $chars = $this->getLineDrawingChars();
         $topBorder = '';
         $bottomBorder = '';

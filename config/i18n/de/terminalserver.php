@@ -403,6 +403,7 @@ return [
     'ui.terminalserver.settings.hint_navigate'         => '  ↑↓ Bewegen   ◄► Ändern   [ ] Tabs   S) Speichern   Q) Beenden',
     'ui.terminalserver.settings.hint_navigate_ascii'   => '  Hoch/Runter Bewegen   Links/Re Ändern   [/] Tabs   S) Speichern   Q) Beenden',
     'ui.terminalserver.settings.discarded'             => 'Änderungen verworfen.',
+    'ui.terminalserver.settings.exiting'               => 'Einstellungen werden verlassen.',
 
     // Terminal tab fields
     'ui.terminalserver.settings.terminal.charset'         => 'Zeichensatz',
