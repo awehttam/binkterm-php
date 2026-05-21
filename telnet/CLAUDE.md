@@ -28,27 +28,54 @@ Menu actions are data-driven via the key map in `AppearanceConfig`. Every action
 
 The admin save route (`POST /api/admin/appearance/term-menu-keys`) derives its valid action list from `array_keys(AppearanceConfig::DEFAULT_TERM_MENU_KEYS)` automatically — no route change needed when adding an action.
 
+## Shell Abstraction
+
+Feature handlers target `TerminalShellInterface` and stay agnostic of which shell the user is running. The factory resolves the concrete shell for the current session:
+
+```php
+$shell = TerminalShellFactory::create($this->server, $state);
+$result = $shell->showMessageList($conn, $state, ...);
+```
+
+**Selection order** (highest priority first):
+1. Sysop `force_shell` flag (Admin → BBS Settings) overrides everything.
+2. User preference `term_shell_mode = 'line'` or `'tui'` in `$state`.
+3. Sysop default shell (Admin → BBS Settings).
+
+Two concrete shells implement the interface:
+
+| Shell | Class | Behaviour |
+|-------|-------|-----------|
+| TUI | `TuiShell` | Full-screen framed widgets via `TelnetUtils`. |
+| Line | `LineShell` | Plain numbered menus and text prompts. Works on any terminal width. |
+
+**Exception — QWK flows:** `QwkMenuHandler` must bypass the shell abstraction and write raw prompts (`> ` style) that QWK reader automation parses literally. Do not route QWK flows through `$shell`.
+
 ## Reusable UI Widgets
 
-**Always use existing `TelnetUtils` widgets before writing custom UI.** The utility class provides a set of high-level, tested components for all common terminal UI patterns. Duplicating their logic in handler code creates inconsistency and bugs.
+**Always call `TerminalShellInterface` methods — never call `TelnetUtils` methods directly from a handler.** `TelnetUtils` is the underlying implementation used internally by `TuiShell`; `LineShell` has its own plain-text equivalents. Calling `TelnetUtils` from a handler bypasses the shell contract and breaks line-shell sessions.
 
-| Need | Use |
-|------|-----|
-| Full-screen scrollable message reader (Ctrl-K help overlay built in) | `TelnetUtils::runMessageViewer()` |
-| Paginated selectable list with keyboard nav | `TelnetUtils::runSelectableList()` |
-| Pre-built message list with compose/read actions | `TelnetUtils::runMessageList()` |
-| Scrollable kludge/header overlay | `TelnetUtils::runKludgeViewer()` (called internally by viewer) |
-| Sixel image viewer | `TelnetUtils::showSixelImageViewer()` |
-| Message header box (From/To/Date/Subj) | `TelnetUtils::buildMessageHeaderBox()` |
-| Status bar from segments array | `TelnetUtils::buildStatusBar()` |
-| Centered confirmation / multi-option dialog overlay | `TelnetUtils::showConfirmDialog()` |
-| Centered alert/notice dialog (Enter to dismiss, color-coded info/error) | `TelnetUtils::showAlertDialog($conn, $state, $server, $title, $message, $style)` — `$style` is `'info'` (blue) or `'error'` (red) |
-| Centered single-line text input with pre-fill, resize support, Enter=OK, Esc/Ctrl+C=cancel | `TelnetUtils::showInputDialog($conn, $state, $server, $title, $prompt, $prefill, $maxLength, $redrawFn)` — returns string or null on cancel |
-| Centered "please wait" overlay (draws immediately, no key read; overdraw with showAlertDialog when done) | `TelnetUtils::showWorkingOverlay($conn, $state, $server, $message)` |
-| ANSI-wrapped text lines | `TelnetUtils::wrapTextLines()` |
-| Address book / nodelist picker (search → select → return name+address) | `TelnetUtils::runAddressPicker()` |
+| Intent | Shell method |
+|--------|-------------|
+| Select from a list | `chooseFromList()` |
+| Free-text input | `promptText()` |
+| Single-key choice (modal) | `promptKey()` |
+| Display read-only text | `showText()` |
+| Non-blocking detail panel | `renderPanel()` |
+| Scrollable panel (returns exit key) | `showScrollablePanel()` |
+| Full message reader (Ctrl-K help built in) | `showMessageViewer()` |
+| Message list with actions | `showMessageList()` |
+| Generic selectable list | `showSelectableList()` |
+| Info / error alert | `showAlert()` — `$style` is `'info'` or `'error'` |
+| Confirmation / multi-option dialog | `showConfirmDialog()` |
+| "Please wait" overlay | `showWorkingOverlay()` |
+| Multi-select checkbox list | `showCheckboxListDialog()` |
+| Modal selectable dialog | `showSelectableDialog()` |
+| Address book / nodelist picker | `showAddressPicker()` |
+| Public user profile viewer | `showPublicProfileViewer()` |
+| Paged box (returns stop key) | `showPagedBox()` |
 
-### Status bar discipline
+### Status bar discipline (TUI shell)
 
 The bottom status bar has limited width. Keep it to the **most-used primary actions only** — typically scroll, prev/next, reply, and quit. Every other key belongs exclusively in the Ctrl-K help overlay; do not put secondary keys in both places.
 
@@ -59,12 +86,12 @@ The bottom status bar has limited width. Keep it to the **most-used primary acti
 
 **Ctrl-K is the universal help key** across all terminal contexts (message viewer, editor, chat). When adding a new key binding to any message viewer:
 
-1. Add it to the `$helpItems` array passed to `runMessageViewer()` so it appears in the Ctrl-K overlay.
+1. Add it to the `$helpItems` array passed to `showMessageViewer()` so it appears in the Ctrl-K overlay.
 2. Only add it to the status bar `$segments` if it truly belongs among the handful of primary actions.
 
 ### Adding actions to the message viewer
 
-`runMessageViewer()` accepts an `$extraKeys` array that maps lowercase characters to action name strings, and a `$helpItems` array listing all key bindings for the Ctrl-K overlay. Use these instead of wrapping the viewer in custom key-reading logic:
+`showMessageViewer()` accepts an `$extraKeys` array that maps lowercase characters to action name strings, and a `$helpItems` array listing all key bindings for the Ctrl-K overlay. Use these instead of wrapping the viewer in custom key-reading logic:
 
 ```php
 // Build the full key list for the Ctrl-K help overlay:
@@ -78,9 +105,10 @@ $helpItems = [
 $segments[] = ['text' => 'Ctrl-K',  'color' => TelnetUtils::ANSI_RED];
 $segments[] = ['text' => ' Help  ', 'color' => TelnetUtils::ANSI_BLUE];
 
-// Pass both to the viewer:
-$result = TelnetUtils::runMessageViewer(
-    $conn, $state, $this->server,
+// Pass both to the shell method:
+$shell = TerminalShellFactory::create($this->server, $state);
+$result = $shell->showMessageViewer(
+    $conn, $state,
     $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
     $state['rows'] ?? 24, 0, $allowDownload,
     $kludgeLines, $buildView, $imageRefs, $imageFn,
@@ -123,13 +151,13 @@ while (true) {
 
 Layout-dependent variables (frame dimensions, wrapped line counts, status bar width, border strings) must be recalculated on every resize. Capture them by reference (`&$var`) in any render closure so a single `$rebuildLayout()` call propagates the new dimensions without recreating the closure.
 
-`runMessageViewer()` already handles this via its `$rebuildFn` callback — pass a `$buildView` closure and the widget manages resize internally. Custom full-screen loops in handlers must implement the pattern above themselves.
+`showMessageViewer()` already handles this via its `$rebuildFn` callback — pass a `$buildView` closure and the shell manages resize internally. Custom full-screen loops in handlers must implement the pattern above themselves.
 
 ### Extending widgets
 
-If a widget genuinely lacks a capability needed by multiple features, extend it in `TelnetUtils` — don't work around it in the handler. The `$extraKeys` mechanism itself is an example of this: it was added once so all handlers can use it.
+If a shell method genuinely lacks a capability needed by multiple features, add it to `TerminalShellInterface` and implement it in **both** `TuiShell` and `LineShell`. If `TuiShell`'s implementation requires a new low-level widget, add that to `TelnetUtils` as well — but a `TelnetUtils`-only change is not sufficient; it must go through the interface.
 
-**When adding a new reusable widget or extending an existing one, update the widget table above in this file.** The table is the first place anyone looks before writing new terminal UI code — keep it current.
+**When adding a new shell method, update the widget table above in this file.** The table is the first place anyone looks before writing new terminal UI code — keep it current.
 
 ## Data Access
 
