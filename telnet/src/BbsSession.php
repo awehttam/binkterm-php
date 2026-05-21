@@ -2317,15 +2317,21 @@ class BbsSession
             return;
         }
 
-        $cols = max(40, (int)($state['cols'] ?? 80));
-        $contentWidth = max(20, min($cols - 8, 92) - 4);
-        $lines = TerminalMarkupRenderer::render('markdown', $markdown, $contentWidth);
-        if (!$this->ansiColorEnabled) {
-            $lines = array_map(
-                static fn(string $line): string => preg_replace('/\033\[[0-9;]*m/', '', $line) ?? $line,
-                $lines
-            );
-        }
+        $ansiEnabled = $this->ansiColorEnabled;
+        $renderLines = function(int $contentWidth) use ($markdown, $ansiEnabled): array {
+            $rendered = TerminalMarkupRenderer::render('markdown', $markdown, $contentWidth);
+            if (!$ansiEnabled) {
+                $rendered = array_map(
+                    static fn(string $line): string => preg_replace('/\033\[[0-9;]*m/', '', $line) ?? $line,
+                    $rendered
+                );
+            }
+            return $rendered;
+        };
+
+        $cols = max(10, (int)($state['cols'] ?? 80));
+        $boxWidth = max(10, min($cols - 2, 96));
+        $lines = $renderLines(max(6, $boxWidth - 4));
 
         $shell = TerminalShellFactory::create($this, $state);
         $shell->showPagedBox(
@@ -2334,7 +2340,9 @@ class BbsSession
             'SYSTEM NEWS',
             $lines,
             $this->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']),
-            4
+            4,
+            [],
+            ['lines_fn' => $renderLines]
         );
     }
 

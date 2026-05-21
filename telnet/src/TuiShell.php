@@ -180,12 +180,12 @@ class TuiShell implements TerminalShellInterface
         };
 
         $render = function() use (&$data, $conn, &$state, $stripAnsi, $padAnsi, $scheme, $statusSegments): array {
-            $rows = max(20, (int)($state['rows'] ?? 24));
-            $cols = max(48, (int)($state['cols'] ?? 80));
-            $boxWidth = max(46, min($cols - 6, 78));
-            $contentWidth = max(24, $boxWidth - 4);
-            $bodyHeight = max(8, min($rows - 8, 14));
-            $panelHeight = $bodyHeight + 5;
+            $rows = max(8, (int)($state['rows'] ?? 24));
+            $cols = max(20, (int)($state['cols'] ?? 80));
+            $boxWidth = max(10, min($cols - 2, 78));
+            $contentWidth = max(6, $boxWidth - 4);
+            $bodyHeight = max(4, $rows - 10);
+            $panelHeight = $bodyHeight + 6;
 
             $chars = $this->server->getTerminalLineDrawingChars();
             $tl = $chars['tl'] ?? '+';
@@ -265,13 +265,14 @@ class TuiShell implements TerminalShellInterface
                 );
             }
 
+            TelnetUtils::safeWrite($conn, "\033[" . ($startRow + $bodyHeight + 3) . ';' . $startCol . 'H' . $this->server->colorizeForTerminal($this->server->encodeForTerminal($divider), $dividerColor) . TelnetUtils::ANSI_RESET);
             TelnetUtils::safeWrite(
                 $conn,
-                "\033[" . ($startRow + $bodyHeight + 3) . ';' . $startCol . 'H' . $frameColor . $vt . $bodyColor . ' ' . $statusLine . ' ' . $frameColor . $vt . TelnetUtils::ANSI_RESET
+                "\033[" . ($startRow + $bodyHeight + 4) . ';' . $startCol . 'H' . $frameColor . $vt . $bodyColor . ' ' . $statusLine . ' ' . $frameColor . $vt . TelnetUtils::ANSI_RESET
             );
             TelnetUtils::safeWrite(
                 $conn,
-                "\033[" . ($startRow + $bodyHeight + 4) . ';' . $startCol . 'H' . $frameColor . $bottomBorder . TelnetUtils::ANSI_RESET
+                "\033[" . ($startRow + $bodyHeight + 5) . ';' . $startCol . 'H' . $frameColor . $bottomBorder . TelnetUtils::ANSI_RESET
             );
             TelnetUtils::safeWrite($conn, "\033[?25h");
 
@@ -567,6 +568,7 @@ class TuiShell implements TerminalShellInterface
     public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt, int $verticalMargin = 2, array $stopKeys = [], array $options = []): ?string
     {
         $box = new TerminalBoxRenderer($this->server);
+        $linesFn = isset($options['lines_fn']) && is_callable($options['lines_fn']) ? $options['lines_fn'] : null;
         return $box->showPagedBox(
             $conn,
             $state,
@@ -575,7 +577,8 @@ class TuiShell implements TerminalShellInterface
             $continuePrompt,
             $verticalMargin,
             $stopKeys,
-            $options['color_scheme'] ?? $this->styleProfile['panel']
+            $options['color_scheme'] ?? $this->styleProfile['panel'],
+            $linesFn
         );
     }
 }

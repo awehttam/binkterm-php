@@ -42,7 +42,7 @@ class TerminalBoxRenderer
      * @param string[] $stopKeys Optional key values that should stop paging early.
      * @return string|null Key that stopped paging, or null.
      */
-    public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt, int $verticalMargin = 2, array $stopKeys = [], array $colorScheme = self::SCHEME_DEFAULT): ?string
+    public function showPagedBox($conn, array &$state, string $title, array $lines, string $continuePrompt, int $verticalMargin = 2, array $stopKeys = [], array $colorScheme = self::SCHEME_DEFAULT, ?callable $linesFn = null): ?string
     {
         $pageIndex = 0;
         $lastRows = (int)($state['rows'] ?? 24);
@@ -73,6 +73,11 @@ class TerminalBoxRenderer
                 if ($newRows !== $lastRows || $newCols !== $lastCols) {
                     $lastRows = $newRows;
                     $lastCols = $newCols;
+                    if ($linesFn !== null) {
+                        $resizeLayout = $this->buildLayout($state, $verticalMargin, 2);
+                        $lines = $linesFn($resizeLayout['contentWidth']);
+                        $pageIndex = 0;
+                    }
                     continue 2;
                 }
 
@@ -128,6 +133,7 @@ class TerminalBoxRenderer
             TelnetUtils::ANSI_DIM
         ) : '';
 
+        $this->server->safeWrite($conn, "\033[?7l"); // disable auto-wrap
         $this->server->safeWrite($conn, "\033[2J\033[H");
         if ($layout['topPad'] !== '') {
             $this->server->safeWrite($conn, $layout['topPad']);
@@ -160,6 +166,7 @@ class TerminalBoxRenderer
         if ($hasShadow) {
             $this->writeLine($conn, $layout['leftPad'] . $shadowRow);
         }
+        $this->server->safeWrite($conn, "\033[?7h"); // re-enable auto-wrap
         $this->writeLine($conn, '');
     }
 
@@ -169,10 +176,10 @@ class TerminalBoxRenderer
      */
     private function buildLayout(array $state, int $verticalMargin, int $footerLines = 0): array
     {
-        $cols = max(40, (int)($state['cols'] ?? 80));
-        $rows = max(12, (int)($state['rows'] ?? 24));
-        $boxWidth = max(38, min($cols - 4, 96));
-        $contentWidth = max(20, $boxWidth - 4);
+        $cols = max(10, (int)($state['cols'] ?? 80));
+        $rows = max(8, (int)($state['rows'] ?? 24));
+        $boxWidth = max(10, min($cols - 2, 96));
+        $contentWidth = max(6, $boxWidth - 4);
         $reservedFooter = max(0, $footerLines);
         $boxHeight = max(8, $rows - max(2, $verticalMargin) - $reservedFooter);
         $contentHeight = max(3, $boxHeight - 4);

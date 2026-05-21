@@ -78,6 +78,12 @@ class ShoutboxHandler
                         'status_bar_bg' => "\033[40m",
                         'status_bar_fill' => TelnetUtils::ANSI_BLUE,
                     ],
+                    'redraw_fn' => function (array &$resizeState) use ($messages): array {
+                        return [
+                            'lines' => $this->buildMessageLines($messages, $resizeState, $this->getScrollablePanelContentWidth($resizeState)),
+                            'offset' => 0,
+                        ];
+                    },
                 ]
             );
             if ($choice === null || $choice === 'quit') {
@@ -158,6 +164,12 @@ class ShoutboxHandler
                         'status_bar_bg' => "\033[40m",
                         'status_bar_fill' => TelnetUtils::ANSI_BLUE,
                     ],
+                    'redraw_fn' => function (array &$resizeState) use ($messages): array {
+                        return [
+                            'lines' => $this->buildMessageLines($messages, $resizeState, $this->getScrollablePanelContentWidth($resizeState)),
+                            'offset' => 0,
+                        ];
+                    },
                 ]
             );
 
@@ -330,16 +342,11 @@ class ShoutboxHandler
         ];
     }
 
-    private function getScrollablePanelStatusWidth(array $state): int
-    {
-        $cols = max(48, (int)($state['cols'] ?? 80));
-        $boxWidth = max(46, min($cols - 6, 78));
-        return max(24, $boxWidth - 2);
-    }
-
     private function getScrollablePanelContentWidth(array $state): int
     {
-        return max(12, $this->getScrollablePanelStatusWidth($state) - 2);
+        $cols = max(20, (int)($state['cols'] ?? 80));
+        $boxWidth = max(10, min($cols - 2, 78));
+        return max(6, $boxWidth - 4);
     }
 
     private function renderScrollbar($conn, array &$state, array $layout, int $scrollOffset, int $maxOffset, int $messageRows): void
