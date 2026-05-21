@@ -84,10 +84,12 @@ The bottom status bar has limited width. Keep it to the **most-used primary acti
 ❌ Status bar:  U/D Scroll  PgUp/PgDn Page  L/R Prev/Next  R Reply  H Headers  X Delete  B Bookmark  T .txt  Q Quit
 ```
 
-**Ctrl-K is the universal help key** across all terminal contexts (message viewer, editor, chat). When adding a new key binding to any message viewer:
+**Ctrl-K is the universal help key in the TUI shell** (message viewer, editor, chat). In the line shell, `?` serves the same role — it displays the `$helpItems` array as a plain-text help screen. Both shells read `$helpItems` from the same argument; populate it for all viewers and lists.
 
-1. Add it to the `$helpItems` array passed to `showMessageViewer()` so it appears in the Ctrl-K overlay.
-2. Only add it to the status bar `$segments` if it truly belongs among the handful of primary actions.
+When adding a new key binding to any message viewer or list:
+
+1. Add it to the `$helpItems` array so it appears in the Ctrl-K overlay (TUI) or `?` help screen (line shell).
+2. In the TUI shell, only add it to the status bar `$segments` if it truly belongs among the handful of primary actions.
 
 ### Adding actions to the message viewer
 

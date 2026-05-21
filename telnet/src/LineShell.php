@@ -733,7 +733,7 @@ class LineShell implements TerminalShellInterface
         $maxOffset = 0;
         $commandLines = [];
 
-        $renderViewer = function () use ($conn, &$state, &$headerLines, &$wrappedLines, &$statusLine, $rows, $rebuildFn, $allowDownloadAction, $kludgeLines, $imageRefs, $imageFn, $extraKeyMap, &$offset, &$bodyHeight, &$maxOffset, &$commandLines): void {
+        $renderViewer = function () use ($conn, &$state, &$headerLines, &$wrappedLines, &$statusLine, $rows, $rebuildFn, $allowDownloadAction, $kludgeLines, $imageRefs, $imageFn, $extraKeyMap, $helpItems, &$offset, &$bodyHeight, &$maxOffset, &$commandLines): void {
             if ($rebuildFn !== null) {
                 $rebuilt = (array)$rebuildFn($state);
                 $headerLines = $rebuilt['headerLines'] ?? $headerLines;
@@ -767,6 +767,9 @@ class LineShell implements TerminalShellInterface
                     $label = ucwords(str_replace('_', ' ', (string)$action));
                     $commands[] = strtoupper((string)$key) . ' = ' . $label;
                 }
+            }
+            if (!empty($helpItems)) {
+                $commands[] = '? = help';
             }
             $commandLines[] = implode('  ', $commands);
             $this->renderMessageViewerScreen($conn, $state, $headerLines, $wrappedLines, $offset, $bodyHeight, $commandLines);
@@ -842,6 +845,12 @@ class LineShell implements TerminalShellInterface
                         continue;
                     }
                 }
+            }
+
+            if ($choice === '?' && !empty($helpItems)) {
+                $lines = array_map(fn($item) => sprintf('%-16s %s', $item['key'] ?? '', $item['label'] ?? ''), $helpItems);
+                $this->showText($conn, $state, 'Help', $lines);
+                continue;
             }
 
             $lowerChoice = strtolower($choice);
@@ -925,7 +934,7 @@ class LineShell implements TerminalShellInterface
         $extraKeyMap = $this->normalizeCommandMap($extraKeys);
         $commandLines = [];
 
-        $renderList = function () use ($conn, &$state, &$title, &$rows, $rebuildFn, $page, $totalPages, $selectedIndex, $options, $extraKeyMap, &$commandLines, &$selectedRows): void {
+        $renderList = function () use ($conn, &$state, &$title, &$rows, $rebuildFn, $page, $totalPages, $selectedIndex, $options, $extraKeyMap, $helpItems, &$commandLines, &$selectedRows): void {
             if ($rebuildFn !== null) {
                 $rebuilt = (array)$rebuildFn($state);
                 $rows = $rebuilt['rows'] ?? $rows;
@@ -941,6 +950,9 @@ class LineShell implements TerminalShellInterface
                     $label = ucwords(str_replace('_', ' ', (string)$action));
                     $commands[] = strtoupper((string)$key) . ' = ' . $label;
                 }
+            }
+            if (!empty($helpItems)) {
+                $commands[] = '? = help';
             }
             $commandLines = [implode('  ', $commands)];
             $this->renderSelectableListScreen($conn, $state, $title, $rows, $page, $totalPages, $selectedIndex, $commandLines, $selectedRows);
@@ -967,6 +979,12 @@ class LineShell implements TerminalShellInterface
             }
             if (strcasecmp($choice, 'n') === 0) {
                 return ['action' => 'next', 'index' => 0, 'selectedIndex' => 0];
+            }
+
+            if ($choice === '?' && !empty($helpItems)) {
+                $lines = array_map(fn($item) => sprintf('%-16s %s', $item['key'] ?? '', $item['label'] ?? ''), $helpItems);
+                $this->showText($conn, $state, 'Help', $lines);
+                continue;
             }
 
             $lowerChoice = strtolower($choice);
