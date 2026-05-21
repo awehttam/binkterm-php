@@ -73,8 +73,7 @@ class BbsListHandler
             $hostWidth = max(20, (int)floor($cols * 0.30));
 
             $rows = [];
-            foreach ($slice as $idx => $entry) {
-                $num      = ($page - 1) * $perPage + $idx + 1;
+            foreach ($slice as $entry) {
                 $name     = $this->truncate((string)($entry['name'] ?? ''), $nameWidth);
                 $location = (string)($entry['location'] ?? '');
                 $host     = (string)($entry['telnet_host'] ?? '');
@@ -83,8 +82,7 @@ class BbsListHandler
                 $address  = $this->truncate($address, $hostWidth);
 
                 $line = sprintf(
-                    ' %3d) %s  %s',
-                    $num,
+                    ' %s  %s',
                     TelnetUtils::colorize(str_pad($name, $nameWidth), TelnetUtils::ANSI_CYAN),
                     TelnetUtils::colorize($address, TelnetUtils::ANSI_DIM)
                 );

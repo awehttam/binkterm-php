@@ -140,9 +140,7 @@ class MailUtils
             $buildRows = static function(array $draftRows, array $renderState) use ($server, $type, $locale): array {
                 $cols = $renderState['cols'] ?? 80;
                 $rows = [];
-                $idx = 1;
                 foreach ($draftRows as $draft) {
-                    $num = sprintf('%3d', $idx++);
                     $subject = trim((string)($draft['subject'] ?? ''));
                     if ($subject === '') {
                         $subject = $server->t('ui.terminalserver.compose.no_subject', '(No Subject)', [], $locale);
@@ -159,8 +157,7 @@ class MailUtils
                     $targetWidth = max(10, min(24, (int)floor($cols * 0.28)));
                     $dateWidth = 16;
                     $subjectWidth = max(10, $cols - 5 - 2 - $targetWidth - 2 - $dateWidth - 1);
-                    $rows[] = TelnetUtils::colorize($num . ') ', TelnetUtils::ANSI_YELLOW)
-                        . mb_substr(str_pad($subject, $subjectWidth), 0, $subjectWidth)
+                    $rows[] = mb_substr(str_pad($subject, $subjectWidth), 0, $subjectWidth)
                         . '  '
                         . TelnetUtils::colorize(mb_substr(str_pad($target, $targetWidth), 0, $targetWidth), TelnetUtils::ANSI_CYAN)
                         . '  '

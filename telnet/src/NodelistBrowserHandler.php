@@ -30,40 +30,8 @@ class NodelistBrowserHandler
 
     public function show($conn, array &$state, string $session): void
     {
-        $locale = $state['locale'];
         $shell = TerminalShellFactory::create($this->server, $state);
-        $menuItems = [
-            $this->server->t('ui.terminalserver.nodelist.menu.browse', '(B) Browse networks', [], $locale),
-            $this->server->t('ui.terminalserver.nodelist.menu.search', '(S) Search', [], $locale),
-        ];
-
-        while (true) {
-            $choice = $shell->chooseFromList(
-                $conn,
-                $state,
-                $this->server->t('ui.terminalserver.nodelist.title', 'Nodelist Browser', [], $locale),
-                $menuItems,
-                [
-                    'prompt' => '> ',
-                    'show_numbers' => false,
-                    'key_to_index' => [
-                        'b' => 0,
-                        's' => 1,
-                    ],
-                    'quit_keys' => ['q'],
-                ]
-            );
-
-            if ($choice === null) {
-                return;
-            }
-
-            if ($choice === 0) {
-                $this->browseZones($conn, $state, $shell);
-            } elseif ($choice === 1) {
-                $this->searchMode($conn, $state, $shell);
-            }
-        }
+        $this->browseZones($conn, $state, $shell);
     }
 
     // ── Browse: zone list ─────────────────────────────────────────────────────
@@ -102,12 +70,12 @@ class NodelistBrowserHandler
             ['text' => ' Back',    'color' => TelnetUtils::ANSI_BLUE],
         ];
 
+        $searchIndex   = count($zones);
         $selectedIndex = 0;
 
         while (true) {
             $rows = [];
-            foreach ($zones as $idx => $z) {
-                $num    = $idx + 1;
+            foreach ($zones as $z) {
                 $domain = (string)($z['domain'] ?? 'unknown');
                 $zone   = (int)$z['zone'];
                 $nets   = (int)$z['net_count'];
@@ -116,13 +84,17 @@ class NodelistBrowserHandler
                     : $this->server->t('ui.terminalserver.nodelist.net_count', '{count} nets', ['count' => $nets], $locale);
 
                 $rows[] = sprintf(
-                    ' %3d) %s  Zone %-4d  %s',
-                    $num,
+                    ' %s  Zone %-4d  %s',
                     TelnetUtils::colorize(str_pad($domain, 12), TelnetUtils::ANSI_CYAN),
                     $zone,
                     TelnetUtils::colorize($label, TelnetUtils::ANSI_DIM)
                 );
             }
+
+            $rows[] = TelnetUtils::colorize(
+                '  ' . $this->server->t('ui.terminalserver.nodelist.search_title', 'Nodelist Search', [], $locale),
+                TelnetUtils::ANSI_DIM
+            );
 
             $title = TelnetUtils::colorize(
                 $this->server->t('ui.terminalserver.nodelist.zones_title', 'Networks', [], $locale),
@@ -139,7 +111,9 @@ class NodelistBrowserHandler
                     return;
                 case 'select':
                     $idx = $result['index'];
-                    if (isset($zones[$idx])) {
+                    if ($idx === $searchIndex) {
+                        $this->searchMode($conn, $state, $shell);
+                    } elseif (isset($zones[$idx])) {
                         $this->browseNets($conn, $state, (int)$zones[$idx]['zone'], (string)($zones[$idx]['domain'] ?? ''), $manager, $shell);
                     }
                     break;
@@ -193,10 +167,8 @@ class NodelistBrowserHandler
             $page  = max(1, min($page, $totalPages));
             $slice = array_slice($nets, ($page - 1) * $perPage, $perPage);
 
-            $listBase = ($page - 1) * $perPage;
             $rows = [];
-            foreach ($slice as $idx => $net) {
-                $num       = $listBase + $idx + 1;
+            foreach ($slice as $net) {
                 $netNum    = (int)$net['net'];
                 $count     = (int)$net['node_count'];
                 $hub       = $this->truncate((string)($net['hub_name'] ?? ''), 28);
@@ -205,8 +177,7 @@ class NodelistBrowserHandler
                     : $this->server->t('ui.terminalserver.nodelist.node_count', '{count} nodes', ['count' => $count], $locale);
 
                 $rows[] = sprintf(
-                    ' %3d) Net %-5d  %s  %s',
-                    $num,
+                    ' Net %-5d  %s  %s',
                     $netNum,
                     TelnetUtils::colorize(str_pad($nodeLabel, 10), TelnetUtils::ANSI_DIM),
                     TelnetUtils::colorize($hub, TelnetUtils::ANSI_DIM)
@@ -289,18 +260,15 @@ class NodelistBrowserHandler
             $addrWidth  = 14;
             $nameWidth  = max(16, (int)floor(($cols - $addrWidth - 6) * 0.45));
             $sysopWidth = max(14, (int)floor(($cols - $addrWidth - 6) * 0.35));
-            $listBase   = ($page - 1) * $perPage;
 
             $rows = [];
-            foreach ($slice as $idx => $node) {
-                $num   = $listBase + $idx + 1;
+            foreach ($slice as $node) {
                 $addr  = $this->formatAddress($node);
                 $name  = $this->truncate((string)($node['system_name'] ?? ''), $nameWidth);
                 $sysop = $this->truncate((string)($node['sysop_name'] ?? ''), $sysopWidth);
 
                 $rows[] = sprintf(
-                    ' %3d) %s  %s  %s',
-                    $num,
+                    ' %s  %s  %s',
                     TelnetUtils::colorize(str_pad($addr, $addrWidth), TelnetUtils::ANSI_GREEN),
                     TelnetUtils::colorize(str_pad($name, $nameWidth), TelnetUtils::ANSI_CYAN),
                     TelnetUtils::colorize($sysop, TelnetUtils::ANSI_DIM)

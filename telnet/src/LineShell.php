@@ -90,8 +90,8 @@ class LineShell implements TerminalShellInterface
 
         foreach ($rows as $offset => $row) {
             $isMarked = isset($markedRows[$offset]);
-            $prefix = $isMarked ? '*' : ' ';
-            $rowText = sprintf('%s%s', $prefix, $this->stripAnsi((string)$row));
+            $mark = $isMarked ? '*' : ' ';
+            $rowText = sprintf('%s%2d) %s', $mark, $offset + 1, $this->stripAnsi((string)$row));
             TelnetUtils::writeLine($conn, $this->fitPlainLine($rowText, $this->wrapWidth($state, 1, 10)));
         }
 
@@ -588,6 +588,7 @@ class LineShell implements TerminalShellInterface
         };
 
         $render();
+        $this->flushImmediateLineTerminators($conn, $state);
         $lastRows = (int)($state['rows'] ?? 24);
         $lastCols = (int)($state['cols'] ?? 80);
         while (true) {
