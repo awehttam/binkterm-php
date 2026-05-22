@@ -3,11 +3,65 @@
 namespace BinktermPHP\TelnetServer;
 
 /**
- * TelnetUtils - Shared utility functions for telnet daemon
+ * TelnetUtils — Terminal I/O primitives and TUI Widget Library.
  *
- * This class provides static utility methods used across multiple telnet handler classes.
- * Methods handle API requests, text formatting, terminal output, and ANSI screen display.
- * Mail-specific utilities have been moved to MailUtils.
+ * This class is the low-level foundation of BinktermPHP's full-screen terminal interface.
+ * It is used internally by {@see TuiShell}; feature handlers must NOT call it directly —
+ * they must go through {@see TerminalShellInterface} so that line-shell sessions work
+ * correctly alongside TUI sessions.
+ *
+ * ## TUI Widget Library
+ *
+ * Interactive full-screen surfaces:
+ *   - {@see runMessageViewer}       — scrollable single-message viewer with Ctrl-K help overlay,
+ *                                     kludge header viewer, inline Sixel image viewer, and
+ *                                     caller-supplied extra key bindings
+ *   - {@see runMessageList}         — paged message list browser built on runSelectableList
+ *   - {@see renderMessageListScreen} — non-interactive repaint of a message list (for resize)
+ *   - {@see runSelectableList}      — generic paged selectable list with resize support;
+ *                                     dispatches to runSelectableStructuredList for wrapped rows
+ *   - {@see runAddressPicker}       — search-driven address book / nodelist picker
+ *
+ * Modal overlay widgets (drawn over the current screen, no full clear):
+ *   - {@see showConfirmDialog}      — yes/no or multi-choice confirmation dialog
+ *   - {@see showInputDialog}        — single-line text input dialog
+ *   - {@see showAlertDialog}        — info or error alert dismissed with Enter
+ *   - {@see showWorkingOverlay}     — non-blocking "please wait" banner
+ *   - {@see showCheckboxListDialog} — scrollable multi-select checkbox list
+ *   - {@see showSelectableDialog}   — scrollable single-select list dialog
+ *   - {@see showPublicProfileViewer} — read-only user profile viewer
+ *   - {@see showSixelImageViewer}   — full-screen Sixel graphics viewer
+ *
+ * ## Layout and rendering helpers
+ *
+ *   - {@see buildStatusBar}         — assembles the bottom status bar from colored segments
+ *   - {@see buildMessageHeaderBox}  — renders a framed header box with box-drawing characters
+ *   - {@see renderFullScreen}       — clears the screen and draws header + body + status bar
+ *   - {@see wrapTextLines}          — word-wraps a string into an array of display lines
+ *   - {@see colorize}               — applies ANSI SGR codes respecting the global color toggle
+ *   - {@see setCursorVisible}       — sends DECTCEM show/hide cursor escape
+ *
+ * ## I/O primitives
+ *
+ *   - {@see safeWrite}              — write to a socket with loop-until-flushed semantics
+ *   - {@see writeLine}              — safeWrite + CRLF
+ *   - {@see writeWrapped}           — word-wrapping safeWrite
+ *   - {@see writeWrappedWithMore}   — paginated output with "-- More --" prompt
+ *   - {@see readRawChar}            — reads one raw character from the socket
+ *
+ * ## Style profiles
+ *
+ *   - {@see getDefaultStyleProfile} — canonical ANSI color palette for all widgets
+ *   - {@see getStyleProfile}        — active profile merged with any shell override from $state
+ *   - {@see setAnsiColorEnabled}    — enables or disables ANSI color globally for the session
+ *
+ * ## API and utilities
+ *
+ *   - {@see apiRequest}             — authenticated cURL wrapper for internal BBS API calls
+ *   - {@see formatUserDate}         — converts a UTC timestamp to the user's local timezone/format
+ *   - {@see formatMessageListLine}  — builds a single fixed-width message list entry
+ *   - {@see showScreenIfExists}     — sends an ANSI screen file if one exists for a given slot
+ *   - {@see showSixelScreenIfExists} — sends a Sixel graphics file if one exists
  */
 class TelnetUtils
 {
@@ -29,6 +83,13 @@ class TelnetUtils
 
     /**
      * Return the canonical default style profile used by terminal widgets.
+     *
+     * The returned array contains ANSI color scheme keys for every widget type
+     * (panel, list, dialog, status_bar, etc.). Shells and callers that need a
+     * custom look should merge their overrides via array_replace_recursive() rather
+     * than rebuilding the array from scratch.
+     *
+     * @return array<string, mixed> Nested color-scheme array keyed by widget name.
      */
     public static function getDefaultStyleProfile(): array
     {
@@ -126,6 +187,13 @@ class TelnetUtils
 
     /**
      * Return the active shell style profile for the current session state.
+     *
+     * Merges the default profile with any shell-specific overrides stored in
+     * `$state['_shell_style_profile']`. Falls back to the default profile when
+     * no override is present or the override is empty.
+     *
+     * @param array<string, mixed> $state Session state array (may be empty).
+     * @return array<string, mixed> Merged color-scheme array.
      */
     public static function getStyleProfile(array $state = []): array
     {
@@ -140,6 +208,13 @@ class TelnetUtils
 
     /**
      * Enable or disable ANSI color rendering globally for the active session.
+     *
+     * When disabled, {@see colorize()} returns plain text and all widget render
+     * paths skip SGR escape sequences. Called by BbsSession when it determines
+     * the terminal does not support ANSI.
+     *
+     * @param bool $enabled True to enable ANSI color, false for plain-text mode.
+     * @return void
      */
     public static function setAnsiColorEnabled(bool $enabled): void
     {
@@ -152,6 +227,9 @@ class TelnetUtils
      * SyncTERM appears to keep its own local bottom status line even when the
      * negotiated height includes that row. Selector screens anchor their
      * status/input line to the last row, so reserve one row there for SyncTERM.
+     *
+     * @param array<string, mixed> $state Session state containing 'rows' and 'terminal_type'.
+     * @return int Effective row count (always at least 1).
      */
     private static function getSelectorRows(array $state): int
     {
@@ -164,15 +242,33 @@ class TelnetUtils
     }
 
     /**
-     * Make an API request to the BBS
+     * Make an authenticated HTTP request to a BBS API endpoint.
      *
-     * @param string $base Base URL for API
-     * @param string $method HTTP method (GET, POST, etc.)
-     * @param string $path API endpoint path
-     * @param array|null $payload Request payload for POST/PUT
-     * @param string|null $session Session token for authentication
-     * @param int $maxRetries Maximum retry attempts (default 3)
-     * @return array ['status' => int, 'data' => array, 'error' => string|null]
+     * Retries transient network failures up to $maxRetries times with a 500 ms
+     * delay between attempts. The response body is always decoded as JSON; if
+     * decoding fails the raw response string is returned under the 'raw' key.
+     *
+     * **Response shape:**
+     * ```php
+     * ['status' => int, 'data' => array, 'error' => string|null]
+     * ```
+     * The decoded JSON body is always under `['data']`. Never read top-level API
+     * fields directly from the return value — they live one level deeper:
+     * ```php
+     * $messages = $response['data']['messages'] ?? [];
+     * ```
+     *
+     * **CSRF:** Every POST/PUT/PATCH/DELETE call must pass `$state['csrf_token']`
+     * as the `$csrfToken` argument, otherwise the server returns 403.
+     *
+     * @param string      $base       Base URL (scheme + host, no trailing slash).
+     * @param string      $method     HTTP method: 'GET', 'POST', 'PUT', 'DELETE', 'PATCH'.
+     * @param string      $path       API path including leading slash, e.g. '/api/user/settings'.
+     * @param array|null  $payload    JSON-encodable payload for mutating requests; null for GET.
+     * @param string|null $session    Session cookie value ('binktermphp_session'); null if unauthenticated.
+     * @param int         $maxRetries Maximum number of attempts before giving up (default 3).
+     * @param string|null $csrfToken  CSRF token from `$state['csrf_token']`; required for all mutating calls.
+     * @return array{status: int, data: array, error: string|null}
      */
     public static function apiRequest(string $base, string $method, string $path, ?array $payload, ?string $session, int $maxRetries = 3, ?string $csrfToken = null): array
     {
@@ -253,13 +349,14 @@ class TelnetUtils
     }
 
     /**
-     * Write text with word wrapping to terminal
+     * Write word-wrapped text to the terminal.
      *
-     * Handles line breaks and wraps long lines to fit terminal width.
+     * Splits on existing newlines first, then wraps each paragraph to $width.
+     * Lines shorter than 20 characters are never wrapped further.
      *
-     * @param resource $conn Socket connection to write to
-     * @param string $text Text to write (may contain newlines)
-     * @param int $width Terminal width for wrapping
+     * @param resource $conn  Terminal socket connection.
+     * @param string   $text  Text to write; may contain embedded newlines.
+     * @param int      $width Terminal column width used as the wrap boundary.
      * @return void
      */
     public static function writeWrapped($conn, string $text, int $width): void
@@ -276,10 +373,10 @@ class TelnetUtils
     }
 
     /**
-     * Write a line of text to terminal with CRLF
+     * Write a single line of text followed by CRLF.
      *
-     * @param resource $conn Socket connection
-     * @param string $text Text to write (default empty string for blank line)
+     * @param resource $conn Terminal socket connection.
+     * @param string   $text Text to write; defaults to empty string (blank line).
      * @return void
      */
     public static function writeLine($conn, string $text = ''): void
@@ -288,10 +385,13 @@ class TelnetUtils
     }
 
     /**
-     * Write data to socket connection with error suppression
+     * Write a binary string to the terminal socket, looping until all bytes are flushed.
      *
-     * @param resource $conn Socket connection
-     * @param string $data Data to write
+     * Suppresses PHP notices during the write loop. Returns silently on a closed or
+     * invalid connection rather than throwing.
+     *
+     * @param resource $conn Terminal socket connection.
+     * @param string   $data Raw bytes to write (may contain ANSI escape sequences or Sixel data).
      * @return void
      */
     public static function safeWrite($conn, string $data): void
@@ -315,16 +415,17 @@ class TelnetUtils
     }
 
     /**
-     * Write wrapped text with "more" pagination for long messages
+     * Write word-wrapped text with paginated "-- More --" prompts.
      *
-     * Pauses after each page and waits for keypress to continue.
-     * User can press 'q' to quit early.
+     * Pauses after each page of ($height - $reservedLines) lines and waits for
+     * a keypress to continue. The user can press 'q' or 'Q' to stop early.
      *
-     * @param resource $conn Socket connection to write to
-     * @param string $text Text to write with pagination
-     * @param int $width Terminal width for wrapping
-     * @param int $height Terminal height for pagination
-     * @param array $state Terminal state (passed by reference for readRawChar)
+     * @param resource          $conn          Terminal socket connection.
+     * @param string            $text          Text to display; may contain embedded newlines.
+     * @param int               $width         Terminal column width for word wrapping.
+     * @param int               $height        Terminal row count used to calculate page height.
+     * @param array<string,mixed> &$state      Session state (passed by reference for readRawChar).
+     * @param int               $reservedLines Lines to reserve for headers/prompts (default 6).
      * @return void
      */
     public static function writeWrappedWithMore($conn, string $text, int $width, int $height, array &$state, int $reservedLines = 6): void
@@ -376,16 +477,17 @@ class TelnetUtils
     }
 
     /**
-     * Write wrapped text with pagination and a fixed header on each page
+     * Write word-wrapped text with per-page headers and paginated "-- More --" prompts.
      *
-     * Clears the screen for each page, renders header lines, and shows a "more" prompt.
+     * Clears the screen before each page, redraws $headerLines, then outputs a
+     * slice of the body. The user can press 'q' or 'Q' to stop early.
      *
-     * @param resource $conn Socket connection to write to
-     * @param string $text Text to write with pagination
-     * @param int $width Terminal width for wrapping
-     * @param int $height Terminal height for pagination
-     * @param array $state Terminal state (passed by reference for readRawChar)
-     * @param array $headerLines Array of header lines (already colorized if desired)
+     * @param resource            $conn        Terminal socket connection.
+     * @param string              $text        Body text; may contain embedded newlines.
+     * @param int                 $width       Terminal column width for word wrapping.
+     * @param int                 $height      Terminal row count used to calculate page height.
+     * @param array<string,mixed> &$state      Session state (passed by reference for readRawChar).
+     * @param string[]            $headerLines Pre-formatted header lines printed on every page.
      * @return void
      */
     public static function writeWrappedWithHeader($conn, string $text, int $width, int $height, array &$state, array $headerLines): void
@@ -439,11 +541,15 @@ class TelnetUtils
     }
 
     /**
-     * Wrap text into lines for display.
+     * Word-wrap a string into an array of display lines.
      *
-     * @param string $text
-     * @param int $width
-     * @return array
+     * Each existing newline in $text starts a new element. Long lines are split
+     * at word boundaries up to $width characters. Hard-wraps at $width when no
+     * word boundary is available. Always returns at least one element (empty string).
+     *
+     * @param string $text  Input text; may contain \r\n or \n line endings.
+     * @param int    $width Maximum visible characters per line (clamped to at least 10).
+     * @return string[] Array of wrapped lines, never empty.
      */
     public static function wrapTextLines(string $text, int $width): array
     {
@@ -471,13 +577,17 @@ class TelnetUtils
     }
 
     /**
-     * Render a full-screen view with a fixed header and status bar.
+     * Clear the screen and render a full-screen layout: header, body, and status bar.
      *
-     * @param resource $conn
-     * @param array $headerLines
-     * @param array $bodyLines
-     * @param string $statusLine
-     * @param int $rows
+     * Hides the cursor during the draw pass to prevent scroll artifacts, then parks
+     * the cursor at the top-left corner. The status bar is written without a trailing
+     * newline so the terminal does not scroll on the last row.
+     *
+     * @param resource $conn        Terminal socket connection.
+     * @param string[] $headerLines Pre-formatted header lines (e.g. message header box).
+     * @param string[] $bodyLines   Body lines for the current scroll window.
+     * @param string   $statusLine  Pre-built status bar string from {@see buildStatusBar()}.
+     * @param int      $rows        Total terminal row count used to compute body height.
      * @return void
      */
     public static function renderFullScreen($conn, array $headerLines, array $bodyLines, string $statusLine, int $rows): void
@@ -1423,6 +1533,22 @@ class TelnetUtils
         self::safeWrite($conn, $line);
     }
 
+    /**
+     * Build a single display line for a selectable list row.
+     *
+     * When $selected is true all ANSI sequences are stripped from $row before the
+     * full-row highlight is applied so that inner color resets cannot break the
+     * selection background. When $showMarker is true a '*' prefix (green, bold) or
+     * a space is prepended to indicate multi-select state.
+     *
+     * @param string $row        Pre-formatted row string (may contain ANSI sequences).
+     * @param bool   $selected   Whether to apply the selection highlight background.
+     * @param bool   $marked     Whether the row is marked in a multi-select list.
+     * @param int    $cols       Terminal column width; used to prevent line wrap on narrow terminals.
+     * @param bool   $showMarker Whether to prepend the '*' / ' ' multi-select marker column.
+     * @param string $selectedBg ANSI escape string for the selection background (default: blue + bold).
+     * @return string Formatted line ready to write to the terminal.
+     */
     private static function buildSelectableListDisplayLine(string $row, bool $selected, bool $marked, int $cols, bool $showMarker = false, string $selectedBg = self::ANSI_BG_BLUE . self::ANSI_BOLD): string
     {
         if ($showMarker) {
@@ -2364,10 +2490,14 @@ class TelnetUtils
     }
 
     /**
-     * Show or hide the cursor.
+     * Show or hide the terminal cursor using DECTCEM escape sequences.
      *
-     * @param resource $conn
-     * @param bool $visible
+     * Sends ESC[?25h (show) or ESC[?25l (hide) via {@see safeWrite()}.
+     * Widgets hide the cursor before drawing to prevent flicker, then restore it
+     * when entering interactive key-read loops.
+     *
+     * @param resource $conn    Terminal socket connection.
+     * @param bool     $visible True to show the cursor, false to hide it.
      * @return void
      */
     public static function setCursorVisible($conn, bool $visible): void
@@ -2376,11 +2506,18 @@ class TelnetUtils
     }
 
     /**
-     * Build a colored status bar line with a white background.
+     * Build a colored status bar string from an array of labeled segments.
      *
-     * @param array $segments Array of ['text' => string, 'color' => string]
-     * @param int $width
-     * @return string
+     * In ANSI mode each segment's 'color' is applied before its 'text', and any
+     * unused space at the right is filled with the profile's fill color. In plain
+     * mode (ANSI disabled) segments are concatenated without escape sequences and
+     * the result is padded with spaces to $width.
+     *
+     * @param array<int, array{text: string, color: string}> $segments
+     *        Ordered list of segments; each element must have 'text' and 'color' keys.
+     * @param int                  $width       Total visible width of the status bar in columns.
+     * @param array<string, mixed> $colorScheme Optional color overrides merged with the default profile.
+     * @return string Status bar string (may contain ANSI escape sequences).
      */
     public static function buildStatusBar(array $segments, int $width, array $colorScheme = []): string
     {
@@ -2502,12 +2639,18 @@ class TelnetUtils
     }
 
     /**
-     * Display a read-only public user profile viewer.
+     * Display a full-screen read-only viewer for a user's public profile.
      *
-     * @param resource $conn
-     * @param array    &$state
-     * @param object   $server
-     * @param array    $profile
+     * Renders a header box (username, real name, location) and a scrollable body
+     * containing the user's biography rendered as terminal-safe Markdown. Navigation
+     * is handled by {@see runMessageViewer()} — Up/Down/PgUp/PgDn to scroll, Q to close.
+     *
+     * @param resource            $conn        Terminal socket connection.
+     * @param array<string,mixed> &$state      Session state (cols, rows, locale, timezone, etc.).
+     * @param object              $server      BbsSession instance (provides t(), encodeForTerminal()).
+     * @param array<string,mixed> $profile     User profile array with keys: username, real_name,
+     *                                         location, about_me.
+     * @param array<string,mixed> $colorScheme Optional color overrides for the profile_viewer scheme.
      * @return void
      */
     public static function showPublicProfileViewer($conn, array &$state, $server, array $profile, array $colorScheme = []): void
@@ -3493,11 +3636,13 @@ class TelnetUtils
     }
 
     /**
-     * Colorize text with ANSI escape codes
+     * Wrap text with ANSI SGR codes, respecting the global color toggle.
      *
-     * @param string $text Text to colorize
-     * @param string $color ANSI color code(s)
-     * @return string Colorized text with reset code
+     * Returns $text unchanged when ANSI color is disabled (plain-text mode).
+     *
+     * @param string $text  Text to colorize.
+     * @param string $color One or more ANSI escape sequences (e.g. ANSI_RED . ANSI_BOLD).
+     * @return string $color . $text . ANSI_RESET in color mode; $text in plain mode.
      */
     public static function colorize(string $text, string $color): string
     {
@@ -3508,10 +3653,10 @@ class TelnetUtils
     }
 
     /**
-     * Convert locale code to PHP date format string
+     * Map a locale code to a PHP date format string for display.
      *
-     * @param string $locale Locale code (e.g., 'en-US', 'en-GB')
-     * @return string PHP date format string
+     * @param string $locale BCP 47 locale code (e.g. 'en-US', 'en-GB', 'fr').
+     * @return string PHP date() format string without seconds (e.g. 'm/d/Y g:i A').
      */
     private static function localeToPhpDateFormat(string $locale): string
     {
@@ -3528,15 +3673,16 @@ class TelnetUtils
     }
 
     /**
-     * Format date using user's timezone and date format preferences
+     * Format a UTC date string in the user's local timezone and date format.
      *
-     * Converts UTC date to user's timezone and formats according to their preference.
-     * User timezone and format are stored in state during login.
+     * Reads 'user_timezone' and 'user_date_format' from $state (both set during login).
+     * Falls back to UTC / 'Y-m-d H:i' when either key is absent.
+     * Returns the original $utcDate string unchanged if DateTime parsing fails.
      *
-     * @param string $utcDate Date string in UTC (from database)
-     * @param array $state Terminal state containing user_timezone and user_date_format
-     * @param bool $includeTimezone Whether to append timezone abbreviation (default: true)
-     * @return string Formatted date string, or original date if formatting fails
+     * @param string               $utcDate          UTC date string as stored in the database.
+     * @param array<string, mixed> $state            Session state containing 'user_timezone' and 'user_date_format'.
+     * @param bool                 $includeTimezone  When true, appends the timezone abbreviation (e.g. 'EDT').
+     * @return string Formatted date string, or $utcDate unchanged if formatting fails.
      */
     public static function formatUserDate(string $utcDate, array $state, bool $includeTimezone = true): string
     {
@@ -3567,13 +3713,14 @@ class TelnetUtils
     }
 
     /**
-     * Read a single raw character from connection
+     * Read a single raw byte from the terminal socket.
      *
-     * Handles pushback buffer and checks for connection validity.
+     * Drains the pushback buffer first (see BbsSession for how bytes land there).
+     * Returns null when the connection is closed or has reached EOF.
      *
-     * @param resource $conn Socket connection
-     * @param array $state Terminal state (contains pushback buffer)
-     * @return string|null Single character or null if connection closed
+     * @param resource            $conn   Terminal socket connection.
+     * @param array<string,mixed> &$state Session state; reads and mutates 'pushback'.
+     * @return string|null Single raw byte, or null if the connection is closed.
      */
     public static function readRawChar($conn, array &$state): ?string
     {
@@ -3597,17 +3744,18 @@ class TelnetUtils
     }
 
     /**
-     * Format a message list line with proper column width calculations
+     * Format a fixed-width message list entry line.
      *
-     * Calculates column widths based on terminal width to ensure the entire line
-     * fits without wrapping or truncation.
+     * Allocates column widths proportionally (~30% from, ~70% subject) within
+     * the space remaining after the message number and date. All columns are
+     * truncated so the output never exceeds $cols - 1 characters.
      *
-     * @param int $num Message number
-     * @param string $from From name
-     * @param string $subject Subject line
-     * @param string $date Formatted date string
-     * @param int $cols Terminal width
-     * @return string Formatted line that fits within terminal width
+     * @param int    $num     Message number (1-based, displayed as " N) ").
+     * @param string $from    Sender name; truncated to the from-column width.
+     * @param string $subject Subject text; truncated to the subject-column width.
+     * @param string $date    Pre-formatted date string (e.g. from {@see formatUserDate()}).
+     * @param int    $cols    Terminal column width used to compute layout.
+     * @return string Single-line string without trailing newline, at most $cols - 1 characters.
      */
     public static function formatMessageListLine(int $num, string $from, string $subject, string $date, int $cols): string
     {
