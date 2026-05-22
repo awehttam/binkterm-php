@@ -1262,12 +1262,18 @@ class FtpVirtualFilesystem
 
     private function isQwkUploadFile(string $path): bool
     {
-        if (!str_starts_with($path, '/qwk/upload/')) {
+        $extension = strtolower((string)pathinfo(basename($path), PATHINFO_EXTENSION));
+        if (!in_array($extension, ['rep', 'zip'], true)) {
             return false;
         }
 
-        $extension = strtolower((string)pathinfo(basename($path), PATHINFO_EXTENSION));
-        return in_array($extension, ['rep', 'zip'], true);
+        // Standard path: /qwk/upload/BBSID.REP
+        if (str_starts_with($path, '/qwk/upload/')) {
+            return true;
+        }
+
+        // Root-level drop: /BBSID.REP — Synchronet's QNET-FTP uploads without CWD-ing first
+        return substr_count($path, '/') === 1;
     }
 
     /**
