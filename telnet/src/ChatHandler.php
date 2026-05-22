@@ -67,11 +67,11 @@ class ChatHandler
             $now = microtime(true);
 
             if (($now - $chat['last_active_refresh']) >= 1.0) {
-                $this->refreshActiveConversation($chat, $session, $state, $conn);
+                $this->refreshActiveConversation($chat, $session, $state);
                 $chat['last_active_refresh'] = $now;
             }
             if (($now - $chat['last_poll_refresh']) >= 5.0) {
-                $this->pollMessages($chat, $session, $state, $conn);
+                $this->pollMessages($chat, $session, $state);
                 $chat['last_poll_refresh'] = $now;
             }
             if (($now - $chat['last_online_refresh']) >= 12.0) {
@@ -619,7 +619,7 @@ class ChatHandler
             return;
         }
 
-        $messages = $response['data']['messages'] ?? [];
+        $messages = $this->normalizeChatMessageBatch($response['data']['messages'] ?? []);
         foreach ($messages as &$message) {
             $this->normalizeMessage($message);
             if (($message['id'] ?? 0) > 0) {
@@ -722,7 +722,7 @@ class ChatHandler
         }
     }
 
-    private function pollMessages(array &$chat, string $session, array &$state, $conn): void
+    private function pollMessages(array &$chat, string $session, array &$state): void
     {
         $sinceId = (int)$chat['last_seen_message_id'];
         $response = $this->apiRequest('GET', '/api/chat/poll?since_id=' . $sinceId, null, $session, $state);
@@ -763,12 +763,9 @@ class ChatHandler
                     $otherId = (int)($message['from_user_id'] ?? 0);
                     $chat['dm_unread'][$otherId] = (int)($chat['dm_unread'][$otherId] ?? 0) + 1;
                 }
-                $this->maybeBeepForMessage($conn, $chat, $message);
             } else {
                 if ($chat['message_scroll_offset'] === 0) {
                     $chat['dirty'] = true;
-                } else {
-                    $this->maybeBeepForMessage($conn, $chat, $message);
                 }
             }
         }
@@ -789,7 +786,7 @@ class ChatHandler
         return $active['type'] === $type && (int)$active['id'] === $targetId;
     }
 
-    private function refreshActiveConversation(array &$chat, string $session, array &$state, $conn): void
+    private function refreshActiveConversation(array &$chat, string $session, array &$state): void
     {
         $active = $chat['active_target'];
         if (!$active) {
@@ -807,7 +804,7 @@ class ChatHandler
 
         $targetKey = $this->targetKey($active['type'], (int)$active['id']);
         $snapshot = [];
-        foreach (($response['data']['messages'] ?? []) as $message) {
+        foreach ($this->normalizeChatMessageBatch($response['data']['messages'] ?? []) as $message) {
             $this->normalizeMessage($message);
             $messageId = (int)($message['id'] ?? 0);
             if ($messageId > 0) {
@@ -824,20 +821,27 @@ class ChatHandler
             return;
         }
 
-        foreach ($snapshot as $message) {
-            $fromUserId = (int)($message['from_user_id'] ?? 0);
-            $messageId = (int)($message['id'] ?? 0);
-            if ($fromUserId > 0 && $fromUserId !== (int)$chat['user_id'] && !$this->conversationContainsId($existingMessages, $messageId)) {
-                $this->maybeBeepForMessage($conn, $chat, $message);
-            }
-        }
-
         $chat['conversations'][$targetKey] = [
             'loaded' => true,
             'has_more' => !empty($response['data']['has_more']),
             'messages' => $mergedMessages,
         ];
         $chat['dirty'] = true;
+    }
+
+    /**
+     * Normalize a chat message batch into oldest-first order for rendering.
+     *
+     * The API returns newest-first snapshots, but the terminal viewport and
+     * merge logic both expect chronological order so the bottom of the pane
+     * can follow live updates naturally.
+     *
+     * @param array<int, array<string, mixed>> $messages
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeChatMessageBatch(array $messages): array
+    {
+        return array_values(array_reverse($messages));
     }
 
     /**
@@ -1158,7 +1162,12 @@ class ChatHandler
             }
         }
 
-        return sprintf('%s%s %s%s', $prefix, $activeMarker, $item['label'], $badge);
+        $line = sprintf('%s%s %s%s', $prefix, $activeMarker, $item['label'], $badge);
+        if (!$active && !empty($unread)) {
+            return $this->server->colorizeForTerminal($line, TelnetUtils::ANSI_GREEN);
+        }
+
+        return $line;
     }
 
     private function buildOnlineUserLines(array $chat, array $state, array $layout): array
@@ -1518,19 +1527,6 @@ class ChatHandler
         return [self::FOCUS_NAV, self::FOCUS_MESSAGES, self::FOCUS_INPUT];
     }
 
-    private function maybeBeepForMessage($conn, array $chat, array $message): void
-    {
-        if (($message['type'] ?? '') === 'dm' || $this->messageMentionsUser($message, (string)$chat['username'])) {
-            $this->server->safeWrite($conn, "\x07");
-            return;
-        }
-
-        $active = $chat['active_target'];
-        if ($active && !($active['type'] === ($message['type'] ?? '') && (int)$active['id'] === (int)($message['room_id'] ?? $message['from_user_id'] ?? 0))) {
-            $this->server->safeWrite($conn, "\x07");
-        }
-    }
-
     private function showHelp($conn, array &$state, array $chat): void
     {
         $lines = [
@@ -1545,8 +1541,8 @@ class ChatHandler
             $lines[] = $this->t('ui.terminalserver.chat.help.line7', 'Admins: in a room, focus Online Users and press K or B to moderate.', $state);
         }
 
-        $renderer = new TerminalBoxRenderer($this->server);
-        $renderer->showPagedBox(
+        $shell = TerminalShellFactory::create($this->server, $state);
+        $shell->showPagedBox(
             $conn,
             $state,
             $this->t('ui.terminalserver.chat.help.title', 'Local Chat Help', $state),
@@ -1558,8 +1554,8 @@ class ChatHandler
 
     private function showInfo($conn, array &$state, string $message): void
     {
-        $renderer = new TerminalBoxRenderer($this->server);
-        $renderer->showPagedBox(
+        $shell = TerminalShellFactory::create($this->server, $state);
+        $shell->showPagedBox(
             $conn,
             $state,
             $this->t('ui.terminalserver.chat.title', 'Local Chat', $state),

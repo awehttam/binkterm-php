@@ -67,7 +67,7 @@ Selecting **Markdown** activates the Toast UI WYSIWYG editor (`toastui-editor`),
 
 **Edit / Preview tabs:** Switch between raw Markdown editing and a rendered preview at any time. The preview uses the same server-side `MarkdownRenderer` as the message reader, so what you see in preview is what recipients see.
 
-**Image upload:** Paste an image from the clipboard or drag and drop a file into the editor. BinktermPHP hosts the image and inserts the Markdown reference (`![alt](url)`) automatically.
+**Image upload:** The editor's **Insert Image** button opens a multi-tab picker with direct URL, file upload, existing uploaded-image selection, and clipboard paste support. In Markdown mode, BinktermPHP hosts the image and inserts the Markdown reference (`![alt](url)`) automatically.
 
 **URL paste:** Pasting a bare URL into the editor inserts it as a Markdown link.
 
@@ -85,6 +85,8 @@ Selecting **StyleCodes** shows a compact formatting toolbar above the standard t
 | # | `#text#` | Inverse video |
 
 StyleCodes compose in a plain textarea — the formatting is character-delimited inline markup applied directly in the message body. No split-pane view is used.
+
+The same **Insert Image** picker used by the Markdown editor is also available from the Plain text and StyleCodes toolbars. In those modes, selecting or uploading an image inserts the hosted image URL directly into the textarea instead of Markdown image syntax.
 
 ---
 

@@ -1,30 +1,50 @@
 
                       -= [1;35mClaude's BBS[0m =-
-      [1;36m-----  Vancouver Canada's first AI built BBS  -----[0m
 
-              [1;36mEchoMail  *  NetMail  *  Door Games[0m
-                 [1;32mBinktermPHP Development Node[0m
+        [1;36m-----  Home of the BinktermPHP BBS Software  -----[0m
 
-    Claude's BBS connects you to a diverse range of topics and interests
-    covering retro computing, amateur radio, technology, hobbies, 
-    current events, general chat and gaming — something for everyone.
+  [37mClaude's BBS offers interests covering retro computing,
+  amateur radio, technology, hobbies, current events, general chat
+  and gaming.  Connected to numerous FTN's including LovlyNet, FidoNet,
+  HobbyNet, NixNet, fsxNet, DoveNet, PiNet and more.
 
-    [1;33mFidoNet, HobbyNet, NixNet, MicroNet, fsxNet, DoveNet, RetroNet, PiNet[0m
+            Now on Meshcore in the Pacific North West!
 
-          On the Web @ https://[1;37mclaudes.lovelybits.org[0m
+      Part of a growing LoRa Mesh across the Pacific Northwest
 
-      [1;32m** Join the BinktermPHP Project -- Help Wanted! **[0m
+            On the Web @ https://claudes.lovelybits.org
+              Telnet: claudes.lovelybits.org port 23
+               SSH: claudes.lovelybits.org port 2022
 
-  [1;35mhttps://claudes.lovelybits.org/shared/afedf90438b75f3bd62a98770e43ecd4
+  Claude's is also the home support BBS for BinktermPHP - a full stack
+  open source BBS written in PHP with Mobile Responsive Web AND Term 
+  Services for Telnet and SSH.
 
-               https://tinyurl.com/contributors-wanted[0m
+  A sampling of what BinktermPHP can do:
 
-  BinktermPHP is an open source modern web-based BBS and FidoNet 
-  mailer — a love letter to the golden age of bulletin board 
-  systems, rebuilt for the web with PHP, PostgreSQL, and Bootstrap. 
+   - Mobile responsive web interface with ANSI, RIPScrip, Sixel and
+     inline multimedia support.  Installable as a "PWA" Application.
 
-  If you grew up on BBSes, or you're just drawn to niche protocol
-  work and community-driven software, this might be your kind of 
-  project.
-  
+   - Native Telnet and SSH support with responsive ANSI for various
+     screen sizes.  Supports images using sixel for echomail, and screens.
+
+   - BinkP FTN style networking for netmail, echomail and file transfers.
+
+   - Chat including local chat with Matterbridge support, and MRC chat.
+
+   - File Areas including ISO storage, AV, file previews and telnet
+     friendly Z-Modem.  Web Multimedia players for retro files and modern
+     media. FTP server with anon ftp and QWK support.
+
+   - DOS, Web Doors, Native C64 and DOS supports 3D games.
+     Yes, it runs Doom!
+
+   - PacketBBS with Meshcore support, experimental Meshtastic and KISS
+     TNC support too.  https://meshcore.io/
+
+  Website: https://www.lovelybits.org/binktermphp/
+
+  Looking for a UTF-8 friendly FTN and support for alternate echomail formats?
+
+  Check out LovlyNet!  https://www.lovelybits.org/lovlynet
 

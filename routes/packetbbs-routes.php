@@ -98,6 +98,7 @@ SimpleRouter::post('/api/packetbbs/command', function () {
 
     $gateway  = new PacketBbsGateway();
     $response = $gateway->handleCommand($nodeId, $interface, $command, $bridgeNodeId);
+    $response = $gateway->paginateIfNeeded($nodeId, $response, $interface);
 
     header('Content-Type: text/plain; charset=utf-8');
     echo $response;
@@ -195,6 +196,12 @@ SimpleRouter::post('/api/meshcore/advert', function () {
     // sub-statements run concurrently with the same snapshot, so a DELETE inside a WITH
     // clause does not satisfy the unique-constraint check fired by the UPDATE in the same
     // statement.
+    $cleanupParams = [
+        ':ssid'       => $name,
+        ':latitude'   => $latitude,
+        ':longitude'  => $longitude,
+        ':public_key' => $pubKeyHex,
+    ];
     $cleanupStmt = $db->prepare("
         DELETE FROM cwn_networks
         WHERE ssid      = :ssid
@@ -202,13 +209,16 @@ SimpleRouter::post('/api/meshcore/advert', function () {
           AND longitude = :longitude
           AND (public_key IS DISTINCT FROM :public_key)
     ");
-    $cleanupStmt->execute([
-        ':ssid'       => $name,
-        ':latitude'   => $latitude,
-        ':longitude'  => $longitude,
-        ':public_key' => $pubKeyHex,
-    ]);
+    $cleanupStmt->execute($cleanupParams);
 
+    $updateParams = [
+        ':public_key'   => $pubKeyHex,
+        ':ssid'         => $name,
+        ':latitude'     => $latitude,
+        ':longitude'    => $longitude,
+        ':hop_count'    => $hopCount,
+        ':network_type' => $advType,
+    ];
     $updateStmt = $db->prepare("
         UPDATE cwn_networks
         SET ssid         = :ssid,
@@ -222,14 +232,29 @@ SimpleRouter::post('/api/meshcore/advert', function () {
         WHERE public_key = :public_key
         RETURNING id
     ");
-    $updateStmt->execute([
-        ':public_key'  => $pubKeyHex,
-        ':ssid'        => $name,
-        ':latitude'    => $latitude,
-        ':longitude'   => $longitude,
-        ':hop_count'   => $hopCount,
-        ':network_type' => $advType,
-    ]);
+
+    // Use a savepoint so that if a concurrent transaction committed a row at the target
+    // position between our cleanup DELETE and this UPDATE, we can roll back only the
+    // UPDATE attempt, redo the cleanup (which will now see the race-committed row), and
+    // retry — without unwinding the entire transaction.
+    $db->exec("SAVEPOINT meshcore_advert_update");
+    try {
+        $updateStmt->execute($updateParams);
+        $db->exec("RELEASE SAVEPOINT meshcore_advert_update");
+    } catch (\PDOException $e) {
+        if ($e->getCode() === '23505') {
+            $db->exec("ROLLBACK TO SAVEPOINT meshcore_advert_update");
+            $cleanupStmt->execute($cleanupParams);
+            $updateStmt->execute($updateParams);
+            $db->exec("RELEASE SAVEPOINT meshcore_advert_update");
+        } else {
+            $db->rollBack();
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'Database error.']);
+            return;
+        }
+    }
     $row = $updateStmt->fetch(\PDO::FETCH_ASSOC);
 
     if ($row) {

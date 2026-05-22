@@ -60,6 +60,9 @@
 </div>
 
 <div id="chatContextMenu" class="chat-context-menu d-none">
+    <button type="button" class="dropdown-item" data-action="view-profile">
+        <i class="fas fa-id-card me-2"></i> {{ t('ui.chat.view_profile', {}, locale, ['common']) }}
+    </button>
     <button type="button" class="dropdown-item" data-action="kick">
         <i class="fas fa-user-slash me-2"></i> {{ t('ui.chat.kick', {}, locale, ['common']) }}
     </button>

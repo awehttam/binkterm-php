@@ -148,6 +148,13 @@ class AnsiTabComponent
         $ansiColor = ($state['terminal_ansi_color'] ?? 'yes') !== 'no';
         $isUtf8    = ($state['terminal_charset']    ?? 'utf8') === 'utf8';
         $locale    = $state['locale']               ?? 'en';
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $listScheme = $styleProfile['list'] ?? [];
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $dialogScheme = $styleProfile['dialog'] ?? [];
+        $headerColor = (string)($listScheme['title'] ?? (TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        $strongDividerColor = (string)($panelScheme['divider'] ?? TelnetUtils::ANSI_CYAN);
+        $hintColor = (string)($dialogScheme['hint'] ?? TelnetUtils::ANSI_YELLOW);
 
         // ── Title bar ────────────────────────────────────────────────────────
         $titleText = $this->server->t(
@@ -158,19 +165,19 @@ class AnsiTabComponent
         );
         $this->server->writeLine($conn,
             $ansiColor
-                ? TelnetUtils::colorize(' ' . $titleText, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
+                ? TelnetUtils::colorize(' ' . $titleText, $headerColor)
                 : ' ' . $titleText
         );
 
         // ── Double separator ─────────────────────────────────────────────────
         $this->server->writeLine($conn,
             $ansiColor
-                ? TelnetUtils::colorize($this->hline($cols, $isUtf8, true), TelnetUtils::ANSI_CYAN)
+                ? TelnetUtils::colorize($this->hline($cols, $isUtf8, true), $strongDividerColor)
                 : $this->hline($cols, $isUtf8, true)
         );
 
         // ── Tab bar ──────────────────────────────────────────────────────────
-        $this->server->writeLine($conn, $this->buildTabBar($state));
+        $this->server->writeLine($conn, $this->buildTabBar($state, $headerColor));
 
         // ── Thin separator ───────────────────────────────────────────────────
         $this->server->writeLine($conn,
@@ -204,16 +211,20 @@ class AnsiTabComponent
 
         // ── Hint bar ─────────────────────────────────────────────────────────
         $hint = $this->buildHint($state);
-        $this->server->safeWrite($conn, $hint);
+        $this->server->safeWrite($conn, $ansiColor ? TelnetUtils::colorize($hint, $hintColor) : $hint);
     }
 
     /**
      * Build the tab bar line with the active tab highlighted.
      */
-    private function buildTabBar(array $state): string
+    private function buildTabBar(array $state, string $activeColor = ''): string
     {
         $ansiColor = ($state['terminal_ansi_color'] ?? 'yes') !== 'no';
-        $locale    = $state['locale']               ?? 'en';
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $listScheme = $styleProfile['list'] ?? [];
+        $activeTabColor = $activeColor !== '' ? $activeColor : (string)($listScheme['title'] ?? (TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        $inactiveColor = (string)($panelScheme['divider'] ?? TelnetUtils::ANSI_DIM);
 
         $parts = [];
         foreach ($this->tabs as $idx => $tab) {
@@ -223,11 +234,11 @@ class AnsiTabComponent
             if ($idx === $this->activeTab) {
                 $text = "[ {$label} ]";
                 $parts[] = $ansiColor
-                    ? TelnetUtils::colorize($text, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
+                    ? TelnetUtils::colorize($text, $activeTabColor)
                     : $text;
             } else {
                 $parts[] = $ansiColor
-                    ? TelnetUtils::colorize("  {$label}", TelnetUtils::ANSI_DIM)
+                    ? TelnetUtils::colorize("  {$label}", $inactiveColor)
                     : "  {$label}";
             }
         }
@@ -240,7 +251,6 @@ class AnsiTabComponent
      */
     private function buildHint(array $state): string
     {
-        $ansiColor = ($state['terminal_ansi_color'] ?? 'yes') !== 'no';
         $isUtf8    = ($state['terminal_charset']    ?? 'utf8') === 'utf8';
         $locale    = $state['locale']               ?? 'en';
 
@@ -254,9 +264,7 @@ class AnsiTabComponent
 
         $hint = $this->server->t($hintKey, $fallback, [], $locale);
 
-        return $ansiColor
-            ? TelnetUtils::colorize($hint, TelnetUtils::ANSI_YELLOW)
-            : $hint;
+        return $hint;
     }
 
     /**

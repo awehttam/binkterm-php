@@ -83,6 +83,7 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
  - When writing proposal or other documentation files, use repo-relative paths like `src/Foo.php` or `docs/Bar.md` in the document text; do not use full filesystem paths.
  - **Doc maintenance**: When adding features that touch a subsystem with a dedicated `docs/` file, **you must update that file**. Consult the **Doc Maintenance Checklist** in `docs/DEVELOPER_GUIDE.md` for the full list of subsystem→doc pairings. When adding a new documentation file to `docs/` (excluding `docs/proposals/`), update `docs/index.md` to include it in operational priority order; when creating a new `UPGRADING_x.y.z.md` file, also add it to the Upgrading section of `docs/index.md`, newest-first.
  - For version bump steps and UPGRADING doc format, invoke the `/bump-version` skill.
+ - **UPGRADING doc content rules**: Do not include sentences stating that no configuration is needed, no sysop action is required, or no migration is required. These are filler — omit them entirely.
  - When creating or modifying a WebDoor, invoke the `/new-webdoor` skill.
  - Write phpDoc blocks when possible
 
@@ -216,3 +217,5 @@ The following project-scoped skills are available in `.claude/commands/`. When a
 - **`/usercredits-workflow`** — 5-place checklist for adding new UserCredit types
 - **`/logging-guide`** — log file table, per-context code patterns, log levels, adding a new log file
 - **`/new-webdoor`** — manifest requirement, SDK require path, API independence rule
+- **`/tackleissue <issue#>`** — assign, plan, implement, and close a GitHub issue
+- **`/newftn`** — prompt for FTN details and create a migration to insert or update the network

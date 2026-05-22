@@ -139,6 +139,7 @@ Specifications published by the LovlyNet Standards Council.
 - [Architecture](ARCHITECTURE.md) — Ecosystem map showing how access methods, realtime delivery, FTN networking, doors, MCP, and AI fit together
 - [Data Model](DATA_MODEL.md) — Key database tables, their relationships, and conceptual model for developers
 - [Developer Guide](DEVELOPER_GUIDE.md) — Coding conventions, database migrations, and project structure
+- [Terminal Server Developer Guide](TerminalServerDevGuide.md) — Shell abstraction, style profile, widget reference, handler patterns, and session internals for contributors
 - [Configuration System](ConfigurationSystem.md) — How features read configuration at runtime: Config::env(), BbsConfig, AppearanceConfig, BinkpConfig, door configs, and per-user settings
 - [Admin Daemon](AdminDaemon.md) — Wire protocol, command reference, and how to add new daemon commands
 - [API Reference](API.md) — HTTP endpoint reference for the public API

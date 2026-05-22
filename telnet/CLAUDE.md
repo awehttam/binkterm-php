@@ -5,7 +5,10 @@
 
 ## Documentation
 
-**Keep `docs/TerminalServer.md` up to date.** When adding, changing, or removing any terminal server feature (new menu actions, key handling, session flow, API endpoints used, screen slots, editor controls, or platform behaviour), update the relevant section of `docs/TerminalServer.md` as part of the same change. This document is the primary reference for the shared BBS session model and its features.
+Two docs must be kept in sync when changing the terminal server:
+
+- **`docs/TerminalServerDevGuide.md`** — developer reference: implementation details, architecture, session flow, API endpoints, screen slots, and editor controls. Update this when changing how something works internally.
+- **`docs/TerminalServer.md`** — sysop guide: user-visible features, key bindings, operational considerations, and anything a sysop needs to know to run or configure the terminal server. Update this when adding, changing, or removing any feature that affects sysop configuration or end-user behaviour.
 
 ## Adding / Modifying / Removing Main Menu Actions
 
@@ -20,9 +23,145 @@ Menu actions are data-driven via the key map in `AppearanceConfig`. Every action
 3. **`templates/admin/appearance.twig`** — add/remove the action in both `TERM_MENU_KEY_DEFAULTS` and `TERM_MENU_KEY_LABELS` JS objects in the "Terminal Main Menu Keys" script block.
 4. **`config/i18n/*/common.php`** — add/remove `ui.admin.appearance.term_menu_keys.action.<action>` in **every** locale directory (admin UI label).
 5. **`config/i18n/*/terminalserver.php`** — add/remove `ui.terminalserver.server.menu.<action>` in **every** locale directory (built-in text menu label).
-6. **`docs/TerminalServer.md`** — update the default key table in the "Customizable Main Menu Keys" section.
+6. **`docs/TerminalServerDevGuide.md`** — update the default key table in the "Customizable Main Menu Keys" section.
+7. **`docs/TerminalServer.md`** — update the sysop-facing key reference so operators know the new action exists and what key triggers it.
 
 The admin save route (`POST /api/admin/appearance/term-menu-keys`) derives its valid action list from `array_keys(AppearanceConfig::DEFAULT_TERM_MENU_KEYS)` automatically — no route change needed when adding an action.
+
+## Shell Abstraction
+
+Feature handlers target `TerminalShellInterface` and stay agnostic of which shell the user is running. The factory resolves the concrete shell for the current session:
+
+```php
+$shell = TerminalShellFactory::create($this->server, $state);
+$result = $shell->showMessageList($conn, $state, ...);
+```
+
+**Selection order** (highest priority first):
+1. Sysop `force_shell` flag (Admin → BBS Settings) overrides everything.
+2. User preference `term_shell_mode = 'line'` or `'tui'` in `$state`.
+3. Sysop default shell (Admin → BBS Settings).
+
+Two concrete shells implement the interface:
+
+| Shell | Class | Behaviour |
+|-------|-------|-----------|
+| TUI | `TuiShell` | Full-screen framed widgets via `TelnetUtils`. |
+| Line | `LineShell` | Plain numbered menus and text prompts. Works on any terminal width. |
+
+**Exception — QWK flows:** `QwkMenuHandler` must bypass the shell abstraction and write raw prompts (`> ` style) that QWK reader automation parses literally. Do not route QWK flows through `$shell`.
+
+**Exception — terminal detection wizard:** `TerminalSettingsHandler::runDetectionWizard()` must also bypass the shell abstraction and stay on direct `prompt()` / `writeLine()` output. The wizard exists to verify charset and ANSI capability before shell-specific rendering can be trusted, so converting it to shell widgets would make the detection path depend on the capability it is trying to detect.
+
+## Reusable UI Widgets
+
+**Always call `TerminalShellInterface` methods — never call `TelnetUtils` methods directly from a handler.** `TelnetUtils` is the underlying implementation used internally by `TuiShell`; `LineShell` has its own plain-text equivalents. Calling `TelnetUtils` from a handler bypasses the shell contract and breaks line-shell sessions.
+
+| Intent | Shell method |
+|--------|-------------|
+| Select from a list | `chooseFromList()` |
+| Free-text input | `promptText()` |
+| Single-key choice (modal) | `promptKey()` |
+| Display read-only text | `showText()` |
+| Non-blocking detail panel | `renderPanel()` |
+| Scrollable panel (returns exit key) | `showScrollablePanel()` |
+| Full message reader (Ctrl-K help built in) | `showMessageViewer()` |
+| Message list with actions | `showMessageList()` |
+| Generic selectable list | `showSelectableList()` |
+| Info / error alert | `showAlert()` — `$style` is `'info'` or `'error'` |
+| Confirmation / multi-option dialog | `showConfirmDialog()` |
+| "Please wait" overlay | `showWorkingOverlay()` |
+| Multi-select checkbox list | `showCheckboxListDialog()` |
+| Modal selectable dialog | `showSelectableDialog()` |
+| Address book / nodelist picker | `showAddressPicker()` |
+| Public user profile viewer | `showPublicProfileViewer()` |
+| Paged box (returns stop key) | `showPagedBox()` |
+
+### Status bar discipline (TUI shell)
+
+The bottom status bar has limited width. Keep it to the **most-used primary actions only** — typically scroll, prev/next, reply, and quit. Every other key belongs exclusively in the Ctrl-K help overlay; do not put secondary keys in both places.
+
+```
+✅ Status bar:  U/D Scroll  L/R Prev/Next  R Reply  Ctrl-K Help  Q Quit
+❌ Status bar:  U/D Scroll  PgUp/PgDn Page  L/R Prev/Next  R Reply  H Headers  X Delete  B Bookmark  T .txt  Q Quit
+```
+
+**Ctrl-K is the universal help key in the TUI shell** (message viewer, editor, chat). In the line shell, `?` serves the same role — it displays the `$helpItems` array as a plain-text help screen. Both shells read `$helpItems` from the same argument; populate it for all viewers and lists.
+
+When adding a new key binding to any message viewer or list:
+
+1. Add it to the `$helpItems` array so it appears in the Ctrl-K overlay (TUI) or `?` help screen (line shell).
+2. In the TUI shell, only add it to the status bar `$segments` if it truly belongs among the handful of primary actions.
+
+### Adding actions to the message viewer
+
+`showMessageViewer()` accepts an `$extraKeys` array that maps lowercase characters to action name strings, and a `$helpItems` array listing all key bindings for the Ctrl-K overlay. Use these instead of wrapping the viewer in custom key-reading logic:
+
+```php
+// Build the full key list for the Ctrl-K help overlay:
+$helpItems = [
+    ['key' => 'PgUp / PgDn', 'label' => $this->server->t('ui.terminalserver.message.help_page', 'Scroll one page', [], $locale)],
+    ['key' => 'X',           'label' => $this->server->t('ui.terminalserver.netmail.help_delete', 'Delete message', [], $locale)],
+    // ... all keys, including those not shown in the status bar
+];
+
+// In $buildView closure — status bar shows primary actions only:
+$segments[] = ['text' => 'Ctrl-K',  'color' => TelnetUtils::ANSI_RED];
+$segments[] = ['text' => ' Help  ', 'color' => TelnetUtils::ANSI_BLUE];
+
+// Pass both to the shell method:
+$shell = TerminalShellFactory::create($this->server, $state);
+$result = $shell->showMessageViewer(
+    $conn, $state,
+    $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
+    $state['rows'] ?? 24, 0, $allowDownload,
+    $kludgeLines, $buildView, $imageRefs, $imageFn,
+    ['x' => 'delete'],  // $extraKeys
+    $helpItems          // $helpItems — shown in Ctrl-K overlay
+);
+
+// Handle in the switch:
+case 'delete':
+    $this->doDelete(...);
+    break;
+```
+
+### Terminal resize
+
+**All full-screen UI must respond to terminal resize events.** When a user resizes their terminal window, the client sends a NAWS (Negotiate About Window Size) update that lands in `$state['rows']` and `$state['cols']` during the next `readKeyWithIdleCheck()` call.
+
+The standard pattern is to snapshot dimensions before the key loop, then compare after each read:
+
+```php
+$lastRows = $state['rows'] ?? 24;
+$lastCols = $state['cols'] ?? 80;
+
+while (true) {
+    $key = $server->readKeyWithIdleCheck($conn, $state);
+
+    $newRows = $state['rows'] ?? $lastRows;
+    $newCols = $state['cols'] ?? $lastCols;
+    if ($newRows !== $lastRows || $newCols !== $lastCols) {
+        $lastRows = $newRows;
+        $lastCols = $newCols;
+        // recalculate layout, then redraw
+        $rebuildLayout();
+        $render();
+    }
+
+    // ... normal key handling ...
+}
+```
+
+Layout-dependent variables (frame dimensions, wrapped line counts, status bar width, border strings) must be recalculated on every resize. Capture them by reference (`&$var`) in any render closure so a single `$rebuildLayout()` call propagates the new dimensions without recreating the closure.
+
+`showMessageViewer()` already handles this via its `$rebuildFn` callback — pass a `$buildView` closure and the shell manages resize internally. Custom full-screen loops in handlers must implement the pattern above themselves.
+
+### Extending widgets
+
+If a shell method genuinely lacks a capability needed by multiple features, add it to `TerminalShellInterface` and implement it in **both** `TuiShell` and `LineShell`. If `TuiShell`'s implementation requires a new low-level widget, add that to `TelnetUtils` as well — but a `TelnetUtils`-only change is not sufficient; it must go through the interface.
+
+**When adding a new shell method, update the widget table above in this file.** The table is the first place anyone looks before writing new terminal UI code — keep it current.
 
 ## Data Access
 
@@ -50,6 +189,46 @@ Terminal code may use shared internal classes from `src/` when they are transpor
 
 Calling authenticated local API endpoints through `TelnetUtils::apiRequest()` is acceptable, including endpoints protected by CSRF, because the terminal server handles that protocol explicitly.
 
+### apiRequest response structure
+
+`TelnetUtils::apiRequest()` always returns:
+
+```php
+[
+    'status' => $httpCode,   // int HTTP status code (200, 400, 404, …)
+    'data'   => $parsedBody, // the decoded JSON body — never the root array itself
+    'error'  => null|string,
+]
+```
+
+**The parsed JSON body is always one level deep under `['data']`.** Never access top-level keys from the API response directly on the return value:
+
+```php
+// WRONG — 'messages' is in the JSON body, not at the apiRequest return level
+$messages = $response['messages'] ?? [];
+
+// CORRECT
+$messages = $response['data']['messages'] ?? [];
+$item     = $response['data']['item'] ?? null;
+```
+
+This mistake produces silently empty results with no error, which makes it hard to diagnose.
+
+### CSRF tokens are required for all mutating API calls
+
+**Every POST, PUT, PATCH, or DELETE call via `TelnetUtils::apiRequest()` must pass the CSRF token** as the 7th argument — omitting it causes a 403. The token lives in `$state['csrf_token']`:
+
+```php
+// CORRECT
+TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/some/endpoint', $payload, $session, 3, $state['csrf_token'] ?? null);
+TelnetUtils::apiRequest($this->apiBase, 'DELETE', '/api/some/endpoint', null, $session, 3, $state['csrf_token'] ?? null);
+
+// WRONG — 403 at runtime, no error at write time
+TelnetUtils::apiRequest($this->apiBase, 'POST', '/api/some/endpoint', $payload, $session);
+```
+
+GET requests do not need the token.
+
 ```text
 ✅ TelnetUtils::apiRequest($base, 'GET', '/api/user/settings', null, $session);
 ✅ $doors = (new DoorManager())->getEnabledDoors();
@@ -60,4 +239,5 @@ Calling authenticated local API endpoints through `TelnetUtils::apiRequest()` is
 
 ❌ Calling controllers, form handlers, or web-only helpers from terminal code
 ❌ Reimplementing business rules in terminal-side SQL when a shared service already owns them
+❌ POST/DELETE via apiRequest() without passing $state['csrf_token'] ?? null as the 7th argument
 ```

@@ -14,6 +14,11 @@ use BinktermPHP\Qwk\RepProcessor;
  * supports scripted HTTP Basic Auth downloads. Format changes and conference
  * listing are also available. Business logic is delegated to QwkBuilder and
  * the /api/qwk/* endpoints.
+ *
+ * NOTE: This handler intentionally does NOT use TerminalShellInterface.
+ * QWK reader software and expect-style automation scripts parse specific
+ * prompt strings to navigate this menu programmatically. A TUI shell would
+ * break those scripts, so all rendering must remain on plain prompt()/writeLine() calls.
  */
 class QwkMenuHandler
 {
@@ -143,7 +148,7 @@ class QwkMenuHandler
             TelnetUtils::writeLine($conn, $this->server->t($quitKey, $quitFallback, [], $locale));
             TelnetUtils::writeLine($conn, '');
 
-            $choice = $this->server->prompt($conn, $state, '> ', true);
+            $choice = $this->server->prompt($conn, $state, 'qwk> ', true);
             if ($choice === null) {
                 return false;
             }
@@ -437,7 +442,7 @@ class QwkMenuHandler
         TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.qwk.format_cancel',      '  Q) Cancel', [], $locale));
         TelnetUtils::writeLine($conn, '');
 
-        $choice = $this->server->prompt($conn, $state, '> ', true);
+        $choice = $this->server->prompt($conn, $state, 'qwk> ', true);
         if ($choice === null) {
             return;
         }

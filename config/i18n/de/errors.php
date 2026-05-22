@@ -57,6 +57,8 @@ return [
     'errors.messages.netmail.not_found' => 'Nachricht nicht gefunden',
     'errors.messages.netmail.delete_failed' => 'Nachricht konnte nicht gelöscht werden',
     'errors.messages.netmail.bulk_delete.invalid_input' => 'A non-empty message ID list ist erforderlich',
+    'errors.messages.netmail.bulk_read.invalid_input' => 'Eine nicht leere Nachrichts-ID-Liste ist erforderlich',
+    'errors.messages.netmail.bulk_read.failed' => 'Nachrichten konnten nicht als gelesen markiert werden',
     'errors.messages.echomail.bulk_read.invalid_input' => 'A non-empty message ID list ist erforderlich',
     'errors.messages.echomail.bulk_read.failed' => 'Failed to mark messages as read',
     'errors.messages.echomail.bulk_delete.admin_required' => 'Adminrechte sind erforderlich',

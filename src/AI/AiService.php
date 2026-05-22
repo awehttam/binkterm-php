@@ -7,6 +7,7 @@ use BinktermPHP\AI\PowerCostAwareInterface;
 use BinktermPHP\AI\Providers\AnthropicProvider;
 use BinktermPHP\AI\Providers\OllamaProvider;
 use BinktermPHP\AI\Providers\OpenAIProvider;
+use BinktermPHP\AI\Providers\OpenRouterProvider;
 
 /**
  * Main AI orchestration layer used by feature-specific code.
@@ -98,6 +99,13 @@ class AiService
                 'is_self_hosted' => true,
                 'env_var_hint' => 'OLLAMA_API_BASE',
             ],
+            'openrouter' => [
+                'display_name' => 'OpenRouter',
+                'default_model' => 'openrouter/auto',
+                'tools_default' => true,
+                'is_self_hosted' => false,
+                'env_var_hint' => 'OPENROUTER_API_KEY',
+            ],
         ];
     }
 
@@ -167,6 +175,36 @@ class AiService
         return $result;
     }
 
+    /**
+     * Returns the effective system-level default provider name and model based on
+     * AI_DEFAULT_PROVIDER / AI_DEFAULT_MODEL env vars and currently configured providers.
+     *
+     * @return array{provider: string, model: string}|null Null when no providers are configured.
+     */
+    public function getSystemDefault(): ?array
+    {
+        if (empty($this->providers)) {
+            return null;
+        }
+
+        $provider = (string)Config::env('AI_DEFAULT_PROVIDER', '');
+        if ($provider !== '') {
+            $provider = $this->normalizeProviderName($provider);
+        }
+        if ($provider === '' || !isset($this->providers[$provider])) {
+            $provider = isset($this->providers['openai'])
+                ? 'openai'
+                : (string)array_key_first($this->providers);
+        }
+
+        $model = (string)Config::env('AI_DEFAULT_MODEL', '');
+        if ($model === '') {
+            $model = $this->providers[$provider]->getDefaultModel();
+        }
+
+        return ['provider' => $provider, 'model' => $model];
+    }
+
     public static function create(): self
     {
         $service = new self();
@@ -192,6 +230,14 @@ class AiService
             (float)Config::env('OLLAMA_POWER_COST_PER_KWH_USD', '0'),
             (float)Config::env('OLLAMA_GPU_POWER_WATTS', '0'),
             (string)Config::env('OLLAMA_API_KEY', '')
+        ));
+
+        $service->addProvider(new OpenRouterProvider(
+            (string)Config::env('OPENROUTER_API_KEY', ''),
+            (string)Config::env('OPENROUTER_API_BASE', 'https://openrouter.ai/api/v1'),
+            (string)Config::env('OPENROUTER_DEFAULT_MODEL', 'openrouter/auto'),
+            Config::env('OPENROUTER_SUPPORTS_TOOLS', 'true') === 'true',
+            $pricing
         ));
 
         return $service;

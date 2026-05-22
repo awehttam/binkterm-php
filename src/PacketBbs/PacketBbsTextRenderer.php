@@ -39,6 +39,13 @@ class PacketBbsTextRenderer
         'tnc'        => 64,
     ];
 
+    /** Maximum bytes per transmitted packet. 0 = no limit. */
+    private const MAX_PACKET_CHARS = [
+        'meshcore'   => 150,
+        'meshtastic' => 150,
+        'tnc'        => 0,
+    ];
+
     private string $interface;
     private int $pageSize;
     private int $msgPageSize;
@@ -55,6 +62,47 @@ class PacketBbsTextRenderer
     public function getPageSize(): int
     {
         return $this->pageSize;
+    }
+
+    /**
+     * Split a response into pages that each fit within the interface transport budget.
+     *
+     * Reserves space for a worst-case pagination footer on each non-last page so that
+     * the caller can append "\nP/N M:more B:back" without exceeding the limit.
+     * Returns a single-element array when the text fits in one page or the interface
+     * has no transport limit.
+     *
+     * @return string[]
+     */
+    public function splitIntoPages(string $text): array
+    {
+        $max = self::MAX_PACKET_CHARS[$this->interface] ?? 0;
+        if ($max === 0 || strlen($text) <= $max) {
+            return [$text];
+        }
+
+        // Reserve worst-case footer: "\n99/99 M:more B:back" = 21 bytes
+        $budget = $max - 21;
+        $lines  = explode("\n", $text);
+        $pages  = [];
+        $cur    = '';
+
+        foreach ($lines as $line) {
+            if ($cur === '') {
+                $cur = $line;
+            } elseif (strlen($cur . "\n" . $line) <= $budget) {
+                $cur .= "\n" . $line;
+            } else {
+                $pages[] = $cur;
+                $cur     = $line;
+            }
+        }
+
+        if ($cur !== '') {
+            $pages[] = $cur;
+        }
+
+        return $pages ?: [''];
     }
 
     /**

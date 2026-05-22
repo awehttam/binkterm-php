@@ -381,7 +381,11 @@
             if (this.rulerTextarea) {
                 this.rulerTextarea.wrap = 'off';
                 this.rulerTextarea.tabIndex = -1;
-                this.rulerTextarea.value = buildColumnRuler(132);
+                const rulerContent = buildColumnRuler(132);
+                this.rulerTextarea.value = rulerContent;
+                // Set defaultValue so form.reset() restores the ruler text
+                // instead of clearing it (form.reset() resets to defaultValue).
+                this.rulerTextarea.defaultValue = rulerContent;
             }
 
             this.textarea.wrap = 'off';
@@ -495,6 +499,13 @@
 
         syncRulerMetrics() {
             if (!this.textarea || !this.rulerTextarea || !this.rulerWrap) {
+                return;
+            }
+
+            // Skip when a display:none ancestor means layout is not computed.
+            // getComputedStyle returns 0px for lineHeight in that state, which would
+            // collapse the ruler height to 0 and hide it.
+            if (!this.textarea.offsetParent) {
                 return;
             }
 

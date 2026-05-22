@@ -3,11 +3,65 @@
 namespace BinktermPHP\TelnetServer;
 
 /**
- * TelnetUtils - Shared utility functions for telnet daemon
+ * TelnetUtils — Terminal I/O primitives and TUI Widget Library.
  *
- * This class provides static utility methods used across multiple telnet handler classes.
- * Methods handle API requests, text formatting, terminal output, and ANSI screen display.
- * Mail-specific utilities have been moved to MailUtils.
+ * This class is the low-level foundation of BinktermPHP's full-screen terminal interface.
+ * It is used internally by {@see TuiShell}; feature handlers must NOT call it directly —
+ * they must go through {@see TerminalShellInterface} so that line-shell sessions work
+ * correctly alongside TUI sessions.
+ *
+ * ## TUI Widget Library
+ *
+ * Interactive full-screen surfaces:
+ *   - {@see runMessageViewer}       — scrollable single-message viewer with Ctrl-K help overlay,
+ *                                     kludge header viewer, inline Sixel image viewer, and
+ *                                     caller-supplied extra key bindings
+ *   - {@see runMessageList}         — paged message list browser built on runSelectableList
+ *   - {@see renderMessageListScreen} — non-interactive repaint of a message list (for resize)
+ *   - {@see runSelectableList}      — generic paged selectable list with resize support;
+ *                                     dispatches to runSelectableStructuredList for wrapped rows
+ *   - {@see runAddressPicker}       — search-driven address book / nodelist picker
+ *
+ * Modal overlay widgets (drawn over the current screen, no full clear):
+ *   - {@see showConfirmDialog}      — yes/no or multi-choice confirmation dialog
+ *   - {@see showInputDialog}        — single-line text input dialog
+ *   - {@see showAlertDialog}        — info or error alert dismissed with Enter
+ *   - {@see showWorkingOverlay}     — non-blocking "please wait" banner
+ *   - {@see showCheckboxListDialog} — scrollable multi-select checkbox list
+ *   - {@see showSelectableDialog}   — scrollable single-select list dialog
+ *   - {@see showPublicProfileViewer} — read-only user profile viewer
+ *   - {@see showSixelImageViewer}   — full-screen Sixel graphics viewer
+ *
+ * ## Layout and rendering helpers
+ *
+ *   - {@see buildStatusBar}         — assembles the bottom status bar from colored segments
+ *   - {@see buildMessageHeaderBox}  — renders a framed header box with box-drawing characters
+ *   - {@see renderFullScreen}       — clears the screen and draws header + body + status bar
+ *   - {@see wrapTextLines}          — word-wraps a string into an array of display lines
+ *   - {@see colorize}               — applies ANSI SGR codes respecting the global color toggle
+ *   - {@see setCursorVisible}       — sends DECTCEM show/hide cursor escape
+ *
+ * ## I/O primitives
+ *
+ *   - {@see safeWrite}              — write to a socket with loop-until-flushed semantics
+ *   - {@see writeLine}              — safeWrite + CRLF
+ *   - {@see writeWrapped}           — word-wrapping safeWrite
+ *   - {@see writeWrappedWithMore}   — paginated output with "-- More --" prompt
+ *   - {@see readRawChar}            — reads one raw character from the socket
+ *
+ * ## Style profiles
+ *
+ *   - {@see getDefaultStyleProfile} — canonical ANSI color palette for all widgets
+ *   - {@see getStyleProfile}        — active profile merged with any shell override from $state
+ *   - {@see setAnsiColorEnabled}    — enables or disables ANSI color globally for the session
+ *
+ * ## API and utilities
+ *
+ *   - {@see apiRequest}             — authenticated cURL wrapper for internal BBS API calls
+ *   - {@see formatUserDate}         — converts a UTC timestamp to the user's local timezone/format
+ *   - {@see formatMessageListLine}  — builds a single fixed-width message list entry
+ *   - {@see showScreenIfExists}     — sends an ANSI screen file if one exists for a given slot
+ *   - {@see showSixelScreenIfExists} — sends a Sixel graphics file if one exists
  */
 class TelnetUtils
 {
@@ -28,7 +82,139 @@ class TelnetUtils
     private static bool $ansiColorEnabled = true;
 
     /**
+     * Return the canonical default style profile used by terminal widgets.
+     *
+     * The returned array contains ANSI color scheme keys for every widget type
+     * (panel, list, dialog, status_bar, etc.). Shells and callers that need a
+     * custom look should merge their overrides via array_replace_recursive() rather
+     * than rebuilding the array from scratch.
+     *
+     * @return array<string, mixed> Nested color-scheme array keyed by widget name.
+     */
+    public static function getDefaultStyleProfile(): array
+    {
+        return [
+            'panel' => TerminalBoxRenderer::SCHEME_DEFAULT,
+            'list' => [
+                'title' => self::ANSI_CYAN . self::ANSI_BOLD,
+                'selected_bg' => self::ANSI_BG_BLUE . self::ANSI_BOLD,
+            ],
+            'scrollable_panel' => [
+                'border' => self::ANSI_BLUE . self::ANSI_BOLD,
+                'divider' => self::ANSI_BLUE,
+                'title_bar' => self::ANSI_BG_BLUE . self::ANSI_CYAN . self::ANSI_BOLD,
+                'body' => "\033[40m\033[37m",
+                'status_bar_bg' => "\033[40m",
+            ],
+            'dialog' => [
+                'bg' => self::ANSI_BG_BLUE,
+                'frame' => self::ANSI_BG_BLUE . "\033[1;37m",
+                'body' => self::ANSI_BG_BLUE . "\033[37m",
+                'hint' => self::ANSI_YELLOW,
+                'choice_key' => self::ANSI_CYAN . self::ANSI_BOLD,
+                'choice_label' => "\033[37m",
+            ],
+            'help_overlay' => [
+                'bg' => self::ANSI_BG_BLUE,
+                'frame' => self::ANSI_BG_BLUE . "\033[1;37m",
+                'body' => self::ANSI_BG_BLUE . "\033[37m",
+                'key' => self::ANSI_CYAN . self::ANSI_BOLD,
+                'status_key' => self::ANSI_RED,
+                'status_label' => self::ANSI_BLUE,
+            ],
+            'working_overlay' => [
+                'bg' => self::ANSI_BG_BLUE,
+                'frame' => self::ANSI_BG_BLUE . "\033[1;37m",
+                'body' => self::ANSI_BG_BLUE . "\033[37m",
+            ],
+            'checkbox_dialog' => [
+                'bg' => self::ANSI_BG_BLUE,
+                'frame' => self::ANSI_BG_BLUE . "\033[1;37m",
+                'body' => self::ANSI_BG_BLUE . "\033[37m",
+                'hilite' => self::ANSI_BG_BLUE . "\033[1;33m",
+                'dim' => self::ANSI_BG_BLUE . "\033[2;37m",
+            ],
+            'status_bar' => [
+                'bg'    => self::ANSI_BG_WHITE,
+                'text'  => self::ANSI_BLUE,
+                'fill'  => self::ANSI_BLUE,
+                'key'   => self::ANSI_RED,   // key binding name color
+                'label' => self::ANSI_BLUE,  // key label text color
+            ],
+            'header_box' => [
+                'bg' => self::ANSI_BG_BLUE,
+                'frame' => self::ANSI_BG_BLUE . "\033[37m",
+                'body' => self::ANSI_BG_BLUE . "\033[37m",
+            ],
+            'selectable_dialog' => [
+                'bg' => self::ANSI_BG_BLUE,
+                'frame' => self::ANSI_BG_BLUE . "\033[1;37m",
+                'body' => self::ANSI_BG_BLUE . "\033[37m",
+                'hilite' => self::ANSI_BG_BLUE . "\033[1;33m",
+                'dim' => self::ANSI_BG_BLUE . "\033[2;37m",
+            ],
+            'image_prompt' => [
+                'bg' => self::ANSI_BG_WHITE,
+                'frame' => self::ANSI_BG_WHITE . self::ANSI_BLUE . self::ANSI_BOLD,
+                'body' => self::ANSI_BG_WHITE . self::ANSI_BLUE,
+            ],
+            'profile_viewer' => [
+                'bio_label' => self::ANSI_CYAN . self::ANSI_BOLD,
+                'status_key' => self::ANSI_RED,
+                'status_label' => self::ANSI_BLUE,
+            ],
+            'file_detail_panel' => [
+                'border' => self::ANSI_BLUE . self::ANSI_BOLD,
+                'divider' => self::ANSI_BLUE,
+                'title_bar' => self::ANSI_BG_BLUE . self::ANSI_CYAN . self::ANSI_BOLD,
+                'body' => "\033[40m\033[37m",
+                'status_bar_bg' => "\033[40m",
+            ],
+            'alert' => [
+                'info' => [
+                    'bg' => self::ANSI_BG_BLUE,
+                    'frame' => self::ANSI_BG_BLUE . "\033[1;37m",
+                    'body' => self::ANSI_BG_BLUE . "\033[37m",
+                ],
+                'error' => [
+                    'bg' => self::ANSI_BG_RED,
+                    'frame' => self::ANSI_BG_RED . "\033[1;37m",
+                    'body' => self::ANSI_BG_RED . "\033[37m",
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Return the active shell style profile for the current session state.
+     *
+     * Merges the default profile with any shell-specific overrides stored in
+     * `$state['_shell_style_profile']`. Falls back to the default profile when
+     * no override is present or the override is empty.
+     *
+     * @param array<string, mixed> $state Session state array (may be empty).
+     * @return array<string, mixed> Merged color-scheme array.
+     */
+    public static function getStyleProfile(array $state = []): array
+    {
+        $default = self::getDefaultStyleProfile();
+        $active = $state['_shell_style_profile'] ?? null;
+        if (!is_array($active) || $active === []) {
+            return $default;
+        }
+
+        return array_replace_recursive($default, $active);
+    }
+
+    /**
      * Enable or disable ANSI color rendering globally for the active session.
+     *
+     * When disabled, {@see colorize()} returns plain text and all widget render
+     * paths skip SGR escape sequences. Called by BbsSession when it determines
+     * the terminal does not support ANSI.
+     *
+     * @param bool $enabled True to enable ANSI color, false for plain-text mode.
+     * @return void
      */
     public static function setAnsiColorEnabled(bool $enabled): void
     {
@@ -36,15 +222,53 @@ class TelnetUtils
     }
 
     /**
-     * Make an API request to the BBS
+     * Return the effective row count for selector-style screens.
      *
-     * @param string $base Base URL for API
-     * @param string $method HTTP method (GET, POST, etc.)
-     * @param string $path API endpoint path
-     * @param array|null $payload Request payload for POST/PUT
-     * @param string|null $session Session token for authentication
-     * @param int $maxRetries Maximum retry attempts (default 3)
-     * @return array ['status' => int, 'data' => array, 'error' => string|null]
+     * SyncTERM appears to keep its own local bottom status line even when the
+     * negotiated height includes that row. Selector screens anchor their
+     * status/input line to the last row, so reserve one row there for SyncTERM.
+     *
+     * @param array<string, mixed> $state Session state containing 'rows' and 'terminal_type'.
+     * @return int Effective row count (always at least 1).
+     */
+    private static function getSelectorRows(array $state): int
+    {
+        $rows = (int)($state['rows'] ?? 24);
+        $ttype = strtoupper((string)($state['terminal_type'] ?? ''));
+        if ($ttype !== '' && str_contains($ttype, 'SYNCTERM')) {
+            return max(1, $rows - 1);
+        }
+        return max(1, $rows);
+    }
+
+    /**
+     * Make an authenticated HTTP request to a BBS API endpoint.
+     *
+     * Retries transient network failures up to $maxRetries times with a 500 ms
+     * delay between attempts. The response body is always decoded as JSON; if
+     * decoding fails the raw response string is returned under the 'raw' key.
+     *
+     * **Response shape:**
+     * ```php
+     * ['status' => int, 'data' => array, 'error' => string|null]
+     * ```
+     * The decoded JSON body is always under `['data']`. Never read top-level API
+     * fields directly from the return value — they live one level deeper:
+     * ```php
+     * $messages = $response['data']['messages'] ?? [];
+     * ```
+     *
+     * **CSRF:** Every POST/PUT/PATCH/DELETE call must pass `$state['csrf_token']`
+     * as the `$csrfToken` argument, otherwise the server returns 403.
+     *
+     * @param string      $base       Base URL (scheme + host, no trailing slash).
+     * @param string      $method     HTTP method: 'GET', 'POST', 'PUT', 'DELETE', 'PATCH'.
+     * @param string      $path       API path including leading slash, e.g. '/api/user/settings'.
+     * @param array|null  $payload    JSON-encodable payload for mutating requests; null for GET.
+     * @param string|null $session    Session cookie value ('binktermphp_session'); null if unauthenticated.
+     * @param int         $maxRetries Maximum number of attempts before giving up (default 3).
+     * @param string|null $csrfToken  CSRF token from `$state['csrf_token']`; required for all mutating calls.
+     * @return array{status: int, data: array, error: string|null}
      */
     public static function apiRequest(string $base, string $method, string $path, ?array $payload, ?string $session, int $maxRetries = 3, ?string $csrfToken = null): array
     {
@@ -66,16 +290,16 @@ class TelnetUtils
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 
-            if ($method === 'POST' || $method === 'PUT') {
+            if (in_array($method, ['POST', 'PUT', 'DELETE', 'PATCH'], true)) {
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
                 if ($payload !== null) {
                     $json    = json_encode($payload);
                     $headers[] = 'Content-Type: application/json';
                     $headers[] = 'Content-Length: ' . strlen($json);
-                    if ($csrfToken !== null) {
-                        $headers[] = 'X-CSRF-Token: ' . $csrfToken;
-                    }
                     curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+                }
+                if ($csrfToken !== null) {
+                    $headers[] = 'X-CSRF-Token: ' . $csrfToken;
                 }
             }
 
@@ -125,13 +349,14 @@ class TelnetUtils
     }
 
     /**
-     * Write text with word wrapping to terminal
+     * Write word-wrapped text to the terminal.
      *
-     * Handles line breaks and wraps long lines to fit terminal width.
+     * Splits on existing newlines first, then wraps each paragraph to $width.
+     * Lines shorter than 20 characters are never wrapped further.
      *
-     * @param resource $conn Socket connection to write to
-     * @param string $text Text to write (may contain newlines)
-     * @param int $width Terminal width for wrapping
+     * @param resource $conn  Terminal socket connection.
+     * @param string   $text  Text to write; may contain embedded newlines.
+     * @param int      $width Terminal column width used as the wrap boundary.
      * @return void
      */
     public static function writeWrapped($conn, string $text, int $width): void
@@ -148,10 +373,10 @@ class TelnetUtils
     }
 
     /**
-     * Write a line of text to terminal with CRLF
+     * Write a single line of text followed by CRLF.
      *
-     * @param resource $conn Socket connection
-     * @param string $text Text to write (default empty string for blank line)
+     * @param resource $conn Terminal socket connection.
+     * @param string   $text Text to write; defaults to empty string (blank line).
      * @return void
      */
     public static function writeLine($conn, string $text = ''): void
@@ -160,10 +385,13 @@ class TelnetUtils
     }
 
     /**
-     * Write data to socket connection with error suppression
+     * Write a binary string to the terminal socket, looping until all bytes are flushed.
      *
-     * @param resource $conn Socket connection
-     * @param string $data Data to write
+     * Suppresses PHP notices during the write loop. Returns silently on a closed or
+     * invalid connection rather than throwing.
+     *
+     * @param resource $conn Terminal socket connection.
+     * @param string   $data Raw bytes to write (may contain ANSI escape sequences or Sixel data).
      * @return void
      */
     public static function safeWrite($conn, string $data): void
@@ -187,16 +415,17 @@ class TelnetUtils
     }
 
     /**
-     * Write wrapped text with "more" pagination for long messages
+     * Write word-wrapped text with paginated "-- More --" prompts.
      *
-     * Pauses after each page and waits for keypress to continue.
-     * User can press 'q' to quit early.
+     * Pauses after each page of ($height - $reservedLines) lines and waits for
+     * a keypress to continue. The user can press 'q' or 'Q' to stop early.
      *
-     * @param resource $conn Socket connection to write to
-     * @param string $text Text to write with pagination
-     * @param int $width Terminal width for wrapping
-     * @param int $height Terminal height for pagination
-     * @param array $state Terminal state (passed by reference for readRawChar)
+     * @param resource          $conn          Terminal socket connection.
+     * @param string            $text          Text to display; may contain embedded newlines.
+     * @param int               $width         Terminal column width for word wrapping.
+     * @param int               $height        Terminal row count used to calculate page height.
+     * @param array<string,mixed> &$state      Session state (passed by reference for readRawChar).
+     * @param int               $reservedLines Lines to reserve for headers/prompts (default 6).
      * @return void
      */
     public static function writeWrappedWithMore($conn, string $text, int $width, int $height, array &$state, int $reservedLines = 6): void
@@ -248,16 +477,17 @@ class TelnetUtils
     }
 
     /**
-     * Write wrapped text with pagination and a fixed header on each page
+     * Write word-wrapped text with per-page headers and paginated "-- More --" prompts.
      *
-     * Clears the screen for each page, renders header lines, and shows a "more" prompt.
+     * Clears the screen before each page, redraws $headerLines, then outputs a
+     * slice of the body. The user can press 'q' or 'Q' to stop early.
      *
-     * @param resource $conn Socket connection to write to
-     * @param string $text Text to write with pagination
-     * @param int $width Terminal width for wrapping
-     * @param int $height Terminal height for pagination
-     * @param array $state Terminal state (passed by reference for readRawChar)
-     * @param array $headerLines Array of header lines (already colorized if desired)
+     * @param resource            $conn        Terminal socket connection.
+     * @param string              $text        Body text; may contain embedded newlines.
+     * @param int                 $width       Terminal column width for word wrapping.
+     * @param int                 $height      Terminal row count used to calculate page height.
+     * @param array<string,mixed> &$state      Session state (passed by reference for readRawChar).
+     * @param string[]            $headerLines Pre-formatted header lines printed on every page.
      * @return void
      */
     public static function writeWrappedWithHeader($conn, string $text, int $width, int $height, array &$state, array $headerLines): void
@@ -311,11 +541,15 @@ class TelnetUtils
     }
 
     /**
-     * Wrap text into lines for display.
+     * Word-wrap a string into an array of display lines.
      *
-     * @param string $text
-     * @param int $width
-     * @return array
+     * Each existing newline in $text starts a new element. Long lines are split
+     * at word boundaries up to $width characters. Hard-wraps at $width when no
+     * word boundary is available. Always returns at least one element (empty string).
+     *
+     * @param string $text  Input text; may contain \r\n or \n line endings.
+     * @param int    $width Maximum visible characters per line (clamped to at least 10).
+     * @return string[] Array of wrapped lines, never empty.
      */
     public static function wrapTextLines(string $text, int $width): array
     {
@@ -343,13 +577,17 @@ class TelnetUtils
     }
 
     /**
-     * Render a full-screen view with a fixed header and status bar.
+     * Clear the screen and render a full-screen layout: header, body, and status bar.
      *
-     * @param resource $conn
-     * @param array $headerLines
-     * @param array $bodyLines
-     * @param string $statusLine
-     * @param int $rows
+     * Hides the cursor during the draw pass to prevent scroll artifacts, then parks
+     * the cursor at the top-left corner. The status bar is written without a trailing
+     * newline so the terminal does not scroll on the last row.
+     *
+     * @param resource $conn        Terminal socket connection.
+     * @param string[] $headerLines Pre-formatted header lines (e.g. message header box).
+     * @param string[] $bodyLines   Body lines for the current scroll window.
+     * @param string   $statusLine  Pre-built status bar string from {@see buildStatusBar()}.
+     * @param int      $rows        Total terminal row count used to compute body height.
      * @return void
      */
     public static function renderFullScreen($conn, array $headerLines, array $bodyLines, string $statusLine, int $rows): void
@@ -449,7 +687,10 @@ class TelnetUtils
         array $kludgeLines = [],
         ?callable $rebuildFn = null,
         array $imageRefs = [],
-        ?callable $imageFn = null
+        ?callable $imageFn = null,
+        array $extraKeys = [],
+        array $helpItems = [],
+        array $options = []
     ): array {
         $headerCount = count($headerLines);
         $lastRows    = $state['rows'] ?? $rows;
@@ -507,6 +748,54 @@ class TelnetUtils
             // Returning from the kludge viewer requires a full redraw
             if ($key === 'CHAR:h' || $key === 'CHAR:H') {
                 self::runKludgeViewer($conn, $state, $server, $kludgeLines, $lastRows);
+                // Overlay may have received NAWS resize events — apply them now so the
+                // viewer redraws at the correct size rather than waiting for the next key.
+                $newRows = $state['rows'] ?? $lastRows;
+                $newCols = $state['cols'] ?? $lastCols;
+                if (($newRows !== $lastRows || $newCols !== $lastCols) && $rebuildFn !== null) {
+                    $rebuilt      = $rebuildFn($state);
+                    $headerLines  = $rebuilt['headerLines'];
+                    $wrappedLines = $rebuilt['wrappedLines'];
+                    $statusLine   = $rebuilt['statusLine'];
+                    $headerCount  = count($headerLines);
+                    $bodyHeight   = max(1, $newRows - $headerCount - 1);
+                    $maxOffset    = max(0, count($wrappedLines) - $bodyHeight);
+                    $offset       = min($offset, $maxOffset);
+                    $lastRows     = $newRows;
+                    $lastCols     = $newCols;
+                }
+                $fullRedraw = true;
+                continue;
+            }
+
+            // Help overlay — shows all available key bindings
+            if ($key === 'CTRL_K') {
+                self::showHelpOverlay(
+                    $conn,
+                    $state,
+                    $server,
+                    $helpItems,
+                    $allowDownloadAction,
+                    !empty($imageRefs),
+                    $lastRows,
+                    null,
+                    (array)($options['help_overlay'] ?? [])
+                );
+                // Same resize-on-return handling as the kludge viewer above.
+                $newRows = $state['rows'] ?? $lastRows;
+                $newCols = $state['cols'] ?? $lastCols;
+                if (($newRows !== $lastRows || $newCols !== $lastCols) && $rebuildFn !== null) {
+                    $rebuilt      = $rebuildFn($state);
+                    $headerLines  = $rebuilt['headerLines'];
+                    $wrappedLines = $rebuilt['wrappedLines'];
+                    $statusLine   = $rebuilt['statusLine'];
+                    $headerCount  = count($headerLines);
+                    $bodyHeight   = max(1, $newRows - $headerCount - 1);
+                    $maxOffset    = max(0, count($wrappedLines) - $bodyHeight);
+                    $offset       = min($offset, $maxOffset);
+                    $lastRows     = $newRows;
+                    $lastCols     = $newCols;
+                }
                 $fullRedraw = true;
                 continue;
             }
@@ -548,6 +837,15 @@ class TelnetUtils
             if ($allowDownloadAction && ($key === 'CHAR:z' || $key === 'CHAR:Z')) {
                 return ['action' => 'download', 'offset' => $offset];
             }
+
+            // Caller-supplied extra key bindings (char keys and named keys like 'DELETE')
+            if (!empty($extraKeys)) {
+                $lookup = str_starts_with($key, 'CHAR:') ? strtolower(substr($key, 5)) : $key;
+                if (isset($extraKeys[$lookup])) {
+                    self::setCursorVisible($conn, true);
+                    return ['action' => $extraKeys[$lookup], 'offset' => $offset];
+                }
+            }
         }
     }
 
@@ -578,14 +876,16 @@ class TelnetUtils
         $maxOffset  = max(0, count($kludgeLines) - $bodyHeight);
         $offset     = 0;
 
+        $profile = self::getDefaultStyleProfile();
+        $statusBar = $profile['status_bar'] ?? [];
         $statusLine = self::buildStatusBar([
-            ['text' => 'U/D',      'color' => self::ANSI_RED],
-            ['text' => ' Scroll  ', 'color' => self::ANSI_BLUE],
-            ['text' => 'PgUp/PgDn', 'color' => self::ANSI_RED],
-            ['text' => ' Page  ',  'color' => self::ANSI_BLUE],
-            ['text' => 'Q',        'color' => self::ANSI_RED],
-            ['text' => ' Close',   'color' => self::ANSI_BLUE],
-        ], $width);
+            ['text' => 'U/D',      'color' => $statusBar['key']   ?? self::ANSI_RED],
+            ['text' => ' Scroll  ', 'color' => $statusBar['label'] ?? self::ANSI_BLUE],
+            ['text' => 'PgUp/PgDn', 'color' => $statusBar['key']  ?? self::ANSI_RED],
+            ['text' => ' Page  ',  'color' => $statusBar['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Q',        'color' => $statusBar['key']   ?? self::ANSI_RED],
+            ['text' => ' Close',   'color' => $statusBar['label'] ?? self::ANSI_BLUE],
+        ], $width, $statusBar);
 
         while (true) {
             $visibleLines = array_slice($kludgeLines, $offset, $bodyHeight);
@@ -602,6 +902,204 @@ class TelnetUtils
             if ($key === 'END')    { $offset = $maxOffset;                                 }
             if ($key === 'PGUP')   { $offset = max(0, $offset - $bodyHeight);              }
             if ($key === 'PGDOWN') { $offset = min($maxOffset, $offset + $bodyHeight);     }
+        }
+    }
+
+    /**
+     * Display a framed full-screen overlay listing all key bindings for the message viewer.
+     *
+     * Renders a dark-blue panel with charset-aware box-drawing borders, the title
+     * embedded in the top rule, and two-column key/label rows. Shows built-in viewer
+     * keys plus any caller-supplied extras from $helpItems. Dismissed by Q, Enter, or Ctrl-K.
+     *
+     * @param resource $conn
+     * @param array    $state
+     * @param object   $server
+     * @param array    $helpItems        Caller-supplied keys: [['key'=>string,'label'=>string], ...]
+     * @param bool     $hasAttachments   Whether the Z (download attachment) key is active
+     * @param bool     $hasImages        Whether the I (image viewer) key is active
+     * @param int      $rows
+     */
+    private static function showHelpOverlay(
+        $conn,
+        array &$state,
+        $server,
+        array $helpItems,
+        bool $hasAttachments,
+        bool $hasImages,
+        int $rows,
+        ?array $builtInItems = null,
+        array $colorScheme = []
+    ): void {
+        $locale  = $state['locale'] ?? 'en';
+        $cols    = $state['cols'] ?? 80;
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+        $ansi    = self::$ansiColorEnabled;
+
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        $builtIn = $builtInItems ?? [
+            ['key' => 'Up / Down',    'label' => $server->t('ui.terminalserver.message.help_scroll',    'Scroll one line',        [], $locale)],
+            ['key' => 'PgUp / PgDn',  'label' => $server->t('ui.terminalserver.message.help_page',      'Scroll one page',        [], $locale)],
+            ['key' => 'Left / Right', 'label' => $server->t('ui.terminalserver.message.help_prev_next', 'Previous / next message', [], $locale)],
+            ['key' => 'R',            'label' => $server->t('ui.terminalserver.message.help_reply',      'Reply',                  [], $locale)],
+            ['key' => 'H',            'label' => $server->t('ui.terminalserver.message.help_headers',    'View message headers',   [], $locale)],
+        ];
+        if ($builtInItems === null) {
+            if ($hasAttachments) {
+                $builtIn[] = ['key' => 'Z', 'label' => $server->t('ui.terminalserver.message.help_download', 'Download attachment (ZMODEM)', [], $locale)];
+            }
+            if ($hasImages) {
+                $builtIn[] = ['key' => 'I', 'label' => $server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
+            }
+            $builtIn[] = ['key' => 'Q / Enter', 'label' => $server->t('ui.terminalserver.message.help_quit', 'Quit / close message', [], $locale)];
+        }
+
+        $allItems = array_merge($builtIn, $helpItems);
+
+        // Key column: wide enough for the longest key name (content-based, never changes)
+        $keyWidth = 0;
+        foreach ($allItems as $item) {
+            $keyWidth = max($keyWidth, mb_strlen($item['key']));
+        }
+
+        // Title line is constant (locale doesn't change mid-session)
+        $title     = $server->t('ui.terminalserver.message.help_title', 'Key Bindings', [], $locale);
+        $titleLine = ' ' . $title . ' ';
+        $titleLen  = mb_strlen($titleLine);
+
+        $rst   = self::ANSI_RESET;
+        $profile = self::getDefaultStyleProfile();
+        $scheme = array_merge($profile['help_overlay'] ?? [], $colorScheme);
+        $bg    = (string)($scheme['bg'] ?? self::ANSI_BG_BLUE);
+        $frame = (string)($scheme['frame'] ?? ($bg . "\033[1;37m"));  // borders
+        $body  = (string)($scheme['body'] ?? ($bg . "\033[37m"));      // content
+        $keyC  = (string)($scheme['key'] ?? ($bg . "\033[1;31m"));     // key names
+        $statusKey = (string)($scheme['status_key'] ?? self::ANSI_RED);
+        $statusLabel = (string)($scheme['status_label'] ?? self::ANSI_BLUE);
+
+        // Layout variables — shared by reference between $rebuildLayout and $render
+        // so a single $rebuildLayout() call is enough to update what $render() draws.
+        $innerWidth = 0;
+        $labelWidth = 0;
+        $bodyHeight = 0;
+        $btmRow     = 0;
+        $topBorder  = '';
+        $btmBorder  = '';
+        $statusLine = '';
+        $maxOffset  = 0;
+        $offset     = 0;
+
+        $rebuildLayout = function() use (
+            &$rows, &$cols,
+            &$innerWidth, &$labelWidth, &$bodyHeight, &$btmRow,
+            &$topBorder, &$btmBorder, &$statusLine,
+            &$maxOffset, &$offset,
+            $allItems, $keyWidth, $tl, $tr, $bl, $br, $hz, $titleLine, $titleLen,
+            $statusKey, $statusLabel
+        ): void {
+            $innerWidth = max(10, $cols - 2);
+            $labelWidth = max(1, $innerWidth - $keyWidth - 3);
+            $bodyHeight = max(1, $rows - 3);
+            $btmRow     = $rows - 1;
+
+            $totalHz   = max(0, $innerWidth - $titleLen);
+            $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
+                            . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+            $statusLine = self::buildStatusBar([
+                ['text' => 'Q',      'color' => $statusKey],
+                ['text' => ' Close', 'color' => $statusLabel],
+            ], $cols);
+
+            $maxOffset = max(0, count($allItems) - $bodyHeight);
+            $offset    = min($offset, $maxOffset);
+        };
+
+        $render = static function() use (
+            $conn, &$rows, &$btmRow, &$innerWidth, &$labelWidth, &$bodyHeight,
+            $allItems, $keyWidth, &$offset, &$topBorder, &$btmBorder, &$statusLine,
+            $vt, $frame, $body, $keyC, $rst, $ansi
+        ): void {
+            self::safeWrite($conn, "\033[2J\033[?25l");
+
+            if ($ansi) {
+                self::safeWrite($conn, "\033[1;1H" . $frame . $topBorder . $rst);
+                for ($i = 0; $i < $bodyHeight; $i++) {
+                    $r    = 2 + $i;
+                    $item = $allItems[$offset + $i] ?? null;
+                    self::safeWrite($conn, "\033[{$r};1H" . $body . $vt);
+                    if ($item !== null) {
+                        $k   = str_pad(mb_substr($item['key'],   0, $keyWidth), $keyWidth);
+                        $lbl = mb_substr($item['label'], 0, $labelWidth);
+                        $pad = str_repeat(' ', max(0, $labelWidth - mb_strlen($lbl)));
+                        self::safeWrite($conn, ' ' . $keyC . $k . $body . '  ' . $lbl . $pad . $vt . $rst);
+                    } else {
+                        self::safeWrite($conn, str_repeat(' ', $innerWidth) . $vt . $rst);
+                    }
+                }
+                self::safeWrite($conn, "\033[{$btmRow};1H" . $frame . $btmBorder . $rst);
+            } else {
+                self::safeWrite($conn, "\033[1;1H" . $topBorder);
+                for ($i = 0; $i < $bodyHeight; $i++) {
+                    $r    = 2 + $i;
+                    $item = $allItems[$offset + $i] ?? null;
+                    self::safeWrite($conn, "\033[{$r};1H" . $vt);
+                    if ($item !== null) {
+                        $k   = str_pad(mb_substr($item['key'],   0, $keyWidth), $keyWidth);
+                        $lbl = mb_substr($item['label'], 0, $labelWidth);
+                        $pad = str_repeat(' ', max(0, $labelWidth - mb_strlen($lbl)));
+                        self::safeWrite($conn, ' ' . $k . '  ' . $lbl . $pad . $vt);
+                    } else {
+                        self::safeWrite($conn, str_repeat(' ', $innerWidth) . $vt);
+                    }
+                }
+                self::safeWrite($conn, "\033[{$btmRow};1H" . $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[{$rows};1H" . $statusLine . "\033[?25h");
+        };
+
+        $rebuildLayout();
+        $render();
+
+        $lastRows = $rows;
+        $lastCols = $cols;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            // Respond to terminal resize (NAWS may update $state during readKeyWithIdleCheck)
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $rows     = $newRows;
+                $cols     = $newCols;
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $rebuildLayout();
+                $render();
+            }
+
+            if ($key === null || $key === 'ENTER' || $key === 'CHAR:q' || $key === 'CHAR:Q' || $key === 'CTRL_K') {
+                break;
+            }
+            $changed = false;
+            if ($key === 'UP'      && $offset > 0)          { $offset--; $changed = true; }
+            if ($key === 'DOWN'    && $offset < $maxOffset)  { $offset++; $changed = true; }
+            if ($key === 'HOME'    && $offset > 0)           { $offset = 0; $changed = true; }
+            if ($key === 'END'     && $offset < $maxOffset)  { $offset = $maxOffset; $changed = true; }
+            if ($key === 'PGUP')   { $new = max(0, $offset - $bodyHeight);    if ($new !== $offset) { $offset = $new; $changed = true; } }
+            if ($key === 'PGDOWN') { $new = min($maxOffset, $offset + $bodyHeight); if ($new !== $offset) { $offset = $new; $changed = true; } }
+            if ($changed) {
+                $render();
+            }
         }
     }
 
@@ -749,14 +1247,23 @@ class TelnetUtils
         int $totalPages,
         int $selectedIndex,
         array $extraKeys = [],
-        array $extraStatusSegments = []
+        array $extraStatusSegments = [],
+        array $options = [],
+        array $helpItems = []
     ): array {
         $cols = $state['cols'] ?? 80;
+        $selectedIds = array_fill_keys(array_map('intval', $options['selectedMessageIds'] ?? []), true);
+        $selectedRows = [];
+        $markerWidth = !empty($options['multiSelect']) ? 1 : 0;
+        $contentCols = max(20, $cols - $markerWidth);
 
         // Pre-format rows without selection highlight; runSelectableList handles highlighting.
         $rows = [];
         foreach ($messages as $idx => $msg) {
-            $rows[] = self::formatMessageListEntry($msg, $idx + 1, false, $cols, $state);
+            if (!empty($selectedIds[(int)($msg['id'] ?? 0)])) {
+                $selectedRows[] = $idx;
+            }
+            $rows[] = self::formatMessageListEntry($msg, $idx + 1, false, $contentCols, $state);
         }
         if (method_exists($server, 'encodeForTerminal')) {
             $rows = array_map(
@@ -768,11 +1275,12 @@ class TelnetUtils
 
         // Rebuild rows at the new terminal width on resize.
         $encodedTitle = $title;
-        $rebuildFn = static function(array &$s) use ($messages, $server, $encodedTitle): array {
+        $rebuildFn = static function(array &$s) use ($messages, $server, $encodedTitle, $markerWidth): array {
             $newCols = $s['cols'] ?? 80;
+            $contentCols = max(20, $newCols - $markerWidth);
             $newRows = [];
             foreach ($messages as $idx => $msg) {
-                $newRows[] = TelnetUtils::formatMessageListEntry($msg, $idx + 1, false, $newCols, $s);
+                $newRows[] = TelnetUtils::formatMessageListEntry($msg, $idx + 1, false, $contentCols, $s);
             }
             if (method_exists($server, 'encodeForTerminal')) {
                 $newRows = array_map(
@@ -783,28 +1291,36 @@ class TelnetUtils
             return ['rows' => $newRows, 'title' => $encodedTitle];
         };
 
+        $profile = self::getDefaultStyleProfile();
+        $statusBarProfile = $profile['status_bar'] ?? [];
         $statusBar = [
-            ['text' => 'U/D',        'color' => self::ANSI_RED],
-            ['text' => ' Move  ',    'color' => self::ANSI_BLUE],
-            ['text' => 'L/R',        'color' => self::ANSI_RED],
-            ['text' => ' Page  ',    'color' => self::ANSI_BLUE],
-            ['text' => 'C',          'color' => self::ANSI_RED],
-            ['text' => ' Compose  ', 'color' => self::ANSI_BLUE],
-            ['text' => 'Enter',      'color' => self::ANSI_RED],
-            ['text' => ' Read  ',    'color' => self::ANSI_BLUE],
-            ['text' => 'Q',          'color' => self::ANSI_RED],
-            ['text' => ' Quit',      'color' => self::ANSI_BLUE],
+            ['text' => 'U/D',        'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Move  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'L/R',        'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Page  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'C',          'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Compose  ', 'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Enter',      'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Read  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Q',          'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Quit',      'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
         ];
         if (!empty($extraStatusSegments)) {
+            // Ensure a two-space gap between the base "Q Quit" and the first extra segment.
+            $statusBar[array_key_last($statusBar)]['text'] .= '  ';
             $statusBar = array_merge($statusBar, $extraStatusSegments);
         }
 
+        $listOptions = $options;
+        $listOptions['selectedRows'] = $selectedRows;
         $result = self::runSelectableList(
             $conn, $state, $server,
             $title, $rows, $page, $totalPages, $selectedIndex,
             $statusBar,
             array_merge(['c' => 'compose'], $extraKeys),
-            $rebuildFn
+            $rebuildFn,
+            $listOptions,
+            $helpItems
         );
 
         // Map the generic 'select' action to the message-specific 'read' action.
@@ -813,6 +1329,90 @@ class TelnetUtils
         }
 
         return $result;
+    }
+
+    /**
+     * Render a message list screen without entering the interactive key loop.
+     *
+     * Useful for repainting the current background behind a modal dialog after a
+     * terminal resize, while keeping the same message-list formatting and status
+     * bar layout as runMessageList().
+     *
+     * @param resource $conn
+     * @param array    $state
+     * @param object   $server
+     * @param string   $title
+     * @param array    $messages
+     * @param int      $selectedIndex
+     * @param array    $extraStatusSegments
+     * @return void
+     */
+    public static function renderMessageListScreen(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        array $messages,
+        int $selectedIndex,
+        array $extraStatusSegments = [],
+        array $options = []
+    ): void {
+        $cols = $state['cols'] ?? 80;
+        $selectedIds = array_fill_keys(array_map('intval', $options['selectedMessageIds'] ?? []), true);
+        $selectedRows = [];
+        $markerWidth = !empty($options['multiSelect']) ? 1 : 0;
+        $contentCols = max(20, $cols - $markerWidth);
+        $rows = [];
+        foreach ($messages as $idx => $msg) {
+            if (!empty($selectedIds[(int)($msg['id'] ?? 0)])) {
+                $selectedRows[$idx] = true;
+            }
+            $rows[] = self::formatMessageListEntry($msg, $idx + 1, false, $contentCols, $state);
+        }
+        if (method_exists($server, 'encodeForTerminal')) {
+            $rows = array_map(
+                static fn(string $row): string => $server->encodeForTerminal($row),
+                $rows
+            );
+            $title = $server->encodeForTerminal($title);
+        }
+
+        $profile = self::getDefaultStyleProfile();
+        $statusBarProfile = $profile['status_bar'] ?? [];
+        $statusBar = [
+            ['text' => 'U/D',        'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Move  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'L/R',        'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Page  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'C',          'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Compose  ', 'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Enter',      'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Read  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Q',          'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Quit  ',    'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+            ['text' => 'Ctrl-K',     'color' => $statusBarProfile['key']   ?? self::ANSI_RED],
+            ['text' => ' Help',      'color' => $statusBarProfile['label'] ?? self::ANSI_BLUE],
+        ];
+        if (!empty($extraStatusSegments)) {
+            $statusBar[array_key_last($statusBar)]['text'] .= '  ';
+            $statusBar = array_merge($statusBar, $extraStatusSegments);
+        }
+
+        $termRows = self::getSelectorRows($state);
+        $inputRow = max(1, $termRows);
+
+        self::safeWrite($conn, "\033[2J\033[H");
+        self::writeLine($conn, $title);
+
+        $showMarker = !empty($options['multiSelect']);
+        foreach ($rows as $idx => $row) {
+            self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker));
+        }
+
+        $statusLine = self::buildStatusBar($statusBar, $cols);
+        self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
+        self::safeWrite($conn, $statusLine . "\r");
+        self::safeWrite($conn, "\033[{$inputRow};1H");
     }
 
     /**
@@ -831,8 +1431,13 @@ class TelnetUtils
         $subject   = $msg['subject'] ?? '(no subject)';
         $dateShort = self::formatUserDate($msg['date_written'] ?? '', $state, false);
         $line      = self::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
+        if (empty($msg['is_read'])) {
+            $line = self::colorize($line, self::ANSI_BOLD);
+        }
         if ($selected) {
-            $line = self::colorize($line, self::ANSI_BG_BLUE . self::ANSI_BOLD);
+            $profile = self::getDefaultStyleProfile();
+            $selectedBg = (string)($profile['list']['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD));
+            $line = self::colorize($line, $selectedBg);
         }
         return $line;
     }
@@ -876,6 +1481,35 @@ class TelnetUtils
     }
 
     /**
+     * Truncate a string to at most $maxVisible printable characters while preserving
+     * ANSI SGR escape sequences so colors are not lost on narrow terminals.
+     */
+    private static function truncateAnsi(string $text, int $maxVisible): string
+    {
+        $result  = '';
+        $visible = 0;
+        $i       = 0;
+        $len     = strlen($text);
+
+        while ($i < $len && $visible < $maxVisible) {
+            if ($text[$i] === "\033" && $i + 1 < $len && $text[$i + 1] === '[') {
+                $end = strpos($text, 'm', $i + 2);
+                if ($end !== false) {
+                    $result .= substr($text, $i, $end - $i + 1);
+                    $i = $end + 1;
+                } else {
+                    $result .= $text[$i++];
+                }
+            } else {
+                $result .= $text[$i++];
+                $visible++;
+            }
+        }
+
+        return $result . self::ANSI_RESET;
+    }
+
+    /**
      * Re-render a single selectable-list row in-place without redrawing the screen.
      *
      * When selected, ANSI sequences are stripped from the row before applying the
@@ -888,20 +1522,57 @@ class TelnetUtils
      * @param int      $listStartRow Screen row where the list begins (1-based)
      * @param int      $cols         Terminal column width
      */
-    private static function renderSelectableListLine($conn, array $rows, int $idx, bool $selected, int $listStartRow, int $cols): void
+    private static function renderSelectableListLine($conn, array $rows, int $idx, bool $selected, int $listStartRow, int $cols, bool $marked = false, bool $showMarker = false, string $selectedBg = self::ANSI_BG_BLUE . self::ANSI_BOLD): void
     {
         if (!isset($rows[$idx])) {
             return;
         }
-        $plain = self::stripAnsi($rows[$idx]);
-        if ($selected) {
-            $line = self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD);
-        } else {
-            $line = $rows[$idx];
-        }
+        $line = self::buildSelectableListDisplayLine($rows[$idx], $selected, $marked, $cols, $showMarker, $selectedBg);
         $row = $listStartRow + $idx;
         self::safeWrite($conn, "\033[{$row};1H\033[K");
         self::safeWrite($conn, $line);
+    }
+
+    /**
+     * Build a single display line for a selectable list row.
+     *
+     * When $selected is true all ANSI sequences are stripped from $row before the
+     * full-row highlight is applied so that inner color resets cannot break the
+     * selection background. When $showMarker is true a '*' prefix (green, bold) or
+     * a space is prepended to indicate multi-select state.
+     *
+     * @param string $row        Pre-formatted row string (may contain ANSI sequences).
+     * @param bool   $selected   Whether to apply the selection highlight background.
+     * @param bool   $marked     Whether the row is marked in a multi-select list.
+     * @param int    $cols       Terminal column width; used to prevent line wrap on narrow terminals.
+     * @param bool   $showMarker Whether to prepend the '*' / ' ' multi-select marker column.
+     * @param string $selectedBg ANSI escape string for the selection background (default: blue + bold).
+     * @return string Formatted line ready to write to the terminal.
+     */
+    private static function buildSelectableListDisplayLine(string $row, bool $selected, bool $marked, int $cols, bool $showMarker = false, string $selectedBg = self::ANSI_BG_BLUE . self::ANSI_BOLD): string
+    {
+        if ($showMarker) {
+            $display = $marked
+                ? self::colorize('*', self::ANSI_GREEN . self::ANSI_BOLD) . $row
+                : ' ' . $row;
+        } else {
+            $display = $row;
+        }
+
+        $plain   = self::stripAnsi($display);
+        $maxCols = max(1, $cols - 1);
+
+        if ($selected) {
+            $text = substr($plain, 0, $maxCols);
+            return self::colorize(str_pad($text, $maxCols), $selectedBg);
+        }
+
+        // Prevent line-wrap on stale or oversized rows when terminal is narrow
+        if (strlen($plain) > $cols) {
+            return self::truncateAnsi($display, $cols);
+        }
+
+        return $display;
     }
 
     /**
@@ -948,31 +1619,77 @@ class TelnetUtils
         int $selectedIndex,
         array $statusBar,
         array $extraKeys = [],
-        ?callable $rebuildFn = null
+        ?callable $rebuildFn = null,
+        array $options = [],
+        array $helpItems = []
     ): array {
-        $cols         = $state['cols'] ?? 80;
-        $termRows     = $state['rows'] ?? 24;
-        $rowCount     = count($rows);
-        $listStartRow = 2;
-        $inputRow     = max(1, $termRows - 1);
-
-        // --- Render full screen ---
-        self::safeWrite($conn, "\033[2J\033[H");
-        self::writeLine($conn, $title);
-
-        foreach ($rows as $idx => $row) {
-            $plain = self::stripAnsi($row);
-            if ($idx === $selectedIndex) {
-                self::writeLine($conn, self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD));
-            } else {
-                self::writeLine($conn, $row);
-            }
+        $colorScheme = is_array($options['color_scheme'] ?? null) ? $options['color_scheme'] : [];
+        if (self::hasStructuredSelectableRows($rows)) {
+            return self::runSelectableStructuredList(
+                $conn,
+                $state,
+                $server,
+                $title,
+                $rows,
+                $page,
+                $totalPages,
+                $selectedIndex,
+                $statusBar,
+                $extraKeys,
+                $rebuildFn,
+                $options,
+                $helpItems,
+                $colorScheme
+            );
         }
 
-        $statusLine = self::buildStatusBar($statusBar, $cols);
-        self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
-        self::safeWrite($conn, $statusLine . "\r");
-        self::safeWrite($conn, "\033[{$inputRow};1H");
+        $cols         = $state['cols'] ?? 80;
+        $termRows     = self::getSelectorRows($state);
+        $rowCount     = count($rows);
+        $listStartRow = 2;
+        $inputRow     = max(1, $termRows);
+        $maxDisplayRows = max(1, $inputRow - $listStartRow);
+        $selectedRows = array_fill_keys(array_map('intval', $options['selectedRows'] ?? []), true);
+        $toggleKey    = strtolower((string)($options['toggleKey'] ?? 'x'));
+        $showMarker   = !empty($options['multiSelect']);
+
+        $statusLine = '';
+
+        // Render closure — always recomputes layout from current $state so it is safe
+        // to call both from within the key loop and as $state['repaint_fn'] from overlays.
+        // Mutable variables ($cols, $termRows, etc.) are captured by reference so that
+        // the key loop sees up-to-date values after each render.
+        $render = function() use (
+            $conn, &$state,
+            &$rows, &$title, &$statusLine, &$selectedIndex, &$selectedRows,
+            &$cols, &$termRows, &$inputRow, &$maxDisplayRows,
+            $showMarker, $listStartRow, $statusBar, $colorScheme
+        ): void {
+            $cols           = $state['cols'] ?? 80;
+            $termRows       = self::getSelectorRows($state);
+            $inputRow       = max(1, $termRows);
+            $maxDisplayRows = max(1, $inputRow - $listStartRow);
+            $statusLine     = self::buildStatusBar($statusBar, $cols);
+            $titleColor     = (string)($colorScheme['title'] ?? self::ANSI_CYAN . self::ANSI_BOLD);
+            $selectedBg     = (string)($colorScheme['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD));
+
+            self::safeWrite($conn, "\033[2J\033[H");
+            self::writeLine($conn, self::colorize($title, $titleColor));
+            foreach (array_slice($rows, 0, $maxDisplayRows) as $idx => $row) {
+                self::writeLine($conn, self::buildSelectableListDisplayLine($row, $idx === $selectedIndex, isset($selectedRows[$idx]), $cols, $showMarker, $selectedBg));
+            }
+            self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
+            self::safeWrite($conn, $statusLine . "\r");
+            self::safeWrite($conn, "\033[{$inputRow};1H");
+        };
+
+        // Register as the active repaint function so overlays shown by the caller
+        // after this function returns can repaint the list on resize.  Intentionally
+        // not restored on exit — the next surface to become active will overwrite it.
+        $state['repaint_fn'] = $render;
+
+        // --- Initial render ---
+        $render();
 
         // --- Key loop ---
         $buffer        = '';
@@ -987,11 +1704,8 @@ class TelnetUtils
 
             // Detect terminal resize (NAWS update may have changed state mid-read)
             $newCols     = $state['cols'] ?? $cols;
-            $newTermRows = $state['rows'] ?? $termRows;
+            $newTermRows = self::getSelectorRows($state);
             if ($newCols !== $cols || $newTermRows !== $termRows) {
-                $cols      = $newCols;
-                $termRows  = $newTermRows;
-                $inputRow  = max(1, $termRows - 1);
                 if ($rebuildFn !== null) {
                     $rebuilt       = $rebuildFn($state);
                     $rows          = $rebuilt['rows'];
@@ -999,21 +1713,8 @@ class TelnetUtils
                     $rowCount      = count($rows);
                     $selectedIndex = min($selectedIndex, max(0, $rowCount - 1));
                 }
-                $buffer     = '';
-                $statusLine = self::buildStatusBar($statusBar, $cols);
-                self::safeWrite($conn, "\033[2J\033[H");
-                self::writeLine($conn, $title);
-                foreach ($rows as $idx => $row) {
-                    $plain = self::stripAnsi($row);
-                    if ($idx === $selectedIndex) {
-                        self::writeLine($conn, self::colorize(str_pad($plain, max(1, $cols - 1)), self::ANSI_BG_BLUE . self::ANSI_BOLD));
-                    } else {
-                        self::writeLine($conn, $row);
-                    }
-                }
-                self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
-                self::safeWrite($conn, $statusLine . "\r");
-                self::safeWrite($conn, "\033[{$inputRow};1H");
+                $buffer = '';
+                $render(); // recomputes $cols, $termRows, $inputRow, $maxDisplayRows, $statusLine
             }
 
             if ($key === 'LEFT') {
@@ -1030,12 +1731,54 @@ class TelnetUtils
                 continue;
             }
 
+            if ($key === 'CTRL_K') {
+                $overlayItems = $helpItems;
+                $listLocale   = $state['locale'] ?? 'en';
+                if (!empty($options['multiSelect'])) {
+                    array_unshift($overlayItems, [
+                        'key' => 'Space',
+                        'label' => $server->t('ui.terminalserver.list.help_toggle_selection', 'Toggle selection', [], $listLocale),
+                    ]);
+                }
+                self::showHelpOverlay(
+                    $conn,
+                    $state,
+                    $server,
+                    $overlayItems,
+                    false,
+                    false,
+                    $termRows,
+                    [
+                        ['key' => 'Up / Down',   'label' => $server->t('ui.terminalserver.list.help_move_selection', 'Move selection', [], $listLocale)],
+                        ['key' => 'Left / Right', 'label' => $server->t('ui.terminalserver.list.help_prev_page', 'Previous / next page', [], $listLocale)],
+                        ['key' => '1-9',          'label' => $server->t('ui.terminalserver.list.help_jump_row', 'Jump to row', [], $listLocale)],
+                        ['key' => 'Enter',        'label' => $server->t('ui.terminalserver.list.help_open_selected', 'Open selected item', [], $listLocale)],
+                        ['key' => 'Q / Enter',    'label' => $server->t('ui.terminalserver.list.help_close_help', 'Close help', [], $listLocale)],
+                    ],
+                    (array)($colorScheme['help_overlay'] ?? [])
+                );
+                $newCols     = $state['cols'] ?? $cols;
+                $newTermRows = self::getSelectorRows($state);
+                if ($newCols !== $cols || $newTermRows !== $termRows) {
+                    if ($rebuildFn !== null) {
+                        $rebuilt   = $rebuildFn($state);
+                        $rows      = $rebuilt['rows'];
+                        $title     = $rebuilt['title'];
+                        $rowCount  = count($rows);
+                        $selectedIndex = min($selectedIndex, max(0, $rowCount - 1));
+                    }
+                }
+                $buffer = '';
+                $render(); // always redraws after help, recomputes layout if size changed
+                continue;
+            }
+
             if ($key === 'UP') {
                 if ($selectedIndex > 0) {
                     $prev = $selectedIndex;
                     $selectedIndex--;
-                    self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols);
-                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols);
+                    self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols, isset($selectedRows[$prev]), $showMarker, (string)($colorScheme['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD)));
+                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols, isset($selectedRows[$selectedIndex]), $showMarker, (string)($colorScheme['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD)));
                 }
                 self::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                 continue;
@@ -1045,8 +1788,8 @@ class TelnetUtils
                 if ($selectedIndex < $rowCount - 1) {
                     $prev = $selectedIndex;
                     $selectedIndex++;
-                    self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols);
-                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols);
+                    self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols, isset($selectedRows[$prev]), $showMarker, (string)($colorScheme['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD)));
+                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols, isset($selectedRows[$selectedIndex]), $showMarker, (string)($colorScheme['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD)));
                 }
                 self::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                 continue;
@@ -1100,6 +1843,19 @@ class TelnetUtils
                     if ($page > 1) { return ['action' => 'prev', 'index' => 0, 'selectedIndex' => 0]; }
                     continue;
                 }
+                if (!empty($options['multiSelect']) && $lower === $toggleKey) {
+                    if (isset($selectedRows[$selectedIndex])) {
+                        unset($selectedRows[$selectedIndex]);
+                    } else {
+                        $selectedRows[$selectedIndex] = true;
+                    }
+                    self::renderSelectableListLine($conn, $rows, $selectedIndex, true, $listStartRow, $cols, isset($selectedRows[$selectedIndex]), $showMarker, (string)($colorScheme['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD)));
+                    return [
+                        'action' => 'toggle_select',
+                        'index' => $selectedIndex,
+                        'selectedIndex' => $selectedIndex,
+                    ];
+                }
                 if (isset($extraKeys[$lower])) {
                     return ['action' => $extraKeys[$lower], 'index' => $selectedIndex, 'selectedIndex' => $selectedIndex];
                 }
@@ -1111,8 +1867,8 @@ class TelnetUtils
                         $prev          = $selectedIndex;
                         $selectedIndex = $num - 1;
                         if ($prev !== $selectedIndex) {
-                            self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols);
-                            self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols);
+                            self::renderSelectableListLine($conn, $rows, $prev,          false, $listStartRow, $cols, isset($selectedRows[$prev]), $showMarker, (string)($colorScheme['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD)));
+                            self::renderSelectableListLine($conn, $rows, $selectedIndex, true,  $listStartRow, $cols, isset($selectedRows[$selectedIndex]), $showMarker, (string)($colorScheme['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD)));
                         }
                         self::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                     }
@@ -1120,6 +1876,515 @@ class TelnetUtils
                 }
                 $buffer .= $char;
                 self::safeWrite($conn, $char);
+            }
+        }
+    }
+
+    /**
+     * Detect whether a selectable-list row uses the wrapped-row structure.
+     *
+     * @param array $rows
+     * @return bool
+     */
+    private static function hasStructuredSelectableRows(array $rows): bool
+    {
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Normalize a selectable row into a wrapped multi-line display block.
+     *
+     * @param mixed $row
+     * @param int $width
+     * @return array{label:string, lines:string[]}
+     */
+    private static function normalizeStructuredSelectableRow($row, int $width): array
+    {
+        if (!is_array($row)) {
+            return [
+                'label' => (string)$row,
+                'lines' => [(string)$row],
+            ];
+        }
+
+        $label = (string)($row['label'] ?? $row['title'] ?? $row['name'] ?? $row['text'] ?? '');
+        $detail = (string)($row['detail'] ?? $row['description'] ?? $row['desc'] ?? '');
+        $labelLines = self::wrapTextLines($label, max(20, $width - 6));
+        if ($labelLines === []) {
+            $labelLines = [''];
+        }
+
+        $lines = $labelLines;
+        if ($detail !== '') {
+            foreach (self::wrapTextLines($detail, max(20, $width - 4)) as $line) {
+                $lines[] = '  ' . $line;
+            }
+        }
+
+        return [
+            'label' => $label,
+            'lines' => $lines,
+        ];
+    }
+
+    /**
+     * Wrap-aware selectable-list renderer for structured rows.
+     *
+     * @param resource $conn
+     * @param array $state
+     * @param object $server
+     * @param string $title
+     * @param array $rows
+     * @param int $page
+     * @param int $totalPages
+     * @param int $selectedIndex
+     * @param array $statusBar
+     * @param array $extraKeys
+     * @param callable|null $rebuildFn
+     * @param array $options
+     * @param array $helpItems
+     * @return array{action: string, index: int, selectedIndex: int}
+     */
+    private static function runSelectableStructuredList(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        array $rows,
+        int $page,
+        int $totalPages,
+        int $selectedIndex,
+        array $statusBar,
+        array $extraKeys = [],
+        ?callable $rebuildFn = null,
+        array $options = [],
+        array $helpItems = [],
+        array $colorScheme = []
+    ): array {
+        $blocks = [];
+        foreach ($rows as $row) {
+            $blocks[] = self::normalizeStructuredSelectableRow($row, (int)($state['cols'] ?? 80));
+        }
+
+        if ($blocks === []) {
+            return ['action' => 'quit', 'index' => 0, 'selectedIndex' => 0];
+        }
+
+        $sourceRows    = $rows;
+        $selectedIndex = max(0, min($selectedIndex, count($blocks) - 1));
+        $cols          = $state['cols'] ?? 80;
+        $termRows      = self::getSelectorRows($state);
+        $listStartRow  = 2;
+        $inputRow      = max(1, $termRows);
+        $maxDisplayRows = max(1, $inputRow - $listStartRow);
+        $statusLine    = '';
+
+        $rebuildBlocks = static function(array $sourceRows, int $width): array {
+            $rebuilt = [];
+            foreach ($sourceRows as $row) {
+                $rebuilt[] = self::normalizeStructuredSelectableRow($row, $width);
+            }
+            return $rebuilt;
+        };
+
+        $computeOffset = static function(array $blocks, int $selectedIndex, int $bodyHeight): int {
+            $offset = 0;
+            $count  = count($blocks);
+            while ($offset < $count) {
+                $used = 0;
+                $seen = false;
+                for ($i = $offset; $i < $count; $i++) {
+                    $height = max(1, count($blocks[$i]['lines'] ?? ['']));
+                    if ($used + $height > $bodyHeight) {
+                        break;
+                    }
+                    if ($i === $selectedIndex) {
+                        $seen = true;
+                    }
+                    $used += $height;
+                }
+                if ($seen || $offset >= $selectedIndex) {
+                    return $offset;
+                }
+                $offset++;
+            }
+            return max(0, min($selectedIndex, $count - 1));
+        };
+
+        $render = function() use (
+            $conn, &$state, &$sourceRows, &$blocks, &$title, &$selectedIndex, &$cols, &$termRows, &$inputRow, &$maxDisplayRows, &$statusLine,
+            $statusBar, $listStartRow, $computeOffset, $rebuildBlocks, $colorScheme
+        ): void {
+            $cols          = $state['cols'] ?? 80;
+            $termRows      = self::getSelectorRows($state);
+            $inputRow      = max(1, $termRows);
+            $maxDisplayRows = max(1, $inputRow - $listStartRow);
+            $blocks        = $rebuildBlocks($sourceRows, $cols);
+            $selectedIndex = max(0, min($selectedIndex, count($blocks) - 1));
+            $statusLine    = self::buildStatusBar($statusBar, $cols);
+            $offset        = $computeOffset($blocks, $selectedIndex, $maxDisplayRows);
+
+            self::safeWrite($conn, "\033[2J\033[H");
+            self::writeLine($conn, $title);
+
+            $rowNumber = $offset + 1;
+            $screenRow = $listStartRow;
+            $count     = count($blocks);
+            for ($i = $offset; $i < $count && $screenRow < $inputRow; $i++) {
+                $lines = $blocks[$i]['lines'] ?? [''];
+                $isSelected = ($i === $selectedIndex);
+                foreach ($lines as $lineIndex => $lineText) {
+                    if ($screenRow >= $inputRow) {
+                        break 2;
+                    }
+                    $prefix = $lineIndex === 0 ? sprintf('%2d) ', $rowNumber) : '    ';
+                    $display = $prefix . $lineText;
+                    $plain = self::stripAnsi($display);
+                    $maxCols = max(1, $cols - 1);
+                    if (strlen($plain) > $cols) {
+                        $display = self::truncateAnsi($display, $cols);
+                    }
+                    self::safeWrite($conn, "\033[{$screenRow};1H\033[K");
+                    if ($isSelected) {
+                        self::safeWrite($conn, self::colorize(str_pad(self::stripAnsi($display), $maxCols), (string)($colorScheme['selected_bg'] ?? (self::ANSI_BG_BLUE . self::ANSI_BOLD))));
+                    } else {
+                        self::safeWrite($conn, $display);
+                    }
+                    $screenRow++;
+                }
+                $rowNumber++;
+            }
+
+            while ($screenRow < $inputRow) {
+                self::safeWrite($conn, "\033[{$screenRow};1H\033[K");
+                $screenRow++;
+            }
+
+            self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
+            self::safeWrite($conn, $statusLine . "\r");
+            self::safeWrite($conn, "\033[{$inputRow};1H");
+        };
+
+        $state['repaint_fn'] = $render;
+        $render();
+
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+            if ($key === null) {
+                return ['action' => 'disconnect', 'index' => $selectedIndex, 'selectedIndex' => $selectedIndex];
+            }
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                if ($rebuildFn !== null) {
+                    $rebuilt = $rebuildFn($state);
+                    if (isset($rebuilt['rows']) && is_array($rebuilt['rows'])) {
+                        $sourceRows = $rebuilt['rows'];
+                    }
+                    if (isset($rebuilt['title']) && is_string($rebuilt['title'])) {
+                        $title = $rebuilt['title'];
+                    }
+                }
+                $render();
+                continue;
+            }
+
+            if ($key === 'UP') {
+                if ($selectedIndex > 0) {
+                    $selectedIndex--;
+                    $render();
+                }
+                continue;
+            }
+
+            if ($key === 'DOWN') {
+                if ($selectedIndex < count($blocks) - 1) {
+                    $selectedIndex++;
+                    $render();
+                }
+                continue;
+            }
+
+            if ($key === 'LEFT') {
+                if ($page > 1) {
+                    return ['action' => 'prev', 'index' => 0, 'selectedIndex' => 0];
+                }
+                continue;
+            }
+
+            if ($key === 'RIGHT') {
+                if ($page < $totalPages) {
+                    return ['action' => 'next', 'index' => 0, 'selectedIndex' => 0];
+                }
+                continue;
+            }
+
+            if ($key === 'ENTER') {
+                return ['action' => 'select', 'index' => $selectedIndex, 'selectedIndex' => $selectedIndex];
+            }
+
+            if (str_starts_with($key, 'CHAR:')) {
+                $char  = substr($key, 5);
+                $lower = strtolower($char);
+                if ($lower === 'q') {
+                    return ['action' => 'quit', 'index' => 0, 'selectedIndex' => $selectedIndex];
+                }
+                if ($lower === 'n' && $page < $totalPages) {
+                    return ['action' => 'next', 'index' => 0, 'selectedIndex' => 0];
+                }
+                if ($lower === 'p' && $page > 1) {
+                    return ['action' => 'prev', 'index' => 0, 'selectedIndex' => 0];
+                }
+                if ($char !== '' && ctype_digit($char)) {
+                    $choice = (int)$char - 1;
+                    if (isset($blocks[$choice])) {
+                        return ['action' => 'select', 'index' => $choice, 'selectedIndex' => $choice];
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Show a centered selectable list dialog overlay and wait for selection.
+     *
+     * @param resource $conn
+     * @param array    &$state
+     * @param object   $server
+     * @param string   $title
+     * @param string[] $items
+     * @param string   $hintSelect
+     * @param string   $hintBack
+     * @param int      $selectedIndex
+     * @param callable|null $redrawFn Invoked on resize before redrawing the dialog.
+     * @return array{action:'select'|'quit',index:int}|null Null on disconnect.
+     */
+    public static function showSelectableDialog(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        array $items,
+        string $hintSelect = 'Select',
+        string $hintBack = 'Back',
+        int $selectedIndex = 0,
+        ?callable $redrawFn = null,
+        array $colorScheme = []
+    ): ?array {
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+            $sepL = '├'; $sepR = '┤';
+            $arrowUp = '▲'; $arrowDn = '▼';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+            $sepL = "\xc3"; $sepR = "\xb4";
+            $arrowUp = "\x1e"; $arrowDn = "\x1f";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+            $sepL = '+'; $sepR = '+';
+            $arrowUp = '^'; $arrowDn = 'v';
+        }
+
+        $ansi   = self::$ansiColorEnabled;
+        $profile = self::getDefaultStyleProfile();
+        $scheme = array_merge($profile['selectable_dialog'] ?? [], $colorScheme);
+        $bg     = (string)($scheme['bg'] ?? self::ANSI_BG_BLUE);
+        $rst    = self::ANSI_RESET;
+        $frame  = (string)($scheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body   = (string)($scheme['body'] ?? ($bg . "\033[37m"));
+        $hilite = (string)($scheme['hilite'] ?? ($bg . "\033[1;33m"));
+        $dim    = (string)($scheme['dim'] ?? ($bg . "\033[2;37m"));
+
+        $cursorIdx = min(max(0, $selectedIndex), max(0, count($items) - 1));
+        $scrollOffset = 0;
+        $itemCount = count($items);
+        $hintStr = "Enter {$hintSelect}  Q {$hintBack}";
+        $encodedHint = self::encodeHeaderTextForCharset($hintStr, $charset);
+        $plainTitleText = self::stripAnsi($title);
+
+        $renderDialog = function () use (
+            &$cursorIdx, &$scrollOffset,
+            $conn, &$state, $plainTitleText, $items, $itemCount,
+            $tl, $tr, $bl, $br, $hz, $vt, $sepL, $sepR,
+            $arrowUp, $arrowDn, $hintStr, $encodedHint, $charset,
+            $ansi, $rst, $frame, $body, $hilite, $dim
+        ): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+
+            $plainItems = array_map(static fn(string $item): string => self::stripAnsi($item), $items);
+            $longestItem = 0;
+            foreach ($plainItems as $item) {
+                $longestItem = max($longestItem, mb_strlen($item));
+            }
+
+            $innerWidth = max(
+                28,
+                min(
+                    max(mb_strlen($plainTitleText) + 4, $longestItem + 4, mb_strlen($hintStr) + 4),
+                    min($cols - 6, 72)
+                )
+            );
+            $boxWidth = $innerWidth + 2;
+            $maxListRows = max(3, min($itemCount, $rows - 8));
+            $dialogHeight = 6 + $maxListRows;
+            $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+            $startCol = max(1, (int)round(($cols - $boxWidth) / 2));
+
+            if ($cursorIdx < $scrollOffset) {
+                $scrollOffset = $cursorIdx;
+            } elseif ($cursorIdx >= $scrollOffset + $maxListRows) {
+                $scrollOffset = $cursorIdx - $maxListRows + 1;
+            }
+
+            $hasAbove = $scrollOffset > 0;
+            $hasBelow = ($scrollOffset + $maxListRows) < $itemCount;
+
+            $titleLen = mb_strlen(' ' . $plainTitleText . ' ');
+            $totalHz = max(0, $innerWidth - $titleLen);
+            $encodedTitle = self::encodeHeaderTextForCharset($plainTitleText, $charset);
+            $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . ' ' . $encodedTitle . ' '
+                . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $midBorder = $sepL . str_repeat($hz, $innerWidth) . $sepR;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+
+            $hintLen = mb_strlen($hintStr);
+            $hintLeftPad = max(0, (int)floor(($innerWidth - $hintLen) / 2));
+            $hintRightPad = max(0, $innerWidth - $hintLen - $hintLeftPad);
+
+            $buildScrollRow = static function (string $glyph) use ($innerWidth, $vt): string {
+                return $vt . str_repeat(' ', $innerWidth - 2) . $glyph . ' ' . $vt;
+            };
+            $scrollUpRow = $buildScrollRow($arrowUp);
+            $scrollDnRow = $buildScrollRow($arrowDn);
+            $emptyRow = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                $draw($r++, ($hasAbove ? $dim . $scrollUpRow : $body . $emptyRow) . $rst);
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $hasAbove ? $scrollUpRow : $emptyRow);
+            }
+
+            $labelWidth = $innerWidth;
+            for ($i = 0; $i < $maxListRows; $i++) {
+                $itemIdx = $scrollOffset + $i;
+                if ($itemIdx >= $itemCount) {
+                    $line = $emptyRow;
+                    if ($ansi) {
+                        $draw($r++, $body . $line . $rst);
+                    } else {
+                        $draw($r++, $line);
+                    }
+                    continue;
+                }
+
+                $isCur = ($itemIdx === $cursorIdx);
+                $plain = str_pad(mb_substr($plainItems[$itemIdx], 0, $labelWidth - 2), $labelWidth - 2);
+                $encodedPlain = self::encodeHeaderTextForCharset(rtrim($plain), $charset);
+                $rowLabel = str_pad($encodedPlain, $labelWidth - 2);
+                $rowText = ($isCur ? '> ' : '  ') . $rowLabel;
+                if ($ansi) {
+                    $color = $isCur ? $hilite : $body;
+                    $draw($r++, $color . $vt . $rowText . $body . $vt . $rst);
+                } else {
+                    $draw($r++, $vt . $rowText . $vt);
+                }
+            }
+
+            if ($ansi) {
+                $draw($r++, ($hasBelow ? $dim . $scrollDnRow : $body . $emptyRow) . $rst);
+                $draw($r++, $frame . $midBorder . $rst);
+                $draw($r++, $body . $vt . str_repeat(' ', $hintLeftPad) . "\033[3m" . $encodedHint . "\033[23m" . str_repeat(' ', $hintRightPad) . $body . $vt . $rst);
+                $draw($r, $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $hasBelow ? $scrollDnRow : $emptyRow);
+                $draw($r++, $midBorder);
+                $draw($r++, $vt . str_repeat(' ', $hintLeftPad) . $encodedHint . str_repeat(' ', $hintRightPad) . $vt);
+                $draw($r, $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[?25h");
+        };
+
+        $renderDialog();
+
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                if ($redrawFn !== null) {
+                    $redrawFn($state);
+                }
+                $renderDialog();
+                continue;
+            }
+
+            if ($key === null) {
+                return null;
+            }
+
+            if ($key === 'ENTER') {
+                return ['action' => 'select', 'index' => $cursorIdx];
+            }
+
+            if ($key === 'UP') {
+                if ($cursorIdx > 0) {
+                    $cursorIdx--;
+                    $renderDialog();
+                }
+                continue;
+            }
+
+            if ($key === 'DOWN') {
+                if ($cursorIdx < $itemCount - 1) {
+                    $cursorIdx++;
+                    $renderDialog();
+                }
+                continue;
+            }
+
+            if (!str_starts_with($key, 'CHAR:')) {
+                continue;
+            }
+
+            $char = substr($key, 5);
+            if (strtolower($char) === 'q') {
+                return ['action' => 'quit', 'index' => $cursorIdx];
+            }
+            if (ctype_digit($char)) {
+                $choice = (int)$char;
+                if ($choice > 0 && $choice <= $itemCount) {
+                    $cursorIdx = $choice - 1;
+                    $renderDialog();
+                }
             }
         }
     }
@@ -1140,17 +2405,22 @@ class TelnetUtils
      * @param  string   $statusLine The existing status line (restored on cancel/return)
      * @return int|null             0-based image index, or null if cancelled
      */
-    private static function promptImageNumber($conn, array &$state, $server, int $total, int $rows, string $statusLine): ?int
+    private static function promptImageNumber($conn, array &$state, $server, int $total, int $rows, string $statusLine, array $colorScheme = []): ?int
     {
         $maxDigits = strlen((string)$total); // 1 digit for ≤9, 2 for ≤99
         $prompt    = ' View image [1-' . $total . ']: ';
 
-        $renderPrompt = function (string $typed) use ($conn, $rows, $prompt): void {
+        $renderPrompt = function (string $typed) use ($conn, $rows, $prompt, $colorScheme): void {
+            $profile = self::getDefaultStyleProfile();
+            $scheme = array_merge($profile['image_prompt'] ?? [], $colorScheme);
+            $bg = (string)($scheme['bg'] ?? self::ANSI_BG_WHITE);
+            $frame = (string)($scheme['frame'] ?? ($bg . self::ANSI_BLUE . self::ANSI_BOLD));
+            $body = (string)($scheme['body'] ?? ($bg . self::ANSI_BLUE));
             if (self::$ansiColorEnabled) {
                 $line = "\033[" . $rows . ";1H\033[K"
-                    . self::ANSI_BG_WHITE . self::ANSI_BLUE . self::ANSI_BOLD
+                    . $frame
                     . $prompt . self::ANSI_RESET
-                    . self::ANSI_BG_WHITE . self::ANSI_BLUE
+                    . $body
                     . $typed
                     . self::ANSI_RESET;
             } else {
@@ -1220,10 +2490,14 @@ class TelnetUtils
     }
 
     /**
-     * Show or hide the cursor.
+     * Show or hide the terminal cursor using DECTCEM escape sequences.
      *
-     * @param resource $conn
-     * @param bool $visible
+     * Sends ESC[?25h (show) or ESC[?25l (hide) via {@see safeWrite()}.
+     * Widgets hide the cursor before drawing to prevent flicker, then restore it
+     * when entering interactive key-read loops.
+     *
+     * @param resource $conn    Terminal socket connection.
+     * @param bool     $visible True to show the cursor, false to hide it.
      * @return void
      */
     public static function setCursorVisible($conn, bool $visible): void
@@ -1232,18 +2506,30 @@ class TelnetUtils
     }
 
     /**
-     * Build a colored status bar line with a white background.
+     * Build a colored status bar string from an array of labeled segments.
      *
-     * @param array $segments Array of ['text' => string, 'color' => string]
-     * @param int $width
-     * @return string
+     * In ANSI mode each segment's 'color' is applied before its 'text', and any
+     * unused space at the right is filled with the profile's fill color. In plain
+     * mode (ANSI disabled) segments are concatenated without escape sequences and
+     * the result is padded with spaces to $width.
+     *
+     * @param array<int, array{text: string, color: string}> $segments
+     *        Ordered list of segments; each element must have 'text' and 'color' keys.
+     * @param int                  $width       Total visible width of the status bar in columns.
+     * @param array<string, mixed> $colorScheme Optional color overrides merged with the default profile.
+     * @return string Status bar string (may contain ANSI escape sequences).
      */
-    public static function buildStatusBar(array $segments, int $width): string
+    public static function buildStatusBar(array $segments, int $width, array $colorScheme = []): string
     {
         if (!self::$ansiColorEnabled) {
             $plain = '';
             foreach ($segments as $segment) {
-                $plain .= $segment['text'] ?? '';
+                $remaining = $width - strlen($plain);
+                if ($remaining <= 0) {
+                    break;
+                }
+                $text = $segment['text'] ?? '';
+                $plain .= strlen($text) <= $remaining ? $text : substr($text, 0, $remaining);
             }
             if (strlen($plain) < $width) {
                 $plain .= str_repeat(' ', $width - strlen($plain));
@@ -1251,24 +2537,30 @@ class TelnetUtils
             return $plain;
         }
 
-        $bg = self::ANSI_BG_WHITE;
-        $blue = self::ANSI_BLUE;
+        $profile = self::getDefaultStyleProfile();
+        $scheme = array_merge($profile['status_bar'] ?? [], $colorScheme);
+        $bg = (string)($scheme['bg'] ?? self::ANSI_BG_WHITE);
+        $blue = (string)($scheme['fill'] ?? self::ANSI_BLUE);
+        $textColor = (string)($scheme['text'] ?? self::ANSI_BLUE);
         $reset = self::ANSI_RESET;
 
-        $plain = '';
-        foreach ($segments as $segment) {
-            $plain .= $segment['text'] ?? '';
-        }
-        $pad = max(0, $width - strlen($plain));
-
+        $used = 0;
         $line = '';
         foreach ($segments as $segment) {
-            $text = $segment['text'] ?? '';
-            $color = $segment['color'] ?? $blue;
+            if ($used >= $width) {
+                break;
+            }
+            $text      = $segment['text'] ?? '';
+            $remaining = $width - $used;
+            if (strlen($text) > $remaining) {
+                $text = substr($text, 0, $remaining);
+            }
+            $color = $segment['color'] ?? $textColor;
             $line .= $bg . $color . $text;
+            $used += strlen($text);
         }
-        if ($pad > 0) {
-            $line .= $bg . $blue . str_repeat(' ', $pad);
+        if ($used < $width) {
+            $line .= $bg . $blue . str_repeat(' ', $width - $used);
         }
 
         return $line . $reset;
@@ -1287,7 +2579,7 @@ class TelnetUtils
      * @param string $charset 'utf8', 'cp437', or 'ascii'
      * @return array Lines suitable for passing as $headerLines to runMessageViewer()
      */
-    public static function buildMessageHeaderBox(int $width, array $fields, string $charset = 'ascii'): array
+    public static function buildMessageHeaderBox(int $width, array $fields, string $charset = 'ascii', array $colorScheme = []): array
     {
         // Charset-specific box-drawing characters
         if ($charset === 'utf8') {
@@ -1317,9 +2609,12 @@ class TelnetUtils
         }
 
         // ANSI mode: dark blue background, gray frame characters
-        $bg    = self::ANSI_BG_BLUE;
+        $profile = self::getDefaultStyleProfile();
+        $scheme = array_merge($profile['header_box'] ?? [], $colorScheme);
+        $bg    = (string)($scheme['bg'] ?? self::ANSI_BG_BLUE);
         $rst   = self::ANSI_RESET;
-        $frame = $bg . "\033[37m"; // gray foreground on dark blue background
+        $frame = (string)($scheme['frame'] ?? ($bg . "\033[37m")); // gray foreground on dark blue background
+        $body  = (string)($scheme['body'] ?? ($bg . "\033[37m"));
 
         $lines   = [$frame . $tl . $hFill . $tr . $rst];
 
@@ -1336,11 +2631,975 @@ class TelnetUtils
                 default => $bg . "\033[37m",     // gray on dark blue
             };
 
-            $lines[] = $frame . $vt . $contentAnsi . ' ' . $text . ' ' . $frame . $vt . $rst;
-        }
+                $lines[] = $frame . $vt . $contentAnsi . ' ' . $text . ' ' . $frame . $vt . $rst;
+            }
 
         $lines[] = $frame . $bl . $hFill . $br . $rst;
         return $lines;
+    }
+
+    /**
+     * Display a full-screen read-only viewer for a user's public profile.
+     *
+     * Renders a header box (username, real name, location) and a scrollable body
+     * containing the user's biography rendered as terminal-safe Markdown. Navigation
+     * is handled by {@see runMessageViewer()} — Up/Down/PgUp/PgDn to scroll, Q to close.
+     *
+     * @param resource            $conn        Terminal socket connection.
+     * @param array<string,mixed> &$state      Session state (cols, rows, locale, timezone, etc.).
+     * @param object              $server      BbsSession instance (provides t(), encodeForTerminal()).
+     * @param array<string,mixed> $profile     User profile array with keys: username, real_name,
+     *                                         location, about_me.
+     * @param array<string,mixed> $colorScheme Optional color overrides for the profile_viewer scheme.
+     * @return void
+     */
+    public static function showPublicProfileViewer($conn, array &$state, $server, array $profile, array $colorScheme = []): void
+    {
+        $locale = $state['locale'] ?? 'en';
+        $profileStyles = array_merge(self::getDefaultStyleProfile()['profile_viewer'] ?? [], $colorScheme);
+        $buildView = function(array $s) use ($server, $profile, $locale, $profileStyles): array {
+            $cols = $s['cols'] ?? 80;
+            $width = max(10, $cols - 2);
+            $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+            $notSpecified = $server->t('ui.terminalserver.profile.not_specified', 'Not specified', [], $locale);
+            $bioLabel = $server->t('ui.terminalserver.profile.biography', 'Biography', [], $locale);
+            $realName = trim((string)($profile['real_name'] ?? ''));
+            $location = trim((string)($profile['location'] ?? ''));
+            $bioText = trim((string)($profile['about_me'] ?? ''));
+            if ($bioText === '') {
+                $bioText = $server->t('ui.terminalserver.profile.empty_biography', 'No biography provided.', [], $locale);
+            }
+
+            $bodyWidth = max(20, $width - 4);
+            $bioLabelColor = (string)($profileStyles['bio_label'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
+            $bodyLines = array_merge(
+                [self::colorize($bioLabel, $bioLabelColor), ''],
+                TerminalMarkupRenderer::render('markdown', $bioText, $bodyWidth)
+            );
+            $bodyLines = array_map(fn(string $line): string => $server->encodeForTerminal($line), $bodyLines);
+
+            $statusKey = (string)($profileStyles['status_key'] ?? self::ANSI_RED);
+            $statusLabel = (string)($profileStyles['status_label'] ?? self::ANSI_BLUE);
+            $segments = [
+                ['text' => 'U/D',       'color' => $statusKey],
+                ['text' => ' Scroll  ', 'color' => $statusLabel],
+                ['text' => 'Q',         'color' => $statusKey],
+                ['text' => ' ' . $server->t('ui.terminalserver.profile.status_back', 'Back', [], $locale), 'color' => $statusLabel],
+            ];
+
+            return [
+                'headerLines' => self::buildMessageHeaderBox($width, [
+                    ['label' => $server->t('ui.terminalserver.profile.username', 'Username', [], $locale) . ': ', 'value' => (string)($profile['username'] ?? $notSpecified), 'style' => 'bold'],
+                    ['label' => $server->t('ui.terminalserver.profile.real_name', 'Full Name', [], $locale) . ': ', 'value' => $realName !== '' ? $realName : $notSpecified, 'style' => 'normal'],
+                    ['label' => $server->t('ui.terminalserver.profile.location', 'Location', [], $locale) . ': ', 'value' => $location !== '' ? $location : $notSpecified, 'style' => 'dim'],
+                ], $charset, $profileStyles),
+                'wrappedLines' => $bodyLines,
+                'statusLine' => self::buildStatusBar($segments, $width, $profileStyles),
+            ];
+        };
+
+        $helpItems = [
+            ['key' => 'PgUp / PgDn', 'label' => $server->t('ui.terminalserver.message.help_page', 'Scroll one page', [], $locale)],
+        ];
+
+        $view = $buildView($state);
+        self::runMessageViewer(
+            $conn,
+            $state,
+            $server,
+            $view['headerLines'],
+            $view['wrappedLines'],
+            $view['statusLine'],
+            $state['rows'] ?? 24,
+            0,
+            false,
+            [],
+            $buildView,
+            [],
+            null,
+            [],
+            $helpItems
+        );
+    }
+
+    /**
+     * Display a centered confirmation dialog overlay and wait for a keypress.
+     *
+     * Draws the dialog on top of existing screen content without clearing it.
+     * The caller should trigger a full redraw (e.g. set $fullRedraw = true) after
+     * this returns if the underlying screen needs to be restored.
+     *
+     * @param array  $choices Map of lowercase char => label, e.g. ['y' => 'Confirm', 'n' => 'Cancel']
+     * @param string $default Char to return on disconnect or bare Enter; must be a key in $choices.
+     * @return string The chosen lowercase char.
+     */
+    public static function showConfirmDialog(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        string $message,
+        array $choices = ['y' => 'Confirm', 'n' => 'Cancel'],
+        string $default = 'n',
+        ?callable $redrawFn = null,
+        array $colorScheme = []
+    ): string {
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+        // Box-drawing characters
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        // Build plain-text key hint string for width calculation
+        $hintParts = [];
+        foreach ($choices as $char => $label) {
+            $hintParts[] = ['char' => strtoupper((string)$char), 'label' => (string)$label];
+        }
+        $sep = '    ';
+        $hintTokens = array_map(
+            static fn(array $p): array => [
+                'char' => $p['char'],
+                'label' => $p['label'],
+                'plain' => $p['char'] . ') ' . $p['label'],
+            ],
+            $hintParts
+        );
+
+        $ansi  = self::$ansiColorEnabled;
+        $profile = self::getStyleProfile($state);
+        $scheme = array_merge($profile['dialog'] ?? [], $colorScheme);
+        $bg    = (string)($scheme['bg'] ?? self::ANSI_BG_BLUE);
+        $rst   = self::ANSI_RESET;
+        $frame = (string)($scheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body  = (string)($scheme['body'] ?? ($bg . "\033[37m"));
+        $hint  = (string)($scheme['hint'] ?? self::ANSI_YELLOW);
+        $choiceKey = (string)($scheme['choice_key'] ?? (self::ANSI_RED . self::ANSI_BOLD));
+        $choiceLabel = (string)($scheme['choice_label'] ?? $body);
+        $renderDialog = function () use (
+            $conn,
+            &$state,
+            $title,
+            $message,
+            $hintTokens,
+            $sep,
+            $tl,
+            $tr,
+            $bl,
+            $br,
+            $hz,
+            $vt,
+            $ansi,
+            $frame,
+            $body,
+            $hint,
+            $choiceKey,
+            $choiceLabel,
+            $rst
+        ): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+            $maxInnerWidth = max(24, $cols - 6);
+            $messageWidth  = max(10, $maxInnerWidth - 2);
+            $messageLines  = self::wrapTextLines($message, $messageWidth);
+            $messageMaxLen = 0;
+            foreach ($messageLines as $line) {
+                $messageMaxLen = max($messageMaxLen, mb_strlen($line));
+            }
+
+            $hintLines = [];
+            $currentHintLine = [];
+            $currentHintLen = 0;
+            $hintWrapWidth = max(10, $maxInnerWidth - 2);
+            foreach ($hintTokens as $token) {
+                $tokenLen = mb_strlen($token['plain']);
+                $projectedLen = $currentHintLine === [] ? $tokenLen : $currentHintLen + mb_strlen($sep) + $tokenLen;
+                if ($currentHintLine !== [] && $projectedLen > $hintWrapWidth) {
+                    $hintLines[] = $currentHintLine;
+                    $currentHintLine = [$token];
+                    $currentHintLen = $tokenLen;
+                } else {
+                    $currentHintLine[] = $token;
+                    $currentHintLen = $projectedLen;
+                }
+            }
+            if ($currentHintLine !== []) {
+                $hintLines[] = $currentHintLine;
+            }
+            if ($hintLines === []) {
+                $hintLines[] = [];
+            }
+
+            $buildPlainHintLine = static function(array $lineTokens) use ($sep): string {
+                return implode($sep, array_map(static fn(array $token): string => $token['plain'], $lineTokens));
+            };
+
+            $hintMaxLen = 0;
+            foreach ($hintLines as $lineTokens) {
+                $hintMaxLen = max($hintMaxLen, mb_strlen($buildPlainHintLine($lineTokens)));
+            }
+
+            $innerWidth = max(
+                24,
+                min(
+                    max($messageMaxLen + 2, mb_strlen($title) + 4, $hintMaxLen + 4),
+                    $maxInnerWidth
+                )
+            );
+            $boxWidth = $innerWidth + 2;
+
+            $titleLine = ' ' . $title . ' ';
+            $titleLen  = mb_strlen($titleLine);
+            $totalHz   = max(0, $innerWidth - $titleLen);
+            $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
+                . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+            $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+            $msgRows = [];
+            foreach ($messageLines as $messageLine) {
+                $msgContent = str_pad(mb_substr($messageLine, 0, $innerWidth - 2), $innerWidth - 2);
+                $msgRows[]  = $vt . ' ' . $msgContent . ' ' . $vt;
+            }
+
+            $dialogHeight = 1 + 1 + count($msgRows) + 1 + count($hintLines) + 1;
+            $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+            $startCol = max(1, (int)round(($cols - $boxWidth) / 2));
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                $draw($r++, $body . $emptyRow . $rst);
+                foreach ($msgRows as $msgRow) {
+                    $draw($r++, $body . $msgRow . $rst);
+                }
+                $draw($r++, $body . $emptyRow . $rst);
+
+                foreach ($hintLines as $lineTokens) {
+                    $plainHintLine = $buildPlainHintLine($lineTokens);
+                    $hintLineLen   = mb_strlen($plainHintLine);
+                    $leftPad       = max(0, (int)floor(($innerWidth - $hintLineLen) / 2));
+                    $rightPad      = max(0, $innerWidth - $hintLineLen - $leftPad);
+
+                    $hintContent = str_repeat(' ', $leftPad);
+                    foreach ($lineTokens as $i => $token) {
+                        if ($i > 0) {
+                            $hintContent .= $body . $sep;
+                        }
+                        $hintContent .= $choiceKey . $token['char']
+                            . $choiceLabel . ') ' . $token['label'];
+                    }
+                    $hintContent .= str_repeat(' ', $rightPad);
+                    $draw($r++, $body . $vt . $hintContent . $body . $vt . $rst);
+                }
+                $draw($r, $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $emptyRow);
+                foreach ($msgRows as $msgRow) {
+                    $draw($r++, $msgRow);
+                }
+                $draw($r++, $emptyRow);
+                foreach ($hintLines as $lineTokens) {
+                    $plainHintLine = $buildPlainHintLine($lineTokens);
+                    $hintLineLen   = mb_strlen($plainHintLine);
+                    $leftPad       = max(0, (int)floor(($innerWidth - $hintLineLen) / 2));
+                    $rightPad      = max(0, $innerWidth - $hintLineLen - $leftPad);
+                    $draw($r++, $vt . str_repeat(' ', $leftPad) . $plainHintLine . str_repeat(' ', $rightPad) . $vt);
+                }
+                $draw($r, $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[?25h");
+        };
+
+        $renderDialog();
+
+        // Read a keypress — only accept keys in $choices
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $fn = $redrawFn ?? $state['repaint_fn'] ?? null;
+                if ($fn !== null) {
+                    $fn($state);
+                }
+                $renderDialog();
+            }
+            if ($key === null || $key === 'ENTER') {
+                return $default;
+            }
+            if (str_starts_with($key, 'CHAR:')) {
+                $char = strtolower(substr($key, 5));
+                if (isset($choices[$char])) {
+                    return $char;
+                }
+            }
+        }
+    }
+
+    /**
+     * Show a centered single-line text input dialog.
+     *
+     * Renders a boxed overlay with a title, an optional prompt line, and an editable
+     * input field pre-filled with $prefill. The user can type, use Backspace/Delete,
+     * and press Enter to confirm or Escape to cancel. The dialog redraws automatically
+     * on terminal resize. If $redrawFn is supplied it is called before each redraw so
+     * the caller can repaint the screen behind the dialog.
+     *
+     * @param resource $conn
+     * @param callable|null $redrawFn  Called with ($state) before each resize redraw
+     * @return string|null  The entered string, or null on Escape / disconnect
+     */
+    public static function showInputDialog(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        string $prompt,
+        string $prefill = '',
+        int $maxLength = 255,
+        ?callable $redrawFn = null,
+        array $colorScheme = [],
+        array $options = []
+    ): ?string {
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        $ansi  = self::$ansiColorEnabled;
+        $profile = self::getDefaultStyleProfile();
+        $scheme = array_merge($profile['dialog'] ?? [], $colorScheme);
+        $bg    = (string)($scheme['bg'] ?? self::ANSI_BG_BLUE);
+        $rst   = self::ANSI_RESET;
+        $frame = (string)($scheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body  = (string)($scheme['body'] ?? ($bg . "\033[37m"));
+        $hint  = (string)($scheme['hint'] ?? self::ANSI_YELLOW);
+
+        $value = $prefill;
+        $inlinePrompt = !empty($options['inline_prompt']);
+
+        // Returns [startRow, startCol, innerWidth, inputRow] for the current terminal size.
+        $footerHint = (string)($options['footer_hint'] ?? '');
+
+        $layout = static function() use (&$state, $title, $prompt, $footerHint, $inlinePrompt): array {
+            $rows       = $state['rows'] ?? 24;
+            $cols       = $state['cols'] ?? 80;
+            $innerWidth = max(30, min($cols - 6, 60));
+            $hasPrompt  = $prompt !== '';
+            // inline_prompt combines the prompt label and input on one row, so box is 7 not 8
+            $boxHeight  = ($hasPrompt && !$inlinePrompt) ? 8 : 7;
+            $startRow   = max(1, (int)round(($rows - $boxHeight) / 2));
+            $startCol   = max(1, (int)round(($cols - ($innerWidth + 2)) / 2));
+            return [$startRow, $startCol, $innerWidth, $hasPrompt];
+        };
+
+        $render = function() use (
+            $conn, &$state, &$value,
+            $title, $prompt,
+            $tl, $tr, $bl, $br, $hz, $vt,
+            $ansi, $frame, $body, $hint, $rst,
+            $layout,
+            $inlinePrompt,
+            $footerHint
+        ): array {
+            [$startRow, $startCol, $innerWidth, $hasPrompt] = $layout();
+
+            $titleText  = mb_substr($title, 0, $innerWidth - 2);
+            $titlePad   = (int)floor(($innerWidth - mb_strlen($titleText)) / 2);
+            $titleLine  = str_repeat(' ', $titlePad) . $titleText
+                        . str_repeat(' ', max(0, $innerWidth - mb_strlen($titleText) - $titlePad));
+
+            $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
+            $topBorder = $tl . str_repeat($hz, $innerWidth) . $tr;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+
+            $promptText = $hasPrompt ? mb_substr($prompt, 0, max(0, $innerWidth - 4)) : '';
+            $promptPlain = self::stripAnsi($promptText);
+            $promptWidth = $inlinePrompt && $hasPrompt
+                ? max(0, min(mb_strlen($promptPlain), $innerWidth - 12))
+                : 0;
+
+            // Input field: value left-aligned, truncated if longer than the field
+            $fieldWidth  = $inlinePrompt && $hasPrompt
+                ? max(10, $innerWidth - 3 - $promptWidth)
+                : $innerWidth - 2;
+            $displayVal  = mb_substr($value, max(0, mb_strlen($value) - $fieldWidth));
+            $inputContent = $displayVal . str_repeat(' ', max(0, $fieldWidth - mb_strlen($displayVal)));
+            $cursorOffset = mb_strlen($displayVal);
+
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                $draw($r++, $body . $vt . $titleLine . $vt . $rst);
+                $draw($r++, $body . $emptyRow . $rst);
+                if ($inlinePrompt && $hasPrompt) {
+                    // Replace any ANSI_RESET in the colored prompt with $body so the dialog blue
+                    // background is restored rather than falling back to the terminal default (black).
+                    $promptContent = str_replace(self::ANSI_RESET, $body, $promptText)
+                        . str_repeat(' ', max(0, $promptWidth - mb_strlen($promptPlain)));
+                    $inputRow = $r;
+                    $draw($r++, $body . $vt . ' ' . $promptContent . $body . ' ' . "\033[1;37;44m" . $inputContent . $body . ' ' . $vt . $rst);
+                } else {
+                    if ($hasPrompt) {
+                        // Replace ANSI_RESET with dialog body style so colored labels keep blue background;
+                        // use stripAnsi length for correct padding regardless of escape-sequence byte count.
+                        $promptContent = str_replace(self::ANSI_RESET, $body, $prompt);
+                        $promptContent .= str_repeat(' ', max(0, $fieldWidth - mb_strlen(self::stripAnsi($promptContent))));
+                        $draw($r++, $body . $vt . ' ' . $promptContent . ' ' . $vt . $rst);
+                    }
+                    // Input row: highlight the field with a different background
+                    $inputRow = $r;
+                    $draw($r++, $body . $vt . ' ' . $inputContent . ' ' . $vt . $rst);
+                }
+                $draw($r++, $body . $emptyRow . $rst);
+                $hintText    = 'Enter=OK  Esc=Cancel' . ($footerHint !== '' ? '  ' . $footerHint : '');
+                $hintWidth   = $innerWidth - 2;
+                $hintContent = str_pad(mb_substr($hintText, 0, $hintWidth), $hintWidth);
+                $draw($r++, $body . $vt . ' ' . $hint . $hintContent . $body . ' ' . $vt . $rst);
+                $draw($r,   $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $vt . $titleLine . $vt);
+                $draw($r++, $emptyRow);
+                if ($inlinePrompt && $hasPrompt) {
+                    $promptContent = $promptText . str_repeat(' ', max(0, $promptWidth - mb_strlen($promptPlain)));
+                    $inputRow = $r;
+                    $draw($r++, $vt . ' ' . $promptContent . ' ' . $inputContent . ' ' . $vt);
+                } else {
+                    if ($hasPrompt) {
+                        $promptContent = mb_substr($prompt, 0, $fieldWidth);
+                        $promptContent = $promptContent . str_repeat(' ', max(0, $fieldWidth - mb_strlen($promptContent)));
+                        $draw($r++, $vt . ' ' . $promptContent . ' ' . $vt);
+                    }
+                    $inputRow = $r;
+                    $draw($r++, $vt . ' ' . $inputContent . ' ' . $vt);
+                }
+                $draw($r++, $emptyRow);
+                $hintText    = 'Enter=OK  Esc=Cancel' . ($footerHint !== '' ? '  ' . $footerHint : '');
+                $hintWidth   = $innerWidth - 2;
+                $hintContent = str_pad(mb_substr($hintText, 0, $hintWidth), $hintWidth);
+                $draw($r++, $vt . ' ' . $hint . $hintContent . $rst . ' ' . $vt);
+                $draw($r,   $btmBorder);
+            }
+
+            // Place cursor at end of input field and show it
+            $cursorCol = $startCol + 1 + (($inlinePrompt && $hasPrompt) ? ($promptWidth + 1) : 0) + $cursorOffset + 1; // box left + vt + space + chars
+            self::safeWrite($conn, "\033[{$inputRow};{$cursorCol}H\033[?25h");
+
+            return [$inputRow, $startCol, $innerWidth];
+        };
+
+        $render();
+
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $fn = $redrawFn ?? $state['repaint_fn'] ?? null;
+                if ($fn !== null) {
+                    $fn($state);
+                }
+                $render();
+                continue;
+            }
+
+            if ($key === null) {
+                return null;
+            }
+
+            if ($key === 'ENTER') {
+                self::safeWrite($conn, "\033[?25l");
+                return $value;
+            }
+
+            // ESC (bare) returns '' — treat as cancel, along with Ctrl+C
+            if ($key === '' || $key === 'CTRL_C') {
+                self::safeWrite($conn, "\033[?25l");
+                return null;
+            }
+
+            if ($key === 'BACKSPACE' || $key === 'DELETE') {
+                if ($value !== '') {
+                    $value = mb_substr($value, 0, mb_strlen($value) - 1);
+                    $render();
+                }
+                continue;
+            }
+
+            if (str_starts_with($key, 'CHAR:')) {
+                $char = substr($key, 5);
+                if (mb_strlen($value) < $maxLength && $char !== '') {
+                    $value .= $char;
+                    $render();
+                }
+                continue;
+            }
+        }
+    }
+
+    /**
+     * Draw a centered "please wait" overlay and return immediately (no key read).
+     * Intended to be drawn before a blocking operation; a subsequent showAlertDialog
+     * call will naturally overdraw it.
+     */
+    public static function showWorkingOverlay(
+        $conn,
+        array &$state,
+        $server,
+        string $message,
+        array $colorScheme = []
+    ): void {
+        $rows    = $state['rows'] ?? 24;
+        $cols    = $state['cols'] ?? 80;
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        $innerWidth = max(24, min(mb_strlen($message) + 4, min($cols - 6, 58)));
+        $boxWidth   = $innerWidth + 2;
+
+        $msgContent = str_pad(mb_substr($message, 0, $innerWidth - 2), $innerWidth - 2);
+        $msgRow     = $vt . ' ' . $msgContent . ' ' . $vt;
+        $emptyRow   = $vt . str_repeat(' ', $innerWidth) . $vt;
+        $topBorder  = $tl . str_repeat($hz, $innerWidth) . $tr;
+        $btmBorder  = $bl . str_repeat($hz, $innerWidth) . $br;
+
+        $dialogHeight = 3; // top + message + bottom
+        $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+        $startCol = max(1, (int)round(($cols - $boxWidth)    / 2));
+
+        $ansi  = self::$ansiColorEnabled;
+        $bg    = (string)($colorScheme['bg'] ?? self::ANSI_BG_BLUE);
+        $rst   = self::ANSI_RESET;
+        $frame = (string)($colorScheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body  = (string)($colorScheme['body'] ?? ($bg . "\033[37m"));
+
+        $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+            self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+        };
+
+        self::safeWrite($conn, "\033[?25l");
+
+        $r = $startRow;
+        if ($ansi) {
+            $draw($r++, $frame . $topBorder . $rst);
+            $draw($r++, $body  . $msgRow    . $rst);
+            $draw($r,   $frame . $btmBorder . $rst);
+        } else {
+            $draw($r++, $topBorder);
+            $draw($r++, $msgRow);
+            $draw($r,   $btmBorder);
+        }
+    }
+
+    /**
+     * Show a centered alert dialog dismissed with Enter.
+     *
+     * @param string $style 'info' (blue background) or 'error' (red background)
+     */
+    public static function showAlertDialog(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        string $message,
+        string $style = 'info',
+        array $colorScheme = []
+    ): void {
+        $rows    = $state['rows'] ?? 24;
+        $cols    = $state['cols'] ?? 80;
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        $hint  = 'Press Enter to continue';
+        $ansi  = self::$ansiColorEnabled;
+        $profile = self::getDefaultStyleProfile();
+        $scheme = array_merge(($profile['alert'][$style] ?? []), $colorScheme);
+        $bg    = (string)($scheme['bg'] ?? ($style === 'error' ? self::ANSI_BG_RED : self::ANSI_BG_BLUE));
+        $rst   = self::ANSI_RESET;
+        $frame = (string)($scheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body  = (string)($scheme['body'] ?? ($bg . "\033[37m"));
+
+        $renderDialog = function() use ($conn, &$state, $title, $message, $hint, $tl, $tr, $bl, $br, $hz, $vt, $ansi, $frame, $body, $rst): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+
+            $innerWidth = max(
+                24,
+                min(
+                    max(mb_strlen($message) + 2, mb_strlen($title) + 4, mb_strlen($hint) + 4),
+                    min($cols - 6, 58)
+                )
+            );
+            $boxWidth = $innerWidth + 2;
+
+            $titleLine = ' ' . $title . ' ';
+            $titleLen  = mb_strlen($titleLine);
+            $totalHz   = max(0, $innerWidth - $titleLen);
+            $topBorder = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine
+                            . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $btmBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+            $emptyRow  = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+            $msgContent   = str_pad(mb_substr($message, 0, $innerWidth - 2), $innerWidth - 2);
+            $msgRow       = $vt . ' ' . $msgContent . ' ' . $vt;
+            $hintLen      = mb_strlen($hint);
+            $hintLeftPad  = max(0, (int)floor(($innerWidth - $hintLen) / 2));
+            $hintRightPad = max(0, $innerWidth - $hintLen - $hintLeftPad);
+
+            $dialogHeight = 6; // top + empty + message + empty + hint + bottom
+            $startRow = max(1, (int)round(($rows - $dialogHeight) / 2));
+            $startCol = max(1, (int)round(($cols - $boxWidth)    / 2));
+
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                $draw($r++, $body  . $emptyRow  . $rst);
+                $draw($r++, $body  . $msgRow    . $rst);
+                $draw($r++, $body  . $emptyRow  . $rst);
+                $draw($r++, $body . $vt . str_repeat(' ', $hintLeftPad) . "\033[3m" . $hint . "\033[23m" . str_repeat(' ', $hintRightPad) . $body . $vt . $rst);
+                $draw($r,   $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $emptyRow);
+                $draw($r++, $msgRow);
+                $draw($r++, $emptyRow);
+                $draw($r++, $vt . str_repeat(' ', $hintLeftPad) . $hint . str_repeat(' ', $hintRightPad) . $vt);
+                $draw($r,   $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[?25h");
+        };
+
+        $renderDialog();
+
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $fn = $state['repaint_fn'] ?? null;
+                if ($fn !== null) {
+                    $fn($state);
+                }
+                $renderDialog();
+                continue;
+            }
+
+            if ($key === null || $key === 'ENTER') {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Shows a centered dialog overlay with a scrollable checkbox list.
+     *
+     * Items are displayed with [ ] / [*] prefix based on selection state. The cursor
+     * (>) highlights the current row. Space toggles; Enter confirms; Q skips.
+     * Scroll indicators appear when the list overflows the dialog height.
+     * On terminal resize the old dialog region is erased before redrawing.
+     *
+     * @param resource  $conn            Socket connection
+     * @param array     &$state          Terminal state
+     * @param object    $server          Server instance
+     * @param callable  $titleFn         fn(int $selectedCount): string — title text, called on each redraw
+     * @param string[]  $items           Plain-text item labels (one per row)
+     * @param int[]     $selectedIndices Initially selected item indices (0-based)
+     * @param int       $maxSelect       Max selections allowed (0 = unlimited)
+     * @param string    $atLimitMessage  Message shown when trying to exceed $maxSelect
+     * @param string    $hintConfirm     Enter key label in hint area
+     * @param string    $hintSkip        Q key label in hint area
+     * @param callable|null $redrawFn    Optional callback invoked on terminal resize before dialog redraw
+     * @return array|null ['action'=>'confirm'|'quit', 'selected'=>int[]], or null on disconnect
+     */
+    public static function showCheckboxListDialog(
+        $conn,
+        array &$state,
+        $server,
+        callable $titleFn,
+        array $items,
+        array $selectedIndices = [],
+        int $maxSelect = 0,
+        string $atLimitMessage = '',
+        string $hintConfirm = 'Done',
+        string $hintSkip = 'Skip',
+        ?callable $redrawFn = null,
+        array $colorScheme = []
+    ): ?array {
+        $charset = method_exists($server, 'getTerminalCharset') ? $server->getTerminalCharset() : 'ascii';
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+            $sepL = '├'; $sepR = '┤';
+            $arrowUp = '▲'; $arrowDn = '▼';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+            $sepL = "\xc3"; $sepR = "\xb4";
+            $arrowUp = "\x1e"; $arrowDn = "\x1f";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+            $sepL = '+'; $sepR = '+';
+            $arrowUp = '^'; $arrowDn = 'v';
+        }
+
+        $ansi   = self::$ansiColorEnabled;
+        $profile = self::getDefaultStyleProfile();
+        $scheme = array_merge($profile['checkbox_dialog'] ?? [], $colorScheme);
+        $bg     = (string)($scheme['bg'] ?? self::ANSI_BG_BLUE);
+        $rst    = self::ANSI_RESET;
+        $frame  = (string)($scheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body   = (string)($scheme['body'] ?? ($bg . "\033[37m"));
+        $hilite = (string)($scheme['hilite'] ?? ($bg . "\033[1;33m")); // highlighted row
+        $dim    = (string)($scheme['dim'] ?? ($bg . "\033[2;37m"));     // scroll indicators
+
+        $cursorIdx    = 0;
+        $scrollOffset = 0;
+        $selected     = array_values($selectedIndices);
+        $itemCount    = count($items);
+        $hintStr      = "Space Toggle  Enter {$hintConfirm}  Q {$hintSkip}";
+
+        $renderDialog = function () use (
+            &$cursorIdx, &$scrollOffset, &$selected,
+            $conn, &$state, $titleFn, $items, $itemCount,
+            $tl, $tr, $bl, $br, $hz, $vt, $sepL, $sepR,
+            $arrowUp, $arrowDn, $hintStr,
+            $ansi, $bg, $rst, $frame, $body, $hilite, $dim
+        ): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+
+            $innerWidth   = max(30, min(64, $cols - 6));
+            $boxWidth     = $innerWidth + 2;
+            $maxListRows  = max(3, min($itemCount, $rows - 9));
+            // rows: top + scrollUp + list + scrollDn + separator + hint + bottom
+            $dialogHeight = 7 + $maxListRows;
+            $startRow     = max(1, (int)round(($rows - $dialogHeight) / 2));
+            $startCol     = max(1, (int)round(($cols - $boxWidth)    / 2));
+
+            // keep cursor in view
+            if ($cursorIdx < $scrollOffset) {
+                $scrollOffset = $cursorIdx;
+            } elseif ($cursorIdx >= $scrollOffset + $maxListRows) {
+                $scrollOffset = $cursorIdx - $maxListRows + 1;
+            }
+
+            $hasAbove = $scrollOffset > 0;
+            $hasBelow = ($scrollOffset + $maxListRows) < $itemCount;
+
+            $rawTitle   = $titleFn(count($selected));
+            $plainTitle = ' ' . self::stripAnsi($rawTitle) . ' ';
+            $titleLen   = mb_strlen($plainTitle);
+            $totalHz    = max(0, $innerWidth - $titleLen);
+            $topBorder  = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $plainTitle
+                . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+            $midBorder  = $sepL . str_repeat($hz, $innerWidth) . $sepR;
+            $btmBorder  = $bl . str_repeat($hz, $innerWidth) . $br;
+
+            $hintLen      = mb_strlen($hintStr);
+            $hintLeftPad  = max(0, (int)floor(($innerWidth - $hintLen) / 2));
+            $hintRightPad = max(0, $innerWidth - $hintLen - $hintLeftPad);
+
+            // Scroll indicator rows: spaces with arrow glyph flush-right
+            $buildScrollRow = static function (string $glyph) use ($innerWidth, $vt): string {
+                return $vt . str_repeat(' ', $innerWidth - 2) . $glyph . ' ' . $vt;
+            };
+            $scrollUpRow = $buildScrollRow($arrowUp);
+            $scrollDnRow = $buildScrollRow($arrowDn);
+            $emptyRow    = $vt . str_repeat(' ', $innerWidth) . $vt;
+
+            $draw = static function(int $r, string $line) use ($conn, $startCol): void {
+                self::safeWrite($conn, "\033[{$r};{$startCol}H{$line}");
+            };
+
+            self::safeWrite($conn, "\033[?25l");
+
+            $r = $startRow;
+            if ($ansi) {
+                $draw($r++, $frame . $topBorder . $rst);
+                // scroll-up indicator row
+                if ($hasAbove) {
+                    $draw($r++, $dim . $scrollUpRow . $rst);
+                } else {
+                    $draw($r++, $body . $emptyRow . $rst);
+                }
+            } else {
+                $draw($r++, $topBorder);
+                $draw($r++, $hasAbove ? $scrollUpRow : $emptyRow);
+            }
+
+            $labelWidth = $innerWidth - 6; // "> [*] " = 6 chars; row fills innerWidth exactly
+            for ($i = 0; $i < $maxListRows; $i++) {
+                $itemIdx = $scrollOffset + $i;
+                if ($itemIdx >= $itemCount) {
+                    if ($ansi) {
+                        $draw($r++, $body . $emptyRow . $rst);
+                    } else {
+                        $draw($r++, $emptyRow);
+                    }
+                    continue;
+                }
+                $isSel   = in_array($itemIdx, $selected, true);
+                $isCur   = ($itemIdx === $cursorIdx);
+                $check   = $isSel ? '[*]' : '[ ]';
+                $cursor  = $isCur ? '>' : ' ';
+                $label   = str_pad(mb_substr((string)($items[$itemIdx] ?? ''), 0, $labelWidth), $labelWidth);
+                $rowText = "{$cursor} {$check} {$label}";
+                if ($ansi) {
+                    $color = $isCur ? $hilite : $body;
+                    $draw($r++, $color . $vt . $rowText . $body . $vt . $rst);
+                } else {
+                    $draw($r++, $vt . $rowText . $vt);
+                }
+            }
+
+            if ($ansi) {
+                // scroll-down indicator row
+                if ($hasBelow) {
+                    $draw($r++, $dim . $scrollDnRow . $rst);
+                } else {
+                    $draw($r++, $body . $emptyRow . $rst);
+                }
+                $draw($r++, $frame . $midBorder . $rst);
+                $draw($r++, $body . $vt . str_repeat(' ', $hintLeftPad) . "\033[3m" . $hintStr . "\033[23m" . str_repeat(' ', $hintRightPad) . $body . $vt . $rst);
+                $draw($r,   $frame . $btmBorder . $rst);
+            } else {
+                $draw($r++, $hasBelow ? $scrollDnRow : $emptyRow);
+                $draw($r++, $midBorder);
+                $draw($r++, $vt . str_repeat(' ', $hintLeftPad) . $hintStr . str_repeat(' ', $hintRightPad) . $vt);
+                $draw($r,   $btmBorder);
+            }
+
+            self::safeWrite($conn, "\033[?25h");
+        };
+
+        $renderDialog();
+
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                if ($redrawFn !== null) {
+                    $redrawFn($state);
+                }
+                $renderDialog();
+                continue;
+            }
+
+            if ($key === null) {
+                return null;
+            }
+
+            if ($key === 'ENTER') {
+                return ['action' => 'confirm', 'selected' => $selected];
+            }
+
+            if ($key === 'UP' || $key === 'CHAR:k') {
+                if ($cursorIdx > 0) {
+                    $cursorIdx--;
+                    $renderDialog();
+                }
+                continue;
+            }
+
+            if ($key === 'DOWN' || $key === 'CHAR:j') {
+                if ($cursorIdx < $itemCount - 1) {
+                    $cursorIdx++;
+                    $renderDialog();
+                }
+                continue;
+            }
+
+            if (!str_starts_with($key, 'CHAR:')) {
+                continue;
+            }
+
+            $char = substr($key, 5);
+
+            if (strtolower($char) === 'q') {
+                return ['action' => 'quit', 'selected' => []];
+            }
+
+            if ($char === ' ') {
+                if (in_array($cursorIdx, $selected, true)) {
+                    $selected = array_values(array_filter($selected, fn(int $i): bool => $i !== $cursorIdx));
+                    $renderDialog();
+                } elseif ($maxSelect === 0 || count($selected) < $maxSelect) {
+                    $selected[] = $cursorIdx;
+                    sort($selected);
+                    $renderDialog();
+                } elseif ($atLimitMessage !== '') {
+                    self::showAlertDialog($conn, $state, $server, '', $atLimitMessage, 'error');
+                    $renderDialog();
+                }
+                continue;
+            }
+        }
     }
 
     /**
@@ -1377,11 +3636,13 @@ class TelnetUtils
     }
 
     /**
-     * Colorize text with ANSI escape codes
+     * Wrap text with ANSI SGR codes, respecting the global color toggle.
      *
-     * @param string $text Text to colorize
-     * @param string $color ANSI color code(s)
-     * @return string Colorized text with reset code
+     * Returns $text unchanged when ANSI color is disabled (plain-text mode).
+     *
+     * @param string $text  Text to colorize.
+     * @param string $color One or more ANSI escape sequences (e.g. ANSI_RED . ANSI_BOLD).
+     * @return string $color . $text . ANSI_RESET in color mode; $text in plain mode.
      */
     public static function colorize(string $text, string $color): string
     {
@@ -1392,10 +3653,10 @@ class TelnetUtils
     }
 
     /**
-     * Convert locale code to PHP date format string
+     * Map a locale code to a PHP date format string for display.
      *
-     * @param string $locale Locale code (e.g., 'en-US', 'en-GB')
-     * @return string PHP date format string
+     * @param string $locale BCP 47 locale code (e.g. 'en-US', 'en-GB', 'fr').
+     * @return string PHP date() format string without seconds (e.g. 'm/d/Y g:i A').
      */
     private static function localeToPhpDateFormat(string $locale): string
     {
@@ -1412,15 +3673,16 @@ class TelnetUtils
     }
 
     /**
-     * Format date using user's timezone and date format preferences
+     * Format a UTC date string in the user's local timezone and date format.
      *
-     * Converts UTC date to user's timezone and formats according to their preference.
-     * User timezone and format are stored in state during login.
+     * Reads 'user_timezone' and 'user_date_format' from $state (both set during login).
+     * Falls back to UTC / 'Y-m-d H:i' when either key is absent.
+     * Returns the original $utcDate string unchanged if DateTime parsing fails.
      *
-     * @param string $utcDate Date string in UTC (from database)
-     * @param array $state Terminal state containing user_timezone and user_date_format
-     * @param bool $includeTimezone Whether to append timezone abbreviation (default: true)
-     * @return string Formatted date string, or original date if formatting fails
+     * @param string               $utcDate          UTC date string as stored in the database.
+     * @param array<string, mixed> $state            Session state containing 'user_timezone' and 'user_date_format'.
+     * @param bool                 $includeTimezone  When true, appends the timezone abbreviation (e.g. 'EDT').
+     * @return string Formatted date string, or $utcDate unchanged if formatting fails.
      */
     public static function formatUserDate(string $utcDate, array $state, bool $includeTimezone = true): string
     {
@@ -1451,13 +3713,14 @@ class TelnetUtils
     }
 
     /**
-     * Read a single raw character from connection
+     * Read a single raw byte from the terminal socket.
      *
-     * Handles pushback buffer and checks for connection validity.
+     * Drains the pushback buffer first (see BbsSession for how bytes land there).
+     * Returns null when the connection is closed or has reached EOF.
      *
-     * @param resource $conn Socket connection
-     * @param array $state Terminal state (contains pushback buffer)
-     * @return string|null Single character or null if connection closed
+     * @param resource            $conn   Terminal socket connection.
+     * @param array<string,mixed> &$state Session state; reads and mutates 'pushback'.
+     * @return string|null Single raw byte, or null if the connection is closed.
      */
     public static function readRawChar($conn, array &$state): ?string
     {
@@ -1481,17 +3744,18 @@ class TelnetUtils
     }
 
     /**
-     * Format a message list line with proper column width calculations
+     * Format a fixed-width message list entry line.
      *
-     * Calculates column widths based on terminal width to ensure the entire line
-     * fits without wrapping or truncation.
+     * Allocates column widths proportionally (~30% from, ~70% subject) within
+     * the space remaining after the message number and date. All columns are
+     * truncated so the output never exceeds $cols - 1 characters.
      *
-     * @param int $num Message number
-     * @param string $from From name
-     * @param string $subject Subject line
-     * @param string $date Formatted date string
-     * @param int $cols Terminal width
-     * @return string Formatted line that fits within terminal width
+     * @param int    $num     Message number (1-based, displayed as " N) ").
+     * @param string $from    Sender name; truncated to the from-column width.
+     * @param string $subject Subject text; truncated to the subject-column width.
+     * @param string $date    Pre-formatted date string (e.g. from {@see formatUserDate()}).
+     * @param int    $cols    Terminal column width used to compute layout.
+     * @return string Single-line string without trailing newline, at most $cols - 1 characters.
      */
     public static function formatMessageListLine(int $num, string $from, string $subject, string $date, int $cols): string
     {
@@ -1567,6 +3831,165 @@ class TelnetUtils
         }
 
         return null;
+    }
+
+    /**
+     * Interactive address book / nodelist picker.
+     *
+     * Prompts for a search term, queries both the address book and nodelist APIs,
+     * then presents the merged results through runSelectableList() so the user can
+     * navigate with Up/Down/Enter or type a row number.
+     *
+     * Returns an array with 'name' and 'address' on selection, or null on cancel.
+     *
+     * @param resource $conn
+     * @param string   $apiBase
+     * @param string   $session
+     * @param string   $locale
+     * @return array{name:string,address:string}|null
+     */
+    public static function runAddressPicker($conn, array &$state, $server, string $apiBase, string $session, string $locale): ?array
+    {
+        while (true) {
+            self::safeWrite($conn, "\033[2J\033[H");
+            $titleText = $server->t('ui.terminalserver.compose.address_book_title', 'Address Book Search', [], $locale);
+            self::writeLine($conn, self::colorize($titleText, self::ANSI_CYAN . self::ANSI_BOLD));
+            self::writeLine($conn, '');
+
+            $searchPrompt = self::colorize(
+                $server->t('ui.terminalserver.compose.address_book_search', 'Search name or address (Enter to cancel): ', [], $locale),
+                self::ANSI_CYAN
+            );
+            $query = $server->prompt($conn, $state, $searchPrompt, true);
+            if ($query === null || trim($query) === '') {
+                return null;
+            }
+            $query = trim($query);
+
+            // Fetch address book autocomplete results, which also include local-user matches.
+            $abResp    = self::apiRequest($apiBase, 'GET', '/api/address-book/search/' . rawurlencode($query), null, $session);
+            $abEntries = $abResp['data']['entries'] ?? [];
+
+            // Fetch nodelist entries
+            $nlResp = self::apiRequest($apiBase, 'GET', '/api/nodelist/search?q=' . urlencode($query), null, $session);
+            $nlNodes = $nlResp['data']['nodes'] ?? [];
+
+            // Build unified result list; address book takes priority, deduplicate by address
+            $results = [];
+            $seenAddresses = [];
+
+            $abTag = $server->t('ui.terminalserver.compose.address_book_source_ab', 'AB', [], $locale);
+            foreach ($abEntries as $entry) {
+                $addr = trim((string)($entry['node_address'] ?? ''));
+                $name = trim((string)($entry['name'] ?? ''));
+                if ($name === '' && $addr === '') {
+                    continue;
+                }
+                $key = strtolower($addr);
+                if ($addr !== '' && isset($seenAddresses[$key])) {
+                    continue;
+                }
+                if ($addr !== '') {
+                    $seenAddresses[$key] = true;
+                }
+                $results[] = ['name' => $name, 'address' => $addr, 'tag' => $abTag];
+            }
+
+            $nlTag = $server->t('ui.terminalserver.compose.address_book_source_nl', 'NL', [], $locale);
+            foreach ($nlNodes as $node) {
+                $addr       = trim((string)($node['address']     ?? ''));
+                $sysopName  = trim((string)($node['sysop_name']  ?? ''));
+                $systemName = trim((string)($node['system_name'] ?? ''));
+                if ($addr === '') {
+                    continue;
+                }
+                $key = strtolower($addr);
+                if (isset($seenAddresses[$key])) {
+                    continue;
+                }
+                $seenAddresses[$key] = true;
+                $results[] = [
+                    'name'    => $sysopName !== '' ? $sysopName : $systemName,
+                    'address' => $addr,
+                    'tag'     => $nlTag,
+                ];
+            }
+
+            if (empty($results)) {
+                self::safeWrite($conn, "\033[2J\033[H");
+                self::writeLine($conn, self::colorize(
+                    $server->t('ui.terminalserver.compose.address_book_no_results', 'No matches found.', [], $locale),
+                    self::ANSI_YELLOW
+                ));
+                self::writeLine($conn, '');
+                self::writeLine($conn, self::colorize(
+                    $server->t('ui.terminalserver.server.press_any_key', 'Press any key to search again, or Ctrl+C to cancel...', [], $locale),
+                    self::ANSI_DIM
+                ));
+                $key = $server->readKeyWithIdleCheck($conn, $state);
+                if ($key === null) {
+                    return null;
+                }
+                continue;
+            }
+
+            // Row formatter — closure so runSelectableList can call it on resize.
+            // Visible layout per row: "NNN) " (5) + name + "  " + addr (18) + "  " + "[XX]" (4) = cols-1
+            $addrWidth = 18;
+            $formatRows = static function(array $s) use ($results, $server, $query, $locale, $addrWidth): array {
+                $cols      = $s['cols'] ?? 80;
+                $nameWidth = max(10, $cols - 5 - 2 - $addrWidth - 2 - 4 - 1);
+                $rows      = [];
+                foreach ($results as $idx => $r) {
+                    $num  = sprintf('%3d', $idx + 1);
+                    $name = mb_substr(str_pad($r['name'], $nameWidth), 0, $nameWidth);
+                    $addr = mb_substr(str_pad($r['address'], $addrWidth), 0, $addrWidth);
+                    $tag  = '[' . $r['tag'] . ']';
+                    $rows[] = self::colorize($num . ') ', self::ANSI_YELLOW)
+                        . $name . '  '
+                        . self::colorize($addr, self::ANSI_CYAN)
+                        . '  ' . self::colorize($tag, self::ANSI_DIM);
+                }
+                $profile = self::getDefaultStyleProfile();
+                $titleLine = self::colorize(
+                    $server->t('ui.terminalserver.compose.address_book_title', 'Address Book Search', [], $locale)
+                    . ' — "' . $query . '"',
+                    $profile['list']['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD)
+                );
+                return ['rows' => $rows, 'title' => $titleLine];
+            };
+
+            $built = $formatRows($state);
+            $statusBarProfile = self::getDefaultStyleProfile()['status_bar'] ?? [];
+            $statusBar = [
+                ['text' => 'Up/Dn', 'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
+                ['text' => ' Select  ', 'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
+                ['text' => 'Enter',    'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
+                ['text' => ' Confirm  ', 'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
+                ['text' => 'Q',        'color' => $statusBarProfile['text'] ?? self::ANSI_RED],
+                ['text' => ' Cancel',  'color' => $statusBarProfile['fill'] ?? self::ANSI_BLUE],
+            ];
+
+            $result = self::runSelectableList(
+                $conn, $state, $server,
+                $built['title'], $built['rows'],
+                1, 1, 0, $statusBar,
+                [],
+                $formatRows
+            );
+
+            if ($result['action'] === 'select') {
+                $chosen = $results[$result['index']] ?? null;
+                if ($chosen !== null) {
+                    return ['name' => $chosen['name'], 'address' => $chosen['address']];
+                }
+            }
+
+            if ($result['action'] === 'disconnect') {
+                return null;
+            }
+            // quit / any other action — loop back to search prompt
+        }
     }
 
     /**

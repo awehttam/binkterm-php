@@ -5,8 +5,11 @@ namespace BinktermPHP\TelnetServer;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\Auth;
 use BinktermPHP\Config;
+use BinktermPHP\Database;
 use BinktermPHP\I18n\Translator;
+use BinktermPHP\UserMeta;
 use BinktermPHP\Version;
 
 
@@ -72,6 +75,7 @@ class TelnetServer
     private int $tlsPort = 8023;
     private ?string $tlsCert = null;
     private ?string $tlsKey = null;
+    private ?string $debugUser = null;
 
     private function parsePeerAddress($conn): array
     {
@@ -168,6 +172,15 @@ class TelnetServer
     public function disableTls(): void
     {
         $this->tlsEnabled = false;
+    }
+
+    /**
+     * Configure an optional debug user for auto-login.
+     */
+    public function setDebugUser(?string $username): void
+    {
+        $username = trim((string)$username);
+        $this->debugUser = $username !== '' ? $username : null;
     }
 
     /**
@@ -745,6 +758,10 @@ class TelnetServer
      */
     private function handleConnection($conn, bool $forked, bool $isTls = false, ?string $peerName = null, ?string $peerIp = null): void
     {
+        $preAuthSession = $this->debugUser !== null
+            ? $this->buildDebugPreAuthSession($this->debugUser, $peerIp, $peerName)
+            : null;
+
         $session = new BbsSession(
             $conn,
             $this->apiBase,
@@ -755,11 +772,57 @@ class TelnetServer
             $this->tlsEnabled,
             $this->tlsPort,
             $this->logger,
-            null,
+            $preAuthSession,
             $peerName,
             $peerIp
         );
         $session->run($forked);
+    }
+
+    private function buildDebugPreAuthSession(string $username, ?string $peerIp = null, ?string $peerName = null): ?array
+    {
+        try {
+            $db = Database::getInstance()->getPdo();
+            $stmt = $db->prepare('
+                SELECT id, username
+                FROM users
+                WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?))
+                  AND is_active = TRUE
+                LIMIT 1
+            ');
+            $stmt->execute([$username, $username]);
+            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!$user) {
+                $this->log("DEBUG_USER '{$username}' not found or inactive; falling back to normal login");
+                return null;
+            }
+
+            $userId = (int)$user['id'];
+            $auth = new Auth();
+            $sessionId = $auth->createSessionForConnection(
+                $userId,
+                'telnet',
+                (string)($peerIp ?? ''),
+                (string)($peerName ?? 'telnet-debug')
+            );
+
+            $csrfToken = bin2hex(random_bytes(32));
+            $meta = new UserMeta();
+            $meta->setValue($userId, 'csrf_token', $csrfToken);
+
+            $db->prepare('UPDATE users SET last_login = NOW() WHERE id = ?')->execute([$userId]);
+
+            $this->log("DEBUG_USER '{$username}' auto-login established for user_id {$userId}");
+
+            return [
+                'session' => $sessionId,
+                'username' => (string)$user['username'],
+                'csrf_token' => $csrfToken,
+            ];
+        } catch (\Throwable $e) {
+            $this->log('DEBUG_USER auto-login failed: ' . $e->getMessage());
+            return null;
+        }
     }
 
 }

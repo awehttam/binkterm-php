@@ -52,78 +52,172 @@
 {% endif %}
 {% endif %}
 
-<div class="row">
-    <div class="col-lg-7">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">{{ t('ui.echoareas_import.upload_csv', {}, locale, ['common']) }}</h5>
-            </div>
-            <div class="card-body">
-                <form method="POST" enctype="multipart/form-data" id="echoareaImportForm">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <div class="mb-3">
-                        <label for="echoareasCsv" class="form-label">{{ t('ui.echoareas_import.csv_file', {}, locale, ['common']) }}</label>
-                        <input type="file" class="form-control" id="echoareasCsv" name="echoareas_csv" accept=".csv,text/csv" required>
-                        <div class="form-text">{{ t('ui.echoareas_import.csv_help', {}, locale, ['common']) }}</div>
-                    </div>
+{% set activeFormat = active_format ?? 'csv' %}
 
-                    <div class="d-flex justify-content-end gap-2">
-                        <a href="/echoareas" class="btn btn-secondary">{{ t('ui.common.cancel', {}, locale, ['common']) }}</a>
-                        <button type="submit" class="btn btn-fidonet" id="echoareaImportBtn">
-                            <i class="fas fa-file-import me-1" id="echoareaImportIcon"></i>
-                            <span id="echoareaImportLabel">{{ t('ui.echoareas_import.import_echo_areas', {}, locale, ['common']) }}</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+<ul class="nav nav-tabs mb-3" id="importFormatTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link{% if activeFormat != 'na' %} active{% endif %}" id="tab-csv" data-bs-toggle="tab" data-bs-target="#panel-csv" type="button" role="tab">
+            {{ t('ui.echoareas_import.tab_csv', {}, locale, ['common']) }}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link{% if activeFormat == 'na' %} active{% endif %}" id="tab-na" data-bs-toggle="tab" data-bs-target="#panel-na" type="button" role="tab">
+            {{ t('ui.echoareas_import.tab_na', {}, locale, ['common']) }}
+        </button>
+    </li>
+</ul>
 
-    <div class="col-lg-5">
-        <div class="card mb-3">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.echoareas_import.csv_format', {}, locale, ['common']) }}</h6>
+<div class="tab-content">
+
+    {# ── CSV tab ──────────────────────────────────────────────────── #}
+    <div class="tab-pane fade{% if activeFormat != 'na' %} show active{% endif %}" id="panel-csv" role="tabpanel">
+        <div class="row">
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ t('ui.echoareas_import.upload_csv', {}, locale, ['common']) }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" enctype="multipart/form-data" id="echoareaImportCsvForm">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="import_format" value="csv">
+                            <div class="mb-3">
+                                <label for="echoareasCsv" class="form-label">{{ t('ui.echoareas_import.csv_file', {}, locale, ['common']) }}</label>
+                                <input type="file" class="form-control" id="echoareasCsv" name="echoareas_csv" accept=".csv,text/csv" required>
+                                <div class="form-text">{{ t('ui.echoareas_import.csv_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="/echoareas" class="btn btn-secondary">{{ t('ui.common.cancel', {}, locale, ['common']) }}</a>
+                                <button type="submit" class="btn btn-fidonet import-btn">
+                                    <i class="fas fa-file-import me-1 import-icon"></i>
+                                    <span class="import-label">{{ t('ui.echoareas_import.import_echo_areas', {}, locale, ['common']) }}</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <p class="mb-2">{{ t('ui.echoareas_import.each_row_fields', {}, locale, ['common']) }}</p>
-                <pre class="bg-light border rounded p-3 mb-3">ECHOTAG,DESCRIPTION,DOMAIN</pre>
-                <p class="mb-2">{{ t('ui.echoareas_import.example', {}, locale, ['common']) }}</p>
-                <pre class="bg-light border rounded p-3 mb-0">FIDONET.GEN,General FidoNet discussion,fidonet
+
+            <div class="col-lg-5">
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">{{ t('ui.echoareas_import.csv_format', {}, locale, ['common']) }}</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">{{ t('ui.echoareas_import.each_row_fields', {}, locale, ['common']) }}</p>
+                        <pre class="bg-light border rounded p-3 mb-3">ECHOTAG,DESCRIPTION,DOMAIN</pre>
+                        <p class="mb-2">{{ t('ui.echoareas_import.example', {}, locale, ['common']) }}</p>
+                        <pre class="bg-light border rounded p-3 mb-0">FIDONET.GEN,General FidoNet discussion,fidonet
 FSX_GEN,FSXnet general discussion,fsxnet
 LOCAL.TEST,Local test area,</pre>
-            </div>
-        </div>
+                    </div>
+                </div>
 
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.echoareas_import.import_rules', {}, locale, ['common']) }}</h6>
-            </div>
-            <div class="card-body">
-                <ul class="mb-0">
-                    <li>{{ t('ui.echoareas_import.rule_domain_blank', {}, locale, ['common'])|raw }}</li>
-                    <li>{{ t('ui.echoareas_import.rule_domain_exists', {}, locale, ['common'])|raw }}</li>
-                    <li>{{ t('ui.echoareas_import.rule_existing_area', {}, locale, ['common'])|raw }}</li>
-                    <li>{{ t('ui.echoareas_import.rule_new_areas', {}, locale, ['common']) }}</li>
-                    <li>{{ t('ui.echoareas_import.rule_header_optional', {}, locale, ['common'])|raw }}</li>
-                </ul>
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">{{ t('ui.echoareas_import.import_rules', {}, locale, ['common']) }}</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="mb-0">
+                            <li>{{ t('ui.echoareas_import.rule_domain_blank', {}, locale, ['common'])|raw }}</li>
+                            <li>{{ t('ui.echoareas_import.rule_domain_exists', {}, locale, ['common'])|raw }}</li>
+                            <li>{{ t('ui.echoareas_import.rule_existing_area', {}, locale, ['common'])|raw }}</li>
+                            <li>{{ t('ui.echoareas_import.rule_new_areas', {}, locale, ['common']) }}</li>
+                            <li>{{ t('ui.echoareas_import.rule_header_optional', {}, locale, ['common'])|raw }}</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+
+    {# ── .NA tab ──────────────────────────────────────────────────── #}
+    <div class="tab-pane fade{% if activeFormat == 'na' %} show active{% endif %}" id="panel-na" role="tabpanel">
+        <div class="row">
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ t('ui.echoareas_import.upload_na', {}, locale, ['common']) }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" enctype="multipart/form-data" id="echoareaImportNaForm">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="import_format" value="na">
+                            <div class="mb-3">
+                                <label for="naDomain" class="form-label">{{ t('ui.echoareas_import.na_domain', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="naDomain" name="na_domain" required>
+                                    <option value="">{{ t('ui.echoareas_import.na_domain_local', {}, locale, ['common']) }}</option>
+                                    {% for domain in domains %}
+                                    <option value="{{ domain }}">{{ domain }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">{{ t('ui.echoareas_import.na_domain_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="echoareasNa" class="form-label">{{ t('ui.echoareas_import.na_file', {}, locale, ['common']) }}</label>
+                                <input type="file" class="form-control" id="echoareasNa" name="echoareas_na" accept=".na,.txt,text/plain" required>
+                                <div class="form-text">{{ t('ui.echoareas_import.na_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="/echoareas" class="btn btn-secondary">{{ t('ui.common.cancel', {}, locale, ['common']) }}</a>
+                                <button type="submit" class="btn btn-fidonet import-btn">
+                                    <i class="fas fa-file-import me-1 import-icon"></i>
+                                    <span class="import-label">{{ t('ui.echoareas_import.import_echo_areas', {}, locale, ['common']) }}</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">{{ t('ui.echoareas_import.na_format', {}, locale, ['common']) }}</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">{{ t('ui.echoareas_import.na_format_desc', {}, locale, ['common']) }}</p>
+                        <pre class="bg-light border rounded p-3 mb-0">CHEESE_TRENDING       Trending discussion
+CHEESE_BBSBUZZ        BBS Buzz
+CHEESE_NEWS           Breaking News</pre>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">{{ t('ui.echoareas_import.import_rules', {}, locale, ['common']) }}</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="mb-0">
+                            <li>{{ t('ui.echoareas_import.rule_na_domain_selector', {}, locale, ['common'])|raw }}</li>
+                            <li>{{ t('ui.echoareas_import.rule_domain_exists', {}, locale, ['common'])|raw }}</li>
+                            <li>{{ t('ui.echoareas_import.rule_existing_area', {}, locale, ['common'])|raw }}</li>
+                            <li>{{ t('ui.echoareas_import.rule_new_areas', {}, locale, ['common']) }}</li>
+                            <li>{{ t('ui.echoareas_import.rule_na_comments', {}, locale, ['common']) }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('echoareaImportForm');
-    const button = document.getElementById('echoareaImportBtn');
-    const icon = document.getElementById('echoareaImportIcon');
-    const label = document.getElementById('echoareaImportLabel');
+    var importingLabel = {{ t('ui.echoareas_import.importing', {}, locale, ['common'])|json_encode|raw }};
 
-    form.addEventListener('submit', function() {
-        button.disabled = true;
-        icon.className = 'fas fa-spinner fa-spin me-1';
-        label.textContent = {{ t('ui.echoareas_import.importing', {}, locale, ['common'])|json_encode|raw }};
+    document.querySelectorAll('form[id^="echoareaImport"]').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            var btn = form.querySelector('.import-btn');
+            var icon = form.querySelector('.import-icon');
+            var label = form.querySelector('.import-label');
+            if (btn) btn.disabled = true;
+            if (icon) icon.className = 'fas fa-spinner fa-spin me-1 import-icon';
+            if (label) label.textContent = importingLabel;
+        });
     });
 });
 </script>

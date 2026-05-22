@@ -49,8 +49,9 @@ abstract class AnsiFormField
      * @param bool $active   True when this field has focus.
      * @param bool $ansiColor True when ANSI colour escape codes are allowed.
      * @param bool $isUtf8   True when the terminal supports UTF-8 (enables fancy chars like ◄ ►).
+     * @param array $styleProfile Active shell style profile.
      */
-    abstract public function renderValue(bool $active, bool $ansiColor, bool $isUtf8): string;
+    abstract public function renderValue(bool $active, bool $ansiColor, bool $isUtf8, array $styleProfile = []): string;
 
     // ── Input handling ───────────────────────────────────────────────────────
 

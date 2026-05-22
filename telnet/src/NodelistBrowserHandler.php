@@ -12,8 +12,8 @@ use BinktermPHP\Database;
  *  - Browse: zone list → net list → paginated node list
  *  - Search: free-text search by system name, sysop, location, or FTN address
  *
- * From any paginated node list the user can enter a list item number or the
- * raw node number within the current net to jump straight to the detail view.
+ * The browse lists, top-level menu, search input, and detail viewer now route
+ * through the terminal shell abstraction.
  */
 class NodelistBrowserHandler
 {
@@ -30,63 +30,40 @@ class NodelistBrowserHandler
 
     public function show($conn, array &$state, string $session): void
     {
-        $locale = $state['locale'];
-
-        while (true) {
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.nodelist.title', 'Nodelist Browser', [], $locale),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                str_repeat('-', min(60, ($state['cols'] ?? 80) - 2)),
-                TelnetUtils::ANSI_DIM
-            ));
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.nodelist.menu.browse', '(B) Browse networks', [], $locale));
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.nodelist.menu.search', '(S) Search', [], $locale));
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.nodelist.menu.quit',   '(Q) Return to main menu', [], $locale));
-            TelnetUtils::writeLine($conn, '');
-
-            $choice = $this->server->prompt($conn, $state, '> ', true);
-            if ($choice === null) {
-                return;
-            }
-            $choice = strtolower(trim($choice));
-
-            if ($choice === 'q' || $choice === '') {
-                return;
-            } elseif ($choice === 'b') {
-                $this->browseZones($conn, $state);
-            } elseif ($choice === 's') {
-                $this->searchMode($conn, $state);
-            }
-        }
+        $shell = TerminalShellFactory::create($this->server, $state);
+        $this->browseZones($conn, $state, $shell);
     }
 
     // ── Browse: zone list ─────────────────────────────────────────────────────
 
-    private function browseZones($conn, array &$state): void
+    private function browseZones($conn, array &$state, TerminalShellInterface $shell): void
     {
         $locale  = $state['locale'];
         $manager = new NodelistManager();
         $zones   = $manager->getZones();
 
         if (empty($zones)) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.nodelist.no_zones', 'No nodelist data available.', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ));
-            $this->server->readKeyWithIdleCheck($conn, $state);
+            $shell->showText(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.nodelist.zones_title', 'Networks', [], $locale),
+                [$this->server->t('ui.terminalserver.nodelist.no_zones', 'No nodelist data available.', [], $locale)]
+            );
             return;
         }
 
-        // Enrich with net counts
+        // Enrich with net and node counts for the top-level network list.
         $db = Database::getInstance()->getPdo();
         foreach ($zones as &$z) {
-            $stmt = $db->prepare("SELECT COUNT(DISTINCT net) FROM nodelist WHERE zone = ? AND domain = ?");
+            $stmt = $db->prepare("
+                SELECT COUNT(DISTINCT net) AS net_count, COUNT(*) AS node_count
+                FROM nodelist
+                WHERE zone = ? AND domain = ?
+            ");
             $stmt->execute([(int)$z['zone'], (string)($z['domain'] ?? '')]);
-            $z['net_count'] = (int)$stmt->fetchColumn();
+            $counts = $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+            $z['net_count'] = (int)($counts['net_count'] ?? 0);
+            $z['node_count'] = (int)($counts['node_count'] ?? 0);
         }
         unset($z);
 
@@ -99,34 +76,43 @@ class NodelistBrowserHandler
             ['text' => ' Back',    'color' => TelnetUtils::ANSI_BLUE],
         ];
 
+        $searchIndex   = count($zones);
         $selectedIndex = 0;
 
         while (true) {
             $rows = [];
-            foreach ($zones as $idx => $z) {
-                $num    = $idx + 1;
+            foreach ($zones as $z) {
                 $domain = (string)($z['domain'] ?? 'unknown');
                 $zone   = (int)$z['zone'];
                 $nets   = (int)$z['net_count'];
-                $label  = $nets === 1
+                $nodes  = (int)($z['node_count'] ?? 0);
+                $netLabel  = $nets === 1
                     ? $this->server->t('ui.terminalserver.nodelist.net_count_one', '1 net', [], $locale)
                     : $this->server->t('ui.terminalserver.nodelist.net_count', '{count} nets', ['count' => $nets], $locale);
+                $nodeLabel = $nodes === 1
+                    ? $this->server->t('ui.terminalserver.nodelist.node_count_one', '1 node', [], $locale)
+                    : $this->server->t('ui.terminalserver.nodelist.node_count', '{count} nodes', ['count' => $nodes], $locale);
+                $label = $netLabel . ', ' . $nodeLabel;
 
                 $rows[] = sprintf(
-                    ' %3d) %s  Zone %-4d  %s',
-                    $num,
+                    ' %s  Zone %-4d  %s',
                     TelnetUtils::colorize(str_pad($domain, 12), TelnetUtils::ANSI_CYAN),
                     $zone,
                     TelnetUtils::colorize($label, TelnetUtils::ANSI_DIM)
                 );
             }
 
+            $rows[] = TelnetUtils::colorize(
+                '  ' . $this->server->t('ui.terminalserver.nodelist.search_title', 'Nodelist Search', [], $locale),
+                TelnetUtils::ANSI_DIM
+            );
+
             $title = TelnetUtils::colorize(
                 $this->server->t('ui.terminalserver.nodelist.zones_title', 'Networks', [], $locale),
                 TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             );
 
-            $result        = TelnetUtils::runSelectableList($conn, $state, $this->server, $title, $rows, 1, 1, $selectedIndex, $statusBar);
+            $result        = $shell->showSelectableList($conn, $state, $title, $rows, 1, 1, $selectedIndex, $statusBar);
             $selectedIndex = $result['selectedIndex'];
 
             switch ($result['action']) {
@@ -136,8 +122,10 @@ class NodelistBrowserHandler
                     return;
                 case 'select':
                     $idx = $result['index'];
-                    if (isset($zones[$idx])) {
-                        $this->browseNets($conn, $state, (int)$zones[$idx]['zone'], (string)($zones[$idx]['domain'] ?? ''), $manager);
+                    if ($idx === $searchIndex) {
+                        $this->searchMode($conn, $state, $shell);
+                    } elseif (isset($zones[$idx])) {
+                        $this->browseNets($conn, $state, (int)$zones[$idx]['zone'], (string)($zones[$idx]['domain'] ?? ''), $manager, $shell);
                     }
                     break;
             }
@@ -146,7 +134,7 @@ class NodelistBrowserHandler
 
     // ── Browse: net list ──────────────────────────────────────────────────────
 
-    private function browseNets($conn, array &$state, int $zone, string $domain, NodelistManager $manager): void
+    private function browseNets($conn, array &$state, int $zone, string $domain, NodelistManager $manager, TerminalShellInterface $shell): void
     {
         $locale  = $state['locale'];
         $perPage = max(5, ($state['rows'] ?? 24) - 3);
@@ -190,10 +178,8 @@ class NodelistBrowserHandler
             $page  = max(1, min($page, $totalPages));
             $slice = array_slice($nets, ($page - 1) * $perPage, $perPage);
 
-            $listBase = ($page - 1) * $perPage;
             $rows = [];
-            foreach ($slice as $idx => $net) {
-                $num       = $listBase + $idx + 1;
+            foreach ($slice as $net) {
                 $netNum    = (int)$net['net'];
                 $count     = (int)$net['node_count'];
                 $hub       = $this->truncate((string)($net['hub_name'] ?? ''), 28);
@@ -202,8 +188,7 @@ class NodelistBrowserHandler
                     : $this->server->t('ui.terminalserver.nodelist.node_count', '{count} nodes', ['count' => $count], $locale);
 
                 $rows[] = sprintf(
-                    ' %3d) Net %-5d  %s  %s',
-                    $num,
+                    ' Net %-5d  %s  %s',
                     $netNum,
                     TelnetUtils::colorize(str_pad($nodeLabel, 10), TelnetUtils::ANSI_DIM),
                     TelnetUtils::colorize($hub, TelnetUtils::ANSI_DIM)
@@ -213,7 +198,7 @@ class NodelistBrowserHandler
             $titleText = $domain !== '' ? "Zone {$zone} — {$domain}" : "Zone {$zone}";
             $title     = TelnetUtils::colorize($titleText, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD);
 
-            $result        = TelnetUtils::runSelectableList($conn, $state, $this->server, $title, $rows, $page, $totalPages, $selectedIndex, $statusBar);
+            $result        = $shell->showSelectableList($conn, $state, $title, $rows, $page, $totalPages, $selectedIndex, $statusBar);
             $selectedIndex = $result['selectedIndex'];
 
             switch ($result['action']) {
@@ -233,7 +218,7 @@ class NodelistBrowserHandler
                     $idx = ($page - 1) * $perPage + $result['index'];
                     if (isset($nets[$idx])) {
                         $nodes = $manager->getNodesByZoneNet($zone, (int)$nets[$idx]['net']);
-                        $this->browseNodes($conn, $state, $nodes, "Net {$zone}:{$nets[$idx]['net']}");
+                        $this->browseNodes($conn, $state, $nodes, "Net {$zone}:{$nets[$idx]['net']}", $shell);
                     }
                     break;
             }
@@ -247,7 +232,7 @@ class NodelistBrowserHandler
      * results. From the list the user can navigate with arrow keys, type a number,
      * or press Enter on the highlighted row to view the node detail.
      */
-    private function browseNodes($conn, array &$state, array $nodes, string $heading): void
+    private function browseNodes($conn, array &$state, array $nodes, string $heading, TerminalShellInterface $shell): void
     {
         $locale     = $state['locale'];
         $perPage    = max(5, ($state['rows'] ?? 24) - 3);
@@ -256,22 +241,12 @@ class NodelistBrowserHandler
         $page       = 1;
 
         if (empty($nodes)) {
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $shell->showText(
+                $conn,
+                $state,
                 $heading,
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.nodelist.no_results', 'No nodes found.', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ));
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ));
-            $this->server->readKeyWithIdleCheck($conn, $state);
+                [$this->server->t('ui.terminalserver.nodelist.no_results', 'No nodes found.', [], $locale)]
+            );
             return;
         }
 
@@ -296,18 +271,15 @@ class NodelistBrowserHandler
             $addrWidth  = 14;
             $nameWidth  = max(16, (int)floor(($cols - $addrWidth - 6) * 0.45));
             $sysopWidth = max(14, (int)floor(($cols - $addrWidth - 6) * 0.35));
-            $listBase   = ($page - 1) * $perPage;
 
             $rows = [];
-            foreach ($slice as $idx => $node) {
-                $num   = $listBase + $idx + 1;
+            foreach ($slice as $node) {
                 $addr  = $this->formatAddress($node);
                 $name  = $this->truncate((string)($node['system_name'] ?? ''), $nameWidth);
                 $sysop = $this->truncate((string)($node['sysop_name'] ?? ''), $sysopWidth);
 
                 $rows[] = sprintf(
-                    ' %3d) %s  %s  %s',
-                    $num,
+                    ' %s  %s  %s',
                     TelnetUtils::colorize(str_pad($addr, $addrWidth), TelnetUtils::ANSI_GREEN),
                     TelnetUtils::colorize(str_pad($name, $nameWidth), TelnetUtils::ANSI_CYAN),
                     TelnetUtils::colorize($sysop, TelnetUtils::ANSI_DIM)
@@ -319,7 +291,7 @@ class NodelistBrowserHandler
                 TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             );
 
-            $result        = TelnetUtils::runSelectableList($conn, $state, $this->server, $title, $rows, $page, $totalPages, $selectedIndex, $statusBar);
+            $result        = $shell->showSelectableList($conn, $state, $title, $rows, $page, $totalPages, $selectedIndex, $statusBar);
             $selectedIndex = $result['selectedIndex'];
 
             switch ($result['action']) {
@@ -339,7 +311,7 @@ class NodelistBrowserHandler
                     $listIdx = ($page - 1) * $perPage + $result['index'];
                     $target  = $nodes[$listIdx] ?? null;
                     if ($target !== null) {
-                        $this->showNodeDetail($conn, $state, $target);
+                        $this->showNodeDetail($conn, $state, $target, $shell);
                     }
                     break;
             }
@@ -348,72 +320,49 @@ class NodelistBrowserHandler
 
     // ── Search mode ───────────────────────────────────────────────────────────
 
-    private function searchMode($conn, array &$state): void
+    private function searchMode($conn, array &$state, TerminalShellInterface $shell): void
     {
         $locale = $state['locale'];
-
-        while (true) {
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.nodelist.search_title', 'Nodelist Search', [], $locale),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                str_repeat('-', min(60, ($state['cols'] ?? 80) - 2)),
-                TelnetUtils::ANSI_DIM
-            ));
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, $this->server->t(
+        $query = $shell->promptText(
+            $conn,
+            $state,
+            $this->server->t('ui.terminalserver.nodelist.search_title', 'Nodelist Search', [], $locale),
+            $this->server->t(
                 'ui.terminalserver.nodelist.search_hint',
                 'Search by system name, sysop, location, or FTN address (e.g. 1:234/5)',
                 [],
                 $locale
-            ));
-            TelnetUtils::writeLine($conn, $this->server->t(
-                'ui.terminalserver.nodelist.quit_hint',
-                'Enter Q to go back.',
-                [],
-                $locale
-            ));
-            TelnetUtils::writeLine($conn, '');
+            ),
+            [
+                'max_length' => 120,
+            ]
+        );
 
-            $query = $this->server->prompt(
-                $conn,
-                $state,
-                $this->server->t('ui.terminalserver.nodelist.search_prompt', 'Search: ', [], $locale),
-                true
-            );
-
-            if ($query === null) { return; }
-            $query = trim($query);
-            if (strtolower($query) === 'q' || $query === '') { return; }
-
-            $this->server->logAction($state['username'] ?? 'unknown', "Nodelist: search \"{$query}\"");
-            $results = (new NodelistManager())->searchNodes(['search_term' => $query]);
-            $this->browseNodes(
-                $conn, $state, $results,
-                $this->server->t('ui.terminalserver.nodelist.results_for', 'Results for "{query}"', ['query' => $query], $locale)
-            );
+        if ($query === null) {
+            return;
         }
+        $query = trim($query);
+        if (strtolower($query) === 'q' || $query === '') {
+            return;
+        }
+
+        $this->server->logAction($state['username'] ?? 'unknown', "Nodelist: search \"{$query}\"");
+        $results = (new NodelistManager())->searchNodes(['search_term' => $query]);
+        $this->browseNodes(
+            $conn,
+            $state,
+            $results,
+            $this->server->t('ui.terminalserver.nodelist.results_for', 'Results for "{query}"', ['query' => $query], $locale),
+            $shell
+        );
     }
 
     // ── Node detail ───────────────────────────────────────────────────────────
 
-    private function showNodeDetail($conn, array &$state, array $node): void
+    private function showNodeDetail($conn, array &$state, array $node, TerminalShellInterface $shell): void
     {
         $locale = $state['locale'];
-        $cols   = max(40, (int)($state['cols'] ?? 80));
-
-        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            (string)($node['system_name'] ?? $this->formatAddress($node)),
-            TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-        ));
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            str_repeat('-', min(60, $cols - 2)),
-            TelnetUtils::ANSI_DIM
-        ));
-        TelnetUtils::writeLine($conn, '');
+        $lines = [];
 
         $fields = [
             ['ui.terminalserver.nodelist.detail.address',  'Address',  $this->formatAddress($node)],
@@ -426,13 +375,15 @@ class NodelistBrowserHandler
 
         $labelWidth = 10;
         foreach ($fields as [$key, $defaultLabel, $value]) {
-            if ((string)$value === '') { continue; }
+            if ((string)$value === '') {
+                continue;
+            }
             $label = $this->server->t($key, $defaultLabel, [], $locale);
-            TelnetUtils::writeLine($conn, sprintf(
+            $lines[] = sprintf(
                 '  %s %s',
                 TelnetUtils::colorize(str_pad($label . ':', $labelWidth + 1), TelnetUtils::ANSI_BOLD),
                 $value
-            ));
+            );
         }
 
         if (!empty($node['flags']) && is_array($node['flags'])) {
@@ -442,20 +393,20 @@ class NodelistBrowserHandler
             ));
             if ($flagStr !== '') {
                 $label = $this->server->t('ui.terminalserver.nodelist.detail.flags', 'Flags', [], $locale);
-                TelnetUtils::writeLine($conn, sprintf(
+                $lines[] = sprintf(
                     '  %s %s',
                     TelnetUtils::colorize(str_pad($label . ':', $labelWidth + 1), TelnetUtils::ANSI_BOLD),
                     $flagStr
-                ));
+                );
             }
         }
 
-        TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
-            TelnetUtils::ANSI_YELLOW
-        ));
-        $this->server->readKeyWithIdleCheck($conn, $state);
+        $shell->showText(
+            $conn,
+            $state,
+            (string)($node['system_name'] ?? $this->formatAddress($node)),
+            $lines
+        );
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -6966,9 +6966,6 @@ class MessageHandler
                 throw new \Exception('Invalid message type');
             }
 
-            // Check if draft already exists for this user and type with same content
-            $existingDraft = $this->findExistingDraft($userId, $draftData);
-
             // Encode meta (e.g. cross_post_areas) as JSON; only include the key
             // when the caller provides it so existing drafts without meta are
             // not needlessly touched.
@@ -6976,6 +6973,10 @@ class MessageHandler
             if (isset($draftData['meta']) && is_array($draftData['meta'])) {
                 $metaJson = json_encode($draftData['meta']);
             }
+
+            // Resolve an explicit draft target first; fall back to the legacy
+            // "recent draft" lookup used by the web autosave flow.
+            $existingDraft = $this->findDraftForSave($userId, $draftData);
 
             if ($existingDraft) {
                 // Update existing draft
@@ -6989,7 +6990,7 @@ class MessageHandler
                         reply_to_id = ?,
                         meta = ?::jsonb,
                         updated_at = NOW() AT TIME ZONE 'UTC'
-                    WHERE id = ?
+                    WHERE id = ? AND user_id = ?
                 ");
 
                 $stmt->execute([
@@ -7000,7 +7001,8 @@ class MessageHandler
                     $draftData['message_text'] ?? null,
                     $draftData['reply_to_id'] ?? null,
                     $metaJson,
-                    $existingDraft['id']
+                    $existingDraft['id'],
+                    $userId
                 ]);
 
                 return ['success' => true, 'draft_id' => $existingDraft['id'], 'updated' => true];
@@ -7038,11 +7040,47 @@ class MessageHandler
     }
 
     /**
-     * Find existing draft that might be similar to current one
+     * Resolve a draft row to update for the current save operation.
+     *
+     * Priority:
+     * 1. Explicit `draft_id`
+     * 2. Terminal-provided draft token stored under meta.terminal_draft_token
+     * 3. Legacy recent-draft heuristic for web autosave
      */
-    private function findExistingDraft($userId, $draftData)
+    private function findDraftForSave($userId, $draftData)
     {
         try {
+            $draftId = isset($draftData['draft_id']) ? (int)$draftData['draft_id'] : 0;
+            if ($draftId > 0) {
+                $stmt = $this->db->prepare("
+                    SELECT * FROM drafts
+                    WHERE id = ? AND user_id = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$draftId, $userId]);
+                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if ($row) {
+                    return $row;
+                }
+            }
+
+            $draftToken = trim((string)($draftData['meta']['terminal_draft_token'] ?? ''));
+            if ($draftToken !== '') {
+                $stmt = $this->db->prepare("
+                    SELECT * FROM drafts
+                    WHERE user_id = ?
+                      AND type = ?
+                      AND meta->>'terminal_draft_token' = ?
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                ");
+                $stmt->execute([$userId, $draftData['type'], $draftToken]);
+                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if ($row) {
+                    return $row;
+                }
+            }
+
             // Look for recent drafts (within last hour) for same user/type
             $stmt = $this->db->prepare("
                 SELECT * FROM drafts
@@ -7056,7 +7094,7 @@ class MessageHandler
             $stmt->execute([$userId, $draftData['type']]);
             return $stmt->fetch(\PDO::FETCH_ASSOC);
         } catch (\Exception $e) {
-            $this->logger->error("Error finding existing draft: " . $e->getMessage());
+            $this->logger->error("Error resolving draft for save: " . $e->getMessage());
             return null;
         }
     }

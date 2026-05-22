@@ -6,6 +6,8 @@
   - [Flow](#flow)
 - [Provider Configuration](#provider-configuration)
   - [OpenAI and Anthropic](#openai-and-anthropic)
+  - [OpenRouter](#openrouter)
+    - [Pricing with OpenRouter](#pricing-with-openrouter)
   - [Ollama](#ollama)
     - [Power cost tracking](#power-cost-tracking)
     - [Token pricing for Ollama](#token-pricing-for-ollama)
@@ -32,7 +34,7 @@
 
 ---
 
-BinktermPHP has a provider-agnostic AI layer in `src/AI/` that lets features call OpenAI, Anthropic, or Ollama through a shared interface. The system also records every AI request in a local accounting ledger so you can estimate usage and cost from the admin UI. For local inference providers such as Ollama, cost estimates can be based on power consumption rather than per-token billing.
+BinktermPHP has a provider-agnostic AI layer in `src/AI/` that lets features call OpenAI, Anthropic, Ollama, or OpenRouter through a shared interface. The system also records every AI request in a local accounting ledger so you can estimate usage and cost from the admin UI. For local inference providers such as Ollama, cost estimates can be based on power consumption rather than per-token billing.
 
 When a feature makes an AI request, the provider is selected in this order: a feature-specific override (e.g. `AI_TRANSLATION_CATALOG_PROVIDER`), then the system-wide default (`AI_DEFAULT_PROVIDER`), then OpenAI if configured, then the first available configured provider. Each feature can be pointed at a different provider and model, or left to use the system-wide default.
 
@@ -78,6 +80,7 @@ The AI abstraction lives in `src/AI/`.
 | `src/AI/Providers/OpenAIProvider.php` | OpenAI adapter |
 | `src/AI/Providers/AnthropicProvider.php` | Anthropic adapter |
 | `src/AI/Providers/OllamaProvider.php` | Ollama local-inference adapter |
+| `src/AI/Providers/OpenRouterProvider.php` | OpenRouter adapter |
 | `src/AI/HttpClient.php` | Shared JSON HTTP client used by providers |
 
 ### Flow
@@ -106,6 +109,45 @@ ANTHROPIC_API_BASE=https://api.anthropic.com/v1
 ```
 
 These providers are considered configured when their API key is non-empty.
+
+### OpenRouter
+
+[OpenRouter](https://openrouter.ai) is an API gateway that routes requests to many upstream providers (OpenAI, Anthropic, Google, Meta, Mistral, and others) through a single OpenAI-compatible endpoint. It is useful when you want access to multiple model families without managing separate API keys, or when you want automatic model selection.
+
+```ini
+# API key from openrouter.ai — required to enable the provider.
+OPENROUTER_API_KEY=sk-or-...
+
+# API base URL. The default is correct for the public service.
+OPENROUTER_API_BASE=https://openrouter.ai/api/v1
+
+# Default model. "openrouter/auto" lets OpenRouter pick the best available
+# model for each request. You can also pin a specific model, e.g.:
+#   openai/gpt-4o-mini
+#   anthropic/claude-3-haiku
+#   meta-llama/llama-3.1-8b-instruct
+OPENROUTER_DEFAULT_MODEL=openrouter/auto
+
+# Set to 'true' if the configured model supports tool/function calling.
+# Most capable models on OpenRouter do; openrouter/auto routes to one that does.
+OPENROUTER_SUPPORTS_TOOLS=true
+```
+
+The provider is considered configured when `OPENROUTER_API_KEY` is non-empty.
+
+Each request includes `HTTP-Referer` and `X-Title: BinktermPHP` headers, which OpenRouter uses for attribution and usage tracking on their dashboard.
+
+#### Pricing with OpenRouter
+
+OpenRouter returns the actual USD cost of each request in the response body (`usage.cost`). The provider reads this value directly and stores it in `ai_requests.estimated_cost_usd`, so cost tracking works automatically for all models including `openrouter/auto` — no `AI_PRICE_OPENROUTER_*` env vars are needed. If OpenRouter does not return a cost value for a particular response, the provider falls back to the static pricing calculation.
+
+OpenRouter publishes per-model pricing at [openrouter.ai/models](https://openrouter.ai/models). Model names in pricing keys follow the same normalization as other providers — the `/` separator becomes `_`. For example:
+
+| Model | Pricing key prefix |
+|-------|--------------------|
+| `openai/gpt-4o-mini` | `AI_PRICE_OPENROUTER_OPENAI_GPT_4O_MINI_` |
+| `anthropic/claude-3-haiku` | `AI_PRICE_OPENROUTER_ANTHROPIC_CLAUDE_3_HAIKU_` |
+| `meta-llama/llama-3.1-8b-instruct` | `AI_PRICE_OPENROUTER_META_LLAMA_LLAMA_3_1_8B_INSTRUCT_` |
 
 ### Ollama
 
@@ -290,6 +332,18 @@ AI_PRICE_OLLAMA_INPUT_PER_MILLION_USD=0.10
 AI_PRICE_OLLAMA_OUTPUT_PER_MILLION_USD=0.30
 ```
 
+### OpenRouter — auto-routing
+
+```ini
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_DEFAULT_MODEL=openrouter/auto
+OPENROUTER_SUPPORTS_TOOLS=true
+
+AI_DEFAULT_PROVIDER=openrouter
+```
+
+OpenRouter returns the actual cost of each request in the response, so cost tracking works automatically in the usage dashboard — no pricing env vars are needed.
+
 ### Mixed — Ollama for most features, Anthropic for translation
 
 ```ini
@@ -348,6 +402,8 @@ The model name is uppercased and any non-alphanumeric character (hyphens, dots, 
 | OpenAI | `gpt-4o` | `AI_PRICE_OPENAI_GPT_4O_` |
 | Ollama | `llama3.2` | `AI_PRICE_OLLAMA_LLAMA3_2_` |
 | Ollama | `ministral-3:3b-cloud` | `AI_PRICE_OLLAMA_MINISTRAL_3_3B_CLOUD_` |
+| OpenRouter | `openai/gpt-4o-mini` | `AI_PRICE_OPENROUTER_OPENAI_GPT_4O_MINI_` |
+| OpenRouter | `anthropic/claude-3-haiku` | `AI_PRICE_OPENROUTER_ANTHROPIC_CLAUDE_3_HAIKU_` |
 
 Append `INPUT_PER_MILLION_USD` or `OUTPUT_PER_MILLION_USD` to the prefix to form the full key, e.g. `AI_PRICE_ANTHROPIC_CLAUDE_HAIKU_4_5_20251001_INPUT_PER_MILLION_USD`.
 
@@ -513,6 +569,7 @@ Check that at least one provider is configured:
 - `OPENAI_API_KEY` — required for OpenAI
 - `ANTHROPIC_API_KEY` — required for Anthropic
 - `OLLAMA_API_BASE` — required for Ollama (no key needed)
+- `OPENROUTER_API_KEY` — required for OpenRouter
 
 ### Requests Fail With Network Errors
 

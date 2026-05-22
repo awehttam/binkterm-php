@@ -69,10 +69,15 @@ class AnsiTextField extends AnsiFormField
             $result = $server->readMultiline($conn, $state, $state['cols'] ?? 80, $this->value, $this->editorContext);
         } else {
             // Inline single-line prompt — clear screen for a clean edit context
+            $styleProfile = TelnetUtils::getStyleProfile($state);
+            $listScheme = $styleProfile['list'] ?? [];
+            $dialogScheme = $styleProfile['dialog'] ?? [];
+            $titleColor = (string)($listScheme['title'] ?? (TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+            $promptColor = (string)($dialogScheme['choice_key'] ?? TelnetUtils::ANSI_CYAN);
             $server->safeWrite($conn, "\033[2J\033[H");
             $server->writeLine($conn, TelnetUtils::colorize(
                 "Edit: {$this->label}",
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+                $titleColor
             ));
             $server->writeLine($conn, '');
             if ($this->value !== '') {
@@ -85,7 +90,7 @@ class AnsiTextField extends AnsiFormField
             $result = $server->prompt(
                 $conn,
                 $state,
-                TelnetUtils::colorize('  New value (blank = keep current): ', TelnetUtils::ANSI_CYAN),
+                TelnetUtils::colorize('  New value (blank = keep current): ', $promptColor),
                 true
             );
 
@@ -106,11 +111,15 @@ class AnsiTextField extends AnsiFormField
 
     // ── Rendering ────────────────────────────────────────────────────────────
 
-    public function renderValue(bool $active, bool $ansiColor, bool $isUtf8): string
+    public function renderValue(bool $active, bool $ansiColor, bool $isUtf8, array $styleProfile = []): string
     {
         // Collapse newlines to a single preview line
         $preview = str_replace(["\r\n", "\r", "\n"], ' / ', $this->value);
         $preview = mb_substr($preview, 0, 38);
+        $dialogScheme = $styleProfile['dialog'] ?? [];
+        $listScheme = $styleProfile['list'] ?? [];
+        $activeColor = (string)($dialogScheme['hint'] ?? (TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD));
+        $previewColor = (string)($listScheme['title'] ?? (TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
 
         if (!$this->enabled) {
             $text = $preview !== '' ? $preview : '(empty)';
@@ -121,11 +130,13 @@ class AnsiTextField extends AnsiFormField
             $display = $preview !== '' ? $preview : $this->placeholder;
             $text    = "[{$display}]";
             return $ansiColor
-                ? TelnetUtils::colorize($text, TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD)
+                ? TelnetUtils::colorize($text, $activeColor)
                 : $text;
         }
 
-        if ($preview !== '') { return $preview; }
+        if ($preview !== '') {
+            return $ansiColor ? TelnetUtils::colorize($preview, $previewColor) : $preview;
+        }
         $hint = "({$this->placeholder})";
         return $ansiColor ? TelnetUtils::colorize($hint, TelnetUtils::ANSI_DIM) : $hint;
     }

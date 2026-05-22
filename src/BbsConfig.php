@@ -160,6 +160,76 @@ class BbsConfig
         return max(self::getTerminalIdleWarnSeconds() + 60, $minutes * 60);
     }
 
+    /**
+     * @return string The sysop-configured default shell: 'tui' or 'line'.
+     */
+    public static function getTerminalDefaultShell(): string
+    {
+        self::load();
+        $shell = strtolower(trim((string)(self::$config['terminal_server']['default_shell'] ?? 'tui')));
+        return self::normalizeTerminalShell($shell);
+    }
+
+    /**
+     * @return bool Whether the sysop forces all sessions to use the system default shell, ignoring user preference.
+     */
+    public static function getTerminalForceShell(): bool
+    {
+        self::load();
+        return !empty(self::$config['terminal_server']['force_shell']);
+    }
+
+    /**
+     * Return the shell modes sysops allow users to select via TERMSERVER_ALLOWEDSHELLS.
+     *
+     * The environment variable accepts a space-separated list such as "tui line".
+     * When unset or empty, only the TUI shell is user-selectable.
+     *
+     * @return array<int, string>
+     */
+    public static function getAllowedTerminalShells(): array
+    {
+        $raw = trim((string)Config::env('TERMSERVER_ALLOWEDSHELLS', 'tui'));
+        if ($raw === '') {
+            return ['tui'];
+        }
+
+        $registered = TerminalShellRegistry::getRegisteredShellIds();
+        $allowed = [];
+        foreach (preg_split('/\s+/', $raw) ?: [] as $shell) {
+            $normalized = strtolower(trim((string)$shell));
+            if (in_array($normalized, $registered, true) && !in_array($normalized, $allowed, true)) {
+                $allowed[] = $normalized;
+            }
+        }
+
+        return $allowed !== [] ? $allowed : ['tui'];
+    }
+
+    public static function isTerminalShellAllowed(string $shell): bool
+    {
+        $normalized = strtolower(trim($shell));
+        return in_array($normalized, self::getAllowedTerminalShells(), true);
+    }
+
+    /**
+     * Normalize a requested shell name, falling back to TUI for invalid or disallowed values.
+     */
+    public static function normalizeTerminalShell(string $shell, string $fallback = 'tui'): string
+    {
+        $normalized = strtolower(trim($shell));
+        if (self::isTerminalShellAllowed($normalized)) {
+            return $normalized;
+        }
+
+        $fallback = strtolower(trim($fallback));
+        if (in_array($fallback, TerminalShellRegistry::getRegisteredShellIds(), true)) {
+            return $fallback;
+        }
+
+        return TerminalShellRegistry::getRegisteredShellIds()[0] ?? 'tui';
+    }
+
     public static function getEchomailModerationThreshold(): int
     {
         self::load();

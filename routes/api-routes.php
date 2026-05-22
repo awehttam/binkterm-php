@@ -1951,6 +1951,35 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/echoareas/recent', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $isAdmin = !empty($user['is_admin']);
+        $offset = max(0, (int)($_GET['offset'] ?? 0));
+        $limit = min(50, max(1, (int)($_GET['limit'] ?? 8)));
+
+        $db = Database::getInstance()->getPdo();
+        $sysopFilter = $isAdmin ? "" : " AND COALESCE(is_sysop_only, FALSE) = FALSE";
+
+        $stmt = $db->prepare("
+            SELECT id, tag, domain, description, created_at
+            FROM echoareas
+            WHERE is_active = TRUE
+              AND created_at >= NOW() - INTERVAL '30 days'
+              {$sysopFilter}
+            ORDER BY created_at DESC, tag ASC
+            LIMIT :limit OFFSET :offset
+        ");
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $areas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode(['areas' => $areas]);
+    });
+
     SimpleRouter::get('/echoareas', function() {
         $user = RouteHelper::requireAuth();
 
@@ -1989,7 +2018,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.last_post_subject as last_subject,
                     e.last_post_author  as last_author,
                     e.last_post_date    as last_date,
-                    e.allow_media
+                    e.allow_media,
+                    ues_my.is_active as subscribed
                 FROM echoareas e";
 
         // Add subscription filtering if requested
@@ -2015,7 +2045,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     FROM user_echoarea_subscriptions
                     WHERE is_active = TRUE
                     GROUP BY echoarea_id
-                ) sub_counts ON e.id = sub_counts.echoarea_id";
+                ) sub_counts ON e.id = sub_counts.echoarea_id
+                LEFT JOIN user_echoarea_subscriptions ues_my ON e.id = ues_my.echoarea_id AND ues_my.user_id = ? AND ues_my.is_active = TRUE";
 
         $params[] = $userId;
         foreach ($ignoreFilter['params'] as $param) {
@@ -2024,6 +2055,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         foreach ($moderationFilter['params'] as $param) {
             $params[] = $param;
         }
+        $params[] = $userId; // for ues_my subscription status JOIN
 
         if ($subscribedOnly === 'true') {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions
@@ -5535,6 +5567,66 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    // Netmail bulk read endpoint - must come before parameterized routes
+    SimpleRouter::post('/messages/netmail/read', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $messageIds = $input['messageIds'] ?? [];
+
+        if (empty($messageIds) || !is_array($messageIds)) {
+            http_response_code(400);
+            apiError('errors.messages.netmail.bulk_read.invalid_input', apiLocalizedText('errors.messages.netmail.bulk_read.invalid_input', 'A non-empty message ID list is required', $user));
+            return;
+        }
+
+        $userId = (int)$user['user_id'];
+        $db = Database::getInstance()->getPdo();
+        $marked = 0;
+
+        try {
+            $db->beginTransaction();
+            $stmt = $db->prepare("
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
+                VALUES (?, ?, 'netmail', NOW())
+                ON CONFLICT (user_id, message_id, message_type) DO UPDATE SET
+                    read_at = EXCLUDED.read_at
+            ");
+
+            foreach ($messageIds as $id) {
+                $stmt->execute([$userId, (int)$id]);
+                $marked++;
+            }
+
+            $db->commit();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            getServerLogger()->error('[netmail bulk read] Failed to persist read status: ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.messages.netmail.bulk_read.failed', apiLocalizedText('errors.messages.netmail.bulk_read.failed', 'Failed to mark messages as read', $user));
+            return;
+        }
+
+        try {
+            \BinktermPHP\Realtime\BinkStream::emit($db, 'message_read', [
+                'message_ids' => array_map('intval', $messageIds),
+                'message_type' => 'netmail',
+            ], $userId);
+        } catch (\Throwable $e) {
+            getServerLogger()->warning('[netmail bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
+        }
+
+        echo json_encode([
+            'success' => true,
+            'marked' => $marked,
+            'total' => count($messageIds)
+        ]);
+    });
+
     SimpleRouter::get('/messages/netmail/{id}', function($id) {
         $user = RouteHelper::requireAuth();
 
@@ -7550,6 +7642,41 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ]
         ]);
     });
+
+    SimpleRouter::get('/user/public-profile/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare('
+            SELECT id, username, real_name, location, about_me
+            FROM users
+            WHERE id = ? AND is_active = TRUE
+            LIMIT 1
+        ');
+        $stmt->execute([(int)$id]);
+        $targetUser = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$targetUser) {
+            apiError(
+                'errors.user.stats.user_not_found',
+                apiLocalizedText('errors.user.stats.user_not_found', 'User not found', $user),
+                404
+            );
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'profile' => [
+                'user_id' => (int)$targetUser['id'],
+                'username' => (string)($targetUser['username'] ?? ''),
+                'real_name' => (string)($targetUser['real_name'] ?? ''),
+                'location' => (string)($targetUser['location'] ?? ''),
+                'about_me' => (string)($targetUser['about_me'] ?? ''),
+            ],
+        ]);
+    })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/user/change-password', function() {
         $user = RouteHelper::requireAuth();
@@ -9694,6 +9821,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $settings = [
             'terminal_charset'    => $meta->getValue((int)$userId, 'terminal_charset'),
             'terminal_ansi_color' => $meta->getValue((int)$userId, 'terminal_ansi_color'),
+            'term_shell_mode'     => $meta->getValue((int)$userId, 'term_shell_mode'),
         ];
         echo json_encode(['success' => true, 'settings' => $settings]);
     });
@@ -9705,7 +9833,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $body     = json_decode(file_get_contents('php://input'), true) ?? [];
         $settings = $body['settings'] ?? $body; // accept both wrapped and flat
-        $allowed  = ['terminal_charset' => ['utf8','cp437','ascii'], 'terminal_ansi_color' => ['yes','no']];
+        $allowedShellModes = array_merge(['auto'], \BinktermPHP\BbsConfig::getAllowedTerminalShells());
+        $allowed  = ['terminal_charset' => ['utf8','cp437','ascii'], 'terminal_ansi_color' => ['yes','no'], 'term_shell_mode' => $allowedShellModes];
         $meta     = new \BinktermPHP\UserMeta();
         foreach ($allowed as $key => $validValues) {
             if (isset($settings[$key])) {
@@ -9732,8 +9861,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'terminal_netmail_page' => $meta->getValue((int)$userId, 'terminal_netmail_page'),
             'terminal_netmail_selected_message_id' => $meta->getValue((int)$userId, 'terminal_netmail_selected_message_id'),
             'terminal_netmail_folder' => $meta->getValue((int)$userId, 'terminal_netmail_folder'),
+            'terminal_netmail_sort' => $meta->getValue((int)$userId, 'terminal_netmail_sort'),
             'terminal_echomail_areas_page' => $meta->getValue((int)$userId, 'terminal_echomail_areas_page'),
             'terminal_echomail_positions' => $meta->getValue((int)$userId, 'terminal_echomail_positions'),
+            'terminal_echomail_sort' => $meta->getValue((int)$userId, 'terminal_echomail_sort'),
             'terminal_chat_target' => $meta->getValue((int)$userId, 'terminal_chat_target'),
         ];
 
@@ -9825,6 +9956,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $meta->setValue((int)$userId, 'terminal_echomail_positions', $encoded);
         }
 
+        if (array_key_exists('terminal_echomail_sort', $settings)) {
+            $sort = $settings['terminal_echomail_sort'];
+            if ($sort === null || $sort === '') {
+                $meta->setValue((int)$userId, 'terminal_echomail_sort', null);
+            } elseif (in_array($sort, ['date_desc', 'date_asc', 'subject', 'author'], true)) {
+                $meta->setValue((int)$userId, 'terminal_echomail_sort', $sort);
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_echomail_sort']);
+                return;
+            }
+        }
+
         if (array_key_exists('terminal_netmail_folder', $settings)) {
             $folder = $settings['terminal_netmail_folder'];
             if ($folder === null || $folder === '') {
@@ -9834,6 +9978,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             } else {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_netmail_folder']);
+                return;
+            }
+        }
+
+        if (array_key_exists('terminal_netmail_sort', $settings)) {
+            $sort = $settings['terminal_netmail_sort'];
+            if ($sort === null || $sort === '') {
+                $meta->setValue((int)$userId, 'terminal_netmail_sort', null);
+            } elseif (in_array($sort, ['date_desc', 'date_asc', 'subject', 'author'], true)) {
+                $meta->setValue((int)$userId, 'terminal_netmail_sort', $sort);
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_netmail_sort']);
                 return;
             }
         }
@@ -10851,6 +11008,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $nodes[] = [
                 'address'     => $node['full_address'],
                 'system_name' => $node['system_name'] ?? '',
+                'sysop_name'  => $node['sysop_name']  ?? '',
                 'location'    => $node['location']     ?? '',
                 'domain'      => $node['domain']       ?? '',
             ];
@@ -12472,6 +12630,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'terminal' => [
                 'terminal_charset'    => $meta->getValue((int)$userId, 'terminal_charset'),
                 'terminal_ansi_color' => $meta->getValue((int)$userId, 'terminal_ansi_color'),
+                'term_shell_mode'     => $meta->getValue((int)$userId, 'term_shell_mode'),
             ],
             'idle' => [
                 'warn_seconds'       => \BinktermPHP\BbsConfig::getTerminalIdleWarnSeconds(),

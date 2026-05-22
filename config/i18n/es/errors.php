@@ -57,6 +57,8 @@ return [
     'errors.messages.netmail.not_found' => 'Mensaje no encontrado',
     'errors.messages.netmail.delete_failed' => 'No se pudo eliminar el mensaje',
     'errors.messages.netmail.bulk_delete.invalid_input' => 'Se requiere una lista de IDs de mensajes no vacia',
+    'errors.messages.netmail.bulk_read.invalid_input' => 'Se requiere una lista de IDs de mensajes no vacia',
+    'errors.messages.netmail.bulk_read.failed' => 'No se pudieron marcar los mensajes como leidos',
     'errors.messages.echomail.bulk_read.invalid_input' => 'Se requiere una lista de IDs de mensajes no vacia',
     'errors.messages.echomail.bulk_read.failed' => 'No se pudieron marcar los mensajes como leidos',
     'errors.messages.echomail.bulk_delete.admin_required' => 'Se requieren privilegios de administrador',

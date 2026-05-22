@@ -3,11 +3,17 @@
 namespace BinktermPHP\TelnetServer;
 
 /**
- * TerminalSettingsHandler — terminal capability detection wizard and settings page.
+ * TerminalSettingsHandler — terminal capability detection wizard support.
  *
  * Detects UTF-8 vs CP437 charset support and ANSI color capability by showing
  * the user test characters and asking confirmation questions. Results are saved
  * as user meta preferences via the API and applied to the current session.
+ *
+ * The standalone terminal settings menu previously housed here has been retired
+ * in favor of the abstraction-backed tabbed settings UI in SettingsHandler.
+ * The detection wizard itself intentionally remains a raw prompt flow because it
+ * must function before shell-specific widgets can be trusted to render
+ * correctly.
  */
 class TerminalSettingsHandler
 {
@@ -31,15 +37,18 @@ class TerminalSettingsHandler
         if ($preloaded !== null) {
             $state['terminal_charset']    = $preloaded['terminal_charset']    ?? null;
             $state['terminal_ansi_color'] = $preloaded['terminal_ansi_color'] ?? null;
+            $state['term_shell_mode']     = $preloaded['term_shell_mode']     ?? null;
         } else {
             $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user/terminal-settings', null, $session);
             if (($response['status'] ?? 0) === 200 && isset($response['data']['settings'])) {
                 $settings = $response['data']['settings'];
                 $state['terminal_charset']    = $settings['terminal_charset'] ?? null;
                 $state['terminal_ansi_color'] = $settings['terminal_ansi_color'] ?? null;
+                $state['term_shell_mode']     = $settings['term_shell_mode']     ?? null;
             } else {
                 $state['terminal_charset']    = null;
                 $state['terminal_ansi_color'] = null;
+                $state['term_shell_mode']     = null;
             }
         }
         $this->server->applyTerminalSettings($state);
@@ -64,6 +73,11 @@ class TerminalSettingsHandler
 
     /**
      * Interactive terminal capability detection wizard.
+     *
+     * This flow intentionally bypasses the shell abstraction and uses direct
+     * prompt/write output. The wizard exists specifically to determine whether
+     * shell-specific rendering can be trusted at all, so it must stay on the
+     * lowest-common-denominator prompt path for every shell.
      *
      * Tests UTF-8 charset support and ANSI color capability, saves results,
      * and applies them to the current session state.
@@ -210,128 +224,5 @@ class TerminalSettingsHandler
                 'Press Enter to continue...', [], $locale), TelnetUtils::ANSI_CYAN),
             true
         );
-    }
-
-    /**
-     * Terminal settings page — view and change current settings.
-     */
-    public function show($conn, array &$state, string $session): void
-    {
-        $locale = $state['locale'] ?? 'en';
-
-        while (true) {
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.settings.title', '=== Terminal Settings ===', [], $locale),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, '');
-
-            $charsetVal = $state['terminal_charset'] ?? null;
-            $colorVal   = $state['terminal_ansi_color'] ?? null;
-            $notSet     = $this->server->t('ui.terminalserver.settings.not_set', 'Not configured', [], $locale);
-
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.settings.charset_label',
-                'Character set : {value}', ['value' => $charsetVal ?? $notSet], $locale));
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.settings.ansi_label',
-                'ANSI color    : {value}', ['value' => $colorVal ?? $notSet], $locale));
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.settings.menu_detect',
-                'D) Run detection wizard', [], $locale));
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.settings.menu_charset',
-                'C) Change character set manually', [], $locale));
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.settings.menu_ansi',
-                'A) Toggle ANSI color', [], $locale));
-            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.settings.menu_quit',
-                'Q) Return to main menu', [], $locale));
-            TelnetUtils::writeLine($conn, '');
-
-            $choice = $this->server->prompt($conn, $state,
-                TelnetUtils::colorize('> ', TelnetUtils::ANSI_CYAN), true);
-            if ($choice === null) {
-                return;
-            }
-            $choice = strtolower(trim($choice));
-
-            if ($choice === 'q' || $choice === '') {
-                return;
-            }
-
-            if ($choice === 'd') {
-                $this->runDetectionWizard($conn, $state, $session);
-            } elseif ($choice === 'c') {
-                $this->manualCharset($conn, $state, $session, $locale);
-            } elseif ($choice === 'a') {
-                $this->toggleAnsiColor($conn, $state, $session, $locale);
-            }
-        }
-    }
-
-    /**
-     * Manually select character set.
-     */
-    private function manualCharset($conn, array &$state, string $session, string $locale): void
-    {
-        TelnetUtils::writeLine($conn, '');
-        $prompt = TelnetUtils::colorize(
-            $this->server->t('ui.terminalserver.settings.charset_prompt',
-                'Select: (U)TF-8, (C)P437, (A)SCII: ', [], $locale),
-            TelnetUtils::ANSI_CYAN
-        );
-        $answer = $this->server->prompt($conn, $state, $prompt, true);
-        if ($answer === null) {
-            return;
-        }
-        $charsetMap = ['u' => 'utf8', 'c' => 'cp437', 'a' => 'ascii'];
-        $charset    = $charsetMap[strtolower(trim($answer))] ?? null;
-        if ($charset === null) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.settings.invalid_choice', 'Invalid choice.', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ));
-            return;
-        }
-        $state['terminal_charset'] = $charset;
-        $saved = $this->saveSettings([
-            'terminal_charset' => $charset,
-            'terminal_ansi_color' => $state['terminal_ansi_color'] ?? 'yes',
-        ], $session, $state['csrf_token'] ?? null);
-        $this->server->applyTerminalSettings($state);
-        if ($saved) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.settings.saved', 'Settings saved.', [], $locale),
-                TelnetUtils::ANSI_GREEN
-            ));
-        } else {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.settings.save_failed', 'Failed to save settings.', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ));
-        }
-    }
-
-    /**
-     * Toggle ANSI color on/off.
-     */
-    private function toggleAnsiColor($conn, array &$state, string $session, string $locale): void
-    {
-        $current = ($state['terminal_ansi_color'] ?? 'yes') === 'yes' ? 'yes' : 'no';
-        $new     = $current === 'yes' ? 'no' : 'yes';
-        $state['terminal_ansi_color'] = $new;
-        $saved = $this->saveSettings([
-            'terminal_charset' => $state['terminal_charset'] ?? 'utf8',
-            'terminal_ansi_color' => $new,
-        ], $session, $state['csrf_token'] ?? null);
-        $this->server->applyTerminalSettings($state);
-        $label = $new === 'yes'
-            ? $this->server->t('ui.terminalserver.detect.ansi_yes', 'ANSI color enabled.', [], $locale)
-            : $this->server->t('ui.terminalserver.detect.ansi_no', 'ANSI color disabled.', [], $locale);
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($label, TelnetUtils::ANSI_GREEN));
-        if (!$saved) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.settings.save_failed', 'Failed to save settings.', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ));
-        }
     }
 }

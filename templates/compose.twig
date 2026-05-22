@@ -216,7 +216,6 @@
                     <textarea class="form-control" id="messageText" name="message_text"
                               rows="15" required>{{ reply_text }}</textarea>
                     <input type="file" id="insertFileInput" style="display: none;">
-                    <input type="file" id="insertImageInput" accept="image/*" style="display: none;">
                     <div class="d-flex justify-content-between align-items-center mt-1">
                         <div class="form-text mb-0" id="messageTextHint">
                             {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
@@ -740,7 +739,7 @@ $('#insertFileBtn').on('click', function() {
 });
 
 $('#insertImageBtn, #insertImageBtnSc').on('click', function() {
-    $('#insertImageInput').val('').trigger('click');
+    showMdImageModal();
 });
 
 const MESSAGE_MAX_BYTES = 16384;
@@ -794,54 +793,6 @@ $('#insertFileInput').on('change', function() {
         }
     };
     reader.readAsArrayBuffer(file);
-});
-
-$('#insertImageInput').on('change', function() {
-    const file = this.files[0];
-    if (!file) return;
-
-    const btn = $('#insertImageBtn');
-    const originalHtml = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
-
-    const formData = new FormData();
-    formData.append('image', file);
-
-    $.ajax({
-        url: '/api/markdown-images',
-        method: 'POST',
-        data: formData,
-        contentType: false,
-        processData: false,
-        success: function(data) {
-            if (data.success && data.url) {
-                const ta    = document.getElementById('messageText');
-                const start = ta.selectionStart;
-                const end   = ta.selectionEnd;
-                const url   = data.url;
-                ta.value = ta.value.substring(0, start) + url + ta.value.substring(end);
-                ta.selectionStart = ta.selectionEnd = start + url.length;
-                ta.focus();
-            } else {
-                const msg = window.getApiErrorMessage
-                    ? window.getApiErrorMessage(data, window.t ? window.t('errors.markdown_images.upload_failed', {}, 'Upload failed') : 'Upload failed')
-                    : 'Upload failed';
-                alert(msg);
-            }
-        },
-        error: function(xhr) {
-            let payload = {};
-            try { payload = JSON.parse(xhr.responseText); } catch (e) {}
-            const msg = window.getApiErrorMessage
-                ? window.getApiErrorMessage(payload, window.t ? window.t('errors.markdown_images.upload_failed', {}, 'Upload failed') : 'Upload failed')
-                : 'Upload failed';
-            alert(msg);
-        },
-        complete: function() {
-            btn.prop('disabled', false).html(originalHtml);
-            $('#insertImageInput').val('');
-        }
-    });
 });
 
 function updateMarkdownSection(allowed) {
@@ -1332,14 +1283,25 @@ function mdImageUpload(file, altOverride) {
 }
 
 /**
- * Insert an image into the TUI editor at the current cursor position.
+ * Insert an image into the active compose surface at the current cursor position.
  * @param {string} url
  * @param {string} alt
  */
 function mdImageDoInsert(url, alt) {
-    if (!tuiEditor) return;
-    tuiEditor.exec('addImage', { imageUrl: url, altText: alt || 'image' });
-    tuiEditor.focus();
+    if (mdEditorActive && tuiEditor) {
+        tuiEditor.exec('addImage', { imageUrl: url, altText: alt || 'image' });
+        tuiEditor.focus();
+    } else {
+        const ta = document.getElementById('messageText');
+        if (!ta) return;
+
+        const start = ta.selectionStart;
+        const end   = ta.selectionEnd;
+        ta.value = ta.value.substring(0, start) + url + ta.value.substring(end);
+        ta.selectionStart = ta.selectionEnd = start + url.length;
+        ta.focus();
+    }
+
     bootstrap.Modal.getOrCreateInstance(document.getElementById('mdImageModal')).hide();
 }
 

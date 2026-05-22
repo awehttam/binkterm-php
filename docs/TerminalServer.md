@@ -20,6 +20,31 @@ Access methods:
 Each transport daemon has additional extension requirements — see
 [TelnetServer.md](TelnetServer.md) and [SSHServer.md](SSHServer.md).
 
+## Shell Availability
+
+The `.env` variable `TERMSERVER_ALLOWEDSHELLS` controls which terminal shell
+modes users and sysops may select. It accepts a space-separated list of shell
+IDs registered with the terminal shell registry. Built-in shell IDs are:
+
+- `tui`
+- `line`
+
+Examples:
+
+- `TERMSERVER_ALLOWEDSHELLS=tui` — only the full-screen TUI shell is selectable
+- `TERMSERVER_ALLOWEDSHELLS=tui line` — both shells are selectable
+- `TERMSERVER_ALLOWEDSHELLS=tui retroglass` — built-in TUI plus a custom shell plugin
+
+If the variable is unset or empty, BinktermPHP defaults to `tui` only. The
+terminal settings screen and **Admin -> BBS Settings -> Terminal Server
+Settings** only show the shells permitted by this allowlist. If an older saved
+preference or other request tries to use a shell that is no longer allowed, the
+session falls back to the TUI shell.
+
+Custom shells can be added by placing plugin definition files in
+`telnet/shells/`. See `telnet/shells/README.md` and
+[TerminalServerDevGuide.md](TerminalServerDevGuide.md) for the plugin format.
+
 ## Core Functionality
 
 - Netmail browsing, reading, composing, replying, and sending
@@ -28,13 +53,16 @@ Each transport daemon has additional extension requirements — see
 - File areas browsing with ZMODEM downloads and uploads
 - Bulletins (read-only system announcements posted by admins)
 - Polls (view/vote/create where enabled)
+- Terminal shell abstraction for feature-level UI intents, with a widget-backed TUI path and a prompt-driven line shell path for narrow or low-capability sessions
 - Shoutbox (view/post where enabled)
 - Local chat with rooms, direct messages, online users, and moderation shortcuts
 - BBS Directory (browse other BBSes when enabled)
 - Nodelist browser (browse Fidonet nodelist entries when available)
 - Interests (tag-based content interests when enabled)
 - Door launcher integration (DOS doors, native doors, and configured door menu)
+- After a DOS door exits, the terminal server sends a soft terminal reset / normal-mode restore sequence before redrawing the BBS UI. This clears common leftover door state such as alternate-screen mode, hidden cursor, application keypad/cursor mode, and incomplete DCS/sixel parsing.
 - Who's Online display
+- Reusable public profile viewer for terminal user lookups
 - Full-screen message editor with cursor navigation and line editing controls
 - ANSI color and screen-aware rendering (auto-detected on Telnet via TTYPE negotiation)
 - Sixel image rendering for terminal clients that support it
@@ -43,6 +71,8 @@ Each transport daemon has additional extension requirements — see
 
 ## Features
 
+The terminal server uses a shell abstraction layer (`TuiShell` for normal-size terminals, `LineShell` for narrow or low-capability sessions) to present UI intents consistently across feature handlers. For architecture details, the widget reference, shell selection rules, style profile, and developer patterns see [Terminal Server Developer Guide](TerminalServerDevGuide.md).
+
 ### Screen-Aware Display
 
 - Automatically detects terminal dimensions via NAWS (Negotiate About Window Size)
@@ -50,7 +80,11 @@ Each transport daemon has additional extension requirements — see
 - Prevents list overflow on different terminal sizes
 - Dynamic pagination based on terminal rows
 - Terminal resize events are processed in real time during key-wait loops — the main menu re-renders immediately when the window is resized, without requiring a keypress
+- SyncTERM compatibility: when the terminal type is reported as `syncterm`, the server asks SyncTERM to disable its local bottom status line so the BBS can use the full negotiated height during resize-aware layouts
 - On narrow terminals, the fallback main-menu header truncates cleanly and prefers keeping the BBS name visible before dropping the clock
+- On short terminals, all selector screens (netmail inbox, echomail list, file areas, etc.) clip content from the **bottom** — the title row and header are always rendered first and never scrolled off. The status bar is always anchored to the last terminal row.
+- On narrow terminals, list rows are ANSI-aware truncated at the right edge so colors (bold unread, cyan row numbers, etc.) are preserved. The status bar is likewise hard-capped to one line so it cannot wrap and cause the screen to scroll.
+- The main menu clips lower menu sections from the bottom on short terminals so the box header (status line, box border, "Main Menu" title) always remains visible.
 
 ### Message Browsing
 
@@ -59,27 +93,59 @@ Each transport daemon has additional extension requirements — see
 - View message details with headers
 - Thread awareness and proper message display
 - ANSI color support for enhanced readability
+- **Unread messages are displayed in bold** in both the echomail and netmail message lists. Once a message is opened and marked read, it renders at normal weight the next time the list is shown.
 - Netmail reader supports **Inbox** and **Sent** folder views — press `S` from the message list to toggle. The active folder is persisted per user across sessions. In Sent view, the message header shows the recipient (`To:`) instead of the sender, and replying pre-fills the original recipient's address.
+- Press `B` in the netmail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. The status bar label toggles between **Bookmark** and **Unsave** to reflect the current state.
+- Press `E` in the netmail viewer to forward the current message to the logged-in user's email address. Requires outbound email to be configured on the BBS; an error is shown inline if it is not.
+- Press `B` in the echomail viewer to bookmark (save) a message for later. Pressing `B` again unsaves it. Bookmarked messages appear under the **Saved** filter in the web interface.
+- Press `T` in the echomail viewer to download the current message as a plain-text `.txt` file via ZMODEM. The filename is derived from the message subject. Uses the built-in ZMODEM implementation by default; no additional software required.
+- Press `E` in the echomail viewer to forward the current message to the logged-in user's email address. Requires outbound email to be configured on the BBS; an error is shown inline if it is not.
+- Press `F` in the echomail viewer to forward the current message. A dialog prompts the user to choose **Echomail** (forward to another subscribed echoarea — opens compose pre-filled with a `Fwd:` subject, attribution header, and quoted body) or **Netmail** (forward as a netmail to an FTN address — uses the standard netmail compose flow). The source echoarea appears in the attribution header in both cases.
+- Press `G` in the echomail viewer to **add an ignore rule** for the current message's sender. A sub-menu offers three options: **By sender name** (hides all future messages from that name), **By FTN address** (hides messages from that name at that address — only shown if the message carries an FTN address), and **Subject keyword** (hides future messages from that sender whose subject contains the given keyword). Options 1 and 2 show a confirmation dialog pre-filled from the message header; option 3 prompts for a keyword string. The rule is saved via `POST /api/messages/echomail/ignore-rules`. `G` is available in the Ctrl-K help overlay only (not the status bar).
+- Press `G` from the **echoarea list** to open the **Ignore Rules** management screen. Rules are fetched from `GET /api/user/echomail-ignore-rules` and displayed in a paginated selectable list. Each row shows the sender name and, where set, the FTN address and subject keyword. Select a rule and press Enter or `D` to delete it after confirmation via `DELETE /api/user/echomail-ignore-rules/{id}`. `G` appears in the Ctrl-K help overlay on the echoarea list.
+- The **echoarea list** (the screen showing your subscribed areas) uses the same navigable list interface as message lists. Arrow Up/Down moves the highlight cursor; Arrow Left/Right (or `n`/`p`) changes pages; Enter selects the highlighted area; typing a number jumps the cursor to that row. A status bar at the bottom shows available actions. Press `/` to filter the list by tag or description, `C` to clear the filter, and (when Interests is enabled) `I` to open the interests browser. The list redraws immediately on terminal resize.
+- The **file areas list** and the **per-area file browser** now use the same navigable selector interface as echomail. Arrow Up/Down moves the highlight cursor, Arrow Left/Right changes pages, Enter opens the highlighted area or file, and typing a number jumps to that row before Enter confirms it. The file browser keeps folders first, files second, and exposes download/upload/up-folder actions through the status bar.
+- Opening a file from the terminal file browser now shows a centered **file info modal** instead of a full-screen text page. The modal matches the terminal dialog style, supports live resize, and allows scrolling long descriptions with Up/Down or PgUp/PgDn before closing with `B`, `Q`, or Enter. When downloads are enabled, pressing `D` from the modal downloads the current file directly.
+- Selecting an **empty echomail area** (one with no messages yet) now opens the message list interface as normal. The area title and status bar are displayed, and the user can press `C` to compose a new message or `Q` to return to the echoarea list. Previously, entering an empty area immediately printed "No echomail messages." and returned the user to the list without allowing interaction.
+- Press `A` from the echoarea list to **toggle between "My Areas" (subscribed only) and "All Areas"** (every area on the BBS). In All Areas mode each row shows a `[+]` badge when you are subscribed or `[ ]` when you are not. Selecting an unsubscribed area shows a dialog offering **Subscribe & Browse**, **Browse Only**, or **Cancel**. Press `U` on any subscribed area to **unsubscribe** via a confirmation dialog. If your subscribed list is empty, pressing `A` switches directly to All Areas so you can discover and subscribe to areas without leaving the terminal.
+- The **interests browser** (opened with `I` from the echoarea list) uses the same navigable list interface: arrow keys or number+Enter to select an interest, Q to return to the echoarea list.
+- Press `S` from the echoarea list to **search all subscribed echomail areas**. Enter a search term (minimum 2 characters); results from all areas are shown in a flat list with the area tag prepended to the From column. Press `S` from within a specific area's message list to **search that area only**. When opening a message from search results, matching text is highlighted in the message body (white text on yellow background).
+- The generic terminal selector now supports **multi-select state** for callers that need bulk actions. In the echomail message list, press `Space` to toggle the highlighted message in or out of the selection set; selected rows show a `*` marker.
+- Press `Ctrl-K` in any terminal selector list to open the key-binding help overlay. The overlay now includes the list-specific secondary actions that were removed from the status bar.
+- Press `M` from an echomail area's message list to **mark the selected messages as read**. The terminal prompts for confirmation, submits the selected message IDs to the same bulk-read API used by the web interface, then redraws the list so unread indicators clear immediately.
+- The terminal **nodelist browser** shows roll-up counts while browsing. The top-level network list displays both the number of nets and the total number of nodes in each zone/domain, and the per-net list shows the node count for each net before you open it.
+- Press `Space` in the netmail inbox list to toggle the highlighted message in or out of the selection set (green `*` marker); press `M` to **mark the selected messages as read**. Multi-select and M are available in the inbox only — not the Sent folder. Ctrl-K shows both keys in the help overlay.
+- Press `O` from the netmail message list to **change the list sort order**. The terminal netmail reader now exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user opens netmail from the terminal.
+- Press `O` from an echomail area's message list to **change the list sort order**. The terminal reader exposes the same four sort modes as the web message list: Newest first, Oldest first, By subject, and By author. The selected sort is saved per user and restored the next time that user re-enters an echomail area from the terminal.
+- In the terminal **netmail address picker** (opened with `?` at **To Name** or **To Address**), address-book autocomplete now also includes matching **local BBS users** by real name or username. Typing `sysop` returns the configured local system sysop as a local-delivery target, matching the web compose behavior.
+- When entering **netmail** or **echomail** compose from the terminal, the server now checks for saved drafts of that message type. If any exist, the user is prompted to **Resume Draft**, **New Message**, or **Cancel**. Choosing resume opens a selector-style drafts picker with the same keyboard navigation as other terminal lists; pressing `X` deletes the highlighted draft after confirmation.
+- When composing a **new** echomail message (not a reply), the compose flow asks "Cross-post to other areas? [y/N]:" immediately after showing the destination area. Answering `y` opens a checkbox picker listing all other subscribed areas. Use Up/Down arrows to navigate, Space to toggle each area, Enter to confirm, or Q to skip cross-posting. The number of additional areas is capped by the **Max cross-post areas** setting in the BBS admin (default 5). Scroll indicators (▲/▼) appear when the list is taller than the visible dialog area. If the terminal is resized while this picker is open, the compose-flow background is cleared and the picker is redrawn at the new size so old dialog content does not remain on screen.
+- Terminal confirmation and selection dialogs now redraw on live resize. If the user resizes the window while a centered terminal dialog is open, both the background screen and the dialog reflow to the new dimensions instead of waiting for the dialog to close.
+- The **Who's Online** main-menu action now opens a centered selectable popup instead of a plain text page. Highlight a user and press Enter to open a reusable terminal **public profile viewer** that shows username, full name, location, and biography. The profile view is read-only and uses the same resize-aware framed viewer style as other terminal reading screens.
 
 ### Full-Screen Message Editor
 
 - Arrow key navigation (Up, Down, Left, Right, Home, End, Page Up, Page Down)
 - Insert and edit text at any cursor position
 - Delete characters with Backspace/Delete
+- The editor now uses the same framed blue panel style as the other terminal overlays, with a titled top border, bordered compose area, and a footer hint row. The `Ctrl-K` help screen uses the same dialog treatment instead of dropping to an unframed text page.
 - Line operations:
   - Enter: Insert new line at cursor
   - Ctrl+Y: Delete entire current line
 - Save/Cancel operations:
+  - Ctrl+S: Save draft and keep editing (compose only)
   - Ctrl+Z: Save message and send
   - Ctrl+C: Cancel and discard message
 - Visual feedback with colorized prompts
 - Message quoting when replying
+- If a compose flow was resumed from a saved draft, sending the message deletes that draft automatically.
 
 ### Security
 
 - **Login Attempts**: Limited to 3 attempts per connection before the connection is closed
 - **Connection Rate Limiting**: The transport daemon (Telnet/SSH) enforces a per-IP connection rate limit before forking a child process — see [TelnetServer.md](TelnetServer.md) and [SSHServer.md](SSHServer.md) for transport-specific details
 - **Connection Logging**: All login/logout events logged
+- **Telnet debug login shortcut**: `telnet/telnet_daemon.php` accepts `--debug-user=NAME` for trusted local debugging. When set, the daemon creates a real authenticated session for that user and skips the normal login prompts. Use this only in development; it is not intended for production access.
 
 ### Reliability
 
@@ -105,9 +171,18 @@ Sixel output requires `img2sixel` from the `libsixel-bin` package to be
 installed and available in `PATH`. If the binary is not found, images are
 silently omitted.
 
+### Main Menu Shell Behavior
+
+The main menu adapts to the active shell:
+
+- **`TuiShell`** (normal-size terminals): renders a framed two-column box with section headers (Messaging, Community/Explore, Files/Settings) and a customizable color status line. Navigation is single-key — press the configured hotkey to enter a feature. When a `mainmenu.ans` or `mainmenu.sixel` art file is present, it is shown instead of the framed box. Terminal resize re-renders the menu immediately.
+- **`LineShell`** (narrow or low-capability terminals): renders a plain prompt-driven shell and keeps the rest of the session in line mode as well. Main-menu hotkeys, message lists, selector screens, checkbox pickers, confirmation prompts, paged readers, working overlays, and profile/detail views all run through line-mode render/input loops instead of falling back to framed TUI widgets. These line-mode widgets rebuild their paging and wrapping layout on terminal resize, ignore stray queued CR/LF between screens, and use prompt-based commands rather than bottom-row cursor navigation. When a `mainmenu.ans` or `mainmenu.sixel` art file is present it is shown before the menu prompt; dashboard widgets are still omitted in this mode.
+
+The shell is selected fresh on each menu loop iteration, so a resize that moves the terminal above the TuiShell threshold (60 cols × 16 rows) will switch from the numbered list to the framed box without a reconnect.
+
 ### Main Menu Dashboard
 
-The main menu displays a live dashboard panel alongside the navigation options. The panel shows the same stats as the web dashboard, sourced from `/api/dashboard/stats`.
+The main menu displays a live dashboard panel alongside the navigation options (TuiShell only). The panel shows the same stats as the web dashboard, sourced from `/api/dashboard/stats`.
 
 **Widgets shown (in priority order):**
 
@@ -133,7 +208,7 @@ Stats are refreshed from the API after returning from netmail, echomail, or bull
 - Goodbye message on logout with reminder to visit website
 - Unread and new message counts shown on main menu items (netmail: unread count; echomail: new since last visit)
 - Live dashboard widgets alongside the main menu (see above)
-- Shoutbox screens use the same centered framed panel style as other terminal viewers, with separate timestamp/author headers and wrapped message bodies for cleaner readability
+- Shoutbox screens use the same centered framed panel style as other terminal viewers, with separate timestamp/author headers and wrapped message bodies for cleaner readability. The shoutbox viewer supports inline scrolling with Up/Down, PgUp/PgDn, Home, and End so you can page through more than one screen of messages, and shows a vertical scrollbar inside the frame.
 - Helpful command documentation
 
 ### Border and Frame Style
@@ -196,7 +271,8 @@ ASCII
 
 - **UTF-8 terminal** — all styles render as configured.
 - **CP437 terminal** — Heavy falls back to Classic; Rounded falls back to Single. All other styles are unchanged.
-- **ASCII terminal** (or when ANSI color is disabled) — always renders as ASCII regardless of the configured style.
+- **ASCII terminal** — always renders as ASCII regardless of the configured style.
+- **ANSI color disabled on a UTF-8 or CP437 terminal** — borders still use the normal character-set-appropriate line-drawing glyphs; only color is removed.
 
 ### Customizable Main Menu Keys
 
@@ -236,6 +312,7 @@ Local chat supports:
 - room selection from an in-chat navigation pane
 - direct messages to online users and known DM contacts
 - unread badges for rooms and DMs during the current chat session
+- unread room and DM entries highlighted in green when they are not currently open
 - online user display in the left navigation pane
 - message polling with automatic updates while the chat screen is open
 - scrollback with **PgUp/PgDn**
@@ -267,6 +344,9 @@ Chat messages are rendered as terminal Markdown, matching the message-body
 renderer used by echomail and netmail viewers. Sender and timestamp are shown
 as a header line above each rendered message body.
 
+Incoming local chat messages do not emit terminal bell characters. New unread
+rooms and DMs are indicated visually in the navigation pane instead.
+
 On narrower terminals the chat client switches to a stacked layout so rooms/DMs,
 messages, and the compose box still fit on screen.
 
@@ -290,21 +370,15 @@ New users who register are disconnected after registration and must reconnect to
 
 On first login, if the user has no saved terminal settings, the server runs an auto-detection wizard that tests character set support and color capability, then saves the results. This wizard is skipped on subsequent sessions once settings are stored.
 
+The normal terminal settings screen is part of the shared tabbed settings UI, but the detection wizard itself intentionally remains a simple prompt-driven flow across all shells. This keeps first-run terminal detection working even when full shell rendering cannot yet be assumed to work correctly.
+
 ### System News
 
 After login, the server displays any pending system news before presenting the main menu.
 
 ## Shared Session Model
 
-Both transport daemons run the same `BbsSession` flow after connection setup:
-
-1. Transport handshake and authentication entry
-2. Pre-login menu (Login / Register / Reset password / QWK / Quit)
-3. Main menu and feature handlers (Netmail, Echomail, Files, Doors, Bulletins, Polls, QWK, etc.)
-4. Logout and session cleanup
-
-Because the feature handlers are shared, behavior and capabilities remain
-consistent across Telnet and SSH.
+Both transport daemons run the same `BbsSession` flow: transport handshake → pre-login menu → authentication → main menu and feature handlers → logout. Because the feature handlers are shared, behavior and capabilities remain consistent across Telnet and SSH. For the full session lifecycle and `$state` key reference see [Terminal Server Developer Guide](TerminalServerDevGuide.md).
 
 ## Transport-Specific Notes
 
@@ -368,57 +442,44 @@ with color-coded indicators:
 - **Windows**: Single connection only (no `pcntl_fork` support)
 - **Linux/macOS**: Multiple concurrent connections supported via process forking
 
-## API Endpoints
+## ZMODEM File Transfers
 
-The terminal server uses the BinktermPHP web API for most operations. It also makes a small number of direct calls to the database and filesystem: session validation (`Auth`), login activity tracking (`ActivityTracker`), nodelist presence check, feature flags (`BbsConfig`, `BinkpConfig`), and system news (`AppearanceConfig`). The table below lists the primary API endpoints. Additional endpoints are called by individual feature handlers (polls, shoutbox, bulletins, file areas, QWK, interests, BBS directory, nodelist, user settings, etc.).
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/auth/login` | POST | User authentication |
-| `/api/auth/logout` | POST | Session logout |
-| `/api/config/session-init` | GET | Single post-login call that returns user settings (timezone, locale, date format), terminal settings (charset, ANSI color), idle timeout thresholds, and main menu key bindings |
-| `/api/messages/netmail` | GET | List netmail messages (`filter=all` for inbox, `filter=sent` for sent folder) |
-| `/api/messages/netmail/{id}` | GET | Get netmail message details |
-| `/api/messages/netmail/send` | POST | Send netmail message |
-| `/api/messages/echomail` | GET | List echomail messages |
-| `/api/messages/echomail/{id}` | GET | Get echomail message details |
-| `/api/messages/echomail/post` | POST | Post echomail message |
-| `/api/dashboard/stats` | GET | Main menu dashboard widgets (unread counts, online users, bulletins, credits) |
-
-All API requests include cookie-based session management, automatic retry with
-exponential backoff, and optional SSL certificate verification.
-
-## ZMODEM Requirements (Non-Windows)
-
-On non-Windows hosts, file transfer support uses external `sz`/`rz` binaries
-from the `lrzsz` package, falling back to the built-in PHP ZMODEM implementation
-when the binaries are not found.
+BinktermPHP includes a built-in PHP ZMODEM implementation that is used by
+default. It is preferred over external `sz`/`rz` binaries because it correctly
+handles Telnet IAC (0xFF) byte escaping, which external tools are not aware of.
+No additional software is required.
 
 - **Default behavior:** terminal file transfers are disabled by default.
-- Install `lrzsz` to enable ZMODEM download/upload in file areas.
-- If `sz`/`rz` are not found, the built-in PHP implementation is used automatically.
 - To enable terminal file transfers, set the following in `.env`:
 
 ```ini
 TERMINAL_FILE_TRANSFERS=true
 ```
 
-When enabled, ensure `sz` and `rz` are present (typically via `lrzsz`) and
-available in `PATH`, or specify their paths explicitly:
+The built-in implementation handles both downloads (`sz`) and uploads (`rz`).
+
+### Optional: external sz/rz binaries
+
+External `sz`/`rz` binaries from the `lrzsz` package are supported but must be
+explicitly opted into by the sysop. To allow the external binaries to be used,
+set:
+
+```ini
+TELNET_ZMODEM_FORCE_PHP=false
+```
+
+When this is set, the server checks for `sz`/`rz` in `PATH` and uses them if
+found; if the binaries are not present the built-in PHP implementation is used
+as a fallback. You can specify explicit paths instead of relying on `PATH`:
 
 ```ini
 TELNET_SZ_BIN=/usr/bin/sz
 TELNET_RZ_BIN=/usr/bin/rz
 ```
 
-### Forcing the built-in PHP ZMODEM implementation
-
-To bypass external `sz`/`rz` binaries and always use the built-in PHP ZMODEM
-implementation (useful for testing or if external binaries are unreliable):
-
-```ini
-TELNET_ZMODEM_FORCE_PHP=true
-```
+> **Note:** External `sz`/`rz` binaries do not handle Telnet IAC escaping. They
+> work correctly over SSH but may produce corrupt transfers over plain Telnet
+> connections that pass binary 0xFF bytes in the data stream.
 
 ## Related Documentation
 

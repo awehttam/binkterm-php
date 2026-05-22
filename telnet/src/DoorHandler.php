@@ -41,6 +41,7 @@ class DoorHandler
      */
     public function show($conn, array &$state, string $session): void
     {
+        $shell = TerminalShellFactory::create($this->server, $state);
         $dosDoors = (new DoorManager())->getEnabledDoors();
         $nativeDoors = (new NativeDoorManager())->getEnabledDoors();
 
@@ -53,11 +54,12 @@ class DoorHandler
         }
 
         if (empty($allDoors)) {
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
-            $this->server->readKeyWithIdleCheck($conn, $state);
+            $shell->showText(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.doors.title', 'Door Games', [], $state['locale']),
+                [$this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale'])]
+            );
             return;
         }
 
@@ -68,75 +70,40 @@ class DoorHandler
         }
 
         while (true) {
-            $this->displayDoorList($conn, $state, $doorList);
+            $items = [];
+            foreach ($doorList as $entry) {
+                $door = $entry['data'];
+                $name = $door['name'] ?? $entry['id'];
+                $desc = trim((string)($door['description'] ?? ''));
+                $creditCost = (int)($door['config']['credit_cost'] ?? 0);
 
-            $choice = $this->server->readLineWithIdleCheck($conn, $state);
-            if ($choice === null || strtolower(trim($choice)) === 'q') {
-                return;
+                $items[] = [
+                    'label' => trim($name . ($creditCost > 0 ? " [{$creditCost} credits]" : '')),
+                    'detail' => $desc,
+                ];
             }
 
-            $idx = (int)trim($choice) - 1;
-            if ($idx >= 0 && $idx < count($doorList)) {
-                $entry = $doorList[$idx];
-                $doorName = $entry['data']['name'] ?? $entry['id'];
-                $this->server->logAction($state['username'] ?? 'unknown', "Doors: launched \"{$doorName}\"");
-                $this->launchDoor($conn, $state, $session, $entry['id'], $doorName);
-                return;
-            }
-
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.invalid', 'Invalid selection.', [], $state['locale']), TelnetUtils::ANSI_RED));
-            sleep(1);
-        }
-    }
-
-    /**
-     * Render the door selection list
-     *
-     * @param resource $conn
-     * @param array $state
-     * @param array $doorList Indexed array of ['id' => string, 'data' => array]
-     */
-    private function displayDoorList($conn, array &$state, array $doorList): void
-    {
-        $cols = $state['cols'] ?? 80;
-
-        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.title', '=== Door Games ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
-        TelnetUtils::writeLine($conn, '');
-
-        foreach ($doorList as $i => $entry) {
-            $num = $i + 1;
-            $door = $entry['data'];
-            $name = $door['name'] ?? $entry['id'];
-            $desc = $door['description'] ?? '';
-            $creditCost = (int)($door['config']['credit_cost'] ?? 0);
-            $timeLimit = (int)($door['time_per_day'] ?? $door['config']['max_time_minutes'] ?? 0);
-
-            $meta = [];
-            if ($timeLimit > 0) {
-                $meta[] = "{$timeLimit} min/day";
-            }
-            if ($creditCost > 0) {
-                $meta[] = "{$creditCost} credits";
-            }
-            $metaStr = $meta ? ' [' . implode(', ', $meta) . ']' : '';
-
-            TelnetUtils::writeLine($conn,
-                TelnetUtils::colorize(str_pad("{$num})", 4), TelnetUtils::ANSI_YELLOW) .
-                TelnetUtils::colorize($name, TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD) .
-                TelnetUtils::colorize($metaStr, TelnetUtils::ANSI_DIM)
+            $selected = $shell->chooseFromList(
+                $conn,
+                $state,
+                $this->server->t('ui.terminalserver.doors.title', 'Door Games', [], $state['locale']),
+                $items,
+                [
+                    'prompt' => $this->server->t('ui.terminalserver.doors.enter_choice', 'Select a door or Q to return: ', [], $state['locale']),
+                    'empty_message' => $this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale']),
+                ]
             );
-
-            if ($desc !== '') {
-                $maxWidth = max(20, $cols - 7);
-                $wrapped = wordwrap($desc, $maxWidth, "\n", true);
-                foreach (explode("\n", $wrapped) as $line) {
-                    TelnetUtils::writeLine($conn, TelnetUtils::colorize('     ' . $line, TelnetUtils::ANSI_DIM));
-                }
+            if ($selected === null) {
+                return;
             }
-        }
 
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.enter_choice', 'Enter number to play, or Q to return: ', [], $state['locale']), TelnetUtils::ANSI_DIM));
+            $entry = $doorList[$selected];
+            $doorName = $entry['data']['name'] ?? $entry['id'];
+            $this->server->logAction($state['username'] ?? 'unknown', "Doors: launched \"{$doorName}\"");
+            $this->launchDoor($conn, $state, $session, $entry['id'], $doorName);
+            // Return to the door menu so users can launch another door or back out explicitly.
+            continue;
+        }
     }
 
     /**
@@ -209,11 +176,23 @@ class DoorHandler
         $this->server->safeWrite($conn, chr(255) . chr(251) . chr(1)); // IAC WILL ECHO
         $this->server->safeWrite($conn, chr(255) . chr(254) . chr(1)); // IAC DONT ECHO
 
+        // Door sessions can leave the terminal in an application/private mode
+        // (alternate screen, hidden cursor, keypad mode, half-finished DCS)
+        // that breaks the next BBS screen. Restore a normal text-terminal state
+        // before we redraw and wait for more input.
+        $this->resetTerminalAfterDoor($conn);
+
+        // Door sessions can also leave buffered keystrokes or trailing TELNET
+        // chatter queued on the client socket. Drain anything already readable
+        // now so the next termserver screen does not consume phantom input.
+        $this->drainPendingInput($conn, $state);
+
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.returned', 'Returned from {name}.', ['name' => $doorName], $state['locale']), TelnetUtils::ANSI_CYAN));
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
         $this->server->readKeyWithIdleCheck($conn, $state);
+        $this->drainPendingInput($conn, $state);
     }
 
     /**
@@ -229,90 +208,104 @@ class DoorHandler
      */
     private function relayLoop($conn, array &$state, $wsSock): void
     {
+        $connMeta = stream_get_meta_data($conn);
+        $wsMeta = stream_get_meta_data($wsSock);
+        $connWasBlocking = (bool)($connMeta['blocked'] ?? true);
+        $wsWasBlocking = (bool)($wsMeta['blocked'] ?? true);
+
         stream_set_blocking($conn, false);
         stream_set_blocking($wsSock, false);
 
         $wsBuf = '';
 
-        while (true) {
-            if (!is_resource($conn) || feof($conn)) {
-                break;
-            }
-            if (!is_resource($wsSock) || feof($wsSock)) {
-                break;
-            }
+        try {
+            while (true) {
+                if (!is_resource($conn) || feof($conn)) {
+                    break;
+                }
+                if (!is_resource($wsSock) || feof($wsSock)) {
+                    break;
+                }
 
-            $read = [$conn, $wsSock];
-            $w = $e = null;
+                $read = [$conn, $wsSock];
+                $w = $e = null;
 
-            if (@stream_select($read, $w, $e, 0, 50000) === false) {
-                break;
-            }
+                if (@stream_select($read, $w, $e, 0, 50000) === false) {
+                    break;
+                }
 
-            foreach ($read as $ready) {
-                if ($ready === $conn) {
-                    // --- Telnet client → bridge ---
-                    $raw = @fread($conn, 4096);
-                    if ($raw === false || ($raw === '' && feof($conn))) {
-                        return;
-                    }
-                    if ($raw === '') {
-                        continue;
-                    }
-
-                    // Strip IAC commands (capture NAWS resizes) and convert ANSI escape
-                    // sequences to Doorway protocol scan codes understood by DOS door games
-                    $processed = $this->processTelnetInput($raw, $state);
-                    if ($processed === '') {
-                        continue;
-                    }
-
-                    // Convert CP437 → UTF-8 before sending as WebSocket text frame
-                    $utf8 = function_exists('iconv') ? iconv('CP437', 'UTF-8//IGNORE', $processed) : $processed;
-                    if ($utf8 !== '' && $utf8 !== false) {
-                        $this->wsSend($wsSock, $utf8);
-                    }
-                } else {
-                    // --- Bridge → telnet client ---
-                    $chunk = @fread($wsSock, 4096);
-                    if ($chunk === false || ($chunk === '' && feof($wsSock))) {
-                        return;
-                    }
-                    if ($chunk === '') {
-                        continue;
-                    }
-
-                    $wsBuf .= $chunk;
-
-                    // Consume all complete WebSocket frames from the buffer
-                    while (true) {
-                        $result = $this->wsParseFrame($wsBuf);
-                        if ($result['type'] === 'incomplete') {
-                            break;
-                        }
-                        $wsBuf = $result['remaining'];
-
-                        if ($result['type'] === 'close') {
+                foreach ($read as $ready) {
+                    if ($ready === $conn) {
+                        // --- Telnet client → bridge ---
+                        $raw = @fread($conn, 4096);
+                        if ($raw === false || ($raw === '' && feof($conn))) {
                             return;
                         }
-                        if ($result['type'] === 'ping') {
-                            $this->wsSendPong($wsSock, $result['payload']);
-                            continue;
-                        }
-                        if ($result['type'] === 'pong' || $result['payload'] === '') {
+                        if ($raw === '') {
                             continue;
                         }
 
-                        // Convert UTF-8 → CP437 for the telnet client
-                        $cp437 = function_exists('iconv')
-                            ? iconv('UTF-8', 'CP437//IGNORE', $result['payload'])
-                            : $result['payload'];
+                        // Strip IAC commands (capture NAWS resizes) and convert ANSI escape
+                        // sequences to Doorway protocol scan codes understood by DOS door games
+                        $processed = $this->processTelnetInput($raw, $state);
+                        if ($processed === '') {
+                            continue;
+                        }
 
-                        if ($cp437 !== '' && $cp437 !== false) {
-                            $this->server->safeWrite($conn, $cp437);
+                        // Convert CP437 → UTF-8 before sending as WebSocket text frame
+                        $utf8 = function_exists('iconv') ? iconv('CP437', 'UTF-8//IGNORE', $processed) : $processed;
+                        if ($utf8 !== '' && $utf8 !== false) {
+                            $this->wsSend($wsSock, $utf8);
+                        }
+                    } else {
+                        // --- Bridge → telnet client ---
+                        $chunk = @fread($wsSock, 4096);
+                        if ($chunk === false || ($chunk === '' && feof($wsSock))) {
+                            return;
+                        }
+                        if ($chunk === '') {
+                            continue;
+                        }
+
+                        $wsBuf .= $chunk;
+
+                        // Consume all complete WebSocket frames from the buffer
+                        while (true) {
+                            $result = $this->wsParseFrame($wsBuf);
+                            if ($result['type'] === 'incomplete') {
+                                break;
+                            }
+                            $wsBuf = $result['remaining'];
+
+                            if ($result['type'] === 'close') {
+                                return;
+                            }
+                            if ($result['type'] === 'ping') {
+                                $this->wsSendPong($wsSock, $result['payload']);
+                                continue;
+                            }
+                            if ($result['type'] === 'pong' || $result['payload'] === '') {
+                                continue;
+                            }
+
+                            // Convert UTF-8 → CP437 for the telnet client
+                            $cp437 = function_exists('iconv')
+                                ? iconv('UTF-8', 'CP437//IGNORE', $result['payload'])
+                                : $result['payload'];
+
+                            if ($cp437 !== '' && $cp437 !== false) {
+                                $this->server->safeWrite($conn, $cp437);
+                            }
                         }
                     }
                 }
+            }
+        } finally {
+            if (is_resource($conn)) {
+                stream_set_blocking($conn, $connWasBlocking);
+            }
+            if (is_resource($wsSock)) {
+                stream_set_blocking($wsSock, $wsWasBlocking);
             }
         }
     }
@@ -432,6 +425,80 @@ class DoorHandler
         }
 
         return $out;
+    }
+
+    /**
+     * Discard any telnet-side input that is already queued without blocking.
+     *
+     * After a DOS door exits, some clients leave trailing keypresses or protocol
+     * bytes readable on the socket. If we do not clear them here, the next BBS
+     * menu or submenu can immediately consume them and appear to auto-exit.
+     *
+     * @param resource $conn
+     */
+    private function drainPendingInput($conn, array &$state): void
+    {
+        if (!is_resource($conn)) {
+            return;
+        }
+
+        $meta = stream_get_meta_data($conn);
+        $previousBlocking = (bool)($meta['blocked'] ?? true);
+        stream_set_blocking($conn, false);
+
+        try {
+            while (true) {
+                $read = [$conn];
+                $write = $except = null;
+                $ready = @stream_select($read, $write, $except, 0, 0);
+                if ($ready === false || $ready === 0) {
+                    break;
+                }
+
+                $raw = @fread($conn, 4096);
+                if ($raw === false || $raw === '') {
+                    if (feof($conn)) {
+                        break;
+                    }
+                    continue;
+                }
+
+                // Reuse the door input parser so NAWS updates are still applied
+                // while all buffered keystrokes are discarded.
+                $this->processTelnetInput($raw, $state);
+            }
+        } finally {
+            stream_set_blocking($conn, $previousBlocking);
+        }
+    }
+
+    /**
+     * Restore a conservative "normal terminal" state after a DOS door exits.
+     *
+     * Some door clients leave the terminal in alternate-screen, application
+     * keypad/cursor, hidden-cursor, or unfinished DCS/sixel modes. Avoid a full
+     * RIS hard reset here; it is more disruptive than necessary. A soft reset plus
+     * explicit normal-mode toggles is enough to make the next BBS screen usable.
+     *
+     * @param resource $conn
+     */
+    private function resetTerminalAfterDoor($conn): void
+    {
+        if (!is_resource($conn)) {
+            return;
+        }
+
+        // End any stray DCS/sixel payload still being parsed.
+        TelnetUtils::safeWrite($conn, "\033\\");
+
+        // Leave alternate screen buffers before we clear/redraw the normal BBS UI.
+        TelnetUtils::safeWrite($conn, "\033[?1049l\033[?1048l\033[?1047l");
+
+        // DECSTR soft reset plus a few explicit "normal mode" toggles that doors
+        // commonly disturb.
+        TelnetUtils::safeWrite($conn, "\033[!p");
+        TelnetUtils::safeWrite($conn, "\033[0m\017\033(B\033[r\033>\033[?1l\033[?7h");
+        TelnetUtils::setCursorVisible($conn, true);
     }
 
     /**
@@ -744,4 +811,3 @@ class DoorHandler
         curl_close($ch);
     }
 }
-

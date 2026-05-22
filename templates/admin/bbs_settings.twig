@@ -49,9 +49,29 @@
                         <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">{{ t('ui.admin.bbs_settings.system.save', {}, locale, ['common']) }}</button>
                     </form>
                     <hr>
-                    <h6 class="mb-3">{{ t('ui.admin.bbs_settings.terminal_idle.title', {}, locale, ['common']) }}</h6>
+                    <h6 class="mb-3">{{ t('ui.admin.bbs_settings.terminal_server.title', {}, locale, ['common']) }}</h6>
                     <div id="bbsTerminalIdleAlert"></div>
                     <form id="bbsTerminalIdleForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsTerminalDefaultShell">{{ t('ui.admin.bbs_settings.terminal_server.default_shell', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="bbsTerminalDefaultShell">
+                                {% for shell in allowed_terminal_shells %}
+                                    <option value="{{ shell.id }}">
+                                        {% if shell.admin_label_key %}
+                                            {{ t(shell.admin_label_key, {}, locale, ['common']) }}
+                                        {% else %}
+                                            {{ shell.admin_label }}
+                                        {% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_server.default_shell_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsTerminalForceShell">
+                            <label class="form-check-label" for="bbsTerminalForceShell">{{ t('ui.admin.bbs_settings.terminal_server.force_shell', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_server.force_shell_help', {}, locale, ['common']) }}</small></div>
+                        </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsIdleWarnMinutes">{{ t('ui.admin.bbs_settings.terminal_idle.warn_minutes', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" id="bbsIdleWarnMinutes" min="1" step="1" value="5">
@@ -62,7 +82,7 @@
                             <input type="number" class="form-control" id="bbsIdleDisconnectMinutes" min="2" step="1" value="7">
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.terminal_idle.disconnect_minutes_help', {}, locale, ['common']) }}</small>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="saveTerminalIdle()">{{ t('ui.admin.bbs_settings.terminal_idle.save', {}, locale, ['common']) }}</button>
+                        <button type="button" class="btn btn-primary" onclick="saveTerminalIdle()">{{ t('ui.admin.bbs_settings.terminal_server.save', {}, locale, ['common']) }}</button>
                     </form>
                     <hr>
                     <h6 class="mb-3">{{ t('ui.admin.bbs_settings.packet_bbs.title', {}, locale, ['common']) }}</h6>
@@ -390,6 +410,14 @@ function loadBbsSettings() {
             const idleDisconnectMinutes = parseInt(terminalIdle.disconnect_minutes, 10);
             document.getElementById('bbsIdleWarnMinutes').value = Number.isNaN(idleWarnMinutes) ? 5 : idleWarnMinutes;
             document.getElementById('bbsIdleDisconnectMinutes').value = Number.isNaN(idleDisconnectMinutes) ? 7 : idleDisconnectMinutes;
+            const terminalServer = data.config?.terminal_server || {};
+            const terminalDefaultShellEl = document.getElementById('bbsTerminalDefaultShell');
+            const desiredDefaultShell = terminalServer.default_shell || 'tui';
+            const hasDesiredDefaultShell = Array.from(terminalDefaultShellEl.options).some(option => option.value === desiredDefaultShell);
+            terminalDefaultShellEl.value = hasDesiredDefaultShell
+                ? desiredDefaultShell
+                : (terminalDefaultShellEl.options[0]?.value || 'tui');
+            document.getElementById('bbsTerminalForceShell').checked = !!terminalServer.force_shell;
             const packetBbs = data.config?.packet_bbs || {};
             const sessionTimeout = parseInt(packetBbs.session_timeout_minutes, 10);
             document.getElementById('bbsPacketBbsSessionTimeout').value = Number.isNaN(sessionTimeout) ? 15 : sessionTimeout;
@@ -551,6 +579,11 @@ function saveBbsPacketBbs() {
 }
 
 function saveTerminalIdle() {
+    const defaultShellSelect = document.getElementById('bbsTerminalDefaultShell');
+    if (!defaultShellSelect || defaultShellSelect.options.length === 0) {
+        showBbsTerminalIdleAlert(uiT('ui.admin.bbs_settings.terminal_server.save_failed', 'Failed to save terminal server settings.'), 'danger');
+        return;
+    }
     const warnMinutes = parseInt(document.getElementById('bbsIdleWarnMinutes').value, 10);
     if (Number.isNaN(warnMinutes) || warnMinutes < 1) {
         showBbsTerminalIdleAlert(uiT('ui.admin.bbs_settings.validation.terminal_idle_warn_positive', 'Idle warning timeout must be a positive integer.'), 'danger');
@@ -573,6 +606,10 @@ function saveTerminalIdle() {
                 terminal_idle: {
                     warn_minutes: warnMinutes,
                     disconnect_minutes: disconnectMinutes
+                },
+                terminal_server: {
+                    default_shell: defaultShellSelect.value,
+                    force_shell: document.getElementById('bbsTerminalForceShell').checked
                 }
             });
             return fetch('/admin/api/bbs-settings', {
@@ -584,15 +621,15 @@ function saveTerminalIdle() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.terminal_idle.save_failed', 'Failed to save terminal idle settings.')));
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.terminal_server.save_failed', 'Failed to save terminal server settings.')));
             }
             const successMessage = window.getApiMessage
-                ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.terminal_idle.saved_success', 'Terminal idle timeout settings saved.'))
-                : uiT('ui.admin.bbs_settings.terminal_idle.saved_success', 'Terminal idle timeout settings saved.');
+                ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.terminal_server.saved_success', 'Terminal server settings saved.'))
+                : uiT('ui.admin.bbs_settings.terminal_server.saved_success', 'Terminal server settings saved.');
             showBbsTerminalIdleAlert(successMessage, 'success');
         })
         .catch(error => {
-            showBbsTerminalIdleAlert(error.message || uiT('ui.admin.bbs_settings.terminal_idle.save_failed', 'Failed to save terminal idle settings.'), 'danger');
+            showBbsTerminalIdleAlert(error.message || uiT('ui.admin.bbs_settings.terminal_server.save_failed', 'Failed to save terminal server settings.'), 'danger');
         });
 }
 

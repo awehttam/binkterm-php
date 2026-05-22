@@ -19,8 +19,6 @@ class FileHandler
     /** Whether the session is over SSH (no TELNET IAC escaping needed). */
     private bool $isSsh;
 
-    private const FILES_PER_PAGE = 10;
-
     private function zdbg(string $message): void
     {
         $val = (string)\BinktermPHP\Config::env('TELNET_ZMODEM_DEBUG', 'false');
@@ -56,8 +54,9 @@ class FileHandler
      */
     public function show($conn, array &$state, string $session): void
     {
+        $shell   = TerminalShellFactory::create($this->server, $state);
         $page    = 1;
-        $perPage = min(max(5, ($state['rows'] ?? 24) - 8), self::FILES_PER_PAGE * 2);
+        $perPage = MailUtils::getMessagesPerPage($state);
         $locale  = $state['locale'] ?? '';
 
         while (true) {
@@ -79,64 +78,17 @@ class FileHandler
                 return;
             }
 
-            $totalPages = (int)ceil(count($areas) / $perPage);
-            $pageAreas  = array_slice($areas, ($page - 1) * $perPage, $perPage);
+            $result = $this->pickFileArea($conn, $state, $areas, $page, $perPage, $shell);
+            $page   = $result['page'];
 
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.areas_header', 'File Areas (page {page}/{total}):', ['page' => $page, 'total' => $totalPages], $locale),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, '');
-
-            $num = ($page - 1) * $perPage + 1;
-            foreach ($pageAreas as $area) {
-                $tag   = $area['tag'] ?? '';
-                $desc  = $area['description'] ?? '';
-                $count = (int)($area['file_count'] ?? 0);
-                TelnetUtils::writeLine(
-                    $conn,
-                    $this->renderFileAreaSelectionLine($num, (string)$tag, (string)$desc, $count)
-                );
-                $num++;
-            }
-
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.areas_nav', 'Enter #, n/p (next/prev), q (quit)', [], $locale),
-                TelnetUtils::ANSI_DIM
-            ));
-
-            $input = $this->readNavInput($conn, $state);
-            if ($input === null) {
-                return; // disconnected / idle timeout
-            }
-
-            if ($input === '') {
-                continue;
-            }
-            if ($input === 'q' || $input === 'Q') {
+            if ($result['action'] === 'quit') {
                 return;
             }
-            if ($input === 'n' || $input === 'N') {
-                if ($page < $totalPages) {
-                    $page++;
-                }
-                continue;
-            }
-            if ($input === 'p' || $input === 'P') {
-                if ($page > 1) {
-                    $page--;
-                }
-                continue;
-            }
-            if (ctype_digit($input)) {
-                $idx = (int)$input - 1;
-                if ($idx >= 0 && $idx < count($areas)) {
-                    $areaTag = $areas[$idx]['tag'] ?? '';
-                    $this->server->logAction($state['username'] ?? 'unknown', "Files: entered area {$areaTag}");
-                    $this->showFiles($conn, $state, $session, $areas[$idx]);
-                }
+            if ($result['action'] === 'select') {
+                $selectedArea = $result['area'];
+                $areaTag      = $selectedArea['tag'] ?? '';
+                $this->server->logAction($state['username'] ?? 'unknown', "Files: entered area {$areaTag}");
+                $this->showFiles($conn, $state, $session, $selectedArea, $shell);
             }
         }
     }
@@ -153,10 +105,10 @@ class FileHandler
      * @param string   $session Session token
      * @param array    $area    File area record
      */
-    private function showFiles($conn, array &$state, string $session, array $area): void
+    private function showFiles($conn, array &$state, string $session, array $area, TerminalShellInterface $shell): void
     {
         $page             = 1;
-        $perPage          = self::FILES_PER_PAGE;
+        $perPage          = MailUtils::getMessagesPerPage($state);
         $locale           = $state['locale'] ?? '';
         $areaId           = (int)($area['id'] ?? 0);
         $areaTag          = $area['tag'] ?? '';
@@ -190,9 +142,6 @@ class FileHandler
                 $entries[] = ['type' => 'file', 'data' => $file];
             }
 
-            $totalPages  = max(1, (int)ceil(count($entries) / $perPage));
-            $pageEntries = array_slice($entries, ($page - 1) * $perPage, $perPage);
-
             // Build path display for header
             $pathDisplay = $areaTag;
             if ($currentSubfolder !== null) {
@@ -201,99 +150,29 @@ class FileHandler
                 }
             }
 
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.area_header', 'Files: {area} (page {page}/{total})', [
-                    'area'  => $pathDisplay,
-                    'page'  => $page,
-                    'total' => $totalPages,
-                ], $locale),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, '');
-
-            if (empty($entries)) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.terminalserver.files.no_files', 'No files in this area.', [], $locale),
-                    TelnetUtils::ANSI_YELLOW
-                ));
-            } else {
-                $num = ($page - 1) * $perPage + 1;
-                foreach ($pageEntries as $entry) {
-                    if ($entry['type'] === 'folder') {
-                        $sfPath      = $entry['data']['subfolder'] ?? '';
-                        $sfParts     = explode('/', $sfPath);
-                        $displayName = (string)end($sfParts);
-                        $desc        = (string)($entry['data']['description'] ?? '');
-                        TelnetUtils::writeLine($conn, $this->renderFolderSelectionLine($num, $displayName, $desc));
-                    } else {
-                        $name = (string)($entry['data']['filename'] ?? '?');
-                        $desc = (string)($entry['data']['short_description'] ?? '');
-                        $size = $this->formatSize((int)($entry['data']['filesize'] ?? 0));
-                        TelnetUtils::writeLine($conn, $this->renderFileSelectionLine($num, $name, $desc, $size));
-                    }
-                    $num++;
-                }
-            }
-
-            TelnetUtils::writeLine($conn, '');
-
             $downloadAvailable  = ZmodemTransfer::canDownload();
             $uploadAvailable    = $canUploadByPolicy && ZmodemTransfer::canUpload();
-            $transfersAvailable = $downloadAvailable || $uploadAvailable;
             $inSubfolder        = $currentSubfolder !== null;
-            $hasFolders         = !empty($allSubfolders);
 
-            if ($downloadAvailable && $uploadAvailable) {
-                $navHint = $this->t('ui.terminalserver.files.files_nav_upload', 'D)ownload  U)pload  n/p (next/prev)  Q)uit', [], $locale);
-            } elseif ($downloadAvailable) {
-                $navHint = $this->t('ui.terminalserver.files.files_nav', 'D)ownload  n/p (next/prev)  Q)uit', [], $locale);
-            } elseif ($uploadAvailable) {
-                $navHint = $this->t('ui.terminalserver.files.files_nav_upload_only', 'U)pload  n/p (next/prev)  Q)uit', [], $locale);
-            } else {
-                $navHint = $this->t('ui.terminalserver.files.files_nav_none', 'n/p (next/prev)  Q)uit', [], $locale);
-            }
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($navHint, TelnetUtils::ANSI_DIM));
+            $result = $this->pickFileEntry(
+                $conn,
+                $state,
+                $entries,
+                $page,
+                $perPage,
+                $pathDisplay,
+                $downloadAvailable,
+                $uploadAvailable,
+                $inSubfolder,
+                $shell
+            );
+            $page = $result['page'];
 
-            if ($hasFolders) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.terminalserver.files.enter_folder_or_file', 'Enter a folder number to browse, or a file number to view details.', [], $locale),
-                    TelnetUtils::ANSI_DIM
-                ));
-            } else {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.terminalserver.files.files_view_hint', 'Enter a file number to view details.', [], $locale),
-                    TelnetUtils::ANSI_DIM
-                ));
-            }
-
-            if ($inSubfolder) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.terminalserver.files.files_back_hint', 'B)ack to parent folder', [], $locale),
-                    TelnetUtils::ANSI_DIM
-                ));
-            }
-
-            if (!$transfersAvailable && PHP_OS_FAMILY !== 'Windows') {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.terminalserver.files.transfer_unavailable', 'ZMODEM disabled: install lrzsz (sz/rz) on the server to enable transfers.', [], $locale),
-                    TelnetUtils::ANSI_YELLOW
-                ));
-            }
-
-            $input = $this->readNavInput($conn, $state);
-            if ($input === null) {
-                return; // disconnected / idle timeout
-            }
-
-            if ($input === '') {
-                continue;
-            }
-            if ($input === 'q' || $input === 'Q') {
+            if ($result['action'] === 'quit') {
                 return;
             }
-            // B = go up to parent folder (only when inside a subfolder)
-            if (($input === 'b' || $input === 'B') && $inSubfolder) {
+
+            if ($result['action'] === 'back' && $inSubfolder) {
                 $parts            = explode('/', $currentSubfolder);
                 array_pop($parts);
                 $currentSubfolder = empty($parts) ? null : implode('/', $parts);
@@ -301,49 +180,64 @@ class FileHandler
                 $needsFetch       = true;
                 continue;
             }
-            if ($input === 'n' || $input === 'N') {
-                if ($page < $totalPages) {
-                    $page++;
-                }
-                continue;
-            }
-            if ($input === 'p' || $input === 'P') {
-                if ($page > 1) {
-                    $page--;
-                }
-                continue;
-            }
-            if (ctype_digit($input) && !empty($pageEntries)) {
-                $displayNum = (int)$input;
-                $startNum   = ($page - 1) * $perPage + 1;
-                $idx        = $displayNum - $startNum;
-                if (isset($pageEntries[$idx])) {
-                    $entry = $pageEntries[$idx];
-                    if ($entry['type'] === 'folder') {
-                        $currentSubfolder = (string)($entry['data']['subfolder'] ?? '');
-                        $this->server->logAction($state['username'] ?? 'unknown', "Files: entered subfolder {$areaTag}/{$currentSubfolder}");
-                        $page             = 1;
-                        $needsFetch       = true;
-                    } else {
-                        $fname = $entry['data']['filename'] ?? '?';
-                        $this->server->logAction($state['username'] ?? 'unknown', "Files: viewed details for {$areaTag}/{$fname}");
-                        $this->showFileDetail($conn, $state, $session, $entry['data'], $downloadAvailable);
-                        $needsFetch = false;
-                    }
-                }
-                continue;
-            }
-            if (($input === 'd' || $input === 'D') && $downloadAvailable) {
-                $this->zdbg('action=download');
-                $startNum = ($page - 1) * $perPage + 1;
-                $this->promptDownload($conn, $state, $session, $pageEntries, $startNum, $locale);
-                continue;
-            }
-            if (($input === 'u' || $input === 'U') && $uploadAvailable) {
+
+            if ($result['action'] === 'upload') {
                 $this->zdbg('action=upload');
-                $this->promptUpload($conn, $state, $session, $area, $locale);
-                $needsFetch = true; // Refresh file list after upload
+                $this->promptUpload($conn, $state, $session, $area, $locale, $shell);
+                $needsFetch = true;
                 continue;
+            }
+
+            if ($result['action'] === 'download') {
+                $entry = $result['entry'] ?? null;
+                if (($entry['type'] ?? '') !== 'file') {
+                    $shell->showAlert(
+                        $conn,
+                        $state,
+                        $this->t('ui.terminalserver.files.detail_title', 'File Info', [], $locale),
+                        $this->t('ui.terminalserver.files.not_a_file', 'That entry is a folder, not a file.', [], $locale),
+                        'error'
+                    );
+                    continue;
+                }
+
+                $this->zdbg('action=download');
+                $fileRecord = $this->fetchFullFileRecord($session, (int)($entry['data']['id'] ?? 0));
+                if ($fileRecord === null) {
+                    $shell->showAlert(
+                        $conn,
+                        $state,
+                        $this->t('ui.terminalserver.files.detail_title', 'File Info', [], $locale),
+                        $this->t('ui.terminalserver.files.download_error', 'File not found on server.', [], $locale),
+                        'error'
+                    );
+                    continue;
+                }
+
+                $this->downloadFile($conn, $state, $session, $fileRecord, $locale);
+                continue;
+            }
+
+            if ($result['action'] === 'select') {
+                $entry = $result['entry'];
+                if (($entry['type'] ?? '') === 'folder') {
+                    $currentSubfolder = (string)($entry['data']['subfolder'] ?? '');
+                    $this->server->logAction($state['username'] ?? 'unknown', "Files: entered subfolder {$areaTag}/{$currentSubfolder}");
+                    $page             = 1;
+                    $needsFetch       = true;
+                    continue;
+                }
+
+                $fname = $entry['data']['filename'] ?? '?';
+                $this->server->logAction($state['username'] ?? 'unknown', "Files: viewed details for {$areaTag}/{$fname}");
+                $this->showFileDetail(
+                    $conn,
+                    $state,
+                    $session,
+                    $entry['data'],
+                    $downloadAvailable,
+                    $shell
+                );
             }
         }
     }
@@ -361,142 +255,48 @@ class FileHandler
      * @param array    $file             Basic file record from the list API
      * @param bool     $downloadAvailable Whether ZMODEM download is available
      */
-    private function showFileDetail($conn, array &$state, string $session, array $file, bool $downloadAvailable): void
-    {
-        $locale = $state['locale'] ?? '';
-        $fileId = (int)($file['id'] ?? 0);
-        $cols   = max(40, (int)($state['cols'] ?? 80));
-
-        // Fetch the full record (includes long_description, virus scan, storage_path, etc.)
-        $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/files/' . $fileId, null, $session);
-        $full     = $response['data']['file'] ?? $file;
-
-        while (true) {
-            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-
-            $filename = $full['filename'] ?? '?';
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.detail_header', 'File: {name}', ['name' => $filename], $locale),
-                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-            ));
-            TelnetUtils::writeLine($conn, str_repeat('-', min($cols, 78)));
-
-            $this->writeField($conn,
-                $this->t('ui.terminalserver.files.detail_size', 'Size', [], $locale),
-                $this->formatSize((int)($full['filesize'] ?? 0))
-            );
-            $this->writeField($conn,
-                $this->t('ui.terminalserver.files.detail_uploaded', 'Uploaded', [], $locale),
-                $this->formatDate((string)($full['created_at'] ?? ''))
-            );
-            $this->writeField($conn,
-                $this->t('ui.terminalserver.files.detail_area', 'Area', [], $locale),
-                (string)($full['area_tag'] ?? '')
-            );
-
-            $from = (string)($full['uploaded_from_address'] ?? '');
-            if ($from !== '') {
-                $this->writeField($conn,
-                    $this->t('ui.terminalserver.files.detail_from', 'From', [], $locale),
-                    $from
-                );
-            }
-
-            // Virus scan status
-            $scanLine = $this->t('ui.terminalserver.files.detail_not_scanned', 'Not scanned', [], $locale);
-            if (!empty($full['virus_scanned'])) {
-                $result = (string)($full['virus_scan_result'] ?? '');
-                if ($result === 'clean') {
-                    $scanLine = TelnetUtils::colorize(
-                        $this->t('ui.terminalserver.files.detail_scan_clean', 'Clean', [], $locale),
-                        TelnetUtils::ANSI_GREEN
-                    );
-                } elseif ($result === 'infected') {
-                    $sig = (string)($full['virus_signature'] ?? $this->t('ui.common.unknown', 'Unknown', [], $locale));
-                    $scanLine = TelnetUtils::colorize(
-                        $this->t('ui.terminalserver.files.detail_scan_infected', 'INFECTED: {sig}', ['sig' => $sig], $locale),
-                        TelnetUtils::ANSI_RED
-                    );
-                } elseif ($result === 'error') {
-                    $scanLine = TelnetUtils::colorize(
-                        $this->t('ui.terminalserver.files.detail_scan_error', 'Scan error', [], $locale),
-                        TelnetUtils::ANSI_YELLOW
-                    );
-                } elseif ($result === 'skipped') {
-                    $scanLine = $this->t('ui.terminalserver.files.detail_scan_skipped', 'Skipped', [], $locale);
-                }
-            }
-            $this->writeField($conn,
-                $this->t('ui.terminalserver.files.detail_virus_scan', 'Virus scan', [], $locale),
-                $scanLine
-            );
-
-            // Short description
-            $shortDesc = (string)($full['short_description'] ?? '');
-            if ($shortDesc !== '') {
-                $this->writeField($conn,
-                    $this->t('ui.terminalserver.files.detail_description', 'Description', [], $locale),
-                    $shortDesc
-                );
-            }
-
-            // Long description
-            $longDesc = (string)($full['long_description'] ?? '');
-            if ($longDesc !== '') {
-                TelnetUtils::writeLine($conn, '');
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.terminalserver.files.detail_long_description', 'Details:', [], $locale),
-                    TelnetUtils::ANSI_YELLOW
-                ));
-                $wrapWidth = max(40, min($cols - 4, 76));
-                foreach (explode("\n", wordwrap($longDesc, $wrapWidth, "\n", true)) as $line) {
-                    TelnetUtils::writeLine($conn, '  ' . $line);
-                }
-            }
-
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, str_repeat('-', min($cols, 78)));
-
-            if ($downloadAvailable) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.terminalserver.files.detail_nav_download', 'D)ownload  B)ack', [], $locale),
-                    TelnetUtils::ANSI_DIM
-                ));
-            } else {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.terminalserver.files.detail_nav', 'B)ack', [], $locale),
-                    TelnetUtils::ANSI_DIM
-                ));
-            }
-
-            $raw   = $this->server->prompt($conn, $state, '', true);
-            if ($raw === null) {
-                return;
-            }
-            $input = strtolower(trim($raw));
-
-            if ($input === 'b' || $input === '') {
-                return;
-            }
-            if ($input === 'd' && $downloadAvailable) {
-                $this->zdbg('action=download from detail view');
-                $this->downloadFile($conn, $state, $session, $full, $locale);
-                return; // return to file list after download
-            }
-        }
-    }
-
-    /**
-     * Write a label: value line in the detail view.
-     *
-     * @param resource $conn
-     */
-    private function writeField($conn, string $label, string $value): void
-    {
-        TelnetUtils::writeLine($conn,
-            TelnetUtils::colorize(sprintf('  %-14s', $label . ':'), TelnetUtils::ANSI_YELLOW)
-            . ' ' . $value
+    private function showFileDetail(
+        $conn,
+        array &$state,
+        string $session,
+        array $file,
+        bool $downloadAvailable,
+        TerminalShellInterface $shell
+    ): void {
+        $locale       = $state['locale'] ?? '';
+        $fileId       = (int)($file['id'] ?? 0);
+        $full         = $this->fetchFullFileRecord($session, $fileId) ?? $file;
+        $modal = $this->buildFileDetailModal($full, $downloadAvailable, $locale, $state);
+        $style = $this->getFileDetailPanelStyle();
+        $title = $this->t('ui.terminalserver.files.detail_title', 'File Info', [], $locale);
+        $action = $shell->showScrollablePanel(
+            $conn,
+            $state,
+            $title,
+            $modal['bodyLines'],
+            [
+                'status_segments' => $modal['statusSegments'],
+                'initial_offset' => 0,
+                'color_scheme' => $style['color_scheme'],
+                'redraw_fn' => function (array &$dialogState) use ($full, $downloadAvailable, $locale, $title): array {
+                    $rebuilt = $this->buildFileDetailModal($full, $downloadAvailable, $locale, $dialogState);
+                    return [
+                        'title' => $title,
+                        'lines' => $rebuilt['bodyLines'],
+                        'status_line' => $rebuilt['statusLine'],
+                        'status_segments' => $rebuilt['statusSegments'],
+                        'offset' => 0,
+                    ];
+                },
+                'extra_keys' => $downloadAvailable ? ['d' => 'download'] : [],
+                'status_segments' => $modal['statusSegments'],
+            ]
         );
+
+        if ($action === 'download') {
+            $this->zdbg('action=download from detail view');
+            $this->downloadFile($conn, $state, $session, $full, $locale);
+        }
     }
 
     /**
@@ -511,74 +311,558 @@ class FileHandler
         return $ts !== false ? date('Y-m-d H:i', $ts) : $dateStr;
     }
 
+    /**
+     * Render the file-area chooser using the shared selectable-list widget.
+     *
+     * @return array{action:string,page:int,area?:array}
+     */
+    private function pickFileArea($conn, array &$state, array $areas, int $page, int $perPage, TerminalShellInterface $shell): array
+    {
+        $locale     = $state['locale'] ?? '';
+        $totalPages = max(1, (int)ceil(count($areas) / $perPage));
+        $page       = max(1, min($page, $totalPages));
+        $pageAreas  = array_slice($areas, ($page - 1) * $perPage, $perPage);
+        $title      = $this->t('ui.terminalserver.files.areas_header', 'File Areas (page {page}/{total}):', [
+            'page' => $page,
+            'total' => $totalPages,
+        ], $locale);
+
+        $rows = [];
+        foreach ($pageAreas as $idx => $area) {
+            $rows[] = $this->encodeForTerminal($this->renderFileAreaSelectionLine(
+                $idx + 1,
+                (string)($area['tag'] ?? ''),
+                (string)($area['description'] ?? ''),
+                (int)($area['file_count'] ?? 0)
+            ));
+        }
+
+        $result = $shell->showSelectableList(
+            $conn,
+            $state,
+            $this->encodeForTerminal(TelnetUtils::colorize($title, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)),
+            $rows,
+            $page,
+            $totalPages,
+            0,
+            [
+                ['text' => 'U/D',   'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' ' . $this->t('ui.terminalserver.files.status_move', 'Move', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'L/R',   'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' ' . $this->t('ui.terminalserver.files.status_page', 'Page', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'Enter', 'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' ' . $this->t('ui.terminalserver.files.status_open', 'Open', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'Q',     'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' ' . $this->t('ui.terminalserver.files.status_quit', 'Quit', [], $locale), 'color' => TelnetUtils::ANSI_BLUE],
+            ]
+        );
+
+        return match ($result['action']) {
+            'disconnect', 'quit' => ['action' => 'quit', 'page' => $page],
+            'next' => ['action' => 'redraw', 'page' => min($page + 1, $totalPages)],
+            'prev' => ['action' => 'redraw', 'page' => max($page - 1, 1)],
+            'select' => isset($pageAreas[$result['index']])
+                ? ['action' => 'select', 'page' => $page, 'area' => $pageAreas[$result['index']]]
+                : ['action' => 'redraw', 'page' => $page],
+            default => ['action' => 'redraw', 'page' => $page],
+        };
+    }
+
+    /**
+     * Render the file/folder browser using the shared selectable-list widget.
+     *
+     * @return array{action:string,page:int,entry?:array,selectedIndex?:int}
+     */
+    private function pickFileEntry(
+        $conn,
+        array &$state,
+        array $entries,
+        int $page,
+        int $perPage,
+        string $pathDisplay,
+        bool $downloadAvailable,
+        bool $uploadAvailable,
+        bool $inSubfolder,
+        TerminalShellInterface $shell
+    ): array {
+        $locale     = $state['locale'] ?? '';
+        $totalPages = max(1, (int)ceil(count($entries) / $perPage));
+        $page       = max(1, min($page, $totalPages));
+        $pageEntries = array_slice($entries, ($page - 1) * $perPage, $perPage);
+
+        $rows = [];
+        if (empty($pageEntries)) {
+            $rows[] = $this->encodeForTerminal(TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.no_files', 'No files in this area.', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+        } else {
+            foreach ($pageEntries as $idx => $entry) {
+                if (($entry['type'] ?? '') === 'folder') {
+                    $sfPath      = (string)($entry['data']['subfolder'] ?? '');
+                    $sfParts     = explode('/', $sfPath);
+                    $displayName = (string)end($sfParts);
+                    $rows[]      = $this->encodeForTerminal($this->renderFolderSelectionLine(
+                        $idx + 1,
+                        $displayName,
+                        (string)($entry['data']['description'] ?? '')
+                    ));
+                    continue;
+                }
+
+                $rows[] = $this->encodeForTerminal($this->renderFileSelectionLine(
+                    $idx + 1,
+                    (string)($entry['data']['filename'] ?? '?'),
+                    (string)($entry['data']['short_description'] ?? ''),
+                    $this->formatSize((int)($entry['data']['filesize'] ?? 0))
+                ));
+            }
+        }
+
+        $statusBar = [
+            ['text' => 'U/D',   'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' ' . $this->t('ui.terminalserver.files.status_move', 'Move', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'L/R',   'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' ' . $this->t('ui.terminalserver.files.status_page', 'Page', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Enter', 'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' ' . $this->t('ui.terminalserver.files.status_open', 'Open', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+        ];
+        $extraKeys = [];
+
+        if ($downloadAvailable) {
+            $statusBar[] = ['text' => 'D', 'color' => TelnetUtils::ANSI_RED];
+            $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_download', 'Download', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE];
+            $extraKeys['d'] = 'download';
+        }
+        if ($uploadAvailable) {
+            $statusBar[] = ['text' => 'U', 'color' => TelnetUtils::ANSI_RED];
+            $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_upload', 'Upload', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE];
+            $extraKeys['u'] = 'upload';
+        }
+        if ($inSubfolder) {
+            $statusBar[] = ['text' => 'B', 'color' => TelnetUtils::ANSI_RED];
+            $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_up', 'Up', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE];
+            $extraKeys['b'] = 'back';
+        }
+        $statusBar[] = ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED];
+        $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_quit', 'Quit', [], $locale), 'color' => TelnetUtils::ANSI_BLUE];
+
+        $rebuildFn = function (array &$dialogState) use ($pathDisplay, $entries, $page, $perPage, $downloadAvailable, $uploadAvailable, $inSubfolder): array {
+            return $this->buildFileListScreenData($pathDisplay, $entries, $page, $perPage, 0, $downloadAvailable, $uploadAvailable, $inSubfolder, $dialogState);
+        };
+
+        $screen = $this->buildFileListScreenData(
+            $pathDisplay,
+            $entries,
+            $page,
+            $perPage,
+            0,
+            $downloadAvailable,
+            $uploadAvailable,
+            $inSubfolder,
+            $state
+        );
+
+        $result = $shell->showSelectableList(
+            $conn,
+            $state,
+            $screen['title'],
+            $screen['rows'],
+            $page,
+            $totalPages,
+            0,
+            $statusBar,
+            $extraKeys,
+            $rebuildFn
+        );
+
+        return match ($result['action']) {
+            'disconnect', 'quit' => ['action' => 'quit', 'page' => $page, 'selectedIndex' => $result['selectedIndex'] ?? 0],
+            'next' => ['action' => 'redraw', 'page' => min($page + 1, $totalPages), 'selectedIndex' => 0],
+            'prev' => ['action' => 'redraw', 'page' => max($page - 1, 1), 'selectedIndex' => 0],
+            'upload', 'back' => ['action' => $result['action'], 'page' => $page, 'selectedIndex' => $result['selectedIndex'] ?? 0],
+            'download', 'select' => isset($pageEntries[$result['index']])
+                ? ['action' => $result['action'], 'page' => $page, 'entry' => $pageEntries[$result['index']], 'selectedIndex' => $result['index']]
+                : ['action' => 'redraw', 'page' => $page, 'selectedIndex' => 0],
+            default => ['action' => 'redraw', 'page' => $page, 'selectedIndex' => 0],
+        };
+    }
+
+    /**
+     * Render the file list screen outside the input loop so modal dialogs can repaint it on resize.
+     */
+    private function renderFileListScreen(
+        $conn,
+        array &$state,
+        string $pathDisplay,
+        array $entries,
+        int $page,
+        int $perPage,
+        int $selectedIndex,
+        bool $downloadAvailable,
+        bool $uploadAvailable,
+        bool $inSubfolder
+    ): void {
+        $screen = $this->buildFileListScreenData(
+            $pathDisplay,
+            $entries,
+            $page,
+            $perPage,
+            $selectedIndex,
+            $downloadAvailable,
+            $uploadAvailable,
+            $inSubfolder,
+            $state
+        );
+
+        $cols = $state['cols'] ?? 80;
+        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+        TelnetUtils::writeLine($conn, $screen['title']);
+        foreach ($screen['rows'] as $idx => $row) {
+            if ($idx === $selectedIndex) {
+                TelnetUtils::writeLine(
+                    $conn,
+                    TelnetUtils::colorize(str_pad($this->stripAnsi($row), max(1, $cols - 1)), TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_BOLD)
+                );
+            } else {
+                TelnetUtils::writeLine($conn, $row);
+            }
+        }
+        $inputRow = max(1, ($state['rows'] ?? 24) - 1);
+        TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H\033[K");
+        TelnetUtils::safeWrite($conn, $screen['statusLine'] . "\r");
+        TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H");
+    }
+
+    /**
+     * @return array{title:string,rows:array,statusLine:string}
+     */
+    private function buildFileListScreenData(
+        string $pathDisplay,
+        array $entries,
+        int $page,
+        int $perPage,
+        int $selectedIndex,
+        bool $downloadAvailable,
+        bool $uploadAvailable,
+        bool $inSubfolder,
+        array &$state
+    ): array {
+        $locale     = $state['locale'] ?? '';
+        $totalPages = max(1, (int)ceil(count($entries) / $perPage));
+        $page       = max(1, min($page, $totalPages));
+        $pageEntries = array_slice($entries, ($page - 1) * $perPage, $perPage);
+        $rows       = [];
+
+        if (empty($pageEntries)) {
+            $rows[] = $this->encodeForTerminal(TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.no_files', 'No files in this area.', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+        } else {
+            foreach ($pageEntries as $idx => $entry) {
+                if (($entry['type'] ?? '') === 'folder') {
+                    $sfPath      = (string)($entry['data']['subfolder'] ?? '');
+                    $sfParts     = explode('/', $sfPath);
+                    $displayName = (string)end($sfParts);
+                    $rows[]      = $this->encodeForTerminal($this->renderFolderSelectionLine(
+                        $idx + 1,
+                        $displayName,
+                        (string)($entry['data']['description'] ?? '')
+                    ));
+                    continue;
+                }
+
+                $rows[] = $this->encodeForTerminal($this->renderFileSelectionLine(
+                    $idx + 1,
+                    (string)($entry['data']['filename'] ?? '?'),
+                    (string)($entry['data']['short_description'] ?? ''),
+                    $this->formatSize((int)($entry['data']['filesize'] ?? 0))
+                ));
+            }
+        }
+
+        $statusBar = [
+            ['text' => 'U/D',   'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' ' . $this->t('ui.terminalserver.files.status_move', 'Move', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'L/R',   'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' ' . $this->t('ui.terminalserver.files.status_page', 'Page', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Enter', 'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' ' . $this->t('ui.terminalserver.files.status_open', 'Open', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+        ];
+        if ($downloadAvailable) {
+            $statusBar[] = ['text' => 'D', 'color' => TelnetUtils::ANSI_RED];
+            $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_download', 'Download', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE];
+        }
+        if ($uploadAvailable) {
+            $statusBar[] = ['text' => 'U', 'color' => TelnetUtils::ANSI_RED];
+            $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_upload', 'Upload', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE];
+        }
+        if ($inSubfolder) {
+            $statusBar[] = ['text' => 'B', 'color' => TelnetUtils::ANSI_RED];
+            $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_up', 'Up', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE];
+        }
+        $statusBar[] = ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED];
+        $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_quit', 'Quit', [], $locale), 'color' => TelnetUtils::ANSI_BLUE];
+
+        return [
+            'title' => $this->encodeForTerminal(TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.area_header', 'Files: {area} (page {page}/{total})', [
+                    'area' => $pathDisplay,
+                    'page' => $page,
+                    'total' => $totalPages,
+                ], $locale),
+                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+            )),
+            'rows' => $rows,
+            'statusLine' => TelnetUtils::buildStatusBar($statusBar, $state['cols'] ?? 80),
+        ];
+    }
+
+    private function fetchFullFileRecord(string $session, int $fileId): ?array
+    {
+        if ($fileId <= 0) {
+            return null;
+        }
+        $detailResponse = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/files/' . $fileId, null, $session);
+        return $detailResponse['data']['file'] ?? null;
+    }
+
+    /**
+     * @return array{bodyLines:array,statusLine:string,bodyHeight:int,maxScroll:int}
+     */
+    private function buildFileDetailModal(array $full, bool $downloadAvailable, string $locale, array &$state): array
+    {
+        $cols      = max(48, (int)($state['cols'] ?? 80));
+        $rows      = max(20, (int)($state['rows'] ?? 24));
+        $boxWidth  = max(46, min($cols - 6, 78));
+        $innerWidth = $boxWidth - 2;
+        $bodyWidth = max(24, $innerWidth - 2);
+        $bodyHeight = max(8, min($rows - 8, 14));
+
+        $scanLine = $this->t('ui.terminalserver.files.detail_not_scanned', 'Not scanned', [], $locale);
+        if (!empty($full['virus_scanned'])) {
+            $result = (string)($full['virus_scan_result'] ?? '');
+            if ($result === 'clean') {
+                $scanLine = $this->t('ui.terminalserver.files.detail_scan_clean', 'Clean', [], $locale);
+            } elseif ($result === 'infected') {
+                $sig = (string)($full['virus_signature'] ?? $this->t('ui.common.unknown', 'Unknown', [], $locale));
+                $scanLine = $this->t('ui.terminalserver.files.detail_scan_infected', 'INFECTED: {sig}', ['sig' => $sig], $locale);
+            } elseif ($result === 'error') {
+                $scanLine = $this->t('ui.terminalserver.files.detail_scan_error', 'Scan error', [], $locale);
+            } elseif ($result === 'skipped') {
+                $scanLine = $this->t('ui.terminalserver.files.detail_scan_skipped', 'Skipped', [], $locale);
+            }
+        }
+
+        $bodyLines = [];
+        $bodyLines = array_merge($bodyLines, $this->wrapLabelValue(
+            $this->t('ui.terminalserver.files.detail_header', 'File', [], $locale),
+            (string)($full['filename'] ?? '?'),
+            $bodyWidth
+        ));
+        $bodyLines = array_merge($bodyLines, $this->wrapLabelValue(
+            $this->t('ui.terminalserver.files.detail_size', 'Size', [], $locale),
+            $this->formatSize((int)($full['filesize'] ?? 0)),
+            $bodyWidth
+        ));
+        $bodyLines = array_merge($bodyLines, $this->wrapLabelValue(
+            $this->t('ui.terminalserver.files.detail_uploaded', 'Uploaded', [], $locale),
+            $this->formatDate((string)($full['created_at'] ?? '')),
+            $bodyWidth
+        ));
+        $bodyLines = array_merge($bodyLines, $this->wrapLabelValue(
+            $this->t('ui.terminalserver.files.detail_area', 'Area', [], $locale),
+            (string)($full['area_tag'] ?? ''),
+            $bodyWidth
+        ));
+
+        $from = (string)($full['uploaded_from_address'] ?? '');
+        if ($from !== '') {
+            $bodyLines = array_merge($bodyLines, $this->wrapLabelValue(
+                $this->t('ui.terminalserver.files.detail_from', 'From', [], $locale),
+                $from,
+                $bodyWidth
+            ));
+        }
+
+        $bodyLines = array_merge($bodyLines, $this->wrapLabelValue(
+            $this->t('ui.terminalserver.files.detail_virus_scan', 'Virus scan', [], $locale),
+            $scanLine,
+            $bodyWidth
+        ));
+
+        $shortDesc = trim((string)($full['short_description'] ?? ''));
+        if ($shortDesc !== '') {
+            $bodyLines = array_merge($bodyLines, $this->wrapLabelValue(
+                $this->t('ui.terminalserver.files.detail_description', 'Description', [], $locale),
+                $shortDesc,
+                $bodyWidth
+            ));
+        }
+
+        $longDesc = trim((string)($full['long_description'] ?? ''));
+        if ($longDesc !== '') {
+            $bodyLines[] = '';
+            $bodyLines[] = TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.detail_long_description', 'Details', [], $locale) . ':',
+                TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD
+            );
+            foreach (preg_split('/\r\n|\r|\n/', $longDesc) ?: [] as $paragraph) {
+                $wrapped = TelnetUtils::wrapTextLines($paragraph === '' ? ' ' : $paragraph, max(16, $bodyWidth - 2));
+                foreach ($wrapped as $line) {
+                    $bodyLines[] = '  ' . $line;
+                }
+            }
+        }
+
+        $statusBar = [
+            ['text' => 'U/D', 'color' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD],
+            ['text' => ' ' . $this->t('ui.terminalserver.files.status_scroll', 'Scroll', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+        ];
+        if ($downloadAvailable) {
+            $statusBar[] = ['text' => 'D', 'color' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD];
+            $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_download', 'Download', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE];
+        }
+        $statusBar[] = ['text' => 'B', 'color' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD];
+        $statusBar[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_back', 'Back', [], $locale), 'color' => TelnetUtils::ANSI_BLUE];
+
+        return [
+            'bodyLines' => array_map(fn(string $line): string => $this->encodeForTerminal($line), $bodyLines),
+            'statusLine' => TelnetUtils::buildStatusBar($statusBar, $innerWidth),
+            'statusSegments' => $statusBar,
+            'bodyHeight' => $bodyHeight,
+            'maxScroll' => max(0, count($bodyLines) - $bodyHeight),
+        ];
+    }
+
+    /**
+     * Return the current file-detail panel style.
+     *
+     * Keep the values centralized so a future configuration UI can swap them
+     * without changing the rendering code.
+     *
+     * @return array{color_scheme:array<string,string>}
+     */
+    private function getFileDetailPanelStyle(): array
+    {
+        $profile = TelnetUtils::getDefaultStyleProfile();
+        return ['color_scheme' => $profile['file_detail_panel'] ?? []];
+    }
+
+    private function drawModal(
+        $conn,
+        string $title,
+        array $bodyLines,
+        string $statusLine,
+        int $scrollOffset,
+        int $bodyHeight,
+        array &$state
+    ): void {
+        [$tl, $tr, $bl, $br, $hz, $vt] = $this->getDialogChars();
+        $rows       = $state['rows'] ?? 24;
+        $cols       = $state['cols'] ?? 80;
+        $innerWidth = max(44, min($cols - 8, 76));
+        $boxWidth   = $innerWidth + 2;
+        $boxHeight  = $bodyHeight + 3;
+        $startRow   = max(1, (int)round(($rows - $boxHeight) / 2));
+        $startCol   = max(1, (int)round(($cols - $boxWidth) / 2));
+        $titleLine  = ' ' . $title . ' ';
+        $titleLen   = mb_strlen($titleLine);
+        $totalHz    = max(0, $innerWidth - $titleLen);
+
+        $topBorder  = $tl . str_repeat($hz, (int)floor($totalHz / 2)) . $titleLine . str_repeat($hz, (int)ceil($totalHz / 2)) . $tr;
+        $bottomBorder = $bl . str_repeat($hz, $innerWidth) . $br;
+        $frameColor = TelnetUtils::ANSI_BG_BLUE . "\033[1;37m";
+        $bodyColor  = TelnetUtils::ANSI_BG_BLUE . "\033[37m";
+
+        TelnetUtils::safeWrite($conn, "\033[?25l");
+        TelnetUtils::safeWrite($conn, "\033[{$startRow};{$startCol}H" . $frameColor . $topBorder . TelnetUtils::ANSI_RESET);
+
+        for ($i = 0; $i < $bodyHeight; $i++) {
+            $line = $bodyLines[$scrollOffset + $i] ?? '';
+            $line = str_replace(TelnetUtils::ANSI_RESET, $bodyColor, $line);
+            $line = $this->padAnsi($line, $innerWidth - 2);
+            TelnetUtils::safeWrite(
+                $conn,
+                "\033[" . ($startRow + $i + 1) . ";{$startCol}H" . $bodyColor . $vt . ' ' . $line . ' ' . $vt . TelnetUtils::ANSI_RESET
+            );
+        }
+
+        TelnetUtils::safeWrite(
+            $conn,
+            "\033[" . ($startRow + $bodyHeight + 1) . ";{$startCol}H" . $bodyColor . $vt . $statusLine . $vt . TelnetUtils::ANSI_RESET
+        );
+        TelnetUtils::safeWrite(
+            $conn,
+            "\033[" . ($startRow + $bodyHeight + 2) . ";{$startCol}H" . $frameColor . $bottomBorder . TelnetUtils::ANSI_RESET
+        );
+        TelnetUtils::safeWrite($conn, "\033[?25h");
+    }
+
+    /**
+     * @return array{0:string,1:string,2:string,3:string,4:string,5:string}
+     */
+    private function getDialogChars(): array
+    {
+        $charset = method_exists($this->server, 'getTerminalCharset') ? $this->server->getTerminalCharset() : 'ascii';
+        if ($charset === 'utf8') {
+            return ['┌', '┐', '└', '┘', '─', '│'];
+        }
+        if ($charset === 'cp437') {
+            return ["\xda", "\xbf", "\xc0", "\xd9", "\xc4", "\xb3"];
+        }
+        return ['+', '+', '+', '+', '-', '|'];
+    }
+
+    /**
+     * @return string[]
+     */
+    private function wrapLabelValue(string $label, string $value, int $width): array
+    {
+        $labelText   = $label . ':';
+        $labelWidth  = min(14, max(8, mb_strlen($labelText)));
+        $valueWidth  = max(12, $width - $labelWidth - 1);
+        $wrapped     = TelnetUtils::wrapTextLines($value, $valueWidth);
+        if (empty($wrapped)) {
+            $wrapped = [''];
+        }
+
+        $lines   = [];
+        $prefix  = TelnetUtils::colorize(str_pad($labelText, $labelWidth), TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD) . ' ';
+        $indent  = str_repeat(' ', $labelWidth + 1);
+        foreach ($wrapped as $idx => $line) {
+            $lines[] = ($idx === 0 ? $prefix : $indent) . $line;
+        }
+        return $lines;
+    }
+
+    private function stripAnsi(string $text): string
+    {
+        return (string)preg_replace('/\x1B\[[0-9;?]*[ -\/]*[@-~]/', '', $text);
+    }
+
+    private function padAnsi(string $text, int $width): string
+    {
+        $plain = $this->stripAnsi($text);
+        $plainWidth = mb_strlen($plain);
+        if ($plainWidth >= $width) {
+            return $text;
+        }
+        return $text . str_repeat(' ', $width - $plainWidth);
+    }
+
+    private function encodeForTerminal(string $text): string
+    {
+        if (method_exists($this->server, 'encodeForTerminal')) {
+            return $this->server->encodeForTerminal($text);
+        }
+        return $text;
+    }
+
     // ===========================================================
     // DOWNLOAD
     // ===========================================================
-
-    /**
-     * Ask the user for a file number then initiate a ZMODEM download directly.
-     * (Quick-download shortcut — the D key from the file list.)
-     *
-     * @param array $pageEntries Combined folder+file entries for the current page
-     * @param int   $startNum    Display number of the first entry on this page
-     */
-    private function promptDownload($conn, array &$state, string $session, array $pageEntries, int $startNum, string $locale): void
-    {
-        if (!ZmodemTransfer::canDownload() || empty($pageEntries)) {
-            return;
-        }
-
-        TelnetUtils::writeLine($conn, '');
-        $input = trim($this->server->prompt($conn, $state,
-            TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.download_prompt', 'File # to download (Enter to cancel): ', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ),
-            true
-        ) ?? '');
-
-        if ($input === '' || !ctype_digit($input)) {
-            return;
-        }
-
-        $displayNum = (int)$input;
-        $idx        = $displayNum - $startNum;
-
-        if (!isset($pageEntries[$idx])) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.invalid_selection', 'Invalid selection.', [], $locale),
-                TelnetUtils::ANSI_RED
-            ));
-            sleep(1);
-            return;
-        }
-
-        $entry = $pageEntries[$idx];
-        if ($entry['type'] === 'folder') {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.not_a_file', 'That entry is a folder, not a file.', [], $locale),
-                TelnetUtils::ANSI_RED
-            ));
-            sleep(1);
-            return;
-        }
-
-        // Fetch full record to obtain storage_path
-        $fileId         = (int)($entry['data']['id'] ?? 0);
-        $detailResponse = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/files/' . $fileId, null, $session);
-        $fileRecord     = $detailResponse['data']['file'] ?? null;
-
-        if (!$fileRecord) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.download_error', 'File not found on server.', [], $locale),
-                TelnetUtils::ANSI_RED
-            ));
-            sleep(2);
-            return;
-        }
-
-        $this->downloadFile($conn, $state, $session, $fileRecord, $locale);
-    }
 
     /**
      * Initiate a ZMODEM send for a file record that already contains storage_path.
@@ -652,35 +936,26 @@ class FileHandler
     /**
      * Collect upload metadata, receive file via ZMODEM, then register it.
      */
-    private function promptUpload($conn, array &$state, string $session, array $area, string $locale): void
+    private function promptUpload($conn, array &$state, string $session, array $area, string $locale, TerminalShellInterface $shell): void
     {
         if (!ZmodemTransfer::canUpload()) {
             return;
         }
-        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+        $shortDesc = trim((string)($shell->promptText(
+            $conn,
+            $state,
             $this->t('ui.terminalserver.files.upload_title', '=== Upload File ===', [], $locale),
-            TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
-        ));
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->t('ui.terminalserver.files.upload_area', 'Area: {area}', ['area' => $area['tag'] ?? ''], $locale),
-            TelnetUtils::ANSI_GREEN
-        ));
-        TelnetUtils::writeLine($conn, '');
-
-        $shortDesc = trim($this->server->prompt($conn, $state,
-            TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.upload_desc_prompt', 'Short description (blank to cancel): ', [], $locale),
-                TelnetUtils::ANSI_YELLOW
-            ),
-            true
-        ) ?? '');
+            $this->t('ui.terminalserver.files.upload_desc_prompt', 'Short description (blank to cancel): ', [], $locale)
+        ) ?? ''));
 
         if ($shortDesc === '') {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $shell->showAlert(
+                $conn,
+                $state,
+                $this->t('ui.terminalserver.files.upload_title', '=== Upload File ===', [], $locale),
                 $this->t('ui.terminalserver.files.upload_cancelled', 'Upload cancelled.', [], $locale),
-                TelnetUtils::ANSI_DIM
-            ));
+                'info'
+            );
             sleep(1);
             return;
         }
@@ -835,72 +1110,13 @@ class FileHandler
      */
     private function renderFileSelectionLine(int $num, string $name, string $desc, string $size): string
     {
+        $name   = sprintf('%-22s', mb_substr($name, 0, 22));
+        $desc   = sprintf('%-28s', mb_substr($desc, 0, 28));
         $suffix = sprintf(' %-22s  %-28s  %s', $name, $desc, $size);
         return ' '
             . TelnetUtils::colorize(sprintf('%2d', $num), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
             . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
             . $suffix;
-    }
-
-    /**
-     * Read navigation input immediately for arrow/letter keys, or accumulate
-     * digit characters until Enter for area/file number selection.
-     *
-     * Returns:
-     *   null         — disconnected or idle timeout
-     *   ''           — Enter with no digits (re-render)
-     *   'n'          — next page  (→, Page Down, n, N)
-     *   'p'          — prev page  (←, Page Up,   p, P)
-     *   single char  — any other letter/symbol (e.g. 'q', 'd', 'u', 'b')
-     *   digit string — number confirmed with Enter (e.g. '17')
-     *
-     * @param resource $conn
-     */
-    private function readNavInput($conn, array &$state): ?string
-    {
-        $digits = '';
-        while (true) {
-            $key = $this->server->readKeyWithIdleCheck($conn, $state);
-            if ($key === null) {
-                return null;
-            }
-
-            // Arrow / page keys → immediate navigation
-            if ($key === 'RIGHT' || $key === 'PGDOWN') { return 'n'; }
-            if ($key === 'LEFT'  || $key === 'PGUP')   { return 'p'; }
-
-            if ($key === 'ENTER') {
-                if ($digits !== '') {
-                    TelnetUtils::safeWrite($conn, "\r\n");
-                    return $digits;
-                }
-                return '';
-            }
-
-            if ($key === 'BACKSPACE') {
-                if ($digits !== '') {
-                    $digits = substr($digits, 0, -1);
-                    TelnetUtils::safeWrite($conn, "\x08 \x08");
-                }
-                continue;
-            }
-
-            if (str_starts_with($key, 'CHAR:')) {
-                $ch = substr($key, 5);
-                if (ctype_digit($ch)) {
-                    $digits .= $ch;
-                    TelnetUtils::safeWrite($conn, $ch);
-                    continue;
-                }
-                // Letter/symbol key: abandon any partial digit input and act immediately
-                if ($digits !== '') {
-                    TelnetUtils::safeWrite($conn, str_repeat("\x08 \x08", strlen($digits)));
-                    $digits = '';
-                }
-                return $ch;
-            }
-            // Unrecognized keys (HOME, END, UP, DOWN, etc.): ignore
-        }
     }
 
     /**

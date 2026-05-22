@@ -36,8 +36,8 @@ class EchoareaImportException extends \RuntimeException
 }
 
 /**
- * Imports echo areas from CSV rows in the format:
- * ECHOTAG,DESCRIPTION,DOMAIN
+ * Imports echo areas from a CSV file (ECHOTAG,DESCRIPTION,DOMAIN) or a
+ * whitespace-delimited .NA file (ECHOTAG  DESCRIPTION) with a caller-supplied domain.
  */
 class EchoareaImporter
 {
@@ -292,5 +292,152 @@ class EchoareaImporter
         }
 
         return true;
+    }
+
+    /**
+     * Import echo areas from a whitespace-delimited .NA file.
+     * Each non-blank, non-comment line has the form: ECHOTAG  Description text
+     * The domain applies to every row and must be a configured network domain,
+     * or an empty string to import areas as local-only.
+     *
+     * @param string $filePath Path to the uploaded .NA file.
+     * @param string $domain   Network domain slug (e.g. "fsxnet") or '' for local.
+     */
+    public function importNa(string $filePath, string $domain): array
+    {
+        $handle = fopen($filePath, 'rb');
+        if ($handle === false) {
+            throw new EchoareaImportException(
+                'ui.echoareas_import.error_open_na',
+                [],
+                'Unable to open uploaded .NA file.'
+            );
+        }
+
+        $config = BinkpConfig::getInstance();
+
+        $domain = strtolower(trim($domain));
+
+        if ($domain !== '' && !preg_match('/^[a-zA-Z0-9_-]+$/', $domain)) {
+            fclose($handle);
+            throw new EchoareaImportException(
+                'ui.echoareas_import.error_invalid_domain',
+                [],
+                'Invalid DOMAIN. Use only letters, numbers, underscores, and hyphens.'
+            );
+        }
+
+        if ($domain !== '' && $config->getUplinkByDomain($domain) === null) {
+            fclose($handle);
+            throw new EchoareaImportException(
+                'ui.echoareas_import.error_unknown_domain',
+                ['domain' => $domain],
+                "Unknown DOMAIN '{$domain}'. Add the network domain first in BinkP configuration."
+            );
+        }
+
+        $parsed = $this->parseAndValidateNa($handle, $domain, $config);
+        fclose($handle);
+
+        if (!empty($parsed['errors'])) {
+            return [
+                'processed' => $parsed['processed'],
+                'created' => 0,
+                'updated' => 0,
+                'skipped' => $parsed['skipped'],
+                'errors' => $parsed['errors'],
+            ];
+        }
+
+        return $this->applyImport($parsed['rows'], $parsed['processed'], $parsed['skipped']);
+    }
+
+    /**
+     * Parse a .NA file into validated row arrays.
+     * Lines starting with % or ; are treated as comments and skipped.
+     */
+    private function parseAndValidateNa($handle, string $domain, BinkpConfig $config): array
+    {
+        $storedDomain = $domain !== '' ? $domain : null;
+        $isLocal = ($domain === '');
+
+        $summary = [
+            'processed' => 0,
+            'skipped' => 0,
+            'errors' => [],
+            'rows' => [],
+        ];
+
+        $lineNumber = 0;
+        $seenTags = [];
+
+        while (($line = fgets($handle)) !== false) {
+            $lineNumber++;
+            $line = rtrim($line, "\r\n");
+
+            if (trim($line) === '' || $line[0] === '%' || $line[0] === ';') {
+                $summary['skipped']++;
+                continue;
+            }
+
+            $summary['processed']++;
+
+            // Split on first run of whitespace: tag + rest-as-description
+            $parts = preg_split('/\s+/', $line, 2);
+            $tag = strtoupper(trim($parts[0] ?? ''));
+            $description = trim($parts[1] ?? '');
+
+            try {
+                if ($tag === '' || $description === '') {
+                    throw new EchoareaImportException(
+                        'ui.echoareas_import.error_tag_description_required',
+                        [],
+                        'ECHOTAG and DESCRIPTION are required.'
+                    );
+                }
+
+                if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
+                    throw new EchoareaImportException(
+                        'ui.echoareas_import.error_invalid_tag',
+                        [],
+                        'Invalid ECHOTAG. Use only letters, numbers, dots, underscores, hyphens, and apostrophes.'
+                    );
+                }
+
+                if (isset($seenTags[$tag])) {
+                    throw new EchoareaImportException(
+                        'ui.echoareas_import.error_duplicate_row',
+                        [],
+                        'Duplicate ECHOTAG within the .NA file.'
+                    );
+                }
+
+                $seenTags[$tag] = true;
+                $summary['rows'][] = [
+                    'tag' => $tag,
+                    'description' => $description,
+                    'domain' => $storedDomain,
+                    'is_local' => $isLocal,
+                ];
+            } catch (\Throwable $e) {
+                if ($e instanceof EchoareaImportException) {
+                    $summary['errors'][] = [
+                        'line' => $lineNumber,
+                        'error_code' => $e->getMessageKey(),
+                        'error_params' => $e->getMessageParams(),
+                        'error_fallback' => $e->getFallbackMessage(),
+                    ];
+                } else {
+                    $summary['errors'][] = [
+                        'line' => $lineNumber,
+                        'error_code' => 'ui.echoareas_import.error_unexpected',
+                        'error_params' => [],
+                        'error_fallback' => $e->getMessage(),
+                    ];
+                }
+            }
+        }
+
+        return $summary;
     }
 }

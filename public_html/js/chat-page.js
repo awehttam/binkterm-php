@@ -312,6 +312,7 @@
         const wrapper = document.createElement('div');
         wrapper.className = 'chat-message';
         wrapper.dataset.userId = msg.from_user_id || '';
+        wrapper.dataset.username = msg.from_username || '';
         wrapper.dataset.roomId = msg.room_id || '';
         wrapper.dataset.messageType = msg.type || '';
 
@@ -614,12 +615,13 @@
     }
 
     function initModerationMenu() {
-        if (!window.currentUserIsAdmin) return;
         const menu = document.getElementById('chatContextMenu');
         const thread = document.getElementById('chatThread');
         if (!menu || !thread) return;
 
         let currentTarget = null;
+        const kickButton = menu.querySelector('button[data-action="kick"]');
+        const banButton = menu.querySelector('button[data-action="ban"]');
 
         function hideMenu() {
             menu.classList.add('d-none');
@@ -635,14 +637,26 @@
             event.preventDefault();
             event.stopPropagation();
             const userId = author.dataset.userId;
+            const message = author.closest('.chat-message');
+            const username = message ? message.dataset.username : '';
             const roomId = state.active.type === 'room' ? state.active.id : null;
 
-            if (!userId || !roomId) {
+            if (!username) {
                 hideMenu();
                 return;
             }
 
-            currentTarget = { userId: parseInt(userId, 10), roomId };
+            currentTarget = {
+                userId: userId ? parseInt(userId, 10) : null,
+                username,
+                roomId
+            };
+            if (kickButton) {
+                kickButton.classList.toggle('d-none', !(window.currentUserIsAdmin && currentTarget.userId && currentTarget.roomId));
+            }
+            if (banButton) {
+                banButton.classList.toggle('d-none', !(window.currentUserIsAdmin && currentTarget.userId && currentTarget.roomId));
+            }
             menu.style.left = `${event.pageX}px`;
             menu.style.top = `${event.pageY}px`;
             menu.classList.remove('d-none');
@@ -658,7 +672,18 @@
             const button = event.target.closest('button[data-action]');
             if (!button || !currentTarget) return;
 
+            event.preventDefault();
+            event.stopPropagation();
             const action = button.dataset.action;
+            if (action === 'view-profile') {
+                window.location.href = `/profile/${encodeURIComponent(currentTarget.username)}`;
+                hideMenu();
+                return;
+            }
+            if (action !== 'kick' && action !== 'ban') {
+                hideMenu();
+                return;
+            }
             if (!confirm(action === 'ban'
                 ? uiT('ui.chat.confirm_ban', 'Ban this user from the room?')
                 : uiT('ui.chat.confirm_kick', 'Kick this user from the room?'))) {

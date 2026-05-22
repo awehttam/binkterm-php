@@ -151,7 +151,7 @@ Reminder send result
 | `POST` | [`/api/address-book/`](#post-apiaddress-book) | Yes | Create a new address book entry. |
 | `PUT` | [`/api/address-book/{id}`](#put-apiaddress-bookid) | Yes | Update an existing address book entry. |
 | `DELETE` | [`/api/address-book/{id}`](#delete-apiaddress-bookid) | Yes | Delete an address book entry. |
-| `GET` | [`/api/address-book/search/{query}`](#get-apiaddress-booksearchquery) | Yes | Search address book entries for autocomplete. |
+| `GET` | [`/api/address-book/search/{query}`](#get-apiaddress-booksearchquery) | Yes | Search address book entries plus matching local users for autocomplete. |
 | `GET` | [`/api/address-book/stats`](#get-apiaddress-bookstats) | Yes | Get address book statistics for the user. |
 
 #### `GET /api/address-book/`
@@ -319,7 +319,7 @@ Deletion confirmation
 
 **Requires authentication**
 
-Performs a full-text search on the authenticated user's address book entries, returning a limited result set suitable for autocomplete UI. Limits results to 10 by default, maximum 20. Query string is URL-decoded before search.
+Performs an autocomplete search for the authenticated user. Results include the user's address book entries plus matching local BBS users by real name or username, returned in a shared entry shape suitable for compose UI pickers. Limits results to 10 by default, maximum 20. Query string is URL-decoded before search.
 
 **Path Parameters**
 
@@ -335,12 +335,12 @@ Performs a full-text search on the authenticated user's address book entries, re
 
 **Response** _(JSON)_
 
-Array of matching address book entries
+Array of matching autocomplete entries
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `entries` | array | Matching address book entries (limited) |
+| `entries` | array | Matching address-book and local-user entries (limited) |
 
 **Error Responses**
 
@@ -3873,6 +3873,7 @@ Marks a device command as executed. The bridge calls this after dispatching the 
 | `GET` | [`/api/messages/netmail/{id}/download`](#get-apimessagesnetmailiddownload) | Yes | Download a netmail message as a plain text file with headers. |
 | `POST` | [`/api/messages/netmail/{id}/edit`](#post-apimessagesnetmailidedit) | Yes | Edit netmail message metadata (art format, charset). |
 | `POST` | [`/api/messages/netmail/bulk-delete`](#post-apimessagesnetmailbulk-delete) | Yes | Delete multiple netmail messages in bulk. |
+| `POST` | [`/api/messages/netmail/read`](#post-apimessagesnetmailread) | Yes | Mark multiple netmail messages as read in bulk. |
 | `GET` | [`/api/messages/echomail`](#get-apimessagesechomail) | Yes | List echomail messages from subscribed areas with filtering. |
 | `POST` | [`/api/messages/echomail/read`](#post-apimessagesechomailread) | Yes | Mark multiple echomail messages as read in bulk. |
 | `POST` | [`/api/messages/echomail/delete`](#post-apimessagesechomaildelete) | Yes | Delete multiple echomail messages (admin only). |
@@ -4162,6 +4163,35 @@ Deletion summary with localization support
 | Status | Description |
 |--------|-------------|
 | 400 | message_ids missing, empty, or not an array |
+
+---
+
+#### `POST /api/messages/netmail/read`
+
+**Requires authentication**
+
+Marks one or more netmail messages as read for the authenticated user. Uses upsert semantics — already-read messages are silently updated. Fires a BinkStream `message_read` event so other open tabs reflect the change immediately.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `messageIds` | array<integer> | Yes | Non-empty array of netmail message IDs |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation succeeded |
+| `marked` | integer | Number of messages processed |
+| `total` | integer | Total messages requested |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | messageIds missing, empty, or not an array |
+| 500 | Database error |
 
 ---
 
@@ -6464,6 +6494,7 @@ Open Graph metadata or error
 | `GET` | [`/api/user/echomail-ignore-rules`](#get-apiuserechomail-ignore-rules) | Yes | Retrieve all echomail ignore rules for the authenticated user. |
 | `DELETE` | [`/api/user/echomail-ignore-rules/{id}`](#delete-apiuserechomail-ignore-rulesid) | Yes | Delete an echomail ignore rule for the authenticated user. |
 | `GET` | [`/api/user/profile`](#get-apiuserprofile) | Yes | Retrieve the authenticated user's profile information. |
+| `GET` | [`/api/user/public-profile/{id}`](#get-apiuserpublic-profileid) | Yes | Retrieve public profile information for an active user by ID. |
 | `POST` | [`/api/user/change-password`](#post-apiuserchange-password) | Yes | Change the authenticated user's password. |
 | `POST` | [`/api/user/profile`](#post-apiuserprofile) | Yes | Update the authenticated user's profile information. |
 | `GET` | [`/api/user/stats`](#get-apiuserstats) | Yes | Retrieve message and file transfer statistics for the authenticated user. |
@@ -6569,6 +6600,41 @@ User profile data
 | `profile.email` | string | User email address |
 | `profile.location` | string | User location |
 | `profile.about_me` | string | User bio/about section |
+
+---
+
+#### `GET /api/user/public-profile/{id}`
+
+**Requires authentication**
+
+Returns a limited public profile for an active user. This endpoint is intended for authenticated client features such as the terminal Who's Online profile viewer and returns only public-facing fields rather than account management data.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | User ID of the active user whose public profile should be loaded |
+
+**Response** _(JSON)_
+
+Public profile fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` on success |
+| `profile` | object | Public profile data |
+| `profile.user_id` | integer | User ID |
+| `profile.username` | string | Username |
+| `profile.real_name` | string | Full/real name (may be empty) |
+| `profile.location` | string | Location (may be empty) |
+| `profile.about_me` | string | Biography/about-me text (may be empty) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 404 | User not found |
 
 ---
 
@@ -7358,7 +7424,7 @@ Confirmation of update
 
 **Requires authentication**
 
-Fetches saved terminal navigation state for the authenticated user, including mail-reader positions and the last selected local chat target. Used to restore UI state across sessions.
+Fetches saved terminal navigation state for the authenticated user, including mail-reader positions, the saved netmail and echomail sort selections, and the last selected local chat target. Used to restore UI state across sessions.
 
 **Response** _(JSON)_
 
@@ -7367,7 +7433,7 @@ User mail navigation state
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
-| `settings` | object | State object with terminal_netmail_page, terminal_netmail_selected_message_id, terminal_echomail_areas_page, terminal_echomail_positions, and terminal_chat_target |
+| `settings` | object | State object with terminal_netmail_page, terminal_netmail_selected_message_id, terminal_netmail_folder, terminal_netmail_sort, terminal_echomail_areas_page, terminal_echomail_positions, terminal_echomail_sort, and terminal_chat_target |
 
 ---
 
@@ -7375,7 +7441,7 @@ User mail navigation state
 
 **Requires authentication**
 
-Persists terminal navigation state for the authenticated user, including mail-reader positions and the last selected local chat target. Accepts both wrapped and flat request formats. Integer fields must be positive or null; terminal_echomail_positions and terminal_chat_target accept JSON string or object.
+Persists terminal navigation state for the authenticated user, including mail-reader positions, the saved netmail and echomail sort selections, and the last selected local chat target. Accepts both wrapped and flat request formats. Integer fields must be positive or null; terminal_echomail_positions and terminal_chat_target accept JSON string or object.
 
 **Request Body** _(JSON)_
 
@@ -7386,8 +7452,11 @@ Mail state to update (wrapped or flat)
 | `settings` | object | No | Wrapped settings object (alternative to flat format) |
 | `terminal_netmail_page` | integer | No | Current netmail page (≥1 or null) |
 | `terminal_netmail_selected_message_id` | integer | No | Selected netmail message ID (≥1 or null) |
+| `terminal_netmail_folder` | string | No | Saved netmail folder: `inbox` or `sent` |
+| `terminal_netmail_sort` | string | No | Saved netmail list sort: `date_desc`, `date_asc`, `subject`, or `author` |
 | `terminal_echomail_areas_page` | integer | No | Current echomail areas page (≥1 or null) |
 | `terminal_echomail_positions` | object|string | No | Area positions as JSON object or string |
+| `terminal_echomail_sort` | string | No | Saved echomail list sort: `date_desc`, `date_asc`, `subject`, or `author` |
 | `terminal_chat_target` | object|string | No | Last selected terminal chat target as JSON object or string |
 
 When `terminal_chat_target` is present it must include:
@@ -7410,7 +7479,7 @@ Confirmation of update
 
 | Status | Description |
 |--------|-------------|
-| 400 | Invalid value for integer field (not numeric or < 1) or invalid terminal_echomail_positions/terminal_chat_target JSON |
+| 400 | Invalid value for integer field (not numeric or < 1), invalid terminal_echomail_sort, or invalid terminal_echomail_positions/terminal_chat_target JSON |
 
 ---
 

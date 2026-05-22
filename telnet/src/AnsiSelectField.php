@@ -44,6 +44,14 @@ class AnsiSelectField extends AnsiFormField
         $this->currentIndex = ($idx !== false) ? (int)$idx : 0;
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public function getOptions(): array
+    {
+        return $this->options;
+    }
+
     // ── Input handling ───────────────────────────────────────────────────────
 
     public function handleLeft(): bool
@@ -62,10 +70,14 @@ class AnsiSelectField extends AnsiFormField
 
     // ── Rendering ────────────────────────────────────────────────────────────
 
-    public function renderValue(bool $active, bool $ansiColor, bool $isUtf8): string
+    public function renderValue(bool $active, bool $ansiColor, bool $isUtf8, array $styleProfile = []): string
     {
         $keys    = array_keys($this->options);
         $display = $this->options[$keys[$this->currentIndex] ?? ''] ?? '';
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $listScheme = $styleProfile['list'] ?? [];
+        $activeColor = (string)($listScheme['title'] ?? (TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        $inactiveColor = (string)($panelScheme['divider'] ?? TelnetUtils::ANSI_DIM);
 
         if (!$this->enabled) {
             $text = "  {$display}";
@@ -81,10 +93,12 @@ class AnsiSelectField extends AnsiFormField
                 $inner = "< {$display} >";
             }
             return $ansiColor
-                ? TelnetUtils::colorize($inner, TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
+                ? TelnetUtils::colorize($inner, $activeColor)
                 : $inner;
         }
 
-        return "[{$display}]";
+        return $ansiColor
+            ? TelnetUtils::colorize("[{$display}]", $inactiveColor)
+            : "[{$display}]";
     }
 }

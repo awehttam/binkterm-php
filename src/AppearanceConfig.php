@@ -222,7 +222,6 @@ class AppearanceConfig
      */
     public static function reload(): void
     {
-        self::$loaded = false;
         self::$config = null;
     }
 

@@ -492,6 +492,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template = new Template();
         $template->renderResponse('admin/bbs_settings.twig', [
             'timezone_list' => \DateTimeZone::listIdentifiers(),
+            'allowed_terminal_shells' => \BinktermPHP\TerminalShellRegistry::getShellDefinitions(
+                \BinktermPHP\BbsConfig::getAllowedTerminalShells()
+            ),
         ]);
     });
 
@@ -502,10 +505,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $aiService = \BinktermPHP\AI\AiService::create();
 
         $template = new Template();
+        $systemDefault = $aiService->getSystemDefault();
         $template->renderResponse('admin/ai_settings.twig', [
             'ai_available'                => !empty($aiService->getConfiguredProviders()),
             'share_summary_default_prompt' => \BinktermPHP\AI\ShareSummaryGenerator::DEFAULT_SYSTEM_PROMPT,
             'provider_status'             => $aiService->getProviderStatusList(),
+            'system_default_provider'     => $systemDefault ? $systemDefault['provider'] : null,
         ]);
     });
 
@@ -1827,6 +1832,21 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $config['packet_bbs'] = [
                         'session_timeout_minutes' => $sessionTimeout,
                         'allow_guest_who'         => !empty($pbbs['allow_guest_who']),
+                    ];
+                }
+
+                if (array_key_exists('terminal_server', $config)) {
+                    $ts = $config['terminal_server'];
+                    if (!is_array($ts)) {
+                        throw new Exception('Invalid terminal_server configuration');
+                    }
+                    $defaultShell = strtolower(trim((string)($ts['default_shell'] ?? 'tui')));
+                    if (!in_array($defaultShell, \BinktermPHP\BbsConfig::getAllowedTerminalShells(), true)) {
+                        throw new Exception('Invalid terminal default shell');
+                    }
+                    $config['terminal_server'] = [
+                        'default_shell' => $defaultShell,
+                        'force_shell'   => !empty($ts['force_shell']),
                     ];
                 }
 
@@ -5662,8 +5682,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $stmt = $db->prepare("
                 INSERT INTO auto_feed_sources
                 (feed_url, feed_name, source_type, echoarea_id, post_as_user_id,
-                 max_articles_per_check, active, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                 max_articles_per_check, active, thread_replies, thread_lookup_limit,
+                 created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                 RETURNING id
             ");
             $stmt->execute([
@@ -5673,7 +5694,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $input['echoarea_id'],
                 $input['post_as_user_id'],
                 $input['max_articles_per_check'] ?? 10,
-                $input['active'] ?? true
+                $input['active'] ?? true ? 'true' : 'false',
+                isset($input['thread_replies']) && $input['thread_replies'] ? 'true' : 'false',
+                max(100, min(10000, (int)($input['thread_lookup_limit'] ?? 1000))),
             ]);
 
             $feedId = (int)$stmt->fetchColumn();
@@ -5761,6 +5784,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     post_as_user_id = ?,
                     max_articles_per_check = ?,
                     active = ?,
+                    thread_replies = ?,
+                    thread_lookup_limit = ?,
                     updated_at = NOW()
                 WHERE id = ?
             ");
@@ -5771,7 +5796,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $input['echoarea_id'],
                 $input['post_as_user_id'],
                 $input['max_articles_per_check'] ?? 10,
-                $input['active'] ?? true,
+                isset($input['active']) && $input['active'] ? 'true' : 'false',
+                isset($input['thread_replies']) && $input['thread_replies'] ? 'true' : 'false',
+                max(100, min(10000, (int)($input['thread_lookup_limit'] ?? 1000))),
                 $id
             ]);
 

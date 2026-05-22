@@ -74,6 +74,7 @@ class BbsSession
     private int $tlsPort;
     private ?Logger $logger;
     private bool $asciiTextMode;
+    private bool $syncTermStatusLineDisabled = false;
     /** @var string Terminal character set: 'utf8', 'cp437', or 'ascii' */
     private string $terminalCharset = 'ascii';
     /** @var bool Whether ANSI color is enabled for this terminal */
@@ -445,7 +446,7 @@ class BbsSession
 
         $this->showSystemNews($conn, $state);
         $bulletinsHandler->showUnread($conn, $state, $session);
-        $shoutboxHandler->show($conn, $state, $session, 5, false);
+        $shoutboxHandler->show($conn, $state, $session, 20, false);
 
         if (Config::env('ENABLE_INTERESTS') === 'true') {
             $interestsHandler->showOnboardingHintIfNeeded($conn, $state, $session);
@@ -469,7 +470,262 @@ class BbsSession
                 'interests' => 'i', 'whosonline' => 'w', 'qwk' => 'k',
                 'bbslist' => 'b', 'nodelist'  => 'l', 'localchat' => 'c', 'quit' => 'q',
             ];
-        $keyToAction = []; // populated on each menu render in the else branch below
+        // Computes active menu items, key→action map, and section arrays from current state.
+        // Called by both $renderMainMenu (TUI) and the LineShell chooseFromList path.
+        $computeMenuData = function () use (&$state, &$dashboardStats, $menuKeys): array {
+            $locale = $state['locale'];
+
+            $showShoutbox   = BbsConfig::isFeatureEnabled('shoutbox');
+            $showPolls      = BbsConfig::isFeatureEnabled('voting_booth');
+            $showDoors      = BbsConfig::isFeatureEnabled('webdoors');
+            $showFiles      = \BinktermPHP\FileAreaManager::isFeatureEnabled();
+            $showInterests  = Config::env('ENABLE_INTERESTS') === 'true';
+            $showQwk        = BbsConfig::isFeatureEnabled('qwk');
+            $showBbsList    = BbsConfig::isFeatureEnabled('bbs_directory');
+            $showNodelist   = $this->nodelistHasEntries();
+
+            $netmailKey       = $menuKeys['netmail']   ?? null;
+            $echomailKey      = $menuKeys['echomail']  ?? null;
+            $settingsKey      = $menuKeys['settings']  ?? null;
+            $quitKey          = $menuKeys['quit']      ?? null;
+            $localchatKey     = BbsConfig::isFeatureEnabled('chat') && isset($menuKeys['localchat']) ? $menuKeys['localchat'] : null;
+            $shoutboxOption   = $showShoutbox  && isset($menuKeys['shoutbox'])  ? $menuKeys['shoutbox']  : null;
+            $bulletinsOption  = $menuKeys['bulletins'] ?? null;
+            $pollsOption      = $showPolls     && isset($menuKeys['polls'])     ? $menuKeys['polls']     : null;
+            $doorsOption      = $showDoors     && isset($menuKeys['doors'])     ? $menuKeys['doors']     : null;
+            $filesOption      = $showFiles     && isset($menuKeys['files'])     ? $menuKeys['files']     : null;
+            $interestsOption  = $showInterests && isset($menuKeys['interests']) ? $menuKeys['interests'] : null;
+            $qwkOption        = $showQwk       && isset($menuKeys['qwk'])       ? $menuKeys['qwk']       : null;
+            $bbsListOption    = $showBbsList   && isset($menuKeys['bbslist'])   ? $menuKeys['bbslist']   : null;
+            $nodelistOption   = $showNodelist  && isset($menuKeys['nodelist'])  ? $menuKeys['nodelist']  : null;
+            $whosOnlineOption = $menuKeys['whosonline'] ?? null;
+
+            $norm = fn(string $text, string $prefix): string =>
+                $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($text, $prefix), $state);
+
+            $lblNetmail    = $norm($this->t('ui.terminalserver.server.menu.netmail',    'N) Netmail ({count} unread)', ['count' => $dashboardStats['unread_netmail']], $locale), 'N');
+            $lblEchomail   = $norm($this->t('ui.terminalserver.server.menu.echomail',   'E) Echomail ({count} new)',   ['count' => $dashboardStats['new_echomail']], $locale), 'E');
+            $lblQwk        = $norm($this->t('ui.terminalserver.server.menu.qwk',        'K) QWK Offline Mail', [], $locale), 'K');
+            $lblChat       = $norm($this->t('ui.terminalserver.server.menu.chat',       'C) Local Chat', [], $locale), 'C');
+            $lblWhosOnline = $norm($this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale), 'W');
+            $lblShoutbox   = $norm($this->t('ui.terminalserver.server.menu.shoutbox',   'S) Shoutbox', [], $locale), 'S');
+            $lblBulletins  = $norm($this->t('ui.terminalserver.server.menu.bulletins',  'U) Bulletins', [], $locale), 'U');
+            $lblPolls      = $norm($this->t('ui.terminalserver.server.menu.polls',      'P) Polls', [], $locale), 'P');
+            $lblDoors      = $norm($this->t('ui.terminalserver.server.menu.doors',      'D) Door Games', [], $locale), 'D');
+            $lblFiles      = $norm($this->t('ui.terminalserver.server.menu.files',      'F) Files', [], $locale), 'F');
+            $lblBbsList    = $norm($this->t('ui.terminalserver.server.menu.bbs_list',   'B) BBS Directory', [], $locale), 'B');
+            $lblNodelist   = $norm($this->t('ui.terminalserver.server.menu.nodelist',   'L) Node List', [], $locale), 'L');
+            $lblSettings   = $norm($this->t('ui.terminalserver.server.menu.settings',   'T) Settings', [], $locale), 'T');
+            $lblInterests  = $norm($this->t('ui.terminalserver.server.menu.interests',  'I) Interests', [], $locale), 'I');
+            $lblQuit       = $norm($this->t('ui.terminalserver.server.menu.quit',       'Q) Quit', [], $locale), 'Q');
+
+            // Two-column section arrays for TUI rendering: [UPPER_KEY, label]
+            $messagingItems = [];
+            if ($netmailKey !== null)      $messagingItems[] = [strtoupper($netmailKey), $lblNetmail];
+            if ($echomailKey !== null)     $messagingItems[] = [strtoupper($echomailKey), $lblEchomail];
+            if ($qwkOption !== null)       $messagingItems[] = [strtoupper($qwkOption), $lblQwk];
+            if ($bulletinsOption !== null) $messagingItems[] = [strtoupper($bulletinsOption), $lblBulletins];
+
+            $communityItems = [];
+            if ($whosOnlineOption !== null) $communityItems[] = [strtoupper($whosOnlineOption), $lblWhosOnline];
+            if ($localchatKey !== null)    $communityItems[] = [strtoupper($localchatKey), $lblChat];
+            if ($pollsOption !== null)     $communityItems[] = [strtoupper($pollsOption), $lblPolls];
+            if ($shoutboxOption !== null)  $communityItems[] = [strtoupper($shoutboxOption), $lblShoutbox];
+            if ($doorsOption !== null)     $communityItems[] = [strtoupper($doorsOption), $lblDoors];
+
+            $exploreItems = [];
+            if ($bbsListOption !== null)   $exploreItems[] = [strtoupper($bbsListOption), $lblBbsList];
+            if ($nodelistOption !== null)  $exploreItems[] = [strtoupper($nodelistOption), $lblNodelist];
+
+            $filesItems = $filesOption !== null ? [[strtoupper($filesOption), $lblFiles]] : [];
+            $settingsItems = [];
+            if ($settingsKey !== null)     $settingsItems[] = [strtoupper($settingsKey), $lblSettings];
+            if ($interestsOption !== null) $settingsItems[] = [strtoupper($interestsOption), $lblInterests];
+
+            // key → action map (TUI single-key dispatch)
+            $keyToAction = [];
+            foreach ([
+                'netmail'    => $netmailKey,    'echomail'   => $echomailKey,
+                'shoutbox'   => $shoutboxOption,'bulletins'  => $bulletinsOption,
+                'polls'      => $pollsOption,   'localchat'  => $localchatKey,
+                'interests'  => $interestsOption,'qwk'       => $qwkOption,
+                'doors'      => $doorsOption,   'files'      => $filesOption,
+                'bbslist'    => $bbsListOption, 'nodelist'   => $nodelistOption,
+                'whosonline' => $whosOnlineOption,'settings' => $settingsKey,
+                'quit'       => $quitKey,
+            ] as $_action => $_key) {
+                if ($_key !== null) {
+                    $keyToAction[$_key] = $_action;
+                }
+            }
+
+            // Flat ordered items for LineShell chooseFromList (quit omitted — null return = quit)
+            $flatItems = [];
+            foreach ([
+                'netmail'    => [$netmailKey, $lblNetmail],
+                'echomail'   => [$echomailKey, $lblEchomail],
+                'qwk'        => [$qwkOption, $lblQwk],
+                'bulletins'  => [$bulletinsOption, $lblBulletins],
+                'whosonline' => [$whosOnlineOption, $lblWhosOnline],
+                'localchat'  => [$localchatKey, $lblChat],
+                'polls'      => [$pollsOption, $lblPolls],
+                'shoutbox'   => [$shoutboxOption, $lblShoutbox],
+                'doors'      => [$doorsOption, $lblDoors],
+                'bbslist'    => [$bbsListOption, $lblBbsList],
+                'nodelist'   => [$nodelistOption, $lblNodelist],
+                'files'      => [$filesOption, $lblFiles],
+                'settings'   => [$settingsKey, $lblSettings],
+                'interests'  => [$interestsOption, $lblInterests],
+            ] as $_action => [$_key, $_label]) {
+                if ($_key !== null) {
+                    $flatItems[] = ['action' => $_action, 'label' => $_label, 'key' => $_key];
+                }
+            }
+
+            return [
+                'keyToAction'    => $keyToAction,
+                'flatItems'      => $flatItems,
+                'messagingItems' => $messagingItems,
+                'communityItems' => $communityItems,
+                'exploreItems'   => $exploreItems,
+                'filesItems'     => $filesItems,
+                'settingsItems'  => $settingsItems,
+                'quitKey'        => $quitKey,
+                'quitLabel'      => $lblQuit,
+                'locale'         => $locale,
+            ];
+        };
+
+        $keyToAction = [];
+        $renderMainMenu = function () use ($conn, &$state, &$dashboardStats, $config, &$keyToAction, $computeMenuData): void {
+            $cols       = $state['cols'] ?? 80;
+            $termRows   = $state['rows'] ?? 24;
+            $menuWidth  = min(76, $cols - 4);
+            $innerWidth = $menuWidth - 4;
+            $menuLeft   = max(0, (int)floor(($cols - $menuWidth) / 2));
+            $menuPad    = str_repeat(' ', $menuLeft);
+            $systemName = $config->getSystemName();
+            $chars      = $this->getLineDrawingChars();
+            $boxTop     = $this->encodeForTerminal($chars['tl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['tr']);
+            $boxBottom  = $this->encodeForTerminal($chars['bl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['br']);
+            $divider    = $this->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $menuWidth - 2) . $chars['r_tee']);
+
+            $this->safeWrite($conn, "\033[2J\033[H");
+
+            $currentUtc = gmdate('Y-m-d H:i:s');
+            $timeStr    = TelnetUtils::formatUserDate($currentUtc, $state, false);
+            $statusLine = $this->buildMainMenuStatusLine($systemName, $timeStr, $cols, $state);
+            $this->safeWrite($conn, "\033[1;1H");
+            $this->safeWrite($conn, $statusLine . "\r");
+            $this->safeWrite($conn, "\033[2;1H");
+            $this->writeLine($conn, '');
+            $styleProfile = TelnetUtils::getStyleProfile($state);
+            $panelScheme = $styleProfile['panel'] ?? [];
+            $listScheme = $styleProfile['list'] ?? [];
+            $borderColor = (string)($panelScheme['border'] ?? (self::ANSI_BLUE . self::ANSI_BOLD));
+            $dividerColor = (string)($panelScheme['divider'] ?? self::ANSI_BLUE);
+            $titleBarColor = (string)($panelScheme['title_bar'] ?? (self::ANSI_BG_BLUE . self::ANSI_CYAN . self::ANSI_BOLD));
+            $titleTextColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
+
+            $this->writeLine($conn, $menuPad . $this->colorize($boxTop, $borderColor));
+            $titleLabel = $this->normalizeTerminalTextForClient(
+                $this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']),
+                $state
+            );
+            $titleText = $this->mbStrPad($titleLabel, $innerWidth, ' ', STR_PAD_BOTH);
+            $titleLine = $this->colorize($this->encodeForTerminal($chars['v']), $borderColor)
+                . $this->colorize(' ' . $titleText . ' ', $titleBarColor !== '' ? $titleBarColor : $titleTextColor)
+                . $this->colorize($this->encodeForTerminal($chars['v']), $borderColor);
+            $this->writeLine($conn, $menuPad . $titleLine);
+            $this->writeLine($conn, $menuPad . $this->colorize($divider, $dividerColor));
+
+            $data = $computeMenuData();
+            $keyToAction    = $data['keyToAction'];
+            $messagingItems = $data['messagingItems'];
+            $communityItems = $data['communityItems'];
+            $exploreItems   = $data['exploreItems'];
+            $filesItems     = $data['filesItems'];
+            $settingsItems  = $data['settingsItems'];
+            $quitKey        = $data['quitKey'];
+            $quitLabel      = $data['quitLabel'];
+            $locale         = $data['locale'];
+
+            $colWidth = (int)floor(($menuWidth - 6) / 2);
+            $empty    = str_repeat(' ', $colWidth);
+
+            $rows = [];
+            $anyPrevSection = false;
+
+            if (!empty($messagingItems)) {
+                $rows[] = [$this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.messaging', 'Messaging', [], $locale), $colWidth, $state), $empty];
+                for ($j = 0; $j < count($messagingItems); $j += 2) {
+                    $rows[] = [
+                        $this->menuItemCol($messagingItems[$j][0], $messagingItems[$j][1], $colWidth, $state),
+                        isset($messagingItems[$j + 1]) ? $this->menuItemCol($messagingItems[$j + 1][0], $messagingItems[$j + 1][1], $colWidth, $state) : $empty,
+                    ];
+                }
+                $anyPrevSection = true;
+            }
+
+            if (!empty($communityItems) || !empty($exploreItems)) {
+                if ($anyPrevSection) {
+                    $rows[] = [$empty, $empty];
+                }
+                $rows[] = [
+                    !empty($communityItems) ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.community', 'Community', [], $locale), $colWidth, $state) : $empty,
+                    !empty($exploreItems) ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.explore', 'Explore', [], $locale), $colWidth, $state) : $empty,
+                ];
+                $maxSection2 = max(count($communityItems), count($exploreItems));
+                for ($j = 0; $j < $maxSection2; $j++) {
+                    $rows[] = [
+                        isset($communityItems[$j]) ? $this->menuItemCol($communityItems[$j][0], $communityItems[$j][1], $colWidth, $state) : $empty,
+                        isset($exploreItems[$j]) ? $this->menuItemCol($exploreItems[$j][0], $exploreItems[$j][1], $colWidth, $state) : $empty,
+                    ];
+                }
+                $anyPrevSection = true;
+            }
+
+            if (!empty($filesItems) || !empty($settingsItems)) {
+                if ($anyPrevSection) {
+                    $rows[] = [$empty, $empty];
+                }
+                $rows[] = [
+                    !empty($filesItems) ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.files', 'Files', [], $locale), $colWidth, $state) : $empty,
+                    !empty($settingsItems) ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.settings', 'Settings', [], $locale), $colWidth, $state) : $empty,
+                ];
+                $maxSection3 = max(count($filesItems), count($settingsItems));
+                for ($j = 0; $j < $maxSection3; $j++) {
+                    $rows[] = [
+                        isset($filesItems[$j]) ? $this->menuItemCol($filesItems[$j][0], $filesItems[$j][1], $colWidth, $state) : $empty,
+                        isset($settingsItems[$j]) ? $this->menuItemCol($settingsItems[$j][0], $settingsItems[$j][1], $colWidth, $state) : $empty,
+                    ];
+                }
+            }
+
+            if ($quitKey !== null) {
+                $rows[] = [$this->menuItemCol(strtoupper($quitKey), $quitLabel, $colWidth, $state), $empty];
+            }
+
+            $maxMenuRows = max(0, $termRows - 8);
+            if (count($rows) > $maxMenuRows) {
+                $rows = array_slice($rows, 0, $maxMenuRows);
+            }
+
+            foreach ($rows as [$left, $right]) {
+                $line = $this->colorize($this->encodeForTerminal($chars['v']), $dividerColor)
+                    . ' ' . $left . '  ' . $right . ' '
+                    . $this->colorize($this->encodeForTerminal($chars['v']), $dividerColor);
+                $this->writeLine($conn, $menuPad . $line);
+            }
+
+            $this->writeLine($conn, $menuPad . $this->colorize($boxBottom, $borderColor));
+
+            $boxStartRow  = 3;
+            $boxBottomRow = 6 + count($rows);
+            $this->renderMenuWidgets($conn, $state, $dashboardStats, $menuLeft, $menuWidth, $boxStartRow, $boxBottomRow, $termRows);
+
+            $this->writeLine($conn, '');
+        };
 
         // ===== MAIN MENU LOOP =====
         while (true) {
@@ -480,263 +736,112 @@ class BbsSession
                 break;
             }
 
-            if (($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("mainmenu.sixel", $this, $conn))
-                || TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
-                $this->writeLine($conn, '');
+            // Recreate shell each iteration so a resize can switch TUI ↔ Line
+            $shell  = TerminalShellFactory::create($this, $state);
+            if (method_exists($shell, 'getStyleProfile')) {
+                $styleProfile = $shell->getStyleProfile();
+                if (is_array($styleProfile) && $styleProfile !== []) {
+                    $state['_shell_style_profile'] = $styleProfile;
+                } else {
+                    unset($state['_shell_style_profile']);
+                }
             } else {
-                $cols      = $state['cols'] ?? 80;
-                $menuWidth = min(76, $cols - 4);
-                $innerWidth= $menuWidth - 4;
-                $menuLeft  = max(0, (int)floor(($cols - $menuWidth) / 2));
-                $menuPad   = str_repeat(' ', $menuLeft);
-                $systemName= $config->getSystemName();
-                $chars     = $this->getLineDrawingChars();
-                $boxTop    = $this->encodeForTerminal($chars['tl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['tr']);
-                $boxBottom = $this->encodeForTerminal($chars['bl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['br']);
-                $divider   = $this->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $menuWidth - 2) . $chars['r_tee']);
+                unset($state['_shell_style_profile']);
+            }
+            $action = null;
 
-                $this->safeWrite($conn, "\033[2J\033[H");
+            if ($shell instanceof TuiShell) {
+                // TUI path: framed box (or custom art) + single-key dispatch
+                if (($this->sixelSupported && TelnetUtils::showSixelScreenIfExists("mainmenu.sixel", $this, $conn))
+                    || TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
+                    $this->writeLine($conn, '');
+                    $menuData    = $computeMenuData();
+                    $keyToAction = $menuData['keyToAction'];
+                } else {
+                    $renderMainMenu();
+                }
 
-                $currentUtc = gmdate('Y-m-d H:i:s');
-                $timeStr    = TelnetUtils::formatUserDate($currentUtc, $state, false);
-                $statusLine = $this->buildMainMenuStatusLine($systemName, $timeStr, $cols, $state);
-                $this->safeWrite($conn, "\033[1;1H");
-                $this->safeWrite($conn, $statusLine . "\r");
-                $this->safeWrite($conn, "\033[2;1H");
-                $this->writeLine($conn, '');
-                $this->writeLine($conn, $menuPad . $this->colorize($boxTop, self::ANSI_BLUE . self::ANSI_BOLD));
-                $titleLabel = $this->normalizeTerminalTextForClient(
-                    $this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']),
-                    $state
+                $lastRenderCols = $state['cols'] ?? 80;
+                $lastRenderRows = $state['rows'] ?? 24;
+
+                $choice      = '';
+                $promptShown = false;
+                while ($choice === '') {
+                    if (!$promptShown) {
+                        $this->safeWrite($conn, $this->colorize(
+                            $this->t('ui.terminalserver.server.menu.select_option', 'Select option:', [], $state['locale']),
+                            self::ANSI_DIM
+                        ));
+                        $promptShown = true;
+                    }
+
+                    $wasIdleWarned = $state['idle_warned'] ?? false;
+                    [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
+
+                    if ($shouldDisconnect) {
+                        $this->logDuration("Idle timeout", $username, $loginTime);
+                        break 2;
+                    }
+                    if ($key === null) {
+                        $this->logDuration("Disconnected", $username, $loginTime);
+                        break 2;
+                    }
+                    if ($timedOut) { continue; }
+
+                    // Detect terminal resize (NAWS updated $state during readTelnetKeyWithTimeout)
+                    $currentCols = $state['cols'] ?? 80;
+                    $currentRows = $state['rows'] ?? 24;
+                    if ($currentCols !== $lastRenderCols || $currentRows !== $lastRenderRows) {
+                        continue 2; // restart outer loop to re-render menu at new dimensions
+                    }
+
+                    if (str_starts_with($key, 'CHAR:')) {
+                        $char = strtolower(substr($key, 5));
+                        if (isset($keyToAction[$char]) || ctype_digit($char)) {
+                            $choice = $char;
+                        }
+                    }
+
+                    // If a non-menu key dismissed the idle warning, redraw the menu so the
+                    // user gets visible confirmation that the session is still active.
+                    if ($wasIdleWarned && !($state['idle_warned'] ?? false) && $choice === '') {
+                        continue 2;
+                    }
+                }
+
+                if ($choice === '' || $choice === null) { break; }
+                $action = $keyToAction[$choice] ?? null;
+
+            } else {
+                // LineShell path: plain numbered list via chooseFromList
+                $menuData  = $computeMenuData();
+                $flatItems = $menuData['flatItems'];
+                $title     = $this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']);
+                $listItems = array_map(
+                    fn($item) => '[' . strtoupper((string)($item['key'] ?? '')) . '] ' . $item['label'],
+                    $flatItems
                 );
-                $titleText = $this->mbStrPad($titleLabel, $innerWidth, ' ', STR_PAD_BOTH);
-                $titleLine = $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE . self::ANSI_BOLD)
-                    . $this->colorize(' ' . $titleText . ' ', self::ANSI_BG_BLUE . self::ANSI_CYAN . self::ANSI_BOLD)
-                    . $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE . self::ANSI_BOLD);
-                $this->writeLine($conn, $menuPad . $titleLine);
-                $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_BLUE));
-
-                $showShoutbox   = BbsConfig::isFeatureEnabled('shoutbox');
-                $showPolls      = BbsConfig::isFeatureEnabled('voting_booth');
-                $showDoors      = BbsConfig::isFeatureEnabled('webdoors');
-                $showFiles      = \BinktermPHP\FileAreaManager::isFeatureEnabled();
-                $showInterests  = Config::env('ENABLE_INTERESTS') === 'true';
-                $showQwk        = BbsConfig::isFeatureEnabled('qwk');
-                $showBbsList    = BbsConfig::isFeatureEnabled('bbs_directory');
-                $showNodelist   = $this->nodelistHasEntries();
-                $locale         = $state['locale'];
-
-                // Option keys driven by sysop key map + feature flags
-                $netmailKey      = $menuKeys['netmail']   ?? null;
-                $echomailKey     = $menuKeys['echomail']  ?? null;
-                $settingsKey     = $menuKeys['settings']  ?? null;
-                $quitKey         = $menuKeys['quit']      ?? null;
-                $localchatKey    = BbsConfig::isFeatureEnabled('chat') && isset($menuKeys['localchat'])  ? $menuKeys['localchat']  : null;
-                $shoutboxOption  = $showShoutbox  && isset($menuKeys['shoutbox'])   ? $menuKeys['shoutbox']   : null;
-                $bulletinsOption = $menuKeys['bulletins'] ?? null;
-                $pollsOption     = $showPolls     && isset($menuKeys['polls'])      ? $menuKeys['polls']      : null;
-                $doorsOption     = $showDoors     && isset($menuKeys['doors'])      ? $menuKeys['doors']      : null;
-                $filesOption     = $showFiles     && isset($menuKeys['files'])      ? $menuKeys['files']      : null;
-                $interestsOption = $showInterests && isset($menuKeys['interests'])  ? $menuKeys['interests']  : null;
-                $qwkOption       = $showQwk       && isset($menuKeys['qwk'])        ? $menuKeys['qwk']        : null;
-                $bbsListOption   = $showBbsList   && isset($menuKeys['bbslist'])    ? $menuKeys['bbslist']    : null;
-                $nodelistOption  = $showNodelist  && isset($menuKeys['nodelist'])   ? $menuKeys['nodelist']   : null;
-                $whosOnlineOption = $menuKeys['whosonline'] ?? null;
-
-                // Inverted map: key char → action ID, used by the input handler and dispatch
-                $keyToAction = [];
-                foreach ([
-                    'netmail'    => $netmailKey,
-                    'echomail'   => $echomailKey,
-                    'shoutbox'   => $shoutboxOption,
-                    'bulletins'  => $bulletinsOption,
-                    'polls'      => $pollsOption,
-                    'localchat'  => $localchatKey,
-                    'interests'  => $interestsOption,
-                    'qwk'        => $qwkOption,
-                    'doors'      => $doorsOption,
-                    'files'      => $filesOption,
-                    'bbslist'    => $bbsListOption,
-                    'nodelist'   => $nodelistOption,
-                    'whosonline' => $whosOnlineOption,
-                    'settings'   => $settingsKey,
-                    'quit'       => $quitKey,
-                ] as $_action => $_key) {
-                    if ($_key !== null) {
-                        $keyToAction[$_key] = $_action;
+                $keyToIndex = [];
+                foreach ($flatItems as $idx => $item) {
+                    if (!empty($item['key'])) {
+                        $keyToIndex[(string)$item['key']] = $idx;
                     }
                 }
 
-                // Two-column layout: colWidth = (menuWidth - 6) / 2
-                // Box line: │ + ' ' + left(colWidth) + '  ' + right(colWidth) + ' ' + │
-                $colWidth = (int)floor(($menuWidth - 6) / 2);
-                $empty    = str_repeat(' ', $colWidth);
-
-                // Pre-build stripped, normalised labels
-                $lblNetmail    = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.netmail',   'N) Netmail ({count} unread)',     ['count' => $dashboardStats['unread_netmail']], $locale), 'N'), $state);
-                $lblEchomail   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.echomail',  'E) Echomail ({count} new)',       ['count' => $dashboardStats['new_echomail']],   $locale), 'E'), $state);
-                $lblQwk        = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.qwk',        'K) QWK Offline Mail',             [],                                      $locale), 'K'), $state);
-                $lblChat       = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.chat',       'C) Local Chat',                   [],                                      $locale), 'C'), $state);
-                $lblWhosOnline = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.whos_online',"W) Who's Online",                 [],                                      $locale), 'W'), $state);
-                $lblShoutbox   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.shoutbox',   'S) Shoutbox',                     [],                                      $locale), 'S'), $state);
-                $lblBulletins  = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.bulletins',  'U) Bulletins',                    [],                                      $locale), 'U'), $state);
-                $lblPolls      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.polls',       'P) Polls',                        [],                                      $locale), 'P'), $state);
-                $lblDoors      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.doors',       'D) Door Games',                   [],                                      $locale), 'D'), $state);
-                $lblFiles      = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.files',       'F) Files',                        [],                                      $locale), 'F'), $state);
-                $lblBbsList    = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.bbs_list',    'B) BBS Directory',                [],                                      $locale), 'B'), $state);
-                $lblNodelist   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.nodelist',    'L) Node List',                    [],                                      $locale), 'L'), $state);
-                $lblSettings   = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.settings',    'T) Settings',                     [],                                      $locale), 'T'), $state);
-                $lblInterests  = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.interests',   'I) Interests',                    [],                                      $locale), 'I'), $state);
-                $lblQuit       = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($this->t('ui.terminalserver.server.menu.quit',        'Q) Quit',                         [],                                      $locale), 'Q'), $state);
-
-                // Build rows as [leftCol, rightCol] where each side is exactly $colWidth visible chars
-                $rows = [];
-                $anyPrevSection = false;
-
-                // --- Messaging (reflowed) ---
-                $messagingItems = [];
-                if ($netmailKey      !== null) $messagingItems[] = [strtoupper($netmailKey),      $lblNetmail];
-                if ($echomailKey     !== null) $messagingItems[] = [strtoupper($echomailKey),     $lblEchomail];
-                if ($qwkOption       !== null) $messagingItems[] = [strtoupper($qwkOption),       $lblQwk];
-                if ($bulletinsOption !== null) $messagingItems[] = [strtoupper($bulletinsOption), $lblBulletins];
-
-                if (!empty($messagingItems)) {
-                    $rows[] = [$this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.messaging', 'Messaging', [], $locale), $colWidth, $state), $empty];
-                    for ($j = 0; $j < count($messagingItems); $j += 2) {
-                        $rows[] = [
-                            $this->menuItemCol($messagingItems[$j][0], $messagingItems[$j][1], $colWidth, $state),
-                            isset($messagingItems[$j + 1]) ? $this->menuItemCol($messagingItems[$j + 1][0], $messagingItems[$j + 1][1], $colWidth, $state) : $empty,
-                        ];
-                    }
-                    $anyPrevSection = true;
-                }
-
-                // --- Community (left) + Explore (right) ---
-                $communityItems = [];
-                if ($whosOnlineOption !== null) $communityItems[] = [strtoupper($whosOnlineOption), $lblWhosOnline];
-                if ($localchatKey    !== null)  $communityItems[] = [strtoupper($localchatKey),    $lblChat];
-                if ($pollsOption     !== null)  $communityItems[] = [strtoupper($pollsOption),     $lblPolls];
-                if ($shoutboxOption  !== null)  $communityItems[] = [strtoupper($shoutboxOption),  $lblShoutbox];
-                if ($doorsOption     !== null)  $communityItems[] = [strtoupper($doorsOption),     $lblDoors];
-
-                $exploreItems = [];
-                if ($bbsListOption  !== null) $exploreItems[] = [strtoupper($bbsListOption),  $lblBbsList];
-                if ($nodelistOption !== null) $exploreItems[] = [strtoupper($nodelistOption), $lblNodelist];
-
-                if (!empty($communityItems) || !empty($exploreItems)) {
-                    if ($anyPrevSection) $rows[] = [$empty, $empty];
-                    $rows[] = [
-                        !empty($communityItems) ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.community', 'Community', [], $locale), $colWidth, $state) : $empty,
-                        !empty($exploreItems)   ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.explore',   'Explore',   [], $locale), $colWidth, $state) : $empty,
-                    ];
-                    $maxSection2 = max(count($communityItems), count($exploreItems));
-                    for ($j = 0; $j < $maxSection2; $j++) {
-                        $rows[] = [
-                            isset($communityItems[$j]) ? $this->menuItemCol($communityItems[$j][0], $communityItems[$j][1], $colWidth, $state) : $empty,
-                            isset($exploreItems[$j])   ? $this->menuItemCol($exploreItems[$j][0],   $exploreItems[$j][1],   $colWidth, $state) : $empty,
-                        ];
-                    }
-                    $anyPrevSection = true;
-                }
-
-                // --- Files (left) + Settings (right) ---
-                $filesItems    = $filesOption !== null ? [[strtoupper($filesOption), $lblFiles]] : [];
-                $settingsItems = [];
-                if ($settingsKey     !== null) $settingsItems[] = [strtoupper($settingsKey),     $lblSettings];
-                if ($interestsOption !== null) $settingsItems[] = [strtoupper($interestsOption), $lblInterests];
-
-                if (!empty($filesItems) || !empty($settingsItems)) {
-                    if ($anyPrevSection) $rows[] = [$empty, $empty];
-                    $rows[] = [
-                        !empty($filesItems)    ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.files',    'Files',    [], $locale), $colWidth, $state) : $empty,
-                        !empty($settingsItems) ? $this->menuHeaderCol($this->t('ui.terminalserver.server.menu.section.settings', 'Settings', [], $locale), $colWidth, $state) : $empty,
-                    ];
-                    $maxSection3 = max(count($filesItems), count($settingsItems));
-                    for ($j = 0; $j < $maxSection3; $j++) {
-                        $rows[] = [
-                            isset($filesItems[$j])    ? $this->menuItemCol($filesItems[$j][0],    $filesItems[$j][1],    $colWidth, $state) : $empty,
-                            isset($settingsItems[$j]) ? $this->menuItemCol($settingsItems[$j][0], $settingsItems[$j][1], $colWidth, $state) : $empty,
-                        ];
-                    }
-                    $anyPrevSection = true;
-                }
-
-                // --- Quit ---
-                if ($quitKey !== null) {
-                    $rows[] = [$this->menuItemCol(strtoupper($quitKey), $lblQuit, $colWidth, $state), $empty];
-                }
-
-                foreach ($rows as [$left, $right]) {
-                    $line = $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE)
-                        . ' ' . $left . '  ' . $right . ' '
-                        . $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE);
-                    $this->writeLine($conn, $menuPad . $line);
-                }
-
-                $this->writeLine($conn, $menuPad . $this->colorize($boxBottom, self::ANSI_BLUE . self::ANSI_BOLD));
-
-                // Dashboard widgets: sidebar (wide screens) or bottom bar (narrow).
-                // Row layout: 1=status, 2=blank, 3=box-top, 4=title, 5=divider,
-                // 6…5+count($rows)=menu items, 6+count($rows)=box-bottom.
-                $termRows     = $state['rows'] ?? 24;
-                $boxStartRow  = 3;
-                $boxBottomRow = 6 + count($rows);
-                $this->renderMenuWidgets($conn, $state, $dashboardStats, $menuLeft, $menuWidth, $boxStartRow, $boxBottomRow, $termRows);
-
-                $this->writeLine($conn, '');
+                $selectedIndex = $shell->chooseFromList($conn, $state, $title, $listItems, [
+                    'preamble_fn' => function () use ($conn): bool {
+                        if ($this->sixelSupported && TelnetUtils::showSixelScreenIfExists('mainmenu.sixel', $this, $conn)) {
+                            return true;
+                        }
+                        return TelnetUtils::showScreenIfExists('mainmenu.ans', $this, $conn);
+                    },
+                    'prompt' => $this->t('ui.terminalserver.server.menu.select_option', 'Select option:', [], $state['locale']) . ' ',
+                    'key_to_index' => $keyToIndex,
+                    'quit_keys' => array_filter(['q', $menuData['quitKey'] ?? null]),
+                    'show_numbers' => false,
+                ]);
+                $action = $selectedIndex !== null ? ($flatItems[$selectedIndex]['action'] ?? null) : 'quit';
             }
-
-            $lastRenderCols = $state['cols'] ?? 80;
-            $lastRenderRows = $state['rows'] ?? 24;
-
-            $choice      = '';
-            $promptShown = false;
-            while ($choice === '') {
-                if (!$promptShown) {
-                    $this->safeWrite($conn, $this->colorize(
-                        $this->t('ui.terminalserver.server.menu.select_option', 'Select option:', [], $state['locale']),
-                        self::ANSI_DIM
-                    ));
-                    $promptShown = true;
-                }
-
-                $wasIdleWarned = $state['idle_warned'] ?? false;
-                [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
-
-                if ($shouldDisconnect) {
-                    $this->logDuration("Idle timeout", $username, $loginTime);
-                    break 2;
-                }
-                if ($key === null) {
-                    $this->logDuration("Disconnected", $username, $loginTime);
-                    break 2;
-                }
-                if ($timedOut) { continue; }
-
-                // Detect terminal resize (NAWS updated $state during readTelnetKeyWithTimeout)
-                $currentCols = $state['cols'] ?? 80;
-                $currentRows = $state['rows'] ?? 24;
-                if ($currentCols !== $lastRenderCols || $currentRows !== $lastRenderRows) {
-                    continue 2; // restart outer loop to re-render menu at new dimensions
-                }
-
-                if (str_starts_with($key, 'CHAR:')) {
-                    $char = strtolower(substr($key, 5));
-                    if (isset($keyToAction[$char]) || ctype_digit($char)) {
-                        $choice = $char;
-                    }
-                }
-
-                // If a non-menu key dismissed the idle warning, redraw the menu so the
-                // user gets visible confirmation that the session is still active.
-                if ($wasIdleWarned && !($state['idle_warned'] ?? false) && $choice === '') {
-                    continue 2;
-                }
-            }
-
-            if ($choice === '' || $choice === null) { break; }
-
-            $action = $keyToAction[$choice] ?? null;
 
             if ($action === 'netmail') {
                 $this->log("Menu: {$username} -> Netmail");
@@ -779,7 +884,7 @@ class BbsSession
                 $nodelistHandler->show($conn, $state, $session);
             } elseif ($action === 'whosonline') {
                 $this->log("Menu: {$username} -> Who's Online");
-                $this->showWhosOnline($conn, $state, $session);
+                $this->showWhosOnline($conn, $state, $session, $shell instanceof TuiShell ? $renderMainMenu : null);
             } elseif ($action === 'settings') {
                 $this->log("Menu: {$username} -> Settings");
                 $settingsHandler->show($conn, $state, $session);
@@ -891,6 +996,11 @@ class BbsSession
      */
     private function renderMainMenuOptionLine(string $hotkey, string $translatedLine, int $menuWidth, array $state): string
     {
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $listScheme = $styleProfile['list'] ?? [];
+        $borderColor = (string)($panelScheme['divider'] ?? self::ANSI_BLUE);
+        $keyColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
         $label = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($translatedLine, $hotkey), $state);
         $hotkeyPrefix = strtoupper($hotkey) . ') ';
         $innerWidth = $menuWidth - 2;
@@ -899,13 +1009,13 @@ class BbsSession
 
         $chars = $this->getLineDrawingChars();
 
-        return $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE)
+        return $this->colorize($this->encodeForTerminal($chars['v']), $borderColor)
             . ' '
-            . $this->colorize(strtoupper($hotkey), self::ANSI_CYAN . self::ANSI_BOLD)
-            . $this->colorize(')', self::ANSI_BLUE)
+            . $this->colorize(strtoupper($hotkey), $keyColor)
+            . $this->colorize(')', $borderColor)
             . ' '
             . $labelPadded
-            . $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE);
+            . $this->colorize($this->encodeForTerminal($chars['v']), $borderColor);
     }
 
     /**
@@ -914,9 +1024,14 @@ class BbsSession
      */
     private function menuItemCol(string $key, string $label, int $colWidth, array $state): string
     {
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $listScheme = $styleProfile['list'] ?? [];
+        $borderColor = (string)($panelScheme['divider'] ?? self::ANSI_BLUE);
+        $keyColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
         $labelPadded = $this->fitTerminalLabel($label, max(0, $colWidth - 3), $state);
-        return $this->colorize(strtoupper($key), self::ANSI_CYAN . self::ANSI_BOLD)
-            . $this->colorize(')', self::ANSI_BLUE)
+        return $this->colorize(strtoupper($key), $keyColor)
+            . $this->colorize(')', $borderColor)
             . ' '
             . $labelPadded;
     }
@@ -927,9 +1042,12 @@ class BbsSession
      */
     private function menuHeaderCol(string $text, int $colWidth, array $state): string
     {
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $listScheme = $styleProfile['list'] ?? [];
+        $headerColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
         $label  = '[' . $text . ']';
         $padded = $this->fitTerminalLabel($label, $colWidth, $state);
-        return $this->colorize($padded, self::ANSI_CYAN . self::ANSI_BOLD);
+        return $this->colorize($padded, $headerColor);
     }
 
     /**
@@ -1024,22 +1142,28 @@ class BbsSession
         $divBar = $this->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $innerWidth) . $chars['r_tee']);
         $botBar = $this->encodeForTerminal($chars['bl'] . str_repeat($chars['h'], $innerWidth) . $chars['br']);
 
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $panelScheme = $styleProfile['panel'] ?? [];
+        $listScheme = $styleProfile['list'] ?? [];
+        $borderColor = (string)($panelScheme['divider'] ?? self::ANSI_BLUE);
+        $headerColor = (string)($listScheme['title'] ?? (self::ANSI_CYAN . self::ANSI_BOLD));
+
         $titlePadded = $this->fitTerminalLabel($title, $innerWidth, $state);
-        $titleLine   = $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE)
-            . $this->colorize($titlePadded, self::ANSI_CYAN . self::ANSI_BOLD)
-            . $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE);
+        $titleLine   = $this->colorize($this->encodeForTerminal($v), $borderColor)
+            . $this->colorize($titlePadded, $headerColor)
+            . $this->colorize($this->encodeForTerminal($v), $borderColor);
 
         $lines   = [];
-        $lines[] = $this->colorize($topBar, self::ANSI_BLUE);
+        $lines[] = $this->colorize($topBar, $borderColor);
         $lines[] = $titleLine;
-        $lines[] = $this->colorize($divBar, self::ANSI_BLUE);
+        $lines[] = $this->colorize($divBar, $borderColor);
 
         $countWidth = min(5, $innerWidth - 2);
         $labelWidth = max(0, $innerWidth - $countWidth - 1);
 
         foreach ($widgetEntries as $entry) {
             if ($entry === 'DIVIDER') {
-                $lines[] = $this->colorize($divBar, self::ANSI_BLUE);
+                $lines[] = $this->colorize($divBar, $borderColor);
                 continue;
             }
             [$label, $value] = $entry;
@@ -1048,11 +1172,11 @@ class BbsSession
             $innerLine = $this->colorize($labelStr, self::ANSI_DIM)
                 . ' '
                 . $this->colorize($countStr, self::ANSI_BOLD);
-            $lines[]   = $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE)
+            $lines[]   = $this->colorize($this->encodeForTerminal($v), $borderColor)
                 . $innerLine
-                . $this->colorize($this->encodeForTerminal($v), self::ANSI_BLUE);
+                . $this->colorize($this->encodeForTerminal($v), $borderColor);
         }
-        $lines[] = $this->colorize($botBar, self::ANSI_BLUE);
+        $lines[] = $this->colorize($botBar, $borderColor);
 
         foreach ($lines as $i => $line) {
             $row = $boxStartRow + $i;
@@ -1084,8 +1208,9 @@ class BbsSession
         $lblBull = $this->t('ui.terminalserver.dashboard.label.bulletins', 'Bulletins', [], $locale);
         $lblCred = $this->t('ui.terminalserver.dashboard.label.credits',   'Credits',   [], $locale);
 
-        $dot    = $this->colorize(' · ', self::ANSI_BLUE);
-        $dotLen = 3; // visible width of ' · '
+        $separator = $this->dashboardBottomBarSeparator($state);
+        $dot    = $this->colorize($separator, self::ANSI_BLUE);
+        $dotLen = $this->terminalTextWidth($separator, $state);
         $parts  = [];
         $parts[] = $this->colorize($lblNM  . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['unread_netmail'],   self::ANSI_BOLD);
         $parts[] = $this->colorize($lblECH . ': ', self::ANSI_DIM) . $this->colorize((string)$stats['new_echomail'],     self::ANSI_BOLD);
@@ -1134,6 +1259,18 @@ class BbsSession
     }
 
     /**
+     * Return a charset-safe separator for the narrow-screen dashboard stats bar.
+     */
+    private function dashboardBottomBarSeparator(array $state): string
+    {
+        if ($this->shouldUseAsciiFallback($state) || $this->terminalCharset === 'cp437') {
+            return ' | ';
+        }
+
+        return ' · ';
+    }
+
+    /**
      * Build the fallback main-menu header row, preferring the BBS name over
      * the clock when the terminal is too narrow to show both cleanly.
      */
@@ -1142,6 +1279,10 @@ class BbsSession
         if ($width <= 0) {
             return '';
         }
+
+        $styleProfile = TelnetUtils::getStyleProfile($state);
+        $statusScheme = $styleProfile['status_bar'] ?? [];
+        $statusColor = (string)($statusScheme['fill'] ?? self::ANSI_BLUE);
 
         $systemName = $this->normalizeTerminalTextForClient($systemName, $state);
         $timeStr    = $this->normalizeTerminalTextForClient($timeStr, $state);
@@ -1152,14 +1293,14 @@ class BbsSession
 
         if ($systemWidth + $gapWidth + $timeWidth <= $width) {
             return TelnetUtils::buildStatusBar([
-                ['text' => $systemName, 'color' => self::ANSI_BLUE],
-                ['text' => str_repeat(' ', $width - $systemWidth - $timeWidth), 'color' => self::ANSI_BLUE],
-                ['text' => $timeStr, 'color' => self::ANSI_BLUE],
+                ['text' => $systemName, 'color' => $statusColor],
+                ['text' => str_repeat(' ', $width - $systemWidth - $timeWidth), 'color' => $statusColor],
+                ['text' => $timeStr, 'color' => $statusColor],
             ], $width);
         }
 
         return TelnetUtils::buildStatusBar([
-            ['text' => $this->truncateTerminalLabel($systemName, $width, $state, true), 'color' => self::ANSI_BLUE],
+            ['text' => $this->truncateTerminalLabel($systemName, $width, $state, true), 'color' => $statusColor],
         ], $width);
     }
 
@@ -1354,9 +1495,10 @@ class BbsSession
      */
     private function getLineDrawingChars(): array
     {
-        // When ANSI color is disabled, keep framing strictly ASCII to avoid
-        // mixed OEM glyph rendering artifacts in monochrome terminal modes.
-        if (!$this->ansiColorEnabled || $this->terminalCharset === 'ascii') {
+        // Border glyphs depend on character-set capability, not color
+        // preference. Monochrome UTF-8/CP437 sessions should still keep their
+        // line-drawing characters; only ASCII terminals need ASCII framing.
+        if ($this->terminalCharset === 'ascii') {
             return $this->borderGlyphs('ascii');
         }
 
@@ -1730,7 +1872,7 @@ class BbsSession
                             if ($this->debug) { $this->log("probe NAWS: {$w}x{$h}"); }
                         } elseif ($sbOpt === self::OPT_TTYPE && strlen($sbData) >= 2 && ord($sbData[0]) === 0) {
                             $ttype = trim(substr($sbData, 1));
-                            $this->recordTerminalType($state, $ttype);
+                            $this->recordTerminalType($conn, $state, $ttype);
                         }
                         $inSb   = false;
                         $sbOpt  = -1;
@@ -2114,49 +2256,97 @@ class BbsSession
     /**
      * Show the who's-online list and wait for a keypress.
      */
-    private function showWhosOnline($conn, array &$state, string $session): void
+    private function showWhosOnline($conn, array &$state, string $session, ?callable $redrawFn = null): void
     {
+        $shell = TerminalShellFactory::create($this, $state);
         $response = $this->apiRequest('GET', '/api/whosonline', null, $session);
-        $users    = $response['data']['users']          ?? [];
+        $rawUsers = $response['data']['users']          ?? [];
         $minutes  = $response['data']['online_minutes'] ?? 15;
-        $cols     = $state['cols'] ?? 80;
-        $inner    = max(20, min($cols - 2, 78));
+        $users    = [];
+        $seenUserIds = [];
 
-        $this->safeWrite($conn, "\033[2J\033[H");
-        $this->writeLine($conn, $this->colorize(
-            $this->t('ui.terminalserver.server.whos_online.title', "Who's Online (last {minutes} minutes)", ['minutes' => $minutes], $state['locale']),
-            self::ANSI_CYAN . self::ANSI_BOLD
-        ));
-        $this->writeLine($conn, '');
-
-        if (!$users) {
-            $this->writeLine($conn, $this->colorize(
-                $this->t('ui.terminalserver.server.whos_online.empty', 'No users online.', [], $state['locale']),
-                self::ANSI_YELLOW
-            ));
-        } else {
-            $idx = 0;
-            foreach ($users as $user) {
-                $parts = [$user['username'] ?? 'Unknown'];
-                if (!empty($user['location'])) { $parts[] = $user['location']; }
-                if (!empty($user['activity'])) { $parts[] = $user['activity']; }
-                if (!empty($user['service']))  { $parts[] = $user['service'];  }
-                $line    = implode(' | ', $parts);
-                $wrapped = wordwrap($line, $inner, "\n", false);
-                foreach (explode("\n", $wrapped) as $part) {
-                    if (strlen($part) > $inner) { $part = substr($part, 0, $inner - 3) . '...'; }
-                    $this->writeLine($conn, $this->colorize($part, ($idx % 2 === 0) ? self::ANSI_GREEN : self::ANSI_CYAN));
-                    $idx++;
+        foreach ($rawUsers as $user) {
+            $userId = (int)($user['user_id'] ?? 0);
+            if ($userId > 0) {
+                if (isset($seenUserIds[$userId])) {
+                    continue;
                 }
+                $seenUserIds[$userId] = true;
             }
+            $users[] = $user;
         }
 
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize(
-            $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']),
-            self::ANSI_YELLOW
-        ));
-        $this->readKeyWithIdleCheck($conn, $state);
+        if (!$users) {
+            $shell->showAlert(
+                $conn,
+                $state,
+                $this->t('ui.terminalserver.server.whos_online.title', "Who's Online (last {minutes} minutes)", ['minutes' => $minutes], $state['locale']),
+                $this->t('ui.terminalserver.server.whos_online.empty', 'No users online.', [], $state['locale']),
+                'info'
+            );
+            return;
+        }
+
+        $locale = $state['locale'] ?? 'en';
+        $isAdmin = !empty($state['is_admin']);
+        $title = $this->t('ui.terminalserver.server.whos_online.title', "Who's Online (last {minutes} minutes)", ['minutes' => $minutes], $locale);
+        $items = array_map(function(array $user) use ($isAdmin): string {
+            $parts = [$user['username'] ?? 'Unknown'];
+            if (!empty($user['location'])) {
+                $parts[] = $user['location'];
+            }
+            if ($isAdmin) {
+                if (!empty($user['activity'])) {
+                    $parts[] = $user['activity'];
+                }
+                if (!empty($user['service'])) {
+                    $parts[] = $user['service'];
+                }
+            }
+            return implode(' | ', $parts);
+        }, $users);
+
+        while (true) {
+            $result = $shell->showSelectableDialog(
+                $conn,
+                $state,
+                $title,
+                $items,
+                $this->t('ui.terminalserver.server.whos_online.status_view', 'View Profile', [], $locale),
+                $this->t('ui.terminalserver.server.whos_online.status_back', 'Back', [], $locale),
+                0,
+                $redrawFn
+            );
+
+            if ($result === null || ($result['action'] ?? '') === 'quit') {
+                if ($redrawFn !== null) {
+                    $redrawFn();
+                }
+                return;
+            }
+
+            $selectedUser = $users[$result['index'] ?? -1] ?? null;
+            if ($selectedUser === null || empty($selectedUser['user_id'])) {
+                continue;
+            }
+
+            $profileResp = $this->apiRequest('GET', '/api/user/public-profile/' . (int)$selectedUser['user_id'], null, $session);
+            if (($profileResp['status'] ?? 0) !== 200 || !is_array($profileResp['data']['profile'] ?? null)) {
+                $shell->showAlert(
+                    $conn,
+                    $state,
+                    $this->t('ui.terminalserver.profile.title', 'User Profile', [], $locale),
+                    $this->t('ui.terminalserver.profile.load_failed', 'Failed to load user profile.', [], $locale),
+                    'error'
+                );
+                continue;
+            }
+
+            $shell->showPublicProfileViewer($conn, $state, $profileResp['data']['profile']);
+            if ($redrawFn !== null) {
+                $redrawFn();
+            }
+        }
     }
 
     /**
@@ -2169,24 +2359,32 @@ class BbsSession
             return;
         }
 
-        $cols = max(40, (int)($state['cols'] ?? 80));
-        $contentWidth = max(20, min($cols - 8, 92) - 4);
-        $lines = TerminalMarkupRenderer::render('markdown', $markdown, $contentWidth);
-        if (!$this->ansiColorEnabled) {
-            $lines = array_map(
-                static fn(string $line): string => preg_replace('/\033\[[0-9;]*m/', '', $line) ?? $line,
-                $lines
-            );
-        }
+        $ansiEnabled = $this->ansiColorEnabled;
+        $renderLines = function(int $contentWidth) use ($markdown, $ansiEnabled): array {
+            $rendered = TerminalMarkupRenderer::render('markdown', $markdown, $contentWidth);
+            if (!$ansiEnabled) {
+                $rendered = array_map(
+                    static fn(string $line): string => preg_replace('/\033\[[0-9;]*m/', '', $line) ?? $line,
+                    $rendered
+                );
+            }
+            return $rendered;
+        };
 
-        $boxRenderer = new TerminalBoxRenderer($this);
-        $boxRenderer->showPagedBox(
+        $cols = max(10, (int)($state['cols'] ?? 80));
+        $boxWidth = max(10, min($cols - 2, 96));
+        $lines = $renderLines(max(6, $boxWidth - 4));
+
+        $shell = TerminalShellFactory::create($this, $state);
+        $shell->showPagedBox(
             $conn,
             $state,
             'SYSTEM NEWS',
             $lines,
             $this->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']),
-            4
+            4,
+            [],
+            ['lines_fn' => $renderLines]
         );
     }
 
@@ -2550,6 +2748,7 @@ class BbsSession
         if ($char === self::KEY_PGUP)   { return ['PGUP',   false, false]; }
         if ($char === self::KEY_PGDOWN) { return ['PGDOWN', false, false]; }
         if ($char === self::KEY_SHIFT_TAB) { return ['SHIFT_TAB', false, false]; }
+        if ($char === self::KEY_DELETE)    { return ['DELETE',    false, false]; }
 
         $ord = ord($char[0]);
         if ($ord === 9)                          { return ['TAB',       false, false]; }
@@ -2565,7 +2764,37 @@ class BbsSession
         }
         if ($ord === 10)                         { return ['ENTER',     false, false]; }
         if ($ord === 8 || $ord === 127)          { return ['BACKSPACE', false, false]; }
-        if ($ord >= 32 && $ord < 127)            { return ['CHAR:' . $char, false, false]; }
+        if ($ord >= 32 && $ord < 127) {
+            // Menu hotkeys are often typed as "L<Enter>" or similar. Swallow an
+            // immediately queued line terminator so prompt-driven submenu screens
+            // do not see that leftover Enter as an empty response and auto-exit.
+            $read = [$conn]; $write = $except = null;
+            if (@stream_select($read, $write, $except, 0, 50000) > 0) {
+                $next = $this->readRawChar($conn, $state);
+                if ($next !== null) {
+                    $nextOrd = ord($next[0]);
+                    if ($nextOrd === 13) {
+                        // Telnet clients commonly send CRLF or CRNUL for Enter.
+                        // We already consumed the CR; discard one immediate trailing
+                        // LF/NUL as part of the same terminator sequence.
+                        $read = [$conn]; $write = $except = null;
+                        if (@stream_select($read, $write, $except, 0, 50000) > 0) {
+                            $trail = $this->readRawChar($conn, $state);
+                            if ($trail !== null) {
+                                $trailOrd = ord($trail[0]);
+                                if ($trailOrd !== 10 && $trailOrd !== 0) {
+                                    $state['pushback'] = ($state['pushback'] ?? '') . $trail;
+                                }
+                            }
+                        }
+                    } elseif ($nextOrd !== 10 && $nextOrd !== 0) {
+                        $state['pushback'] = ($state['pushback'] ?? '') . $next;
+                    }
+                }
+            }
+            return ['CHAR:' . $char, false, false];
+        }
+        if ($ord === 11)                         { return ['CTRL_K',   false, false]; }
 
         return ['', false, false];
     }
@@ -2599,6 +2828,10 @@ class BbsSession
                 $state['skip_lf_once'] = true;
                 if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\r\n"); }
                 return $line;
+            }
+            if ($byte === 3) {
+                if (!empty($state['input_echo'])) { $this->safeWrite($conn, "^C\r\n"); }
+                return null;
             }
             if ($byte === 8 || $byte === 127) {
                 if ($line !== '') {
@@ -2659,74 +2892,249 @@ class BbsSession
      */
     private function fullScreenEditor($conn, array &$state, string $initialText = '', array $editorContext = []): string
     {
-        $rows = $state['rows'] ?? 24;
-        $cols = $state['cols'] ?? 80;
+        $rows      = $state['rows'] ?? 24;
+        $cols      = $state['cols'] ?? 80;
         if ($this->debug) { $this->log("Editor: {$cols}x{$rows}"); }
 
-        $this->safeWrite($conn, "\033[2J\033[H\033[?25h");
-        $width     = min($cols - 2, 70);
-        $separator = str_repeat('=', $width);
         $title     = $editorContext['title'] ?? $this->t('ui.terminalserver.editor.title', 'MESSAGE EDITOR - FULL SCREEN MODE', [], $state['locale']);
-        $shortcuts = $editorContext['shortcuts'] ?? $this->t('ui.terminalserver.editor.shortcuts', 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', [], $state['locale']);
+        $saveHandler = $editorContext['save_handler'] ?? null;
+        $draftEnabled = is_callable($saveHandler);
+        $shortcuts = $editorContext['shortcuts'] ?? $this->t(
+            $draftEnabled ? 'ui.terminalserver.editor.shortcuts_with_draft' : 'ui.terminalserver.editor.shortcuts',
+            $draftEnabled
+                ? 'Ctrl+S=Save Draft  Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel'
+                : 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel',
+            [],
+            $state['locale']
+        );
         $saved     = $editorContext['saved'] ?? $this->t('ui.terminalserver.editor.saved', 'Message saved and ready to send.', [], $state['locale']);
 
-        $headerLines = 0;
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($title, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($shortcuts, self::ANSI_YELLOW)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-
         $lines     = $initialText !== '' ? explode("\n", $initialText) ?: [''] : [''];
-        $editorWidth = max(10, $cols - 2);
         $cursorRow = 0;
         $cursorCol = 0;
-        [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
         $viewTop   = 0;
-        $startRow  = $headerLines + 1;
-        $maxRows   = max(10, $rows - $startRow - 2);
+
+        $chars         = $this->getLineDrawingChars();
+        $ansi          = $this->ansiColorEnabled;
+        $rst           = self::ANSI_RESET;
+        $editorScheme  = TelnetUtils::getStyleProfile($state)['dialog'] ?? [];
+        $bg            = (string)($editorScheme['bg'] ?? self::ANSI_BG_BLUE);
+        $frame         = (string)($editorScheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body          = (string)($editorScheme['body'] ?? ($bg . "\033[37m"));
+        $footerBody    = $body;
+        $topBorder     = '';
+        $midBorder     = '';
+        $bottomBorder  = '';
+        $footerText    = '';
+        $defaultFooterText = '';
+        $editorWidth   = 0;
+        $maxRows       = 0;
+        $cursorBaseCol = 3;
+        $footerNoticeActive = false;
+
+        $rebuildLayout = function () use (
+            &$state,
+            &$rows,
+            &$cols,
+            &$chars,
+            &$topBorder,
+            &$midBorder,
+            &$bottomBorder,
+            &$footerText,
+            &$defaultFooterText,
+            &$footerBody,
+            &$editorWidth,
+            &$maxRows,
+            $title,
+            $shortcuts,
+            $body
+        ): void {
+            $rows       = $state['rows'] ?? 24;
+            $cols       = $state['cols'] ?? 80;
+            $chars      = $this->getLineDrawingChars();
+            $innerWidth = max(18, $cols - 2);
+            $editorWidth = max(10, $innerWidth - 2);
+            $maxRows     = max(3, $rows - 4);
+
+            $titleLine = ' ' . $title . ' ';
+            $titleLen  = mb_strlen($titleLine);
+            $totalHz   = max(0, $innerWidth - $titleLen);
+            $topBorder = $this->encodeForTerminal(
+                $chars['tl']
+                . str_repeat($chars['h_bold'], (int)floor($totalHz / 2))
+                . $titleLine
+                . str_repeat($chars['h_bold'], (int)ceil($totalHz / 2))
+                . $chars['tr']
+            );
+            $midBorder = $this->encodeForTerminal(
+                $chars['l_tee'] . str_repeat($chars['h'], $innerWidth) . $chars['r_tee']
+            );
+            $bottomBorder = $this->encodeForTerminal(
+                $chars['bl'] . str_repeat($chars['h'], $innerWidth) . $chars['br']
+            );
+
+            $footerPlain = mb_substr($shortcuts, 0, $editorWidth);
+            $defaultFooterText = $this->encodeForTerminal($this->mbStrPad($footerPlain, $editorWidth, ' ', STR_PAD_BOTH));
+            $footerText  = $defaultFooterText;
+            $footerBody  = $body;
+        };
+
+        $rebuildLayout();
+        [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
 
         $this->setEcho($conn, $state, false);
         $this->safeWrite($conn, "\033[?25h");
 
-        while (true) {
-            $this->safeWrite($conn, "\033[{$startRow};1H\033[J");
+        $renderEditor = function () use (
+            $conn,
+            &$lines,
+            &$cursorRow,
+            &$cursorCol,
+            &$viewTop,
+            &$rows,
+            &$cols,
+            &$editorWidth,
+            &$maxRows,
+            &$topBorder,
+            &$midBorder,
+            &$bottomBorder,
+            &$footerText,
+            &$footerBody,
+            &$chars,
+            $ansi,
+            $frame,
+            $body,
+            $rst,
+            $cursorBaseCol
+        ): void {
+            $vert = $this->encodeForTerminal($chars['v']);
+            $this->safeWrite($conn, "\033[2J\033[H\033[?25l");
 
             $maxTop = max(0, count($lines) - $maxRows);
-            if ($viewTop > $maxTop)                        { $viewTop = $maxTop; }
-            if ($cursorRow < $viewTop)                     { $viewTop = $cursorRow; }
-            elseif ($cursorRow >= $viewTop + $maxRows)     { $viewTop = $cursorRow - $maxRows + 1; }
-
-            foreach (array_slice($lines, $viewTop, $maxRows) as $idx => $line) {
-                $this->safeWrite($conn, "\033[" . ($startRow + $idx) . ";1H" . substr($line, 0, $cols - 1));
+            if ($viewTop > $maxTop) {
+                $viewTop = $maxTop;
+            }
+            if ($cursorRow < $viewTop) {
+                $viewTop = $cursorRow;
+            } elseif ($cursorRow >= $viewTop + $maxRows) {
+                $viewTop = $cursorRow - $maxRows + 1;
             }
 
-            $displayRow = $startRow + ($cursorRow - $viewTop);
-            $displayCol = $cursorCol + 1;
-            $this->safeWrite($conn, "\033[{$displayRow};{$displayCol}H");
+            if ($ansi) {
+                $this->safeWrite($conn, "\033[1;1H" . $frame . $topBorder . $rst);
+            } else {
+                $this->safeWrite($conn, "\033[1;1H" . $topBorder);
+            }
 
+            for ($idx = 0; $idx < $maxRows; $idx++) {
+                $line = $lines[$viewTop + $idx] ?? '';
+                $text = $this->encodeForTerminal($this->mbStrPad(mb_substr($line, 0, $editorWidth), $editorWidth));
+                $row  = 2 + $idx;
+                if ($ansi) {
+                    $this->safeWrite(
+                        $conn,
+                        "\033[{$row};1H" . $frame . $vert . $body . ' ' . $text . ' ' . $frame . $vert . $rst
+                    );
+                } else {
+                    $this->safeWrite($conn, "\033[{$row};1H" . $vert . ' ' . $text . ' ' . $vert);
+                }
+            }
+
+            $separatorRow = $maxRows + 2;
+            $footerRow    = $maxRows + 3;
+            $bottomRow    = $maxRows + 4;
+            if ($ansi) {
+                $this->safeWrite($conn, "\033[{$separatorRow};1H" . $frame . $midBorder . $rst);
+                $this->safeWrite(
+                    $conn,
+                    "\033[{$footerRow};1H" . $frame . $vert . $footerBody . ' ' . $footerText . ' ' . $frame . $vert . $rst
+                );
+                $this->safeWrite($conn, "\033[{$bottomRow};1H" . $frame . $bottomBorder . $rst);
+            } else {
+                $this->safeWrite($conn, "\033[{$separatorRow};1H" . $midBorder);
+                $this->safeWrite($conn, "\033[{$footerRow};1H" . $vert . ' ' . $footerText . ' ' . $vert);
+                $this->safeWrite($conn, "\033[{$bottomRow};1H" . $bottomBorder);
+            }
+
+            $displayRow = 2 + ($cursorRow - $viewTop);
+            $displayCol = $cursorBaseCol + $cursorCol;
+            $this->safeWrite($conn, "\033[{$displayRow};{$displayCol}H\033[?25h");
+        };
+
+        $renderEditor();
+        $lastRows = $rows;
+        $lastCols = $cols;
+
+        while (true) {
             $char = $this->readRawChar($conn, $state);
             if ($char === null) { $this->setEcho($conn, $state, true); return ''; }
+
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $rebuildLayout();
+                [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
+                $renderEditor();
+                if ($char === "\x00") {
+                    continue;
+                }
+            } elseif ($char === "\x00") {
+                continue;
+            }
+
+            if ($footerNoticeActive) {
+                $footerNoticeActive = false;
+                $footerBody = $body;
+                $footerText = $defaultFooterText;
+            }
 
             $ord = ord($char[0]);
 
             if ($ord === 26) { break; }  // Ctrl+Z — send
             if ($ord === 3)  { $this->setEcho($conn, $state, true); $this->writeLine($conn, ''); $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.cancelled', 'Message cancelled.', [], $state['locale']), self::ANSI_RED)); return ''; }
+            if ($ord === 19 && $draftEnabled) { // Ctrl+S — save draft
+                $draftResult = $saveHandler(implode("\n", $lines));
+                $noticeText = '';
+                $noticeColor = self::ANSI_GREEN;
+                if (is_array($draftResult) && !empty($draftResult['success'])) {
+                    $noticeText = trim((string)($draftResult['message'] ?? ''));
+                    if ($noticeText === '') {
+                        $noticeText = $this->t('ui.terminalserver.editor.draft_saved', 'Draft saved.', [], $state['locale']);
+                    }
+                } else {
+                    $noticeText = trim((string)($draftResult['error'] ?? ''));
+                    if ($noticeText === '') {
+                        $noticeText = $this->t('ui.terminalserver.editor.draft_save_failed', 'Failed to save draft.', [], $state['locale']);
+                    }
+                    $noticeColor = self::ANSI_RED;
+                }
+                $noticePlain = mb_substr($noticeText, 0, $editorWidth);
+                $footerText = $this->encodeForTerminal($this->mbStrPad($noticePlain, $editorWidth, ' ', STR_PAD_BOTH));
+                if ($ansi) {
+                    $footerBody = $bg . ($noticeColor === self::ANSI_RED ? "\033[1;31m" : "\033[1;32m");
+                }
+                $footerNoticeActive = true;
+                $renderEditor();
+                continue;
+            }
             if ($ord === 25) { // Ctrl+Y — delete line
                 if (count($lines) > 1) { array_splice($lines, $cursorRow, 1); if ($cursorRow >= count($lines)) { $cursorRow = count($lines) - 1; } $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); }
                 else { $lines[0] = ''; $cursorCol = 0; }
+                $renderEditor();
                 continue;
             }
-            if ($ord === 11) { $this->showEditorHelp($conn, $state, $editorContext); continue; }  // Ctrl+K
-            if ($ord === 1)  { $cursorCol = 0; continue; }  // Ctrl+A
-            if ($ord === 5)  { $cursorCol = strlen($lines[$cursorRow]); continue; }  // Ctrl+E
+            if ($ord === 11) { $this->showEditorHelp($conn, $state, $editorContext); $renderEditor(); continue; }  // Ctrl+K
+            if ($ord === 1)  { $cursorCol = 0; $renderEditor(); continue; }  // Ctrl+A
+            if ($ord === 5)  { $cursorCol = strlen($lines[$cursorRow]); $renderEditor(); continue; }  // Ctrl+E
 
-            if ($char === self::KEY_UP)    { if ($cursorRow > 0)                    { $cursorRow--; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } continue; }
-            if ($char === self::KEY_DOWN)  { if ($cursorRow < count($lines) - 1)    { $cursorRow++; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } continue; }
-            if ($char === self::KEY_LEFT)  { if ($cursorCol > 0) { $cursorCol--; } elseif ($cursorRow > 0) { $cursorRow--; $cursorCol = strlen($lines[$cursorRow]); } continue; }
-            if ($char === self::KEY_RIGHT) { if ($cursorCol < strlen($lines[$cursorRow])) { $cursorCol++; } elseif ($cursorRow < count($lines) - 1) { $cursorRow++; $cursorCol = 0; } continue; }
-            if ($char === self::KEY_HOME)  { $cursorCol = 0; continue; }
-            if ($char === self::KEY_END)   { $cursorCol = strlen($lines[$cursorRow]); continue; }
+            if ($char === self::KEY_UP)    { if ($cursorRow > 0)                    { $cursorRow--; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } $renderEditor(); continue; }
+            if ($char === self::KEY_DOWN)  { if ($cursorRow < count($lines) - 1)    { $cursorRow++; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } $renderEditor(); continue; }
+            if ($char === self::KEY_LEFT)  { if ($cursorCol > 0) { $cursorCol--; } elseif ($cursorRow > 0) { $cursorRow--; $cursorCol = strlen($lines[$cursorRow]); } $renderEditor(); continue; }
+            if ($char === self::KEY_RIGHT) { if ($cursorCol < strlen($lines[$cursorRow])) { $cursorCol++; } elseif ($cursorRow < count($lines) - 1) { $cursorRow++; $cursorCol = 0; } $renderEditor(); continue; }
+            if ($char === self::KEY_HOME)  { $cursorCol = 0; $renderEditor(); continue; }
+            if ($char === self::KEY_END)   { $cursorCol = strlen($lines[$cursorRow]); $renderEditor(); continue; }
 
             if ($ord === 13 || $ord === 10) {
                 if ($ord === 13) {
@@ -2738,6 +3146,7 @@ class BbsSession
                 $lines[$cursorRow] = $before;
                 array_splice($lines, $cursorRow + 1, 0, [$after]);
                 $cursorRow++; $cursorCol = 0;
+                $renderEditor();
                 continue;
             }
 
@@ -2753,6 +3162,7 @@ class BbsSession
                     $cursorRow--;
                 }
                 [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
+                $renderEditor();
                 continue;
             }
             if ($char === self::KEY_DELETE) {
@@ -2763,17 +3173,19 @@ class BbsSession
                     array_splice($lines, $cursorRow + 1, 1);
                 }
                 [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
+                $renderEditor();
                 continue;
             }
             if ($ord >= 32 && $ord < 127) {
                 $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol) . $char . substr($lines[$cursorRow], $cursorCol);
                 $cursorCol++;
                 [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
+                $renderEditor();
             }
         }
 
         $this->setEcho($conn, $state, true);
-        $this->safeWrite($conn, "\033[" . ($startRow + $maxRows + 1) . ";1H");
+        $this->safeWrite($conn, "\033[" . ($maxRows + 5) . ";1H");
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize($saved, self::ANSI_GREEN));
         $this->writeLine($conn, '');
@@ -2837,23 +3249,145 @@ class BbsSession
      */
     private function showEditorHelp($conn, array &$state, array $editorContext = []): void
     {
-        $this->safeWrite($conn, "\033[2J\033[H");
         $helpTitle = $editorContext['help_title'] ?? $this->t('ui.terminalserver.editor.help.title', 'MESSAGE EDITOR HELP', [], $state['locale']);
         $helpSave = $editorContext['help_save'] ?? $this->t('ui.terminalserver.editor.help.save', 'Ctrl+Z = Save message and send', [], $state['locale']);
         $helpCancel = $editorContext['help_cancel'] ?? $this->t('ui.terminalserver.editor.help.cancel', 'Ctrl+C = Cancel and discard message', [], $state['locale']);
-        $this->writeLine($conn, $this->colorize($helpTitle, self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.separator',   '-------------------',                  [], $state['locale']), self::ANSI_CYAN));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.navigate',    'Arrow Keys = Navigate cursor',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.edit',        'Backspace/Delete = Edit text',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.help',        'Ctrl+K = Help',                       [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.start_of_line','Ctrl+A = Start of line',             [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.end_of_line', 'Ctrl+E = End of line',                [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.delete_line', 'Ctrl+Y = Delete entire line',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($helpSave, self::ANSI_GREEN));
-        $this->writeLine($conn, $this->colorize($helpCancel, self::ANSI_RED));
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), self::ANSI_YELLOW));
-        $this->readRawChar($conn, $state);
+        $helpDraft = $editorContext['help_draft'] ?? $this->t('ui.terminalserver.editor.help.save_draft', 'Ctrl+S = Save draft and keep editing', [], $state['locale']);
+        $draftEnabled = is_callable($editorContext['save_handler'] ?? null);
+        $helpLines = [
+            $this->t('ui.terminalserver.editor.help.navigate', 'Arrow Keys = Navigate cursor', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.edit', 'Backspace/Delete = Edit text', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.help', 'Ctrl+K = Help', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.start_of_line', 'Ctrl+A = Start of line', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.end_of_line', 'Ctrl+E = End of line', [], $state['locale']),
+            $this->t('ui.terminalserver.editor.help.delete_line', 'Ctrl+Y = Delete entire line', [], $state['locale']),
+            ...($draftEnabled ? [$helpDraft] : []),
+            $helpSave,
+            $helpCancel,
+            '',
+            $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']),
+        ];
+
+        $helpScheme = TelnetUtils::getStyleProfile($state)['help_overlay'] ?? [];
+        $ansi = $this->ansiColorEnabled;
+        $rst  = self::ANSI_RESET;
+        $bg   = (string)($helpScheme['bg'] ?? self::ANSI_BG_BLUE);
+        $frame = (string)($helpScheme['frame'] ?? ($bg . "\033[1;37m"));
+        $body  = (string)($helpScheme['body'] ?? ($bg . "\033[37m"));
+        $chars = $this->getLineDrawingChars();
+        $topBorder = '';
+        $bottomBorder = '';
+        $startRow = 1;
+        $startCol = 1;
+        $innerWidth = 0;
+
+        $rebuildLayout = function () use (
+            &$state,
+            &$chars,
+            &$topBorder,
+            &$bottomBorder,
+            &$startRow,
+            &$startCol,
+            &$innerWidth,
+            $helpTitle,
+            $helpLines
+        ): void {
+            $rows = $state['rows'] ?? 24;
+            $cols = $state['cols'] ?? 80;
+            $chars = $this->getLineDrawingChars();
+
+            $longest = mb_strlen($helpTitle) + 4;
+            foreach ($helpLines as $line) {
+                $longest = max($longest, mb_strlen($line) + 2);
+            }
+
+            $innerWidth = max(24, min($longest, $cols - 6));
+            $boxWidth   = $innerWidth + 2;
+            $boxHeight  = count($helpLines) + 2;
+            $startRow   = max(1, (int)round(($rows - $boxHeight) / 2));
+            $startCol   = max(1, (int)round(($cols - $boxWidth) / 2));
+
+            $titleLine   = ' ' . $helpTitle . ' ';
+            $titleLen    = mb_strlen($titleLine);
+            $totalHz     = max(0, $innerWidth - $titleLen);
+            $topBorder   = $this->encodeForTerminal(
+                $chars['tl']
+                . str_repeat($chars['h_bold'], (int)floor($totalHz / 2))
+                . $titleLine
+                . str_repeat($chars['h_bold'], (int)ceil($totalHz / 2))
+                . $chars['tr']
+            );
+            $bottomBorder = $this->encodeForTerminal(
+                $chars['bl'] . str_repeat($chars['h'], $innerWidth) . $chars['br']
+            );
+        };
+
+        $render = function () use (
+            $conn,
+            &$state,
+            &$chars,
+            &$topBorder,
+            &$bottomBorder,
+            &$startRow,
+            &$startCol,
+            &$innerWidth,
+            $helpLines,
+            $ansi,
+            $frame,
+            $body,
+            $rst
+        ): void {
+            $vert = $this->encodeForTerminal($chars['v']);
+            $this->safeWrite($conn, "\033[2J\033[H\033[?25l");
+            if ($ansi) {
+                $this->safeWrite($conn, "\033[{$startRow};{$startCol}H" . $frame . $topBorder . $rst);
+            } else {
+                $this->safeWrite($conn, "\033[{$startRow};{$startCol}H" . $topBorder);
+            }
+
+            foreach ($helpLines as $idx => $line) {
+                $row    = $startRow + 1 + $idx;
+                $padded = $this->encodeForTerminal($this->mbStrPad(mb_substr($line, 0, $innerWidth - 2), $innerWidth - 2));
+                if ($ansi) {
+                    $this->safeWrite(
+                        $conn,
+                        "\033[{$row};{$startCol}H" . $frame . $vert . $body . ' ' . $padded . ' ' . $frame . $vert . $rst
+                    );
+                } else {
+                    $this->safeWrite($conn, "\033[{$row};{$startCol}H" . $vert . ' ' . $padded . ' ' . $vert);
+                }
+            }
+
+            $bottomRow = $startRow + count($helpLines) + 1;
+            if ($ansi) {
+                $this->safeWrite($conn, "\033[{$bottomRow};{$startCol}H" . $frame . $bottomBorder . $rst);
+            } else {
+                $this->safeWrite($conn, "\033[{$bottomRow};{$startCol}H" . $bottomBorder);
+            }
+            $this->safeWrite($conn, "\033[?25h");
+        };
+
+        $rebuildLayout();
+        $render();
+        $lastRows = $state['rows'] ?? 24;
+        $lastCols = $state['cols'] ?? 80;
+
+        while (true) {
+            $key = $this->readKeyWithIdleCheck($conn, $state);
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if ($newRows !== $lastRows || $newCols !== $lastCols) {
+                $lastRows = $newRows;
+                $lastCols = $newCols;
+                $rebuildLayout();
+                $render();
+                continue;
+            }
+            if ($key === null || $key === 'ENTER' || $key === 'CHAR:q' || $key === 'CHAR:Q' || chr(11) === ($key[0] ?? '')) {
+                break;
+            }
+            break;
+        }
         $this->safeWrite($conn, "\033[?25h");
     }
 
@@ -2927,7 +3461,7 @@ class BbsSession
                 }
                 if ($sbOpt === self::OPT_TTYPE && strlen($sbData) >= 2 && ord($sbData[0]) === 0) {
                     $ttype = trim(substr($sbData, 1));
-                    $this->recordTerminalType($state, $ttype);
+                    $this->recordTerminalType($conn, $state, $ttype);
                 }
                 // If no more data is waiting right now, return immediately rather than
                 // blocking on the next fread. Key-wait loops that check for state changes
@@ -3150,7 +3684,7 @@ class BbsSession
      * Store and log the detected TELNET terminal type.
      * Logs once per distinct value per session.
      */
-    private function recordTerminalType(array &$state, string $ttype): void
+    private function recordTerminalType($conn, array &$state, string $ttype): void
     {
         $normalized = strtoupper(trim($ttype));
         if ($normalized === '') {
@@ -3168,7 +3702,36 @@ class BbsSession
         if ($this->terminalCharset === 'utf8' && $this->asciiTextMode) {
             $this->terminalCharset = 'ascii';
         }
+        $this->applyTerminalQuirks($conn, $normalized);
         $this->log("TTYPE detected: {$normalized}");
+    }
+
+    /**
+     * Apply one-time terminal-specific compatibility tweaks.
+     *
+     * SyncTERM commonly reserves a local bottom status line, which leaves the
+     * BBS rendering against fewer visible rows than the negotiated size would
+     * suggest. Ask SyncTERM to disable that local status line so the bottom row
+     * becomes part of the main display area again.
+     *
+     * @param resource $conn
+     */
+    private function applyTerminalQuirks($conn, string $terminalType): void
+    {
+        if ($this->syncTermStatusLineDisabled) {
+            return;
+        }
+
+        if (str_contains($terminalType, 'SYNCTERM')) {
+            // VT320 DECSSDT: CSI 0 $ ~ = no status line. SyncTERM will return
+            // the bottom row to the main display area instead of reserving it
+            // for its own local indicator bar.
+            $this->safeWrite($conn, "\033[0\$~");
+            $this->syncTermStatusLineDisabled = true;
+            if ($this->debug) {
+                $this->log('Applied SyncTERM compatibility: disabled local status line');
+            }
+        }
     }
 
     /**
