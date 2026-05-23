@@ -5,30 +5,35 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
-- [Release Planning](#release-planning)
+- [Web Interface](#web-interface)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
-### Release Planning
+### Web Interface
 
-- This document starts the 1.9.8 release note set. Add sysop-facing upgrade notes here as changes land during the 1.9.8 cycle so deployers have one place to review required actions before upgrading.
+- The user-facing echoarea subscription manager at `/subscriptions` now uses a more compact filter layout modeled after `/echolist`, with network filtering and an option to show only interest groups that currently have message traffic.
+- Subscribing or unsubscribing from an echoarea in `/subscriptions` now updates in place instead of reloading the page, preserving the current scroll position and active search/filter state.
 
 ---
 
-## Release Planning
+## Web Interface
 
-This file is the release-note shell for BinktermPHP 1.9.8. As features, fixes, migrations, configuration changes, and dependency updates are added during the 1.9.8 cycle, record them here grouped by feature area.
+### Subscription Manager
 
-Document each change in deployer-facing terms:
+The `/subscriptions` page now presents its filtering tools in a compact filter panel instead of a long row of controls and per-interest buttons.
 
-- what changed
-- why it matters
-- what the upgrader needs to do
+The updated page adds:
 
-If a future change introduces a Composer dependency update, add `composer update` to the relevant upgrade guidance before `php scripts/setup.php`.
+- a network filter for narrowing the visible echoareas by network
+- a compact interest picker instead of a button wall
+- an `Only show groups with messages` filter that limits the visible results to interest-grouped areas with message activity
+- the search and sort controls inside the same filter panel for a tighter layout
+- in-place subscribe/unsubscribe updates that do not reset the current search, filters, or scroll position
+
+This change is user-facing only. It does not alter subscriptions, interest membership, or message access rules.
 
 ## Upgrade Instructions
 
