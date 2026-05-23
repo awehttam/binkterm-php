@@ -6,6 +6,8 @@ chdir(__DIR__ . '/../');
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../src/functions.php';
 
+use BinktermPHP\Binkp\Logger;
+
 function qwkPollShowUsage(): void
 {
     echo "Usage: php qwk_poll.php [options] [mailbox-id]\n";
@@ -15,8 +17,8 @@ function qwkPollShowUsage(): void
     echo "  --dry-run         Download/import/build packets but skip REP upload\n";
     echo "  --json            Emit machine-readable JSON output\n";
     echo "  --log-level=LVL   Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL\n";
-    echo "  --log-file=FILE   Accepted for compatibility\n";
-    echo "  --no-console      Accepted for compatibility\n";
+    echo "  --log-file=FILE   Log file path (default: " . \BinktermPHP\Config::getLogPath('qwk_poll.log') . ")\n";
+    echo "  --no-console      Disable console logging\n";
     echo "  --quiet           Minimal output\n";
     echo "  --help            Show this help message\n";
 }
@@ -78,19 +80,17 @@ $json = isset($args['json']);
 $logLevelName = isset($args['debug']) ? 'DEBUG' : (string)($args['log-level'] ?? 'INFO');
 $logThreshold = qwkPollResolveLogLevel($logLevelName);
 $dryRun = isset($args['dry-run']);
+$logFile = isset($args['log-file']) ? (string)$args['log-file'] : \BinktermPHP\Config::getLogPath('qwk_poll.log');
+$logToConsole = !isset($args['no-console']) && !$json && !$quiet;
+$logger = new Logger($logFile, $logLevelName, $logToConsole);
 $poller = new \BinktermPHP\Qwk\QwkPoller();
 $poller->setDryRun($dryRun);
 $poller->setPreserveDebugArtifacts($logThreshold <= qwkPollResolveLogLevel('DEBUG'));
-$poller->setLogger(static function (string $level, string $message) use ($quiet, $json, $logThreshold): void {
-    if ($json) {
+$poller->setLogger(static function (string $level, string $message) use ($logger, $logThreshold): void {
+    if (qwkPollResolveLogLevel($level) < $logThreshold) {
         return;
     }
-    if ($quiet) {
-        return;
-    }
-    qwkPollLog(static function (string $line): void {
-        echo $line . "\n";
-    }, $logThreshold, $level, $message);
+    $logger->log($level, $message);
 });
 
 try {

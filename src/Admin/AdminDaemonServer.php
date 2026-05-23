@@ -41,6 +41,7 @@ class AdminDaemonServer
         'packets.log',
         'multiplexing-server.log',
         'binkp_poll.log',
+        'qwk_poll.log',
         'binkp_server.log',
         'binkp_scheduler.log',
         'admin_daemon.log',
@@ -354,7 +355,18 @@ class AdminDaemonServer
                     $this->logCommandResult('binkp_poll_sync', $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                     break;
-                case 'qwk_poll_mailbox':
+                case 'qwk_poll':
+                    $mailboxId = (int)($data['mailbox_id'] ?? 0);
+                    if ($mailboxId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_mailbox_id']);
+                        break;
+                    }
+
+                    $this->spawnCommand([PHP_BINARY, 'scripts/qwk_poll.php', '--no-console', (string)$mailboxId]);
+                    $this->logger->info("Spawned background qwk_poll for mailbox {$mailboxId}");
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
+                    break;
+                case 'qwk_poll_sync':
                     $mailboxId = (int)($data['mailbox_id'] ?? 0);
                     if ($mailboxId <= 0) {
                         $this->writeResponse($client, ['ok' => false, 'error' => 'missing_mailbox_id']);
@@ -362,7 +374,7 @@ class AdminDaemonServer
                     }
 
                     $result = $this->runCommand([PHP_BINARY, 'scripts/qwk_poll.php', '--json', (string)$mailboxId]);
-                    $this->logCommandResult('qwk_poll_mailbox', $result);
+                    $this->logCommandResult('qwk_poll_sync', $result);
 
                     $stdout = trim((string)($result['stdout'] ?? ''));
                     $payload = json_decode($stdout, true);
@@ -1097,7 +1109,8 @@ class AdminDaemonServer
     private function spawnCommand(array $command): void
     {
         if (PHP_OS_FAMILY === 'Windows') {
-            // Let the scheduler pick up the spooled outbound packet.
+            $escaped = implode(' ', array_map('escapeshellarg', $command));
+            @pclose(@popen('start /B "" ' . $escaped . ' > NUL 2>&1', 'r'));
             return;
         }
 

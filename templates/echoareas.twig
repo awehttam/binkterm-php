@@ -429,6 +429,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/cron-builder.js"></script>
 <style>
 .color-palette {
     display: flex !important;
@@ -510,8 +511,13 @@ $(document).ready(function() {
     pendingEchoareaDomain = (params.get('domain') || '').trim().toLowerCase();
 
     loadI18nNamespaces(['common', 'errors']).then(function() {
+        CronBuilder.init('qwkMailboxSchedule');
         loadEchoareas();
         loadStats();
+    });
+
+    document.getElementById('qwkMailboxesModal').addEventListener('shown.bs.modal', function () {
+        CronBuilder.refresh('qwkMailboxSchedule');
     });
 
     // Filter change handler
@@ -1443,18 +1449,58 @@ function deleteQwkMailbox(id) {
 }
 
 function pollQwkMailbox(id) {
+    setQwkMailboxAlert('info', escapeHtml(uiT('ui.qwk.uplinks.polling', 'Polling QWK mailbox...')));
     $.ajax({
         url: `/api/qwk-mailboxes/${id}/poll`,
         method: 'POST',
         success: function(response) {
             loadQwkMailboxList();
-            const msg = window.getApiMessage ? window.getApiMessage(response, uiT('ui.qwk.uplinks.polled', 'QWK mailbox polled')) : uiT('ui.qwk.uplinks.polled', 'QWK mailbox polled');
-            showSuccess(msg);
+            setQwkMailboxAlert('success', formatQwkPollResult(response));
         },
         error: function(xhr) {
-            $('#qwkMailboxAlert').text(apiError(xhr.responseJSON, uiT('ui.qwk.uplinks.poll_failed', 'Failed to poll QWK mailbox'))).removeClass('d-none');
+            setQwkMailboxAlert('danger', escapeHtml(apiError(xhr.responseJSON, uiT('ui.qwk.uplinks.poll_failed', 'Failed to poll QWK mailbox'))));
         }
     });
+}
+
+function setQwkMailboxAlert(type, html) {
+    const alert = $('#qwkMailboxAlert');
+    alert
+        .removeClass('d-none alert-danger alert-success alert-info alert-warning')
+        .addClass(`alert-${type}`)
+        .html(html);
+}
+
+function formatQwkPollResult(response) {
+    const heading = window.getApiMessage
+        ? window.getApiMessage(response, uiT('ui.qwk.uplinks.polled', 'QWK mailbox polled'))
+        : uiT('ui.qwk.uplinks.polled', 'QWK mailbox polled');
+
+    const items = [];
+    const imported = Number(response && response.imported ? response.imported : 0);
+    const skipped = Number(response && response.skipped ? response.skipped : 0);
+    const downloaded = !!(response && response.downloaded);
+    const repCreated = !!(response && response.rep_created);
+    const dryRun = !!(response && response.dry_run);
+    const uploaded = !!(response && response.uploaded);
+
+    items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_download', 'Downloaded packet'))}: ${downloaded ? escapeHtml(uiT('ui.common.yes', 'Yes')) : escapeHtml(uiT('ui.common.no', 'No'))}`);
+    items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_imported', 'Imported'))}: ${imported}`);
+    items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_skipped', 'Skipped'))}: ${skipped}`);
+    items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_rep_created', 'Built REP packet'))}: ${repCreated ? escapeHtml(uiT('ui.common.yes', 'Yes')) : escapeHtml(uiT('ui.common.no', 'No'))}`);
+
+    if (dryRun) {
+        items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_uploaded', 'Uploaded REP'))}: ${escapeHtml(uiT('ui.qwk.uplinks.result_dry_run', 'Skipped (dry run)'))}`);
+    } else {
+        items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_uploaded', 'Uploaded REP'))}: ${uploaded ? escapeHtml(uiT('ui.common.yes', 'Yes')) : escapeHtml(uiT('ui.common.no', 'No'))}`);
+    }
+
+    return `
+        <div class="fw-semibold mb-1">${escapeHtml(heading)}</div>
+        <ul class="mb-0 ps-3">
+            ${items.map(item => `<li>${item}</li>`).join('')}
+        </ul>
+    `;
 }
 
 function escapeHtmlAttr(value) {

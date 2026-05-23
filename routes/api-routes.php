@@ -2755,7 +2755,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
         try {
             $client = new \BinktermPHP\Admin\AdminDaemonClient();
-            $result = $client->qwkPollMailbox((int)$id);
+            $result = $client->qwkPollSync((int)$id);
             $client->close();
         } catch (\Throwable $e) {
             http_response_code(500);

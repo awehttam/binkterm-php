@@ -69,7 +69,14 @@ class QwkPoller
         $downloadedPath = null;
         $repPath = null;
         try {
-            $stats = ['imported' => 0, 'skipped' => 0, 'uploaded' => false, 'dry_run' => $this->dryRun];
+            $stats = [
+                'imported' => 0,
+                'skipped' => 0,
+                'uploaded' => false,
+                'dry_run' => $this->dryRun,
+                'downloaded' => false,
+                'rep_created' => false,
+            ];
 
             $downloadedPath = $this->transport->downloadPacket($mailbox);
             if ($downloadedPath !== null) {
@@ -79,6 +86,7 @@ class QwkPoller
                     $downloadedPath,
                     $size !== false ? sprintf(' (%d bytes)', $size) : ''
                 ));
+                $stats['downloaded'] = true;
                 $this->preservePacketArtifact($downloadedPath, $mailbox, 'download', 'qwk');
                 $importStats = $this->inbound->importPacket($mailboxId, $downloadedPath);
                 $stats['imported'] = $importStats['imported'];
@@ -100,6 +108,7 @@ class QwkPoller
                     $repPath,
                     $repSize !== false ? sprintf(' (%d bytes)', $repSize) : ''
                 ));
+                $stats['rep_created'] = true;
                 $this->preservePacketArtifact($repPath, $mailbox, 'upload', 'rep');
                 if ($this->dryRun) {
                     $this->log('INFO', 'Dry run enabled: skipping REP upload and leaving outbound messages queued');
