@@ -9,6 +9,7 @@ class RepPacketBuilder
 {
     private const BLOCK_SIZE = 128;
     private const LINE_TERM = "\xE3";
+    private const BODY_CHARSET = 'CP437';
 
     /**
      * @param array<int,array<string,mixed>> $messages
@@ -22,11 +23,14 @@ class RepPacketBuilder
 
         // REP block 0 must begin with the destination BBSID and be space-padded.
         $msgData = str_pad($normalizedBbsId, self::BLOCK_SIZE, ' ');
+        $headersDat = [];
         $logical = 1;
         $conferenceLogicalNumbers = [];
         foreach ($messages as $message) {
             $confNumber = (int)($message['conference_number'] ?? 0);
             $conferenceLogicalNumbers[$confNumber] = ($conferenceLogicalNumbers[$confNumber] ?? 0) + 1;
+            $headerOffset = strlen($msgData);
+            $headersDat[$headerOffset] = $this->buildHeadersDatSection($message, $confNumber);
             $msgData .= $this->encodeMessage($message, $logical, $conferenceLogicalNumbers[$confNumber]);
             $logical++;
         }
@@ -37,6 +41,9 @@ class RepPacketBuilder
             throw new \RuntimeException('Failed to create REP archive');
         }
         $zip->addFromString($normalizedBbsId . '.MSG', $msgData);
+        if ($headersDat !== []) {
+            $zip->addFromString('HEADERS.DAT', $this->buildHeadersDat($headersDat));
+        }
         $zip->close();
 
         return $zipPath;
@@ -48,7 +55,7 @@ class RepPacketBuilder
     private function encodeMessage(array $message, int $logicalNumber, int $conferenceLogicalNumber): string
     {
         $body = str_replace(["\r\n", "\r", "\n"], self::LINE_TERM, rtrim((string)$message['body'])) . self::LINE_TERM;
-        $cp437 = @iconv('UTF-8', 'CP437//TRANSLIT//IGNORE', $body);
+        $cp437 = @iconv('UTF-8', self::BODY_CHARSET . '//TRANSLIT//IGNORE', $body);
         $body = ($cp437 !== false && $cp437 !== '') ? $cp437 : $body;
 
         $bodyBlockCount = max(1, (int)ceil(strlen($body) / self::BLOCK_SIZE));
@@ -61,7 +68,7 @@ class RepPacketBuilder
         // 8-byte password, 8-byte reply reference, 6-byte block count,
         // then activity/conf/logical-in-conf/net-tag bytes.
         $header = $status;
-        $header .= str_pad((string)$logicalNumber, 7, ' ', STR_PAD_LEFT);
+        $header .= str_pad((string)$confNumber, 7, ' ', STR_PAD_LEFT);
         $header .= str_pad($date->format('m-d-y'), 8, "\x00");
         $header .= str_pad($date->format('H:i'), 5, "\x00");
         $header .= str_pad(substr((string)$message['to_name'], 0, 25), 25, "\x00");
@@ -82,5 +89,58 @@ class RepPacketBuilder
 
         $paddedBody = str_pad($body, $bodyBlockCount * self::BLOCK_SIZE, "\x00");
         return $header . $paddedBody;
+    }
+
+    /**
+     * @param array<string,mixed> $message
+     */
+    private function buildHeadersDatSection(array $message, int $conferenceNumber): string
+    {
+        $lines = [];
+        $lines[] = 'Conference: ' . $conferenceNumber;
+        $lines[] = 'Sender: ' . $this->encodeHeaderValue((string)($message['from_name'] ?? 'Unknown'));
+        $lines[] = 'To: ' . $this->encodeHeaderValue((string)($message['to_name'] ?? 'All'));
+        $lines[] = 'Subject: ' . $this->encodeHeaderValue((string)($message['subject'] ?? '(no subject)'));
+
+        $fromAddress = trim((string)($message['from_address'] ?? ''));
+        if ($fromAddress !== '') {
+            $lines[] = 'SenderNetAddr: ' . $this->encodeHeaderValue($fromAddress);
+        }
+
+        $messageId = trim((string)($message['message_id'] ?? ''));
+        if ($messageId !== '') {
+            $lines[] = 'X-FTN-MSGID: ' . $this->encodeHeaderValue($messageId);
+        }
+
+        $replyMessageId = trim((string)($message['reply_message_id'] ?? ''));
+        if ($replyMessageId !== '') {
+            $lines[] = 'X-FTN-REPLY: ' . $this->encodeHeaderValue($replyMessageId);
+        }
+
+        $lines[] = 'X-FTN-CHRS: ' . self::BODY_CHARSET;
+
+        return implode("\r\n", $lines);
+    }
+
+    /**
+     * @param array<int,string> $sections
+     */
+    private function buildHeadersDat(array $sections): string
+    {
+        $contents = [];
+        foreach ($sections as $offset => $sectionBody) {
+            $contents[] = '[' . strtolower(dechex($offset)) . ']';
+            $contents[] = $sectionBody;
+            $contents[] = '';
+        }
+
+        return implode("\r\n", $contents);
+    }
+
+    private function encodeHeaderValue(string $value): string
+    {
+        $value = str_replace(["\r\n", "\r", "\n"], ' ', trim($value));
+        $encoded = @iconv('UTF-8', self::BODY_CHARSET . '//TRANSLIT//IGNORE', $value);
+        return ($encoded !== false && $encoded !== '') ? $encoded : $value;
     }
 }

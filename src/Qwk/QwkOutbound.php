@@ -55,6 +55,9 @@ class QwkOutbound
                 'subject' => $row['subject'] ?: '(no subject)',
                 'body' => $row['message_text'] ?: '',
                 'reply_to_num' => $replyToNum,
+                'from_address' => $row['from_address'] ?? null,
+                'message_id' => $row['message_id'] ?? null,
+                'reply_message_id' => $row['reply_message_id'] ?? null,
             ];
         }
 
@@ -81,12 +84,15 @@ class QwkOutbound
                    em.id AS echomail_id,
                    em.to_name,
                    em.from_name,
+                   em.from_address,
                    em.subject,
                    em.message_text,
+                   em.message_id,
                    s.conference_number,
                    parent.qwk_mailbox_id AS reply_qwk_mailbox_id,
                    parent.qwk_conference_number AS reply_qwk_conference_number,
-                   parent.qwk_msg_number AS reply_qwk_msg_number
+                   parent.qwk_msg_number AS reply_qwk_msg_number,
+                   parent.message_id AS reply_message_id
             FROM qwk_outbound_messages qom
             JOIN echomail em ON em.id = qom.echomail_id
             JOIN echo_area_qwk_subscriptions s
