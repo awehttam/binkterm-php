@@ -85,7 +85,7 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
  - For version bump steps and UPGRADING doc format, invoke the `/bump-version` skill.
  - **UPGRADING doc content rules**: Do not include sentences stating that no configuration is needed, no sysop action is required, or no migration is required. These are filler — omit them entirely.
  - When creating or modifying a WebDoor, invoke the `/new-webdoor` skill.
- - Write phpDoc blocks when possible
+ - **phpDoc requirement**: New PHP classes must include a class-level phpDoc block. New public methods should include phpDoc by default unless the signature and behavior are both trivial and self-explanatory.
 
 ## PostgreSQL Gotchas
 

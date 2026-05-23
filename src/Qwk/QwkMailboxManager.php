@@ -6,6 +6,14 @@ use BinktermPHP\Database;
 use BinktermPHP\SysK;
 use PDO;
 
+/**
+ * Stores and retrieves inter-BBS QWK mailbox definitions.
+ *
+ * Mailbox records include remote BBS identity, FTP connection settings,
+ * credentials, poll schedule, enable state, and last poll status.
+ *
+ * Used by: Inter-BBS
+ */
 class QwkMailboxManager
 {
     private PDO $db;

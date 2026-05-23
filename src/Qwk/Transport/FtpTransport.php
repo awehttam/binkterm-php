@@ -4,6 +4,14 @@ namespace BinktermPHP\Qwk\Transport;
 
 use BinktermPHP\Qwk\QwkMailboxManager;
 
+/**
+ * FTP transport for inter-BBS QWK mailbox exchange.
+ *
+ * Downloads `<BBSID>.QWK` from a remote mailbox and uploads `<BBSID>.REP`
+ * back to that same mailbox using the configured FTP connection details.
+ *
+ * Used by: Inter-BBS
+ */
 class FtpTransport implements TransportInterface
 {
     private QwkMailboxManager $mailboxManager;

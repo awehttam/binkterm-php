@@ -5,6 +5,15 @@ namespace BinktermPHP\Qwk;
 use BinktermPHP\Qwk\Transport\FtpTransport;
 use BinktermPHP\Qwk\Transport\TransportInterface;
 
+/**
+ * Orchestrates inter-BBS QWK mailbox exchange.
+ *
+ * A poll cycle can download a remote `.QWK`, import inbound messages, build
+ * a `.REP` from locally queued outbound messages, upload that reply packet,
+ * and update mailbox poll status.
+ *
+ * Used by: Inter-BBS
+ */
 class QwkPoller
 {
     private QwkMailboxManager $mailboxes;

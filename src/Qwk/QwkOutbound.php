@@ -5,6 +5,15 @@ namespace BinktermPHP\Qwk;
 use BinktermPHP\Database;
 use PDO;
 
+/**
+ * Builds the outbound message set for one inter-BBS QWK mailbox.
+ *
+ * This class reads queued echomail destined for a mailbox, preserves QWK
+ * reply threading when possible, and hands the normalized payload to
+ * RepPacketBuilder for `.REP` generation.
+ *
+ * Used by: Inter-BBS
+ */
 class QwkOutbound
 {
     private PDO $db;

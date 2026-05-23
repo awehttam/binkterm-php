@@ -4,6 +4,15 @@ namespace BinktermPHP\Qwk;
 
 use ZipArchive;
 
+/**
+ * Parses a QWK-format packet archive into message objects and conference
+ * metadata.
+ *
+ * Shared by the inter-BBS mailbox import path and other QWK-format parsing
+ * helpers that need a normalized `QwkMessage` representation.
+ *
+ * Used by: Both
+ */
 class QwkPacketParser
 {
     private const BLOCK_SIZE = 128;
