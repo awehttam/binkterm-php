@@ -720,4 +720,7 @@ return [
     'errors.meshcore.not_found' => 'Contatto non trovato.',
     'errors.meshcore.qr_unrecognized' => 'Formato QR non riconosciuto.',
     'errors.meshcore.qr_camera_denied' => 'Accesso alla fotocamera negato.',
+    'errors.qwk.uplink_not_found' => 'QWK uplink not found',
+    'errors.qwk.invalid_uplink' => 'Invalid QWK uplink configuration',
+    'errors.qwk.poll_failed' => 'Failed to poll QWK uplink',
 ];

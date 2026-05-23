@@ -2347,14 +2347,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $stmt = $db->prepare("
                 INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public, allow_media)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
             ");
 
             $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia]);
 
             if ($result) {
+                $inserted = $stmt->fetch(PDO::FETCH_ASSOC);
                 echo json_encode([
                     'success' => true,
-                    'id' => $db->lastInsertId(),
+                    'id' => $inserted ? (int)$inserted['id'] : 0,
                     'message_code' => 'ui.echoareas.created_success'
                 ]);
             } else {
@@ -2552,6 +2554,190 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'today_messages' => (int)$todayMessages
         ]);
     });
+
+    SimpleRouter::get('/qwk-uplinks', function() {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $manager = new \BinktermPHP\Qwk\QwkUplinkManager();
+        echo json_encode(['uplinks' => $manager->getAll()]);
+    });
+
+    SimpleRouter::get('/qwk-uplinks/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $manager = new \BinktermPHP\Qwk\QwkUplinkManager();
+        $uplink = $manager->getById((int)$id, true);
+        if (!$uplink) {
+            http_response_code(404);
+            apiError('errors.qwk.uplink_not_found', apiLocalizedText('errors.qwk.uplink_not_found', 'QWK uplink not found', $user));
+        }
+
+        echo json_encode(['uplink' => $uplink]);
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/qwk-uplinks', function() {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        try {
+            $manager = new \BinktermPHP\Qwk\QwkUplinkManager();
+            $id = $manager->save($input);
+            echo json_encode(['success' => true, 'id' => $id, 'message_code' => 'ui.qwk.uplinks.saved']);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_uplink', apiLocalizedText('errors.qwk.invalid_uplink', 'Invalid QWK uplink configuration', $user));
+        } catch (\PDOException $e) {
+            http_response_code(400);
+            apiError('errors.qwk.save_failed', apiLocalizedText('errors.qwk.save_failed', 'Failed to save QWK configuration', $user));
+        }
+    });
+
+    SimpleRouter::put('/qwk-uplinks/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        try {
+            $manager = new \BinktermPHP\Qwk\QwkUplinkManager();
+            $manager->save($input, (int)$id);
+            echo json_encode(['success' => true, 'message_code' => 'ui.qwk.uplinks.saved']);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_uplink', apiLocalizedText('errors.qwk.invalid_uplink', 'Invalid QWK uplink configuration', $user));
+        } catch (\PDOException $e) {
+            http_response_code(400);
+            apiError('errors.qwk.save_failed', apiLocalizedText('errors.qwk.save_failed', 'Failed to save QWK configuration', $user));
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::delete('/qwk-uplinks/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $manager = new \BinktermPHP\Qwk\QwkUplinkManager();
+        if (!$manager->delete((int)$id)) {
+            http_response_code(404);
+            apiError('errors.qwk.uplink_not_found', apiLocalizedText('errors.qwk.uplink_not_found', 'QWK uplink not found', $user));
+        }
+        echo json_encode(['success' => true, 'message_code' => 'ui.qwk.uplinks.deleted']);
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/qwk-uplinks/{id}/poll', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $result = (new \BinktermPHP\Qwk\QwkPoller())->pollUplink((int)$id);
+        if (empty($result['success'])) {
+            http_response_code(400);
+            apiError('errors.qwk.poll_failed', apiLocalizedText('errors.qwk.poll_failed', 'Failed to poll QWK uplink', $user), 400, ['detail' => $result['error'] ?? null]);
+        }
+
+        echo json_encode(array_merge(['message_code' => 'ui.qwk.uplinks.polled'], $result));
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/echoareas/{id}/qwk-config', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $db = Database::getInstance()->getPdo();
+        $echoareaId = (int)$id;
+
+        $check = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+        $check->execute([$echoareaId]);
+        if (!$check->fetchColumn()) {
+            http_response_code(404);
+            apiError('errors.echoareas.not_found', apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user));
+        }
+
+        $subscriptionManager = new \BinktermPHP\Qwk\QwkSubscriptionManager($db);
+        $gateProcessor = new \BinktermPHP\Qwk\GateProcessor($db);
+        $uplinkManager = new \BinktermPHP\Qwk\QwkUplinkManager($db);
+
+        $areasStmt = $db->prepare("
+            SELECT id, tag, domain, description
+            FROM echoareas
+            WHERE id <> ?
+            ORDER BY LOWER(tag), LOWER(COALESCE(domain, ''))
+        ");
+        $areasStmt->execute([$echoareaId]);
+
+        echo json_encode([
+            'subscriptions' => $subscriptionManager->getSubscriptionsForArea($echoareaId),
+            'gates' => $gateProcessor->getGatesForArea($echoareaId),
+            'uplinks' => $uplinkManager->getAll(),
+            'available_areas' => $areasStmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+        ]);
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::put('/echoareas/{id}/qwk-config', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $db = Database::getInstance()->getPdo();
+        $echoareaId = (int)$id;
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $check = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+        $check->execute([$echoareaId]);
+        if (!$check->fetchColumn()) {
+            http_response_code(404);
+            apiError('errors.echoareas.not_found', apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user));
+        }
+
+        $subscriptions = is_array($input['subscriptions'] ?? null) ? $input['subscriptions'] : [];
+        $gates = is_array($input['gates'] ?? null) ? $input['gates'] : [];
+
+        try {
+            $db->beginTransaction();
+            (new \BinktermPHP\Qwk\QwkSubscriptionManager($db))->replaceAreaSubscriptions($echoareaId, $subscriptions);
+            (new \BinktermPHP\Qwk\GateProcessor($db))->replaceAreaGates($echoareaId, $gates);
+            $db->commit();
+            echo json_encode(['success' => true, 'message_code' => 'ui.qwk.echoarea_config_saved']);
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            http_response_code(400);
+            apiError('errors.qwk.save_failed', apiLocalizedText('errors.qwk.save_failed', 'Failed to save QWK configuration', $user));
+        }
+    })->where(['id' => '[0-9]+']);
 
     // File Areas API routes
     SimpleRouter::get('/fileareas', function() {
