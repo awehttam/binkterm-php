@@ -2,3 +2,12 @@ reviews:
   review_status: false
   auto_review:
     enabled: false
+    drafts: false
+  high_level_summary: false
+  poem: false
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  review_comment_lgtm: false
+
+chat:
+  auto_reply: false

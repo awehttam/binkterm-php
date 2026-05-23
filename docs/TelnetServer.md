@@ -191,18 +191,27 @@ Or configure a saved session:
 2. Port: `2323`
 3. Connection type: Telnet
 
-### SyncTERM (Recommended)
+### UTF-8 Capable Terminal Clients
 
-SyncTERM provides the best experience with full ANSI color support:
+If you want a terminal with strong UTF-8 support, use a client such as ZOC or
+PuTTY.
 
-1. Add new connection
-2. Connection Type: Telnet
-3. Address: `your-bbs-hostname`
-4. Port: `2323`
+#### ZOC
+
+1. Add a new Telnet session
+2. Address: `your-bbs-hostname`
+3. Port: `2323`
+
+#### PuTTY
+
+1. Host Name: `your-bbs-hostname`
+2. Port: `2323`
+3. Connection type: Telnet
+4. Under `Window -> Translation`, select a UTF-8 character set if needed
 
 ## Client Compatibility
 
-- Works best with PuTTY and SyncTERM
+- UTF-8 behavior varies by terminal emulator and font configuration
 - Echo handling varies by telnet client
 - Some clients may not properly support NAWS negotiation
 - ANSI color support depends on terminal emulator capabilities
@@ -302,7 +311,7 @@ one line is written per offending IP per window. The provided jail uses
 **Solutions**:
 1. Verify terminal supports NAWS negotiation
 2. Check debug output for detected screen dimensions
-3. Try a different terminal emulator (SyncTERM recommended)
+3. Try a different terminal emulator with solid UTF-8 support, such as ZOC or PuTTY
 4. Manually resize terminal window to trigger NAWS update
 
 ### Editor Issues
@@ -313,7 +322,7 @@ one line is written per offending IP per window. The provided jail uses
 1. Verify terminal type is set correctly (ANSI or VT100)
 2. Try a different terminal emulator
 3. Check telnet client configuration
-4. Use SyncTERM for best compatibility
+4. Try ZOC or PuTTY with UTF-8 enabled
 
 ### Connection Rate Limiting
 
@@ -379,7 +388,7 @@ request/response details.
 
 When contributing to the telnet daemon:
 
-1. Test with multiple terminal emulators (PuTTY, SyncTERM, standard telnet)
+1. Test with multiple terminal emulators (PuTTY, ZOC, standard telnet)
 2. Verify Windows compatibility (single connection mode)
 3. Test with different screen sizes (24 rows, 40 rows, etc.)
 4. Follow existing code conventions

@@ -64,15 +64,27 @@ require_once __DIR__."/../routes/door-routes.php";
 require_once __DIR__."/../routes/packetbbs-routes.php";
 
 
+$requestedUrl = $_SERVER['REQUEST_URI'] ?? '';
+
 try {
 // Start router
     SimpleRouter::start();
 } catch (\Pecee\SimpleRouter\Exceptions\NotFoundHttpException $ex){
     http_response_code(404);
-    
+
     // Use the pretty 404 template instead of plain text
     $template = new Template();
-    $requestedUrl = $_SERVER['REQUEST_URI'] ?? '';
+    $template->renderResponse('404.twig', [
+        'requested_url' => htmlspecialchars($requestedUrl)
+    ]);
+} catch (\Error $e) {
+    // parse_url() can't handle some valid-ish URIs (e.g. /:27017 scanner probes),
+    // leaving the router's typed $request uninitialized. Treat those as 404.
+    if (!str_contains($e->getMessage(), 'Router::$request must not be accessed before initialization')) {
+        throw $e;
+    }
+    http_response_code(404);
+    $template = new Template();
     $template->renderResponse('404.twig', [
         'requested_url' => htmlspecialchars($requestedUrl)
     ]);

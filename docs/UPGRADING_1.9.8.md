@@ -5,26 +5,16 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
-- [Core Platform](#core-platform)
 - [Web Interface](#web-interface)
-- [Developer Notes](#developer-notes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
-### Core Platform
-
-- Version metadata now reports BinktermPHP `1.9.8` across the application and release tooling.
-
 ### Web Interface
 
 - The FTP daemon now accepts QWK reply packets uploaded directly to the FTP root (`/`) as well as `/qwk/upload/`, improving compatibility with clients that do not change into the upload subdirectory before sending `.REP` or `.ZIP` files.
-
-### Developer Notes
-
-- This document starts the `1.9.8` release cycle and should be expanded incrementally as upgrade-relevant changes land.
 
 ---
 
@@ -38,9 +28,6 @@ The FTP daemon now accepts `.REP` and `.ZIP` uploads dropped directly into the F
 
 Clients that already target `/qwk/upload/` are unaffected. Clients that upload to root now have their packet routed through the same REP import pipeline as a `/qwk/upload/` transfer, including the same conference-map validation and deduplication checks.
 
-## Developer Notes
-
-`docs/UPGRADING_1.9.8.md` is now the active upgrade-notes document for the current release cycle. Future changes that affect deployment, configuration, dependencies, migrations, or operator workflows should be documented here as they are introduced.
 
 ## Upgrade Instructions
 
