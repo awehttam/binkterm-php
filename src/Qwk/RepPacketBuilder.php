@@ -68,7 +68,9 @@ class RepPacketBuilder
         // 8-byte password, 8-byte reply reference, 6-byte block count,
         // then activity/conf/logical-in-conf/net-tag bytes.
         $header = $status;
-        $header .= str_pad((string)$confNumber, 7, ' ', STR_PAD_LEFT);
+        // Synchronet parses the 7-byte ASCII conference field with atol(),
+        // so the number must be left-justified with trailing spaces.
+        $header .= str_pad((string)$confNumber, 7, ' ', STR_PAD_RIGHT);
         $header .= str_pad($date->format('m-d-y'), 8, "\x00");
         $header .= str_pad($date->format('H:i'), 5, "\x00");
         $header .= str_pad(substr((string)$message['to_name'], 0, 25), 25, "\x00");
