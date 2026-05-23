@@ -4955,6 +4955,7 @@ return [
     'ui.qwk.uplinks.edit_title' => 'Edit QWK Mailbox',
     'ui.qwk.uplinks.bbs_id' => 'Remote BBS ID',
     'ui.qwk.uplinks.remote_path' => 'Remote FTP Path',
+    'ui.qwk.uplinks.passive_mode' => 'Passive Mode',
     'ui.qwk.uplinks.poll_schedule' => 'Poll Schedule',
     'ui.qwk.uplinks.load_failed' => 'Failed to load QWK mailboxes',
     'ui.qwk.uplinks.save_failed' => 'Failed to save QWK mailbox',

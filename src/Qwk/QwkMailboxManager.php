@@ -21,7 +21,7 @@ class QwkMailboxManager
     public function getAll(bool $includeSecrets = false): array
     {
         $stmt = $this->db->query("
-            SELECT id, name, bbs_id, host, port, username, password, ftp_remote_path,
+            SELECT id, name, bbs_id, host, port, username, password, ftp_remote_path, passive_mode,
                    poll_schedule, enabled, last_polled_at, last_error, created_at, updated_at
             FROM qwk_mailboxes
             ORDER BY LOWER(name), id
@@ -47,6 +47,9 @@ class QwkMailboxManager
     {
         $row['id'] = (int)($row['id'] ?? 0);
         $row['port'] = (int)($row['port'] ?? 21);
+        $row['passive_mode'] = !array_key_exists('passive_mode', $row)
+            ? true
+            : filter_var($row['passive_mode'], FILTER_VALIDATE_BOOLEAN);
         $row['enabled'] = filter_var($row['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
         return $row;
     }
@@ -68,6 +71,9 @@ class QwkMailboxManager
         $username = trim((string)($data['username'] ?? ''));
         $password = (string)($data['password'] ?? '');
         $path = trim((string)($data['ftp_remote_path'] ?? '/'));
+        $passiveMode = !array_key_exists('passive_mode', $data)
+            ? true
+            : filter_var($data['passive_mode'], FILTER_VALIDATE_BOOLEAN);
         $schedule = trim((string)($data['poll_schedule'] ?? ''));
         $enabled = !empty($data['enabled']);
 
@@ -96,8 +102,8 @@ class QwkMailboxManager
         if ($id === null) {
             $stmt = $this->db->prepare("
                 INSERT INTO qwk_mailboxes
-                    (name, bbs_id, host, port, username, password, ftp_remote_path, poll_schedule, enabled, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                    (name, bbs_id, host, port, username, password, ftp_remote_path, passive_mode, poll_schedule, enabled, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                 RETURNING id
             ");
             $stmt->execute([
@@ -108,6 +114,7 @@ class QwkMailboxManager
                 $username,
                 $encryptedPassword,
                 $path !== '' ? $path : '/',
+                $passiveMode ? 'true' : 'false',
                 $schedule !== '' ? $schedule : null,
                 $enabled ? 'true' : 'false',
             ]);
@@ -118,7 +125,7 @@ class QwkMailboxManager
         $stmt = $this->db->prepare("
             UPDATE qwk_mailboxes
             SET name = ?, bbs_id = ?, host = ?, port = ?, username = ?, password = ?,
-                ftp_remote_path = ?, poll_schedule = ?, enabled = ?, updated_at = NOW()
+                ftp_remote_path = ?, passive_mode = ?, poll_schedule = ?, enabled = ?, updated_at = NOW()
             WHERE id = ?
         ");
         $stmt->execute([
@@ -129,6 +136,7 @@ class QwkMailboxManager
             $username,
             $encryptedPassword,
             $path !== '' ? $path : '/',
+            $passiveMode ? 'true' : 'false',
             $schedule !== '' ? $schedule : null,
             $enabled ? 'true' : 'false',
             $id,
@@ -143,7 +151,7 @@ class QwkMailboxManager
     public function getById(int $id, bool $includeSecret = false): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT id, name, bbs_id, host, port, username, password, ftp_remote_path,
+            SELECT id, name, bbs_id, host, port, username, password, ftp_remote_path, passive_mode,
                    poll_schedule, enabled, last_polled_at, last_error, created_at, updated_at
             FROM qwk_mailboxes
             WHERE id = ?

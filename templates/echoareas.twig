@@ -384,6 +384,12 @@
                                 </div>
                                 <div class="col-12">
                                     <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="qwkMailboxPassiveMode" checked>
+                                        <label class="form-check-label" for="qwkMailboxPassiveMode">{{ t('ui.qwk.uplinks.passive_mode', {}, locale, ['common']) }}</label>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="qwkMailboxEnabled" checked>
                                         <label class="form-check-label" for="qwkMailboxEnabled">{{ t('ui.common.enabled', {}, locale, ['common']) }}</label>
                                     </div>
@@ -392,7 +398,7 @@
                                     <button type="button" class="btn btn-fidonet" onclick="saveQwkMailbox()">
                                         <i class="fas fa-save me-1"></i>{{ t('ui.common.save', {}, locale, ['common']) }}
                                     </button>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="resetQwkMailboxForm()">
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" onclick="resetQwkMailboxForm()">
                                         {{ t('ui.common.cancel', {}, locale, ['common']) }}
                                     </button>
                                 </div>
@@ -1110,7 +1116,7 @@ function qwkSubscriptionRowHtml(subscription) {
     return `
         <div class="qwk-subscription-row border rounded p-2 bg-light">
             <div class="row g-2 align-items-end">
-                <div class="col-md-5">
+                <div class="col-md-4">
                     <label class="form-label small">${uiT('ui.qwk.echoarea.uplink_label', 'Mailbox')}</label>
                     <select class="form-select form-select-sm qwk-mailbox-id">
                         <option value="">${uiT('ui.qwk.echoarea.select_uplink', 'Select mailbox')}</option>
@@ -1121,11 +1127,11 @@ function qwkSubscriptionRowHtml(subscription) {
                     <label class="form-label small">${uiT('ui.qwk.echoarea.conference_tag', 'Conference Tag')}</label>
                     <input class="form-control form-control-sm qwk-conference-tag" value="${escapeHtmlAttr(subscription.conference_tag || '')}">
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-4">
                     <label class="form-label small">${uiT('ui.qwk.echoarea.conference_number', 'Conference #')}</label>
-                    <input type="number" class="form-control form-control-sm qwk-conference-number" min="0" value="${escapeHtmlAttr(String(subscription.conference_number ?? ''))}">
+                    <input type="number" class="form-control form-control-sm qwk-conference-number font-monospace" min="0" step="1" inputmode="numeric" value="${escapeHtmlAttr(String(subscription.conference_number ?? ''))}">
                 </div>
-                <div class="col-md-2 d-grid">
+                <div class="col-md-1 d-grid">
                     <button type="button" class="btn btn-sm btn-outline-danger" onclick="$(this).closest('.qwk-subscription-row').remove(); ensureQwkEmptyState();">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -1255,6 +1261,7 @@ function resetQwkMailboxForm() {
     $('#qwkMailboxFormTitle').text(uiT('ui.qwk.uplinks.add_title', 'Add QWK Mailbox'));
     $('#qwkMailboxPort').val(21);
     $('#qwkMailboxPath').val('/');
+    $('#qwkMailboxPassiveMode').prop('checked', true);
     $('#qwkMailboxEnabled').prop('checked', true);
 }
 
@@ -1314,6 +1321,7 @@ function editQwkMailbox(id) {
             $('#qwkMailboxUsername').val(mailbox.username || '');
             $('#qwkMailboxPassword').val(mailbox.password_plain || '');
             $('#qwkMailboxPath').val(mailbox.ftp_remote_path || '/');
+            $('#qwkMailboxPassiveMode').prop('checked', mailbox.passive_mode !== false);
             $('#qwkMailboxSchedule').val(mailbox.poll_schedule || '');
             $('#qwkMailboxEnabled').prop('checked', !!mailbox.enabled);
         })
@@ -1331,6 +1339,7 @@ function saveQwkMailbox() {
         username: $('#qwkMailboxUsername').val(),
         password: $('#qwkMailboxPassword').val(),
         ftp_remote_path: $('#qwkMailboxPath').val() || '/',
+        passive_mode: $('#qwkMailboxPassiveMode').is(':checked'),
         poll_schedule: $('#qwkMailboxSchedule').val() || '',
         enabled: $('#qwkMailboxEnabled').is(':checked')
     };
