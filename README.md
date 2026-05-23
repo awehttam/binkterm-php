@@ -181,6 +181,8 @@ Full configuration reference: **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**
 
 **Review version-specific upgrade notes** in [docs/index.md](docs/index.md#upgrading) before upgrading — individual versions may have specific steps you must take.
 
+Current release notes: [Upgrading to 1.9.8](docs/UPGRADING_1.9.8.md)
+
 The general steps:
 
 1. **Pull the latest code** — `git pull`

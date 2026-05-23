@@ -1,6 +1,6 @@
 <?php
 
-namespace BinktermPHP\Qwk;
+namespace BinktermPHP\Echomail;
 
 use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
@@ -114,6 +114,22 @@ class GateProcessor
     }
 
     /**
+     * @return array<string,mixed>|null
+     */
+    private function getMessage(int $messageId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT em.*, ea.tag, ea.domain
+            FROM echomail em
+            JOIN echoareas ea ON ea.id = em.echoarea_id
+            WHERE em.id = ?
+        ");
+        $stmt->execute([$messageId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
      * @return array<int>
      */
     private function resolveRoutes(int $echoareaId): array
@@ -140,22 +156,6 @@ class GateProcessor
         }
 
         return array_values(array_unique($targets));
-    }
-
-    /**
-     * @return array<string,mixed>|null
-     */
-    private function getMessage(int $messageId): ?array
-    {
-        $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag, ea.domain
-            FROM echomail em
-            JOIN echoareas ea ON ea.id = em.echoarea_id
-            WHERE em.id = ?
-        ");
-        $stmt->execute([$messageId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ?: null;
     }
 
     private function alreadyGated(int $targetAreaId, string $sourceMsgId): bool

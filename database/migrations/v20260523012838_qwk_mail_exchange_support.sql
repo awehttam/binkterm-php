@@ -8,8 +8,7 @@
 -- ALTER TABLE users ADD COLUMN new_field VARCHAR(100);
 
 -- CREATE INDEX idx_new_field ON users(new_field);
--- Create the QWK tables before wiring all echomail references.
-CREATE TABLE IF NOT EXISTS qwk_uplinks (
+CREATE TABLE IF NOT EXISTS qwk_mailboxes (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     bbs_id VARCHAR(8) NOT NULL,
@@ -29,21 +28,22 @@ CREATE TABLE IF NOT EXISTS qwk_uplinks (
 CREATE TABLE IF NOT EXISTS echo_area_qwk_subscriptions (
     id SERIAL PRIMARY KEY,
     echoarea_id INTEGER NOT NULL REFERENCES echoareas(id) ON DELETE CASCADE,
-    uplink_id INTEGER NOT NULL REFERENCES qwk_uplinks(id) ON DELETE CASCADE,
+    mailbox_id INTEGER NOT NULL REFERENCES qwk_mailboxes(id) ON DELETE CASCADE,
     conference_tag VARCHAR(50) NOT NULL,
     conference_number INTEGER NOT NULL,
+    auto_created BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT echo_area_qwk_subscriptions_area_uplink_key UNIQUE (echoarea_id, uplink_id),
-    CONSTRAINT echo_area_qwk_subscriptions_uplink_conf_key UNIQUE (uplink_id, conference_number)
+    CONSTRAINT echo_area_qwk_subscriptions_area_mailbox_key UNIQUE (echoarea_id, mailbox_id),
+    CONSTRAINT echo_area_qwk_subscriptions_mailbox_conf_key UNIQUE (mailbox_id, conference_number)
 );
 
 CREATE TABLE IF NOT EXISTS qwk_outbound_messages (
     id SERIAL PRIMARY KEY,
     echomail_id INTEGER NOT NULL REFERENCES echomail(id) ON DELETE CASCADE,
-    uplink_id INTEGER NOT NULL REFERENCES qwk_uplinks(id) ON DELETE CASCADE,
+    mailbox_id INTEGER NOT NULL REFERENCES qwk_mailboxes(id) ON DELETE CASCADE,
     queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     sent_at TIMESTAMPTZ NULL,
-    CONSTRAINT qwk_outbound_messages_unique UNIQUE (echomail_id, uplink_id)
+    CONSTRAINT qwk_outbound_messages_unique UNIQUE (echomail_id, mailbox_id)
 );
 
 CREATE TABLE IF NOT EXISTS echo_area_gates (
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS echo_area_gates (
 );
 
 ALTER TABLE echomail
-    ADD COLUMN IF NOT EXISTS qwk_uplink_id INTEGER REFERENCES qwk_uplinks(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS qwk_mailbox_id INTEGER REFERENCES qwk_mailboxes(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS qwk_conference_number INTEGER,
     ADD COLUMN IF NOT EXISTS qwk_msg_number INTEGER,
     ADD COLUMN IF NOT EXISTS source_msgid VARCHAR(255);
@@ -65,11 +65,11 @@ ALTER TABLE echomail
 CREATE INDEX IF NOT EXISTS idx_qwk_subscriptions_area
     ON echo_area_qwk_subscriptions (echoarea_id);
 
-CREATE INDEX IF NOT EXISTS idx_qwk_subscriptions_uplink
-    ON echo_area_qwk_subscriptions (uplink_id);
+CREATE INDEX IF NOT EXISTS idx_qwk_subscriptions_mailbox
+    ON echo_area_qwk_subscriptions (mailbox_id);
 
 CREATE INDEX IF NOT EXISTS idx_qwk_outbound_pending
-    ON qwk_outbound_messages (uplink_id, sent_at);
+    ON qwk_outbound_messages (mailbox_id, sent_at);
 
 CREATE INDEX IF NOT EXISTS idx_echo_area_gates_source
     ON echo_area_gates (source_area_id);
@@ -78,8 +78,8 @@ CREATE INDEX IF NOT EXISTS idx_echo_area_gates_target
     ON echo_area_gates (target_area_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_echomail_qwk_dedupe
-    ON echomail (qwk_uplink_id, qwk_conference_number, qwk_msg_number)
-    WHERE qwk_uplink_id IS NOT NULL
+    ON echomail (qwk_mailbox_id, qwk_conference_number, qwk_msg_number)
+    WHERE qwk_mailbox_id IS NOT NULL
       AND qwk_conference_number IS NOT NULL
       AND qwk_msg_number IS NOT NULL;
 

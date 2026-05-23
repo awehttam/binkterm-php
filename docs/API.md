@@ -2071,7 +2071,7 @@ Array of echo areas
 **Requires authentication**
 
 Admin-only endpoint that returns the QWK-network configuration for one echo
-area: mapped remote conferences, local gate rules, all configured QWK uplinks,
+area: mapped remote conferences, local gate rules, all configured QWK mailboxes,
 and other available local areas that can be chosen as gate targets.
 
 **Path Parameters**
@@ -2086,7 +2086,7 @@ and other available local areas that can be chosen as gate targets.
 |-------|------|-------------|
 | `subscriptions` | array | QWK conference mappings for this echo area |
 | `gates` | array | Gate definitions involving this echo area |
-| `uplinks` | array | All configured QWK uplinks |
+| `mailboxes` | array | All configured QWK mailboxes |
 | `available_areas` | array | Other local echo areas available as gate targets |
 
 **Error Responses**
@@ -2115,7 +2115,7 @@ and local gate rules for an echo area.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `subscriptions` | array | No | Array of `{uplink_id, conference_tag, conference_number}` objects |
+| `subscriptions` | array | No | Array of `{mailbox_id, conference_tag, conference_number}` objects |
 | `gates` | array | No | Array of `{target_area_id, bidirectional}` objects |
 
 **Response** _(JSON)_
@@ -5950,12 +5950,12 @@ JSON object with created poll ID and details
 | `GET` | [`/api/qwk/area-selections`](#get-apiqwkarea-selections) | Yes | Retrieve user's QWK area selections and available subscriptions. |
 | `POST` | [`/api/qwk/area-selections`](#post-apiqwkarea-selections) | Yes | Save user's QWK area selection for packet generation. |
 | `GET` | [`/api/qwk/area-search`](#get-apiqwkarea-search) | Yes | Search echo areas by tag or description for QWK selection. |
-| `GET` | [`/api/qwk-uplinks`](#get-apiqwk-uplinks) | Yes | List configured QWK uplinks for the admin UI. |
-| `GET` | [`/api/qwk-uplinks/{id}`](#get-apiqwk-uplinksid) | Yes | Load one QWK uplink including its decrypted password for editing. |
-| `POST` | [`/api/qwk-uplinks`](#post-apiqwk-uplinks) | Yes | Create a QWK uplink configuration. |
-| `PUT` | [`/api/qwk-uplinks/{id}`](#put-apiqwk-uplinksid) | Yes | Update a QWK uplink configuration. |
-| `DELETE` | [`/api/qwk-uplinks/{id}`](#delete-apiqwk-uplinksid) | Yes | Delete a QWK uplink configuration. |
-| `POST` | [`/api/qwk-uplinks/{id}/poll`](#post-apiqwk-uplinksidpoll) | Yes | Poll one QWK uplink immediately. |
+| `GET` | [`/api/qwk-mailboxes`](#get-apiqwk-mailboxes) | Yes | List configured QWK mailboxes for the admin UI. |
+| `GET` | [`/api/qwk-mailboxes/{id}`](#get-apiqwk-mailboxesid) | Yes | Load one QWK mailbox including its decrypted password for editing. |
+| `POST` | [`/api/qwk-mailboxes`](#post-apiqwk-mailboxes) | Yes | Create a QWK mailbox configuration. |
+| `PUT` | [`/api/qwk-mailboxes/{id}`](#put-apiqwk-mailboxesid) | Yes | Update a QWK mailbox configuration. |
+| `DELETE` | [`/api/qwk-mailboxes/{id}`](#delete-apiqwk-mailboxesid) | Yes | Delete a QWK mailbox configuration. |
+| `POST` | [`/api/qwk-mailboxes/{id}/poll`](#post-apiqwk-mailboxesidpoll) | Yes | Poll one QWK mailbox immediately. |
 
 #### `POST /api/qwk/upload`
 
@@ -6158,18 +6158,18 @@ Search results
 
 ---
 
-#### `GET /api/qwk-uplinks`
+#### `GET /api/qwk-mailboxes`
 
 **Requires authentication**
 
-Admin-only endpoint that lists all configured QWK uplinks for the management
+Admin-only endpoint that lists all configured QWK mailboxes for the management
 UI. Passwords are not returned by this list endpoint.
 
 **Response** _(JSON)_
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `uplinks` | array | QWK uplink records with status metadata |
+| `mailboxes` | array | QWK mailbox records with status metadata |
 
 **Error Responses**
 
@@ -6179,46 +6179,46 @@ UI. Passwords are not returned by this list endpoint.
 
 ---
 
-#### `GET /api/qwk-uplinks/{id}`
+#### `GET /api/qwk-mailboxes/{id}`
 
 **Requires authentication**
 
-Admin-only endpoint that returns one QWK uplink for editing, including the
+Admin-only endpoint that returns one QWK mailbox for editing, including the
 decrypted password in `password_plain`.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | QWK uplink ID |
+| `id` | integer | QWK mailbox ID |
 
 **Response** _(JSON)_
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `uplink` | object | Full QWK uplink record |
-| `uplink.password_plain` | string | Decrypted password for edit-form reuse |
+| `mailbox` | object | Full QWK mailbox record |
+| `mailbox.password_plain` | string | Decrypted password for edit-form reuse |
 
 **Error Responses**
 
 | Status | Description |
 |--------|-------------|
 | 403 | Admin privileges required |
-| 404 | QWK uplink not found |
+| 404 | QWK mailbox not found |
 
 ---
 
-#### `POST /api/qwk-uplinks`
+#### `POST /api/qwk-mailboxes`
 
 **Requires authentication**
 
-Admin-only endpoint that creates a new QWK uplink definition.
+Admin-only endpoint that creates a new QWK mailbox definition.
 
 **Request Body** _(JSON)_
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Friendly uplink name |
+| `name` | string | Yes | Friendly mailbox name |
 | `bbs_id` | string | Yes | Remote 8-character QWK BBS ID |
 | `host` | string | Yes | FTP hostname |
 | `port` | integer | No | FTP port (default `21`) |
@@ -6233,7 +6233,7 @@ Admin-only endpoint that creates a new QWK uplink definition.
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `id` | integer | New QWK uplink ID |
+| `id` | integer | New QWK mailbox ID |
 | `message_code` | string | Localization key for UI success messaging |
 
 **Error Responses**
@@ -6241,26 +6241,26 @@ Admin-only endpoint that creates a new QWK uplink definition.
 | Status | Description |
 |--------|-------------|
 | 403 | Admin privileges required |
-| 400 | Invalid uplink payload or save failure |
+| 400 | Invalid mailbox payload or save failure |
 
 ---
 
-#### `PUT /api/qwk-uplinks/{id}`
+#### `PUT /api/qwk-mailboxes/{id}`
 
 **Requires authentication**
 
-Admin-only endpoint that updates an existing QWK uplink. If `password` is sent
+Admin-only endpoint that updates an existing QWK mailbox. If `password` is sent
 blank, the previous password is retained.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | QWK uplink ID |
+| `id` | integer | QWK mailbox ID |
 
 **Request Body** _(JSON)_
 
-Same shape as `POST /api/qwk-uplinks`.
+Same shape as `POST /api/qwk-mailboxes`.
 
 **Response** _(JSON)_
 
@@ -6274,21 +6274,21 @@ Same shape as `POST /api/qwk-uplinks`.
 | Status | Description |
 |--------|-------------|
 | 403 | Admin privileges required |
-| 400 | Invalid uplink payload or save failure |
+| 400 | Invalid mailbox payload or save failure |
 
 ---
 
-#### `DELETE /api/qwk-uplinks/{id}`
+#### `DELETE /api/qwk-mailboxes/{id}`
 
 **Requires authentication**
 
-Admin-only endpoint that deletes a configured QWK uplink.
+Admin-only endpoint that deletes a configured QWK mailbox.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | QWK uplink ID |
+| `id` | integer | QWK mailbox ID |
 
 **Response** _(JSON)_
 
@@ -6302,22 +6302,22 @@ Admin-only endpoint that deletes a configured QWK uplink.
 | Status | Description |
 |--------|-------------|
 | 403 | Admin privileges required |
-| 404 | QWK uplink not found |
+| 404 | QWK mailbox not found |
 
 ---
 
-#### `POST /api/qwk-uplinks/{id}/poll`
+#### `POST /api/qwk-mailboxes/{id}/poll`
 
 **Requires authentication**
 
-Admin-only endpoint that immediately polls one QWK uplink, imports any inbound
+Admin-only endpoint that immediately polls one QWK mailbox, imports any inbound
 packet, builds an outbound `.REP` if needed, and attempts upload.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
-| `id` | integer | QWK uplink ID |
+| `id` | integer | QWK mailbox ID |
 
 **Response** _(JSON)_
 

@@ -28,11 +28,14 @@ class QwkInbound
     /**
      * @return array{imported:int,skipped:int}
      */
-    public function importPacket(int $uplinkId, string $zipPath): array
+    public function importPacket(int $mailboxId, string $zipPath): array
     {
         $parsed = $this->parser->parsePacket($zipPath);
         $imported = 0;
         $skipped = 0;
+        $conferenceMap = is_array($parsed['control']['conferences'] ?? null)
+            ? $parsed['control']['conferences']
+            : [];
 
         foreach ($parsed['messages'] as $message) {
             if ($message->conferenceNumber <= 0) {
@@ -40,19 +43,24 @@ class QwkInbound
                 continue;
             }
 
-            $subscription = $this->subscriptions->getSubscriptionForConference($uplinkId, $message->conferenceNumber);
+            $conferenceTag = trim((string)($conferenceMap[$message->conferenceNumber] ?? ''));
+            $subscription = $this->subscriptions->getOrCreateSubscriptionForConference(
+                $mailboxId,
+                $message->conferenceNumber,
+                $conferenceTag
+            );
             if ($subscription === null) {
                 $skipped++;
                 continue;
             }
 
-            if ($this->messageExists($uplinkId, $message->conferenceNumber, $message->messageNumber)) {
+            if ($this->messageExists($mailboxId, $message->conferenceNumber, $message->messageNumber)) {
                 $skipped++;
                 continue;
             }
 
-            $replyToId = $this->findReplyToId($uplinkId, $message->conferenceNumber, $message->replyToNumber);
-            $sourceMsgId = $message->sourceMsgId ?: sprintf('qwk:%d:%d:%d', $uplinkId, $message->conferenceNumber, $message->messageNumber);
+            $replyToId = $this->findReplyToId($mailboxId, $message->conferenceNumber, $message->replyToNumber);
+            $sourceMsgId = $message->sourceMsgId ?: sprintf('qwk:%d:%d:%d', $mailboxId, $message->conferenceNumber, $message->messageNumber);
 
             $newId = $this->messageHandler->importExternalEchomail([
                 'echoarea_id' => (int)$subscription['echoarea_id'],
@@ -63,10 +71,10 @@ class QwkInbound
                 'from_address' => null,
                 'reply_to_id' => $replyToId,
                 'source_msgid' => $sourceMsgId,
-                'qwk_uplink_id' => $uplinkId,
+                'qwk_mailbox_id' => $mailboxId,
                 'qwk_conference_number' => $message->conferenceNumber,
                 'qwk_msg_number' => $message->messageNumber,
-                'exclude_qwk_uplink_id' => $uplinkId,
+                'exclude_qwk_mailbox_id' => $mailboxId,
                 'apply_gates' => true,
             ]);
 
@@ -80,19 +88,19 @@ class QwkInbound
         return ['imported' => $imported, 'skipped' => $skipped];
     }
 
-    private function messageExists(int $uplinkId, int $conferenceNumber, int $messageNumber): bool
+    private function messageExists(int $mailboxId, int $conferenceNumber, int $messageNumber): bool
     {
         $stmt = $this->db->prepare("
             SELECT 1
             FROM echomail
-            WHERE qwk_uplink_id = ? AND qwk_conference_number = ? AND qwk_msg_number = ?
+            WHERE qwk_mailbox_id = ? AND qwk_conference_number = ? AND qwk_msg_number = ?
             LIMIT 1
         ");
-        $stmt->execute([$uplinkId, $conferenceNumber, $messageNumber]);
+        $stmt->execute([$mailboxId, $conferenceNumber, $messageNumber]);
         return (bool)$stmt->fetchColumn();
     }
 
-    private function findReplyToId(int $uplinkId, int $conferenceNumber, int $messageNumber): ?int
+    private function findReplyToId(int $mailboxId, int $conferenceNumber, int $messageNumber): ?int
     {
         if ($messageNumber <= 0) {
             return null;
@@ -101,10 +109,10 @@ class QwkInbound
         $stmt = $this->db->prepare("
             SELECT id
             FROM echomail
-            WHERE qwk_uplink_id = ? AND qwk_conference_number = ? AND qwk_msg_number = ?
+            WHERE qwk_mailbox_id = ? AND qwk_conference_number = ? AND qwk_msg_number = ?
             LIMIT 1
         ");
-        $stmt->execute([$uplinkId, $conferenceNumber, $messageNumber]);
+        $stmt->execute([$mailboxId, $conferenceNumber, $messageNumber]);
         $id = $stmt->fetchColumn();
         return $id ? (int)$id : null;
     }

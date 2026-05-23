@@ -58,6 +58,13 @@
                         </div>
                     </div>
                     <div class="col-md-6">
+                        <label class="form-label" for="networkType">{{ t('ui.admin.networks.type', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="networkType">
+                            <option value="1">{{ t('ui.admin.networks.type_fidonet', {}, locale, ['common']) }}</option>
+                            <option value="2">{{ t('ui.admin.networks.type_qwk', {}, locale, ['common']) }}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label" for="networkName">{{ t('ui.admin.networks.name', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="networkName">
                     </div>
@@ -136,6 +143,7 @@ let networks = [];
 let networkModal;
 let domainModal;
 const NETWORK_TYPE_FIDONET = 1;
+const NETWORK_TYPE_QWK = 2;
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -220,10 +228,19 @@ function getNetworkTypeIconClass(network) {
     if (Number(network.network_type) === NETWORK_TYPE_FIDONET) {
         return 'fas fa-dog';
     }
+    if (Number(network.network_type) === NETWORK_TYPE_QWK) {
+        return 'fas fa-envelope-open-text';
+    }
     return 'fas fa-globe';
 }
 
 function getNetworkTypeLabel(network) {
+    if (Number(network.network_type) === NETWORK_TYPE_QWK) {
+        return uiT('ui.admin.networks.type_qwk', 'QWK');
+    }
+    if (Number(network.network_type) === NETWORK_TYPE_FIDONET) {
+        return uiT('ui.admin.networks.type_fidonet', 'FidoNet');
+    }
     return network.name || network.domain || uiT('ui.admin.networks.type', 'Type');
 }
 
@@ -234,6 +251,7 @@ function openNetworkModal(id = null) {
     document.getElementById('networkDomain').value = network ? network.domain : '';
     document.getElementById('networkDomain').readOnly = !!network;
     document.getElementById('networkChangeDomainBtn').classList.toggle('d-none', !network);
+    document.getElementById('networkType').value = String(network ? (network.network_type || NETWORK_TYPE_FIDONET) : NETWORK_TYPE_FIDONET);
     document.getElementById('networkName').value = network ? network.name : '';
     document.getElementById('networkDescription').value = network ? (network.description || '') : '';
     document.getElementById('networkWebsite').value = network ? (network.website || '') : '';
@@ -261,6 +279,7 @@ function saveNetwork() {
         name: document.getElementById('networkName').value.trim(),
         description: document.getElementById('networkDescription').value.trim(),
         website: document.getElementById('networkWebsite').value.trim(),
+        network_type: parseInt(document.getElementById('networkType').value, 10) || NETWORK_TYPE_FIDONET,
         posting_name_policy: document.getElementById('networkPostingNamePolicy').value,
         default_charset: document.getElementById('networkDefaultCharset').value,
         allow_markup: document.getElementById('networkAllowMarkup').checked,
