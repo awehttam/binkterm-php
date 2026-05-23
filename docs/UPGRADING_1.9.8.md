@@ -27,6 +27,21 @@ Make sure you have a current backup of your database and files before upgrading.
 - `.env` may now include `DB_DRIVER=pgsql`. PostgreSQL is still the only supported value today. This setting exists to make future backend setup work easier to isolate if it is ever pursued.
 - A new developer reference document, `docs/PostgreSQLDependencies.md`, tracks intentional PostgreSQL-specific dependencies and where they currently live.
 
+## External Delivery
+
+External delivery now follows a stricter split between local-only areas and networked areas:
+
+- `is_local = true` means the area is never propagated through any external transport layer.
+- Local-only areas do not spool to FTN uplinks.
+- Local-only areas do not fan out to inter-BBS QWK mailboxes.
+- The only QWK behavior still allowed for a local-only area is the logged-in user's own offline-reader workflow on this BBS: the area can appear in that user's personal QWK packet, and replies uploaded by that same user can be imported back into the same local area.
+
+For non-local areas, external delivery is transport-specific:
+
+- FTN spooling is used only when the area's domain is backed by an FTN network type.
+- QWK fanout is used when the area has QWK conference subscriptions.
+- A single non-local area may participate in both transports if it is configured that way.
+
 ## Web Interface
 
 ### Subscription Manager

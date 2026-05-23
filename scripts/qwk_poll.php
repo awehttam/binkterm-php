@@ -11,7 +11,9 @@ function qwkPollShowUsage(): void
     echo "Usage: php qwk_poll.php [options] [mailbox-id]\n";
     echo "Options:\n";
     echo "  --all             Poll all enabled QWK mailboxes\n";
+    echo "  --debug           Shortcut for --log-level=DEBUG\n";
     echo "  --dry-run         Download/import/build packets but skip REP upload\n";
+    echo "  --json            Emit machine-readable JSON output\n";
     echo "  --log-level=LVL   Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL\n";
     echo "  --log-file=FILE   Accepted for compatibility\n";
     echo "  --no-console      Accepted for compatibility\n";
@@ -72,12 +74,17 @@ if (isset($args['help'])) {
 }
 
 $quiet = isset($args['quiet']);
-$logThreshold = qwkPollResolveLogLevel((string)($args['log-level'] ?? 'INFO'));
+$json = isset($args['json']);
+$logLevelName = isset($args['debug']) ? 'DEBUG' : (string)($args['log-level'] ?? 'INFO');
+$logThreshold = qwkPollResolveLogLevel($logLevelName);
 $dryRun = isset($args['dry-run']);
 $poller = new \BinktermPHP\Qwk\QwkPoller();
 $poller->setDryRun($dryRun);
 $poller->setPreserveDebugArtifacts($logThreshold <= qwkPollResolveLogLevel('DEBUG'));
-$poller->setLogger(static function (string $level, string $message) use ($quiet, $logThreshold): void {
+$poller->setLogger(static function (string $level, string $message) use ($quiet, $json, $logThreshold): void {
+    if ($json) {
+        return;
+    }
     if ($quiet) {
         return;
     }
@@ -89,6 +96,18 @@ $poller->setLogger(static function (string $level, string $message) use ($quiet,
 try {
     if (isset($args['all'])) {
         $results = $poller->pollAllEnabled();
+        $allOk = array_reduce($results, static function (bool $carry, array $result): bool {
+            return $carry && !empty($result['success']);
+        }, true);
+
+        if ($json) {
+            echo json_encode([
+                'success' => $allOk,
+                'results' => $results,
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+            exit($allOk ? 0 : 1);
+        }
+
         foreach ($results as $name => $result) {
             if ($quiet) {
                 echo $name . ': ' . (!empty($result['success']) ? 'OK' : 'FAIL') . "\n";
@@ -111,9 +130,6 @@ try {
             }
         }
 
-        $allOk = array_reduce($results, static function (bool $carry, array $result): bool {
-            return $carry && !empty($result['success']);
-        }, true);
         exit($allOk ? 0 : 1);
     }
 
@@ -124,6 +140,11 @@ try {
 
     $mailboxId = (int)$positional[0];
     $result = $poller->pollMailbox($mailboxId);
+    if ($json) {
+        echo json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+        exit(!empty($result['success']) ? 0 : 1);
+    }
+
     if ($quiet) {
         echo !empty($result['success']) ? "OK\n" : "FAIL\n";
         exit(!empty($result['success']) ? 0 : 1);
@@ -145,6 +166,13 @@ try {
     }
     exit(!empty($result['success']) ? 0 : 1);
 } catch (\Throwable $e) {
+    if ($json) {
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+        exit(1);
+    }
     if ($quiet) {
         echo "FAIL\n";
     } else {

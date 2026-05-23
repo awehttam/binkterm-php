@@ -12,8 +12,13 @@ Every echo area is identified by a **tag** (e.g., `GENERAL`, `MICRONET.CHAT`) an
 
 ### Local vs. Networked Areas
 
-- **Networked areas** — messages are exchanged with uplinks. Inbound messages arrive in packets; outbound messages are bundled into packets at the next poll.
-- **Local areas** (`is_local = true`) — messages are stored locally only and never sent to uplinks. Useful for internal discussion, testing, or community areas that are not part of any FTN network.
+- **Networked areas** — messages may be distributed externally. Depending on the area's configuration, this can include FTN uplinks, QWK mailbox fanout, or both.
+- **Local areas** (`is_local = true`) — messages are stored locally only and are never propagated to any external network transport. That means:
+  - no FTN uplink spooling
+  - no inter-BBS QWK mailbox distribution
+  - no other external redistribution path
+
+Local areas can still appear in the logged-in user's own offline QWK reader packet on this BBS, and replies uploaded by that same user can still be imported back into the local area. That user-facing offline-reader workflow is not considered external network propagation.
 
 ### Auto-Creation
 
@@ -34,7 +39,7 @@ Echo areas are stored in the `echoareas` table. Key columns:
 | `moderator` | VARCHAR(100) | Moderator name. Optional. |
 | `color` | VARCHAR(7) | Hex color for the web UI (default `#28a745`). |
 | `is_active` | BOOLEAN | Whether the area is visible and accepting messages. |
-| `is_local` | BOOLEAN | If true, messages are never sent to uplinks. |
+| `is_local` | BOOLEAN | If true, the area is local-only: no FTN spooling, no inter-BBS QWK fanout, and no other external propagation. |
 | `is_sysop_only` | BOOLEAN | If true, only admin users can access the area. |
 | `gemini_public` | BOOLEAN | If true, the area is readable via the Gemini protocol without login. |
 | `posting_name_policy` | VARCHAR(20) | Per-area name policy: `real_name`, `username`, or NULL to inherit. |
@@ -64,7 +69,7 @@ Fill in the form fields:
   - `real_name` — Use the user's real name field.
   - `username` — Use the user's login username.
 - **Active** — Uncheck to disable the area without deleting it.
-- **Local Only** — Check to prevent messages from being sent to uplinks.
+- **Local Only** — Check to make the area local-only. Local-only areas are never propagated to FTN uplinks, QWK mailbox peers, or any other external transport. They can still be included in a user's own offline QWK packet on this BBS.
 - **Sysop Access Only** — Check to restrict the area to admin users.
 - **Public Gemini Access** — Check to allow read-only access from Gemini protocol clients.
 
@@ -119,8 +124,11 @@ Character encoding is detected via the `CHRS` kludge and converted to UTF-8 for 
 1. A user posts a message through the web interface or terminal server.
 2. The message is stored in the `echomail` table.
 3. If echomail moderation is enabled and the user has not yet earned unmoderated posting rights, the message is stored with `moderation_status = 'pending'` and held for sysop review (see [Echomail Moderation](#echomail-moderation) below). Otherwise it proceeds immediately.
-4. At the next binkp poll, `BinkdProcessor` selects pending outbound messages for areas where `is_local = false` and `is_active = true`, and bundles them into a packet destined for the configured uplink.
-5. The posting name in the outbound packet is determined by the area's `posting_name_policy` (or the network's default policy if the area policy is unset).
+4. For areas where `is_local = false` and `is_active = true`, outbound delivery may happen through one or more external transports:
+   - FTN packet spooling to an uplink when the area belongs to an FTN-routable network
+   - QWK mailbox fanout when the area has QWK conference subscriptions
+5. Local-only areas (`is_local = true`) never enter any external propagation queue. They remain on this BBS only, aside from the logged-in user's own offline-reader packet workflow.
+6. The posting name in any FTN outbound packet is determined by the area's `posting_name_policy` (or the network's default policy if the area policy is unset).
 
 ---
 
@@ -128,7 +136,7 @@ Character encoding is detected via the `CHRS` kludge and converted to UTF-8 for 
 
 BinktermPHP includes an optional hold-for-approval queue for echomail posted by users who have not yet established a posting history. Once a user accumulates enough approved posts they are promoted automatically and never moderated again.
 
-Moderation applies only to **networked** areas (`is_local = false`). Posts to local areas are always stored immediately regardless of the user's moderation status.
+Moderation applies only to **networked** areas (`is_local = false`). Posts to local areas are always stored immediately and never enter any external propagation queue regardless of the user's moderation status.
 
 ### Enabling Moderation
 

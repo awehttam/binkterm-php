@@ -1729,21 +1729,22 @@ class MessageHandler
         }
 
         $isLocalArea = !empty($echoarea['is_local']);
+        $isFtnRoutable = $this->isFtnRoutableEchoarea($echoarea, (string)$domain);
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
 
-        // Determine the from address
-        $myAddress = $binkpConfig->getMyAddressByDomain($domain);
-        if (!$myAddress) {
-            if ($isLocalArea) {
-                // For local echoareas, use system address as fallback
-                $myAddress = $binkpConfig->getSystemAddress();
-            } else {
-                throw new \Exception('Can not determine sending address for this network - missing uplink?');
+        // Determine the from address. Non-FTN areas still need a stable local address
+        // for kludge generation and reply tracking, but they must not require an FTN uplink.
+        if ($isFtnRoutable) {
+            $myAddress = $binkpConfig->getMyAddressByDomain($domain);
+            if (!$myAddress) {
+                throw new \Exception('Can not determine sending address for this FTN network - missing uplink?');
             }
+        } else {
+            $myAddress = $binkpConfig->getSystemAddress();
         }
 
-        // Verify outbound directory is writable (only needed for non-local areas)
-        if (!$isLocalArea) {
+        // Verify outbound directory is writable only when this area can actually emit FTN packets.
+        if ($isFtnRoutable) {
             $outboundPath = $binkpConfig->getOutboundPath();
             if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
                 $this->logger->error("[ECHOMAIL] Outbound directory not writable: {$outboundPath}");
@@ -3306,20 +3307,37 @@ class MessageHandler
             return false;
         }
 
-        // Check if this is a local-only echoarea
+        // Local-only areas never propagate through any external transport. They remain
+        // readable in the local UI and the user's own offline-reader workflow only.
         if (!empty($message['is_local'])) {
-            //error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
             $fromName = $message['from_name'] ?? 'unknown';
             $fromAddr = $message['from_address'] ?? 'unknown';
-            \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'echomail posted (local area)', [
+            \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'echomail posted (local-only area)', [
                 'area'    => $echoareaTag,
                 'from'    => "{$fromName} <{$fromAddr}>",
                 'to'      => $message['to_name'] ?? 'All',
                 'subject' => $message['subject'] ?? '(no subject)',
                 'msgid'   => $message['message_id'] ?? '',
-                'packet'  => '(local)',
+                'packet'  => '(local-only)',
             ]);
-            return true; // Success - message stored locally, no upstream transmission needed
+            return true;
+        }
+
+        if (!$this->isFtnRoutableEchoarea($message, (string)($message['echoarea_domain'] ?? $domain))) {
+            $fromName = $message['from_name'] ?? 'unknown';
+            $fromAddr = $message['from_address'] ?? 'unknown';
+            $areaTag = $message['echoarea_tag'] ?? $echoareaTag;
+
+            \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'echomail posted (non-FTN area)', [
+                'area'    => $areaTag,
+                'from'    => "{$fromName} <{$fromAddr}>",
+                'to'      => $message['to_name'] ?? 'All',
+                'subject' => $message['subject'] ?? '(no subject)',
+                'msgid'   => $message['message_id'] ?? '',
+                'packet'  => '(no-ftn-spool)',
+            ]);
+
+            return true;
         }
 
         // Extract message details for logging
@@ -3387,10 +3405,20 @@ class MessageHandler
 
     private function queueQwkOutboundEchomail(int $messageId, ?int $excludeQwkMailboxId = null): void
     {
-        $stmt = $this->db->prepare("SELECT echoarea_id FROM echomail WHERE id = ?");
+        $stmt = $this->db->prepare("
+            SELECT em.echoarea_id, ea.is_local
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            WHERE em.id = ?
+        ");
         $stmt->execute([$messageId]);
-        $echoareaId = $stmt->fetchColumn();
-        if (!$echoareaId) {
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $echoareaId = (int)($row['echoarea_id'] ?? 0);
+        if ($echoareaId <= 0) {
+            return;
+        }
+
+        if (!empty($row['is_local'])) {
             return;
         }
 
@@ -3412,6 +3440,33 @@ class MessageHandler
             }
             $insert->execute([$messageId, $mailboxId]);
         }
+    }
+
+    /**
+     * Local-only areas must never propagate externally. Non-local areas only
+     * emit FTN packets when their domain is backed by an FTN network type.
+     *
+     * @param array<string,mixed> $echoarea
+     */
+    private function isFtnRoutableEchoarea(array $echoarea, ?string $domain): bool
+    {
+        if (!empty($echoarea['is_local'])) {
+            return false;
+        }
+
+        $domain = strtolower(trim((string)$domain));
+        if ($domain === '') {
+            return false;
+        }
+
+        $network = (new \BinktermPHP\NetworkManager($this->db))->getByDomain($domain);
+        if ($network === null) {
+            // Legacy installations may have echo areas with a domain but no
+            // matching networks row yet. Preserve historical FTN behavior.
+            return true;
+        }
+
+        return (int)($network['network_type'] ?? 0) === \BinktermPHP\NetworkManager::NETWORK_TYPE_FIDONET;
     }
 
     /** Returns an active uplink address for a given echoarea tag and domain.  First choice is uplink in echoarea table, then to binkp.json configuration.

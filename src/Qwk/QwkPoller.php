@@ -31,6 +31,7 @@ class QwkPoller
     public function setLogger(?callable $logger): void
     {
         $this->logger = $logger;
+        $this->inbound->setLogger($logger);
         $this->outbound->setLogger($logger);
         if (method_exists($this->transport, 'setLogger')) {
             $this->transport->setLogger($logger);

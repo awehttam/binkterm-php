@@ -8,6 +8,13 @@ class QwkPacketParser
 {
     private const BLOCK_SIZE = 128;
     private const LINE_TERM = "\xE3";
+    /** @var callable|null */
+    private $logger = null;
+
+    public function setLogger(?callable $logger): void
+    {
+        $this->logger = $logger;
+    }
 
     /**
      * @return array{control:array<string,mixed>,messages:array<int,QwkMessage>}
@@ -26,6 +33,13 @@ class QwkPacketParser
         if ($messagesDat === false) {
             throw new \RuntimeException('MESSAGES.DAT not found in QWK packet');
         }
+
+        $this->log('DEBUG', sprintf(
+            'Parsing QWK packet %s (CONTROL.DAT=%s, MESSAGES.DAT=%d bytes)',
+            $zipPath,
+            $controlDat !== false ? 'present' : 'missing',
+            strlen($messagesDat)
+        ));
 
         return [
             'control' => $this->parseControlDat($controlDat !== false ? $controlDat : ''),
@@ -51,9 +65,20 @@ class QwkPacketParser
             $offset += 2;
         }
 
+        $bbsIdField = (string)($lines[4] ?? '0,');
+        $bbsIdParts = explode(',', $bbsIdField);
+        $bbsId = strtoupper(trim((string)($bbsIdParts[1] ?? '')));
+
+        $this->log('DEBUG', sprintf(
+            'Parsed CONTROL.DAT: bbs_name="%s", bbs_id="%s", conferences=%d',
+            trim((string)($lines[0] ?? '')),
+            $bbsId,
+            count($conferenceMap)
+        ));
+
         return [
             'bbs_name' => trim((string)($lines[0] ?? '')),
-            'bbs_id' => strtoupper(trim((string)explode(',', (string)($lines[4] ?? '0,'))[1] ?? '')),
+            'bbs_id' => $bbsId,
             'conferences' => $conferenceMap,
         ];
     }
@@ -68,6 +93,12 @@ class QwkPacketParser
             throw new \RuntimeException('MESSAGES.DAT is malformed');
         }
 
+        $this->log('DEBUG', sprintf(
+            'Scanning MESSAGES.DAT: %d bytes, %d blocks',
+            $len,
+            (int)($len / self::BLOCK_SIZE)
+        ));
+
         $messages = [];
         $offset = self::BLOCK_SIZE;
         while ($offset < $len) {
@@ -78,6 +109,8 @@ class QwkPacketParser
             $messages[] = $message['message'];
             $offset += $message['blocks'] * self::BLOCK_SIZE;
         }
+
+        $this->log('DEBUG', sprintf('Parsed %d message(s) from MESSAGES.DAT', count($messages)));
 
         return $messages;
     }
@@ -112,6 +145,21 @@ class QwkPacketParser
         [$headers, $bodyText] = $this->extractQwkePlaintextHeaders($bodyText);
         $charset = $this->detectCharset($kludges);
 
+        $this->log('DEBUG', sprintf(
+            'Parsed QWK message #%d conf=%d reply=%d blocks=%d status=%s from="%s" to="%s" subject="%s" body_len=%d charset=%s kludges=%d',
+            $messageNumber,
+            $conferenceNumber,
+            $replyToNumber,
+            $blockCount,
+            $header[0],
+            trim((string)($headers['from'] ?? $fromName)),
+            trim((string)($headers['to'] ?? $toName)),
+            trim((string)($headers['subject'] ?? $subject)),
+            strlen($bodyText),
+            $charset ?? 'auto',
+            $kludges === '' ? 0 : count(explode("\n", $kludges))
+        ));
+
         $message = new QwkMessage(
             $messageNumber,
             $conferenceNumber,
@@ -126,6 +174,13 @@ class QwkPacketParser
         );
 
         return ['message' => $message, 'blocks' => $blockCount];
+    }
+
+    private function log(string $level, string $message): void
+    {
+        if ($this->logger !== null) {
+            ($this->logger)($level, $message);
+        }
     }
 
     /**

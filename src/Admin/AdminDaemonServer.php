@@ -354,6 +354,31 @@ class AdminDaemonServer
                     $this->logCommandResult('binkp_poll_sync', $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                     break;
+                case 'qwk_poll_mailbox':
+                    $mailboxId = (int)($data['mailbox_id'] ?? 0);
+                    if ($mailboxId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_mailbox_id']);
+                        break;
+                    }
+
+                    $result = $this->runCommand([PHP_BINARY, 'scripts/qwk_poll.php', '--json', (string)$mailboxId]);
+                    $this->logCommandResult('qwk_poll_mailbox', $result);
+
+                    $stdout = trim((string)($result['stdout'] ?? ''));
+                    $payload = json_decode($stdout, true);
+                    if (!is_array($payload)) {
+                        $payload = [
+                            'success' => ($result['exit_code'] ?? 1) === 0,
+                            'error' => $stdout !== '' ? $stdout : ((string)($result['stderr'] ?? '') ?: 'Failed to poll QWK mailbox'),
+                        ];
+                    }
+
+                    $this->writeResponse($client, [
+                        'ok' => !empty($payload['success']),
+                        'result' => $payload,
+                        'error' => $payload['error'] ?? 'qwk_poll_failed',
+                    ]);
+                    break;
                 case 'binkp_auth_test':
                     $domain = $data['domain'] ?? null;
                     $address = $data['address'] ?? null;

@@ -87,6 +87,13 @@ Important behavior:
   from the same mailbox and conference.
 - Gated local copies use `source_msgid` to prevent loops and duplicate mirrors.
 
+Important distinction:
+
+- A user's own offline QWK reader packet on this BBS is a local access method, not external network propagation.
+- Inter-BBS QWK mailbox exchange is an external transport.
+- Areas marked `is_local = true` may still appear in the logged-in user's own QWK download from this BBS and accept that user's REP uploads back into the same local area.
+- Areas marked `is_local = true` must not be redistributed through inter-BBS QWK mailbox fanout, even if QWK mailbox mappings exist elsewhere in the system.
+
 ---
 
 ## Packet Formats
@@ -144,6 +151,11 @@ Each echo area you subscribe to is assigned a stable, BBS-wide conference
 number (stored persistently on the echo area record). These numbers are
 consistent across all users and across downloads — subscribing or unsubscribing
 from other areas does not change the conference numbers you already know.
+
+Local-only areas may be included in a user's personal QWK packet when the user
+is subscribed to them. That does not make the area networked; it is still local
+to this BBS and must not be forwarded to remote QWK mailboxes or FTN uplinks
+unless `is_local` is turned off.
 
 Conference names in `CONTROL.DAT` are truncated to 13 characters. The format
 is `AREANAME` or `AREANAME@DOMAIN` when a network domain is present.
