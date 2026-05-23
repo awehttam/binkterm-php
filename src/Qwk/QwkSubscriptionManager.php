@@ -6,6 +6,14 @@ use BinktermPHP\Database;
 use BinktermPHP\EchoareaManager;
 use PDO;
 
+/**
+ * Manages local echo area to remote QWK conference mappings.
+ *
+ * These subscriptions are used only for inter-BBS QWK networking, not for the
+ * local offline-reader conference map generated per user download.
+ *
+ * Used by: Inter-BBS
+ */
 class QwkSubscriptionManager
 {
     private PDO $db;

@@ -11,6 +11,8 @@ use PDO;
  * Conference 0 is reserved for personal mail / netmail. Echo areas use the
  * qwk_conference_number stored on the echoareas table and new areas are
  * assigned the next available number the first time they are needed.
+ *
+ * Used by: Offline Reader
  */
 class QwkConferenceNumberManager
 {

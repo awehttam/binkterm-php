@@ -5,6 +5,14 @@ namespace BinktermPHP\Qwk;
 use BinktermPHP\Version;
 use ZipArchive;
 
+/**
+ * Serializes outbound inter-BBS QWK replies into a mailbox `.REP` archive.
+ *
+ * This is distinct from `RepProcessor`, which imports a user's offline-reader
+ * REP upload back into this same BBS.
+ *
+ * Used by: Inter-BBS
+ */
 class RepPacketBuilder
 {
     private const BLOCK_SIZE = 128;

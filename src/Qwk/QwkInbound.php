@@ -6,6 +6,16 @@ use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
 use PDO;
 
+/**
+ * Imports an inter-BBS mailbox `.QWK` packet into local echo areas.
+ *
+ * This is the inbound side of QWK networking between BBSes. It resolves
+ * mailbox/conference mappings, creates placeholder subscriptions when needed,
+ * performs deduplication, and stores imported messages with QWK source
+ * metadata so they are not echoed straight back to the same mailbox.
+ *
+ * Used by: Inter-BBS
+ */
 class QwkInbound
 {
     private PDO $db;
