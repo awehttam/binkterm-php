@@ -22,6 +22,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Geocoding](#geocoding)
 - [Database Backup](#database-backup)
 - [Crashmail Poll](#crashmail-poll)
+- [QWK Mail Exchange Poll](#qwk-mail-exchange-poll)
 - [FREQ File Pickup](#freq-file-pickup)
 - [Outbound FREQ (File Request)](#outbound-freq-file-request)
 - [Echomail Robots](#echomail-robots)
@@ -629,6 +630,29 @@ Options:
 - `--limit=N` — Maximum items to process (default: 10)
 - `--verbose` — Show detailed output
 - `--dry-run` — Check queue without attempting delivery
+
+## QWK Mail Exchange Poll
+
+Polls configured QWK uplinks, imports inbound `.QWK` packets into mapped local
+echo areas, builds outbound `.REP` packets from queued local posts, and uploads
+replies back to the remote BBS.
+
+```bash
+# Poll all enabled QWK uplinks
+php scripts/qwk_poll.php --all
+
+# Poll one configured uplink by numeric ID
+php scripts/qwk_poll.php 3
+
+# Quiet mode for cron jobs
+php scripts/qwk_poll.php --all --quiet
+```
+
+Options:
+- `--all` — Poll every enabled QWK uplink
+- `--quiet` — Print only success/failure status
+- `--help` — Show usage
+- `--log-level=LVL`, `--log-file=FILE`, `--no-console` — Accepted for scheduler compatibility
 
 ## FREQ File Pickup
 

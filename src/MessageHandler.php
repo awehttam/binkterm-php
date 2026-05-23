@@ -1893,10 +1893,120 @@ class MessageHandler
                 return 'pending';
             }
 
-            $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
+            $this->finalizeApprovedEchomailDelivery($messageId, $echoareaTag, $domain);
         }
 
         return $messageId > 0;
+    }
+
+    /**
+     * Import an externally-sourced echomail message into a local echo area.
+     *
+     * Used for QWK network exchange and gated copies. Messages imported through
+     * this path are always approved immediately and can fan out to the area's
+     * FTN uplink, QWK subscriptions, and gates.
+     *
+     * @param array<string,mixed> $data
+     */
+    public function importExternalEchomail(array $data): int
+    {
+        $echoareaId = isset($data['echoarea_id']) ? (int)$data['echoarea_id'] : 0;
+        $echoarea = $echoareaId > 0 ? $this->getEchoareaById($echoareaId) : null;
+        if (!$echoarea) {
+            $echoarea = $this->getEchoareaByTag((string)($data['echoarea_tag'] ?? ''), (string)($data['domain'] ?? ''));
+        }
+        if (!$echoarea) {
+            throw new \Exception('Echo area not found');
+        }
+
+        $domain = (string)($echoarea['domain'] ?? '');
+        $isLocalArea = !empty($echoarea['is_local']);
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $localAddress = $binkpConfig->getMyAddressByDomain($domain);
+        if (!$localAddress) {
+            $localAddress = $binkpConfig->getSystemAddress();
+        }
+
+        $fromName = trim((string)($data['from_name'] ?? 'Unknown'));
+        $toName = trim((string)($data['to_name'] ?? 'All'));
+        $subject = trim((string)($data['subject'] ?? '(no subject)'));
+        $messageText = (string)($data['message_text'] ?? '');
+        $replyToId = !empty($data['reply_to_id']) ? (int)$data['reply_to_id'] : null;
+        $sourceMsgId = trim((string)($data['source_msgid'] ?? ''));
+        $storedFromAddress = trim((string)($data['from_address'] ?? ''));
+        $packetCharset = strtoupper(trim((string)($data['charset'] ?? 'UTF-8')));
+
+        $kludgeLines = $this->generateEchomailKludges(
+            $localAddress,
+            $fromName,
+            $toName,
+            $subject,
+            (string)$echoarea['tag'],
+            $replyToId,
+            null,
+            $domain,
+            $packetCharset
+        );
+
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
+
+        $storage = $this->prepareLocalMessageStorage($messageText);
+
+        $stmt = $this->db->prepare("
+            INSERT INTO echomail (
+                echoarea_id, from_address, from_name, to_name, subject, message_text,
+                raw_message_bytes, message_charset, art_format, date_written, reply_to_id,
+                message_id, origin_line, kludge_lines, bottom_kludges, tearline_component,
+                user_id, moderation_status, qwk_uplink_id, qwk_conference_number,
+                qwk_msg_number, source_msgid
+            )
+            VALUES (
+                :echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text,
+                :raw_message_bytes, :message_charset, :art_format, NOW(), :reply_to_id,
+                :message_id, NULL, :kludge_lines, NULL, NULL,
+                NULL, 'approved', :qwk_uplink_id, :qwk_conference_number,
+                :qwk_msg_number, :source_msgid
+            )
+            RETURNING id
+        ");
+
+        $stmt->bindValue(':echoarea_id', (int)$echoarea['id'], \PDO::PARAM_INT);
+        $stmt->bindValue(':from_address', $storedFromAddress !== '' ? $storedFromAddress : null, $storedFromAddress !== '' ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
+        $stmt->bindValue(':from_name', $fromName);
+        $stmt->bindValue(':to_name', $toName);
+        $stmt->bindValue(':subject', $subject);
+        $stmt->bindValue(':message_text', $storage['message_text']);
+        $stmt->bindValue(':raw_message_bytes', $storage['raw_message_bytes'] !== '' ? $storage['raw_message_bytes'] : null, $storage['raw_message_bytes'] !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $storage['message_charset']);
+        $stmt->bindValue(':art_format', $storage['art_format']);
+        $stmt->bindValue(':reply_to_id', $replyToId, $replyToId !== null ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_id', $msgId);
+        $stmt->bindValue(':kludge_lines', $kludgeLines);
+        $stmt->bindValue(':qwk_uplink_id', !empty($data['qwk_uplink_id']) ? (int)$data['qwk_uplink_id'] : null, !empty($data['qwk_uplink_id']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':qwk_conference_number', isset($data['qwk_conference_number']) ? (int)$data['qwk_conference_number'] : null, isset($data['qwk_conference_number']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':qwk_msg_number', isset($data['qwk_msg_number']) ? (int)$data['qwk_msg_number'] : null, isset($data['qwk_msg_number']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':source_msgid', $sourceMsgId !== '' ? $sourceMsgId : null, $sourceMsgId !== '' ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
+        $stmt->execute();
+
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $messageId = $row ? (int)$row['id'] : 0;
+        if ($messageId <= 0) {
+            return 0;
+        }
+
+        $this->incrementEchoareaCount((int)$echoarea['id'], $subject, $fromName);
+        $this->finalizeApprovedEchomailDelivery(
+            $messageId,
+            (string)$echoarea['tag'],
+            $domain,
+            isset($data['exclude_qwk_uplink_id']) ? (int)$data['exclude_qwk_uplink_id'] : null,
+            !array_key_exists('apply_gates', $data) || !empty($data['apply_gates'])
+        );
+
+        return $messageId;
     }
 
     /**
@@ -1949,7 +2059,7 @@ class MessageHandler
         $echoareaTag = $message['echoarea_tag'];
         $domain      = $message['echoarea_domain'] ?? '';
 
-        $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
+        $this->finalizeApprovedEchomailDelivery($messageId, $echoareaTag, $domain);
 
         // Check whether the author should be auto-promoted
         $userId = $message['user_id'] ? (int)$message['user_id'] : null;
@@ -2668,6 +2778,13 @@ class MessageHandler
         return $stmt->fetch();
     }
 
+    private function getEchoareaById(int $echoareaId)
+    {
+        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE id = ? AND is_active = TRUE");
+        $stmt->execute([$echoareaId]);
+        return $stmt->fetch();
+    }
+
     /**
      * Resolve the display/sender name used for outbound echomail posting.
      *
@@ -3256,6 +3373,44 @@ class MessageHandler
             // Log error but don't fail the message creation
             $this->logger->error("[SPOOL] Failed to spool echomail #{$messageId} (area={$areaTag}, from=\"{$fromName}\", subject=\"{$subject}\"): " . $e->getMessage());
             return false;
+        }
+    }
+
+    private function finalizeApprovedEchomailDelivery(int $messageId, string $echoareaTag, ?string $domain, ?int $excludeQwkUplinkId = null, bool $applyGates = true): void
+    {
+        $this->spoolOutboundEchomail($messageId, $echoareaTag, (string)$domain);
+        $this->queueQwkOutboundEchomail($messageId, $excludeQwkUplinkId);
+        if ($applyGates) {
+            (new \BinktermPHP\Qwk\GateProcessor($this->db, $this))->processMessageById($messageId);
+        }
+    }
+
+    private function queueQwkOutboundEchomail(int $messageId, ?int $excludeQwkUplinkId = null): void
+    {
+        $stmt = $this->db->prepare("SELECT echoarea_id FROM echomail WHERE id = ?");
+        $stmt->execute([$messageId]);
+        $echoareaId = $stmt->fetchColumn();
+        if (!$echoareaId) {
+            return;
+        }
+
+        $subscriptions = (new \BinktermPHP\Qwk\QwkSubscriptionManager($this->db))->getSubscriptionsForArea((int)$echoareaId);
+        if ($subscriptions === []) {
+            return;
+        }
+
+        $insert = $this->db->prepare("
+            INSERT INTO qwk_outbound_messages (echomail_id, uplink_id, queued_at)
+            VALUES (?, ?, NOW())
+            ON CONFLICT (echomail_id, uplink_id) DO NOTHING
+        ");
+
+        foreach ($subscriptions as $subscription) {
+            $uplinkId = (int)$subscription['uplink_id'];
+            if ($excludeQwkUplinkId !== null && $uplinkId === $excludeQwkUplinkId) {
+                continue;
+            }
+            $insert->execute([$messageId, $uplinkId]);
         }
     }
 

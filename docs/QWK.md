@@ -10,6 +10,7 @@ FidoNet metadata.
 ## Table of Contents
 
 - [How It Works](#how-it-works)
+- [QWK Network Exchange](#qwk-network-exchange)
 - [Packet Formats](#packet-formats)
   - [QWK](#qwk)
   - [QWKE](#qwke)
@@ -52,6 +53,36 @@ The same workflow is also available through the optional FTP daemon:
 You must download a QWK packet at least once before uploading a REP packet.
 The download establishes the conference map that BinktermPHP uses to route
 your replies back to the correct echo areas.
+
+---
+
+## QWK Network Exchange
+
+BinktermPHP can also act as a QWK client for another BBS. In this mode the
+local system polls a remote QWK uplink, downloads that system's `.QWK` packet,
+imports mapped conferences into local echo areas, exports queued local posts as
+a `.REP`, and uploads the reply packet back to the remote host.
+
+This is configured from the admin web interface:
+
+1. Open **Admin → Echo Areas**.
+2. Use **QWK Uplinks** to define the remote BBS ID, FTP host, credentials, and
+   remote path.
+3. Edit a local echo area and add one or more **QWK Subscriptions** mapping the
+   local area to remote conference numbers.
+4. Optionally add **Gates** to mirror imported or local traffic into other
+   local areas.
+
+The transport/poll cycle is driven by `php scripts/qwk_poll.php --all` or by
+polling a single uplink ID.
+
+Important behavior:
+
+- Inbound deduplication uses `(qwk_uplink_id, qwk_conference_number,
+  qwk_msg_number)`.
+- Outbound replies preserve QWK reply threading when the parent message came
+  from the same uplink and conference.
+- Gated local copies use `source_msgid` to prevent loops and duplicate mirrors.
 
 ---
 
