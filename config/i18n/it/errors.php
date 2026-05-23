@@ -139,6 +139,10 @@ return [
     'errors.echoareas.not_found_or_unchanged' => 'Area echo non trovata o nessuna modifica effettuata',
     'errors.echoareas.update_failed' => 'Impossibile aggiornare l’area echo',
     'errors.echoareas.delete_blocked_has_messages' => 'Impossibile eliminare un’area echo con messaggi esistenti',
+    'errors.echoareas.delete_action_required' => 'Scegli cosa fare con i messaggi rimanenti prima di eliminare quest\'area echo',
+    'errors.echoareas.delete_invalid_action' => 'Azione di eliminazione non valida',
+    'errors.echoareas.delete_move_target_required' => 'Seleziona un\'area echo di destinazione per spostare i messaggi rimanenti',
+    'errors.echoareas.delete_move_target_invalid' => 'L\'area echo di destinazione selezionata non è valida',
     'errors.echoareas.delete_failed' => 'Impossibile eliminare l’area echo',
 
     // File Areas

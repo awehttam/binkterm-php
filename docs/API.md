@@ -2000,13 +2000,22 @@ Updated echo area
 
 **Requires authentication**
 
-Deletes an echo area only if it contains no messages. Admin-only. Returns error if area has messages; deactivation is recommended instead. Cascades delete to subscriptions and related data.
+Deletes an echo area. Admin-only. If the area still contains messages, the request must specify whether to delete those messages or move them into another echo area before the area itself is removed. Cascades delete to subscriptions and related data.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
 | `id` | integer | Echo area ID |
+
+**Request Body** _(JSON, optional)_
+
+Required when the echo area still contains messages.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message_action` | string | `delete_messages` or `move_messages` |
+| `target_echoarea_id` | integer or null | Required when `message_action` is `move_messages` |
 
 **Response** _(JSON)_
 
@@ -2021,7 +2030,7 @@ Deletion confirmation
 
 | Status | Description |
 |--------|-------------|
-| 400 | Cannot delete area with messages, or area not found |
+| 400 | Missing/invalid message action, invalid move target, or area not found |
 | 403 | Admin privileges required |
 
 ---

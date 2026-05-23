@@ -18,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The user-facing echoarea subscription manager at `/subscriptions` now uses a more compact filter layout modeled after `/echolist`, with network filtering and an option to show only interest groups that currently have message traffic.
 - Subscribing or unsubscribing from an echoarea in `/subscriptions` now updates in place instead of reloading the page, preserving the current scroll position and active search/filter state.
 - The FTP daemon now accepts QWK reply packets uploaded directly to the FTP root (`/`) as well as `/qwk/upload/`, improving compatibility with clients that do not change into the upload subdirectory before sending `.REP` or `.ZIP` files.
+- Echo area deletion now offers a message-handling choice for populated areas. Sysops can delete the remaining messages or move them into another local echo area before removing the area itself.
 
 ### Developer / Infrastructure
 
@@ -47,6 +48,15 @@ This change is user-facing only. It does not alter subscriptions, interest membe
 The FTP daemon now accepts `.REP` and `.ZIP` uploads dropped directly into the FTP root (`/`) in addition to the existing `/qwk/upload/` path. Previously, uploads to the root were rejected, blocking QWK client software — such as Synchronet's `qnet-ftp.js` — that stores the reply packet in the current working directory without issuing a `CWD` command first.
 
 Clients that already target `/qwk/upload/` are unaffected. Clients that upload to root now have their packet routed through the same REP import pipeline as a `/qwk/upload/` transfer, including the same conference-map validation and deduplication checks.
+
+### Echo Area Deletion Handling
+
+The Echo Areas admin page now allows populated areas to be deleted without manual SQL cleanup. When deleting an area that still contains echomail, the dialog offers two explicit choices:
+
+- delete the messages together with the area
+- move the messages into another local echo area before deleting the original area
+
+The move option is a local reassignment only. It does not re-gate, re-spool, or republish the historical messages into the destination area’s outbound network paths.
 
 ## Developer / Infrastructure
 
