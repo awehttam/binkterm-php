@@ -4949,6 +4949,8 @@ return [
     'ui.admin.networks.deleted' => 'Network deleted',
     'ui.admin.networks.change_domain_failed' => 'Failed to change domain',
     'ui.admin.networks.domain_changed' => 'Domain changed',
+    'ui.admin.networks.search_placeholder' => 'Search domain, name, description, website, or uplink...',
+    'ui.admin.networks.none' => 'No networks found',
     'ui.qwk.uplinks.manage' => 'QWK Mailboxes',
     'ui.qwk.uplinks.list_title' => 'Configured Mailboxes',
     'ui.qwk.uplinks.add_title' => 'Add QWK Mailbox',

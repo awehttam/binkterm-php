@@ -80,9 +80,9 @@ Important behavior:
 
 - Inbound deduplication uses `(qwk_mailbox_id, qwk_conference_number,
   qwk_msg_number)`.
-- Unknown conferences are auto-created as local placeholder areas using the
-  remote conference name as the description. The sysop can later move the area
-  into the correct network domain.
+- Unknown conferences are auto-created into the built-in `qwk` network using
+  the remote conference name as the description. The sysop can later move the
+  area into a different network domain if needed.
 - Outbound replies preserve QWK reply threading when the parent message came
   from the same mailbox and conference.
 - Gated local copies use `source_msgid` to prevent loops and duplicate mirrors.

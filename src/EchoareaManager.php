@@ -184,7 +184,7 @@ class EchoareaManager
         $baseTag = $this->buildQwkPlaceholderTag($conferenceName, $conferenceNumber);
         $tag = $baseTag;
         $suffix = 2;
-        while ($this->findByTagAndDomains($tag, [''])) {
+        while ($this->findByTagAndDomains($tag, ['qwk'])) {
             $tag = $this->truncateTagWithSuffix($baseTag, $suffix);
             $suffix++;
         }
@@ -192,12 +192,12 @@ class EchoareaManager
         return $this->createIfMissing([
             'tag' => $tag,
             'description' => trim($conferenceName) !== '' ? trim($conferenceName) : ('QWK Conference ' . $conferenceNumber),
-            'domain' => null,
-            'is_local' => true,
+            'domain' => 'qwk',
+            'is_local' => false,
             'is_active' => true,
             'is_sysop_only' => false,
             'gemini_public' => false,
-        ], ['']);
+        ], ['qwk']);
     }
 
     public function updateDescription(int $id, string $description): bool

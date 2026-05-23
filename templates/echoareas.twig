@@ -1174,20 +1174,20 @@ function gateRowHtml(gate) {
     return `
         <div class="qwk-gate-row border rounded p-2 bg-light">
             <div class="row g-2 align-items-end">
-                <div class="col-md-8">
+                <div class="col-lg-7">
                     <label class="form-label small">${uiT('ui.qwk.echoarea.gate_target', 'Target Area')}</label>
                     <select class="form-select form-select-sm qwk-gate-target">
                         <option value="">${uiT('ui.qwk.echoarea.select_gate_target', 'Select target area')}</option>
                         ${options}
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <div class="form-check mt-4">
+                <div class="col-sm-8 col-lg-3">
+                    <div class="form-check mt-sm-3 mt-lg-4">
                         <input class="form-check-input qwk-gate-bidirectional" type="checkbox" ${gate.bidirectional !== false ? 'checked' : ''}>
                         <label class="form-check-label small">${uiT('ui.qwk.echoarea.bidirectional', 'Bidirectional')}</label>
                     </div>
                 </div>
-                <div class="col-md-2 d-grid">
+                <div class="col-sm-4 col-lg-2 d-grid">
                     <button type="button" class="btn btn-sm btn-outline-danger" onclick="$(this).closest('.qwk-gate-row').remove(); ensureQwkEmptyState();">
                         <i class="fas fa-trash"></i>
                     </button>
