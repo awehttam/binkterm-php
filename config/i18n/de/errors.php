@@ -139,6 +139,10 @@ return [
     'errors.echoareas.not_found_or_unchanged' => 'Echo-Bereich nicht gefunden or no changes made',
     'errors.echoareas.update_failed' => 'Echo-Bereich konnte nicht aktualisiert werden',
     'errors.echoareas.delete_blocked_has_messages' => 'Cannot delete echo area with existing messages',
+    'errors.echoareas.delete_action_required' => 'Wähle vor dem Löschen dieses Echo-Bereichs aus, was mit den verbleibenden Nachrichten geschehen soll',
+    'errors.echoareas.delete_invalid_action' => 'Ungültige Löschaktion ausgewählt',
+    'errors.echoareas.delete_move_target_required' => 'Wähle einen Ziel-Echo-Bereich zum Verschieben der verbleibenden Nachrichten aus',
+    'errors.echoareas.delete_move_target_invalid' => 'Der ausgewählte Ziel-Echo-Bereich ist ungültig',
     'errors.echoareas.delete_failed' => 'Echo-Bereich konnte nicht gelöscht werden',
 
     // File Areas

@@ -312,8 +312,24 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div id="deleteModalError" class="alert alert-danger d-none" role="alert"></div>
                 <p>{{ t('ui.echoareas.delete_confirm_prefix', {}, locale, ['common']) }} <strong id="deleteEchoareaName"></strong>?</p>
                 <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> {{ t('ui.echoareas.delete_confirm_warning', {}, locale, ['common']) }}</p>
+                <div class="mb-3">
+                    <label class="form-label" for="deleteEchoareaMessageAction">{{ t('ui.echoareas.delete_message_handling', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="deleteEchoareaMessageAction">
+                        <option value="">{{ t('ui.echoareas.select_delete_action', {}, locale, ['common']) }}</option>
+                        <option value="delete_messages">{{ t('ui.echoareas.delete_messages_action', {}, locale, ['common']) }}</option>
+                        <option value="move_messages">{{ t('ui.echoareas.move_messages_action', {}, locale, ['common']) }}</option>
+                    </select>
+                    <div class="form-text">{{ t('ui.echoareas.delete_move_note', {}, locale, ['common']) }}</div>
+                </div>
+                <div class="mb-0 d-none" id="deleteEchoareaMoveTargetGroup">
+                    <label class="form-label" for="deleteEchoareaMoveTarget">{{ t('ui.echoareas.move_messages_target', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="deleteEchoareaMoveTarget">
+                        <option value="">{{ t('ui.echoareas.select_target_area', {}, locale, ['common']) }}</option>
+                    </select>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
@@ -998,17 +1014,57 @@ function saveEchoarea() {
 function showDeleteModal(id, tag) {
     currentEchoareaId = id;
     $('#deleteEchoareaName').text(tag);
-    $('#deleteModal').modal('show');
+    $('#deleteModalError').addClass('d-none').text('');
+    $('#deleteEchoareaMessageAction').val('');
+    $('#deleteEchoareaMoveTarget').html(
+        `<option value="">${uiT('ui.echoareas.select_target_area', 'Select target area')}</option>`
+    );
+    updateDeleteEchoareaTargetState();
+    loadDeleteEchoareaTargets(id).always(function() {
+        $('#deleteModal').modal('show');
+    });
     
     $('#confirmDelete').off('click').on('click', function() {
         deleteEchoarea();
     });
 }
 
+function updateDeleteEchoareaTargetState() {
+    const shouldShow = $('#deleteEchoareaMessageAction').val() === 'move_messages';
+    $('#deleteEchoareaMoveTargetGroup').toggleClass('d-none', !shouldShow);
+}
+
+function loadDeleteEchoareaTargets(excludeId) {
+    return $.get('/api/echoareas/simple-list')
+        .done(function(data) {
+            const options = ['<option value="">' + uiT('ui.echoareas.select_target_area', 'Select target area') + '</option>'];
+            (data.echoareas || []).forEach(function(area) {
+                if (parseInt(area.id, 10) === parseInt(excludeId, 10)) {
+                    return;
+                }
+                const domain = area.domain ? ` (${escapeHtml(area.domain)})` : '';
+                options.push(`<option value="${area.id}">${escapeHtml(area.tag)}${domain}</option>`);
+            });
+            $('#deleteEchoareaMoveTarget').html(options.join(''));
+        })
+        .fail(function() {
+            $('#deleteModalError')
+                .text(uiT('ui.echoareas.delete_targets_failed', 'Failed to load target echo areas'))
+                .removeClass('d-none');
+        });
+}
+
 function deleteEchoarea() {
+    const formData = {
+        message_action: $('#deleteEchoareaMessageAction').val(),
+        target_echoarea_id: $('#deleteEchoareaMoveTarget').val() ? parseInt($('#deleteEchoareaMoveTarget').val(), 10) : null
+    };
+
     $.ajax({
         url: `/api/echoareas/${currentEchoareaId}`,
         method: 'DELETE',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
         success: function(response) {
             $('#deleteModal').modal('hide');
             const successMessage = window.getApiMessage
@@ -1019,12 +1075,15 @@ function deleteEchoarea() {
             loadStats();
         },
         error: function(xhr) {
-            $('#deleteModal').modal('hide');
             const error = apiError(xhr.responseJSON, uiT('errors.echoareas.delete_failed', 'Failed to delete echo area'));
-            showError(error);
+            $('#deleteModalError').text(error).removeClass('d-none');
         }
     });
 }
+
+$('#deleteEchoareaMessageAction').on('change', function() {
+    updateDeleteEchoareaTargetState();
+});
 
 function loadStats() {
     $.get('/api/echoareas/stats')

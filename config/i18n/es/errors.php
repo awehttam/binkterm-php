@@ -139,6 +139,10 @@ return [
     'errors.echoareas.not_found_or_unchanged' => 'Area de eco no encontrada o sin cambios',
     'errors.echoareas.update_failed' => 'No se pudo actualizar el area de eco',
     'errors.echoareas.delete_blocked_has_messages' => 'No se puede eliminar un area de eco con mensajes existentes',
+    'errors.echoareas.delete_action_required' => 'Elija que hacer con los mensajes restantes antes de eliminar esta area de eco',
+    'errors.echoareas.delete_invalid_action' => 'La accion de eliminacion seleccionada no es valida',
+    'errors.echoareas.delete_move_target_required' => 'Seleccione un area de eco de destino para mover los mensajes restantes',
+    'errors.echoareas.delete_move_target_invalid' => 'El area de eco de destino seleccionada no es valida',
     'errors.echoareas.delete_failed' => 'No se pudo eliminar el area de eco',
 
     // File Areas

@@ -70,7 +70,12 @@ Fill in the form fields:
 
 ### Editing and Deleting
 
-Click the edit icon next to any area to modify its settings. Areas that contain messages **cannot be deleted** — deactivate them instead by unchecking **Active**. This preserves message history while hiding the area from users.
+Click the edit icon next to any area to modify its settings. When deleting an area, the confirmation dialog now asks what to do with any remaining messages:
+
+- **Delete them** — removes the area and permanently deletes the messages in it.
+- **Move them to another area** — reassigns the messages to a different echo area before deleting the original area. This is a local move only; it does not re-gate, re-spool, or republish those historical messages.
+
+If you want to keep the area and its current message history intact, uncheck **Active** instead.
 
 ### Statistics
 
