@@ -9,11 +9,18 @@ class QwkOutbound
 {
     private PDO $db;
     private RepPacketBuilder $builder;
+    /** @var callable|null */
+    private $logger = null;
 
     public function __construct(?PDO $db = null, ?RepPacketBuilder $builder = null)
     {
         $this->db = $db ?? Database::getInstance()->getPdo();
         $this->builder = $builder ?? new RepPacketBuilder();
+    }
+
+    public function setLogger(?callable $logger): void
+    {
+        $this->logger = $logger;
     }
 
     public function buildPendingRepPacket(array $mailbox): ?string
@@ -32,6 +39,14 @@ class QwkOutbound
             ) {
                 $replyToNum = (int)$row['reply_qwk_msg_number'];
             }
+
+            $this->log('DEBUG', sprintf(
+                'Queueing REP message queue_id=%d conf=%d reply=%d subject="%s"',
+                (int)$row['queue_id'],
+                (int)$row['conference_number'],
+                $replyToNum,
+                substr((string)($row['subject'] ?? ''), 0, 80)
+            ));
 
             $messages[] = [
                 'conference_number' => (int)$row['conference_number'],
@@ -84,5 +99,12 @@ class QwkOutbound
         ");
         $stmt->execute([$mailboxId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private function log(string $level, string $message): void
+    {
+        if ($this->logger !== null) {
+            ($this->logger)($level, $message);
+        }
     }
 }

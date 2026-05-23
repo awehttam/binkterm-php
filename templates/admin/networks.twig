@@ -292,10 +292,10 @@ function saveNetwork() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                throw new Error(apiError(data, uiT('ui.admin.networks.save_failed', 'Failed to save network')));
+        .then(readApiResponse)
+        .then(({ response, data, rawText }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(apiError(data, rawText || uiT('ui.admin.networks.save_failed', 'Failed to save network')));
             }
             networkModal.hide();
             loadNetworks();
@@ -361,6 +361,16 @@ function formatDeleteNetworkError(payload) {
 }
 
 function apiError(payload, fallback) {
+    if (payload && payload.error) {
+        const genericNetworkErrorCodes = [
+            'errors.admin.networks.save_failed',
+            'errors.admin.networks.change_domain_failed',
+            'errors.admin.networks.delete_failed'
+        ];
+        if (genericNetworkErrorCodes.includes(payload.error_code)) {
+            return String(payload.error);
+        }
+    }
     if (window.getApiErrorMessage) {
         return window.getApiErrorMessage(payload, fallback);
     }
@@ -372,6 +382,38 @@ function apiMessage(payload, fallback) {
         return window.getApiMessage(payload, fallback);
     }
     return payload && payload.message ? String(payload.message) : fallback;
+}
+
+function readApiResponse(response) {
+    return response.text().then(text => {
+        let data = {};
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (error) {
+                data = {};
+            }
+        }
+
+        return {
+            response,
+            data,
+            rawText: extractApiErrorText(text)
+        };
+    });
+}
+
+function extractApiErrorText(text) {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    if (trimmed.startsWith('<')) {
+        return '';
+    }
+
+    return trimmed;
 }
 
 function showAlert(id, message, type) {
