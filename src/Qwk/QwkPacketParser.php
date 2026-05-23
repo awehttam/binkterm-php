@@ -8,10 +8,10 @@ use ZipArchive;
  * Parses a QWK-format packet archive into message objects and conference
  * metadata.
  *
- * Shared by the inter-BBS mailbox import path and other QWK-format parsing
- * helpers that need a normalized `QwkMessage` representation.
+ * Used by the inter-BBS mailbox import path to normalize packet contents into
+ * `QwkMessage` objects plus CONTROL.DAT conference metadata.
  *
- * Used by: Both
+ * Used by: Inter-BBS
  */
 class QwkPacketParser
 {
