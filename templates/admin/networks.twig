@@ -15,6 +15,26 @@
 
     <div class="card shadow">
         <div class="card-body">
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="networkTypeFilter">{{ t('ui.admin.networks.type', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="networkTypeFilter">
+                        <option value="">{{ t('ui.common.all', {}, locale, ['common']) }}</option>
+                        <option value="1">{{ t('ui.admin.networks.type_fidonet', {}, locale, ['common']) }}</option>
+                        <option value="2">{{ t('ui.admin.networks.type_qwk', {}, locale, ['common']) }}</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label" for="networkSearch">{{ t('ui.common.search', {}, locale, ['common']) }}</label>
+                    <input
+                        type="search"
+                        class="form-control"
+                        id="networkSearch"
+                        placeholder="{{ t('ui.admin.networks.search_placeholder', {}, locale, ['common']) }}"
+                        autocomplete="off"
+                    >
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped align-middle" id="networksTable">
                     <thead>
@@ -155,6 +175,8 @@ function uiT(key, fallback, params = {}) {
 document.addEventListener('DOMContentLoaded', function() {
     networkModal = new bootstrap.Modal(document.getElementById('networkModal'));
     domainModal = new bootstrap.Modal(document.getElementById('domainModal'));
+    document.getElementById('networkTypeFilter').addEventListener('change', renderNetworks);
+    document.getElementById('networkSearch').addEventListener('input', renderNetworks);
     loadI18nNamespaces(['common', 'errors']).then(loadNetworks);
 });
 
@@ -174,7 +196,19 @@ function loadNetworks() {
 function renderNetworks() {
     const tbody = document.querySelector('#networksTable tbody');
     tbody.innerHTML = '';
-    networks.forEach(network => {
+    const filteredNetworks = getFilteredNetworks();
+    if (filteredNetworks.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td colspan="7" class="text-center text-muted py-4">
+                ${escapeHtml(uiT('ui.admin.networks.none', 'No networks found'))}
+            </td>
+        `;
+        tbody.appendChild(row);
+        return;
+    }
+
+    filteredNetworks.forEach(network => {
         const flags = [
             network.allow_markup ? uiT('ui.admin.networks.markup', 'Markup') : null,
             network.allow_media ? uiT('ui.admin.networks.media', 'Media') : null,
@@ -209,6 +243,35 @@ function renderNetworks() {
             </td>
         `;
         tbody.appendChild(row);
+    });
+}
+
+function getFilteredNetworks() {
+    const selectedType = document.getElementById('networkTypeFilter')?.value || '';
+    const searchTerm = (document.getElementById('networkSearch')?.value || '').trim().toLowerCase();
+
+    return networks.filter(network => {
+        if (selectedType !== '' && String(Number(network.network_type || NETWORK_TYPE_FIDONET)) !== selectedType) {
+            return false;
+        }
+
+        if (searchTerm === '') {
+            return true;
+        }
+
+        const haystack = [
+            network.domain,
+            network.name,
+            network.description,
+            network.website,
+            getNetworkTypeLabel(network),
+            ...(Array.isArray(network.uplinks) ? network.uplinks : [])
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        return haystack.includes(searchTerm);
     });
 }
 
@@ -252,6 +315,7 @@ function openNetworkModal(id = null) {
     document.getElementById('networkDomain').readOnly = !!network;
     document.getElementById('networkChangeDomainBtn').classList.toggle('d-none', !network);
     document.getElementById('networkType').value = String(network ? (network.network_type || NETWORK_TYPE_FIDONET) : NETWORK_TYPE_FIDONET);
+    document.getElementById('networkType').disabled = !!network;
     document.getElementById('networkName').value = network ? network.name : '';
     document.getElementById('networkDescription').value = network ? (network.description || '') : '';
     document.getElementById('networkWebsite').value = network ? (network.website || '') : '';
