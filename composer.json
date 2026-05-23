@@ -9,6 +9,7 @@
         "twig/twig": "^3.7",
         "ext-pdo": "*",
         "ext-pgsql": "*",
+        "ext-ftp": "*",
         "phpmailer/phpmailer": "^6.8",
         "chillerlan/php-qrcode": "^4.3"
     },
