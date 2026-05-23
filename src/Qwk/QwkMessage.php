@@ -5,10 +5,10 @@ namespace BinktermPHP\Qwk;
 /**
  * Parsed QWK-format message value object.
  *
- * Used as the in-memory representation of one message extracted from a
- * QWK-format packet. Shared by the offline-reader and inter-BBS paths.
+ * Used as the in-memory representation of one message extracted from an
+ * inter-BBS QWK packet.
  *
- * Used by: Both
+ * Used by: Inter-BBS
  */
 class QwkMessage
 {
