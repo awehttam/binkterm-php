@@ -130,7 +130,7 @@ For full data-flow diagrams including the FTN packet lifecycle, daemon IPC model
 
 - **Uplinks**: Remote FidoNet nodes that relay messages to/from the wider network
 - **Domains**: FTN addressing uses zone:net/node.point format (e.g., 21:1/999)
-- **Local Echoareas**: Areas marked `is_local=true` are not transmitted to uplinks
+- **Local Echoareas**: Areas marked `is_local=true` must never be propagated through any external transport layer. That means no FTN spooling, no inter-BBS QWK mailbox fanout, and no other network redistribution. The only allowed QWK behavior for a local area is the logged-in user's own offline-reader workflow on this same BBS (download in their packet, upload replies back into the same area).
 - **Multi-Network Support**: System can connect to multiple independent FTN networks
 
 #### Packet Processing

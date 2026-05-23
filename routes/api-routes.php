@@ -2753,10 +2753,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         header('Content-Type: application/json');
-        $result = (new \BinktermPHP\Qwk\QwkPoller())->pollMailbox((int)$id);
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->qwkPollMailbox((int)$id);
+            $client->close();
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            apiError(
+                'errors.qwk.poll_failed',
+                apiLocalizedText('errors.qwk.poll_failed', 'Failed to poll QWK mailbox', $user),
+                500,
+                ['detail' => $e->getMessage()]
+            );
+        }
+
         if (empty($result['success'])) {
             http_response_code(400);
-            apiError('errors.qwk.poll_failed', apiLocalizedText('errors.qwk.poll_failed', 'Failed to poll QWK mailbox', $user), 400, ['detail' => $result['error'] ?? null]);
+            apiError(
+                'errors.qwk.poll_failed',
+                apiLocalizedText('errors.qwk.poll_failed', 'Failed to poll QWK mailbox', $user),
+                400,
+                ['detail' => $result['error'] ?? null]
+            );
         }
 
         echo json_encode(array_merge(['message_code' => 'ui.qwk.uplinks.polled'], $result));
@@ -7143,7 +7161,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 http_response_code(500);
                 apiError('errors.messages.send.failed', apiLocalizedText('errors.messages.send.failed', 'Failed to send message', $user));
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             getServerLogger()->error('[SEND] Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             http_response_code(500);
             apiError('errors.messages.send.exception', apiLocalizedText('errors.messages.send.exception', 'Failed to send message', $user));

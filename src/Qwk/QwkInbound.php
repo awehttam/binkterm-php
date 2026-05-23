@@ -13,6 +13,8 @@ class QwkInbound
     private QwkSubscriptionManager $subscriptions;
     private MessageHandler $messageHandler;
     private QwkMailboxManager $mailboxes;
+    /** @var callable|null */
+    private $logger = null;
 
     public function __construct(
         ?PDO $db = null,
@@ -28,6 +30,12 @@ class QwkInbound
         $this->mailboxes = $mailboxes ?? new QwkMailboxManager($this->db);
     }
 
+    public function setLogger(?callable $logger): void
+    {
+        $this->logger = $logger;
+        $this->parser->setLogger($logger);
+    }
+
     /**
      * @return array{imported:int,skipped:int}
      */
@@ -41,13 +49,29 @@ class QwkInbound
             ? $parsed['control']['conferences']
             : [];
 
+        $this->log('INFO', sprintf(
+            'Importing %d QWK message(s) for mailbox %d (%s)',
+            count($parsed['messages']),
+            $mailboxId,
+            (string)($mailbox['name'] ?? $mailbox['bbs_id'] ?? 'unknown')
+        ));
+
         foreach ($parsed['messages'] as $message) {
+            $messageLabel = $this->describeMessage($message);
+            $this->log('DEBUG', 'Processing ' . $messageLabel);
+
             if ($message->conferenceNumber <= 0) {
                 $skipped++;
+                $this->log('DEBUG', $messageLabel . ' skipped: conference number <= 0');
                 continue;
             }
 
             $conferenceTag = trim((string)($conferenceMap[$message->conferenceNumber] ?? ''));
+            $this->log('DEBUG', sprintf(
+                '%s mapped to conference tag "%s"',
+                $messageLabel,
+                $conferenceTag !== '' ? $conferenceTag : '(blank)'
+            ));
             $subscription = $this->subscriptions->getOrCreateSubscriptionForConference(
                 $mailboxId,
                 $message->conferenceNumber,
@@ -55,17 +79,41 @@ class QwkInbound
             );
             if ($subscription === null) {
                 $skipped++;
+                $this->log('WARNING', sprintf(
+                    '%s skipped: no QWK subscription/placeholder area could be resolved for conference %d ("%s")',
+                    $messageLabel,
+                    $message->conferenceNumber,
+                    $conferenceTag !== '' ? $conferenceTag : '(blank)'
+                ));
                 continue;
             }
 
+            $this->log('DEBUG', sprintf(
+                '%s resolved to echoarea_id=%d tag="%s" domain="%s"',
+                $messageLabel,
+                (int)($subscription['echoarea_id'] ?? 0),
+                (string)($subscription['tag'] ?? $subscription['conference_tag'] ?? ''),
+                (string)($subscription['domain'] ?? '')
+            ));
+
             if ($this->messageExists($mailboxId, $message->conferenceNumber, $message->messageNumber)) {
                 $skipped++;
+                $this->log('DEBUG', $messageLabel . ' skipped: duplicate QWK message already imported');
                 continue;
             }
 
             $replyToId = $this->findReplyToId($mailboxId, $message->conferenceNumber, $message->replyToNumber);
             $sourceMsgId = $message->sourceMsgId ?: sprintf('qwk:%d:%d:%d', $mailboxId, $message->conferenceNumber, $message->messageNumber);
             $fromAddress = $this->resolveFromAddress($message, $mailboxId, $mailbox);
+
+            $this->log('DEBUG', sprintf(
+                '%s import context: reply_to_id=%s source_msgid="%s" from_address="%s" body_len=%d',
+                $messageLabel,
+                $replyToId !== null ? (string)$replyToId : 'null',
+                $sourceMsgId,
+                $fromAddress,
+                strlen($message->body)
+            ));
 
             $newId = $this->messageHandler->importExternalEchomail([
                 'echoarea_id' => (int)$subscription['echoarea_id'],
@@ -85,10 +133,19 @@ class QwkInbound
 
             if ($newId > 0) {
                 $imported++;
+                $this->log('INFO', $messageLabel . ' imported as echomail #' . $newId);
             } else {
                 $skipped++;
+                $this->log('WARNING', $messageLabel . ' skipped: importExternalEchomail returned 0');
             }
         }
+
+        $this->log('INFO', sprintf(
+            'QWK import summary for mailbox %d: %d imported, %d skipped',
+            $mailboxId,
+            $imported,
+            $skipped
+        ));
 
         return ['imported' => $imported, 'skipped' => $skipped];
     }
@@ -204,5 +261,25 @@ class QwkInbound
         $stmt->execute([$mailboxId, $conferenceNumber, $messageNumber]);
         $id = $stmt->fetchColumn();
         return $id ? (int)$id : null;
+    }
+
+    private function describeMessage(QwkMessage $message): string
+    {
+        return sprintf(
+            'QWK message #%d conf=%d reply=%d from="%s" to="%s" subject="%s"',
+            $message->messageNumber,
+            $message->conferenceNumber,
+            $message->replyToNumber,
+            $message->fromName,
+            $message->toName,
+            $message->subject
+        );
+    }
+
+    private function log(string $level, string $message): void
+    {
+        if ($this->logger !== null) {
+            ($this->logger)($level, $message);
+        }
     }
 }
