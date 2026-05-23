@@ -210,7 +210,7 @@ When adding a new UserCredit credit/reward type, invoke the `/usercredits-workfl
 
 When working within any subdirectory, check for the presence of a `CLAUDE.md` file in that directory and follow its instructions in addition to this file.
 
-The following project-scoped skills are available in `.claude/commands/`. When adding a new skill file, add it to this list **and also add an entry to `.claude/session-start.php`** so it is printed to developers at the start of each new session.
+The following project-scoped skills are available in `.claude/commands/`. When adding a new skill file, add it to this list.
 
 - **`/bump-version`** — version bump steps, UPGRADING doc format and voice rules, composer dependency note
 - **`/new-migration`** — migration ID format (authoritative), SQL vs PHP choice, no-duplicate-index rule, setup.php reminder
