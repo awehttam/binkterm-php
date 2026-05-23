@@ -5,23 +5,74 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [InterBBS QWK](#interbbs-qwk)
+- [Gating](#gating)
+- [External Delivery](#external-delivery)
+- [QWK FTP Service](#qwk-ftp-service)
 - [Web Interface](#web-interface)
+  - [Echo Area Deletion](#echo-area-deletion)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
+### InterBBS QWK
+
+- BinktermPHP now supports inter-BBS QWK networking. The system can poll remote QWK mailboxes, import `.QWK` packets into mapped local echo areas, queue outbound replies into `.REP` packets, and upload those reply packets back to the remote BBS.
+- Echo Areas now include per-area QWK conference mappings, and the scheduler can poll QWK mailboxes automatically when a mailbox `poll_schedule` is configured.
+
+### Gating
+
+- Echo Areas now support gates that mirror newly posted or newly imported messages into another local echo area.
+- Gates are transport-neutral. After the mirrored copy is created, the destination area applies its own FTN or QWK outbound rules.
+
+### QWK FTP Service
+
+- QWK FTP service uploads now accept reply packets dropped directly into the FTP root (`/`) as well as `/qwk/upload/`, improving compatibility with clients that do not change into the upload subdirectory before sending `.REP` or `.ZIP` files.
+- QWK FTP directory listings now eagerly build the user's QWK packet and report the actual packet size instead of a placeholder or stale size.
+
 ### Web Interface
 
-- The FTP daemon now accepts QWK reply packets uploaded directly to the FTP root (`/`) as well as `/qwk/upload/`, improving compatibility with clients that do not change into the upload subdirectory before sending `.REP` or `.ZIP` files.
 - Echo area deletion now offers a message-handling choice for populated areas. Sysops can delete the remaining messages or move them into another local echo area before removing the area itself.
 
 ---
 
-## Core Platform
+## InterBBS QWK
 
-BinktermPHP now identifies itself as version `1.9.8` in runtime version helpers, package metadata, and operator-facing release references.
+BinktermPHP can now participate in inter-BBS QWK exchange as an external message transport. This is separate from the existing same-BBS offline-reader workflow.
+
+The QWK networking implementation adds:
+
+- QWK mailbox definitions for remote BBS peers, including host, credentials, remote path, passive FTP mode, and optional poll schedule
+- per-area QWK conference mappings so a local echo area can be linked to one or more remote mailbox conference numbers
+- inbound `.QWK` packet import into mapped local areas
+- outbound `.REP` packet generation and upload back to the remote BBS
+- QWK source tracking and deduplication so imported messages are not re-imported or echoed straight back to the same mailbox
+
+Operational notes:
+
+- The scheduler now evaluates QWK mailbox `poll_schedule` entries. A blank schedule remains manual-only.
+- Unknown inbound conferences can be auto-created into the built-in `qwk` network as placeholder mappings for later review.
+- Outbound REP formatting was corrected for Synchronet-compatible conference parsing during reply import.
+
+## Gating
+
+Echo Areas now support gates between distinct local area records. A gate mirrors new traffic from one area into another area while keeping the two areas separate in the database.
+
+This is intended for cases such as:
+
+- carrying the same topic under different tags on different networks
+- mirroring a local area into a networked area
+- relaying between an FTN-backed area and a QWK-backed area
+
+Gate behavior:
+
+- Gates apply to new messages only. Historical messages are not replayed.
+- The mirrored copy is stored as a separate local message in the destination area.
+- Once stored, the destination area evaluates its own outbound routing. That means a gated copy may then spool to FTN, queue for inter-BBS QWK, or both.
+- Loop protection uses source message identity so a gated copy returning from another network is not imported endlessly.
+- Self-gates are not allowed.
 
 ## External Delivery
 
@@ -38,11 +89,17 @@ For non-local areas, external delivery is transport-specific:
 - QWK fanout is used when the area has QWK conference subscriptions.
 - A single non-local area may participate in both transports if it is configured that way.
 
-## Web Interface
+## QWK FTP Service
 
 The FTP daemon now accepts `.REP` and `.ZIP` uploads dropped directly into the FTP root (`/`) in addition to the existing `/qwk/upload/` path. Previously, uploads to the root were rejected, blocking QWK client software — such as Synchronet's `qnet-ftp.js` — that stores the reply packet in the current working directory without issuing a `CWD` command first.
 
 Clients that already target `/qwk/upload/` are unaffected. Clients that upload to root now have their packet routed through the same REP import pipeline as a `/qwk/upload/` transfer, including the same conference-map validation and deduplication checks.
+
+The FTP-side QWK service now also builds the current user's outbound QWK packet eagerly when presenting the packet in a directory listing. That means FTP clients see the real downloadable packet size instead of a placeholder or an outdated size from a previous build.
+
+## Web Interface
+
+### Echo Area Deletion
 
 The Echo Areas admin page now allows populated areas to be deleted without manual SQL cleanup. When deleting an area that still contains echomail, the dialog offers two explicit choices:
 
