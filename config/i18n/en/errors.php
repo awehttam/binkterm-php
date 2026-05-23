@@ -722,7 +722,7 @@ return [
     'errors.meshcore.not_found' => 'Contact not found.',
     'errors.meshcore.qr_unrecognized' => 'Unrecognized QR code format.',
     'errors.meshcore.qr_camera_denied' => 'Camera access denied.',
-    'errors.qwk.uplink_not_found' => 'QWK uplink not found',
-    'errors.qwk.invalid_uplink' => 'Invalid QWK uplink configuration',
-    'errors.qwk.poll_failed' => 'Failed to poll QWK uplink',
+    'errors.qwk.uplink_not_found' => 'QWK mailbox not found',
+    'errors.qwk.invalid_uplink' => 'Invalid QWK mailbox configuration',
+    'errors.qwk.poll_failed' => 'Failed to poll QWK mailbox',
 ];

@@ -2,22 +2,22 @@
 
 namespace BinktermPHP\Qwk\Transport;
 
-use BinktermPHP\Qwk\QwkUplinkManager;
+use BinktermPHP\Qwk\QwkMailboxManager;
 
 class FtpTransport implements TransportInterface
 {
-    private QwkUplinkManager $uplinkManager;
+    private QwkMailboxManager $mailboxManager;
 
-    public function __construct(?QwkUplinkManager $uplinkManager = null)
+    public function __construct(?QwkMailboxManager $mailboxManager = null)
     {
-        $this->uplinkManager = $uplinkManager ?? new QwkUplinkManager();
+        $this->mailboxManager = $mailboxManager ?? new QwkMailboxManager();
     }
 
-    public function downloadPacket(array $uplink): ?string
+    public function downloadPacket(array $mailbox): ?string
     {
-        $conn = $this->connect($uplink);
+        $conn = $this->connect($mailbox);
         try {
-            $remotePath = $this->buildRemotePath($uplink, strtoupper((string)$uplink['bbs_id']) . '.QWK');
+            $remotePath = $this->buildRemotePath($mailbox, strtoupper((string)$mailbox['bbs_id']) . '.QWK');
             $tmpPath = tempnam(sys_get_temp_dir(), 'qwkdl_');
             if ($tmpPath === false) {
                 throw new \RuntimeException('Failed to allocate temporary download path');
@@ -34,11 +34,11 @@ class FtpTransport implements TransportInterface
         }
     }
 
-    public function uploadPacket(array $uplink, string $localPacketPath): bool
+    public function uploadPacket(array $mailbox, string $localPacketPath): bool
     {
-        $conn = $this->connect($uplink);
+        $conn = $this->connect($mailbox);
         try {
-            $remotePath = $this->buildRemotePath($uplink, strtoupper((string)$uplink['bbs_id']) . '.REP');
+            $remotePath = $this->buildRemotePath($mailbox, strtoupper((string)$mailbox['bbs_id']) . '.REP');
             return (bool)@ftp_put($conn, $remotePath, $localPacketPath, FTP_BINARY);
         } finally {
             @ftp_close($conn);
@@ -48,21 +48,21 @@ class FtpTransport implements TransportInterface
     /**
      * @return resource
      */
-    private function connect(array $uplink)
+    private function connect(array $mailbox)
     {
         if (!function_exists('ftp_connect')) {
             throw new \RuntimeException('PHP FTP extension is not available');
         }
 
-        $host = (string)$uplink['host'];
-        $port = (int)($uplink['port'] ?? 21);
+        $host = (string)$mailbox['host'];
+        $port = (int)($mailbox['port'] ?? 21);
         $conn = @ftp_connect($host, $port, 20);
         if ($conn === false) {
             throw new \RuntimeException('Failed to connect to FTP host');
         }
 
-        $password = $this->uplinkManager->decryptPassword((string)($uplink['password'] ?? ''));
-        if (!@ftp_login($conn, (string)$uplink['username'], $password)) {
+        $password = $this->mailboxManager->decryptPassword((string)($mailbox['password'] ?? ''));
+        if (!@ftp_login($conn, (string)$mailbox['username'], $password)) {
             @ftp_close($conn);
             throw new \RuntimeException('FTP login failed');
         }
@@ -71,9 +71,9 @@ class FtpTransport implements TransportInterface
         return $conn;
     }
 
-    private function buildRemotePath(array $uplink, string $filename): string
+    private function buildRemotePath(array $mailbox, string $filename): string
     {
-        $base = trim((string)($uplink['ftp_remote_path'] ?? '/'));
+        $base = trim((string)($mailbox['ftp_remote_path'] ?? '/'));
         if ($base === '' || $base === '.') {
             return $filename;
         }

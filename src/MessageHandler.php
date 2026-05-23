@@ -1960,14 +1960,14 @@ class MessageHandler
                 echoarea_id, from_address, from_name, to_name, subject, message_text,
                 raw_message_bytes, message_charset, art_format, date_written, reply_to_id,
                 message_id, origin_line, kludge_lines, bottom_kludges, tearline_component,
-                user_id, moderation_status, qwk_uplink_id, qwk_conference_number,
+                user_id, moderation_status, qwk_mailbox_id, qwk_conference_number,
                 qwk_msg_number, source_msgid
             )
             VALUES (
                 :echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text,
                 :raw_message_bytes, :message_charset, :art_format, NOW(), :reply_to_id,
                 :message_id, NULL, :kludge_lines, NULL, NULL,
-                NULL, 'approved', :qwk_uplink_id, :qwk_conference_number,
+                NULL, 'approved', :qwk_mailbox_id, :qwk_conference_number,
                 :qwk_msg_number, :source_msgid
             )
             RETURNING id
@@ -1985,7 +1985,7 @@ class MessageHandler
         $stmt->bindValue(':reply_to_id', $replyToId, $replyToId !== null ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
         $stmt->bindValue(':message_id', $msgId);
         $stmt->bindValue(':kludge_lines', $kludgeLines);
-        $stmt->bindValue(':qwk_uplink_id', !empty($data['qwk_uplink_id']) ? (int)$data['qwk_uplink_id'] : null, !empty($data['qwk_uplink_id']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':qwk_mailbox_id', !empty($data['qwk_mailbox_id']) ? (int)$data['qwk_mailbox_id'] : null, !empty($data['qwk_mailbox_id']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
         $stmt->bindValue(':qwk_conference_number', isset($data['qwk_conference_number']) ? (int)$data['qwk_conference_number'] : null, isset($data['qwk_conference_number']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
         $stmt->bindValue(':qwk_msg_number', isset($data['qwk_msg_number']) ? (int)$data['qwk_msg_number'] : null, isset($data['qwk_msg_number']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
         $stmt->bindValue(':source_msgid', $sourceMsgId !== '' ? $sourceMsgId : null, $sourceMsgId !== '' ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
@@ -2002,7 +2002,7 @@ class MessageHandler
             $messageId,
             (string)$echoarea['tag'],
             $domain,
-            isset($data['exclude_qwk_uplink_id']) ? (int)$data['exclude_qwk_uplink_id'] : null,
+            isset($data['exclude_qwk_mailbox_id']) ? (int)$data['exclude_qwk_mailbox_id'] : null,
             !array_key_exists('apply_gates', $data) || !empty($data['apply_gates'])
         );
 
@@ -3376,16 +3376,16 @@ class MessageHandler
         }
     }
 
-    private function finalizeApprovedEchomailDelivery(int $messageId, string $echoareaTag, ?string $domain, ?int $excludeQwkUplinkId = null, bool $applyGates = true): void
+    private function finalizeApprovedEchomailDelivery(int $messageId, string $echoareaTag, ?string $domain, ?int $excludeQwkMailboxId = null, bool $applyGates = true): void
     {
         $this->spoolOutboundEchomail($messageId, $echoareaTag, (string)$domain);
-        $this->queueQwkOutboundEchomail($messageId, $excludeQwkUplinkId);
+        $this->queueQwkOutboundEchomail($messageId, $excludeQwkMailboxId);
         if ($applyGates) {
-            (new \BinktermPHP\Qwk\GateProcessor($this->db, $this))->processMessageById($messageId);
+            (new \BinktermPHP\Echomail\GateProcessor($this->db, $this))->processMessageById($messageId);
         }
     }
 
-    private function queueQwkOutboundEchomail(int $messageId, ?int $excludeQwkUplinkId = null): void
+    private function queueQwkOutboundEchomail(int $messageId, ?int $excludeQwkMailboxId = null): void
     {
         $stmt = $this->db->prepare("SELECT echoarea_id FROM echomail WHERE id = ?");
         $stmt->execute([$messageId]);
@@ -3400,17 +3400,17 @@ class MessageHandler
         }
 
         $insert = $this->db->prepare("
-            INSERT INTO qwk_outbound_messages (echomail_id, uplink_id, queued_at)
+            INSERT INTO qwk_outbound_messages (echomail_id, mailbox_id, queued_at)
             VALUES (?, ?, NOW())
-            ON CONFLICT (echomail_id, uplink_id) DO NOTHING
+            ON CONFLICT (echomail_id, mailbox_id) DO NOTHING
         ");
 
         foreach ($subscriptions as $subscription) {
-            $uplinkId = (int)$subscription['uplink_id'];
-            if ($excludeQwkUplinkId !== null && $uplinkId === $excludeQwkUplinkId) {
+            $mailboxId = (int)($subscription['mailbox_id'] ?? 0);
+            if ($excludeQwkMailboxId !== null && $mailboxId === $excludeQwkMailboxId) {
                 continue;
             }
-            $insert->execute([$messageId, $uplinkId]);
+            $insert->execute([$messageId, $mailboxId]);
         }
     }
 

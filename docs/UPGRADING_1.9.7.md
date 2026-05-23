@@ -74,7 +74,6 @@ In the web interface, chat rooms now render inline media automatically, inline c
   - [Echo Areas .NA File Import](#echo-areas-na-file-import)
   - [CheeseNet Network Added](#cheesenet-network-added)
   - [New Echo Areas Load More](#new-echo-areas-load-more)
-  - [QWK FTP Root Upload](#qwk-ftp-root-upload)
 - [Auto Feed](#auto-feed-1)
   - [Reply Threading](#reply-threading)
 - [Developer Tooling](#developer-tooling-1)
@@ -726,14 +725,6 @@ The **New Echo Areas** section at the bottom of the dashboard **Mail & Areas** c
 When more than eight echo areas have been created in the past 30 days, the button is visible and fetches the next page of results, appending them to the list. It hides itself automatically once all areas have been loaded.
 
 The feature becomes available as soon as the updated files are deployed.
-
----
-
-### QWK FTP Root Upload
-
-The FTP daemon now accepts `.REP` and `.ZIP` uploads dropped directly into the FTP root (`/`) in addition to the existing `/qwk/upload/` path. Previously, uploads to the root were rejected, blocking QWK client software — such as Synchronet's `qnet-ftp.js` — that stores the reply packet in the current working directory without issuing a `CWD` command first.
-
-Clients that already target `/qwk/upload/` are unaffected. Clients that upload to root now have their packet routed through the same REP import pipeline as a `/qwk/upload/` transfer, including the same conference-map validation and deduplication checks.
 
 ---
 

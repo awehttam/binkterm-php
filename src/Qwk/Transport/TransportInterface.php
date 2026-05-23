@@ -4,7 +4,7 @@ namespace BinktermPHP\Qwk\Transport;
 
 interface TransportInterface
 {
-    public function downloadPacket(array $uplink): ?string;
+    public function downloadPacket(array $mailbox): ?string;
 
-    public function uploadPacket(array $uplink, string $localPacketPath): bool;
+    public function uploadPacket(array $mailbox, string $localPacketPath): bool;
 }

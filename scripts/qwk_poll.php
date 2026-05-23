@@ -8,9 +8,9 @@ require_once __DIR__ . '/../src/functions.php';
 
 function qwkPollShowUsage(): void
 {
-    echo "Usage: php qwk_poll.php [options] [uplink-id]\n";
+    echo "Usage: php qwk_poll.php [options] [mailbox-id]\n";
     echo "Options:\n";
-    echo "  --all             Poll all enabled QWK uplinks\n";
+    echo "  --all             Poll all enabled QWK mailboxes\n";
     echo "  --log-level=LVL   Accepted for compatibility\n";
     echo "  --log-file=FILE   Accepted for compatibility\n";
     echo "  --no-console      Accepted for compatibility\n";
@@ -83,8 +83,8 @@ try {
         exit(1);
     }
 
-    $uplinkId = (int)$positional[0];
-    $result = $poller->pollUplink($uplinkId);
+    $mailboxId = (int)$positional[0];
+    $result = $poller->pollMailbox($mailboxId);
     if ($quiet) {
         echo !empty($result['success']) ? "OK\n" : "FAIL\n";
         exit(!empty($result['success']) ? 0 : 1);

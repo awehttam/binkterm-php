@@ -59,29 +59,32 @@ your replies back to the correct echo areas.
 ## QWK Network Exchange
 
 BinktermPHP can also act as a QWK client for another BBS. In this mode the
-local system polls a remote QWK uplink, downloads that system's `.QWK` packet,
-imports mapped conferences into local echo areas, exports queued local posts as
-a `.REP`, and uploads the reply packet back to the remote host.
+local system polls a remote QWK mailbox, downloads that system's `.QWK`
+packet, imports mapped conferences into local echo areas, exports queued local
+posts as a `.REP`, and uploads the reply packet back to the remote host.
 
 This is configured from the admin web interface:
 
 1. Open **Admin → Echo Areas**.
-2. Use **QWK Uplinks** to define the remote BBS ID, FTP host, credentials, and
-   remote path.
+2. Use **QWK Mailboxes** to define the remote BBS ID, FTP host, credentials,
+   remote path, and poll schedule.
 3. Edit a local echo area and add one or more **QWK Subscriptions** mapping the
-   local area to remote conference numbers.
+   local area to remote conference numbers on that mailbox.
 4. Optionally add **Gates** to mirror imported or local traffic into other
    local areas.
 
 The transport/poll cycle is driven by `php scripts/qwk_poll.php --all` or by
-polling a single uplink ID.
+polling a single mailbox ID.
 
 Important behavior:
 
-- Inbound deduplication uses `(qwk_uplink_id, qwk_conference_number,
+- Inbound deduplication uses `(qwk_mailbox_id, qwk_conference_number,
   qwk_msg_number)`.
+- Unknown conferences are auto-created as local placeholder areas using the
+  remote conference name as the description. The sysop can later move the area
+  into the correct network domain.
 - Outbound replies preserve QWK reply threading when the parent message came
-  from the same uplink and conference.
+  from the same mailbox and conference.
 - Gated local copies use `source_msgid` to prevent loops and duplicate mirrors.
 
 ---
