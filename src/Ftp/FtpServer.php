@@ -429,6 +429,8 @@ class FtpServer implements LoopServiceInterface
             $clientId
         ));
 
+        $this->vfs->prebuildQwkPacket((array)$user, $this->clients[$clientId]);
+
         $this->sendResponse($clientId, 230, 'Login successful');
     }
 
