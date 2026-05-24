@@ -191,38 +191,56 @@ Radio login uses TOTP codes, not the web password.
 
 ## Over-the-Air Authentication Security
 
-> **Warning:** On unencrypted radio links such as AX.25/KISS, all traffic is transmitted in plain text. Any station on the same frequency can read every packet, including login commands and BBS responses.
+> **Warning:** PacketBBS over radio should not be treated as a hardened secure channel. The login step uses TOTP, but the security of the session after login depends on the underlying transport and bridge behavior.
 
-### Callsign spoofing after login
+PacketBBS authenticates the user at login time with a TOTP code, then keeps a session associated with the sender `node_id`. Whether that session is resistant to hijacking depends on how trustworthy the transport's sender identity is, and on who can read or inject traffic on that network.
 
-PacketBBS sessions are keyed by the sender `node_id` — typically the AX.25 source callsign. AX.25 provides no cryptographic proof that the source callsign in a frame matches the station that actually transmitted it. Any operator with a radio and appropriate software can set their source callsign to any value and transmit on the same frequency.
+### Sender spoofing after login
+
+On transports such as AX.25/KISS, the sender identity is typically just the source callsign or node identifier carried in the frame. AX.25 does not provide cryptographic proof that the sender identity matches the station that actually transmitted it. Any operator with suitable radio hardware and software can transmit frames using another station's callsign.
 
 This creates a session-hijacking exposure:
 
-1. A monitoring station observes a frame containing `LOGIN alice 123456` (or just observes that node `N0CALL-5` has an active session from the `WHO` response).
-2. The monitoring station transmits a frame with source callsign `N0CALL-5` addressed to the bridge.
-3. The bridge receives that spoofed frame, looks up the active session for `N0CALL-5`, and executes the command as the logged-in user.
+1. A monitoring station observes a frame containing `LOGIN alice 123456`.
+2. The monitoring station transmits a frame using the same source callsign or sender ID as the logged-in station.
+3. The bridge receives that spoofed frame, looks up the active session for that sender ID, and executes the command as the logged-in user.
 
-The TOTP code itself expires after 30 seconds, so replaying a captured login is a narrow window. However, **commands sent after login do not require a fresh code** — the session persists for up to `session_timeout_minutes`. Any spoofed frame with the correct source callsign can issue BBS commands for the duration of that session.
+The TOTP code itself expires after 30 seconds, so replaying the login is only a narrow-window risk. However, **commands sent after login do not require a fresh code**. If the transport allows sender-ID spoofing, an attacker may be able to use the session for as long as it remains active.
 
 ### Practical implications by transport
 
-| Transport | Encryption | Callsign authentication | Risk |
-|---|---|---|---|
-| AX.25 / KISS (hardware or Direwolf) | None | None — easily spoofed | High: full session hijack possible |
-| AX.25 / KISS over RF via igate | None | None | High |
-| APRS messaging | None | None | High |
-| MeshCore | Curve25519 per-packet encryption | Public key — cannot be forged without the private key | Low: cryptographically bound identity |
+| Transport | Sender identity assurance | Traffic confidentiality | Status in BinktermPHP | Risk |
+|---|---|---|---|---|
+| AX.25 / KISS (hardware or Direwolf) | None | None | Experimental | High: sender spoofing is practical, so active sessions can be hijacked |
+| AX.25 / KISS over RF via igate | None | None | Experimental | High |
+| Meshtastic | Better than AX.25 for mesh membership control, but not validated here as a secure PacketBBS transport | Shared-channel encryption; not documented here as per-recipient PacketBBS protection | Experimental and currently untested | Unknown to moderate: do not assume PacketBBS session privacy or anti-spoofing properties have been verified |
+| MeshCore | Cryptographic node identity at the radio layer | Per-packet cryptographic protection at the radio layer | Available | Lower for on-air sender spoofing; still depends on trusted bridge and endpoints |
+
+### Meshtastic note
+
+Meshtastic is **not** documented here as a fully secure PacketBBS transport, and BinktermPHP's Meshtastic bridge support is currently **experimental and untested**.
+
+Meshtastic's own documentation describes channels as groups that share a channel name and encryption key, and states that packet payloads are encrypted using the channel's shared key. It also documents that nodes can send messages directly to a specific radio. Taken together, that means direct-addressed Meshtastic messages should not be assumed to be private in the same sense as end-to-end per-recipient encryption: any node that has the same channel key may be able to decrypt the payload.
+
+In other words, Meshtastic may provide meaningful protection against casual over-the-air observation by stations that are **not** on the channel, but it should not currently be documented as providing strong private user-to-user confidentiality for PacketBBS sessions. Until this bridge path has been tested and reviewed, sysops should treat Meshtastic PacketBBS use as **experimental, untested, and not suitable for sensitive actions**.
+
+### MeshCore note
+
+MeshCore provides stronger identity guarantees on the radio link than AX.25-style transports, so it materially reduces the specific risk of over-the-air sender spoofing. That said, this does **not** make the overall PacketBBS path universally secure. A compromised bridge, stolen device, or compromised endpoint can still defeat those protections. MeshCore should be described as reducing spoofing risk, not eliminating all security risk.
 
 ### Mitigations and recommendations
 
-- **Keep `session_timeout_minutes` short** (the default of 15 minutes is a reasonable balance; consider 5–10 minutes on high-risk links).
-- **Avoid performing sensitive operations by radio on shared or high-traffic frequencies** where monitoring is likely.
-- **Treat the PacketBBS session as a shared-secret login, not a secure channel.** The TOTP authenticator verifies the user at login time; it does not protect individual commands issued within the same session.
-- **MeshCore bridges are not vulnerable to callsign spoofing** because each radio packet is signed by the sender's private key and can be verified by the receiver. Sysops operating in environments where identity matters should prefer MeshCore-capable hardware.
-- **Sysop operations** (admin commands, if any are exposed via radio) should never be performed over an unencrypted radio link.
+- **Keep `session_timeout_minutes` short.** The default of 15 minutes is reasonable; consider 5 to 10 minutes on higher-risk links.
+- **Avoid sensitive actions over untrusted or shared RF transports.**
+- **Treat PacketBBS login as authentication only, not as end-to-end command protection.**
+- **Assume AX.25/KISS traffic can be spoofed and hijacked after login.**
+- **Treat Meshtastic cautiously.** Its bridge support in this project is experimental and currently untested, and its shared-channel model should not be described as equivalent to per-user private messaging.
+- **Prefer MeshCore where sender identity assurance matters.**
+- **Do not perform sysop or other high-trust operations over radio unless you fully trust the transport, bridge, and endpoints.**
 
-This is an inherent limitation of the AX.25 protocol and is not specific to BinktermPHP. Many traditional packet BBS systems carry the same risk. Operators should understand their local RF environment and assess the likelihood of active spoofing before using authenticated PacketBBS features on the air.
+These risks are driven mostly by the underlying transport and bridge trust model, not by TOTP itself. Sysops should assess both who can inject traffic and who can decrypt traffic on their chosen radio network before enabling authenticated PacketBBS use on the air.
+
+The practical attack surface is often smaller than an Internet-facing service because an attacker usually needs to know the radio settings, use compatible equipment, and be within RF or mesh reach. This reduces casual exposure, but it should not be treated as a substitute for cryptographic identity or confidentiality.
 
 ## End-User Command Guide
 
