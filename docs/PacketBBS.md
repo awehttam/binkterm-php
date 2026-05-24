@@ -240,6 +240,8 @@ MeshCore provides stronger identity guarantees on the radio link than AX.25-styl
 
 These risks are driven mostly by the underlying transport and bridge trust model, not by TOTP itself. Sysops should assess both who can inject traffic and who can decrypt traffic on their chosen radio network before enabling authenticated PacketBBS use on the air.
 
+The practical attack surface is often smaller than an Internet-facing service because an attacker usually needs to know the radio settings, use compatible equipment, and be within RF or mesh reach. This reduces casual exposure, but it should not be treated as a substitute for cryptographic identity or confidentiality.
+
 ## End-User Command Guide
 
 PacketBBS is intentionally terse. Send `HELP` or `H` first:
