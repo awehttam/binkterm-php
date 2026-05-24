@@ -237,7 +237,7 @@ binkterm-php/
 - `/tackleissue`
 - `/usercredits-workflow`
 
-These skills are also listed in the root `CLAUDE.md` and announced at session start via `.claude/session-start.php`. When adding a new skill, register it in all three places so the workflow stays discoverable and consistent.
+These skills are also listed in the root `CLAUDE.md`. When adding a new skill, register it in both places so the workflow stays discoverable and consistent.
 
 **OpenAI Codex compatibility shim**: the repository includes an `AGENTS.md` file at the root that acts as a compatibility shim for tools that follow the `AGENTS.md` convention instead of Claude's native instruction loading. In practice, that shim points Codex back to the Claude-authored project instructions so the same rules and workflows still apply.
 
