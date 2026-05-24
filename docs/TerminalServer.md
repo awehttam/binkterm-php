@@ -53,14 +53,13 @@ Custom shells can be added by placing plugin definition files in
 - File areas browsing with ZMODEM downloads and uploads
 - Bulletins (read-only system announcements posted by admins)
 - Polls (view/vote/create where enabled)
-- Terminal shell abstraction for feature-level UI intents, with a widget-backed TUI path and a prompt-driven line shell path for narrow or low-capability sessions
+- Terminal shell abstraction for feature-level UI intents, with a widget-backed TUI path and a prompt-driven line shell path for low-capability sessions
 - Shoutbox (view/post where enabled)
 - Local chat with rooms, direct messages, online users, and moderation shortcuts
 - BBS Directory (browse other BBSes when enabled)
 - Nodelist browser (browse Fidonet nodelist entries when available)
 - Interests (tag-based content interests when enabled)
 - Door launcher integration (DOS doors, native doors, and configured door menu)
-- After a DOS door exits, the terminal server sends a soft terminal reset / normal-mode restore sequence before redrawing the BBS UI. This clears common leftover door state such as alternate-screen mode, hidden cursor, application keypad/cursor mode, and incomplete DCS/sixel parsing.
 - Who's Online display
 - Reusable public profile viewer for terminal user lookups
 - Full-screen message editor with cursor navigation and line editing controls
@@ -71,7 +70,7 @@ Custom shells can be added by placing plugin definition files in
 
 ## Features
 
-The terminal server uses a shell abstraction layer (`TuiShell` for normal-size terminals, `LineShell` for narrow or low-capability sessions) to present UI intents consistently across feature handlers. For architecture details, the widget reference, shell selection rules, style profile, and developer patterns see [Terminal Server Developer Guide](TerminalServerDevGuide.md).
+The terminal server uses a shell abstraction layer (`TuiShell` for normal-size terminals, `LineShell` for low-capability sessions) to present UI intents consistently across feature handlers. For architecture details, the widget reference, shell selection rules, style profile, and developer patterns see [Terminal Server Developer Guide](TerminalServerDevGuide.md).
 
 ### Screen-Aware Display
 
@@ -80,7 +79,6 @@ The terminal server uses a shell abstraction layer (`TuiShell` for normal-size t
 - Prevents list overflow on different terminal sizes
 - Dynamic pagination based on terminal rows
 - Terminal resize events are processed in real time during key-wait loops — the main menu re-renders immediately when the window is resized, without requiring a keypress
-- SyncTERM compatibility: when the terminal type is reported as `syncterm`, the server asks SyncTERM to disable its local bottom status line so the BBS can use the full negotiated height during resize-aware layouts
 - On narrow terminals, the fallback main-menu header truncates cleanly and prefers keeping the BBS name visible before dropping the clock
 - On short terminals, all selector screens (netmail inbox, echomail list, file areas, etc.) clip content from the **bottom** — the title row and header are always rendered first and never scrolled off. The status bar is always anchored to the last terminal row.
 - On narrow terminals, list rows are ANSI-aware truncated at the right edge so colors (bold unread, cyan row numbers, etc.) are preserved. The status bar is likewise hard-capped to one line so it cannot wrap and cause the screen to scroll.
@@ -176,7 +174,7 @@ silently omitted.
 The main menu adapts to the active shell:
 
 - **`TuiShell`** (normal-size terminals): renders a framed two-column box with section headers (Messaging, Community/Explore, Files/Settings) and a customizable color status line. Navigation is single-key — press the configured hotkey to enter a feature. When a `mainmenu.ans` or `mainmenu.sixel` art file is present, it is shown instead of the framed box. Terminal resize re-renders the menu immediately.
-- **`LineShell`** (narrow or low-capability terminals): renders a plain prompt-driven shell and keeps the rest of the session in line mode as well. Main-menu hotkeys, message lists, selector screens, checkbox pickers, confirmation prompts, paged readers, working overlays, and profile/detail views all run through line-mode render/input loops instead of falling back to framed TUI widgets. These line-mode widgets rebuild their paging and wrapping layout on terminal resize, ignore stray queued CR/LF between screens, and use prompt-based commands rather than bottom-row cursor navigation. When a `mainmenu.ans` or `mainmenu.sixel` art file is present it is shown before the menu prompt; dashboard widgets are still omitted in this mode.
+- **`LineShell`** (low-capability terminals): renders a plain prompt-driven shell and keeps the rest of the session in line mode as well. Main-menu hotkeys, message lists, selector screens, checkbox pickers, confirmation prompts, paged readers, working overlays, and profile/detail views all run through line-mode render/input loops instead of falling back to framed TUI widgets. These line-mode widgets rebuild their paging and wrapping layout on terminal resize, ignore stray queued CR/LF between screens, and use prompt-based commands rather than bottom-row cursor navigation. When a `mainmenu.ans` or `mainmenu.sixel` art file is present it is shown before the menu prompt; dashboard widgets are still omitted in this mode.
 
 The shell is selected fresh on each menu loop iteration, so a resize that moves the terminal above the TuiShell threshold (60 cols × 16 rows) will switch from the numbered list to the framed box without a reconnect.
 
