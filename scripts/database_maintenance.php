@@ -15,6 +15,7 @@ require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Database;
 use BinktermPHP\Config;
+use BinktermPHP\Binkp\SessionLogger;
 
 // Parse command line arguments
 $verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
@@ -263,9 +264,40 @@ try {
         }
     }
     // ========================================================================
-    // 8. Clean up old BinkP session log entries
+    // 8. Clean up stale active BinkP sessions
     // ========================================================================
-    echo "\n[8] Cleaning old BinkP session log entries...\n";
+    echo "\n[8] Cleaning stale active BinkP sessions...\n";
+
+    $tableCheck = $db->query("
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'binkp_session_log'
+        )
+    ");
+
+    if ($tableCheck->fetchColumn()) {
+        if ($dryRun) {
+            $stmt = $db->query("
+                SELECT COUNT(*) AS count
+                FROM binkp_session_log
+                WHERE status = 'active'
+                  AND started_at < NOW() - INTERVAL '2 minutes'
+            ");
+            $result = $stmt->fetch();
+            echo "    Would evaluate {$result['count']} older active BinkP session rows for stale-process cleanup\n";
+        } else {
+            $cleaned = SessionLogger::cleanupStaleActiveSessions();
+            $totalCleaned += $cleaned;
+            echo "    Marked $cleaned stale active BinkP session rows as failed\n";
+        }
+    } else {
+        echo "    Table 'binkp_session_log' does not exist, skipping\n";
+    }
+
+    // ========================================================================
+    // 9. Clean up old BinkP session log entries
+    // ========================================================================
+    echo "\n[9] Cleaning old BinkP session log entries...\n";
 
     $tableCheck = $db->query("
         SELECT EXISTS (
@@ -298,10 +330,10 @@ try {
     }
 
     // ========================================================================
-    // 9. PostgreSQL VACUUM and ANALYZE (if not dry run)
+    // 10. PostgreSQL VACUUM and ANALYZE (if not dry run)
     // ========================================================================
     if (!$dryRun) {
-        echo "\n[9] Running VACUUM and ANALYZE...\n";
+        echo "\n[10] Running VACUUM and ANALYZE...\n";
 
         $tables = $db->query("
             SELECT relname AS table_name
@@ -319,7 +351,7 @@ try {
             }
         }
     } else {
-        echo "\n[9] Skipping VACUUM and ANALYZE (dry run)\n";
+        echo "\n[10] Skipping VACUUM and ANALYZE (dry run)\n";
     }
 
     // ========================================================================

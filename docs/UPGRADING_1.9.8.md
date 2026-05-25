@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Web Interface](#web-interface)
+- [Developer / Infrastructure](#developer--infrastructure)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -23,6 +24,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Database bootstrap now has a minimal platform abstraction for DSN construction, session initialization, and base schema selection. PostgreSQL remains the only supported backend, but connection and setup behavior is no longer hardcoded in one place.
 - `.env` may now include `DB_DRIVER=pgsql`. PostgreSQL is still the only supported value today. This setting exists to make future backend setup work easier to isolate if it is ever pursued.
 - A new developer reference document, `docs/PostgreSQLDependencies.md`, tracks intentional PostgreSQL-specific dependencies and where they currently live.
+- BinkP session logging now closes failed session rows more aggressively and retires orphaned `active` rows whose handler process has already exited, so the admin BinkP session view no longer treats dead pre-handshake sessions as long-running live connections.
 
 ---
 
@@ -69,6 +71,18 @@ Current scope:
 - base schema path selection
 
 PostgreSQL is still the only supported platform. The new `DB_DRIVER` setting should remain `pgsql`.
+
+### BinkP Session Log Cleanup
+
+The BinkP session log now treats abnormal session termination more defensively.
+
+What changed:
+
+- the inbound and outbound BinkP session wrappers now close the session log row when a PHP `Throwable` escapes the normal handshake or transfer flow
+- the admin `active` BinkP session listing now retires older `active` rows whose recorded handler PID is no longer running
+- `scripts/database_maintenance.php` now includes a stale-session cleanup pass before age-based BinkP log retention cleanup
+
+This keeps the admin BinkP dashboard aligned with real process state when a remote peer connects, drops during handshake, and the handler process exits before the session log row was finalized.
 
 ## Upgrade Instructions
 

@@ -226,7 +226,7 @@ class BinkpServer
             }
 
             $session->close();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (isset($sessionLogger)) {
                 $sessionLogger->endSession('failed', $e->getMessage());
             }

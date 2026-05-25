@@ -428,7 +428,7 @@ class CrashmailService
 
             return $success;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error("Delivery error: " . $e->getMessage());
             $sessionLogger->endSession('failed', $e->getMessage());
             throw $e;

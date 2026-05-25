@@ -28,6 +28,7 @@ use BinktermPHP\Binkp\Config\BinkpConfig;
 class SessionLogger
 {
     private const REALTIME_PROGRESS_THROTTLE_SECONDS = 0.75;
+    private const STALE_ACTIVE_REASON = 'Session process exited without closing log entry';
 
     private $db;
     private $sessionId;
@@ -354,6 +355,10 @@ class SessionLogger
      */
     public static function getRecentSessions(int $limit = 50, array $filters = []): array
     {
+        if (($filters['status'] ?? null) === 'active') {
+            self::cleanupStaleActiveSessions();
+        }
+
         $db = Database::getInstance()->getPdo();
 
         $where = [];
@@ -402,6 +407,61 @@ class SessionLogger
         $stmt->execute($params);
 
         return array_map([self::class, 'enrichSessionRow'], $stmt->fetchAll());
+    }
+
+    /**
+     * Mark orphaned active sessions as failed when their handler process is gone.
+     *
+     * @param int $minAgeSeconds Ignore very recent rows to avoid racing live startup.
+     * @return int Number of rows updated
+     */
+    public static function cleanupStaleActiveSessions(int $minAgeSeconds = 120): int
+    {
+        $db = Database::getInstance()->getPdo();
+        $threshold = max(1, $minAgeSeconds);
+
+        $stmt = $db->prepare("
+            SELECT id, process_id
+            FROM binkp_session_log
+            WHERE status = 'active'
+              AND started_at < NOW() - (? * INTERVAL '1 second')
+            ORDER BY started_at ASC
+        ");
+        $stmt->execute([$threshold]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        if (!is_array($rows) || $rows === []) {
+            return 0;
+        }
+
+        $staleIds = [];
+        foreach ($rows as $row) {
+            $processId = isset($row['process_id']) ? (int)$row['process_id'] : 0;
+            if ($processId <= 0 || self::isProcessRunning($processId) === false) {
+                $staleIds[] = (int)$row['id'];
+            }
+        }
+
+        if ($staleIds === []) {
+            return 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($staleIds), '?'));
+        $params = array_merge(
+            [self::STALE_ACTIVE_REASON],
+            $staleIds
+        );
+
+        $update = $db->prepare("
+            UPDATE binkp_session_log
+            SET status = 'failed',
+                error_message = COALESCE(NULLIF(error_message, ''), ?),
+                ended_at = COALESCE(ended_at, CURRENT_TIMESTAMP)
+            WHERE id IN ({$placeholders})
+              AND status = 'active'
+        ");
+        $update->execute($params);
+
+        return $update->rowCount();
     }
 
     public static function getSessionById(int $id): ?array
@@ -674,6 +734,45 @@ class SessionLogger
         $stmt->execute();
 
         return $stmt->rowCount();
+    }
+
+    /**
+     * Best-effort process liveness check for the local host.
+     *
+     * @param int $pid
+     * @return bool|null True if running, false if definitely not running, null if unknown
+     */
+    private static function isProcessRunning(int $pid): ?bool
+    {
+        if ($pid <= 0) {
+            return false;
+        }
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            return null;
+        }
+
+        $procPath = '/proc/' . $pid;
+        if (is_dir($procPath)) {
+            return true;
+        }
+
+        if (function_exists('posix_kill')) {
+            if (@posix_kill($pid, 0)) {
+                return true;
+            }
+
+            if (function_exists('posix_get_last_error')) {
+                $error = posix_get_last_error();
+                if ($error === 1) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return null;
     }
 }
 
