@@ -7,7 +7,17 @@ use PDO;
 
 class BinkStream
 {
-    public static function emit(PDO $db, string $eventType, array $payload = [], ?int $userId = null, bool $adminOnly = false): ?int
+    /**
+     * Insert a realtime event row and wake listeners through the configured publisher.
+     */
+    public static function emit(
+        PDO $db,
+        string $eventType,
+        array $payload = [],
+        ?int $userId = null,
+        bool $adminOnly = false,
+        ?EventPublisherInterface $publisher = null
+    ): ?int
     {
         $stmt = $db->prepare("
             INSERT INTO sse_events (event_type, payload, user_id, admin_only)
@@ -22,15 +32,12 @@ class BinkStream
         } else {
             $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
         }
-        $stmt->bindValue(':admin_only', $adminOnly, PDO::PARAM_BOOL);
+        $stmt->bindValue(':admin_only', $adminOnly ? 'true' : 'false', PDO::PARAM_STR);
         $stmt->execute();
 
         $eventId = (int)$stmt->fetchColumn();
         if ($eventId > 0) {
-            $notifyStmt = $db->prepare("SELECT pg_notify('binkstream', :payload)");
-            $notifyStmt->bindValue(':payload', (string)$eventId, PDO::PARAM_STR);
-            $notifyStmt->execute();
-
+            ($publisher ?? new PostgresEventPublisher($db))->publish('binkstream', (string)$eventId);
             return $eventId;
         }
 

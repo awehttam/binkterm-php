@@ -20,8 +20,11 @@ use BinktermPHP\Binkp\Logger;
 use BinktermPHP\BbsConfig;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
+use BinktermPHP\Database;
 use BinktermPHP\JsdosDoorSupport;
 use BinktermPHP\FileAreaManager;
+use BinktermPHP\Realtime\PostgresSseEventMaintenance;
+use BinktermPHP\Realtime\SseEventMaintenanceInterface;
 
 class AdminDaemonServer
 {
@@ -58,8 +61,7 @@ class AdminDaemonServer
     private $udpLogSocket = null;
     private bool $shutdownRequested = false;
 
-    /** @var resource|null Raw pg_* connection used for sse_events cleanup */
-    private $pgConn = null;
+    private ?SseEventMaintenanceInterface $sseEventMaintenance = null;
 
     /** Loop iteration counter used to schedule periodic sse_events cleanup. */
     private int $loopIteration = 0;
@@ -91,7 +93,7 @@ class AdminDaemonServer
             ]);
         }
 
-        $this->initPgConnection();
+        $this->initSseEventMaintenance();
 
         $canFork = function_exists('pcntl_fork')
             && function_exists('posix_getppid')
@@ -1009,41 +1011,17 @@ class AdminDaemonServer
     }
 
     /**
-     * Open a raw pg_* connection and start listening on the 'binkstream' channel.
-     * Called once at daemon startup. Failures are logged but not fatal — the daemon
-     * continues running and PHP endpoints fall back to direct DB catch-up queries.
+     * Initialize the periodic sse_events maintenance service.
      */
-    private function initPgConnection(): void
+    private function initSseEventMaintenance(): void
     {
-        if (!function_exists('pg_connect')) {
-            $this->logger->warning('pg_connect not available — sse_events cleanup disabled');
-            return;
-        }
-
         try {
-            $cfg = \BinktermPHP\Config::getDatabaseConfig();
-            $connStr = sprintf(
-                "host=%s port=%s dbname=%s user=%s password=%s",
-                $cfg['host'], $cfg['port'], $cfg['database'],
-                $cfg['username'], $cfg['password']
-            );
-            $this->logger->debug('Admin daemon: attempting pg_connect', [
-                'host' => $cfg['host'],
-                'port' => $cfg['port'],
-                'dbname' => $cfg['database'],
-                'user' => $cfg['username'],
-            ]);
-            $this->pgConn = pg_connect($connStr);
-            if (!$this->pgConn) {
-                $this->logger->warning('Admin daemon: pg_connect failed — sse_events cleanup disabled');
-                $this->pgConn = null;
-                return;
-            }
-
-            $this->logger->info('Admin daemon: pg connection active for sse_events cleanup');
+            $db = Database::getInstance()->getPdo();
+            $this->sseEventMaintenance = new PostgresSseEventMaintenance($db);
+            $this->logger->info('Admin daemon: sse_events maintenance active');
         } catch (\Throwable $e) {
-            $this->logger->warning('Admin daemon: pg connection init failed', ['error' => $e->getMessage()]);
-            $this->pgConn = null;
+            $this->logger->warning('Admin daemon: sse_events maintenance disabled', ['error' => $e->getMessage()]);
+            $this->sseEventMaintenance = null;
         }
     }
 
@@ -1054,11 +1032,11 @@ class AdminDaemonServer
      */
     private function pruneSSEEvents(): void
     {
-        if (!$this->pgConn) {
+        if ($this->sseEventMaintenance === null) {
             return;
         }
 
-        @pg_query($this->pgConn, "DELETE FROM sse_events WHERE created_at < NOW() - INTERVAL '1 hour'");
+        $this->sseEventMaintenance->pruneOldEvents();
     }
 
     private function runCommand(array $command): array

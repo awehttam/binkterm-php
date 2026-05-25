@@ -73,9 +73,9 @@ class Installer
     {
         echo "1. Creating database tables...\n";
 
-        $schemaFile = __DIR__ . '/../database/postgresql_schema.sql';
+        $schemaFile = Database::getPlatform()->getBaseSchemaPath(dirname(__DIR__));
         if (!file_exists($schemaFile)) {
-            throw new Exception("PostgreSQL schema file not found: $schemaFile");
+            throw new Exception("Database schema file not found: $schemaFile");
         }
 
         $schema = file_get_contents($schemaFile);
@@ -141,12 +141,17 @@ class Installer
         $stmt = $this->db->prepare("
             INSERT INTO users (username, password_hash, real_name, email, is_admin, is_active)
             VALUES (?, ?, ?, ?, TRUE, TRUE)
+            RETURNING id
         ");
         
         $stmt->execute([$username, $passwordHash, $realName, $email ?: null]);
         
         // Create default user settings
-        $userId = $this->db->lastInsertId();
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $userId = $row ? (int)$row['id'] : 0;
+        if ($userId <= 0) {
+            throw new Exception('Failed to determine administrator user ID after insert');
+        }
         $stmt = $this->db->prepare("
             INSERT INTO user_settings (user_id, timezone, messages_per_page, theme) 
             VALUES (?, 'America/Los_Angeles', 25, 'light')
