@@ -139,10 +139,6 @@ return [
     'errors.echoareas.not_found_or_unchanged' => 'Echo area not found or no changes made',
     'errors.echoareas.update_failed' => 'Failed to update echo area',
     'errors.echoareas.delete_blocked_has_messages' => 'Cannot delete echo area with existing messages',
-    'errors.echoareas.delete_action_required' => 'Choose what to do with the remaining messages before deleting this echo area',
-    'errors.echoareas.delete_invalid_action' => 'Invalid delete action selected',
-    'errors.echoareas.delete_move_target_required' => 'Select a target echo area to move the remaining messages',
-    'errors.echoareas.delete_move_target_invalid' => 'Selected target echo area is invalid',
     'errors.echoareas.delete_failed' => 'Failed to delete echo area',
 
     // File Areas
@@ -726,7 +722,4 @@ return [
     'errors.meshcore.not_found' => 'Contact not found.',
     'errors.meshcore.qr_unrecognized' => 'Unrecognized QR code format.',
     'errors.meshcore.qr_camera_denied' => 'Camera access denied.',
-    'errors.qwk.uplink_not_found' => 'QWK mailbox not found',
-    'errors.qwk.invalid_uplink' => 'Invalid QWK mailbox configuration',
-    'errors.qwk.poll_failed' => 'Failed to poll QWK mailbox',
 ];

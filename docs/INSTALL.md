@@ -27,7 +27,7 @@ BinktermPHP is developed and tested on Debian-based Linux distributions, includi
 ---
 
 ## Requirements
-- **PHP 8.2+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL, GMP, FTP
+- **PHP 8.2+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL, GMP
 - **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
 - **Web Server** - Caddy, Apache, Nginx, etc.
@@ -55,7 +55,6 @@ sudo apt-get install libapache2-mod-php apache2
 
 # Install required packages
 sudo apt-get install php-zip php-mcrypt php-iconv php-mbstring php-pdo php-xml php-pgsql php-dom php-gmp postgresql composer
-# Note: php-ftp is compiled into PHP on Debian/Ubuntu by default; on other platforms a separate package may be required
 sudo apt-get install -y unzip p7zip-full
 
 # Optional: Sixel image rendering in telnet/SSH terminal reader

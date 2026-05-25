@@ -45,8 +45,6 @@ use ZipArchive;
  *
  * The conference map is persisted to qwk_download_log so that RepProcessor
  * can reverse-map conference numbers when a REP packet is later uploaded.
- *
- * Used by: Offline Reader
  */
 class QwkBuilder
 {

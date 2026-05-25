@@ -139,10 +139,6 @@ return [
     'errors.echoareas.not_found_or_unchanged' => 'Area de eco no encontrada o sin cambios',
     'errors.echoareas.update_failed' => 'No se pudo actualizar el area de eco',
     'errors.echoareas.delete_blocked_has_messages' => 'No se puede eliminar un area de eco con mensajes existentes',
-    'errors.echoareas.delete_action_required' => 'Elija que hacer con los mensajes restantes antes de eliminar esta area de eco',
-    'errors.echoareas.delete_invalid_action' => 'La accion de eliminacion seleccionada no es valida',
-    'errors.echoareas.delete_move_target_required' => 'Seleccione un area de eco de destino para mover los mensajes restantes',
-    'errors.echoareas.delete_move_target_invalid' => 'El area de eco de destino seleccionada no es valida',
     'errors.echoareas.delete_failed' => 'No se pudo eliminar el area de eco',
 
     // File Areas
@@ -724,7 +720,4 @@ return [
     'errors.meshcore.not_found' => 'Contacto no encontrado.',
     'errors.meshcore.qr_unrecognized' => 'Formato de código QR no reconocido.',
     'errors.meshcore.qr_camera_denied' => 'Acceso a la cámara denegado.',
-    'errors.qwk.uplink_not_found' => 'QWK mailbox not found',
-    'errors.qwk.invalid_uplink' => 'Invalid QWK mailbox configuration',
-    'errors.qwk.poll_failed' => 'Failed to poll QWK mailbox',
 ];

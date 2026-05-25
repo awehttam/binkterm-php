@@ -21,7 +21,6 @@ use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Admin\AdminDaemonClient;
 use BinktermPHP\Crashmail\CrashmailService;
 use BinktermPHP\Database;
-use BinktermPHP\Qwk\QwkMailboxManager;
 
 class Scheduler
 {
@@ -33,11 +32,8 @@ class Scheduler
     private $logger;
     private $client;
     private $lastPollTimes;
-    /** @var array<string,int> Unix timestamps of last scheduled QWK mailbox polls */
-    private $lastQwkPollTimes;
     private $crashmailService;
     private $db;
-    private $qwkMailboxManager;
     /** @var int Unix timestamp of last crashmail poll run */
     private $lastCrashmailPoll = 0;
     /**
@@ -58,13 +54,11 @@ class Scheduler
         $this->logger = $logger;
         $this->client = new AdminDaemonClient();
         $this->lastPollTimes = [];
-        $this->lastQwkPollTimes = [];
         $this->lastOutboundPollTimes = [];
         $this->outboundQueueActiveStates = [];
         $this->iterationPolledAddresses = [];
         $this->crashmailService = new CrashmailService();
         $this->db = Database::getInstance()->getPdo();
-        $this->qwkMailboxManager = new QwkMailboxManager($this->db);
     }
     
     public function setLogger($logger)
@@ -159,82 +153,6 @@ class Scheduler
             }
         }
         
-        return $results;
-    }
-
-    /**
-     * @return array<int,array<string,mixed>>
-     */
-    public function checkScheduledQwkPolls(): array
-    {
-        $mailboxes = array_values(array_filter(
-            $this->qwkMailboxManager->getAll(),
-            static fn(array $mailbox): bool => !empty($mailbox['enabled']) && trim((string)($mailbox['poll_schedule'] ?? '')) !== ''
-        ));
-        $pollsDue = [];
-
-        $this->log("Checking schedules for " . count($mailboxes) . " QWK mailboxes", 'DEBUG');
-
-        foreach ($mailboxes as $mailbox) {
-            $mailboxId = (int)($mailbox['id'] ?? 0);
-            $mailboxKey = $this->getQwkMailboxKey($mailboxId);
-            $label = $this->getQwkMailboxLabel($mailbox);
-            $schedule = trim((string)($mailbox['poll_schedule'] ?? ''));
-
-            $lastPolledAt = $this->parseStatusTimestampToUnix((string)($mailbox['last_polled_at'] ?? ''));
-            if ($lastPolledAt > 0 && !isset($this->lastQwkPollTimes[$mailboxKey])) {
-                $this->lastQwkPollTimes[$mailboxKey] = $lastPolledAt;
-            }
-
-            $isDue = $this->isScheduleDue($schedule, $mailboxKey, $this->lastQwkPollTimes);
-            $this->log("QWK schedule check: {$label} ({$schedule}) due=" . ($isDue ? 'yes' : 'no'), 'DEBUG');
-
-            if ($isDue) {
-                $pollsDue[] = $mailbox;
-            }
-        }
-
-        return $pollsDue;
-    }
-
-    /**
-     * @return array<string,array<string,mixed>>
-     */
-    public function processScheduledQwkPolls(): array
-    {
-        $pollsDue = $this->checkScheduledQwkPolls();
-        $results = [];
-
-        if (empty($pollsDue)) {
-            $this->log("No scheduled QWK polls due at this time", 'DEBUG');
-        }
-
-        foreach ($pollsDue as $mailbox) {
-            $mailboxId = (int)($mailbox['id'] ?? 0);
-            $mailboxKey = $this->getQwkMailboxKey($mailboxId);
-            $label = $this->getQwkMailboxLabel($mailbox);
-
-            try {
-                $this->log("Scheduled QWK poll starting for: {$label}");
-                $pollResult = $this->client->qwkPoll($mailboxId);
-                $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
-
-                $this->lastQwkPollTimes[$mailboxKey] = time();
-                $results[$label] = [
-                    'success' => $pollSuccess,
-                    'poll_result' => $pollResult,
-                ];
-                $this->log("Scheduled QWK poll completed for: {$label}");
-            } catch (\Exception $e) {
-                $this->log("Scheduled QWK poll failed for {$label}: " . $e->getMessage(), 'ERROR');
-                $results[$label] = [
-                    'success' => false,
-                    'error_code' => 'errors.qwk.poll_failed',
-                    'error' => 'Failed to poll QWK mailbox'
-                ];
-            }
-        }
-
         return $results;
     }
 
@@ -396,10 +314,9 @@ class Scheduler
         return $results;
     }
     
-    private function isScheduleDue($cronExpression, $key, ?array $lastPollTimes = null)
+    private function isScheduleDue($cronExpression, $address)
     {
-        $times = $lastPollTimes ?? $this->lastPollTimes;
-        $lastPoll = $times[$key] ?? 0;
+        $lastPoll = $this->lastPollTimes[$address] ?? 0;
         $now = time();
         
         if ($now - $lastPoll < 60) {
@@ -594,11 +511,6 @@ class Scheduler
                 if (!empty($results)) {
                     $this->log("Processed " . count($results) . " scheduled polls");
                 }
-
-                $qwkResults = $this->processScheduledQwkPolls();
-                if (!empty($qwkResults)) {
-                    $this->log("Processed " . count($qwkResults) . " scheduled QWK polls");
-                }
                 
                 $outboundResults = $this->pollIfOutbound();
                 if (!empty($outboundResults)) {
@@ -749,82 +661,6 @@ class Scheduler
         }
         
         return $status;
-    }
-
-    /**
-     * @return array<string,array<string,mixed>>
-     */
-    public function getQwkScheduleStatus(): array
-    {
-        $mailboxes = $this->qwkMailboxManager->getAll();
-        $status = [];
-
-        foreach ($mailboxes as $mailbox) {
-            $mailboxId = (int)($mailbox['id'] ?? 0);
-            $mailboxKey = $this->getQwkMailboxKey($mailboxId);
-            $label = $this->getQwkMailboxLabel($mailbox);
-            $schedule = trim((string)($mailbox['poll_schedule'] ?? ''));
-            $lastPolledAt = $this->parseStatusTimestampToUnix((string)($mailbox['last_polled_at'] ?? ''));
-            $lastPoll = $this->lastQwkPollTimes[$mailboxKey] ?? $lastPolledAt;
-
-            if ($lastPoll > 0 && !isset($this->lastQwkPollTimes[$mailboxKey])) {
-                $this->lastQwkPollTimes[$mailboxKey] = $lastPoll;
-            }
-
-            $status[$label] = [
-                'id' => $mailboxId,
-                'name' => (string)($mailbox['name'] ?? ''),
-                'bbs_id' => (string)($mailbox['bbs_id'] ?? ''),
-                'schedule' => $schedule !== '' ? $schedule : 'Manual only',
-                'enabled' => !empty($mailbox['enabled']),
-                'last_poll' => $this->formatStatusTimestamp($lastPoll, 'Never'),
-                'next_poll' => ($schedule !== '' && !empty($mailbox['enabled']))
-                    ? $this->formatStatusTimestamp($this->getNextCronTime($schedule, $lastPoll ?: time()), 'Unknown')
-                    : 'Manual only',
-                'due_now' => ($schedule !== '' && !empty($mailbox['enabled']))
-                    ? $this->isScheduleDue($schedule, $mailboxKey, $this->lastQwkPollTimes)
-                    : false,
-            ];
-        }
-
-        return $status;
-    }
-
-    private function getQwkMailboxKey(int $mailboxId): string
-    {
-        return 'qwk-mailbox-' . $mailboxId;
-    }
-
-    /**
-     * @param array<string,mixed> $mailbox
-     */
-    private function getQwkMailboxLabel(array $mailbox): string
-    {
-        $name = trim((string)($mailbox['name'] ?? ''));
-        $bbsId = trim((string)($mailbox['bbs_id'] ?? ''));
-        if ($name !== '' && $bbsId !== '') {
-            return $name . ' (' . $bbsId . ')';
-        }
-        if ($name !== '') {
-            return $name;
-        }
-        if ($bbsId !== '') {
-            return $bbsId;
-        }
-        return 'Mailbox #' . (int)($mailbox['id'] ?? 0);
-    }
-
-    private function parseStatusTimestampToUnix(string $value): int
-    {
-        if ($value === '') {
-            return 0;
-        }
-
-        try {
-            return (new \DateTimeImmutable($value))->getTimestamp();
-        } catch (\Throwable $e) {
-            return 0;
-        }
     }
 
     private function formatStatusTimestamp(int $timestamp, string $fallback): string

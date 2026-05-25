@@ -110,26 +110,13 @@ try {
     if (isset($args['status'])) {
         $scheduler = new Scheduler($config, $logger);
         $status = $scheduler->getScheduleStatus();
-        $qwkStatus = $scheduler->getQwkScheduleStatus();
         
-        echo "=== BINKP POLLING SCHEDULE STATUS ===\n";
+        echo "=== POLLING SCHEDULE STATUS ===\n";
         foreach ($status as $address => $info) {
             $dueStatus = $info['due_now'] ? 'DUE NOW' : 'Scheduled';
             $enabledStatus = $info['enabled'] ? 'Enabled' : 'Disabled';
             
             echo "\n{$address}:\n";
-            echo "  Schedule: {$info['schedule']}\n";
-            echo "  Status: {$enabledStatus} / {$dueStatus}\n";
-            echo "  Last poll: " . formatStatusTimestamp($info['last_poll']) . "\n";
-            echo "  Next poll: " . formatStatusTimestamp($info['next_poll']) . "\n";
-        }
-
-        echo "\n=== QWK MAILBOX POLLING SCHEDULE STATUS ===\n";
-        foreach ($qwkStatus as $label => $info) {
-            $dueStatus = $info['due_now'] ? 'DUE NOW' : 'Scheduled';
-            $enabledStatus = $info['enabled'] ? 'Enabled' : 'Disabled';
-
-            echo "\n{$label}:\n";
             echo "  Schedule: {$info['schedule']}\n";
             echo "  Status: {$enabledStatus} / {$dueStatus}\n";
             echo "  Last poll: " . formatStatusTimestamp($info['last_poll']) . "\n";
@@ -166,14 +153,6 @@ try {
         $schedule = $uplink['poll_schedule'] ?? '0 */4 * * *';
         $logger->info("  - {$uplink['address']} [{$status}] ({$schedule})");
     }
-
-    $qwkSchedulerStatus = $scheduler->getQwkScheduleStatus();
-    $logger->info("Configured QWK mailboxes: " . count($qwkSchedulerStatus));
-    foreach ($qwkSchedulerStatus as $label => $info) {
-        $status = !empty($info['enabled']) ? 'enabled' : 'disabled';
-        $schedule = (string)($info['schedule'] ?? 'Manual only');
-        $logger->info("  - {$label} [{$status}] ({$schedule})");
-    }
     
     if (function_exists('pcntl_async_signals')) {
         pcntl_async_signals(true);
@@ -201,15 +180,6 @@ try {
             $logger->info("Processed {$totalCount} scheduled polls ({$successCount} successful)");
         } else {
             $logger->info("No scheduled polls due at this time");
-        }
-
-        $qwkResults = $scheduler->processScheduledQwkPolls();
-        if (!empty($qwkResults)) {
-            $successCount = count(array_filter($qwkResults, function($r) { return $r['success']; }));
-            $totalCount = count($qwkResults);
-            $logger->info("Processed {$totalCount} scheduled QWK polls ({$successCount} successful)");
-        } else {
-            $logger->info("No scheduled QWK polls due at this time");
         }
         
         $outboundResults = $scheduler->pollIfOutbound();

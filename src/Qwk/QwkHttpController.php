@@ -8,11 +8,6 @@ use BinktermPHP\UserMeta;
 /**
  * Shared QWK HTTP helpers used by both session-authenticated API routes and
  * HTTP Basic Auth endpoints.
- *
- * This controller supports the local user-facing offline reader workflow:
- * QWK download generation and REP upload/import on this same BBS.
- *
- * Used by: Offline Reader
  */
 class QwkHttpController
 {

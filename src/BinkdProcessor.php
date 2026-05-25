@@ -1838,18 +1838,14 @@ class BinkdProcessor
         // Debug logging
         //$this->log("DEBUG: Writing message from: " . $fromAddress . " to: " . $toAddress);
         
-        $origParts = $this->parseFtnAddressParts($fromAddress);
-        $origZone = $origParts['zone'];
-        $origNet = $origParts['net'];
-        $origNodePoint = $origParts['node_point'];
-        $origNode = $origParts['node'];
-
+        list($origZone, $origNetNode) = explode(':', $fromAddress);
+        list($origNet, $origNodePoint) = explode('/', $origNetNode);
+        $origNode = explode('.', $origNodePoint)[0]; // Remove point if present
+        
         // Parse destination address
-        $destParts = $this->parseFtnAddressParts($toAddress);
-        $destZone = $destParts['zone'];
-        $destNet = $destParts['net'];
-        $destNodePoint = $destParts['node_point'];
-        $destNode = $destParts['node'];
+        list($destZone, $destNetNode) = explode(':', $toAddress);
+        list($destNet, $destNodePoint) = explode('/', $destNetNode);
+        $destNode = explode('.', $destNodePoint)[0]; // Remove point if present
         
         // Message text with proper FTN control lines
         $messageText = $message['message_text'];
@@ -2063,10 +2059,9 @@ class BinkdProcessor
             $messageText .= "\r";
 
             // Parse system address for SEEN-BY and PATH lines
-            $systemParts = $this->parseFtnAddressParts($systemAddress);
-            $net = $systemParts['net'];
-            $nodePoint = $systemParts['node_point'];
-            $hostNode = $systemParts['node'];
+            list($zone, $netNode) = explode(':', $systemAddress);
+            list($net, $nodePoint) = explode('/', $netNode);
+            $hostNode = explode('.', $nodePoint)[0]; // Host node without point
 
             // Add SEEN-BY line (required for echomail) - uses host node only
             $messageText .= "SEEN-BY: {$net}/{$hostNode}\r";
@@ -2082,45 +2077,6 @@ class BinkdProcessor
         }
         
         fwrite($handle, $messageText . "\0");
-    }
-
-    /**
-     * Parse an FTN address into normalized parts without emitting notices for malformed input.
-     *
-     * @return array{zone:int,net:int,node:int,point:int,node_point:string}
-     */
-    private function parseFtnAddressParts(string $address): array
-    {
-        $address = trim($address);
-        if ($address === '') {
-            return [
-                'zone' => 0,
-                'net' => 0,
-                'node' => 0,
-                'point' => 0,
-                'node_point' => '0',
-            ];
-        }
-
-        $zoneParts = explode(':', $address, 2);
-        $zone = isset($zoneParts[1]) ? (int)trim($zoneParts[0]) : 0;
-        $netNode = isset($zoneParts[1]) ? trim($zoneParts[1]) : trim($zoneParts[0]);
-
-        $netNodeParts = explode('/', $netNode, 2);
-        $net = (int)trim($netNodeParts[0]);
-        $nodePoint = isset($netNodeParts[1]) ? trim($netNodeParts[1]) : '0';
-
-        $nodePointParts = explode('.', $nodePoint, 2);
-        $node = (int)trim($nodePointParts[0]);
-        $point = isset($nodePointParts[1]) ? (int)trim($nodePointParts[1]) : 0;
-
-        return [
-            'zone' => $zone,
-            'net' => $net,
-            'node' => $node,
-            'point' => $point,
-            'node_point' => $point > 0 ? $node . '.' . $point : (string)$node,
-        ];
     }
 
     private function logPacket($filename, $direction, $status)

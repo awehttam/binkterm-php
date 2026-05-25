@@ -158,7 +158,6 @@ class EchoareaManager
                 posting_name_policy, art_format_hint, color,
                 is_active, is_local, is_sysop_only, domain, gemini_public
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING id
         ");
         $insertStmt->execute([
             $tag,
@@ -175,29 +174,7 @@ class EchoareaManager
             $geminiPublic ? 'true' : 'false',
         ]);
 
-        $row = $insertStmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? (int)$row['id'] : 0;
-    }
-
-    public function createQwkPlaceholderArea(string $conferenceName, int $conferenceNumber): int
-    {
-        $baseTag = $this->buildQwkPlaceholderTag($conferenceName, $conferenceNumber);
-        $tag = $baseTag;
-        $suffix = 2;
-        while ($this->findByTagAndDomains($tag, ['qwk'])) {
-            $tag = $this->truncateTagWithSuffix($baseTag, $suffix);
-            $suffix++;
-        }
-
-        return $this->createIfMissing([
-            'tag' => $tag,
-            'description' => trim($conferenceName) !== '' ? trim($conferenceName) : ('QWK Conference ' . $conferenceNumber),
-            'domain' => 'qwk',
-            'is_local' => false,
-            'is_active' => true,
-            'is_sysop_only' => false,
-            'gemini_public' => false,
-        ], ['qwk']);
+        return (int)$this->db->lastInsertId();
     }
 
     public function updateDescription(int $id, string $description): bool
@@ -267,24 +244,5 @@ class EchoareaManager
         }
 
         return ['(' . implode(' OR ', $parts) . ')', $params];
-    }
-
-    private function buildQwkPlaceholderTag(string $conferenceName, int $conferenceNumber): string
-    {
-        $normalized = strtoupper(trim($conferenceName));
-        $normalized = preg_replace('/[^A-Z0-9]+/', '_', $normalized ?? '');
-        $normalized = trim((string)$normalized, '_');
-        if ($normalized === '') {
-            $normalized = 'CONF_' . $conferenceNumber;
-        }
-
-        return substr('QWK_' . $normalized, 0, 50);
-    }
-
-    private function truncateTagWithSuffix(string $baseTag, int $suffix): string
-    {
-        $suffixText = '_' . $suffix;
-        $maxBaseLength = max(1, 50 - strlen($suffixText));
-        return substr($baseTag, 0, $maxBaseLength) . $suffixText;
     }
 }

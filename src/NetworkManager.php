@@ -7,7 +7,6 @@ use PDO;
 class NetworkManager
 {
     public const NETWORK_TYPE_FIDONET = 1;
-    public const NETWORK_TYPE_QWK = 2;
 
     private PDO $db;
 
@@ -220,12 +219,11 @@ class NetworkManager
     {
         $charset = trim((string)($data['default_charset'] ?? ''));
         $policy = strtolower(trim((string)($data['posting_name_policy'] ?? 'real_name')));
-        $networkType = $this->normalizeNetworkType($data['network_type'] ?? self::NETWORK_TYPE_FIDONET);
 
         return [
             'description' => trim((string)($data['description'] ?? '')) ?: null,
             'website' => trim((string)($data['website'] ?? '')) ?: null,
-            'network_type' => $networkType,
+            'network_type' => $this->normalizeNetworkType($data['network_type'] ?? self::NETWORK_TYPE_FIDONET),
             'allow_markup' => filter_var($data['allow_markup'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'allow_media' => filter_var($data['allow_media'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'default_charset' => $charset !== '' ? \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset($charset) : null,
@@ -236,7 +234,7 @@ class NetworkManager
     private function normalizeNetworkType(mixed $value): int
     {
         $type = (int)$value;
-        return in_array($type, [self::NETWORK_TYPE_FIDONET, self::NETWORK_TYPE_QWK], true) ? $type : self::NETWORK_TYPE_FIDONET;
+        return $type === self::NETWORK_TYPE_FIDONET ? $type : self::NETWORK_TYPE_FIDONET;
     }
 
     /**

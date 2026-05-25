@@ -429,8 +429,6 @@ class FtpServer implements LoopServiceInterface
             $clientId
         ));
 
-        $this->vfs->prebuildQwkPacket((array)$user, $this->clients[$clientId]);
-
         $this->sendResponse($clientId, 230, 'Login successful');
     }
 
@@ -737,10 +735,7 @@ class FtpServer implements LoopServiceInterface
         @fclose($transfer['temp_handle']);
         try {
             $targetPath = (string)$transfer['target_path'];
-            $targetExt = strtolower((string)pathinfo(basename($targetPath), PATHINFO_EXTENSION));
-            $isQwkDrop = str_starts_with($targetPath, '/qwk/upload/')
-                || (in_array($targetExt, ['rep', 'zip'], true) && substr_count($targetPath, '/') === 1);
-            if ($isQwkDrop) {
+            if (str_starts_with($targetPath, '/qwk/upload/')) {
                 $result = $this->vfs->importUploadedRep(
                     (array)$this->clients[$clientId]['user'],
                     $targetPath,
