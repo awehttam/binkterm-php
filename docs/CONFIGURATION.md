@@ -67,6 +67,7 @@ DB_PORT=5432
 DB_NAME=binktest
 DB_USER=binktest
 DB_PASS=yourpassword
+DB_DRIVER=pgsql
 DB_SSL=false
 
 # Optional SSL (uncomment if your PostgreSQL requires it)

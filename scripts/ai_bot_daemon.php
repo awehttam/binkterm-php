@@ -22,6 +22,7 @@ use BinktermPHP\AI\AiService;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
+use BinktermPHP\Realtime\PostgresEventListener;
 
 // ========================================
 // CLI Helpers
@@ -89,40 +90,6 @@ function removePidFile(string $pidFile): void
 }
 
 // ========================================
-// PostgreSQL native connection helpers
-// ========================================
-
-/**
- * Open a native pg_* connection and issue LISTEN binkstream.
- *
- * @return resource|false
- */
-function openPgListen(Logger $logger)
-{
-    if (!function_exists('pg_connect')) {
-        $logger->error('AI bot daemon requires the pgsql PHP extension (pg_connect not found)');
-        return false;
-    }
-
-    $cfg = Config::getDatabaseConfig();
-    $connStr = sprintf(
-        "host=%s port=%s dbname=%s user=%s password=%s",
-        $cfg['host'], $cfg['port'], $cfg['database'],
-        $cfg['username'], $cfg['password']
-    );
-
-    $conn = pg_connect($connStr);
-    if (!$conn) {
-        $logger->error('AI bot daemon: pg_connect failed');
-        return false;
-    }
-
-    pg_query($conn, "LISTEN binkstream");
-    $logger->info('AI bot daemon: listening on binkstream channel');
-    return $conn;
-}
-
-// ========================================
 // Main
 // ========================================
 
@@ -173,13 +140,14 @@ $chatHandler = new LocalChatActivityHandler($db, $ai, $logger);
 // Repository
 $repo = new AiBotRepository($db);
 
-// Open native pg connection for LISTEN/NOTIFY
-$pgConn = openPgListen($logger);
-if ($pgConn === false) {
+// Open realtime listener for LISTEN/NOTIFY wake-ups
+$eventListener = PostgresEventListener::fromConfiguredDatabase($logger);
+if (!$eventListener->listen('binkstream')) {
     $logger->error('AI bot daemon could not establish PostgreSQL LISTEN connection; exiting');
     removePidFile($pidFile);
     exit(1);
 }
+$logger->info('AI bot daemon: listening on binkstream channel');
 
 // Capture starting cursor so we do not replay old events on startup
 $stmt = $db->query("SELECT COALESCE(MAX(id), 0) FROM sse_events");
@@ -214,36 +182,23 @@ while (!$shutdown) {
         $logger->debug('AI bot daemon: refreshed bot list', ['active_bots' => count($bots)]);
     }
 
-    // Wait for a NOTIFY on the binkstream channel (500 ms timeout)
-    $socket  = pg_socket($pgConn);
-    $read    = [$socket];
-    $write   = null;
-    $except  = null;
-    $ready   = stream_select($read, $write, $except, 0, 500000);
-
-    if ($ready === false) {
-        // stream_select error — check if connection is still alive
-        if (pg_connection_status($pgConn) !== PGSQL_CONNECTION_OK) {
-            $logger->warning('AI bot daemon: pg connection lost, reconnecting...');
-            pg_close($pgConn);
-            sleep(2);
-            $pgConn = openPgListen($logger);
-            if ($pgConn === false) {
-                $logger->error('AI bot daemon: reconnect failed; exiting');
-                break;
-            }
+    if (!$eventListener->isHealthy()) {
+        $logger->warning('AI bot daemon: pg connection lost, reconnecting...');
+        sleep(2);
+        if (!$eventListener->reconnect()) {
+            $logger->error('AI bot daemon: reconnect failed; exiting');
+            break;
         }
-        continue;
     }
 
-    if ($ready === 0) {
-        // Timeout — no notification; loop again
+    $notifications = $eventListener->wait(500);
+    if ($notifications === []) {
         continue;
     }
 
     // Consume all pending notifications
-    while ($notify = pg_get_notify($pgConn, PGSQL_ASSOC)) {
-        $evtId = (int)($notify['payload'] ?? 0);
+    foreach ($notifications as $notificationPayload) {
+        $evtId = (int)$notificationPayload;
         if ($evtId <= $lastSseId) {
             continue;
         }
@@ -316,7 +271,5 @@ while (!$shutdown) {
 // ========================================
 
 $logger->info('AI bot daemon shutting down');
-if (is_resource($pgConn)) {
-    pg_close($pgConn);
-}
+$eventListener->close();
 removePidFile($pidFile);

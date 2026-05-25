@@ -36,22 +36,24 @@ Suggested fields for new entries:
 ### Hardcoded PostgreSQL DSN and session setup
 
 - Why PostgreSQL-specific:
-  - uses `pgsql:` DSN construction
-  - uses PostgreSQL session commands such as `SET TIME ZONE` and `SET application_name`
+  - the current platform abstraction still resolves to a PostgreSQL implementation only
+  - PostgreSQL session commands such as `SET TIME ZONE` and `SET application_name` remain PostgreSQL-specific behavior
 - Current locations:
   - `src/Database.php`
+  - `src/DatabasePlatform/PostgresPlatform.php`
 - Likely future strategy:
-  - introduce a small database platform layer for DSN construction and session initialization
+  - extend the existing platform layer with additional implementations if compatibility work is ever pursued
 - Difficulty:
   - medium
 
 ### PostgreSQL-only base schema install path
 
 - Why PostgreSQL-specific:
-  - installer loads `database/postgresql_schema.sql`
+  - the base schema path is now abstracted, but still resolves only to PostgreSQL
 - Current locations:
   - `src/Database.php`
   - `scripts/install.php`
+  - `src/DatabasePlatform/PostgresPlatform.php`
 - Likely future strategy:
   - select base schema by configured engine
   - add `database/mysql_schema.sql` only if compatibility work is ever pursued
@@ -66,7 +68,7 @@ Suggested fields for new entries:
   - depends on PostgreSQL pub/sub behavior
   - uses native PostgreSQL client functions, not generic PDO
 - Current locations:
-  - `scripts/ai_bot_daemon.php`
+  - `src/Realtime/PostgresEventListener.php`
 - Likely future strategy:
   - replace with an event transport abstraction
   - possible backends: Redis pub/sub, polling, queue daemon
@@ -78,7 +80,7 @@ Suggested fields for new entries:
 - Why PostgreSQL-specific:
   - directly calls PostgreSQL notification functions
 - Current locations:
-  - `src/Realtime/BinkStream.php`
+  - `src/Realtime/PostgresEventPublisher.php`
 - Likely future strategy:
   - notifier interface with PostgreSQL implementation now and alternative backend later
 - Difficulty:
