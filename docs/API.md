@@ -68,7 +68,7 @@ Content-Type: application/json
   - [Dashboard](#dashboard) (2)
   - [Debug](#debug) (1)
   - [Docs](#docs) (1)
-  - [Echoareas](#echoareas) (7)
+  - [Echoareas](#echoareas) (9)
   - [Fileareas](#fileareas) (10)
   - [Files](#files) (26)
   - [Freq Log](#freq-log) (1)
@@ -83,7 +83,7 @@ Content-Type: application/json
   - [Notify](#notify) (3)
   - [Pending Users](#pending-users) (4)
   - [Polls](#polls) (3)
-  - [Qwk](#qwk) (7)
+  - [Qwk](#qwk) (13)
   - [Referrals](#referrals) (2)
   - [Register](#register) (1)
   - [Shoutbox](#shoutbox) (2)
@@ -1819,6 +1819,8 @@ Rendered help documentation in HTML format.
 | `DELETE` | [`/api/echoareas/{id}`](#delete-apiechoareasid) | Yes | Delete an echo area. |
 | `GET` | [`/api/echoareas/stats`](#get-apiechoareasstats) | Yes | Get echo area statistics. |
 | `GET` | [`/api/echoareas/simple-list`](#get-apiechoareassimple-list) | Yes | Lightweight list of all echo areas for admin comboboxes. |
+| `GET` | [`/api/echoareas/{id}/qwk-config`](#get-apiechoareasidqwk-config) | Yes | Load QWK subscription and gate settings for an echo area. |
+| `PUT` | [`/api/echoareas/{id}/qwk-config`](#put-apiechoareasidqwk-config) | Yes | Replace QWK subscription and gate settings for an echo area. |
 
 #### `GET /api/echoareas`
 
@@ -1998,13 +2000,22 @@ Updated echo area
 
 **Requires authentication**
 
-Deletes an echo area only if it contains no messages. Admin-only. Returns error if area has messages; deactivation is recommended instead. Cascades delete to subscriptions and related data.
+Deletes an echo area. Admin-only. If the area still contains messages, the request must specify whether to delete those messages or move them into another echo area before the area itself is removed. Cascades delete to subscriptions and related data.
 
 **Path Parameters**
 
 | Name | Type | Description |
 |------|------|-------------|
 | `id` | integer | Echo area ID |
+
+**Request Body** _(JSON, optional)_
+
+Required when the echo area still contains messages.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message_action` | string | `delete_messages` or `move_messages` |
+| `target_echoarea_id` | integer or null | Required when `message_action` is `move_messages` |
 
 **Response** _(JSON)_
 
@@ -2019,7 +2030,7 @@ Deletion confirmation
 
 | Status | Description |
 |--------|-------------|
-| 400 | Cannot delete area with messages, or area not found |
+| 400 | Missing/invalid message action, invalid move target, or area not found |
 | 403 | Admin privileges required |
 
 ---
@@ -2061,6 +2072,75 @@ Array of echo areas
 | Field | Type | Description |
 |-------|------|-------------|
 | `echoareas` | array | List of echo area objects with id, tag, description, domain |
+
+---
+
+#### `GET /api/echoareas/{id}/qwk-config`
+
+**Requires authentication**
+
+Admin-only endpoint that returns the QWK-network configuration for one echo
+area: mapped remote conferences, local gate rules, all configured QWK mailboxes,
+and other available local areas that can be chosen as gate targets.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Echo area ID |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `subscriptions` | array | QWK conference mappings for this echo area |
+| `gates` | array | Gate definitions involving this echo area |
+| `mailboxes` | array | All configured QWK mailboxes |
+| `available_areas` | array | Other local echo areas available as gate targets |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | Admin privileges required |
+| 404 | Echo area not found |
+
+---
+
+#### `PUT /api/echoareas/{id}/qwk-config`
+
+**Requires authentication**
+
+Admin-only endpoint that atomically replaces the QWK conference subscriptions
+and local gate rules for an echo area.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Echo area ID |
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `subscriptions` | array | No | Array of `{mailbox_id, conference_tag, conference_number}` objects |
+| `gates` | array | No | Array of `{target_area_id, bidirectional}` objects |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the configuration was saved |
+| `message_code` | string | Localization key for UI success messaging |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | Admin privileges required |
+| 404 | Echo area not found |
+| 400 | Invalid configuration payload or save failure |
 
 ---
 
@@ -5879,6 +5959,12 @@ JSON object with created poll ID and details
 | `GET` | [`/api/qwk/area-selections`](#get-apiqwkarea-selections) | Yes | Retrieve user's QWK area selections and available subscriptions. |
 | `POST` | [`/api/qwk/area-selections`](#post-apiqwkarea-selections) | Yes | Save user's QWK area selection for packet generation. |
 | `GET` | [`/api/qwk/area-search`](#get-apiqwkarea-search) | Yes | Search echo areas by tag or description for QWK selection. |
+| `GET` | [`/api/qwk-mailboxes`](#get-apiqwk-mailboxes) | Yes | List configured QWK mailboxes for the admin UI. |
+| `GET` | [`/api/qwk-mailboxes/{id}`](#get-apiqwk-mailboxesid) | Yes | Load one QWK mailbox including its decrypted password for editing. |
+| `POST` | [`/api/qwk-mailboxes`](#post-apiqwk-mailboxes) | Yes | Create a QWK mailbox configuration. |
+| `PUT` | [`/api/qwk-mailboxes/{id}`](#put-apiqwk-mailboxesid) | Yes | Update a QWK mailbox configuration. |
+| `DELETE` | [`/api/qwk-mailboxes/{id}`](#delete-apiqwk-mailboxesid) | Yes | Delete a QWK mailbox configuration. |
+| `POST` | [`/api/qwk-mailboxes/{id}/poll`](#post-apiqwk-mailboxesidpoll) | Yes | Poll one QWK mailbox immediately. |
 
 #### `POST /api/qwk/upload`
 
@@ -6078,6 +6164,186 @@ Search results
 | Status | Description |
 |--------|-------------|
 | 403 | QWK feature is disabled |
+
+---
+
+#### `GET /api/qwk-mailboxes`
+
+**Requires authentication**
+
+Admin-only endpoint that lists all configured QWK mailboxes for the management
+UI. Passwords are not returned by this list endpoint.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mailboxes` | array | QWK mailbox records with status metadata |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | Admin privileges required |
+
+---
+
+#### `GET /api/qwk-mailboxes/{id}`
+
+**Requires authentication**
+
+Admin-only endpoint that returns one QWK mailbox for editing, including the
+decrypted password in `password_plain`.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | QWK mailbox ID |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mailbox` | object | Full QWK mailbox record |
+| `mailbox.password_plain` | string | Decrypted password for edit-form reuse |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | Admin privileges required |
+| 404 | QWK mailbox not found |
+
+---
+
+#### `POST /api/qwk-mailboxes`
+
+**Requires authentication**
+
+Admin-only endpoint that creates a new QWK mailbox definition.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Friendly mailbox name |
+| `bbs_id` | string | Yes | Remote 8-character QWK BBS ID |
+| `host` | string | Yes | FTP hostname |
+| `port` | integer | No | FTP port (default `21`) |
+| `username` | string | Yes | FTP username |
+| `password` | string | Yes | FTP password |
+| `ftp_remote_path` | string | No | Remote directory containing packets |
+| `poll_schedule` | string | No | Optional schedule hint |
+| `enabled` | boolean | No | Whether the uplink should be polled |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `id` | integer | New QWK mailbox ID |
+| `message_code` | string | Localization key for UI success messaging |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | Admin privileges required |
+| 400 | Invalid mailbox payload or save failure |
+
+---
+
+#### `PUT /api/qwk-mailboxes/{id}`
+
+**Requires authentication**
+
+Admin-only endpoint that updates an existing QWK mailbox. If `password` is sent
+blank, the previous password is retained.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | QWK mailbox ID |
+
+**Request Body** _(JSON)_
+
+Same shape as `POST /api/qwk-mailboxes`.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `message_code` | string | Localization key for UI success messaging |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | Admin privileges required |
+| 400 | Invalid mailbox payload or save failure |
+
+---
+
+#### `DELETE /api/qwk-mailboxes/{id}`
+
+**Requires authentication**
+
+Admin-only endpoint that deletes a configured QWK mailbox.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | QWK mailbox ID |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `message_code` | string | Localization key for UI success messaging |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | Admin privileges required |
+| 404 | QWK mailbox not found |
+
+---
+
+#### `POST /api/qwk-mailboxes/{id}/poll`
+
+**Requires authentication**
+
+Admin-only endpoint that immediately polls one QWK mailbox, imports any inbound
+packet, builds an outbound `.REP` if needed, and attempts upload.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | QWK mailbox ID |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the poll cycle completed successfully |
+| `imported` | integer | Number of inbound messages imported |
+| `skipped` | integer | Number of inbound messages skipped |
+| `uploaded` | boolean | Whether a `.REP` packet was uploaded |
+| `message_code` | string | Localization key for UI success messaging |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | Admin privileges required |
+| 400 | Poll failed |
 
 ---
 

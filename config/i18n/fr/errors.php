@@ -105,6 +105,10 @@ return [
     'errors.echoareas.not_found_or_unchanged' => 'Zone echo introuvable ou aucune modification effectuée',
     'errors.echoareas.update_failed' => 'Échec de la mise à jour de la zone echo',
     'errors.echoareas.delete_blocked_has_messages' => 'Impossible de supprimer une zone echo contenant des messages',
+    'errors.echoareas.delete_action_required' => 'Choisissez quoi faire des messages restants avant de supprimer cette zone echo',
+    'errors.echoareas.delete_invalid_action' => 'Action de suppression invalide',
+    'errors.echoareas.delete_move_target_required' => 'Sélectionnez une zone echo de destination pour déplacer les messages restants',
+    'errors.echoareas.delete_move_target_invalid' => 'La zone echo de destination sélectionnée est invalide',
     'errors.echoareas.delete_failed' => 'Échec de la suppression de la zone echo',
     'errors.fileareas.not_found' => 'Zone de fichiers introuvable',
     'errors.fileareas.create_failed' => 'Échec de la création de la zone de fichiers',
@@ -679,6 +683,9 @@ return [
     'errors.meshcore.not_found' => 'Contact introuvable.',
     'errors.meshcore.qr_unrecognized' => 'Format de QR code non reconnu.',
     'errors.meshcore.qr_camera_denied' => 'Accès à la caméra refusé.',
+    'errors.qwk.uplink_not_found' => 'QWK mailbox not found',
+    'errors.qwk.invalid_uplink' => 'Invalid QWK mailbox configuration',
+    'errors.qwk.poll_failed' => 'Failed to poll QWK mailbox',
 ];
 
 

@@ -13,6 +13,10 @@
             <i class="fas fa-file-import"></i>
             {{ t('ui.common.import', {}, locale, ['common']) }}
         </a>
+        <button class="btn btn-outline-secondary" onclick="showQwkMailboxesModal()">
+            <i class="fas fa-envelope-open-text"></i>
+            {{ t('ui.qwk.uplinks.manage', {}, locale, ['common']) }}
+        </button>
         <button class="btn btn-fidonet" onclick="showAddEchoareaModal()">
             <i class="fas fa-plus"></i>
             {{ t('ui.echoareas.add_echo_area', {}, locale, ['common']) }}
@@ -255,6 +259,34 @@
                                     </select>
                                     <div class="form-text">{{ t('ui.echoareas.allow_media_help', {}, locale, ['common']) }}</div>
                                 </div>
+
+                                <hr class="my-4">
+
+                                <div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div>
+                                            <label class="form-label mb-0">{{ t('ui.qwk.echoarea.subscriptions_title', {}, locale, ['common']) }}</label>
+                                            <div class="form-text">{{ t('ui.qwk.echoarea.subscriptions_help', {}, locale, ['common']) }}</div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addQwkSubscriptionRow()">
+                                            <i class="fas fa-plus me-1"></i>{{ t('ui.common.add', {}, locale, ['common']) }}
+                                        </button>
+                                    </div>
+                                    <div id="qwkSubscriptionsContainer" class="vstack gap-2"></div>
+                                </div>
+
+                                <div class="mt-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div>
+                                            <label class="form-label mb-0">{{ t('ui.qwk.echoarea.gates_title', {}, locale, ['common']) }}</label>
+                                            <div class="form-text">{{ t('ui.qwk.echoarea.gates_help', {}, locale, ['common']) }}</div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addGateRow()">
+                                            <i class="fas fa-plus me-1"></i>{{ t('ui.common.add', {}, locale, ['common']) }}
+                                        </button>
+                                    </div>
+                                    <div id="qwkGatesContainer" class="vstack gap-2"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -280,8 +312,24 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div id="deleteModalError" class="alert alert-danger d-none" role="alert"></div>
                 <p>{{ t('ui.echoareas.delete_confirm_prefix', {}, locale, ['common']) }} <strong id="deleteEchoareaName"></strong>?</p>
                 <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> {{ t('ui.echoareas.delete_confirm_warning', {}, locale, ['common']) }}</p>
+                <div class="mb-3">
+                    <label class="form-label" for="deleteEchoareaMessageAction">{{ t('ui.echoareas.delete_message_handling', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="deleteEchoareaMessageAction">
+                        <option value="">{{ t('ui.echoareas.select_delete_action', {}, locale, ['common']) }}</option>
+                        <option value="delete_messages">{{ t('ui.echoareas.delete_messages_action', {}, locale, ['common']) }}</option>
+                        <option value="move_messages">{{ t('ui.echoareas.move_messages_action', {}, locale, ['common']) }}</option>
+                    </select>
+                    <div class="form-text">{{ t('ui.echoareas.delete_move_note', {}, locale, ['common']) }}</div>
+                </div>
+                <div class="mb-0 d-none" id="deleteEchoareaMoveTargetGroup">
+                    <label class="form-label" for="deleteEchoareaMoveTarget">{{ t('ui.echoareas.move_messages_target', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="deleteEchoareaMoveTarget">
+                        <option value="">{{ t('ui.echoareas.select_target_area', {}, locale, ['common']) }}</option>
+                    </select>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
@@ -293,9 +341,95 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="qwkMailboxesModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.qwk.uplinks.manage', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="qwkMailboxAlert" class="alert alert-danger d-none" role="alert"></div>
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">{{ t('ui.qwk.uplinks.list_title', {}, locale, ['common']) }}</h6>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadQwkMailboxList()">
+                                <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, locale, ['common']) }}
+                            </button>
+                        </div>
+                        <div id="qwkMailboxList" class="border rounded p-2 bg-light"></div>
+                    </div>
+                    <div class="col-lg-6">
+                        <h6 class="mb-3" id="qwkMailboxFormTitle">{{ t('ui.qwk.uplinks.add_title', {}, locale, ['common']) }}</h6>
+                        <form id="qwkMailboxForm">
+                            <input type="hidden" id="qwkMailboxId">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="qwkMailboxName">{{ t('ui.common.name', {}, locale, ['common']) }}</label>
+                                    <input class="form-control" id="qwkMailboxName" required maxlength="100">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="qwkMailboxBbsId">{{ t('ui.qwk.uplinks.bbs_id', {}, locale, ['common']) }}</label>
+                                    <input class="form-control text-uppercase" id="qwkMailboxBbsId" required maxlength="8">
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label" for="qwkMailboxHost">{{ t('ui.common.hostname', {}, locale, ['common']) }}</label>
+                                    <input class="form-control" id="qwkMailboxHost" required maxlength="255">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="qwkMailboxPort">{{ t('ui.common.port', {}, locale, ['common']) }}</label>
+                                    <input type="number" class="form-control" id="qwkMailboxPort" min="1" max="65535" value="21">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="qwkMailboxUsername">{{ t('ui.common.username', {}, locale, ['common']) }}</label>
+                                    <input class="form-control" id="qwkMailboxUsername" required maxlength="100">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="qwkMailboxPassword">{{ t('ui.common.password', {}, locale, ['common']) }}</label>
+                                    <input class="form-control" id="qwkMailboxPassword" maxlength="255">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="qwkMailboxPath">{{ t('ui.qwk.uplinks.remote_path', {}, locale, ['common']) }}</label>
+                                    <input class="form-control" id="qwkMailboxPath" value="/">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="qwkMailboxSchedule">{{ t('ui.qwk.uplinks.poll_schedule', {}, locale, ['common']) }}</label>
+                                    <input class="form-control" id="qwkMailboxSchedule" placeholder="0 * * * *">
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="qwkMailboxPassiveMode" checked>
+                                        <label class="form-check-label" for="qwkMailboxPassiveMode">{{ t('ui.qwk.uplinks.passive_mode', {}, locale, ['common']) }}</label>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="qwkMailboxEnabled" checked>
+                                        <label class="form-check-label" for="qwkMailboxEnabled">{{ t('ui.common.enabled', {}, locale, ['common']) }}</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 d-flex gap-2">
+                                    <button type="button" class="btn btn-fidonet" onclick="saveQwkMailbox()">
+                                        <i class="fas fa-save me-1"></i>{{ t('ui.common.save', {}, locale, ['common']) }}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" onclick="resetQwkMailboxForm()">
+                                        {{ t('ui.common.cancel', {}, locale, ['common']) }}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
+<script src="/js/cron-builder.js"></script>
 <style>
 .color-palette {
     display: flex !important;
@@ -352,6 +486,9 @@ let pendingEchoareaTag = null;
 let pendingEchoareaDomain = null;
 let pendingEchoareaOpenHandled = false;
 let currentEchoareaInfo = null;
+let currentQwkMailboxId = null;
+let qwkMailboxCache = [];
+let availableGateAreas = [];
 const configuredNetworkDomains = {{ networks|map(n => n.domain)|json_encode|raw }};
 
 function apiError(payload, fallback) {
@@ -374,8 +511,13 @@ $(document).ready(function() {
     pendingEchoareaDomain = (params.get('domain') || '').trim().toLowerCase();
 
     loadI18nNamespaces(['common', 'errors']).then(function() {
+        CronBuilder.init('qwkMailboxSchedule');
         loadEchoareas();
         loadStats();
+    });
+
+    document.getElementById('qwkMailboxesModal').addEventListener('shown.bs.modal', function () {
+        CronBuilder.refresh('qwkMailboxSchedule');
     });
 
     // Filter change handler
@@ -693,8 +835,17 @@ function showAddEchoareaModal() {
     $('#echoareaLovlyNetSyncButton').addClass('d-none').prop('disabled', false).html(
         `<i class="fas fa-sync-alt me-1"></i>${uiT('ui.echoareas.lovlynet_sync_button', 'Sync')}`
     );
+    availableGateAreas = allEchoareas.map(area => ({
+        id: area.id,
+        tag: area.tag,
+        domain: area.domain || ''
+    }));
+    renderQwkSubscriptions([]);
+    renderGateRows([]);
     updateColorSelection('#28a745');
-    $('#echoareaModal').modal('show');
+    ensureQwkMailboxesLoaded().always(function() {
+        $('#echoareaModal').modal('show');
+    });
 }
 
 function ensureEchoareaDomainOption(domain) {
@@ -738,7 +889,9 @@ function editEchoarea(id) {
             $('#echoareaAllowMedia').val(av === null || av === undefined ? 'inherit' : (av ? 'allow' : 'deny'));
             toggleLovlyNetSyncButton(area);
             updateColorSelection(area.color || '#28a745');
-            $('#echoareaModal').modal('show');
+            loadEchoareaQwkConfig(id).always(function() {
+                $('#echoareaModal').modal('show');
+            });
         })
         .fail(function() {
             showError(uiT('ui.echoareas.load_details_failed', 'Failed to load echo area details'));
@@ -833,16 +986,24 @@ function saveEchoarea() {
         contentType: 'application/json',
         data: JSON.stringify(formData),
         success: function(response) {
-            $('#echoareaModal').modal('hide');
-            const fallbackMessage = currentEchoareaId
-                ? uiT('ui.echoareas.updated_success', 'Echo area updated successfully')
-                : uiT('ui.echoareas.created_success', 'Echo area created successfully');
-            const successMessage = window.getApiMessage
-                ? window.getApiMessage(response, fallbackMessage)
-                : fallbackMessage;
-            showSuccess(successMessage);
-            loadEchoareas();
-            loadStats();
+            const savedAreaId = currentEchoareaId || parseInt(response.id || 0, 10);
+            saveEchoareaQwkConfig(savedAreaId)
+                .done(function() {
+                    $('#echoareaModal').modal('hide');
+                    const fallbackMessage = currentEchoareaId
+                        ? uiT('ui.echoareas.updated_success', 'Echo area updated successfully')
+                        : uiT('ui.echoareas.created_success', 'Echo area created successfully');
+                    const successMessage = window.getApiMessage
+                        ? window.getApiMessage(response, fallbackMessage)
+                        : fallbackMessage;
+                    showSuccess(successMessage);
+                    loadEchoareas();
+                    loadStats();
+                })
+                .fail(function(xhr) {
+                    const error = apiError(xhr.responseJSON, uiT('errors.qwk.save_failed', 'Failed to save QWK configuration'));
+                    $('#echoareaModalError').text(error).removeClass('d-none');
+                });
         },
         error: function(xhr) {
             const error = apiError(
@@ -859,17 +1020,57 @@ function saveEchoarea() {
 function showDeleteModal(id, tag) {
     currentEchoareaId = id;
     $('#deleteEchoareaName').text(tag);
-    $('#deleteModal').modal('show');
+    $('#deleteModalError').addClass('d-none').text('');
+    $('#deleteEchoareaMessageAction').val('');
+    $('#deleteEchoareaMoveTarget').html(
+        `<option value="">${uiT('ui.echoareas.select_target_area', 'Select target area')}</option>`
+    );
+    updateDeleteEchoareaTargetState();
+    loadDeleteEchoareaTargets(id).always(function() {
+        $('#deleteModal').modal('show');
+    });
     
     $('#confirmDelete').off('click').on('click', function() {
         deleteEchoarea();
     });
 }
 
+function updateDeleteEchoareaTargetState() {
+    const shouldShow = $('#deleteEchoareaMessageAction').val() === 'move_messages';
+    $('#deleteEchoareaMoveTargetGroup').toggleClass('d-none', !shouldShow);
+}
+
+function loadDeleteEchoareaTargets(excludeId) {
+    return $.get('/api/echoareas/simple-list')
+        .done(function(data) {
+            const options = ['<option value="">' + uiT('ui.echoareas.select_target_area', 'Select target area') + '</option>'];
+            (data.echoareas || []).forEach(function(area) {
+                if (parseInt(area.id, 10) === parseInt(excludeId, 10)) {
+                    return;
+                }
+                const domain = area.domain ? ` (${escapeHtml(area.domain)})` : '';
+                options.push(`<option value="${area.id}">${escapeHtml(area.tag)}${domain}</option>`);
+            });
+            $('#deleteEchoareaMoveTarget').html(options.join(''));
+        })
+        .fail(function() {
+            $('#deleteModalError')
+                .text(uiT('ui.echoareas.delete_targets_failed', 'Failed to load target echo areas'))
+                .removeClass('d-none');
+        });
+}
+
 function deleteEchoarea() {
+    const formData = {
+        message_action: $('#deleteEchoareaMessageAction').val(),
+        target_echoarea_id: $('#deleteEchoareaMoveTarget').val() ? parseInt($('#deleteEchoareaMoveTarget').val(), 10) : null
+    };
+
     $.ajax({
         url: `/api/echoareas/${currentEchoareaId}`,
         method: 'DELETE',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
         success: function(response) {
             $('#deleteModal').modal('hide');
             const successMessage = window.getApiMessage
@@ -880,12 +1081,15 @@ function deleteEchoarea() {
             loadStats();
         },
         error: function(xhr) {
-            $('#deleteModal').modal('hide');
             const error = apiError(xhr.responseJSON, uiT('errors.echoareas.delete_failed', 'Failed to delete echo area'));
-            showError(error);
+            $('#deleteModalError').text(error).removeClass('d-none');
         }
     });
 }
+
+$('#deleteEchoareaMessageAction').on('change', function() {
+    updateDeleteEchoareaTargetState();
+});
 
 function loadStats() {
     $.get('/api/echoareas/stats')
@@ -918,6 +1122,385 @@ function updateColorSelection(color) {
     // Update selected state on swatches
     $('.color-swatch').removeClass('selected');
     $(`.color-swatch[data-color="${color}"]`).addClass('selected');
+}
+
+function ensureQwkMailboxesLoaded() {
+    if (qwkMailboxCache.length > 0) {
+        return $.Deferred().resolve(qwkMailboxCache).promise();
+    }
+
+    return $.get('/api/qwk-mailboxes')
+        .done(function(data) {
+            qwkMailboxCache = Array.isArray(data.mailboxes) ? data.mailboxes : [];
+        });
+}
+
+function loadEchoareaQwkConfig(id) {
+    return ensureQwkMailboxesLoaded().then(function() {
+        return $.get(`/api/echoareas/${id}/qwk-config`);
+    }).done(function(data) {
+            availableGateAreas = Array.isArray(data.available_areas) ? data.available_areas : [];
+            qwkMailboxCache = Array.isArray(data.mailboxes) ? data.mailboxes : qwkMailboxCache;
+            renderQwkSubscriptions(Array.isArray(data.subscriptions) ? data.subscriptions : []);
+            renderGateRows(Array.isArray(data.gates) ? data.gates : []);
+        })
+        .fail(function() {
+            renderQwkSubscriptions([]);
+            renderGateRows([]);
+        });
+}
+
+function renderQwkSubscriptions(subscriptions) {
+    const container = $('#qwkSubscriptionsContainer');
+    if (!subscriptions.length) {
+        container.html(`<div class="text-muted small">${uiT('ui.qwk.echoarea.none_configured', 'None configured')}</div>`);
+        return;
+    }
+
+    let html = '';
+    subscriptions.forEach(function(subscription) {
+        html += qwkSubscriptionRowHtml(subscription);
+    });
+    container.html(html);
+}
+
+function addQwkSubscriptionRow(subscription = {}) {
+    const container = $('#qwkSubscriptionsContainer');
+    if (container.find('.qwk-subscription-row').length === 0) {
+        container.empty();
+    }
+    container.append(qwkSubscriptionRowHtml(subscription));
+}
+
+function qwkSubscriptionRowHtml(subscription) {
+    const mailboxOptions = qwkMailboxCache.map(function(mailbox) {
+        const selected = String(subscription.mailbox_id || '') === String(mailbox.id) ? 'selected' : '';
+        return `<option value="${mailbox.id}" ${selected}>${escapeHtml(mailbox.name)} (${escapeHtml(mailbox.bbs_id || '')})</option>`;
+    }).join('');
+
+    return `
+        <div class="qwk-subscription-row border rounded p-2 bg-light">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small">${uiT('ui.qwk.echoarea.uplink_label', 'Mailbox')}</label>
+                    <select class="form-select form-select-sm qwk-mailbox-id">
+                        <option value="">${uiT('ui.qwk.echoarea.select_uplink', 'Select mailbox')}</option>
+                        ${mailboxOptions}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">${uiT('ui.qwk.echoarea.conference_tag', 'Conference Tag')}</label>
+                    <input class="form-control form-control-sm qwk-conference-tag" value="${escapeHtmlAttr(subscription.conference_tag || '')}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">${uiT('ui.qwk.echoarea.conference_number', 'Conference #')}</label>
+                    <input type="number" class="form-control form-control-sm qwk-conference-number font-monospace" min="0" step="1" inputmode="numeric" value="${escapeHtmlAttr(String(subscription.conference_number ?? ''))}">
+                </div>
+                <div class="col-md-1 d-grid">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="$(this).closest('.qwk-subscription-row').remove(); ensureQwkEmptyState();">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderGateRows(gates) {
+    const container = $('#qwkGatesContainer');
+    if (!gates.length) {
+        container.html(`<div class="text-muted small">${uiT('ui.qwk.echoarea.none_configured', 'None configured')}</div>`);
+        return;
+    }
+
+    let html = '';
+    gates.forEach(function(gate) {
+        const targetId = String(gate.source_area_id) === String(currentEchoareaId) ? gate.target_area_id : gate.source_area_id;
+        html += gateRowHtml({ target_area_id: targetId, bidirectional: gate.bidirectional });
+    });
+    container.html(html);
+}
+
+function addGateRow(gate = {}) {
+    const container = $('#qwkGatesContainer');
+    if (container.find('.qwk-gate-row').length === 0) {
+        container.empty();
+    }
+    container.append(gateRowHtml(gate));
+}
+
+function gateRowHtml(gate) {
+    const options = availableGateAreas.map(function(area) {
+        const label = area.domain ? `${area.tag}@${area.domain}` : area.tag;
+        const selected = String(gate.target_area_id || '') === String(area.id) ? 'selected' : '';
+        return `<option value="${area.id}" ${selected}>${escapeHtml(label)}</option>`;
+    }).join('');
+
+    return `
+        <div class="qwk-gate-row border rounded p-2 bg-light">
+            <div class="row g-2 align-items-end">
+                <div class="col-lg-7">
+                    <label class="form-label small">${uiT('ui.qwk.echoarea.gate_target', 'Target Area')}</label>
+                    <select class="form-select form-select-sm qwk-gate-target">
+                        <option value="">${uiT('ui.qwk.echoarea.select_gate_target', 'Select target area')}</option>
+                        ${options}
+                    </select>
+                </div>
+                <div class="col-sm-8 col-lg-3">
+                    <div class="form-check mt-sm-3 mt-lg-4">
+                        <input class="form-check-input qwk-gate-bidirectional" type="checkbox" ${gate.bidirectional !== false ? 'checked' : ''}>
+                        <label class="form-check-label small">${uiT('ui.qwk.echoarea.bidirectional', 'Bidirectional')}</label>
+                    </div>
+                </div>
+                <div class="col-sm-4 col-lg-2 d-grid">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="$(this).closest('.qwk-gate-row').remove(); ensureQwkEmptyState();">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function ensureQwkEmptyState() {
+    if ($('#qwkSubscriptionsContainer').find('.qwk-subscription-row').length === 0) {
+        renderQwkSubscriptions([]);
+    }
+    if ($('#qwkGatesContainer').find('.qwk-gate-row').length === 0) {
+        renderGateRows([]);
+    }
+}
+
+function collectEchoareaQwkConfig() {
+    const subscriptions = [];
+    $('#qwkSubscriptionsContainer .qwk-subscription-row').each(function() {
+        const mailboxId = parseInt($(this).find('.qwk-mailbox-id').val(), 10);
+        const tag = String($(this).find('.qwk-conference-tag').val() || '').trim();
+        const number = parseInt($(this).find('.qwk-conference-number').val(), 10);
+        if (mailboxId && tag !== '' && !Number.isNaN(number)) {
+            subscriptions.push({
+                mailbox_id: mailboxId,
+                conference_tag: tag,
+                conference_number: number
+            });
+        }
+    });
+
+    const gates = [];
+    $('#qwkGatesContainer .qwk-gate-row').each(function() {
+        const targetId = parseInt($(this).find('.qwk-gate-target').val(), 10);
+        if (targetId) {
+            gates.push({
+                target_area_id: targetId,
+                bidirectional: $(this).find('.qwk-gate-bidirectional').is(':checked')
+            });
+        }
+    });
+
+    return { subscriptions, gates };
+}
+
+function saveEchoareaQwkConfig(echoareaId) {
+    if (!echoareaId) {
+        return $.Deferred().resolve().promise();
+    }
+
+    return $.ajax({
+        url: `/api/echoareas/${echoareaId}/qwk-config`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(collectEchoareaQwkConfig())
+    });
+}
+
+function showQwkMailboxesModal() {
+    resetQwkMailboxForm();
+    $('#qwkMailboxAlert').addClass('d-none').text('');
+    $('#qwkMailboxesModal').modal('show');
+    loadQwkMailboxList();
+}
+
+function resetQwkMailboxForm() {
+    currentQwkMailboxId = null;
+    $('#qwkMailboxForm')[0].reset();
+    $('#qwkMailboxFormTitle').text(uiT('ui.qwk.uplinks.add_title', 'Add QWK Mailbox'));
+    $('#qwkMailboxPort').val(21);
+    $('#qwkMailboxPath').val('/');
+    $('#qwkMailboxPassiveMode').prop('checked', true);
+    $('#qwkMailboxEnabled').prop('checked', true);
+}
+
+function loadQwkMailboxList() {
+    $('#qwkMailboxList').html(`<div class="text-muted">${uiT('ui.common.loading', 'Loading...')}</div>`);
+    $.get('/api/qwk-mailboxes')
+        .done(function(data) {
+            qwkMailboxCache = Array.isArray(data.mailboxes) ? data.mailboxes : [];
+            renderQwkMailboxList();
+        })
+        .fail(function() {
+            $('#qwkMailboxList').html(`<div class="text-danger">${uiT('ui.qwk.uplinks.load_failed', 'Failed to load QWK mailboxes')}</div>`);
+        });
+}
+
+function renderQwkMailboxList() {
+    const container = $('#qwkMailboxList');
+    if (!qwkMailboxCache.length) {
+        container.html(`<div class="text-muted">${uiT('ui.qwk.uplinks.none', 'No QWK mailboxes configured')}</div>`);
+        return;
+    }
+
+    let html = '<div class="list-group">';
+    qwkMailboxCache.forEach(function(mailbox) {
+        html += `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <div class="fw-bold">${escapeHtml(mailbox.name)}</div>
+                        <div class="small text-muted">${escapeHtml(mailbox.host)}:${mailbox.port} · ${escapeHtml(mailbox.bbs_id || '')}</div>
+                        ${mailbox.last_polled_at ? `<div class="small text-muted">${uiT('ui.qwk.uplinks.last_polled', 'Last polled')}: ${escapeHtml(mailbox.last_polled_at)}</div>` : ''}
+                        ${mailbox.last_error ? `<div class="small text-danger">${escapeHtml(mailbox.last_error)}</div>` : ''}
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-success" onclick="pollQwkMailbox(${mailbox.id})" title="${uiT('ui.qwk.uplinks.poll_now', 'Poll now')}"><i class="fas fa-play"></i></button>
+                        <button type="button" class="btn btn-outline-primary" onclick="editQwkMailbox(${mailbox.id})" title="${uiT('ui.common.edit', 'Edit')}"><i class="fas fa-edit"></i></button>
+                        <button type="button" class="btn btn-outline-danger" onclick="deleteQwkMailbox(${mailbox.id})" title="${uiT('ui.common.delete', 'Delete')}"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    container.html(html);
+}
+
+function editQwkMailbox(id) {
+    $.get(`/api/qwk-mailboxes/${id}`)
+        .done(function(data) {
+            const mailbox = data.mailbox;
+            currentQwkMailboxId = mailbox.id;
+            $('#qwkMailboxFormTitle').text(uiT('ui.qwk.uplinks.edit_title', 'Edit QWK Mailbox'));
+            $('#qwkMailboxName').val(mailbox.name || '');
+            $('#qwkMailboxBbsId').val(mailbox.bbs_id || '');
+            $('#qwkMailboxHost').val(mailbox.host || '');
+            $('#qwkMailboxPort').val(mailbox.port || 21);
+            $('#qwkMailboxUsername').val(mailbox.username || '');
+            $('#qwkMailboxPassword').val(mailbox.password_plain || '');
+            $('#qwkMailboxPath').val(mailbox.ftp_remote_path || '/');
+            $('#qwkMailboxPassiveMode').prop('checked', mailbox.passive_mode !== false);
+            $('#qwkMailboxSchedule').val(mailbox.poll_schedule || '');
+            $('#qwkMailboxEnabled').prop('checked', !!mailbox.enabled);
+        })
+        .fail(function(xhr) {
+            $('#qwkMailboxAlert').text(apiError(xhr.responseJSON, uiT('ui.qwk.uplinks.load_failed', 'Failed to load QWK mailboxes'))).removeClass('d-none');
+        });
+}
+
+function saveQwkMailbox() {
+    const payload = {
+        name: $('#qwkMailboxName').val(),
+        bbs_id: String($('#qwkMailboxBbsId').val() || '').toUpperCase(),
+        host: $('#qwkMailboxHost').val(),
+        port: parseInt($('#qwkMailboxPort').val(), 10) || 21,
+        username: $('#qwkMailboxUsername').val(),
+        password: $('#qwkMailboxPassword').val(),
+        ftp_remote_path: $('#qwkMailboxPath').val() || '/',
+        passive_mode: $('#qwkMailboxPassiveMode').is(':checked'),
+        poll_schedule: $('#qwkMailboxSchedule').val() || '',
+        enabled: $('#qwkMailboxEnabled').is(':checked')
+    };
+
+    const url = currentQwkMailboxId ? `/api/qwk-mailboxes/${currentQwkMailboxId}` : '/api/qwk-mailboxes';
+    const method = currentQwkMailboxId ? 'PUT' : 'POST';
+    $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(response) {
+            $('#qwkMailboxAlert').addClass('d-none').text('');
+            resetQwkMailboxForm();
+            loadQwkMailboxList();
+            const msg = window.getApiMessage ? window.getApiMessage(response, uiT('ui.qwk.uplinks.saved', 'QWK mailbox saved')) : uiT('ui.qwk.uplinks.saved', 'QWK mailbox saved');
+            showSuccess(msg);
+        },
+        error: function(xhr) {
+            $('#qwkMailboxAlert').text(apiError(xhr.responseJSON, uiT('ui.qwk.uplinks.save_failed', 'Failed to save QWK mailbox'))).removeClass('d-none');
+        }
+    });
+}
+
+function deleteQwkMailbox(id) {
+    if (!window.confirm(uiT('ui.qwk.uplinks.delete_confirm', 'Delete this QWK mailbox?'))) {
+        return;
+    }
+
+    $.ajax({
+        url: `/api/qwk-mailboxes/${id}`,
+        method: 'DELETE',
+        success: function(response) {
+            loadQwkMailboxList();
+            const msg = window.getApiMessage ? window.getApiMessage(response, uiT('ui.qwk.uplinks.deleted', 'QWK mailbox deleted')) : uiT('ui.qwk.uplinks.deleted', 'QWK mailbox deleted');
+            showSuccess(msg);
+        },
+        error: function(xhr) {
+            $('#qwkMailboxAlert').text(apiError(xhr.responseJSON, uiT('ui.qwk.uplinks.delete_failed', 'Failed to delete QWK mailbox'))).removeClass('d-none');
+        }
+    });
+}
+
+function pollQwkMailbox(id) {
+    setQwkMailboxAlert('info', escapeHtml(uiT('ui.qwk.uplinks.polling', 'Polling QWK mailbox...')));
+    $.ajax({
+        url: `/api/qwk-mailboxes/${id}/poll`,
+        method: 'POST',
+        success: function(response) {
+            loadQwkMailboxList();
+            setQwkMailboxAlert('success', formatQwkPollResult(response));
+        },
+        error: function(xhr) {
+            setQwkMailboxAlert('danger', escapeHtml(apiError(xhr.responseJSON, uiT('ui.qwk.uplinks.poll_failed', 'Failed to poll QWK mailbox'))));
+        }
+    });
+}
+
+function setQwkMailboxAlert(type, html) {
+    const alert = $('#qwkMailboxAlert');
+    alert
+        .removeClass('d-none alert-danger alert-success alert-info alert-warning')
+        .addClass(`alert-${type}`)
+        .html(html);
+}
+
+function formatQwkPollResult(response) {
+    const heading = window.getApiMessage
+        ? window.getApiMessage(response, uiT('ui.qwk.uplinks.polled', 'QWK mailbox polled'))
+        : uiT('ui.qwk.uplinks.polled', 'QWK mailbox polled');
+
+    const items = [];
+    const imported = Number(response && response.imported ? response.imported : 0);
+    const skipped = Number(response && response.skipped ? response.skipped : 0);
+    const downloaded = !!(response && response.downloaded);
+    const repCreated = !!(response && response.rep_created);
+    const dryRun = !!(response && response.dry_run);
+    const uploaded = !!(response && response.uploaded);
+
+    items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_download', 'Downloaded packet'))}: ${downloaded ? escapeHtml(uiT('ui.common.yes', 'Yes')) : escapeHtml(uiT('ui.common.no', 'No'))}`);
+    items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_imported', 'Imported'))}: ${imported}`);
+    items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_skipped', 'Skipped'))}: ${skipped}`);
+    items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_rep_created', 'Built REP packet'))}: ${repCreated ? escapeHtml(uiT('ui.common.yes', 'Yes')) : escapeHtml(uiT('ui.common.no', 'No'))}`);
+
+    if (dryRun) {
+        items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_uploaded', 'Uploaded REP'))}: ${escapeHtml(uiT('ui.qwk.uplinks.result_dry_run', 'Skipped (dry run)'))}`);
+    } else {
+        items.push(`${escapeHtml(uiT('ui.qwk.uplinks.result_uploaded', 'Uploaded REP'))}: ${uploaded ? escapeHtml(uiT('ui.common.yes', 'Yes')) : escapeHtml(uiT('ui.common.no', 'No'))}`);
+    }
+
+    return `
+        <div class="fw-semibold mb-1">${escapeHtml(heading)}</div>
+        <ul class="mb-0 ps-3">
+            ${items.map(item => `<li>${item}</li>`).join('')}
+        </ul>
+    `;
 }
 
 function escapeHtmlAttr(value) {

@@ -50,6 +50,8 @@ use ZipArchive;
  *  - The BBSID in the uploaded MSG filename must match this installation.
  *  - The MSG file size must be a non-zero multiple of 128 bytes.
  *  - No ZIP entry path traversal: extraction targets a controlled temp dir.
+ *
+ * Used by: Offline Reader
  */
 class RepProcessor
 {

@@ -37,6 +37,8 @@ The central table. Stores every public FTN message received or posted.
 | `kludge_lines` | Raw kludge lines from the original packet (includes `CHRS`, `TZUTC`, etc.) |
 | `message_charset` | Normalized charset for encoding/decoding (e.g. `CP437`, `UTF-8`) |
 | `art_format` | Set when the message is ANSI, Sixel, RIPscrip, etc. |
+| `qwk_mailbox_id` / `qwk_conference_number` / `qwk_msg_number` | Present on inbound QWK-network messages for deduplication and reply mapping |
+| `source_msgid` | Original upstream or gated message identifier used to prevent duplicate mirrored copies |
 
 **Key rule**: prefer `date_received` for display ordering; show `date_written` only as supplementary information (it can be wrong or in the future if the sender's clock is off). Future-dated `date_written` values are suppressed from message list queries until they are no longer in the future.
 
@@ -125,6 +127,67 @@ Imported FTN nodelist data. `nodelist` holds one row per node (zone, net, node, 
 
 One row per completed binkp session (inbound or outbound). Records duration, bytes exchanged, files transferred, and outcome. Used by the admin analytics dashboard.
 
+### `networks`
+
+Logical message networks and their posting capabilities. A QWK-capable network
+such as DoveNet can be represented here with `network_type = 2`, but transport
+credentials live separately in `qwk_mailboxes`.
+
+### `qwk_mailboxes`
+
+Remote QWK transport accounts. One mailbox can carry conferences from multiple
+logical networks.
+
+| Column | Notes |
+|--------|-------|
+| `id` | Primary key |
+| `name` | Friendly admin label |
+| `bbs_id` | Remote QWK packet ID |
+| `host` / `port` | FTP endpoint used for packet exchange |
+| `username` / `password` | Remote login credentials; password is stored encrypted |
+| `ftp_remote_path` | Remote directory containing `.QWK` and `.REP` packets |
+| `poll_schedule` | Optional scheduler hint / cron-like expression |
+| `enabled` | Whether the mailbox should be polled |
+| `last_polled_at` / `last_error` | Status from the last poll attempt |
+
+### `echo_area_qwk_subscriptions`
+
+Maps a local echo area to a conference number on a specific QWK mailbox.
+
+| Column | Notes |
+|--------|-------|
+| `echoarea_id` | FK → `echoareas.id` |
+| `mailbox_id` | FK → `qwk_mailboxes.id` |
+| `conference_tag` | Remote or admin label for the conference |
+| `conference_number` | Remote QWK conference number used in packets |
+| `auto_created` | Whether the mapping was auto-created from inbound traffic |
+
+These rows drive both directions: inbound `.QWK` import routing and outbound
+`.REP` queue generation.
+
+### `qwk_outbound_messages`
+
+Queue table for local echomail messages that still need to be exported to one
+or more QWK mailboxes.
+
+| Column | Notes |
+|--------|-------|
+| `echomail_id` | FK → `echomail.id` |
+| `mailbox_id` | FK → `qwk_mailboxes.id` |
+| `queued_at` | When the message was queued for export |
+| `sent_at` | Set after a successful `.REP` upload |
+
+### `echo_area_gates`
+
+Defines local cross-area mirroring rules for echoarea message gating across
+multiple networks and import paths.
+
+| Column | Notes |
+|--------|-------|
+| `source_area_id` | FK → `echoareas.id` |
+| `target_area_id` | FK → `echoareas.id` |
+| `bidirectional` | When true, the same row mirrors traffic both ways |
+
 ---
 
 ## Real-Time Tables
@@ -162,7 +225,8 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 | `fileareas` | File area definitions (tag, domain, description, path) |
 | `shared_files` | Files shared via the webshare system |
 | `freq_log` / `freq_outbound` | File request (FREQ) history and outbound queue |
-| `qwk_conference_state` / `qwk_message_index` | QWK offline mail reader state |
+| `qwk_conference_state` / `qwk_message_index` | Per-user QWK offline mail reader state |
+| `qwk_mailboxes` / `echo_area_qwk_subscriptions` / `qwk_outbound_messages` / `echo_area_gates` | QWK network exchange configuration, queueing, and local gating |
 | `interests` / `interest_echoareas` / `user_interest_subscriptions` | Topic-based area groupings |
 | `ai_requests` | Per-request AI usage accounting |
 | `ai_bots` / `ai_bot_activities` | AI bot definitions and activity log |

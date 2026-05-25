@@ -15,6 +15,26 @@
 
     <div class="card shadow">
         <div class="card-body">
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="networkTypeFilter">{{ t('ui.admin.networks.type', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="networkTypeFilter">
+                        <option value="">{{ t('ui.common.all', {}, locale, ['common']) }}</option>
+                        <option value="1">{{ t('ui.admin.networks.type_fidonet', {}, locale, ['common']) }}</option>
+                        <option value="2">{{ t('ui.admin.networks.type_qwk', {}, locale, ['common']) }}</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label" for="networkSearch">{{ t('ui.common.search', {}, locale, ['common']) }}</label>
+                    <input
+                        type="search"
+                        class="form-control"
+                        id="networkSearch"
+                        placeholder="{{ t('ui.admin.networks.search_placeholder', {}, locale, ['common']) }}"
+                        autocomplete="off"
+                    >
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped align-middle" id="networksTable">
                     <thead>
@@ -56,6 +76,13 @@
                                 <i class="fas fa-pen" aria-hidden="true"></i>
                             </button>
                         </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="networkType">{{ t('ui.admin.networks.type', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="networkType">
+                            <option value="1">{{ t('ui.admin.networks.type_fidonet', {}, locale, ['common']) }}</option>
+                            <option value="2">{{ t('ui.admin.networks.type_qwk', {}, locale, ['common']) }}</option>
+                        </select>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="networkName">{{ t('ui.admin.networks.name', {}, locale, ['common']) }}</label>
@@ -136,6 +163,7 @@ let networks = [];
 let networkModal;
 let domainModal;
 const NETWORK_TYPE_FIDONET = 1;
+const NETWORK_TYPE_QWK = 2;
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -147,6 +175,8 @@ function uiT(key, fallback, params = {}) {
 document.addEventListener('DOMContentLoaded', function() {
     networkModal = new bootstrap.Modal(document.getElementById('networkModal'));
     domainModal = new bootstrap.Modal(document.getElementById('domainModal'));
+    document.getElementById('networkTypeFilter').addEventListener('change', renderNetworks);
+    document.getElementById('networkSearch').addEventListener('input', renderNetworks);
     loadI18nNamespaces(['common', 'errors']).then(loadNetworks);
 });
 
@@ -166,7 +196,19 @@ function loadNetworks() {
 function renderNetworks() {
     const tbody = document.querySelector('#networksTable tbody');
     tbody.innerHTML = '';
-    networks.forEach(network => {
+    const filteredNetworks = getFilteredNetworks();
+    if (filteredNetworks.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td colspan="7" class="text-center text-muted py-4">
+                ${escapeHtml(uiT('ui.admin.networks.none', 'No networks found'))}
+            </td>
+        `;
+        tbody.appendChild(row);
+        return;
+    }
+
+    filteredNetworks.forEach(network => {
         const flags = [
             network.allow_markup ? uiT('ui.admin.networks.markup', 'Markup') : null,
             network.allow_media ? uiT('ui.admin.networks.media', 'Media') : null,
@@ -204,6 +246,35 @@ function renderNetworks() {
     });
 }
 
+function getFilteredNetworks() {
+    const selectedType = document.getElementById('networkTypeFilter')?.value || '';
+    const searchTerm = (document.getElementById('networkSearch')?.value || '').trim().toLowerCase();
+
+    return networks.filter(network => {
+        if (selectedType !== '' && String(Number(network.network_type || NETWORK_TYPE_FIDONET)) !== selectedType) {
+            return false;
+        }
+
+        if (searchTerm === '') {
+            return true;
+        }
+
+        const haystack = [
+            network.domain,
+            network.name,
+            network.description,
+            network.website,
+            getNetworkTypeLabel(network),
+            ...(Array.isArray(network.uplinks) ? network.uplinks : [])
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        return haystack.includes(searchTerm);
+    });
+}
+
 function renderNetworkUplinks(network) {
     const uplinks = Array.isArray(network.uplinks) ? network.uplinks : [];
     if (uplinks.length === 0) {
@@ -220,10 +291,19 @@ function getNetworkTypeIconClass(network) {
     if (Number(network.network_type) === NETWORK_TYPE_FIDONET) {
         return 'fas fa-dog';
     }
+    if (Number(network.network_type) === NETWORK_TYPE_QWK) {
+        return 'fas fa-envelope-open-text';
+    }
     return 'fas fa-globe';
 }
 
 function getNetworkTypeLabel(network) {
+    if (Number(network.network_type) === NETWORK_TYPE_QWK) {
+        return uiT('ui.admin.networks.type_qwk', 'QWK');
+    }
+    if (Number(network.network_type) === NETWORK_TYPE_FIDONET) {
+        return uiT('ui.admin.networks.type_fidonet', 'FidoNet');
+    }
     return network.name || network.domain || uiT('ui.admin.networks.type', 'Type');
 }
 
@@ -234,6 +314,8 @@ function openNetworkModal(id = null) {
     document.getElementById('networkDomain').value = network ? network.domain : '';
     document.getElementById('networkDomain').readOnly = !!network;
     document.getElementById('networkChangeDomainBtn').classList.toggle('d-none', !network);
+    document.getElementById('networkType').value = String(network ? (network.network_type || NETWORK_TYPE_FIDONET) : NETWORK_TYPE_FIDONET);
+    document.getElementById('networkType').disabled = !!network;
     document.getElementById('networkName').value = network ? network.name : '';
     document.getElementById('networkDescription').value = network ? (network.description || '') : '';
     document.getElementById('networkWebsite').value = network ? (network.website || '') : '';
@@ -261,6 +343,7 @@ function saveNetwork() {
         name: document.getElementById('networkName').value.trim(),
         description: document.getElementById('networkDescription').value.trim(),
         website: document.getElementById('networkWebsite').value.trim(),
+        network_type: parseInt(document.getElementById('networkType').value, 10) || NETWORK_TYPE_FIDONET,
         posting_name_policy: document.getElementById('networkPostingNamePolicy').value,
         default_charset: document.getElementById('networkDefaultCharset').value,
         allow_markup: document.getElementById('networkAllowMarkup').checked,
@@ -273,10 +356,10 @@ function saveNetwork() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                throw new Error(apiError(data, uiT('ui.admin.networks.save_failed', 'Failed to save network')));
+        .then(readApiResponse)
+        .then(({ response, data, rawText }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(apiError(data, rawText || uiT('ui.admin.networks.save_failed', 'Failed to save network')));
             }
             networkModal.hide();
             loadNetworks();
@@ -342,6 +425,16 @@ function formatDeleteNetworkError(payload) {
 }
 
 function apiError(payload, fallback) {
+    if (payload && payload.error) {
+        const genericNetworkErrorCodes = [
+            'errors.admin.networks.save_failed',
+            'errors.admin.networks.change_domain_failed',
+            'errors.admin.networks.delete_failed'
+        ];
+        if (genericNetworkErrorCodes.includes(payload.error_code)) {
+            return String(payload.error);
+        }
+    }
     if (window.getApiErrorMessage) {
         return window.getApiErrorMessage(payload, fallback);
     }
@@ -353,6 +446,38 @@ function apiMessage(payload, fallback) {
         return window.getApiMessage(payload, fallback);
     }
     return payload && payload.message ? String(payload.message) : fallback;
+}
+
+function readApiResponse(response) {
+    return response.text().then(text => {
+        let data = {};
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (error) {
+                data = {};
+            }
+        }
+
+        return {
+            response,
+            data,
+            rawText: extractApiErrorText(text)
+        };
+    });
+}
+
+function extractApiErrorText(text) {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    if (trimmed.startsWith('<')) {
+        return '';
+    }
+
+    return trimmed;
 }
 
 function showAlert(id, message, type) {

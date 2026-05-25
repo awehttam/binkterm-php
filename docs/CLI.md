@@ -22,6 +22,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Geocoding](#geocoding)
 - [Database Backup](#database-backup)
 - [Crashmail Poll](#crashmail-poll)
+- [QWK Mail Exchange Poll](#qwk-mail-exchange-poll)
 - [FREQ File Pickup](#freq-file-pickup)
 - [Outbound FREQ (File Request)](#outbound-freq-file-request)
 - [Echomail Robots](#echomail-robots)
@@ -629,6 +630,37 @@ Options:
 - `--limit=N` — Maximum items to process (default: 10)
 - `--verbose` — Show detailed output
 - `--dry-run` — Check queue without attempting delivery
+
+## QWK Mail Exchange Poll
+
+Polls configured QWK mailboxes, imports inbound `.QWK` packets into mapped
+local echo areas, builds outbound `.REP` packets from queued local posts, and
+uploads replies back to the remote BBS.
+
+This script can be run manually, and the same poller is also invoked by
+`scripts/binkp_scheduler.php` for any enabled QWK mailbox that has a
+`poll_schedule`.
+
+```bash
+# Poll all enabled QWK mailboxes
+php scripts/qwk_poll.php --all
+
+# Poll one configured QWK mailbox by numeric ID
+php scripts/qwk_poll.php 3
+
+# Quiet mode for cron jobs
+php scripts/qwk_poll.php --all --quiet
+```
+
+Options:
+- `--all` — Poll every enabled QWK mailbox
+- `--quiet` — Print only success/failure status
+- `--help` — Show usage
+- `--dry-run` — Download/import/build packets but skip REP upload
+- `--json` — Emit machine-readable JSON output
+- `--log-level=LVL` — `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`
+- `--log-file=FILE` — Log file path (default: `data/logs/qwk_poll.log`)
+- `--no-console` — Suppress console logging while still writing the log file
 
 ## FREQ File Pickup
 

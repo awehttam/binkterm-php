@@ -1729,21 +1729,22 @@ class MessageHandler
         }
 
         $isLocalArea = !empty($echoarea['is_local']);
+        $isFtnRoutable = $this->isFtnRoutableEchoarea($echoarea, (string)$domain);
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
 
-        // Determine the from address
-        $myAddress = $binkpConfig->getMyAddressByDomain($domain);
-        if (!$myAddress) {
-            if ($isLocalArea) {
-                // For local echoareas, use system address as fallback
-                $myAddress = $binkpConfig->getSystemAddress();
-            } else {
-                throw new \Exception('Can not determine sending address for this network - missing uplink?');
+        // Determine the from address. Non-FTN areas still need a stable local address
+        // for kludge generation and reply tracking, but they must not require an FTN uplink.
+        if ($isFtnRoutable) {
+            $myAddress = $binkpConfig->getMyAddressByDomain($domain);
+            if (!$myAddress) {
+                throw new \Exception('Can not determine sending address for this FTN network - missing uplink?');
             }
+        } else {
+            $myAddress = $binkpConfig->getSystemAddress();
         }
 
-        // Verify outbound directory is writable (only needed for non-local areas)
-        if (!$isLocalArea) {
+        // Verify outbound directory is writable only when this area can actually emit FTN packets.
+        if ($isFtnRoutable) {
             $outboundPath = $binkpConfig->getOutboundPath();
             if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
                 $this->logger->error("[ECHOMAIL] Outbound directory not writable: {$outboundPath}");
@@ -1893,10 +1894,120 @@ class MessageHandler
                 return 'pending';
             }
 
-            $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
+            $this->finalizeApprovedEchomailDelivery($messageId, $echoareaTag, $domain);
         }
 
         return $messageId > 0;
+    }
+
+    /**
+     * Import an externally-sourced echomail message into a local echo area.
+     *
+     * Used for QWK network exchange and gated copies. Messages imported through
+     * this path are always approved immediately and can fan out to the area's
+     * FTN uplink, QWK subscriptions, and gates.
+     *
+     * @param array<string,mixed> $data
+     */
+    public function importExternalEchomail(array $data): int
+    {
+        $echoareaId = isset($data['echoarea_id']) ? (int)$data['echoarea_id'] : 0;
+        $echoarea = $echoareaId > 0 ? $this->getEchoareaById($echoareaId) : null;
+        if (!$echoarea) {
+            $echoarea = $this->getEchoareaByTag((string)($data['echoarea_tag'] ?? ''), (string)($data['domain'] ?? ''));
+        }
+        if (!$echoarea) {
+            throw new \Exception('Echo area not found');
+        }
+
+        $domain = (string)($echoarea['domain'] ?? '');
+        $isLocalArea = !empty($echoarea['is_local']);
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $localAddress = $binkpConfig->getMyAddressByDomain($domain);
+        if (!$localAddress) {
+            $localAddress = $binkpConfig->getSystemAddress();
+        }
+
+        $fromName = trim((string)($data['from_name'] ?? 'Unknown'));
+        $toName = trim((string)($data['to_name'] ?? 'All'));
+        $subject = trim((string)($data['subject'] ?? '(no subject)'));
+        $messageText = (string)($data['message_text'] ?? '');
+        $replyToId = !empty($data['reply_to_id']) ? (int)$data['reply_to_id'] : null;
+        $sourceMsgId = trim((string)($data['source_msgid'] ?? ''));
+        $storedFromAddress = trim((string)($data['from_address'] ?? ''));
+        $packetCharset = strtoupper(trim((string)($data['charset'] ?? 'UTF-8')));
+
+        $kludgeLines = $this->generateEchomailKludges(
+            $localAddress,
+            $fromName,
+            $toName,
+            $subject,
+            (string)$echoarea['tag'],
+            $replyToId,
+            null,
+            $domain,
+            $packetCharset
+        );
+
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
+
+        $storage = $this->prepareLocalMessageStorage($messageText);
+
+        $stmt = $this->db->prepare("
+            INSERT INTO echomail (
+                echoarea_id, from_address, from_name, to_name, subject, message_text,
+                raw_message_bytes, message_charset, art_format, date_written, reply_to_id,
+                message_id, origin_line, kludge_lines, bottom_kludges, tearline_component,
+                user_id, moderation_status, qwk_mailbox_id, qwk_conference_number,
+                qwk_msg_number, source_msgid
+            )
+            VALUES (
+                :echoarea_id, :from_address, :from_name, :to_name, :subject, :message_text,
+                :raw_message_bytes, :message_charset, :art_format, NOW(), :reply_to_id,
+                :message_id, NULL, :kludge_lines, NULL, NULL,
+                NULL, 'approved', :qwk_mailbox_id, :qwk_conference_number,
+                :qwk_msg_number, :source_msgid
+            )
+            RETURNING id
+        ");
+
+        $stmt->bindValue(':echoarea_id', (int)$echoarea['id'], \PDO::PARAM_INT);
+        $stmt->bindValue(':from_address', $storedFromAddress !== '' ? $storedFromAddress : null, $storedFromAddress !== '' ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
+        $stmt->bindValue(':from_name', $fromName);
+        $stmt->bindValue(':to_name', $toName);
+        $stmt->bindValue(':subject', $subject);
+        $stmt->bindValue(':message_text', $storage['message_text']);
+        $stmt->bindValue(':raw_message_bytes', $storage['raw_message_bytes'] !== '' ? $storage['raw_message_bytes'] : null, $storage['raw_message_bytes'] !== '' ? \PDO::PARAM_LOB : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_charset', $storage['message_charset']);
+        $stmt->bindValue(':art_format', $storage['art_format']);
+        $stmt->bindValue(':reply_to_id', $replyToId, $replyToId !== null ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':message_id', $msgId);
+        $stmt->bindValue(':kludge_lines', $kludgeLines);
+        $stmt->bindValue(':qwk_mailbox_id', !empty($data['qwk_mailbox_id']) ? (int)$data['qwk_mailbox_id'] : null, !empty($data['qwk_mailbox_id']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':qwk_conference_number', isset($data['qwk_conference_number']) ? (int)$data['qwk_conference_number'] : null, isset($data['qwk_conference_number']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':qwk_msg_number', isset($data['qwk_msg_number']) ? (int)$data['qwk_msg_number'] : null, isset($data['qwk_msg_number']) ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
+        $stmt->bindValue(':source_msgid', $sourceMsgId !== '' ? $sourceMsgId : null, $sourceMsgId !== '' ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
+        $stmt->execute();
+
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $messageId = $row ? (int)$row['id'] : 0;
+        if ($messageId <= 0) {
+            return 0;
+        }
+
+        $this->incrementEchoareaCount((int)$echoarea['id'], $subject, $fromName);
+        $this->finalizeApprovedEchomailDelivery(
+            $messageId,
+            (string)$echoarea['tag'],
+            $domain,
+            isset($data['exclude_qwk_mailbox_id']) ? (int)$data['exclude_qwk_mailbox_id'] : null,
+            !array_key_exists('apply_gates', $data) || !empty($data['apply_gates'])
+        );
+
+        return $messageId;
     }
 
     /**
@@ -1949,7 +2060,7 @@ class MessageHandler
         $echoareaTag = $message['echoarea_tag'];
         $domain      = $message['echoarea_domain'] ?? '';
 
-        $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
+        $this->finalizeApprovedEchomailDelivery($messageId, $echoareaTag, $domain);
 
         // Check whether the author should be auto-promoted
         $userId = $message['user_id'] ? (int)$message['user_id'] : null;
@@ -2668,6 +2779,13 @@ class MessageHandler
         return $stmt->fetch();
     }
 
+    private function getEchoareaById(int $echoareaId)
+    {
+        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE id = ? AND is_active = TRUE");
+        $stmt->execute([$echoareaId]);
+        return $stmt->fetch();
+    }
+
     /**
      * Resolve the display/sender name used for outbound echomail posting.
      *
@@ -3189,20 +3307,37 @@ class MessageHandler
             return false;
         }
 
-        // Check if this is a local-only echoarea
+        // Local-only areas never propagate through any external transport. They remain
+        // readable in the local UI and the user's own offline-reader workflow only.
         if (!empty($message['is_local'])) {
-            //error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
             $fromName = $message['from_name'] ?? 'unknown';
             $fromAddr = $message['from_address'] ?? 'unknown';
-            \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'echomail posted (local area)', [
+            \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'echomail posted (local-only area)', [
                 'area'    => $echoareaTag,
                 'from'    => "{$fromName} <{$fromAddr}>",
                 'to'      => $message['to_name'] ?? 'All',
                 'subject' => $message['subject'] ?? '(no subject)',
                 'msgid'   => $message['message_id'] ?? '',
-                'packet'  => '(local)',
+                'packet'  => '(local-only)',
             ]);
-            return true; // Success - message stored locally, no upstream transmission needed
+            return true;
+        }
+
+        if (!$this->isFtnRoutableEchoarea($message, (string)($message['echoarea_domain'] ?? $domain))) {
+            $fromName = $message['from_name'] ?? 'unknown';
+            $fromAddr = $message['from_address'] ?? 'unknown';
+            $areaTag = $message['echoarea_tag'] ?? $echoareaTag;
+
+            \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'echomail posted (non-FTN area)', [
+                'area'    => $areaTag,
+                'from'    => "{$fromName} <{$fromAddr}>",
+                'to'      => $message['to_name'] ?? 'All',
+                'subject' => $message['subject'] ?? '(no subject)',
+                'msgid'   => $message['message_id'] ?? '',
+                'packet'  => '(no-ftn-spool)',
+            ]);
+
+            return true;
         }
 
         // Extract message details for logging
@@ -3257,6 +3392,81 @@ class MessageHandler
             $this->logger->error("[SPOOL] Failed to spool echomail #{$messageId} (area={$areaTag}, from=\"{$fromName}\", subject=\"{$subject}\"): " . $e->getMessage());
             return false;
         }
+    }
+
+    private function finalizeApprovedEchomailDelivery(int $messageId, string $echoareaTag, ?string $domain, ?int $excludeQwkMailboxId = null, bool $applyGates = true): void
+    {
+        $this->spoolOutboundEchomail($messageId, $echoareaTag, (string)$domain);
+        $this->queueQwkOutboundEchomail($messageId, $excludeQwkMailboxId);
+        if ($applyGates) {
+            (new \BinktermPHP\Echomail\GateProcessor($this->db, $this))->processMessageById($messageId);
+        }
+    }
+
+    private function queueQwkOutboundEchomail(int $messageId, ?int $excludeQwkMailboxId = null): void
+    {
+        $stmt = $this->db->prepare("
+            SELECT em.echoarea_id, ea.is_local
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            WHERE em.id = ?
+        ");
+        $stmt->execute([$messageId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $echoareaId = (int)($row['echoarea_id'] ?? 0);
+        if ($echoareaId <= 0) {
+            return;
+        }
+
+        if (!empty($row['is_local'])) {
+            return;
+        }
+
+        $subscriptions = (new \BinktermPHP\Qwk\QwkSubscriptionManager($this->db))->getSubscriptionsForArea((int)$echoareaId);
+        if ($subscriptions === []) {
+            return;
+        }
+
+        $insert = $this->db->prepare("
+            INSERT INTO qwk_outbound_messages (echomail_id, mailbox_id, queued_at)
+            VALUES (?, ?, NOW())
+            ON CONFLICT (echomail_id, mailbox_id) DO NOTHING
+        ");
+
+        foreach ($subscriptions as $subscription) {
+            $mailboxId = (int)($subscription['mailbox_id'] ?? 0);
+            if ($excludeQwkMailboxId !== null && $mailboxId === $excludeQwkMailboxId) {
+                continue;
+            }
+            $insert->execute([$messageId, $mailboxId]);
+        }
+    }
+
+    /**
+     * Local-only areas must never propagate externally. Non-local areas only
+     * emit FTN packets when their domain is backed by an FTN network type.
+     *
+     * @param array<string,mixed> $echoarea
+     */
+    private function isFtnRoutableEchoarea(array $echoarea, ?string $domain): bool
+    {
+        if (!empty($echoarea['is_local'])) {
+            return false;
+        }
+
+        $domain = strtolower(trim((string)$domain));
+        if ($domain === '') {
+            return false;
+        }
+
+        $network = (new \BinktermPHP\NetworkManager($this->db))->getByDomain($domain);
+        if ($network === null) {
+            // Legacy installations may have echo areas with a domain but no
+            // matching networks row yet. Preserve historical FTN behavior.
+            return true;
+        }
+
+        return (int)($network['network_type'] ?? 0) === \BinktermPHP\NetworkManager::NETWORK_TYPE_FIDONET;
     }
 
     /** Returns an active uplink address for a given echoarea tag and domain.  First choice is uplink in echoarea table, then to binkp.json configuration.

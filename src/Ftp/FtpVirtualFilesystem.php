@@ -55,7 +55,7 @@ class FtpVirtualFilesystem
     {
         $resolved = $this->normalizePath('/', $path);
         if ($resolved === '/') {
-            return $this->listRoot($user);
+            return $this->listRoot($user, $session);
         }
         if ($this->isAnonymousUser($user)) {
             if ($resolved === '/fileareas') {
@@ -69,7 +69,7 @@ class FtpVirtualFilesystem
             return $this->listQwkRoot();
         }
         if ($resolved === '/qwk/download') {
-            return $this->listQwkDownload($user);
+            return $this->listQwkDownload($user, $session);
         }
         if ($resolved === '/qwk/upload') {
             return $this->listQwkUpload($user);
@@ -473,6 +473,14 @@ class FtpVirtualFilesystem
         }
     }
 
+    public function prebuildQwkPacket(array $user, array &$session): void
+    {
+        if ($this->isAnonymousUser($user) || !BbsConfig::isFeatureEnabled('qwk')) {
+            return;
+        }
+        $this->ensureQwkDownloadPacket($user, $session);
+    }
+
     public function cleanupSession(array &$session): void
     {
         $packet = $session['qwk_download_packet'] ?? null;
@@ -491,11 +499,16 @@ class FtpVirtualFilesystem
     /**
      * @return array<int, array{name:string,type:string,size:int,mtime:int}>
      */
-    private function listRoot(array $user): array
+    private function listRoot(array $user, array &$session): array
     {
         $entries = [];
         if (!$this->isAnonymousUser($user) && BbsConfig::isFeatureEnabled('qwk')) {
             $entries[] = ['name' => 'qwk', 'type' => 'dir', 'size' => 0, 'mtime' => time()];
+            $metadata = $this->qwkController->getDownloadMetadata((int)$user['id']);
+            $cachedPacket = $session['qwk_download_packet'] ?? null;
+            $size = (is_array($cachedPacket) && isset($cachedPacket['filesize'])) ? (int)$cachedPacket['filesize'] : 0;
+            $mtime = (is_array($cachedPacket) && isset($cachedPacket['mtime'])) ? (int)$cachedPacket['mtime'] : time();
+            $entries[] = ['name' => $metadata['filename'], 'type' => 'file', 'size' => $size, 'mtime' => $mtime];
         }
         if (FileAreaManager::isFeatureEnabled()) {
             $entries[] = ['name' => 'fileareas', 'type' => 'dir', 'size' => 0, 'mtime' => time()];
@@ -524,18 +537,21 @@ class FtpVirtualFilesystem
     /**
      * @return array<int, array{name:string,type:string,size:int,mtime:int}>
      */
-    private function listQwkDownload(array $user): array
+    private function listQwkDownload(array $user, array &$session): array
     {
         if (!BbsConfig::isFeatureEnabled('qwk')) {
             return [];
         }
 
         $metadata = $this->qwkController->getDownloadMetadata((int)$user['id']);
+        $cachedPacket = $session['qwk_download_packet'] ?? null;
+        $size = (is_array($cachedPacket) && isset($cachedPacket['filesize'])) ? (int)$cachedPacket['filesize'] : 0;
+        $mtime = (is_array($cachedPacket) && isset($cachedPacket['mtime'])) ? (int)$cachedPacket['mtime'] : time();
         return [[
             'name' => $metadata['filename'],
             'type' => 'file',
-            'size' => 0,
-            'mtime' => time(),
+            'size' => $size,
+            'mtime' => $mtime,
         ]];
     }
 
@@ -1257,17 +1273,24 @@ class FtpVirtualFilesystem
         }
 
         $metadata = $this->qwkController->getDownloadMetadata((int)$user['id']);
-        return $path === '/qwk/download/' . $metadata['filename'];
+        return $path === '/qwk/download/' . $metadata['filename']
+            || $path === '/' . $metadata['filename'];
     }
 
     private function isQwkUploadFile(string $path): bool
     {
-        if (!str_starts_with($path, '/qwk/upload/')) {
+        $extension = strtolower((string)pathinfo(basename($path), PATHINFO_EXTENSION));
+        if (!in_array($extension, ['rep', 'zip'], true)) {
             return false;
         }
 
-        $extension = strtolower((string)pathinfo(basename($path), PATHINFO_EXTENSION));
-        return in_array($extension, ['rep', 'zip'], true);
+        // Standard path: /qwk/upload/BBSID.REP
+        if (str_starts_with($path, '/qwk/upload/')) {
+            return true;
+        }
+
+        // Root-level drop: /BBSID.REP — Synchronet's QNET-FTP uploads without CWD-ing first
+        return substr_count($path, '/') === 1;
     }
 
     /**

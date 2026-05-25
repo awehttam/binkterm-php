@@ -2347,14 +2347,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $stmt = $db->prepare("
                 INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public, allow_media)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
             ");
 
             $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia]);
 
             if ($result) {
+                $inserted = $stmt->fetch(PDO::FETCH_ASSOC);
                 echo json_encode([
                     'success' => true,
-                    'id' => $db->lastInsertId(),
+                    'id' => $inserted ? (int)$inserted['id'] : 0,
                     'message_code' => 'ui.echoareas.created_success'
                 ]);
             } else {
@@ -2500,31 +2502,129 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-
-            // Check if echo area has messages
-            $stmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE echoarea_id = ?");
-            $stmt->execute([$id]);
-            $messageCount = $stmt->fetch()['count'];
-
-            if ($messageCount > 0) {
-                throw new \Exception("Cannot delete echo area with existing messages ($messageCount messages). Deactivate instead.");
+            $payload = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($payload)) {
+                $payload = [];
             }
 
-            $stmt = $db->prepare("DELETE FROM echoareas WHERE id = ?");
-            $result = $stmt->execute([$id]);
+            $messageAction = isset($payload['message_action']) ? trim((string)$payload['message_action']) : '';
+            $targetEchoareaId = isset($payload['target_echoarea_id']) ? (int)$payload['target_echoarea_id'] : 0;
 
-            if ($result && $stmt->rowCount() > 0) {
-                echo json_encode([
-                    'success' => true,
-                    'message_code' => 'ui.echoareas.deleted_success'
+            $rebuildEchoareaStats = function (\PDO $db, int $echoareaId): void {
+                $countStmt = $db->prepare("SELECT COUNT(*) FROM echomail WHERE echoarea_id = ?");
+                $countStmt->execute([$echoareaId]);
+                $messageCount = (int)$countStmt->fetchColumn();
+
+                $latestStmt = $db->prepare("
+                    SELECT subject, from_name, date_received
+                    FROM echomail
+                    WHERE echoarea_id = ?
+                    ORDER BY date_received DESC NULLS LAST, id DESC
+                    LIMIT 1
+                ");
+                $latestStmt->execute([$echoareaId]);
+                $latest = $latestStmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+
+                $updateStmt = $db->prepare("
+                    UPDATE echoareas
+                    SET message_count = ?,
+                        last_post_subject = ?,
+                        last_post_author = ?,
+                        last_post_date = ?
+                    WHERE id = ?
+                ");
+                $updateStmt->execute([
+                    $messageCount,
+                    $latest['subject'] ?? null,
+                    $latest['from_name'] ?? null,
+                    $latest['date_received'] ?? null,
+                    $echoareaId
                 ]);
-            } else {
+            };
+
+            $db->beginTransaction();
+
+            $echoareaStmt = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+            $echoareaStmt->execute([$id]);
+            if (!$echoareaStmt->fetch(\PDO::FETCH_ASSOC)) {
                 throw new \Exception('Echo area not found');
             }
+
+            $countStmt = $db->prepare("SELECT COUNT(*) FROM echomail WHERE echoarea_id = ?");
+            $countStmt->execute([$id]);
+            $messageCount = (int)$countStmt->fetchColumn();
+
+            if ($messageCount > 0) {
+                if ($messageAction === '') {
+                    throw new \Exception('Delete action required');
+                }
+
+                if (!in_array($messageAction, ['delete_messages', 'move_messages'], true)) {
+                    throw new \Exception('Invalid delete action');
+                }
+
+                if ($messageAction === 'move_messages') {
+                    if ($targetEchoareaId <= 0) {
+                        throw new \Exception('Move target required');
+                    }
+
+                    if ($targetEchoareaId === (int)$id) {
+                        throw new \Exception('Move target invalid');
+                    }
+
+                    $targetStmt = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+                    $targetStmt->execute([$targetEchoareaId]);
+                    if (!$targetStmt->fetch(\PDO::FETCH_ASSOC)) {
+                        throw new \Exception('Move target invalid');
+                    }
+
+                    $moveStmt = $db->prepare("UPDATE echomail SET echoarea_id = ? WHERE echoarea_id = ?");
+                    $moveStmt->execute([$targetEchoareaId, $id]);
+                    $rebuildEchoareaStats($db, $targetEchoareaId);
+                } else {
+                    $messageIdsStmt = $db->prepare("SELECT id FROM echomail WHERE echoarea_id = ?");
+                    $messageIdsStmt->execute([$id]);
+                    $messageIds = array_map('intval', $messageIdsStmt->fetchAll(\PDO::FETCH_COLUMN));
+
+                    if (!empty($messageIds)) {
+                        $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+                        $clearRepliesStmt = $db->prepare("UPDATE echomail SET reply_to_id = NULL WHERE reply_to_id IN ($placeholders)");
+                        $clearRepliesStmt->execute($messageIds);
+                    }
+
+                    $deleteMessagesStmt = $db->prepare("DELETE FROM echomail WHERE echoarea_id = ?");
+                    $deleteMessagesStmt->execute([$id]);
+                }
+            }
+
+            $deleteEchoareaStmt = $db->prepare("DELETE FROM echoareas WHERE id = ?");
+            $deleteEchoareaStmt->execute([$id]);
+
+            if ($deleteEchoareaStmt->rowCount() < 1) {
+                throw new \Exception('Echo area not found');
+            }
+
+            $db->commit();
+
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.echoareas.deleted_success'
+            ]);
         } catch (\Exception $e) {
+            if (isset($db) && $db instanceof \PDO && $db->inTransaction()) {
+                $db->rollBack();
+            }
             http_response_code(400);
             $message = $e->getMessage();
-            if (str_starts_with($message, 'Cannot delete echo area with existing messages')) {
+            if ($message === 'Delete action required') {
+                apiError('errors.echoareas.delete_action_required', apiLocalizedText('errors.echoareas.delete_action_required', 'Choose what to do with remaining messages before deleting this echo area', $user));
+            } elseif ($message === 'Invalid delete action') {
+                apiError('errors.echoareas.delete_invalid_action', apiLocalizedText('errors.echoareas.delete_invalid_action', 'Invalid delete action selected', $user));
+            } elseif ($message === 'Move target required') {
+                apiError('errors.echoareas.delete_move_target_required', apiLocalizedText('errors.echoareas.delete_move_target_required', 'Select a target echo area to move the remaining messages', $user));
+            } elseif ($message === 'Move target invalid') {
+                apiError('errors.echoareas.delete_move_target_invalid', apiLocalizedText('errors.echoareas.delete_move_target_invalid', 'Selected target echo area is invalid', $user));
+            } elseif (str_starts_with($message, 'Cannot delete echo area with existing messages')) {
                 apiError('errors.echoareas.delete_blocked_has_messages', apiLocalizedText('errors.echoareas.delete_blocked_has_messages', 'Cannot delete echo area with existing messages', $user));
             } elseif ($message === 'Echo area not found') {
                 apiError('errors.echoareas.not_found', apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user));
@@ -2552,6 +2652,208 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             'today_messages' => (int)$todayMessages
         ]);
     });
+
+    SimpleRouter::get('/qwk-mailboxes', function() {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $manager = new \BinktermPHP\Qwk\QwkMailboxManager();
+        echo json_encode(['mailboxes' => $manager->getAll()]);
+    });
+
+    SimpleRouter::get('/qwk-mailboxes/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $manager = new \BinktermPHP\Qwk\QwkMailboxManager();
+        $mailbox = $manager->getById((int)$id, true);
+        if (!$mailbox) {
+            http_response_code(404);
+            apiError('errors.qwk.uplink_not_found', apiLocalizedText('errors.qwk.uplink_not_found', 'QWK mailbox not found', $user));
+        }
+
+        echo json_encode(['mailbox' => $mailbox]);
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/qwk-mailboxes', function() {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        try {
+            $manager = new \BinktermPHP\Qwk\QwkMailboxManager();
+            $id = $manager->save($input);
+            echo json_encode(['success' => true, 'id' => $id, 'message_code' => 'ui.qwk.uplinks.saved']);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_uplink', apiLocalizedText('errors.qwk.invalid_uplink', 'Invalid QWK mailbox configuration', $user));
+        } catch (\PDOException $e) {
+            http_response_code(400);
+            apiError('errors.qwk.save_failed', apiLocalizedText('errors.qwk.save_failed', 'Failed to save QWK configuration', $user));
+        }
+    });
+
+    SimpleRouter::put('/qwk-mailboxes/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        try {
+            $manager = new \BinktermPHP\Qwk\QwkMailboxManager();
+            $manager->save($input, (int)$id);
+            echo json_encode(['success' => true, 'message_code' => 'ui.qwk.uplinks.saved']);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            apiError('errors.qwk.invalid_uplink', apiLocalizedText('errors.qwk.invalid_uplink', 'Invalid QWK mailbox configuration', $user));
+        } catch (\PDOException $e) {
+            http_response_code(400);
+            apiError('errors.qwk.save_failed', apiLocalizedText('errors.qwk.save_failed', 'Failed to save QWK configuration', $user));
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::delete('/qwk-mailboxes/{id}', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $manager = new \BinktermPHP\Qwk\QwkMailboxManager();
+        if (!$manager->delete((int)$id)) {
+            http_response_code(404);
+            apiError('errors.qwk.uplink_not_found', apiLocalizedText('errors.qwk.uplink_not_found', 'QWK mailbox not found', $user));
+        }
+        echo json_encode(['success' => true, 'message_code' => 'ui.qwk.uplinks.deleted']);
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/qwk-mailboxes/{id}/poll', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->qwkPollSync((int)$id);
+            $client->close();
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            apiError(
+                'errors.qwk.poll_failed',
+                apiLocalizedText('errors.qwk.poll_failed', 'Failed to poll QWK mailbox', $user),
+                500,
+                ['detail' => $e->getMessage()]
+            );
+        }
+
+        if (empty($result['success'])) {
+            http_response_code(400);
+            apiError(
+                'errors.qwk.poll_failed',
+                apiLocalizedText('errors.qwk.poll_failed', 'Failed to poll QWK mailbox', $user),
+                400,
+                ['detail' => $result['error'] ?? null]
+            );
+        }
+
+        echo json_encode(array_merge(['message_code' => 'ui.qwk.uplinks.polled'], $result));
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/echoareas/{id}/qwk-config', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $db = Database::getInstance()->getPdo();
+        $echoareaId = (int)$id;
+
+        $check = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+        $check->execute([$echoareaId]);
+        if (!$check->fetchColumn()) {
+            http_response_code(404);
+            apiError('errors.echoareas.not_found', apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user));
+        }
+
+        $subscriptionManager = new \BinktermPHP\Qwk\QwkSubscriptionManager($db);
+        $gateProcessor = new \BinktermPHP\Echomail\GateProcessor($db);
+        $mailboxManager = new \BinktermPHP\Qwk\QwkMailboxManager($db);
+
+        $areasStmt = $db->prepare("
+            SELECT id, tag, domain, description
+            FROM echoareas
+            WHERE id <> ?
+            ORDER BY LOWER(tag), LOWER(COALESCE(domain, ''))
+        ");
+        $areasStmt->execute([$echoareaId]);
+
+        echo json_encode([
+            'subscriptions' => $subscriptionManager->getSubscriptionsForArea($echoareaId),
+            'gates' => $gateProcessor->getGatesForArea($echoareaId),
+            'mailboxes' => $mailboxManager->getAll(),
+            'available_areas' => $areasStmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+        ]);
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::put('/echoareas/{id}/qwk-config', function($id) {
+        $user = RouteHelper::requireAuth();
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.echoareas.admin_required', apiLocalizedText('errors.echoareas.admin_required', 'Admin privileges are required', $user));
+        }
+
+        header('Content-Type: application/json');
+        $db = Database::getInstance()->getPdo();
+        $echoareaId = (int)$id;
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $check = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+        $check->execute([$echoareaId]);
+        if (!$check->fetchColumn()) {
+            http_response_code(404);
+            apiError('errors.echoareas.not_found', apiLocalizedText('errors.echoareas.not_found', 'Echo area not found', $user));
+        }
+
+        $subscriptions = is_array($input['subscriptions'] ?? null) ? $input['subscriptions'] : [];
+        $gates = is_array($input['gates'] ?? null) ? $input['gates'] : [];
+
+        try {
+            $db->beginTransaction();
+            (new \BinktermPHP\Qwk\QwkSubscriptionManager($db))->replaceAreaSubscriptions($echoareaId, $subscriptions);
+            (new \BinktermPHP\Echomail\GateProcessor($db))->replaceAreaGates($echoareaId, $gates);
+            $db->commit();
+            echo json_encode(['success' => true, 'message_code' => 'ui.qwk.echoarea_config_saved']);
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            http_response_code(400);
+            apiError('errors.qwk.save_failed', apiLocalizedText('errors.qwk.save_failed', 'Failed to save QWK configuration', $user));
+        }
+    })->where(['id' => '[0-9]+']);
 
     // File Areas API routes
     SimpleRouter::get('/fileareas', function() {
@@ -6859,7 +7161,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 http_response_code(500);
                 apiError('errors.messages.send.failed', apiLocalizedText('errors.messages.send.failed', 'Failed to send message', $user));
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             getServerLogger()->error('[SEND] Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             http_response_code(500);
             apiError('errors.messages.send.exception', apiLocalizedText('errors.messages.send.exception', 'Failed to send message', $user));

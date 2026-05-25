@@ -7,6 +7,8 @@ application, then reconnect and upload the reply packet. BinktermPHP supports
 the standard QWK format and the QWKE (QWK Extended) variant which carries full
 FidoNet metadata.
 
+For information on InterBBS QWK networking see [QWK Networking](QWKNetworking.md).
+
 ## Table of Contents
 
 - [How It Works](#how-it-works)
@@ -25,15 +27,17 @@ FidoNet metadata.
   - [Deduplication](#deduplication)
   - [Reply Threading](#reply-threading)
 - [API Endpoints](#api-endpoints)
+- [Related Docs](#related-docs)
 - [Recommended Readers](#recommended-readers)
 
 ---
 
 ## How It Works
 
-1. **Download** a QWK packet from `/api/qwk/download`. The packet is a ZIP
-   archive named `BBSID.QWK` containing all new messages since your last
-   download across your subscribed echo areas and personal mail.
+1. **Download** a QWK packet from the **QWK Offline Mail** page in the user
+   interface. The packet is a ZIP archive named `BBSID.QWK` containing all new
+   messages since your last download across your subscribed echo areas and
+   personal mail.
 
 2. **Open** the packet in a QWK-capable offline reader. Read messages, compose
    replies, and write new messages.
@@ -41,8 +45,9 @@ FidoNet metadata.
 3. **Export** the reply packet from your reader. This is a ZIP archive named
    `BBSID.REP` containing a `BBSID.MSG` file with your outgoing messages.
 
-4. **Upload** the REP packet to `/api/qwk/upload`. BinktermPHP imports your
-   messages, posts echomail to the appropriate areas, and routes netmail.
+4. **Upload** the REP packet from the **QWK Offline Mail** page in the user
+   interface. BinktermPHP imports your messages, posts echomail to the
+   appropriate areas, and routes netmail.
 
 The same workflow is also available through the optional FTP daemon:
 
@@ -52,6 +57,9 @@ The same workflow is also available through the optional FTP daemon:
 You must download a QWK packet at least once before uploading a REP packet.
 The download establishes the conference map that BinktermPHP uses to route
 your replies back to the correct echo areas.
+
+For inter-BBS QWK mailbox transport, conference mapping, gating, and `is_local`
+delivery rules, see [QWK Networking](QWKNetworking.md).
 
 ---
 
@@ -110,6 +118,11 @@ Each echo area you subscribe to is assigned a stable, BBS-wide conference
 number (stored persistently on the echo area record). These numbers are
 consistent across all users and across downloads — subscribing or unsubscribing
 from other areas does not change the conference numbers you already know.
+
+Local-only areas may still be included in a user's personal QWK packet when the
+user is subscribed to them. That user-facing offline-reader workflow is local
+to this BBS. For external QWK mailbox transport rules, see
+[QWK Networking](QWKNetworking.md).
 
 Conference names in `CONTROL.DAT` are truncated to 13 characters. The format
 is `AREANAME` or `AREANAME@DOMAIN` when a network domain is present.
@@ -238,6 +251,14 @@ If the optional FTP daemon is enabled, the equivalent FTP paths are:
 - `/qwk/download/<BBSID>.QWK`
 - `/qwk/upload/<BBSID>.REP`
 - `/qwk/upload/<BBSID>.ZIP`
+
+---
+
+## Related Docs
+
+- [QWK Networking](QWKNetworking.md) — Inter-BBS QWK mailbox transport, conference mapping, gating, and local-only delivery rules
+- [Echo Areas](EchoAreas.md) — Area subscription and `is_local` behavior
+- [API Reference](API.md) — QWK offline-mail and mailbox endpoints
 
 ---
 

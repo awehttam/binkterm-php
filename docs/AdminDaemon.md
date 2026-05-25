@@ -91,6 +91,10 @@ php scripts/admin_daemon.php \
 | `--socket-perms=MODE` | Unix socket permissions (octal) |
 | `--daemon` | Fork into background (requires `pcntl`) |
 
+The admin daemon's UDP log fallback allowlist includes the core daemon and
+transport logs such as `binkp_poll.log`, `qwk_poll.log`, `binkp_server.log`,
+`binkp_scheduler.log`, `admin_daemon.log`, and `packets.log`.
+
 ---
 
 ## Wire Protocol
