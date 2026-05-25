@@ -1016,8 +1016,7 @@ class AdminDaemonServer
     private function initSseEventMaintenance(): void
     {
         try {
-            $db = Database::getInstance()->getPdo();
-            $this->sseEventMaintenance = new PostgresSseEventMaintenance($db);
+            $this->sseEventMaintenance = new PostgresSseEventMaintenance(Config::getDatabaseConfig());
             $this->logger->info('Admin daemon: sse_events maintenance active');
         } catch (\Throwable $e) {
             $this->logger->warning('Admin daemon: sse_events maintenance disabled', ['error' => $e->getMessage()]);
@@ -1036,7 +1035,13 @@ class AdminDaemonServer
             return;
         }
 
-        $this->sseEventMaintenance->pruneOldEvents();
+        try {
+            $this->sseEventMaintenance->pruneOldEvents();
+        } catch (\Throwable $e) {
+            $this->logger->warning('Admin daemon: sse_events maintenance prune failed', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function runCommand(array $command): array
