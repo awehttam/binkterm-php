@@ -48,9 +48,14 @@ class FtpTransport implements TransportInterface
 
             $status = @ftp_nb_get($conn, $tmpPath, $remotePath, FTP_BINARY);
             if ($status === FTP_FAILED) {
-                $this->log('DEBUG', sprintf('FTP RETR %s => no file or transfer failed', $remotePath));
                 @unlink($tmpPath);
-                return null;
+                if ($remoteSize === -1 && $this->isRemotePacketMissing($conn, $remotePath)) {
+                    $this->log('DEBUG', sprintf('FTP RETR %s => no packet available', $remotePath));
+                    return null;
+                }
+
+                $this->log('DEBUG', sprintf('FTP RETR %s => transfer failed before data was received', $remotePath));
+                throw new \RuntimeException('Failed to download QWK packet from remote mailbox');
             }
 
             $this->logTransferProgress($conn, $status, $tmpPath, $remotePath, $remoteSize, false);
@@ -129,6 +134,29 @@ class FtpTransport implements TransportInterface
         }
 
         return rtrim(str_replace('\\', '/', $base), '/') . '/' . $filename;
+    }
+
+    /**
+     * @param resource $conn
+     */
+    private function isRemotePacketMissing($conn, string $remotePath): bool
+    {
+        if (!function_exists('ftp_raw')) {
+            return false;
+        }
+
+        $responses = @ftp_raw($conn, 'SIZE ' . $remotePath);
+        if (!is_array($responses) || $responses === []) {
+            return false;
+        }
+
+        $firstLine = strtoupper(trim((string)$responses[0]));
+        if (str_starts_with($firstLine, '213 ')) {
+            return false;
+        }
+
+        return str_starts_with($firstLine, '450 ')
+            || str_starts_with($firstLine, '550 ');
     }
 
     /**

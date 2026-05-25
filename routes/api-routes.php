@@ -2758,11 +2758,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $client->qwkPollSync((int)$id);
             $client->close();
         } catch (\Throwable $e) {
-            http_response_code(500);
+            $status = str_starts_with($e->getMessage(), 'Admin daemon error:')
+                ? 400
+                : 500;
+            http_response_code($status);
             apiError(
                 'errors.qwk.poll_failed',
                 apiLocalizedText('errors.qwk.poll_failed', 'Failed to poll QWK mailbox', $user),
-                500,
+                $status,
                 ['detail' => $e->getMessage()]
             );
         }

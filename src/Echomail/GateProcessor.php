@@ -48,7 +48,8 @@ class GateProcessor
     {
         $this->db->prepare("
             DELETE FROM echo_area_gates
-            WHERE source_area_id = ? OR target_area_id = ?
+            WHERE source_area_id = ?
+               OR (bidirectional = TRUE AND target_area_id = ?)
         ")->execute([$echoareaId, $echoareaId]);
 
         if ($gates === []) {
@@ -67,9 +68,14 @@ class GateProcessor
                 throw new \InvalidArgumentException('Invalid gate target');
             }
 
-            $sourceId = $echoareaId < $targetId ? $echoareaId : $targetId;
-            $normalizedTargetId = $echoareaId < $targetId ? $targetId : $echoareaId;
-            $insertStmt->execute([$sourceId, $normalizedTargetId, $bidirectional ? 'true' : 'false']);
+            if ($bidirectional) {
+                $sourceId = min($echoareaId, $targetId);
+                $normalizedTargetId = max($echoareaId, $targetId);
+                $insertStmt->execute([$sourceId, $normalizedTargetId, 'true']);
+                continue;
+            }
+
+            $insertStmt->execute([$echoareaId, $targetId, 'false']);
         }
     }
 
