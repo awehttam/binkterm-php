@@ -101,6 +101,7 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
    $id = $row ? (int)$row['id'] : 0;
    ```
+ - **Future compatibility guidance:** PostgreSQL is the only supported database backend. New work may use PostgreSQL-specific features when they materially improve correctness, simplicity, or performance, but avoid unnecessary lock-in when it is easy not to. Keep PostgreSQL-specific SQL isolated rather than scattered, route new realtime/event signaling through an abstraction or service layer rather than direct `pg_*` calls where practical, and update `docs/PostgreSQLDependencies.md` when adding a new PostgreSQL-specific dependency that future compatibility work would need to account for.
 
 ## Internationalization (i18n) & Encoding Policy
 - **Strict UTF-8 (No BOM):** All i18n catalogs and source files must be saved as UTF-8 without a Byte Order Mark.
