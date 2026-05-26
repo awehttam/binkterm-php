@@ -174,6 +174,15 @@ Array of address book entries matching the search criteria
 |-------|------|-------------|
 | `success` | boolean | Always true on success |
 | `entries` | array | Array of address book entry objects |
+| `entries[].id` | integer | Entry ID |
+| `entries[].name` | string | Contact display name |
+| `entries[].messaging_user_id` | integer\|null | BBS user ID if linked to a local user |
+| `entries[].node_address` | string\|null | FTN node address |
+| `entries[].email` | string\|null | Email address |
+| `entries[].description` | string\|null | Free-text notes |
+| `entries[].always_crashmail` | boolean | Always send crashmail to this address |
+| `entries[].created_at` | string | ISO 8601 creation timestamp |
+| `entries[].updated_at` | string | ISO 8601 last-update timestamp |
 
 **Error Responses**
 
@@ -203,6 +212,15 @@ Single address book entry object
 |-------|------|-------------|
 | `success` | boolean | True if entry found |
 | `entry` | object | Address book entry details |
+| `entry.id` | integer | Entry ID |
+| `entry.name` | string | Contact display name |
+| `entry.messaging_user_id` | integer\|null | BBS user ID if linked to a local user |
+| `entry.node_address` | string\|null | FTN node address |
+| `entry.email` | string\|null | Email address |
+| `entry.description` | string\|null | Free-text notes |
+| `entry.always_crashmail` | boolean | Always send crashmail to this address |
+| `entry.created_at` | string | ISO 8601 creation timestamp |
+| `entry.updated_at` | string | ISO 8601 last-update timestamp |
 
 **Error Responses**
 
@@ -341,6 +359,17 @@ Array of matching autocomplete entries
 |-------|------|-------------|
 | `success` | boolean | True on success |
 | `entries` | array | Matching address-book and local-user entries (limited) |
+| `entries[].id` | integer | Entry ID |
+| `entries[].name` | string | Contact display name |
+| `entries[].messaging_user_id` | integer\|null | BBS user ID if linked to a local user |
+| `entries[].node_address` | string\|null | FTN node address |
+| `entries[].email` | string\|null | Email address |
+| `entries[].description` | string\|null | Free-text notes |
+| `entries[].always_crashmail` | boolean | Always send crashmail to this address |
+| `entries[].created_at` | string | ISO 8601 creation timestamp |
+| `entries[].updated_at` | string | ISO 8601 last-update timestamp |
+| `entries[].node_system_name` | string\|null | System name from nodelist (search results only) |
+| `entries[].node_domain` | string\|null | Network domain from nodelist (search results only) |
 
 **Error Responses**
 
@@ -363,7 +392,10 @@ Address book statistics object
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `stats` | object | Statistics object (e.g., total_entries, etc.) |
+| `stats` | object | Statistics object |
+| `stats.total_entries` | integer | Total number of entries in the address book |
+| `stats.entries_with_email` | integer | Number of entries that have an email address |
+| `stats.entries_with_description` | integer | Number of entries that have a description |
 
 **Error Responses**
 
@@ -522,7 +554,10 @@ Token validation result with user information
 | Field | Type | Description |
 |-------|------|-------------|
 | `valid` | boolean | Token validity status |
-| `userInfo` | object | User information object if valid |
+| `userInfo` | object | User information object if valid (absent when `valid` is false) |
+| `userInfo.user_id` | integer | BBS user ID |
+| `userInfo.username` | string | Username |
+| `userInfo.door` | string\|null | Door/service identifier the token was issued for |
 
 **Error Responses**
 
@@ -753,7 +788,10 @@ Poll trigger confirmation
 |-------|------|-------------|
 | `success` | boolean | True if poll was triggered |
 | `message_code` | string | Localization key for UI message |
-| `result` | mixed | Result from daemon poll operation |
+| `result` | object | Daemon process result |
+| `result.exit_code` | integer | Daemon exit code (0 = success) |
+| `result.stdout` | string | Standard output from daemon process |
+| `result.stderr` | string | Standard error output from daemon process |
 
 **Error Responses**
 
@@ -779,7 +817,10 @@ Poll trigger confirmation
 |-------|------|-------------|
 | `success` | boolean | True if poll was triggered |
 | `message_code` | string | Localization key for UI message |
-| `result` | mixed | Result from daemon poll operation |
+| `result` | object | Daemon process result |
+| `result.exit_code` | integer | Daemon exit code (0 = success) |
+| `result.stdout` | string | Standard output from daemon process |
+| `result.stderr` | string | Standard error output from daemon process |
 
 **Error Responses**
 
@@ -806,6 +847,9 @@ Processing initiation status with result details.
 | `success` | boolean | Always true on success |
 | `message_code` | string | Localization key: 'ui.api.binkp.process_packets_started' |
 | `result` | object | Daemon processing result details |
+| `result.exit_code` | integer | Daemon exit code (0 = success) |
+| `result.stdout` | string | Standard output from packet processor |
+| `result.stderr` | string | Standard error output from packet processor |
 
 **Error Responses**
 
@@ -827,7 +871,21 @@ Array of uplink configurations.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `[array]` | array | List of uplink objects with address, credentials, and settings |
+| `[array]` | array | Array of uplink configuration objects |
+| `[].address` | string | FidoNet address of the uplink (e.g. `1:234/567`) |
+| `[].me` | string | Local address to present to this uplink |
+| `[].domain` | string | FTN domain name (e.g. `fidonet`) |
+| `[].networks` | array of strings | Additional network names served by this uplink |
+| `[].hostname` | string | Hostname or IP address |
+| `[].port` | integer | TCP port (default 24554) |
+| `[].password` | string | BinkP session password |
+| `[].pkt_password` | string | FTS-0001 packet password |
+| `[].tic_password` | string | TIC file password |
+| `[].areafix_password` | string | AreaFix robot password |
+| `[].filefix_password` | string | FileFix robot password |
+| `[].enabled` | boolean | Whether this uplink is enabled |
+| `[].default` | boolean | Whether this is the default uplink |
+| `[].send_domain_in_addr` | boolean | Whether to include domain in the presented address |
 
 **Error Responses**
 
@@ -886,12 +944,12 @@ Uplink configuration parameters.
 
 **Response** _(JSON)_
 
-Created uplink configuration.
+Uplink creation confirmation.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Uplink created successfully |
-| `uplink` | object | Uplink configuration details |
+| `message_code` | string | Localization key: `ui.api.binkp.uplink_added` |
 
 ---
 
@@ -919,12 +977,12 @@ Updated uplink configuration fields.
 
 **Response** _(JSON)_
 
-Updated uplink configuration.
+Update confirmation.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Update completed |
-| `uplink` | object | Modified uplink details |
+| `message_code` | string | Localization key: `ui.api.binkp.uplink_updated` |
 
 ---
 
@@ -962,7 +1020,15 @@ Array of inbound files.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `[array]` | array | List of file objects with name, size, timestamp, and status |
+| `success` | boolean | Operation success flag |
+| `pending` | array | Array of files in the inbound queue awaiting processing |
+| `pending[].filename` | string | Packet filename |
+| `pending[].size` | integer | File size in bytes |
+| `pending[].modified` | string | Last modified timestamp (YYYY-MM-DD HH:MM:SS) |
+| `errors` | array | Array of files in the error queue |
+| `errors[].filename` | string | Packet filename |
+| `errors[].size` | integer | File size in bytes |
+| `errors[].modified` | string | Last modified timestamp (YYYY-MM-DD HH:MM:SS) |
 
 **Error Responses**
 
@@ -984,7 +1050,16 @@ Array of outbound file objects with metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `files` | array | List of queued outbound files |
+| `success` | boolean | Operation success flag |
+| `files` | array | Array of queued outbound packet files |
+| `files[].filename` | string | Packet filename |
+| `files[].size` | integer | File size in bytes |
+| `files[].created` | string | File creation timestamp (YYYY-MM-DD HH:MM:SS) |
+| `files[].modified` | string | File last modified timestamp (YYYY-MM-DD HH:MM:SS) |
+| `files[].path` | string | Full filesystem path to the packet file |
+| `files[].message_count` | integer | Number of FTN messages contained in the packet |
+| `files[].dest_address` | string | Destination FTN address parsed from packet header |
+| `files[].orig_address` | string | Origin FTN address parsed from packet header |
 
 **Error Responses**
 
@@ -1009,6 +1084,9 @@ Processing completion status with result details
 | `success` | boolean | Whether processing completed successfully |
 | `message_code` | string | Localization key for UI message |
 | `result` | object | Processing result details from daemon |
+| `result.exit_code` | integer | Daemon exit code (0 = success) |
+| `result.stdout` | string | Standard output from packet processor |
+| `result.stderr` | string | Standard error output from packet processor |
 
 **Error Responses**
 
@@ -1034,6 +1112,9 @@ Polling completion status with result details
 | `success` | boolean | Whether polling completed successfully |
 | `message_code` | string | Localization key for UI message |
 | `result` | object | Polling result details from daemon |
+| `result.exit_code` | integer | Daemon exit code (0 = spawned successfully) |
+| `result.stdout` | string | Standard output (empty for async spawned poll) |
+| `result.stderr` | string | Standard error output (empty for async spawned poll) |
 
 **Error Responses**
 
@@ -1064,7 +1145,24 @@ Packet inspection details including structure and contents
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `packet_info` | object | Packet metadata and structure |
+| `success` | boolean | Operation success flag |
+| `packet` | object | FTS-0001 packet header metadata |
+| `packet.orig_address` | string | Origin FTN address from packet header |
+| `packet.dest_address` | string | Destination FTN address from packet header |
+| `packet.created` | string | Packet creation timestamp from header |
+| `packet.has_password` | boolean | Whether packet has a non-empty password field |
+| `packet.packet_version` | integer | FTS-0001 packet version number |
+| `packet.product_code` | string | Hex product code from packet header |
+| `packet.file_size` | integer | Packet file size in bytes |
+| `messages` | array | Array of message headers parsed from the packet |
+| `messages[].from` | string | Sender name |
+| `messages[].to` | string | Recipient name |
+| `messages[].subject` | string | Message subject |
+| `messages[].date` | string | Message date string from packet header |
+| `messages[].orig_addr` | string | Origin net:node address |
+| `messages[].dest_addr` | string | Destination net:node address |
+| `messages[].flags` | array of strings | FTS-0001 attribute flag labels (e.g. `Pvt`, `Crash`, `Rcvd`) |
+| `messages[].cost` | integer | Message cost field |
 
 **Error Responses**
 
@@ -1126,7 +1224,24 @@ Queue packet inspection details including structure and contents
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `packet_info` | object | Packet metadata and structure |
+| `success` | boolean | Operation success flag |
+| `packet` | object | FTS-0001 packet header metadata |
+| `packet.orig_address` | string | Origin FTN address from packet header |
+| `packet.dest_address` | string | Destination FTN address from packet header |
+| `packet.created` | string | Packet creation timestamp from header |
+| `packet.has_password` | boolean | Whether packet has a non-empty password field |
+| `packet.packet_version` | integer | FTS-0001 packet version number |
+| `packet.product_code` | string | Hex product code from packet header |
+| `packet.file_size` | integer | Packet file size in bytes |
+| `messages` | array | Array of message headers parsed from the packet |
+| `messages[].from` | string | Sender name |
+| `messages[].to` | string | Recipient name |
+| `messages[].subject` | string | Message subject |
+| `messages[].date` | string | Message date string from packet header |
+| `messages[].orig_addr` | string | Origin net:node address |
+| `messages[].dest_addr` | string | Destination net:node address |
+| `messages[].flags` | array of strings | FTS-0001 attribute flag labels (e.g. `Pvt`, `Crash`, `Rcvd`) |
+| `messages[].cost` | integer | Message cost field |
 
 **Error Responses**
 
@@ -1184,11 +1299,16 @@ Enumerates files contained within a bundle or archive packet from the kept-packe
 
 **Response** _(JSON)_
 
-List of files contained in the bundle
+List of .pkt files contained in the bundle
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `files` | array | Array of bundled file objects with metadata |
+| `success` | boolean | Operation success flag |
+| `bundle` | string | Bundle filename |
+| `bundle_size` | integer | Bundle file size in bytes |
+| `packets` | array | Array of .pkt files found inside the bundle |
+| `packets[].filename` | string | Packet filename within the bundle |
+| `packets[].size` | integer | Uncompressed packet size in bytes |
 
 **Error Responses**
 
@@ -1411,8 +1531,19 @@ Bulletins and metadata
 |-------|------|-------------|
 | `success` | boolean | Always true on success |
 | `bulletins` | array | Array of active bulletin objects |
+| `bulletins[].id` | integer | Bulletin ID |
+| `bulletins[].title` | string | Bulletin title |
+| `bulletins[].body` | string | Bulletin body text (raw source) |
+| `bulletins[].format` | string | Body format (`markdown`, `html`, `plain`) |
+| `bulletins[].sort_order` | integer | Display sort order |
+| `bulletins[].is_active` | boolean | Whether bulletin is active |
+| `bulletins[].active_from` | string\|null | ISO 8601 start date (null = always active) |
+| `bulletins[].active_until` | string\|null | ISO 8601 expiry date (null = no expiry) |
+| `bulletins[].created_by` | integer | User ID of bulletin creator |
+| `bulletins[].is_read` | boolean | Whether the authenticated user has read this bulletin |
+| `bulletins[].body_html` | string | Bulletin body rendered to HTML |
 | `unread_count` | integer | Number of unread bulletins for this user |
-| `bulletin_display_mode` | string | Configured display mode (e.g., 'popup', 'list', 'none') |
+| `bulletin_display_mode` | string | Configured display mode (e.g., `popup`, `list`, `none`) |
 
 **Error Responses**
 
@@ -1786,6 +1917,11 @@ Dashboard statistics object. All counts are for the authenticated user.
 | `new_files` | integer | New approved files since last visit |
 | `new_echoareas` | integer | Echo areas created in the last 30 days |
 | `recent_echoareas` | array | Up to 8 most recently created echo area objects |
+| `recent_echoareas[].id` | integer | Echo area ID |
+| `recent_echoareas[].tag` | string | Echo area tag name |
+| `recent_echoareas[].domain` | string\|null | Network domain |
+| `recent_echoareas[].description` | string\|null | Echo area description |
+| `recent_echoareas[].created_at` | string | ISO 8601 creation timestamp |
 | `echomail_max_id` | integer | Current max echomail row ID (used for badge tracking) |
 | `chat_max_id` | integer | Current max chat message ID |
 | `files_max_id` | integer | Current max file ID |
@@ -1851,9 +1987,14 @@ Current authentication state
 | Field | Type | Description |
 |-------|------|-------------|
 | `user` | object | Current user object (null if not authenticated) |
+| `user.user_id` | integer | User ID |
+| `user.username` | string | Username |
+| `user.real_name` | string | Real name |
+| `user.email` | string\|null | Email address |
+| `user.is_admin` | boolean | Admin flag |
 | `is_admin` | boolean | Whether current user has admin privileges |
 | `cookie_present` | boolean | Whether session cookie exists |
-| `cookie_value` | string | Session cookie value (null if not present) |
+| `cookie_value` | string\|null | Session cookie value (null if not present) |
 
 **Error Responses**
 
@@ -1964,14 +2105,23 @@ Single echo area object with extended metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | Echo area ID |
-| `tag` | string | Echo area tag |
-| `description` | string | Description |
-| `domain` | string | Domain (e.g., 'lovlynet') |
-| `is_sysop_only` | boolean | Sysop-only flag |
-| `lovlynet_metadata` | object | Remote LovlyNet metadata if domain is 'lovlynet' |
-| `lovlynet_setting_issues` | array | Array of setting mismatches with recommended vs actual values |
-| `lovlynet_has_setting_issues` | boolean | Whether any setting mismatches exist |
+| `echoarea` | object | Full echo area record including all database columns |
+| `echoarea.id` | integer | Echo area ID |
+| `echoarea.tag` | string | Echo area tag |
+| `echoarea.description` | string | Description |
+| `echoarea.domain` | string | Domain (e.g., 'lovlynet') |
+| `echoarea.is_sysop_only` | boolean | Sysop-only flag |
+| `echoarea.is_active` | boolean | Whether area is active |
+| `echoarea.is_local` | boolean | Whether area is local-only (not forwarded) |
+| `echoarea.color` | string | Hex color code for UI display |
+| `echoarea.lovlynet_metadata` | object | Remote LovlyNet metadata if domain is 'lovlynet'; empty object otherwise |
+| `echoarea.lovlynet_metadata.sysop_only` | boolean | LovlyNet recommended sysop-only setting |
+| `echoarea.lovlynet_setting_issues` | array | Array of setting mismatches with recommended vs actual values |
+| `echoarea.lovlynet_setting_issues[].setting` | string | Setting name that has a mismatch |
+| `echoarea.lovlynet_setting_issues[].recommended` | boolean | LovlyNet recommended value |
+| `echoarea.lovlynet_setting_issues[].actual` | boolean | Current local value |
+| `echoarea.lovlynet_has_setting_issues` | boolean | Whether any setting mismatches exist |
+| `echoarea.description_mismatch` | boolean | Whether local description differs from LovlyNet description |
 
 **Error Responses**
 
@@ -2144,7 +2294,11 @@ Array of echo areas
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `echoareas` | array | List of echo area objects with id, tag, description, domain |
+| `echoareas` | array | Array of minimal echo area objects |
+| `echoareas[].id` | integer | Echo area ID |
+| `echoareas[].tag` | string | Echo area tag |
+| `echoareas[].description` | string | Human-readable description |
+| `echoareas[].domain` | string | Domain name (e.g., `fidonet`, `lovlynet`) |
 
 ---
 
@@ -2215,8 +2369,24 @@ Single file area object with full configuration
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `filearea` | object | File area configuration object |
-| `iso_accessible` | boolean | Whether ISO mount point is readable (if applicable) |
+| `filearea` | object | Full file area configuration (all database columns) |
+| `filearea.id` | integer | File area ID |
+| `filearea.tag` | string | File area tag |
+| `filearea.description` | string | Description |
+| `filearea.domain` | string | Domain name (e.g. `fidonet`) |
+| `filearea.is_active` | boolean | Whether area is active |
+| `filearea.is_local` | boolean | Whether area is local-only |
+| `filearea.is_private` | boolean | Whether area is private |
+| `filearea.is_public` | boolean | Whether area is publicly accessible without login |
+| `filearea.area_type` | string | Area type: `normal` or `iso` |
+| `filearea.iso_mount_point` | string|null | Path to ISO mount point (if area_type is `iso`) |
+| `filearea.iso_accessible` | boolean | Whether ISO mount point is currently readable |
+| `filearea.comment_echoarea_id` | integer|null | ID of linked comment echo area |
+| `filearea.upload_permission` | integer | Upload permission level (1 = users, 2 = admin only) |
+| `filearea.file_count` | integer | Number of approved files in area |
+| `filearea.total_size` | integer | Total size of all files in bytes |
+| `filearea.created_at` | string | ISO 8601 creation timestamp |
+| `filearea.updated_at` | string | ISO 8601 last update timestamp |
 
 **Error Responses**
 
@@ -2399,7 +2569,12 @@ Import result with counters
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true on success |
-| `counters` | object | Import statistics (added, updated, skipped, etc.) |
+| `counters` | object | Import statistics |
+| `counters.imported` | integer | Number of new files added |
+| `counters.updated` | integer | Number of existing files updated |
+| `counters.skipped` | integer | Number of files skipped (unchanged or already present) |
+| `counters.no_description` | integer | Number of files with no description available |
+| `counters.errors` | integer | Number of files that failed to import |
 
 **Error Responses**
 
@@ -2538,8 +2713,26 @@ Files and subfolders in the area
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `subfolders` | array | List of subdirectories |
-| `files` | array | List of files in current folder |
+| `subfolders` | array | List of subdirectory objects |
+| `subfolders[].subfolder` | string | Subfolder path |
+| `subfolders[].description` | string\|null | Display label from ISO metadata (if present) |
+| `subfolders[].long_description` | string\|null | Extended ISO subfolder description |
+| `subfolders[].subdir_id` | integer\|null | ID of the iso_subdir record if applicable |
+| `files` | array | List of file objects in current folder |
+| `files[].id` | integer | File ID |
+| `files[].filename` | string | File name |
+| `files[].filesize` | integer | File size in bytes |
+| `files[].short_description` | string | Brief description |
+| `files[].long_description` | string | Extended description |
+| `files[].status` | string | Approval status (approved, pending, rejected) |
+| `files[].source_type` | string | Origin type (fidonet, user_upload, iso_import, url, etc.) |
+| `files[].created_at` | string | Upload timestamp (ISO 8601) |
+| `files[].subfolder` | string\|null | Subfolder path if in a subdirectory |
+| `files[].owner_id` | integer\|null | User ID of uploader |
+| `files[].area_tag` | string | Tag of the file area |
+| `files[].is_shared` | boolean | Whether an active share link exists for this file |
+| `subfolder` | string\|null | Current subfolder path (null at root level) |
+| `subfolder_label` | string\|null | Display label for current subfolder (null at root level) |
 
 **Error Responses**
 
@@ -2569,7 +2762,19 @@ Array of recent file objects
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `files` | array | List of file objects with metadata |
+| `files` | array | List of file objects |
+| `files[].id` | integer | File ID |
+| `files[].filename` | string | File name |
+| `files[].filesize` | integer | File size in bytes |
+| `files[].short_description` | string | Brief description |
+| `files[].created_at` | string | Upload timestamp (ISO 8601) |
+| `files[].subfolder` | string\|null | Subfolder path if applicable |
+| `files[].subfolder_label` | string\|null | Display label for subfolder from ISO metadata |
+| `files[].source_type` | string | Origin type (fidonet, user_upload, iso_import, url, etc.) |
+| `files[].area_tag` | string | Tag of the file area |
+| `files[].domain` | string | Domain of the file area |
+| `files[].is_local` | boolean | Whether the file area is local-only |
+| `files[].is_shared` | boolean | Whether an active share link exists for this file |
 
 **Error Responses**
 
@@ -2591,8 +2796,22 @@ User's uploads and summary statistics
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `files` | array | List of files uploaded by the user |
-| `summary` | object | Upload statistics (count, total size, etc.) |
+| `files` | array | List of file objects uploaded by the user |
+| `files[].id` | integer | File ID |
+| `files[].filename` | string | File name |
+| `files[].filesize` | integer | File size in bytes |
+| `files[].short_description` | string | Brief description |
+| `files[].status` | string | Approval status (approved, pending, rejected) |
+| `files[].created_at` | string | Upload timestamp (ISO 8601) |
+| `files[].area_tag` | string | Tag of the file area |
+| `files[].domain` | string | Domain of the file area |
+| `files[].area_description` | string | Description of the file area |
+| `summary` | object | Upload statistics |
+| `summary.total_count` | integer | Total number of uploads |
+| `summary.total_size` | integer | Total size in bytes of all uploads |
+| `summary.pending_count` | integer | Number of uploads awaiting approval |
+| `summary.approved_count` | integer | Number of approved uploads |
+| `summary.rejected_count` | integer | Number of rejected uploads |
 
 **Error Responses**
 
@@ -2620,7 +2839,15 @@ Search results with file metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `results` | array | Array of matching files with id, filename, description, size, area_tag, and timestamps |
+| `results` | array | Array of matching file objects |
+| `results[].id` | integer | File ID |
+| `results[].filename` | string | File name |
+| `results[].short_description` | string | Brief description |
+| `results[].filesize` | integer | File size in bytes |
+| `results[].created_at` | string | Upload timestamp (ISO 8601) |
+| `results[].area_id` | integer | File area ID |
+| `results[].area_tag` | string | File area tag |
+| `results[].subfolder` | string\|null | Subfolder path if applicable |
 
 **Error Responses**
 
@@ -2648,10 +2875,22 @@ Complete file metadata object
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | File ID |
-| `filename` | string | Original filename |
-| `status` | string | File status (approved, pending, rejected) |
-| `file_area_id` | integer | Associated file area ID |
+| `file` | object | File details object |
+| `file.id` | integer | File ID |
+| `file.filename` | string | File name |
+| `file.filesize` | integer | File size in bytes |
+| `file.short_description` | string | Brief description |
+| `file.long_description` | string | Extended description |
+| `file.status` | string | Approval status (approved, pending, rejected) |
+| `file.source_type` | string | Origin type (fidonet, user_upload, iso_import, url, etc.) |
+| `file.created_at` | string | Upload timestamp (ISO 8601) |
+| `file.updated_at` | string | Last update timestamp (ISO 8601) |
+| `file.subfolder` | string\|null | Subfolder path if in a subdirectory |
+| `file.url` | string\|null | External URL (for url-type files) |
+| `file.owner_id` | integer\|null | User ID of uploader |
+| `file.file_area_id` | integer | Associated file area ID |
+| `file.virus_scanned` | boolean | Whether virus scan was performed |
+| `file.virus_scan_result` | string\|null | Scan result (clean, infected, error, skipped) |
 
 **Error Responses**
 
@@ -2681,7 +2920,10 @@ Rehatch operation result
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether rehatch completed successfully |
-| `result` | object | Daemon output and results |
+| `result` | object | Command execution result from admin daemon |
+| `result.exit_code` | integer | Exit code from file_hatch.php (0 on success) |
+| `result.stdout` | string | Standard output from file_hatch.php |
+| `result.stderr` | string | Standard error output from file_hatch.php |
 
 **Error Responses**
 
@@ -2789,8 +3031,11 @@ Extracted PRG files with metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `prgs` | array | Array of PRG objects with name, load_address, and base64-encoded data |
-| `disk_name` | string | Disk name (only for .d64 files) |
+| `prgs` | array | Array of PRG file objects |
+| `prgs[].name` | string | PRG file name |
+| `prgs[].load_address` | integer | C64 load address (decimal) |
+| `prgs[].data_b64` | string | Base64-encoded PRG content (load address header stripped) |
+| `disk_name` | string | Disk name (only present for .d64 files) |
 
 **Error Responses**
 
@@ -2827,7 +3072,12 @@ JSON object containing array of ZIP entries
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `entries` | array | Array of entry objects with path, name, and size |
+| `entries` | array | Array of ZIP entry objects |
+| `entries[].path` | string | Full path within the archive |
+| `entries[].name` | string | File name (basename) |
+| `entries[].size` | integer | Uncompressed file size in bytes |
+| `entries[].comp_method` | string | Compression method (e.g., deflate, store) |
+| `total` | integer | Total number of entries in the archive |
 
 **Error Responses**
 
@@ -2902,8 +3152,12 @@ JSON object with archive metadata and entry list
 |-------|------|-------------|
 | `type` | string | Archive format code (e.g., 'zip', 'tar', 'rar') |
 | `label` | string | Human-readable archive type label |
-| `entries` | array | Array of entry objects |
-| `total` | integer | Total number of entries |
+| `entries` | array | Array of archive entry objects |
+| `entries[].path` | string | Full path within the archive |
+| `entries[].name` | string | File name (basename) |
+| `entries[].size` | integer | Uncompressed file size in bytes |
+| `entries[].comp_method` | string | Compression method (present for ZIP entries only) |
+| `total` | integer | Total number of entries in the archive |
 
 **Error Responses**
 
@@ -3044,7 +3298,27 @@ Shared file metadata
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Query success status |
-| `file` | object | File object with id, filename, size, and other metadata |
+| `file` | object | File details |
+| `file.id` | integer | File ID |
+| `file.filename` | string | File name |
+| `file.filesize` | integer | File size in bytes |
+| `file.short_description` | string | Brief description |
+| `file.long_description` | string | Extended description |
+| `file.created_at` | string | Upload timestamp (ISO 8601) |
+| `file.virus_scanned` | boolean | Whether virus scan was performed |
+| `file.virus_scan_result` | string\|null | Scan result if scanned |
+| `file.file_area_id` | integer | Associated file area ID |
+| `file.area_tag` | string | Tag of the file area |
+| `file.area_description` | string | Description of the file area |
+| `file.domain` | string | Domain of the file area |
+| `share_info` | object | Share metadata |
+| `share_info.share_id` | integer | Share record ID |
+| `share_info.shared_by` | string | Username of the user who created the share |
+| `share_info.created_at` | string | Share creation timestamp (ISO 8601) |
+| `share_info.expires_at` | string\|null | Share expiry timestamp; null for no expiry |
+| `share_info.access_count` | integer | Number of times the share has been accessed |
+| `share_info.share_url` | string | Full URL of the share link |
+| `share_info.is_logged_in` | boolean | Whether the requesting user is authenticated |
 
 **Error Responses**
 
@@ -3253,12 +3527,16 @@ JSON object with optional fields to update
 
 **Response** _(JSON)_
 
-Updated file metadata
+Update confirmation with the fields that were changed
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Update successful |
-| `file` | object | Updated file record |
+| `filename` | string | New filename (only present if filename was updated) |
+| `short_description` | string | New short description (only present if description was updated) |
+| `long_description` | string\|null | New long description (only present if description was updated) |
+| `file_area_id` | integer | New file area ID (only present if file was moved; admin only) |
+| `url` | string | New URL (only present if URL was updated; admin only) |
 
 **Error Responses**
 
@@ -3361,8 +3639,14 @@ Threaded comment messages
 | Field | Type | Description |
 |-------|------|-------------|
 | `enabled` | boolean | Whether comments are enabled for this file |
-| `comments` | array | Array of comment objects with id, from_name, subject, message_text, date_written, reply_to_id |
-| `total` | integer | Total comment count |
+| `comments` | array | Threaded tree of top-level comment objects |
+| `comments[].id` | integer | Echomail message ID |
+| `comments[].from_name` | string | Name of the commenter |
+| `comments[].date_written` | string | Message timestamp (ISO 8601) |
+| `comments[].body` | string | Comment text (tearline stripped) |
+| `comments[].level` | integer | Nesting depth (0 = top-level, max 2) |
+| `comments[].children` | array | Nested reply objects (same structure, empty at level 2) |
+| `total` | integer | Total comment count (flat, across all levels) |
 
 **Error Responses**
 
@@ -3441,7 +3725,15 @@ Paginated frequency log entries
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Operation success indicator |
-| `entries` | array | Log entries with id, requested_at, requesting_node, filename, served, deny_reason, file_size, source |
+| `entries` | array | Log entries |
+| `entries[].id` | integer | Log entry ID |
+| `entries[].requested_at` | string | ISO 8601 timestamp of the request |
+| `entries[].requesting_node` | string | FTN address of the requesting node |
+| `entries[].filename` | string | Filename that was requested |
+| `entries[].served` | boolean | Whether the file was served |
+| `entries[].deny_reason` | string\|null | Reason for denial (if not served) |
+| `entries[].file_size` | integer\|null | Size of the served file in bytes |
+| `entries[].source` | string | Source of the file request |
 | `total` | integer | Total matching entries across all pages |
 | `page` | integer | Current page number |
 | `per_page` | integer | Entries per page (50) |
@@ -3483,7 +3775,7 @@ Localized translation catalogs
 | `success` | boolean | Whether catalogs were successfully loaded |
 | `locale` | string | The resolved locale code used for translations |
 | `default_locale` | string | The system default locale |
-| `catalogs` | object | Object mapping namespace names to their translation key-value pairs |
+| `catalogs` | object | Object keyed by namespace name (e.g. `common`, `errors`); each value is an object mapping translation keys to their localized string values |
 
 **Error Responses**
 
@@ -3518,8 +3810,16 @@ List of active interests
 | Field | Type | Description |
 |-------|------|-------------|
 | `interests` | array | Array of interest objects with subscription status |
-| `id` | integer | Interest ID (nested in interests array) |
-| `subscribed` | boolean | True if authenticated user is subscribed to this interest |
+| `interests[].id` | integer | Interest ID |
+| `interests[].name` | string | Interest name |
+| `interests[].slug` | string | URL-safe slug |
+| `interests[].description` | string\|null | Interest description |
+| `interests[].sort_order` | integer | Display sort order |
+| `interests[].is_active` | boolean | Whether the interest is active |
+| `interests[].echoarea_count` | integer | Number of echo areas in this interest |
+| `interests[].filearea_count` | integer | Number of file areas in this interest |
+| `interests[].subscriber_count` | integer | Number of subscribers |
+| `interests[].subscribed` | boolean | True if the authenticated user is subscribed |
 
 **Error Responses**
 
@@ -3658,7 +3958,13 @@ List of echo areas in the interest
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `echoareas` | object[] | Array of echo area objects with fields: echoarea_id (int), tag (string), domain (string), description (string), message_count (int), subscribed (boolean, only if authenticated) |
+| `echoareas` | object[] | Array of echo area objects |
+| `echoareas[].echoarea_id` | integer | Echo area ID |
+| `echoareas[].tag` | string | Echo area tag |
+| `echoareas[].domain` | string | Network domain |
+| `echoareas[].description` | string\|null | Echo area description |
+| `echoareas[].message_count` | integer | Total message count |
+| `echoareas[].subscribed` | boolean | _(authenticated only)_ Whether the user is subscribed to this area |
 
 **Error Responses**
 
@@ -3690,7 +3996,13 @@ Aggregated message statistics
 | `recent` | integer | Messages from last 24 hours |
 | `unread` | integer | Unread messages for user |
 | `areas` | integer | Number of subscribed echo areas |
-| `filter_counts` | object | Counts by filter: all, unread, read, tome, saved, drafts |
+| `filter_counts` | object | Counts by filter |
+| `filter_counts.all` | integer | Total messages |
+| `filter_counts.unread` | integer | Unread messages |
+| `filter_counts.read` | integer | Read messages |
+| `filter_counts.tome` | integer | Messages addressed to me |
+| `filter_counts.saved` | integer | Saved messages |
+| `filter_counts.drafts` | integer | Draft messages |
 
 **Error Responses**
 
@@ -3726,8 +4038,12 @@ Paginated message results
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | object[] | Array of echomail message objects |
-| `pagination` | object | Pagination metadata (page, total_pages, total_count) |
+| `messages` | object[] | Array of echomail message objects (same shape as `GET /api/messages/echomail`) |
+| `pagination` | object | Pagination metadata |
+| `pagination.page` | integer | Current page number |
+| `pagination.limit` | integer | Messages per page |
+| `pagination.total` | integer | Total matching messages |
+| `pagination.pages` | integer | Total number of pages |
 
 **Error Responses**
 
@@ -3757,7 +4073,10 @@ JSON object containing success flag and array of image objects.
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true on success |
-| `images` | array | Array of image objects with filename, url, and created_at |
+| `images` | array | Array of image objects |
+| `images[].filename` | string | Original filename |
+| `images[].url` | string | Public URL for embedding in markdown |
+| `images[].created_at` | string | ISO 8601 upload timestamp |
 
 **Error Responses**
 
@@ -4024,7 +4343,14 @@ JSON object containing array of recent messages
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array of objects | Array of message objects with id, type (netmail/echomail), from_name, subject, date_written, echoarea (null for netmail), and echoarea_color (null for netmail) |
+| `messages` | array of objects | Array of recent message objects |
+| `messages[].id` | integer | Message ID |
+| `messages[].type` | string | Message type: `netmail` or `echomail` |
+| `messages[].from_name` | string | Sender display name |
+| `messages[].subject` | string | Message subject |
+| `messages[].date_written` | string | ISO 8601 date the message was composed |
+| `messages[].echoarea` | string\|null | Echo area tag (null for netmail) |
+| `messages[].echoarea_color` | string\|null | Echo area display colour (null for netmail) |
 
 ---
 
@@ -4122,7 +4448,17 @@ Complete netmail message with metadata
 | `kludge_lines` | string | FidoNet kludge lines |
 | `replyto_address` | string | Parsed REPLYTO FidoNet address |
 | `replyto_name` | string | Parsed REPLYTO recipient name |
-| `attachments` | array | File attachments (empty array if feature disabled) |
+| `attachments` | array of objects | File attachments (empty array if feature disabled) |
+| `attachments[].id` | integer | File record ID |
+| `attachments[].filename` | string | Original filename |
+| `attachments[].filesize` | integer | File size in bytes |
+| `attachments[].short_description` | string\|null | Short file description |
+| `attachments[].long_description` | string\|null | Extended file description |
+| `attachments[].source_type` | string | Origin: `netmail_attachment`, `user`, or `fidonet` |
+| `attachments[].status` | string | Approval status: `approved`, `pending`, `rejected`, or `quarantined` |
+| `attachments[].created_at` | string | UTC timestamp when the file was stored |
+| `attachments[].area_tag` | string | File area tag the attachment belongs to |
+| `attachments[].is_private` | boolean | True if the file area is private |
 | `can_edit` | boolean | Whether current user can edit this message |
 
 **Error Responses**
@@ -4473,7 +4809,8 @@ Rule creation confirmation with localization
 |-------|------|-------------|
 | `success` | boolean | Rule saved successfully |
 | `message_code` | string | Localization key for UI message |
-| `message_params` | object | Localization parameters (sender name) |
+| `message_params` | object | Localization parameters for message_code |
+| `message_params.sender_name` | string | Sender name from the saved ignore rule |
 
 **Error Responses**
 
@@ -4496,7 +4833,17 @@ Aggregate echomail statistics object
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `areas` | array | Array of statistics per echo area |
+| `total` | integer | Total echomail message count across all subscribed areas |
+| `recent` | integer | Messages received in the last 24 hours |
+| `unread` | integer | Unread message count across all subscribed areas |
+| `areas` | integer\|null | Number of subscribed echo areas, or null for single-area queries |
+| `filter_counts` | object | Message counts broken down by filter type |
+| `filter_counts.all` | integer | Total message count |
+| `filter_counts.unread` | integer | Unread message count |
+| `filter_counts.read` | integer | Read message count |
+| `filter_counts.tome` | integer | Messages addressed to the current user |
+| `filter_counts.saved` | integer | Saved message count |
+| `filter_counts.drafts` | integer | Echomail draft count |
 
 ---
 
@@ -4717,7 +5064,7 @@ Paginated list of echomail messages with metadata
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array | Array of message objects with headers, body, and metadata |
+| `messages` | array | Array of echomail message objects (see **Echomail object** in `GET /api/messages/echomail`) |
 | `page` | integer | Current page number |
 | `total_pages` | integer | Total number of pages available |
 
@@ -4914,7 +5261,18 @@ Array of draft objects with metadata.
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Indicates successful retrieval. |
-| `drafts` | array | List of draft message objects. |
+| `drafts` | array of objects | List of draft message objects. |
+| `drafts[].id` | integer | Draft ID. |
+| `drafts[].type` | string | Draft type: `netmail` or `echomail`. |
+| `drafts[].to_address` | string\|null | FidoNet address of the recipient (netmail only). |
+| `drafts[].to_name` | string\|null | Recipient display name. |
+| `drafts[].echoarea` | string\|null | Echo area tag (echomail only). |
+| `drafts[].subject` | string\|null | Message subject. |
+| `drafts[].message_text` | string\|null | Draft message body. |
+| `drafts[].reply_to_id` | integer\|null | ID of the message this draft replies to, or null. |
+| `drafts[].created_at` | string | UTC timestamp when the draft was created. |
+| `drafts[].updated_at` | string | UTC timestamp of the last update. |
+| `drafts[].meta` | object\|null | Additional metadata (e.g. cross-post area list), or null. |
 
 **Error Responses**
 
@@ -4944,6 +5302,17 @@ Single draft object with full content.
 |-------|------|-------------|
 | `success` | boolean | Indicates successful retrieval. |
 | `draft` | object | Complete draft message object. |
+| `draft.id` | integer | Draft ID. |
+| `draft.type` | string | Draft type: `netmail` or `echomail`. |
+| `draft.to_address` | string\|null | FidoNet address of the recipient (netmail only). |
+| `draft.to_name` | string\|null | Recipient display name. |
+| `draft.echoarea` | string\|null | Echo area tag (echomail only). |
+| `draft.subject` | string\|null | Message subject. |
+| `draft.message_text` | string\|null | Draft message body. |
+| `draft.reply_to_id` | integer\|null | ID of the message this draft replies to, or null. |
+| `draft.created_at` | string | UTC timestamp when the draft was created. |
+| `draft.updated_at` | string | UTC timestamp of the last update. |
+| `draft.meta` | object\|null | Additional metadata (e.g. cross-post area list), or null. |
 
 **Error Responses**
 
@@ -5001,7 +5370,12 @@ Array of template metadata objects.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `templates` | array | List of template objects with id, name, type, subject, created_at. |
+| `templates` | array of objects | List of template metadata objects. |
+| `templates[].id` | integer | Template ID. |
+| `templates[].name` | string | Template name (up to 100 characters). |
+| `templates[].type` | string | Template type: `netmail`, `echomail`, or `both`. |
+| `templates[].subject` | string | Template subject line. |
+| `templates[].created_at` | string | UTC timestamp when the template was created. |
 
 **Error Responses**
 
@@ -5029,7 +5403,14 @@ Complete template object with all fields.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `template` | object | Template object including id, name, type, subject, body, created_at, updated_at. |
+| `template` | object | Complete template object. |
+| `template.id` | integer | Template ID. |
+| `template.name` | string | Template name (up to 100 characters). |
+| `template.type` | string | Template type: `netmail`, `echomail`, or `both`. |
+| `template.subject` | string | Template subject line. |
+| `template.body` | string | Template message body. |
+| `template.created_at` | string | UTC timestamp when the template was created. |
+| `template.updated_at` | string | UTC timestamp of the last modification. |
 
 **Error Responses**
 
@@ -5130,12 +5511,32 @@ Searches messages across drafts, netmail, and echomail. Supports general query (
 
 **Response** _(JSON)_
 
-Paginated search results with message metadata.
+Search results with message metadata and per-area counts.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `results` | array | Array of matching message objects. |
-| `total` | integer | Total number of matching messages. |
+| `messages` | array | Array of matching message objects |
+| `messages[].id` | integer | Message ID |
+| `messages[].from_name` | string | Sender name |
+| `messages[].from_address` | string | Sender FTN address |
+| `messages[].to_name` | string | Recipient name |
+| `messages[].subject` | string | Message subject |
+| `messages[].date_received` | string | Server receipt timestamp (ISO 8601) |
+| `messages[].date_written` | string | Sender-written timestamp (ISO 8601) |
+| `messages[].echoarea_id` | integer\|null | Echo area ID (echomail only) |
+| `messages[].echoarea` | string\|null | Echo area tag (echomail only) |
+| `messages[].echoarea_domain` | string\|null | Echo area domain (echomail only) |
+| `echoarea_counts` | array | Per-area message counts (echomail searches only; empty for netmail/draft) |
+| `echoarea_counts[].tag` | string | Echo area tag |
+| `echoarea_counts[].domain` | string | Echo area domain |
+| `echoarea_counts[].message_count` | integer | Number of matching messages in this area |
+| `filter_counts` | object | Counts by read/saved status across all results (echomail only) |
+| `filter_counts.all` | integer | Total matches |
+| `filter_counts.unread` | integer | Unread matches |
+| `filter_counts.read` | integer | Read matches |
+| `filter_counts.tome` | integer | Messages addressed to the current user |
+| `filter_counts.saved` | integer | Saved matches |
+| `filter_counts.drafts` | integer | Always 0 (reserved) |
 
 **Error Responses**
 
@@ -5544,7 +5945,29 @@ Shared message data
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether the message was successfully retrieved |
-| `message` | object | The shared message content and metadata |
+| `message` | object | The echomail or netmail message record |
+| `message.id` | integer | Message ID |
+| `message.from_name` | string | Sender name |
+| `message.to_name` | string | Recipient name |
+| `message.subject` | string | Message subject |
+| `message.message_text` | string | Message body |
+| `message.date_written` | string | Sender-written timestamp (ISO 8601) |
+| `message.date_received` | string | Server receipt timestamp (ISO 8601) |
+| `message.echoarea` | string\|null | Echo area tag (echomail only) |
+| `message.echoarea_color` | string\|null | Echo area color (echomail only) |
+| `message.echoarea_domain` | string\|null | Echo area domain (echomail only) |
+| `message.from_system_name` | string\|null | Nodelist system name for sender address |
+| `share_info` | object | Share metadata |
+| `share_info.id` | integer | Share record ID |
+| `share_info.share_key` | string | Share token string |
+| `share_info.shared_by` | string | Real name (or username) of the user who shared the message |
+| `share_info.created_at` | string | Share creation timestamp (ISO 8601) |
+| `share_info.expires_at` | string\|null | Share expiry timestamp; null for no expiry |
+| `share_info.is_public` | boolean | Whether share is publicly accessible |
+| `share_info.access_count` | integer | Number of times the share has been accessed |
+| `share_info.ai_og_summary` | string\|null | AI-generated OpenGraph summary if provided |
+| `share_info.og_image_path` | string\|null | Server path to OpenGraph preview image |
+| `share_info.og_image_slug` | string\|null | URL slug for OpenGraph preview image |
 
 **Error Responses**
 
@@ -5575,7 +5998,29 @@ Shared message data
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether the message was successfully retrieved |
-| `message` | object | The shared message content and metadata |
+| `message` | object | The echomail or netmail message record |
+| `message.id` | integer | Message ID |
+| `message.from_name` | string | Sender name |
+| `message.to_name` | string | Recipient name |
+| `message.subject` | string | Message subject |
+| `message.message_text` | string | Message body |
+| `message.date_written` | string | Sender-written timestamp (ISO 8601) |
+| `message.date_received` | string | Server receipt timestamp (ISO 8601) |
+| `message.echoarea` | string\|null | Echo area tag (echomail only) |
+| `message.echoarea_color` | string\|null | Echo area color (echomail only) |
+| `message.echoarea_domain` | string\|null | Echo area domain (echomail only) |
+| `message.from_system_name` | string\|null | Nodelist system name for sender address |
+| `share_info` | object | Share metadata |
+| `share_info.id` | integer | Share record ID |
+| `share_info.share_key` | string | Share token string |
+| `share_info.shared_by` | string | Real name (or username) of the user who shared the message |
+| `share_info.created_at` | string | Share creation timestamp (ISO 8601) |
+| `share_info.expires_at` | string\|null | Share expiry timestamp; null for no expiry |
+| `share_info.is_public` | boolean | Whether share is publicly accessible |
+| `share_info.access_count` | integer | Number of times the share has been accessed |
+| `share_info.ai_og_summary` | string\|null | AI-generated OpenGraph summary if provided |
+| `share_info.og_image_path` | string\|null | Server path to OpenGraph preview image |
+| `share_info.og_image_slug` | string\|null | URL slug for OpenGraph preview image |
 
 **Error Responses**
 
@@ -5691,7 +6136,11 @@ Nodelist entry or null if not found
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true; check node field for null |
-| `node` | object|null | Node object with address, system_name, location, domain; null if not found |
+| `node` | object\|null | Node object, or null if address not found |
+| `node.address` | string | Full FTN node address |
+| `node.system_name` | string | System name from nodelist |
+| `node.location` | string | Node location |
+| `node.domain` | string | Network domain |
 
 **Error Responses**
 
@@ -5720,7 +6169,12 @@ JSON object containing search results
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true on successful request |
-| `nodes` | array | Array of matching nodes (max 10 items), each with address, system_name, location, and domain |
+| `nodes` | array | Array of matching nodes (max 10 items) |
+| `nodes[].address` | string | FTN node address |
+| `nodes[].system_name` | string | Node system name |
+| `nodes[].sysop_name` | string | Sysop name |
+| `nodes[].location` | string | Node location |
+| `nodes[].domain` | string | Network domain |
 
 **Error Responses**
 
@@ -5750,7 +6204,17 @@ Notification state object
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `state` | object | Notification state with mailLastCounts, mailUnread, chatLastTotal, chatUnread, filesLastMaxId, filesUnread |
+| `state` | object | Notification state |
+| `state.mailLastCounts` | object | Last-seen mail counts |
+| `state.mailLastCounts.netmail` | integer | Last-seen netmail count |
+| `state.mailLastCounts.echomail` | integer | Last-seen echomail max ID |
+| `state.mailUnread` | object | Unread mail flags |
+| `state.mailUnread.netmail` | boolean | Whether netmail has unread messages |
+| `state.mailUnread.echomail` | boolean | Whether echomail has unread messages |
+| `state.chatLastTotal` | integer | Last-seen chat message ID |
+| `state.chatUnread` | boolean | Whether chat has unread messages |
+| `state.filesLastMaxId` | integer | Last-seen file max ID |
+| `state.filesUnread` | boolean | Whether there are new files |
 
 **Error Responses**
 
@@ -5782,6 +6246,16 @@ Update confirmation with normalized state
 |-------|------|-------------|
 | `success` | boolean | Whether state was saved |
 | `state` | object | Normalized state as stored |
+| `state.mailLastCounts` | object | Last-seen mail counts |
+| `state.mailLastCounts.netmail` | integer | Last-seen netmail count |
+| `state.mailLastCounts.echomail` | integer | Last-seen echomail max ID |
+| `state.mailUnread` | object | Unread mail flags |
+| `state.mailUnread.netmail` | boolean | Whether netmail has unread messages |
+| `state.mailUnread.echomail` | boolean | Whether echomail has unread messages |
+| `state.chatLastTotal` | integer | Last-seen chat message ID |
+| `state.chatUnread` | boolean | Whether chat has unread messages |
+| `state.filesLastMaxId` | integer | Last-seen file max ID |
+| `state.filesUnread` | boolean | Whether there are new files |
 
 **Error Responses**
 
@@ -5847,7 +6321,20 @@ List of pending user registrations
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `users` | array | Array of pending user objects |
+| `users` | array | Array of pending user registration objects |
+| `users[].id` | integer | Pending user record ID |
+| `users[].username` | string | Requested username |
+| `users[].email` | string\|null | Email address provided during registration |
+| `users[].real_name` | string\|null | Real name provided during registration |
+| `users[].reason` | string\|null | Reason for registration (if required) |
+| `users[].requested_at` | string | Registration request timestamp (ISO 8601) |
+| `users[].ip_address` | string\|null | IP address at time of registration |
+| `users[].status` | string | Current status (pending, approved, rejected) |
+| `users[].reviewed_by` | integer\|null | User ID of admin who reviewed |
+| `users[].reviewed_at` | string\|null | Review timestamp (ISO 8601) |
+| `users[].admin_notes` | string\|null | Admin notes on the registration |
+| `users[].reviewed_by_username` | string\|null | Username of reviewing admin |
+| `users[].registration_source` | string | Registration source (web, terminal, etc.) |
 
 **Error Responses**
 
@@ -5878,7 +6365,19 @@ Pending user registration details
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `user` | object | Pending user record with referrer details |
+| `user` | object | Pending user registration details |
+| `user.id` | integer | Pending user record ID |
+| `user.username` | string | Requested username |
+| `user.email` | string\|null | Email address |
+| `user.real_name` | string\|null | Real name |
+| `user.reason` | string\|null | Registration reason |
+| `user.requested_at` | string | Registration request timestamp (ISO 8601) |
+| `user.ip_address` | string\|null | IP address at registration |
+| `user.status` | string | Current status (pending, approved, rejected) |
+| `user.admin_notes` | string\|null | Admin notes |
+| `user.referrer_id` | integer\|null | User ID of the referrer |
+| `user.referrer_username` | string\|null | Username of the referrer |
+| `user.referrer_real_name` | string\|null | Real name of the referrer |
 
 **Error Responses**
 
@@ -5990,7 +6489,18 @@ JSON object containing array of active polls
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `polls` | array of objects | Array of poll objects with id, question, options array, and has_voted boolean |
+| `polls` | array of objects | Array of poll objects. Unvoted polls come first, then voted polls. |
+| `polls[].id` | integer | Poll ID |
+| `polls[].question` | string | Poll question text |
+| `polls[].options` | array | Answer options |
+| `polls[].options[].id` | integer | Option ID |
+| `polls[].options[].option_text` | string | Option display text |
+| `polls[].has_voted` | boolean | Whether the authenticated user has voted on this poll |
+| `polls[].results` | array | _(present only when `has_voted` is true)_ Per-option vote counts |
+| `polls[].results[].option_id` | integer | Option ID |
+| `polls[].results[].option_text` | string | Option display text |
+| `polls[].results[].votes` | integer | Vote count for this option |
+| `polls[].total_votes` | integer | _(present only when `has_voted` is true)_ Total votes cast |
 
 ---
 
@@ -6097,7 +6607,7 @@ Import result with message statistics
 | `success` | boolean | Whether processing completed successfully |
 | `imported` | integer | Number of messages imported from the packet |
 | `skipped` | integer | Number of messages skipped (duplicates, errors) |
-| `errors` | array | Array of error messages encountered during processing |
+| `errors` | array of strings | Error messages encountered during processing; empty array if none |
 
 **Error Responses**
 
@@ -6121,10 +6631,18 @@ QWK status with subscriptions and message counts
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `has_custom_areas` | boolean | Whether user has custom area selection active |
-| `areas` | array | Array of subscribed/selected echoareas with message counts |
-| `netmail_count` | integer | Number of new netmail messages |
-| `total_new` | integer | Total new messages across all areas |
+| `total_new_messages` | integer | Total new messages across all conferences |
+| `last_download` | string\|null | Timestamp of the last packet download (ISO 8601); null if never downloaded |
+| `conferences` | array | List of QWK conference objects |
+| `conferences[].number` | integer | QWK conference number (0 = Personal Mail) |
+| `conferences[].name` | string | Conference name (echoarea tag or 'Personal Mail') |
+| `conferences[].is_netmail` | boolean | Whether this conference is the personal netmail conference |
+| `conferences[].new_messages` | integer | Number of new messages in this conference |
+| `format` | string | User's preferred packet format ('qwk' or 'qwke') |
+| `limit` | integer | Maximum messages per packet (user-configurable) |
+| `hard_cap` | integer | System-wide maximum messages per packet |
+| `is_dev` | boolean | Whether the system is in development mode |
+| `has_custom_selection` | boolean | Whether user has a custom area selection active |
 
 **Error Responses**
 
@@ -6204,7 +6722,15 @@ Area selection state and available areas
 |-------|------|-------------|
 | `has_custom` | boolean | True if user has an explicit custom selection active |
 | `selections` | array | Currently selected areas (empty if has_custom is false) |
-| `subscribed` | array | All areas user is subscribed to |
+| `selections[].id` | integer | Echo area ID |
+| `selections[].tag` | string | Echo area tag |
+| `selections[].domain` | string | Echo area domain |
+| `selections[].description` | string | Echo area description |
+| `subscribed` | array | All echo areas the user is subscribed to |
+| `subscribed[].id` | integer | Echo area ID |
+| `subscribed[].tag` | string | Echo area tag |
+| `subscribed[].domain` | string | Echo area domain |
+| `subscribed[].description` | string | Echo area description |
 
 **Error Responses**
 
@@ -6236,7 +6762,7 @@ Confirmation of saved selection
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True if selection was saved |
-| `selections` | array | The validated and saved area IDs |
+| `count` | integer\|null | Number of areas saved; null if reset=true |
 
 **Error Responses**
 
@@ -6265,7 +6791,11 @@ Search results
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `areas` | array | Matching echoareas (up to 20 results) |
+| `areas` | array | Matching echo area objects (up to 20 results) |
+| `areas[].id` | integer | Echo area ID |
+| `areas[].tag` | string | Echo area tag |
+| `areas[].domain` | string | Echo area domain |
+| `areas[].description` | string | Echo area description |
 
 **Error Responses**
 
@@ -6296,7 +6826,10 @@ User's referral statistics and earnings
 |-------|------|-------------|
 | `referral_code` | string | Unique referral code for this user |
 | `referral_url` | string | Full URL for sharing referral link |
-| `referrals` | array | List of referred users with username, real_name, and created_at |
+| `referrals` | array | List of users referred by this user |
+| `referrals[].username` | string | Username of the referred user |
+| `referrals[].real_name` | string | Real name of the referred user |
+| `referrals[].created_at` | string | Account creation timestamp (ISO 8601) |
 | `total_count` | integer | Total number of users referred |
 | `total_earned` | integer | Total credits earned from referral bonuses |
 | `referral_bonus` | integer | Credits awarded per successful referral |
@@ -6323,8 +6856,14 @@ System-wide referral statistics
 | Field | Type | Description |
 |-------|------|-------------|
 | `total_referrals` | integer | Total number of users referred across system |
-| `top_referrers` | array | Top 10 referrers with username, real_name, and referral_count |
-| `recent_referrals` | array | 10 most recent referrals with username, created_at, and referrer username |
+| `top_referrers` | array | Top 10 referrers |
+| `top_referrers[].username` | string | Referrer's username |
+| `top_referrers[].real_name` | string | Referrer's real name |
+| `top_referrers[].referral_count` | integer | Number of successful referrals |
+| `recent_referrals` | array | 10 most recent referral signups |
+| `recent_referrals[].username` | string | Referred user's username |
+| `recent_referrals[].created_at` | string | Account creation timestamp (ISO 8601) |
+| `recent_referrals[].referrer` | string | Username of the referrer |
 | `total_credits_awarded` | integer | Total credits distributed as referral bonuses |
 
 **Error Responses**
@@ -6404,7 +6943,11 @@ JSON object containing array of shoutbox messages
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array of objects | Array of message objects with id, message text, created_at timestamp, and username |
+| `messages` | array of objects | Array of shoutbox message objects |
+| `messages[].id` | integer | Message ID |
+| `messages[].message` | string | Message text |
+| `messages[].created_at` | string | ISO 8601 creation timestamp |
+| `messages[].username` | string | Username of the poster |
 
 ---
 
@@ -6683,7 +7226,7 @@ List of available taglines
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether taglines were successfully loaded |
-| `taglines` | array | Array of tagline strings |
+| `taglines` | array of strings | Plain text tagline strings, one per entry |
 
 **Error Responses**
 
@@ -7052,7 +7595,15 @@ Paginated transaction list
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Operation success flag |
-| `transactions` | array | Array of transaction objects with id, user_id, other_party_id, amount, balance_after, description, transaction_type, created_at |
+| `transactions` | array | Array of transaction objects |
+| `transactions[].id` | integer | Transaction ID |
+| `transactions[].user_id` | integer | User who owns this transaction |
+| `transactions[].other_party_id` | integer\|null | Other party user ID (for transfers) |
+| `transactions[].amount` | integer | Credit amount (positive = credit, negative = debit) |
+| `transactions[].balance_after` | integer | Balance after this transaction |
+| `transactions[].description` | string | Human-readable description |
+| `transactions[].transaction_type` | string | Transaction type code |
+| `transactions[].created_at` | string | ISO 8601 creation timestamp |
 | `offset` | integer | Current offset used in query |
 | `limit` | integer | Current limit used in query |
 
@@ -7090,12 +7641,16 @@ Paginated activity log entries
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | integer | Activity log entry ID |
-| `created_at` | string | Timestamp of activity |
-| `category` | string | Activity category name |
-| `activity` | string | Activity type label |
-| `object_name` | string | Name of the object involved in activity |
-| `meta` | object | Additional metadata about the activity |
+| `success` | boolean | Operation success flag |
+| `activity` | array | Array of activity log entries |
+| `activity[].id` | integer | Activity log entry ID |
+| `activity[].created_at` | string | ISO 8601 timestamp of activity |
+| `activity[].category` | string | Activity category name |
+| `activity[].activity` | string | Activity type label |
+| `activity[].object_name` | string\|null | Name of the object involved in the activity |
+| `activity[].meta` | object\|null | Additional metadata (structure varies by activity type) |
+| `offset` | integer | Current offset used in query |
+| `limit` | integer | Current limit used in query |
 
 **Error Responses**
 
@@ -7136,7 +7691,12 @@ List of active sessions
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `sessions` | array | Array of session objects with id, ip_address, created_at, expires_at, is_current |
+| `sessions` | array | Array of active session objects |
+| `sessions[].id` | string | Session token ID |
+| `sessions[].ip_address` | string\|null | IP address the session was created from |
+| `sessions[].created_at` | string | Session creation timestamp (ISO 8601) |
+| `sessions[].expires_at` | string | Session expiry timestamp (ISO 8601) |
+| `sessions[].is_current` | integer | 1 if this is the currently active session, 0 otherwise |
 
 ---
 
@@ -7290,7 +7850,19 @@ User's message shares
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether the shares were successfully retrieved |
-| `shares` | array | Array of share objects with keys, slugs, and metadata |
+| `shares` | array | Array of message share objects |
+| `shares[].id` | integer | Share record ID |
+| `shares[].message_id` | integer | ID of the shared message |
+| `shares[].message_type` | string | Message type ('echomail' or 'netmail') |
+| `shares[].message_subject` | string\|null | Subject of the shared message |
+| `shares[].area_tag` | string | Echo area tag (or 'netmail' for netmail shares) |
+| `shares[].share_key` | string | Share token string |
+| `shares[].share_url` | string | Full URL of the share link |
+| `shares[].created_at` | string | Share creation timestamp (ISO 8601) |
+| `shares[].expires_at` | string\|null | Share expiry timestamp; null for no expiry |
+| `shares[].is_public` | boolean | Whether share is publicly accessible |
+| `shares[].access_count` | integer | Number of times the share has been accessed |
+| `shares[].last_accessed_at` | string\|null | Last access timestamp (ISO 8601) |
 
 **Error Responses**
 
@@ -7313,7 +7885,30 @@ User settings object with locale, shell, notification preferences, and license s
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Operation success flag |
-| `settings` | object | Settings object containing locale, shell, chat_notification_sound, echomail_notification_sound, netmail_notification_sound, file_notification_sound, compose_advanced_open, compose_hard_wrap, media_render_mode, license_valid |
+| `settings` | object | User settings |
+| `settings.locale` | string | UI locale code (e.g., 'en', 'fr') |
+| `settings.timezone` | string | User's timezone (e.g., 'America/Los_Angeles') |
+| `settings.theme` | string | UI theme (e.g., 'light', 'dark', 'amber') |
+| `settings.messages_per_page` | integer | Number of messages shown per page |
+| `settings.threaded_view` | boolean | Whether echomail is shown in threaded mode |
+| `settings.netmail_threaded_view` | boolean | Whether netmail is shown in threaded mode |
+| `settings.default_sort` | string | Default sort order (date_desc, date_asc, subject, author) |
+| `settings.font_family` | string | UI font family |
+| `settings.font_size` | integer | UI font size in pixels |
+| `settings.date_format` | string | Date format locale code (e.g., 'en-US') |
+| `settings.quote_coloring` | boolean | Whether quoted text is colorized |
+| `settings.default_echo_list` | string | Default echo list view (reader, list) |
+| `settings.signature_text` | string\|null | User's message signature |
+| `settings.default_tagline` | string\|null | Default message tagline |
+| `settings.shell` | string | UI shell preference ('web' or 'bbs-menu') |
+| `settings.chat_notification_sound` | string | Chat notification sound (disabled, notify1–5) |
+| `settings.echomail_notification_sound` | string | Echomail notification sound (disabled, notify1–5) |
+| `settings.netmail_notification_sound` | string | Netmail notification sound (disabled, notify1–5) |
+| `settings.file_notification_sound` | string | File notification sound (disabled, notify1–5) |
+| `settings.compose_advanced_open` | boolean | Whether advanced compose panel is open by default |
+| `settings.compose_hard_wrap` | integer | Hard-wrap column for message composition (0 = disabled) |
+| `settings.media_render_mode` | string | Media rendering mode ('click', 'auto') |
+| `settings.license_valid` | boolean | Whether the system has a valid license |
 
 **Error Responses**
 
@@ -7652,7 +8247,10 @@ User terminal settings
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
-| `settings` | object | Terminal settings object containing terminal_charset and terminal_ansi_color |
+| `settings` | object | Terminal configuration settings |
+| `settings.terminal_charset` | string\|null | Active character set: `utf8`, `cp437`, or `ascii`; null if not set |
+| `settings.terminal_ansi_color` | string\|null | ANSI color mode: `yes` or `no`; null if not set |
+| `settings.term_shell_mode` | string\|null | Terminal shell mode (e.g. `auto` or a configured shell name); null if not set |
 
 ---
 
@@ -7701,7 +8299,15 @@ User mail navigation state
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
-| `settings` | object | State object with terminal_netmail_page, terminal_netmail_selected_message_id, terminal_netmail_folder, terminal_netmail_sort, terminal_echomail_areas_page, terminal_echomail_positions, terminal_echomail_sort, and terminal_chat_target |
+| `settings` | object | Saved terminal navigation state |
+| `settings.terminal_netmail_page` | integer\|null | Last viewed netmail page number, or null if not set |
+| `settings.terminal_netmail_selected_message_id` | integer\|null | ID of the last selected netmail message, or null if not set |
+| `settings.terminal_netmail_folder` | string\|null | Last viewed netmail folder (`inbox` or `sent`), or null if not set |
+| `settings.terminal_netmail_sort` | string\|null | Last used netmail sort order (`date_desc`, `date_asc`, `subject`, `author`), or null if not set |
+| `settings.terminal_echomail_areas_page` | integer\|null | Last viewed echomail areas page number, or null if not set |
+| `settings.terminal_echomail_positions` | object\|string\|null | Per-area read position map (JSON object or string), or null if not set |
+| `settings.terminal_echomail_sort` | string\|null | Last used echomail sort order (`date_desc`, `date_asc`, `subject`, `author`), or null if not set |
+| `settings.terminal_chat_target` | object\|string\|null | Last selected terminal chat target (JSON object or string), or null if not set |
 
 ---
 
@@ -7844,8 +8450,24 @@ Paginated user list
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `users` | array | Array of user objects |
-| `pagination` | object | Pagination metadata (page, limit, total, pages) |
+| `users` | array | Array of user account objects |
+| `users[].id` | integer | User ID |
+| `users[].username` | string | Username |
+| `users[].email` | string\|null | Email address |
+| `users[].real_name` | string | Real name |
+| `users[].fidonet_address` | string\|null | User's FidoNet address |
+| `users[].created_at` | string | Account creation timestamp (ISO 8601) |
+| `users[].last_login` | string\|null | Last login timestamp (ISO 8601) |
+| `users[].last_reminded` | string\|null | Last reminder timestamp (ISO 8601) |
+| `users[].is_active` | boolean | Whether account is active |
+| `users[].is_admin` | boolean | Whether user has admin privileges |
+| `users[].is_system` | boolean | Whether this is a system account |
+| `users[].days_since_reminder` | integer\|null | Days since last reminder was sent |
+| `pagination` | object | Pagination metadata |
+| `pagination.page` | integer | Current page number |
+| `pagination.limit` | integer | Results per page |
+| `pagination.total` | integer | Total matching users |
+| `pagination.pages` | integer | Total number of pages |
 
 **Error Responses**
 
@@ -7876,7 +8498,18 @@ User details for editing
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `user` | object | User object with id, username, real_name, email, credit_balance, is_active, is_admin, is_system, echomail_moderation_forced, created_at, last_login |
+| `user` | object | User account details |
+| `user.id` | integer | User ID |
+| `user.username` | string | Username |
+| `user.real_name` | string | Real name |
+| `user.email` | string\|null | Email address |
+| `user.credit_balance` | integer | Current credit balance |
+| `user.is_active` | boolean | Whether account is active |
+| `user.is_admin` | boolean | Whether user has admin privileges |
+| `user.is_system` | boolean | Whether this is a system account |
+| `user.echomail_moderation_forced` | boolean | Whether echomail moderation is forced for this user |
+| `user.created_at` | string | Account creation timestamp (ISO 8601) |
+| `user.last_login` | string\|null | Last login timestamp (ISO 8601) |
 
 **Error Responses**
 
@@ -8001,7 +8634,8 @@ Toggle result with localized message
 |-------|------|-------------|
 | `success` | boolean | Whether toggle succeeded |
 | `message_code` | string | Localization key for success message |
-| `message_params` | object | Parameters for message (action: 'enable' or 'disable') |
+| `message_params` | object | Parameters for localized message |
+| `message_params.action` | string | Action taken: 'enable' or 'disable' |
 
 **Error Responses**
 
@@ -8065,8 +8699,14 @@ Cleanup operation results
 |-------|------|-------------|
 | `success` | boolean | Whether cleanup completed |
 | `result` | object | Cleanup statistics |
+| `result.approved_removed` | integer | Number of approved registration records removed |
+| `result.old_rejected_removed` | integer | Number of old rejected registration records removed |
+| `result.total_cleaned` | integer | Total records removed |
 | `message_code` | string | Localization key for success message |
-| `message_params` | object | Cleanup counts (approved, rejected, total) |
+| `message_params` | object | Parameters for localized message |
+| `message_params.approved` | integer | Count of approved records removed |
+| `message_params.rejected` | integer | Count of rejected records removed |
+| `message_params.total` | integer | Total records removed |
 
 **Error Responses**
 
@@ -8124,6 +8764,11 @@ List of users needing reminders
 |-------|------|-------------|
 | `success` | boolean | Whether query succeeded |
 | `users` | array | Array of user objects needing reminders |
+| `users[].id` | integer | User ID |
+| `users[].username` | string | Username |
+| `users[].real_name` | string | Real name |
+| `users[].email` | string\|null | Email address |
+| `users[].created_at` | string | Account creation timestamp (ISO 8601) |
 
 **Error Responses**
 
@@ -8205,6 +8850,21 @@ Returns the effective terminal main menu key map for the current system. Used by
 |-------|------|-------------|
 | `success` | boolean | Always `true` |
 | `term_menu_keys` | object | Map of action ID to single-character key string |
+| `term_menu_keys.netmail` | string | Key for Netmail |
+| `term_menu_keys.echomail` | string | Key for Echomail |
+| `term_menu_keys.shoutbox` | string | Key for Shoutbox |
+| `term_menu_keys.bulletins` | string | Key for Bulletins |
+| `term_menu_keys.polls` | string | Key for Polls |
+| `term_menu_keys.doors` | string | Key for Doors |
+| `term_menu_keys.files` | string | Key for Files |
+| `term_menu_keys.settings` | string | Key for Settings |
+| `term_menu_keys.interests` | string | Key for Interests |
+| `term_menu_keys.whosonline` | string | Key for Who's Online |
+| `term_menu_keys.qwk` | string | Key for QWK offline mail |
+| `term_menu_keys.bbslist` | string | Key for BBS List |
+| `term_menu_keys.nodelist` | string | Key for Nodelist |
+| `term_menu_keys.localchat` | string | Key for Local Chat |
+| `term_menu_keys.quit` | string | Key to quit (always present) |
 
 **Error Responses**
 
