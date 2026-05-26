@@ -81,12 +81,18 @@ Areas marked `is_local = true` may still appear in the logged-in user's own QWK
 download from this BBS and may accept that same user's REP uploads back into
 the same local area.
 
+Inter-BBS `qwk_poll` mailbox polling still runs normally when a mailbox has a
+subscription that points at an `is_local` area. If the remote system delivers
+new inbound QWK messages for that mapped conference, BinktermPHP may still
+import those inbound messages into the local `is_local` area.
+
 Areas marked `is_local = true` must not be redistributed through inter-BBS QWK
 mailbox fanout, even if QWK mailbox mappings exist elsewhere in the system.
 
 In other words:
 
 - Local offline-reader access is allowed for `is_local` areas.
+- Inter-BBS inbound import into a mapped `is_local` area is allowed.
 - External QWK mailbox transport is not allowed for `is_local` areas.
 
 ---

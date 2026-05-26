@@ -388,7 +388,12 @@
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label" for="qwkMailboxPassword">{{ t('ui.common.password', {}, locale, ['common']) }}</label>
-                                    <input class="form-control" id="qwkMailboxPassword" maxlength="255">
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="qwkMailboxPassword" maxlength="255" autocomplete="off">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="toggleQwkMailboxPasswordVisibility()" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label" for="qwkMailboxPath">{{ t('ui.qwk.uplinks.remote_path', {}, locale, ['common']) }}</label>
@@ -1328,6 +1333,7 @@ function resetQwkMailboxForm() {
     $('#qwkMailboxPath').val('/');
     $('#qwkMailboxPassiveMode').prop('checked', true);
     $('#qwkMailboxEnabled').prop('checked', true);
+    resetQwkMailboxPasswordVisibility();
 }
 
 function loadQwkMailboxList() {
@@ -1389,10 +1395,55 @@ function editQwkMailbox(id) {
             $('#qwkMailboxPassiveMode').prop('checked', mailbox.passive_mode !== false);
             $('#qwkMailboxSchedule').val(mailbox.poll_schedule || '');
             $('#qwkMailboxEnabled').prop('checked', !!mailbox.enabled);
+            resetQwkMailboxPasswordVisibility();
         })
         .fail(function(xhr) {
             $('#qwkMailboxAlert').text(apiError(xhr.responseJSON, uiT('ui.qwk.uplinks.load_failed', 'Failed to load QWK mailboxes'))).removeClass('d-none');
         });
+}
+
+function toggleQwkMailboxPasswordVisibility() {
+    const input = document.getElementById('qwkMailboxPassword');
+    const button = input && input.parentElement ? input.parentElement.querySelector('button') : null;
+    if (!input || !button) {
+        return;
+    }
+
+    const icon = button.querySelector('i');
+    const isHidden = input.type === 'password';
+    const nextLabel = isHidden
+        ? uiT('ui.common.hide_password', 'Hide password')
+        : uiT('ui.common.show_password', 'Show password');
+
+    input.type = isHidden ? 'text' : 'password';
+    button.setAttribute('title', nextLabel);
+    button.setAttribute('aria-label', nextLabel);
+
+    if (icon) {
+        icon.classList.toggle('fa-eye', !isHidden);
+        icon.classList.toggle('fa-eye-slash', isHidden);
+    }
+}
+
+function resetQwkMailboxPasswordVisibility() {
+    const input = document.getElementById('qwkMailboxPassword');
+    const button = input && input.parentElement ? input.parentElement.querySelector('button') : null;
+    const icon = button ? button.querySelector('i') : null;
+    const label = uiT('ui.common.show_password', 'Show password');
+
+    if (input) {
+        input.type = 'password';
+    }
+
+    if (button) {
+        button.setAttribute('title', label);
+        button.setAttribute('aria-label', label);
+    }
+
+    if (icon) {
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
 }
 
 function saveQwkMailbox() {
