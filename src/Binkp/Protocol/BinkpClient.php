@@ -186,7 +186,7 @@ class BinkpClient
 
             return $result;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log("Session failed with {$address}: " . $e->getMessage(), 'ERROR');
             if (isset($sessionLogger)) {
                 $sessionLogger->endSession('failed', $e->getMessage());
@@ -279,7 +279,7 @@ class BinkpClient
                 'remote_address' => $session->getRemoteAddress(),
                 'auth_method' => $session->getAuthMethod(),
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log("Auth-only test failed with {$address}: " . $e->getMessage(), 'ERROR');
             if (isset($sessionLogger)) {
                 $sessionLogger->endSession('failed', $e->getMessage());

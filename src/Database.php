@@ -16,6 +16,8 @@
 
 namespace BinktermPHP;
 
+use BinktermPHP\DatabasePlatform\DatabasePlatformFactory;
+use BinktermPHP\DatabasePlatform\DatabasePlatformInterface;
 use PDO;
 use PDOException;
 
@@ -23,45 +25,22 @@ class Database
 {
     private static $instance = null;
     private $pdo;
+    private DatabasePlatformInterface $platform;
 
     private function __construct(bool $useUtcTimezone = true)
     {
         try {
             $config = Config::getDatabaseConfig();
-            
-            $dsn = sprintf(
-                'pgsql:host=%s;port=%s;dbname=%s',
-                $config['host'],
-                $config['port'],
-                $config['database']
-            );
-            
-            // Add SSL configuration if enabled
-            if (isset($config['ssl']) && $config['ssl']['enabled']) {
-                $dsn .= ';sslmode=require';
-                if (isset($config['ssl']['ca_cert'])) {
-                    $dsn .= ';sslrootcert=' . $config['ssl']['ca_cert'];
-                }
-                if (isset($config['ssl']['client_cert'])) {
-                    $dsn .= ';sslcert=' . $config['ssl']['client_cert'];
-                }
-                if (isset($config['ssl']['client_key'])) {
-                    $dsn .= ';sslkey=' . $config['ssl']['client_key'];
-                }
-            }
-            
+            $this->platform = self::getPlatform($config);
+
             $this->pdo = new PDO(
-                $dsn, 
+                $this->platform->createDsn($config),
                 $config['username'], 
                 $config['password'], 
                 $config['options'] ?? []
             );
 
-            $this->setApplicationName();
-
-            if ($useUtcTimezone) {
-                $this->pdo->exec("SET TIME ZONE 'UTC'");
-            }
+            $this->platform->initializeSession($this->pdo, $useUtcTimezone);
         } catch (PDOException $e) {
             die('Database connection failed: ' . $e->getMessage());
         }
@@ -84,29 +63,32 @@ class Database
         return self::getInstance($useUtcTimezone);
     }
 
+    /**
+     * Resolve the configured database platform implementation.
+     *
+     * @param array<string, mixed>|null $config
+     */
+    public static function getPlatform(?array $config = null): DatabasePlatformInterface
+    {
+        return DatabasePlatformFactory::create($config ?? Config::getDatabaseConfig());
+    }
+
     public function getPdo()
     {
         return $this->pdo;
     }
 
     /**
-     * Tag PostgreSQL connections so they are identifiable in pg_stat_activity.
+     * Return the active database platform.
      */
-    private function setApplicationName(): void
+    public function getPlatformInstance(): DatabasePlatformInterface
     {
-        $applicationName = sprintf('%s v%s', Version::getAppName(), Version::getVersion());
-        $quotedApplicationName = $this->pdo->quote($applicationName);
-
-        if ($quotedApplicationName === false) {
-            return;
-        }
-
-        $this->pdo->exec("SET application_name = {$quotedApplicationName}");
+        return $this->platform;
     }
 
     private function initTables()
     {
-        $sql = file_get_contents(__DIR__ . '/../database/postgresql_schema.sql');
+        $sql = file_get_contents($this->platform->getBaseSchemaPath(dirname(__DIR__)));
         $this->pdo->exec($sql);
     }
 }

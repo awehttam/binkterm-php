@@ -36,22 +36,24 @@ Suggested fields for new entries:
 ### Hardcoded PostgreSQL DSN and session setup
 
 - Why PostgreSQL-specific:
-  - uses `pgsql:` DSN construction
-  - uses PostgreSQL session commands such as `SET TIME ZONE` and `SET application_name`
+  - the current platform abstraction still resolves to a PostgreSQL implementation only
+  - PostgreSQL session commands such as `SET TIME ZONE` and `SET application_name` remain PostgreSQL-specific behavior
 - Current locations:
   - `src/Database.php`
+  - `src/DatabasePlatform/PostgresPlatform.php`
 - Likely future strategy:
-  - introduce a small database platform layer for DSN construction and session initialization
+  - extend the existing platform layer with additional implementations if compatibility work is ever pursued
 - Difficulty:
   - medium
 
 ### PostgreSQL-only base schema install path
 
 - Why PostgreSQL-specific:
-  - installer loads `database/postgresql_schema.sql`
+  - the base schema path is now abstracted, but still resolves only to PostgreSQL
 - Current locations:
   - `src/Database.php`
   - `scripts/install.php`
+  - `src/DatabasePlatform/PostgresPlatform.php`
 - Likely future strategy:
   - select base schema by configured engine
   - add `database/mysql_schema.sql` only if compatibility work is ever pursued
@@ -66,7 +68,7 @@ Suggested fields for new entries:
   - depends on PostgreSQL pub/sub behavior
   - uses native PostgreSQL client functions, not generic PDO
 - Current locations:
-  - `scripts/ai_bot_daemon.php`
+  - `src/Realtime/PostgresEventListener.php`
 - Likely future strategy:
   - replace with an event transport abstraction
   - possible backends: Redis pub/sub, polling, queue daemon
@@ -78,7 +80,7 @@ Suggested fields for new entries:
 - Why PostgreSQL-specific:
   - directly calls PostgreSQL notification functions
 - Current locations:
-  - `src/Realtime/BinkStream.php`
+  - `src/Realtime/PostgresEventPublisher.php`
 - Likely future strategy:
   - notifier interface with PostgreSQL implementation now and alternative backend later
 - Difficulty:
@@ -89,6 +91,9 @@ Suggested fields for new entries:
 - Why PostgreSQL-specific:
   - uses PL/pgSQL trigger functions and `pg_notify`
 - Current locations:
+  - `database/migrations/v1.11.0.54_chat_notify_trigger.php`
+  - `database/migrations/v1.11.0.55_sse_events_table.php`
+  - `database/migrations/v1.11.0.57_sse_events_user_targeting.php`
   - `database/migrations/v1.11.0.58_dashboard_stats_triggers.php`
   - `database/migrations/v1.11.0.67_targeted_dashboard_stats_triggers.php`
 - Likely future strategy:
@@ -118,6 +123,29 @@ Representative examples:
 - `src/BbsDirectory.php`
 - `src/Chat/ChatMessageService.php`
 - `src/MessageHandler.php`
+
+### `ON CONFLICT`
+
+- Why PostgreSQL-specific:
+  - PostgreSQL upsert syntax and conflict-target behavior are used widely across the codebase
+  - some queries rely on PostgreSQL-specific forms such as conflict targets, predicates, and returned-row assumptions
+- Current locations:
+  - many files under `src/`, `routes/`, `database/postgresql_schema.sql`, and `database/migrations/`
+- Likely future strategy:
+  - isolate common upsert patterns behind helper methods where practical
+  - redesign per-engine upsert behavior explicitly rather than assuming direct syntax parity
+- Difficulty:
+  - medium
+
+Representative examples:
+
+- `src/AreaFixManager.php`
+- `src/BbsDirectory.php`
+- `src/BulletinManager.php`
+- `src/PacketBbs/PacketBbsSession.php`
+- `src/UserMeta.php`
+- `routes/api-routes.php`
+- `routes/packetbbs-routes.php`
 
 ### `ILIKE`
 
@@ -284,6 +312,62 @@ Representative schema examples:
   - preserve the rule at application level and redesign DB-level enforcement per engine if needed
 - Difficulty:
   - medium
+
+## PostgreSQL Catalog, Stats, And Introspection
+
+### PostgreSQL system catalog and statistics views
+
+- Why PostgreSQL-specific:
+  - relies on PostgreSQL system views and helper functions such as `pg_stat_*`, `pg_class`, `pg_namespace`, `pg_locks`, `pg_stat_replication`, and `pg_size_pretty(...)`
+- Current locations:
+  - `src/DatabaseStats.php`
+  - `scripts/binktop.php`
+  - `scripts/database_maintenance.php`
+  - some tests and analysis scripts
+- Likely future strategy:
+  - keep operational reporting behind backend-specific services
+  - do not assume these views exist on non-PostgreSQL backends
+- Difficulty:
+  - high
+
+### PostgreSQL schema introspection in migrations
+
+- Why PostgreSQL-specific:
+  - queries PostgreSQL catalogs and PostgreSQL helper functions such as `pg_constraint` and `pg_get_constraintdef(...)`
+- Current locations:
+  - `database/migrations/v1.11.0.63_mrc_local_presence_user_id.php`
+- Likely future strategy:
+  - keep advanced migration introspection in PHP migrations
+  - branch explicitly by backend if compatibility work is ever pursued
+- Difficulty:
+  - medium
+
+## Tooling And External Integration
+
+### PostgreSQL backup and restore tooling
+
+- Why PostgreSQL-specific:
+  - relies on PostgreSQL command-line tools such as `pg_dump` and `pg_restore`
+- Current locations:
+  - `scripts/backup_database.php`
+  - `scripts/restore_database.php`
+  - related operational documentation
+- Likely future strategy:
+  - introduce backend-specific backup/restore tooling only if additional engines are ever supported
+- Difficulty:
+  - medium
+
+### MCP server PostgreSQL-specific SQL
+
+- Why PostgreSQL-specific:
+  - the Node MCP server uses PostgreSQL-specific SQL and functions such as `pg_catalog.textsend`, `convert_from(...)`, and `ILIKE`
+- Current locations:
+  - `mcp-server/server.js`
+- Likely future strategy:
+  - treat MCP database access as its own compatibility surface
+  - isolate query rewrites there separately from the PHP app
+- Difficulty:
+  - medium to high
 
 ## Migration Hotspots
 
