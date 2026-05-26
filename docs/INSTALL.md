@@ -36,6 +36,8 @@ BinktermPHP is developed and tested on Debian-based Linux distributions, includi
 - **Feature-specific dependencies** - Some optional features, such as DOS Doors, may require additional installation steps. See each feature's documentation for its specific requirements.
 - **Hardware Recommendation** - If you are running all services, we recommend at least 2 GB of RAM and 2 CPU cores
 - **Sizing Note** - Running fewer services generally requires less RAM
+- **Hosting Recommendation** - Use a VPS, dedicated server, Raspberry Pi, or other environment where you control the OS, web server, firewall, and background services
+- **Shared Hosting** - Not recommended. BinktermPHP requires PostgreSQL and uses multiple service ports and long-running daemons that many shared hosting environments do not permit
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
 - **Operating User** - BinktermPHP should run under its own dedicated user account, not as root or your personal login. See [Create BBS User Account](#create-bbs-user-account) below.
 

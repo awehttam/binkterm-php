@@ -157,10 +157,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full component diagram,
 
 BinktermPHP supports two installation methods:
 
-- **Installer (recommended)** — download and run `binkterm-installer.phar` for a guided, automated setup that handles PHP, PostgreSQL, web server configuration, and migrations
-- **Git (for developers)** — clone the repository and run setup scripts for full control over the installation
+- **Installer (recommended)** - download and run `binkterm-installer.phar` for a guided, automated setup that handles PHP, PostgreSQL, web server configuration, and migrations
+- **Git (for developers)** - clone the repository and run setup scripts for full control over the installation
 
-For complete installation instructions — system requirements, Ubuntu/Debian package setup, PostgreSQL configuration, web server configuration (Caddy, Nginx, Apache), cron job setup, and a network port reference — see **[docs/INSTALL.md](docs/INSTALL.md)**.
+BinktermPHP is intended for a VPS, dedicated server, Raspberry Pi, or similar environment where you control PostgreSQL, background daemons, and multiple network ports. Shared hosting is not recommended.
+
+For complete installation instructions - system requirements, Ubuntu/Debian package setup, PostgreSQL configuration, web server configuration (Caddy, Nginx, Apache), cron job setup, and a network port reference - see **[docs/INSTALL.md](docs/INSTALL.md)**.
 
 ---
 
