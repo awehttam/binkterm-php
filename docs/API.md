@@ -5419,7 +5419,14 @@ AI assistance request
 
 **Response** _(JSON)_
 
-AI-generated response (truncated in snippet)
+AI assistant result with the generated reply and resulting credit information.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True when the request completed successfully |
+| `response` | string | AI-generated reply text |
+| `credits_used` | integer | Credits charged for this AI request |
+| `balance` | integer | User's remaining credit balance after the request |
 
 **Error Responses**
 
@@ -5428,6 +5435,7 @@ AI-generated response (truncated in snippet)
 | 403 | AI assistant is disabled on this system |
 | 503 | AI assistant not configured (missing API keys) |
 | 400 | Prompt is empty or exceeds 500 character limit |
+| 402 | Insufficient credits for the AI request |
 
 ---
 
