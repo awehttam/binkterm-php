@@ -694,7 +694,32 @@ Returns operational status of the BinkP daemon including connection state, queue
 
 **Response** _(JSON)_
 
-BinkP daemon status object (structure varies by implementation)
+BinkP daemon operational status
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `system` | object | Static system configuration |
+| `system.address` | string | FidoNet address of this node |
+| `system.sysop` | string | Sysop name |
+| `system.location` | string | System location string |
+| `system.hostname` | string | BinkP listen hostname |
+| `system.port` | integer | BinkP listen port |
+| `schedule` | object | Map of uplink address → schedule status entry |
+| `schedule[addr].address` | string | Uplink FidoNet address |
+| `schedule[addr].schedule` | string | Cron-style poll schedule expression |
+| `schedule[addr].enabled` | boolean | Whether this uplink is enabled |
+| `schedule[addr].last_poll` | string | ISO 8601 UTC timestamp of last poll, or `"Never"` |
+| `schedule[addr].next_poll` | string | ISO 8601 UTC timestamp of next scheduled poll, or `"Unknown"` |
+| `schedule[addr].due_now` | boolean | Whether a poll is currently due |
+| `queues` | object | Queue statistics |
+| `queues.inbound.pending_files` | integer | Packets awaiting processing in the inbound directory |
+| `queues.inbound.error_files` | integer | Files in the inbound error directory |
+| `queues.inbound.last_check` | string | Timestamp of last inbound queue check |
+| `queues.outbound.pending_files` | integer | Packets queued for outbound transmission |
+| `queues.outbound.total_size` | integer | Total byte size of outbound packets |
+| `queues.outbound.total_messages` | integer | Total message count across outbound packets |
+| `queues.outbound.last_check` | string | Timestamp of last outbound queue check |
+| `timestamp` | string | ISO 8601 UTC timestamp of when this status was generated |
 
 **Error Responses**
 
@@ -1191,7 +1216,28 @@ Retrieves detailed inspection data for a specific packet within a kept bundle (i
 
 **Response** _(JSON)_
 
-Packet inspection data with metadata and contents
+Parsed FTS-0001 packet header and per-message header list
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `packet` | object | Packet-level header fields |
+| `packet.orig_address` | string | Originating FidoNet address (zone:net/node.point) |
+| `packet.dest_address` | string | Destination FidoNet address |
+| `packet.created` | string | Packet creation timestamp as `YYYY-MM-DD HH:MM:SS` |
+| `packet.has_password` | boolean | Whether a session password was set in the packet header |
+| `packet.packet_version` | integer | FTS-0001 packet version field value |
+| `packet.product_code` | string | Two-character hex product code |
+| `packet.file_size` | integer | Packet file size in bytes |
+| `messages` | array | Per-message header entries (up to 1000) |
+| `messages[].from` | string | Sender name (CP437 decoded) |
+| `messages[].to` | string | Recipient name (CP437 decoded) |
+| `messages[].subject` | string | Message subject (CP437 decoded) |
+| `messages[].date` | string | Message date string from packet header |
+| `messages[].orig_addr` | string | Originating net/node address |
+| `messages[].dest_addr` | string | Destination net/node address |
+| `messages[].flags` | array | Attribute flag labels (e.g. `["Pvt"]`, `["Crash", "Local"]`) |
+| `messages[].cost` | integer | Message cost field |
 
 **Error Responses**
 
@@ -1216,9 +1262,15 @@ Downloads a file from a kept bundle as an attachment. Requires BinkP admin privi
 | `date` | string | No | Date identifier for the bundle |
 | `filename` | string | Yes | Filename to download |
 
-**Response** _(JSON)_
+**Response** _(binary)_
 
-Binary file content with Content-Disposition attachment header
+Raw bundle file bytes with download headers
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/octet-stream` |
+| `Content-Length` | File size in bytes |
+| `Content-Disposition` | `attachment; filename="<bundle_filename>"` |
 
 **Error Responses**
 
@@ -1244,7 +1296,24 @@ Retrieves a list of kept packet bundles (inbound or outbound). Requires BinkP ad
 
 **Response** _(JSON)_
 
-Array of kept packet bundles with metadata
+Kept packets grouped by date directory, newest first
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `groups` | array | Date-grouped list of packet entries |
+| `groups[].date` | string | Date directory label (e.g. `"Mar-18-2026"`), empty for loose root-level files |
+| `groups[].packets` | array | Packet and bundle records within this date group |
+| `groups[].packets[].file_type` | string | Either `"pkt"` (raw packet) or `"bundle"` (arcmail archive) |
+| `groups[].packets[].filename` | string | Filename within the keep directory |
+| `groups[].packets[].size` | integer | File size in bytes |
+| `groups[].packets[].modified` | string | ISO 8601 UTC last-modified timestamp |
+| `groups[].packets[].modified_ts` | integer | Unix timestamp of last modification |
+| `groups[].packets[].message_count` | integer | Number of messages _(pkt only)_ |
+| `groups[].packets[].dest_address` | string | Destination FidoNet address _(pkt only)_ |
+| `groups[].packets[].orig_address` | string | Originating FidoNet address _(pkt only)_ |
+| `groups[].latest_modified_ts` | integer | Unix timestamp of the most recently modified file in this group |
+| `total` | integer | Total number of packet/bundle files across all groups |
 
 **Error Responses**
 
@@ -1269,7 +1338,12 @@ Fetches recent BinkP protocol logs. Requires BinkP admin privileges. Supports co
 
 **Response** _(JSON)_
 
-Array of log entries
+Recent log lines from all BinkP-related log files
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `logs` | array of strings | Log lines in `"<filename>: <raw log line>"` format, up to `lines` entries per file, newest last |
 
 **Error Responses**
 
@@ -1293,7 +1367,17 @@ Searches BinkP logs for entries matching a query. Requires BinkP admin privilege
 
 **Response** _(JSON)_
 
-Array of matching log entries
+PID-contextual log search results — all lines from sessions that contain the query term
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `lines` | array | Log line entries (all lines from matching PIDs across all BinkP log files) |
+| `lines[].line` | string | Full log line prefixed with `"<filename>: "` |
+| `lines[].is_match` | boolean | True if this line itself contains the query term (as opposed to being context from a matching PID) |
+| `lines[].pid` | string | Process ID extracted from the log line |
+| `pid_count` | integer | Number of distinct PIDs whose sessions contained the query term |
+| `match_count` | integer | Number of lines that directly matched the query term |
 
 **Error Responses**
 
@@ -2241,7 +2325,13 @@ Retrieves aggregated statistics for all file areas. Requires authentication. Ret
 
 **Response** _(JSON)_
 
-File area statistics object
+File area statistics
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `active_count` | integer | Number of active file areas (public-only when request is unauthenticated) |
+| `total_files` | integer | Total approved file count across matching areas |
+| `total_size` | integer | Total byte size of all files across matching areas |
 
 ---
 
@@ -3729,9 +3819,16 @@ Fetches and streams audio/music files (XM, IT, S3M, MOD, SID, MIDI, etc.) from e
 |------|------|----------|-------------|
 | `url` | string | Yes | Public HTTP(S) URL to media file with allowed extension |
 
-**Response** _(JSON)_
+**Response** _(binary)_
 
-Raw media file stream with appropriate Content-Type header.
+Raw proxied media file bytes
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | MIME type reported by the upstream server (e.g. `audio/x-mod`, `application/octet-stream`) |
+| `Content-Length` | File size in bytes |
+| `Content-Disposition` | `inline; filename="<basename>"` |
+| `Cache-Control` | `public, max-age=86400` |
 
 **Error Responses**
 
@@ -3952,9 +4049,36 @@ Paginated netmail message list
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array | Array of netmail message objects |
-| `page` | integer | Current page number |
-| `total` | integer | Total message count |
+| `messages` | array | Array of netmail message objects (see shape below) |
+| `pagination.page` | integer | Current page number |
+| `pagination.limit` | integer | Messages per page (from user setting, default 25) |
+| `pagination.total` | integer | Total message count matching the current filter |
+| `pagination.pages` | integer | Total number of pages |
+
+**Netmail object**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Message ID |
+| `from_name` | string | Sender display name (UTF-8 normalized) |
+| `from_address` | string | Sender FidoNet address (e.g. `1:123/456`) |
+| `to_name` | string | Recipient display name |
+| `to_address` | string | Recipient FidoNet address |
+| `subject` | string | Message subject; masked as `"••••••••"` for AreaFix/FileFix robot messages |
+| `date_received` | string | UTC timestamp when the message was stored server-side — reliable for display and sorting |
+| `date_written` | string | Timestamp from the FTN packet header — reflects when the sender composed the message; may be wrong or in the future if the remote clock is incorrect |
+| `user_id` | integer | ID of the local user who owns (sent or received) this message |
+| `attributes` | integer | FTN message attribute bitmask (FTS-0001) |
+| `is_sent` | boolean | True if this message was sent by the local system |
+| `is_freq` | boolean | True if this is a file-request message |
+| `reply_to_id` | integer\|null | ID of the message this is a reply to, or null |
+| `is_read` | integer | `1` if the authenticated user has read this message, `0` otherwise |
+| `has_attachment` | integer | `1` if one or more file attachments exist for this message, `0` otherwise |
+| `is_saved` | integer | `1` if the authenticated user has saved this message, `0` otherwise |
+| `replyto_address` | string\|null | FidoNet address parsed from the `REPLYTO` kludge, if present |
+| `replyto_name` | string\|null | Recipient name parsed from the `REPLYTO` kludge, if present |
+| `from_domain` | string\|null | FTN domain name resolved from `from_address`, or null if unresolvable |
+| `to_domain` | string\|null | FTN domain name resolved from `to_address`, or null if unresolvable |
 
 ---
 
@@ -4023,11 +4147,17 @@ Fetches all messages in a conversation thread anchored by the specified message 
 
 **Response** _(JSON)_
 
-Conversation thread containing the message
+Full conversation thread, flattened in display order
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array | Array of messages in the conversation thread |
+| `messages` | array | Netmail message objects in the thread, flattened for display (same shape as the list endpoint, without `is_saved`) |
+| `unreadCount` | integer | Number of unread messages in this thread |
+| `threaded` | boolean | Always `true` for this endpoint |
+| `pagination.page` | integer | Always `1` (full thread is returned) |
+| `pagination.limit` | integer | Number of messages returned |
+| `pagination.total` | integer | Total messages in the thread |
+| `pagination.pages` | integer | Always `1` |
 
 **Error Responses**
 
@@ -4216,9 +4346,37 @@ Paginated echomail message list
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array | Array of echomail message objects |
-| `page` | integer | Current page number |
-| `total` | integer | Total message count |
+| `messages` | array | Array of echomail message objects (see shape below) |
+| `unreadCount` | integer | Total unread messages across all subscribed areas matching the current filter |
+| `pagination.page` | integer | Current page number |
+| `pagination.limit` | integer | Messages per page (from user setting, default 25) |
+| `pagination.total` | integer | Total message count matching the current filter |
+| `pagination.pages` | integer | Total number of pages |
+| `info` | string | _(optional)_ Human-readable notice when the user has no subscriptions |
+
+**Echomail object**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Message ID |
+| `from_name` | string | Sender display name (UTF-8 normalized) |
+| `from_address` | string | Sender FidoNet address (e.g. `1:123/456`) |
+| `to_name` | string | Recipient display name (often `"All"` for public posts) |
+| `subject` | string | Message subject |
+| `date_received` | string | UTC timestamp when the message was stored server-side — reliable for display and sorting |
+| `date_written` | string | Timestamp from the FTN packet header — reflects when the sender composed the message; may be wrong or in the future if the remote clock is incorrect |
+| `echoarea_id` | integer | ID of the echo area this message belongs to |
+| `echoarea` | string | Echo area tag (e.g. `"FIDONEWS"`) |
+| `echoarea_color` | string | Hex color code configured for this echo area (e.g. `"#28a745"`) |
+| `echoarea_domain` | string | Domain of the echo area (e.g. `"lovlynet"`) |
+| `message_id` | string | FTN Message-ID kludge value from the original packet |
+| `reply_to_id` | integer\|null | ID of the message this is a reply to, or null |
+| `art_format` | string\|null | Art format hint: `"ansi"`, `"amiga_ansi"`, `"petscii"`, or null (message-level value takes precedence over area default) |
+| `is_read` | integer | `1` if the authenticated user has read this message, `0` otherwise |
+| `is_shared` | integer | `1` if an active share link exists for this message, `0` otherwise |
+| `is_saved` | integer | `1` if the authenticated user has saved this message, `0` otherwise |
+| `replyto_address` | string\|null | FidoNet address parsed from the `REPLYTO` kludge, if present |
+| `replyto_name` | string\|null | Recipient name parsed from the `REPLYTO` kludge, if present |
 
 **Error Responses**
 
@@ -4414,11 +4572,17 @@ Retrieves the full conversation thread containing the specified message, includi
 
 **Response** _(JSON)_
 
-Conversation thread data
+Full conversation thread, flattened in display order
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | array | Array of messages in the conversation thread |
+| `messages` | array | Echomail message objects in the thread, flattened for display (same shape as the list endpoint, without `replyto_address` / `replyto_name`) |
+| `unreadCount` | integer | Number of unread messages in this thread |
+| `threaded` | boolean | Always `true` for this endpoint |
+| `pagination.page` | integer | Always `1` (full thread is returned) |
+| `pagination.limit` | integer | Number of messages returned |
+| `pagination.total` | integer | Total messages in the thread |
+| `pagination.pages` | integer | Always `1` |
 
 **Error Responses**
 
@@ -5175,7 +5339,29 @@ Retrieves all active share links for a specific echomail message. Requires authe
 
 **Response** _(JSON)_
 
-Array of share links with metadata
+Share links for this message, split by ownership
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `my_shares` | array | Share links created by the authenticated user |
+| `my_shares[].share_key` | string | Unique share token used in the share URL |
+| `my_shares[].share_url` | string | Full share URL (friendly URL if slug is set, otherwise key-based) |
+| `my_shares[].has_friendly_url` | boolean | True if a slug-based friendly URL is available |
+| `my_shares[].created_at` | string | ISO 8601 timestamp when the share was created |
+| `my_shares[].expires_at` | string\|null | ISO 8601 expiry timestamp, or null if non-expiring |
+| `my_shares[].is_public` | boolean | Whether the share is publicly accessible |
+| `my_shares[].access_count` | integer | Number of times the share URL has been accessed |
+| `my_shares[].last_accessed_at` | string\|null | ISO 8601 timestamp of last access, or null |
+| `my_shares[].og_image_path` | string\|null | Server path to custom OG preview image, or null |
+| `my_shares[].og_image_slug` | string\|null | Slug for the OG image URL, or null |
+| `my_shares[].top_referrers` | array | Reserved; currently always empty |
+| `other_shares` | array | Active public share links for this message created by other users |
+| `other_shares[].share_url` | string | Full share URL |
+| `other_shares[].shared_by_username` | string | Username of the user who created the share |
+| `other_shares[].created_at` | string | ISO 8601 timestamp when the share was created |
+| `other_shares[].is_public` | boolean | Whether the share is publicly accessible |
+| `other_shares[].top_referrers` | array | Reserved; currently always empty |
 
 **Error Responses**
 
@@ -6321,57 +6507,131 @@ Command execution result
 
 #### `GET /api/subscriptions/user`
 
-Public
+**Requires authentication**
 
-Fetches subscription data for the authenticated user. Delegates to SubscriptionController for handling. Exact response structure depends on controller implementation.
+Fetches all active echo areas with the authenticated user's subscription status for each.
 
 **Response** _(JSON)_
 
-User subscription details (structure determined by SubscriptionController)
+Echo areas with per-user subscription state
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `echoareas` | array | All active echo areas visible to the user |
+| `echoareas[].id` | integer | Echo area ID |
+| `echoareas[].tag` | string | Echo area tag |
+| `echoareas[].description` | string | Human-readable description |
+| `echoareas[].domain` | string | Domain (e.g. `"lovlynet"`) |
+| `echoareas[].is_local` | boolean | Whether the area is local-only |
+| `echoareas[].is_sysop_only` | boolean | Whether the area is restricted to sysops |
+| `echoareas[].is_default_subscription` | boolean | Whether new users are auto-subscribed |
+| `echoareas[].is_new` | boolean | True if the area was created in the last 30 days |
+| `echoareas[].subscribed` | boolean\|null | True if the user has an active subscription, null if never subscribed |
+| `echoareas[].subscription_type` | string\|null | `"user"` (manually subscribed) or `"auto"` (default subscription), null if not subscribed |
+| `echoareas[].subscribed_at` | string\|null | ISO 8601 timestamp when the user subscribed, null if not subscribed |
 
 ---
 
 #### `POST /api/subscriptions/user`
 
-Public
+**Requires authentication**
 
-Manages user subscription creation or modification. Delegates to SubscriptionController for handling. Exact request/response structure depends on controller implementation.
+Subscribe or unsubscribe the authenticated user from an echo area.
 
 **Request Body** _(JSON)_
 
-Subscription data (structure determined by SubscriptionController)
+Subscription action
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | string | Yes | Either `"subscribe"` or `"unsubscribe"` |
+| `echoarea_id` | integer | Yes | Echo area to act on |
 
 **Response** _(JSON)_
 
-Subscription operation result (structure determined by SubscriptionController)
+Subscription action result
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the action was applied |
+| `message_code` | string | Localization key for UI message (present on success; e.g. `"ui.user_subscriptions.subscribed_success"`) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing echoarea_id or invalid action |
+| 401 | Authentication required |
 
 ---
 
 #### `GET /api/subscriptions/admin`
 
-Public
+**Requires authentication**
 
-Fetches system-wide subscription data for administrative review. Delegates to SubscriptionController for handling. Exact response structure depends on controller implementation.
+Fetches all active echo areas with subscriber statistics and system-wide subscription totals. Requires admin privileges.
 
 **Response** _(JSON)_
 
-Admin subscription statistics (structure determined by SubscriptionController)
+Echo area subscription statistics
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `echoareas` | array | Active echo areas with subscriber counts |
+| `echoareas[].id` | integer | Echo area ID |
+| `echoareas[].tag` | string | Echo area tag |
+| `echoareas[].description` | string | Description |
+| `echoareas[].is_default_subscription` | boolean | Whether the area is a default subscription |
+| `echoareas[].subscriber_count` | integer | Total active subscribers |
+| `echoareas[].user_subscribers` | integer | Subscribers with type `"user"` (manually subscribed) |
+| `echoareas[].auto_subscribers` | integer | Subscribers with type `"auto"` (default subscription) |
+| `stats` | object | System-wide subscription totals |
+| `stats.total_echoareas` | integer | Total active echo areas |
+| `stats.default_echoareas` | integer | Echo areas marked as default subscriptions |
+| `stats.total_subscriptions` | integer | Total active subscriptions across all users |
+| `stats.subscribed_users` | integer | Number of distinct users with at least one active subscription |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 403 | Admin access required |
 
 ---
 
 #### `POST /api/subscriptions/admin`
 
-Public
+**Requires authentication**
 
-Allows administrators to create or modify subscription configurations. Delegates to SubscriptionController for handling. Exact request/response structure depends on controller implementation.
+Update administrative subscription settings for an echo area. Requires admin privileges.
 
 **Request Body** _(JSON)_
 
-Subscription configuration data (structure determined by SubscriptionController)
+Admin subscription action
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | string | Yes | Currently supported: `"set_default"` |
+| `echoarea_id` | integer | Yes | Echo area to update |
+| `is_default` | boolean | No | Required for `set_default`; true to mark as default, false to unmark |
 
 **Response** _(JSON)_
 
-Subscription management result (structure determined by SubscriptionController)
+Admin action result
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the action was applied |
+| `message_code` | string | Localization key for UI message (present on success; e.g. `"ui.admin_subscriptions.default_enabled_success"`) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing echoarea_id or invalid action |
+| 401 | Authentication required |
+| 403 | Admin access required |
 
 ---
 
