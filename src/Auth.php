@@ -414,7 +414,14 @@ class Auth
                    COALESCE(
                        MAX(s.last_activity),
                        MAX(al.created_at)
-                   ) AT TIME ZONE :tz AS last_activity,
+                   ) AS last_activity,
+                   TO_CHAR(
+                       COALESCE(
+                           MAX(s.last_activity),
+                           MAX(al.created_at)
+                       ) AT TIME ZONE :tz,
+                       'HH24:MI'
+                   ) AS last_activity_display,
                    BOOL_OR(s.last_activity > NOW() - INTERVAL '15 minutes'
                            AND s.expires_at > NOW()) AS is_online
             FROM caller_first cf

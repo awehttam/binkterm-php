@@ -417,7 +417,7 @@
                         {% for caller in todays_callers %}
                         <tr>
                             <td class="ps-2"><a href="/profile/{{ caller.username|url_encode }}" class="text-decoration-none">{{ caller.username }}</a></td>
-                            <td class="text-muted">{{ caller.last_activity|date('H:i', 'UTC') }}</td>
+                            <td class="text-muted">{{ caller.last_activity_display ?: (caller.last_activity|date('H:i')) }}</td>
                             <td class="text-center pe-2">
                                 {% if caller.is_online %}
                                     <span class="badge bg-success" title="{{ t('ui.dashboard.callers_online_now', {}, locale, ['common']) }}">●</span>
