@@ -55,7 +55,7 @@ class Auth
     public function authenticateCredentials(string $username, string $password): array|false
     {
         $stmt = $this->db->prepare('
-            SELECT id, username, real_name, email, is_admin, password_hash, created_at, last_login, location, fidonet_address
+            SELECT id, username, real_name, email, is_admin, is_bbs_account, password_hash, created_at, last_login, location, fidonet_address
             FROM users
             WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND is_active = TRUE
             LIMIT 1
@@ -80,7 +80,7 @@ class Auth
     public function validateSession($sessionId)
     {
         $stmt = $this->db->prepare('
-            SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.password_hash, u.created_at, u.last_login, u.location, u.about_me, u.fidonet_address
+            SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.is_bbs_account, u.password_hash, u.created_at, u.last_login, u.location, u.about_me, u.fidonet_address
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.session_id = ? AND s.expires_at > NOW() AND u.is_active = TRUE

@@ -7874,7 +7874,7 @@ User details for editing
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `user` | object | User object with id, username, real_name, email, credit_balance, is_active, is_admin, is_system, echomail_moderation_forced, created_at, last_login |
+| `user` | object | User object with id, username, real_name, email, credit_balance, is_active, is_admin, is_system, is_bbs_account, echomail_moderation_forced, created_at, last_login |
 
 **Error Responses**
 
@@ -7950,6 +7950,7 @@ User update fields
 | `is_active` | integer | No | 1 for active, 0 for inactive (default: 1) |
 | `is_admin` | integer | No | 1 to grant admin, 0 to revoke (default: 0) |
 | `is_system` | integer | No | 1 for system account, 0 otherwise (default: 0) |
+| `is_bbs_account` | integer | No | 1 for a BBS user account that may preserve QWK REP `From` names, 0 otherwise (default: 0) |
 | `echomail_moderation_forced` | integer | No | 1 to force moderation, 0 to allow (default: 0) |
 | `password` | string | No | New password (if provided, updates user's password) |
 
@@ -8029,6 +8030,7 @@ New user details
 | `is_active` | integer | No | 1 for active, 0 for inactive (default: 1) |
 | `is_admin` | integer | No | 1 to create as admin, 0 otherwise (default: 0) |
 | `is_system` | integer | No | 1 for system account, 0 otherwise (default: 0) |
+| `is_bbs_account` | integer | No | 1 for a BBS user account that may preserve QWK REP `From` names, 0 otherwise (default: 0) |
 
 **Response** _(JSON)_
 

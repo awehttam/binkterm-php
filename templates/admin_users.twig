@@ -198,6 +198,13 @@
                                 </label>
                                 <div class="form-text">{{ t('ui.admin_users.is_system_account_help', {}, locale, ['common']) }}</div>
                             </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="create-is-bbs-account">
+                                <label class="form-check-label" for="create-is-bbs-account">
+                                    {{ t('ui.admin_users.is_bbs_account', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.admin_users.is_bbs_account_help', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -214,7 +221,7 @@
 
 <!-- Edit User Modal -->
 <div class="modal fade" id="editUserModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
@@ -248,8 +255,8 @@
                         <input type="email" class="form-control" id="edit-email">
                     </div>
                     
-                    <div class="row">
-                        <div class="col-md-6">
+                    <div class="row g-4">
+                        <div class="col-lg-6">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="edit-is-active">
                                 <label class="form-check-label" for="edit-is-active">
@@ -257,8 +264,20 @@
                                 </label>
                                 <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, locale, ['common']) }}</div>
                             </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="edit-echomail-moderation-forced">
+                                <label class="form-check-label text-warning" for="edit-echomail-moderation-forced">
+                                    {{ t('ui.admin.users.echomail_moderation_forced', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.admin.users.echomail_moderation_forced_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit-new-password" class="form-label">{{ t('ui.admin_users.new_password', {}, locale, ['common']) }}</label>
+                                <input type="password" class="form-control" id="edit-new-password" minlength="8">
+                                <div class="form-text">{{ t('ui.admin_users.new_password_help', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="edit-is-admin">
                                 <label class="form-check-label" for="edit-is-admin">
@@ -274,43 +293,39 @@
                                 <div class="form-text">{{ t('ui.admin_users.is_system_account_help', {}, locale, ['common']) }}</div>
                             </div>
                             <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" id="edit-echomail-moderation-forced">
-                                <label class="form-check-label text-warning" for="edit-echomail-moderation-forced">
-                                    {{ t('ui.admin.users.echomail_moderation_forced', {}, locale, ['common']) }}
+                                <input class="form-check-input" type="checkbox" id="edit-is-bbs-account">
+                                <label class="form-check-label" for="edit-is-bbs-account">
+                                    {{ t('ui.admin_users.is_bbs_account', {}, locale, ['common']) }}
                                 </label>
-                                <div class="form-text">{{ t('ui.admin.users.echomail_moderation_forced_help', {}, locale, ['common']) }}</div>
+                                <div class="form-text">{{ t('ui.admin_users.is_bbs_account_help', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="edit-new-password" class="form-label">{{ t('ui.admin_users.new_password', {}, locale, ['common']) }}</label>
-                        <input type="password" class="form-control" id="edit-new-password" minlength="8">
-                        <div class="form-text">{{ t('ui.admin_users.new_password_help', {}, locale, ['common']) }}</div>
-                    </div>
 
                     <hr>
-                    <div class="row">
+                    <div class="row g-3 align-items-end">
                         <div class="col-12">
-                            <h6>{{ t('ui.admin.users.grant_credits_heading', {}, locale, ['common']) }}</h6>
+                            <h6 class="mb-0">{{ t('ui.admin.users.grant_credits_heading', {}, locale, ['common']) }}</h6>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-3">
                             <label for="edit-credit-balance" class="form-label">{{ t('ui.admin.users.credit_balance', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="edit-credit-balance" readonly>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-3">
                             <label for="edit-grant-credits-amount" class="form-label">{{ t('ui.admin.users.grant_credits_amount', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" id="edit-grant-credits-amount" min="1" step="1">
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4">
                             <label for="edit-grant-credits-note" class="form-label">{{ t('ui.admin.users.grant_credits_note', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="edit-grant-credits-note" maxlength="255" placeholder="{{ t('ui.admin.users.grant_credits_note_placeholder', {}, locale, ['common']) }}">
                         </div>
-                        <div class="col-12 d-flex justify-content-between align-items-center">
-                            <div class="form-text">{{ t('ui.admin.users.grant_credits_help', {}, locale, ['common']) }}</div>
-                            <button type="button" class="btn btn-success" onclick="grantCreditsFromEditModal()">
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-success w-100" onclick="grantCreditsFromEditModal()">
                                 <i class="fas fa-coins me-2"></i>{{ t('ui.admin.users.grant_credits_action', {}, locale, ['common']) }}
                             </button>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-text">{{ t('ui.admin.users.grant_credits_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
                 </form>
@@ -539,6 +554,9 @@ function renderAllUsers(users) {
         const systemBadge = user.is_system ?
             `<span class="badge bg-info ms-1">${uiT('ui.admin_users.is_system_account', 'System')}</span>` :
             '';
+        const bbsBadge = user.is_bbs_account ?
+            `<span class="badge bg-primary ms-1">${uiT('ui.admin_users.is_bbs_account_badge', 'BBS')}</span>` :
+            '';
             
         html += `
             <tr>
@@ -546,7 +564,7 @@ function renderAllUsers(users) {
                 <td><strong>${escapeHtml(user.username)}</strong></td>
                 <td>${escapeHtml(user.real_name || '')}</td>
                 <td>${statusBadge}</td>
-                <td>${adminBadge}${systemBadge}</td>
+                <td>${adminBadge}${systemBadge}${bbsBadge}</td>
                 <td>${createdDate}</td>
                 <td>${lastLogin}</td>
                 <td>${lastReminded}</td>
@@ -727,6 +745,7 @@ function editUser(userId) {
                 $('#edit-is-active').prop('checked', !!user.is_active);
                 $('#edit-is-admin').prop('checked', !!user.is_admin);
                 $('#edit-is-system').prop('checked', !!user.is_system);
+                $('#edit-is-bbs-account').prop('checked', !!user.is_bbs_account);
                 $('#edit-echomail-moderation-forced').prop('checked', !!user.echomail_moderation_forced);
                 $('#edit-credit-balance').val(user.credit_balance || 0);
                 $('#edit-grant-credits-amount').val('');
@@ -762,6 +781,7 @@ function saveUserChanges() {
         is_active: $('#edit-is-active').is(':checked') ? 1 : 0,
         is_admin: $('#edit-is-admin').is(':checked') ? 1 : 0,
         is_system: $('#edit-is-system').is(':checked') ? 1 : 0,
+        is_bbs_account: $('#edit-is-bbs-account').is(':checked') ? 1 : 0,
         echomail_moderation_forced: $('#edit-echomail-moderation-forced').is(':checked') ? 1 : 0
     };
     
@@ -893,6 +913,7 @@ function createNewUser() {
     $('#create-is-active').prop('checked', true);
     $('#create-is-admin').prop('checked', false);
     $('#create-is-system').prop('checked', false);
+    $('#create-is-bbs-account').prop('checked', false);
     
     // Show modal
     new bootstrap.Modal(document.getElementById('createUserModal')).show();
@@ -907,6 +928,7 @@ function saveNewUser() {
     const isActive = $('#create-is-active').is(':checked') ? 1 : 0;
     const isAdmin = $('#create-is-admin').is(':checked') ? 1 : 0;
     const isSystem = $('#create-is-system').is(':checked') ? 1 : 0;
+    const isBbsAccount = $('#create-is-bbs-account').is(':checked') ? 1 : 0;
     
     // Validate required fields
     if (!username || !realName || !password) {
@@ -939,7 +961,8 @@ function saveNewUser() {
         password: password,
         is_active: isActive,
         is_admin: isAdmin,
-        is_system: isSystem
+        is_system: isSystem,
+        is_bbs_account: isBbsAccount
     };
     
     const btn = $('button[onclick="saveNewUser()"]');

@@ -10580,7 +10580,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, echomail_moderation_forced, created_at, last_login FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, is_bbs_account, echomail_moderation_forced, created_at, last_login FROM users WHERE id = ?");
             $stmt->execute([$id]);
             $userData = $stmt->fetch();
 
@@ -10694,6 +10694,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
             $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
+            $isBbsAccount = isset($_POST['is_bbs_account']) ? (int)$_POST['is_bbs_account'] : 0;
             $echomailModerationForced = isset($_POST['echomail_moderation_forced']) ? (int)$_POST['echomail_moderation_forced'] : 0;
             $password = $_POST['password'] ?? '';
 
@@ -10710,9 +10711,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'is_active = ?',
                 'is_admin = ?',
                 'is_system = ?',
+                'is_bbs_account = ?',
                 'echomail_moderation_forced = ?'
             ];
-            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem, $echomailModerationForced ? 'true' : 'false'];
+            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem, $isBbsAccount ? 'true' : 'false', $echomailModerationForced ? 'true' : 'false'];
 
             // Add password if provided
             if ($password) {
@@ -10806,6 +10808,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
             $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
+            $isBbsAccount = isset($_POST['is_bbs_account']) ? (int)$_POST['is_bbs_account'] : 0;
 
             // Validate required fields
             if (empty($username) || empty($realName) || empty($password)) {
@@ -10856,8 +10859,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Create user
             $insertStmt = $db->prepare("
-                INSERT INTO users (username, password_hash, real_name, email, is_active, is_admin, is_system, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+                INSERT INTO users (username, password_hash, real_name, email, is_active, is_admin, is_system, is_bbs_account, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
 
             $insertStmt->execute([
@@ -10867,7 +10870,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $email ?: null,
                 $isActive,
                 $isAdmin,
-                $isSystem
+                $isSystem,
+                $isBbsAccount ? 'true' : 'false'
             ]);
 
             $newUserId = $db->lastInsertId();

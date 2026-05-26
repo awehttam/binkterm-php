@@ -22,6 +22,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - BinktermPHP now supports inter-BBS QWK networking. The system can poll remote QWK mailboxes, import `.QWK` packets into mapped local echo areas, queue outbound replies into `.REP` packets, and upload those reply packets back to the remote BBS.
 - Echo Areas now include per-area QWK conference mappings, and the scheduler can poll QWK mailboxes automatically when a mailbox `poll_schedule` is configured.
+- User accounts now include an `is_bbs_account` flag for QWK hub/downlink scenarios. When enabled on a dedicated BBS user account, uploaded `.REP` packets preserve the remote packet `From` name instead of collapsing imported posts to the local account identity.
 
 ### Gating
 
@@ -65,6 +66,7 @@ Operational notes:
 - The scheduler now evaluates QWK mailbox `poll_schedule` entries. A blank schedule remains manual-only.
 - Unknown inbound conferences can be auto-created into the built-in `qwk` network as placeholder mappings for later review.
 - Outbound REP formatting was corrected for Synchronet-compatible conference parsing during reply import.
+- If you are using one local account to represent a remote BBS peer, enable `Is BBS Account` on that user in Admin -> Users so imported REP messages retain the remote sender's name.
 
 ## Gating
 
@@ -175,6 +177,8 @@ git pull
 php scripts/setup.php
 scripts/restart_daemons.sh
 ```
+
+Recent 1.9.8 database updates include the `users.is_bbs_account` column. Running `php scripts/setup.php` is required so the new migration is applied before using the Admin -> Users checkbox or the REP `From`-name passthrough behavior.
 
 ### Using the Installer
 

@@ -529,7 +529,7 @@ class RepProcessor
             $toName,
             $subject,
             $body,
-            null,        // fromName — resolved by MessageHandler from user record
+            $this->resolveImportFromName($userId, $msg),
             $replyToId,  // replyToId
             false,       // crashmail
             null         // tagline
@@ -559,7 +559,13 @@ class RepProcessor
             $subject,
             $body,
             $replyToId,  // replyToId
-            null         // tagline
+            null,        // tagline
+            false,       // skipCredits
+            null,        // markupType
+            '',          // prependKludges
+            null,        // tearlineComponent
+            null,        // charset
+            $this->resolveImportFromName($userId, $msg)
         );
 
         return true;
@@ -716,6 +722,24 @@ class RepProcessor
             "DELETE FROM qwk_imported_hashes
               WHERE user_id = ? AND imported_at < NOW() - INTERVAL '1 year'"
         )->execute([$userId]);
+    }
+
+    private function resolveImportFromName(int $userId, array $msg): ?string
+    {
+        $fromName = trim((string)($msg['from_name'] ?? ''));
+        if ($fromName === '') {
+            return null;
+        }
+
+        $stmt = $this->db->prepare('SELECT is_bbs_account FROM users WHERE id = ?');
+        $stmt->execute([$userId]);
+        $value = $stmt->fetchColumn();
+
+        if (!filter_var($value, FILTER_VALIDATE_BOOLEAN)) {
+            return null;
+        }
+
+        return $fromName;
     }
 
     // -------------------------------------------------------------------------

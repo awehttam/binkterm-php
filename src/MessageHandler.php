@@ -1716,7 +1716,7 @@ class MessageHandler
     /**
      * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
      */
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '', $tearlineComponent = null, $charset = null)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '', $tearlineComponent = null, $charset = null, $fromNameOverride = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1753,7 +1753,10 @@ class MessageHandler
         }
 
         // Generate kludges for this echomail
-        $fromName = $this->resolveEchomailPostingName($user, $echoarea, (string)$domain);
+        $fromName = trim((string)$fromNameOverride);
+        if ($fromName === '') {
+            $fromName = $this->resolveEchomailPostingName($user, $echoarea, (string)$domain);
+        }
         $toName = $toName ?: 'All';
         $markupAllowed = null;
         try {

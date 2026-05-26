@@ -40,7 +40,7 @@ class AdminController
         
         try {
             $sql = "
-                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, is_system
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, is_system, is_bbs_account
                 FROM users
                 WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
                 ORDER BY created_at DESC
@@ -51,7 +51,7 @@ class AdminController
         } catch (\PDOException $e) {
             // is_system column not yet present (migration v1.10.18 not run) — fall back
             $sql = "
-                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, is_bbs_account
                 FROM users
                 WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
                 ORDER BY created_at DESC
@@ -148,8 +148,8 @@ class AdminController
         $passwordHash = password_hash($data['password'], PASSWORD_DEFAULT);
 
         $stmt = $this->db->prepare("
-            INSERT INTO users (username, password_hash, email, real_name, fidonet_address, is_active, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (username, password_hash, email, real_name, fidonet_address, is_active, is_admin, is_bbs_account)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
         $result = $stmt->execute([
@@ -159,7 +159,8 @@ class AdminController
             $data['real_name'] ?? null,
             $data['fidonet_address'] ?? null,
             isset($data['is_active']) ? ($data['is_active'] ? 1 : 0) : 1,
-            isset($data['is_admin']) ? ($data['is_admin'] ? 1 : 0) : 0
+            isset($data['is_admin']) ? ($data['is_admin'] ? 1 : 0) : 0,
+            isset($data['is_bbs_account']) ? ($data['is_bbs_account'] ? 'true' : 'false') : 'false'
         ]);
 
         if ($result) {
@@ -258,6 +259,11 @@ class AdminController
         if (isset($data['is_admin'])) {
             $updates[] = 'is_admin = ?';
             $params[] = $data['is_admin'] ? 1 : 0;
+        }
+
+        if (isset($data['is_bbs_account'])) {
+            $updates[] = 'is_bbs_account = ?';
+            $params[] = $data['is_bbs_account'] ? 'true' : 'false';
         }
 
         if (isset($data['echomail_moderation_forced'])) {

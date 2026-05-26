@@ -196,6 +196,12 @@ REP upload parsing is shared across the web UI, the HTTP API, and FTP. There is
 no separate "QWKE upload mode" switch. BinktermPHP inspects the uploaded
 packet's contents and imports QWKE extended headers when they are present.
 
+For normal user accounts, imported replies are posted using that local
+account's configured posting identity. If the account has the admin-only
+**Is BBS Account** flag enabled, REP import instead preserves the packet's
+`From` name so a remote BBS can use one BBS user account while still passing
+through the original remote caller's name.
+
 ### Validation
 
 BinktermPHP validates the REP packet before importing any messages:
