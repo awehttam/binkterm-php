@@ -2804,6 +2804,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $subscriptionManager = new \BinktermPHP\Qwk\QwkSubscriptionManager($db);
         $gateProcessor = new \BinktermPHP\Echomail\GateProcessor($db);
         $mailboxManager = new \BinktermPHP\Qwk\QwkMailboxManager($db);
+        $relayPolicyManager = new \BinktermPHP\Echomail\RelayPolicyManager($db);
 
         $areasStmt = $db->prepare("
             SELECT id, tag, domain, description
@@ -2816,6 +2817,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode([
             'subscriptions' => $subscriptionManager->getSubscriptionsForArea($echoareaId),
             'gates' => $gateProcessor->getGatesForArea($echoareaId),
+            'relay_mode' => $relayPolicyManager->getModeForArea($echoareaId),
+            'relay_rules' => $relayPolicyManager->getRulesForArea($echoareaId),
+            'available_transports' => $relayPolicyManager->getAvailableTransportTypesForArea($echoareaId),
             'mailboxes' => $mailboxManager->getAll(),
             'available_areas' => $areasStmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
         ]);
@@ -2842,9 +2846,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $subscriptions = is_array($input['subscriptions'] ?? null) ? $input['subscriptions'] : [];
         $gates = is_array($input['gates'] ?? null) ? $input['gates'] : [];
+        $relayMode = (string)($input['relay_mode'] ?? \BinktermPHP\Echomail\RelayPolicyManager::MODE_AUTO);
+        $relayRules = is_array($input['relay_rules'] ?? null) ? $input['relay_rules'] : [];
 
         try {
             $db->beginTransaction();
+            (new \BinktermPHP\Echomail\RelayPolicyManager($db))->setModeForArea($echoareaId, $relayMode);
+            (new \BinktermPHP\Echomail\RelayPolicyManager($db))->replaceRulesForArea($echoareaId, $relayRules);
             (new \BinktermPHP\Qwk\QwkSubscriptionManager($db))->replaceAreaSubscriptions($echoareaId, $subscriptions);
             (new \BinktermPHP\Echomail\GateProcessor($db))->replaceAreaGates($echoareaId, $gates);
             $db->commit();

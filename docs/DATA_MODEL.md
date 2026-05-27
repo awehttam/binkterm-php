@@ -57,6 +57,7 @@ One row per echo area (conference/forum).
 | `domain` | Network domain (e.g. `fidonet`, `lovlynet`) — allows the same tag in multiple networks |
 | `description` | Human-readable area name |
 | `is_local` | When true, messages are never forwarded to uplinks |
+| `relay_mode` | Imported-message relay policy: `none`, `auto`, or `manual` |
 | `is_active` | Inactive areas are hidden from all queries and API responses |
 | `is_sysop_only` | When true, only admin users can see the area |
 | `moderator` | FTN address of the area moderator, if any |
@@ -165,6 +166,17 @@ Maps a local echo area to a conference number on a specific QWK mailbox.
 These rows drive both directions: inbound `.QWK` import routing and outbound
 `.REP` queue generation.
 
+### `echo_area_relay_rules`
+
+Per-area manual relay rules for transport-imported messages.
+
+| Column | Notes |
+|--------|-------|
+| `echoarea_id` | FK → `echoareas.id` |
+| `origin_type` | Source transport type such as `ftn` or `qwk` |
+| `target_type` | Destination transport type |
+| `is_allowed` | Whether this origin → target relay is permitted in manual mode |
+
 ### `qwk_outbound_messages`
 
 Queue table for local echomail messages that still need to be exported to one
@@ -226,7 +238,7 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 | `shared_files` | Files shared via the webshare system |
 | `freq_log` / `freq_outbound` | File request (FREQ) history and outbound queue |
 | `qwk_conference_state` / `qwk_message_index` | Per-user QWK offline mail reader state |
-| `qwk_mailboxes` / `echo_area_qwk_subscriptions` / `qwk_outbound_messages` / `echo_area_gates` | QWK network exchange configuration, queueing, and local gating |
+| `qwk_mailboxes` / `echo_area_qwk_subscriptions` / `echo_area_relay_rules` / `qwk_outbound_messages` / `echo_area_gates` | QWK network exchange configuration, relay policy, queueing, and local gating |
 | `interests` / `interest_echoareas` / `user_interest_subscriptions` | Topic-based area groupings |
 | `ai_requests` | Per-request AI usage accounting |
 | `ai_bots` / `ai_bot_activities` | AI bot definitions and activity log |

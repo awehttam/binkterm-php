@@ -1907,8 +1907,9 @@ class MessageHandler
      * Import an externally-sourced echomail message into a local echo area.
      *
      * Used for QWK network exchange and gated copies. Messages imported through
-     * this path are always approved immediately and can fan out to the area's
-     * FTN uplink, QWK subscriptions, and gates.
+     * this path are always approved immediately. Transport imports can opt into
+     * relay-policy fanout; gated copies continue to use the target area's
+     * normal outbound delivery rules.
      *
      * @param array<string,mixed> $data
      */
@@ -2002,13 +2003,27 @@ class MessageHandler
         }
 
         $this->incrementEchoareaCount((int)$echoarea['id'], $subject, $fromName);
-        $this->finalizeApprovedEchomailDelivery(
-            $messageId,
-            (string)$echoarea['tag'],
-            $domain,
-            isset($data['exclude_qwk_mailbox_id']) ? (int)$data['exclude_qwk_mailbox_id'] : null,
-            !array_key_exists('apply_gates', $data) || !empty($data['apply_gates'])
-        );
+        $excludeQwkMailboxId = isset($data['exclude_qwk_mailbox_id']) ? (int)$data['exclude_qwk_mailbox_id'] : null;
+        $applyGates = !array_key_exists('apply_gates', $data) || !empty($data['apply_gates']);
+        if (!empty($data['use_relay_policy'])) {
+            $originType = trim((string)($data['origin_type'] ?? ''));
+            $this->finalizeImportedTransportDelivery(
+                $messageId,
+                (string)$echoarea['tag'],
+                $domain,
+                $originType,
+                $excludeQwkMailboxId,
+                $applyGates
+            );
+        } else {
+            $this->finalizeApprovedEchomailDelivery(
+                $messageId,
+                (string)$echoarea['tag'],
+                $domain,
+                $excludeQwkMailboxId,
+                $applyGates
+            );
+        }
 
         return $messageId;
     }
@@ -3401,6 +3416,41 @@ class MessageHandler
     {
         $this->spoolOutboundEchomail($messageId, $echoareaTag, (string)$domain);
         $this->queueQwkOutboundEchomail($messageId, $excludeQwkMailboxId);
+        if ($applyGates) {
+            (new \BinktermPHP\Echomail\GateProcessor($this->db, $this))->processMessageById($messageId);
+        }
+    }
+
+    /**
+     * Apply per-area transport relay policy to a transport-imported echomail row.
+     */
+    public function finalizeImportedTransportDelivery(
+        int $messageId,
+        string $echoareaTag,
+        ?string $domain,
+        string $originType,
+        ?int $excludeQwkMailboxId = null,
+        bool $applyGates = true
+    ): void {
+        $stmt = $this->db->prepare("
+            SELECT em.echoarea_id
+            FROM echomail em
+            WHERE em.id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$messageId]);
+        $echoareaId = (int)$stmt->fetchColumn();
+        if ($echoareaId <= 0) {
+            return;
+        }
+
+        $relayPolicy = new \BinktermPHP\Echomail\RelayPolicyManager($this->db);
+        if ($relayPolicy->shouldRelayImportedMessage($echoareaId, $originType, \BinktermPHP\Echomail\RelayPolicyManager::TRANSPORT_FTN)) {
+            $this->spoolOutboundEchomail($messageId, $echoareaTag, (string)$domain);
+        }
+        if ($relayPolicy->shouldRelayImportedMessage($echoareaId, $originType, \BinktermPHP\Echomail\RelayPolicyManager::TRANSPORT_QWK)) {
+            $this->queueQwkOutboundEchomail($messageId, $excludeQwkMailboxId);
+        }
         if ($applyGates) {
             (new \BinktermPHP\Echomail\GateProcessor($this->db, $this))->processMessageById($messageId);
         }

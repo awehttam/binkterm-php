@@ -135,90 +135,100 @@
 
                     <div class="row g-4">
                         <div class="col-lg-7">
-                            <div class="mb-3">
-                                <label for="echoareaTag" class="form-label">{{ t('ui.echoareas.tag_required', {}, locale, ['common']) }}</label>
-                                <input type="text" class="form-control text-uppercase" id="echoareaTag" name="tag" required maxlength="20">
-                                <div class="form-text">{{ t('ui.echoareas.tag_help', {}, locale, ['common']) }}</div>
-                            </div>
+                            <div class="echoarea-editor-card border rounded p-3 h-100">
+                                <div class="echoarea-editor-section-label">{{ t('ui.echoareas.editor_section_identity', {}, locale, ['common']) }}</div>
 
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <label for="echoareaDescription" class="form-label mb-0">{{ t('ui.echoareas.description_required', {}, locale, ['common']) }}</label>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="echoareaLovlyNetSyncButton" onclick="syncLovlyNetEchoareaDescription()">
-                                        <i class="fas fa-sync-alt me-1"></i>
-                                        {{ t('ui.echoareas.lovlynet_sync_button', {}, locale, ['common']) }}
-                                    </button>
+                                <div class="mb-3">
+                                    <label for="echoareaTag" class="form-label">{{ t('ui.echoareas.tag_required', {}, locale, ['common']) }}</label>
+                                    <input type="text" class="form-control text-uppercase" id="echoareaTag" name="tag" required maxlength="20">
+                                    <div class="form-text">{{ t('ui.echoareas.tag_help', {}, locale, ['common']) }}</div>
                                 </div>
-                                <textarea class="form-control" id="echoareaDescription" name="description" rows="2" required maxlength="255"></textarea>
-                                <div class="form-text">{{ t('ui.echoareas.description_help', {}, locale, ['common']) }}</div>
-                            </div>
 
-                            <div class="row mb-3">
-                                <div class="col-md-8">
-                                    <label for="echoareaUplink" class="form-label">{{ t('ui.echoareas.uplink_address', {}, locale, ['common']) }}</label>
-                                    <input type="text" class="form-control" id="echoareaUplink" name="uplink_address" maxlength="20">
-                                    <div class="form-text">{{ t('ui.echoareas.uplink_address_help', {}, locale, ['common']) }}</div>
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="echoareaColor" class="form-label">{{ t('ui.echoareas.color', {}, locale, ['common']) }}</label>
-                                    <input type="hidden" id="echoareaColor" name="color" value="#28a745">
-                                    <div class="color-palette">
-                                        <div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;" title="{{ t('ui.echoareas.color_red', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#fd7e14" style="background-color: #fd7e14;" title="{{ t('ui.echoareas.color_orange', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;" title="{{ t('ui.echoareas.color_yellow', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#28a745" style="background-color: #28a745;" title="{{ t('ui.echoareas.color_green', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#20c997" style="background-color: #20c997;" title="{{ t('ui.echoareas.color_teal', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#17a2b8" style="background-color: #17a2b8;" title="{{ t('ui.echoareas.color_blue', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="{{ t('ui.echoareas.color_light_blue', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#0d6efd" style="background-color: #0d6efd;" title="{{ t('ui.echoareas.color_blue', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#6610f2" style="background-color: #6610f2;" title="{{ t('ui.echoareas.color_indigo', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;" title="{{ t('ui.echoareas.color_purple', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#d63384" style="background-color: #d63384;" title="{{ t('ui.echoareas.color_pink', {}, locale, ['common']) }}"></div>
-                                        <div class="color-swatch" data-color="#6c757d" style="background-color: #6c757d;" title="{{ t('ui.echoareas.color_gray', {}, locale, ['common']) }}"></div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <label for="echoareaDescription" class="form-label mb-0">{{ t('ui.echoareas.description_required', {}, locale, ['common']) }}</label>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="echoareaLovlyNetSyncButton" onclick="syncLovlyNetEchoareaDescription()">
+                                            <i class="fas fa-sync-alt me-1"></i>
+                                            {{ t('ui.echoareas.lovlynet_sync_button', {}, locale, ['common']) }}
+                                        </button>
                                     </div>
-                                    <div class="form-text mt-2">{{ t('ui.echoareas.selected_color', {}, locale, ['common']) }} <span id="selectedColorPreview" style="display: inline-block; width: 20px; height: 20px; border: 1px solid #ccc; vertical-align: middle; background-color: #28a745;"></span></div>
+                                    <textarea class="form-control" id="echoareaDescription" name="description" rows="2" required maxlength="255"></textarea>
+                                    <div class="form-text">{{ t('ui.echoareas.description_help', {}, locale, ['common']) }}</div>
                                 </div>
-                            </div>
 
-                            <div class="mb-3">
-                                <label for="echoareaDomain" class="form-label">{{ t('ui.common.domain', {}, locale, ['common']) }}</label>
-                                <select class="form-select" id="echoareaDomain" name="domain">
-                                    <option value="">{{ t('ui.echoareas.local', {}, locale, ['common']) }}</option>
-                                    {% for network in networks %}
-                                        <option value="{{ network.domain }}">{{ network.name }} ({{ network.domain }})</option>
-                                    {% endfor %}
-                                </select>
-                                <div class="form-text">{{ t('ui.echoareas.network_domain_help', {}, locale, ['common']) }}</div>
-                            </div>
+                                <div class="mb-3">
+                                    <label for="echoareaDomain" class="form-label">{{ t('ui.common.domain', {}, locale, ['common']) }}</label>
+                                    <select class="form-select" id="echoareaDomain" name="domain">
+                                        <option value="">{{ t('ui.echoareas.local', {}, locale, ['common']) }}</option>
+                                        {% for network in networks %}
+                                            <option value="{{ network.domain }}">{{ network.name }} ({{ network.domain }})</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">{{ t('ui.echoareas.network_domain_help', {}, locale, ['common']) }}</div>
+                                </div>
 
-                            <div class="mb-0">
-                                <label for="echoareaModerator" class="form-label">{{ t('ui.echoareas.moderator', {}, locale, ['common']) }}</label>
-                                <input type="text" class="form-control" id="echoareaModerator" name="moderator" maxlength="100">
-                                <div class="form-text">{{ t('ui.echoareas.moderator_help', {}, locale, ['common']) }}</div>
+                                <div class="row g-3">
+                                    <div class="col-md-8">
+                                        <label for="echoareaUplink" class="form-label">{{ t('ui.echoareas.uplink_address', {}, locale, ['common']) }}</label>
+                                        <input type="text" class="form-control" id="echoareaUplink" name="uplink_address" maxlength="20">
+                                        <div class="form-text">{{ t('ui.echoareas.uplink_address_help', {}, locale, ['common']) }}</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="echoareaModerator" class="form-label">{{ t('ui.echoareas.moderator', {}, locale, ['common']) }}</label>
+                                        <input type="text" class="form-control" id="echoareaModerator" name="moderator" maxlength="100">
+                                        <div class="form-text">{{ t('ui.echoareas.moderator_help', {}, locale, ['common']) }}</div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4">
+                                    <div class="echoarea-editor-section-label">{{ t('ui.echoareas.editor_section_appearance', {}, locale, ['common']) }}</div>
+                                    <div class="row g-3 align-items-start">
+                                        <div class="col-md-7">
+                                            <label for="echoareaPostingNamePolicy" class="form-label">{{ t('ui.echoareas.posting_name_policy', {}, locale, ['common']) }}</label>
+                                            <select class="form-select" id="echoareaPostingNamePolicy" name="posting_name_policy">
+                                                <option value="inherit">{{ t('ui.echoareas.posting_name_policy_inherit', {}, locale, ['common']) }}</option>
+                                                <option value="real_name">{{ t('ui.echoareas.posting_name_policy_real_name', {}, locale, ['common']) }}</option>
+                                                <option value="username">{{ t('ui.echoareas.posting_name_policy_username', {}, locale, ['common']) }}</option>
+                                            </select>
+                                            <div class="form-text">{{ t('ui.echoareas.posting_name_policy_help', {}, locale, ['common']) }}</div>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label for="echoareaArtFormatHint" class="form-label">{{ t('ui.echoareas.art_format_hint', {}, locale, ['common']) }}</label>
+                                            <select class="form-select" id="echoareaArtFormatHint" name="art_format_hint">
+                                                <option value="inherit">{{ t('ui.echoareas.art_format_hint_inherit', {}, locale, ['common']) }}</option>
+                                                <option value="ansi">{{ t('ui.echoareas.art_format_hint_ansi', {}, locale, ['common']) }}</option>
+                                                <option value="amiga_ansi">{{ t('ui.echoareas.art_format_hint_amiga_ansi', {}, locale, ['common']) }}</option>
+                                            </select>
+                                            <div class="form-text">{{ t('ui.echoareas.art_format_hint_help', {}, locale, ['common']) }}</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-3">
+                                        <label for="echoareaColor" class="form-label">{{ t('ui.echoareas.color', {}, locale, ['common']) }}</label>
+                                        <input type="hidden" id="echoareaColor" name="color" value="#28a745">
+                                        <div class="color-palette">
+                                            <div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;" title="{{ t('ui.echoareas.color_red', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#fd7e14" style="background-color: #fd7e14;" title="{{ t('ui.echoareas.color_orange', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;" title="{{ t('ui.echoareas.color_yellow', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#28a745" style="background-color: #28a745;" title="{{ t('ui.echoareas.color_green', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#20c997" style="background-color: #20c997;" title="{{ t('ui.echoareas.color_teal', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#17a2b8" style="background-color: #17a2b8;" title="{{ t('ui.echoareas.color_blue', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="{{ t('ui.echoareas.color_light_blue', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#0d6efd" style="background-color: #0d6efd;" title="{{ t('ui.echoareas.color_blue', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#6610f2" style="background-color: #6610f2;" title="{{ t('ui.echoareas.color_indigo', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;" title="{{ t('ui.echoareas.color_purple', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#d63384" style="background-color: #d63384;" title="{{ t('ui.echoareas.color_pink', {}, locale, ['common']) }}"></div>
+                                            <div class="color-swatch" data-color="#6c757d" style="background-color: #6c757d;" title="{{ t('ui.echoareas.color_gray', {}, locale, ['common']) }}"></div>
+                                        </div>
+                                        <div class="form-text mt-2">{{ t('ui.echoareas.selected_color', {}, locale, ['common']) }} <span id="selectedColorPreview" style="display: inline-block; width: 20px; height: 20px; border: 1px solid #ccc; vertical-align: middle; background-color: #28a745;"></span></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="col-lg-5">
-                            <div class="mb-3">
-                                <label for="echoareaPostingNamePolicy" class="form-label">{{ t('ui.echoareas.posting_name_policy', {}, locale, ['common']) }}</label>
-                                <select class="form-select" id="echoareaPostingNamePolicy" name="posting_name_policy">
-                                    <option value="inherit">{{ t('ui.echoareas.posting_name_policy_inherit', {}, locale, ['common']) }}</option>
-                                    <option value="real_name">{{ t('ui.echoareas.posting_name_policy_real_name', {}, locale, ['common']) }}</option>
-                                    <option value="username">{{ t('ui.echoareas.posting_name_policy_username', {}, locale, ['common']) }}</option>
-                                </select>
-                                <div class="form-text">{{ t('ui.echoareas.posting_name_policy_help', {}, locale, ['common']) }}</div>
-                            </div>
+                            <div class="echoarea-editor-card border rounded p-3">
+                                <div class="echoarea-editor-section-label">{{ t('ui.echoareas.editor_section_policy', {}, locale, ['common']) }}</div>
 
-                            <div class="mb-3">
-                                <label for="echoareaArtFormatHint" class="form-label">{{ t('ui.echoareas.art_format_hint', {}, locale, ['common']) }}</label>
-                                <select class="form-select" id="echoareaArtFormatHint" name="art_format_hint">
-                                    <option value="inherit">{{ t('ui.echoareas.art_format_hint_inherit', {}, locale, ['common']) }}</option>
-                                    <option value="ansi">{{ t('ui.echoareas.art_format_hint_ansi', {}, locale, ['common']) }}</option>
-                                    <option value="amiga_ansi">{{ t('ui.echoareas.art_format_hint_amiga_ansi', {}, locale, ['common']) }}</option>
-                                </select>
-                                <div class="form-text">{{ t('ui.echoareas.art_format_hint_help', {}, locale, ['common']) }}</div>
-                            </div>
-
-                            <div class="border rounded p-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="echoareaActive" name="is_active" checked>
                                     <label class="form-check-label" for="echoareaActive">
@@ -259,33 +269,81 @@
                                     </select>
                                     <div class="form-text">{{ t('ui.echoareas.allow_media_help', {}, locale, ['common']) }}</div>
                                 </div>
+                            </div>
 
-                                <hr class="my-4">
+                            <div class="echoarea-editor-card border rounded p-3 mt-3">
+                                <div class="echoarea-editor-section-label">{{ t('ui.echoareas.editor_section_transport', {}, locale, ['common']) }}</div>
 
-                                <div>
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <div>
-                                            <label class="form-label mb-0">{{ t('ui.qwk.echoarea.subscriptions_title', {}, locale, ['common']) }}</label>
-                                            <div class="form-text">{{ t('ui.qwk.echoarea.subscriptions_help', {}, locale, ['common']) }}</div>
+                                <div class="accordion accordion-flush echoarea-transport-accordion" id="echoareaTransportAccordion">
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header" id="echoareaTransportSubscriptionsHeading">
+                                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#echoareaTransportSubscriptionsPanel" aria-expanded="true" aria-controls="echoareaTransportSubscriptionsPanel">
+                                                <span>{{ t('ui.qwk.echoarea.subscriptions_title', {}, locale, ['common']) }}</span>
+                                                <span class="echoarea-accordion-summary ms-3" id="echoareaSubscriptionsSummary"></span>
+                                            </button>
+                                        </h2>
+                                        <div id="echoareaTransportSubscriptionsPanel" class="accordion-collapse collapse show" aria-labelledby="echoareaTransportSubscriptionsHeading" data-bs-parent="#echoareaTransportAccordion">
+                                            <div class="accordion-body">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <div class="form-text mb-0">{{ t('ui.qwk.echoarea.subscriptions_help', {}, locale, ['common']) }}</div>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addQwkSubscriptionRow()">
+                                                        <i class="fas fa-plus me-1"></i>{{ t('ui.common.add', {}, locale, ['common']) }}
+                                                    </button>
+                                                </div>
+                                                <div id="qwkSubscriptionsContainer" class="vstack gap-2"></div>
+                                            </div>
                                         </div>
-                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addQwkSubscriptionRow()">
-                                            <i class="fas fa-plus me-1"></i>{{ t('ui.common.add', {}, locale, ['common']) }}
-                                        </button>
                                     </div>
-                                    <div id="qwkSubscriptionsContainer" class="vstack gap-2"></div>
+
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header" id="echoareaTransportRelayHeading">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#echoareaTransportRelayPanel" aria-expanded="false" aria-controls="echoareaTransportRelayPanel">
+                                                <span>{{ t('ui.qwk.echoarea.relay_title', {}, locale, ['common']) }}</span>
+                                                <span class="echoarea-accordion-summary ms-3" id="echoareaRelaySummary"></span>
+                                            </button>
+                                        </h2>
+                                        <div id="echoareaTransportRelayPanel" class="accordion-collapse collapse" aria-labelledby="echoareaTransportRelayHeading" data-bs-parent="#echoareaTransportAccordion">
+                                            <div class="accordion-body">
+                                                <div class="form-text mb-2">{{ t('ui.qwk.echoarea.relay_help', {}, locale, ['common']) }}</div>
+                                                <div class="btn-group w-100 relay-mode-group" role="group" aria-label="{{ t('ui.qwk.echoarea.relay_title', {}, locale, ['common']) }}">
+                                                    <input type="radio" class="btn-check" name="echoareaRelayMode" id="echoareaRelayModeNone" value="none">
+                                                    <label class="btn btn-outline-secondary" for="echoareaRelayModeNone">{{ t('ui.qwk.echoarea.relay_mode_none', {}, locale, ['common']) }}</label>
+                                                    <input type="radio" class="btn-check" name="echoareaRelayMode" id="echoareaRelayModeAuto" value="auto">
+                                                    <label class="btn btn-outline-secondary" for="echoareaRelayModeAuto">{{ t('ui.qwk.echoarea.relay_mode_auto_short', {}, locale, ['common']) }}</label>
+                                                    <input type="radio" class="btn-check" name="echoareaRelayMode" id="echoareaRelayModeManual" value="manual">
+                                                    <label class="btn btn-outline-secondary" for="echoareaRelayModeManual">{{ t('ui.qwk.echoarea.relay_mode_manual', {}, locale, ['common']) }}</label>
+                                                </div>
+                                                <div id="echoareaRelayRulesSection" class="mt-3 d-none">
+                                                    <label class="form-label mb-0">{{ t('ui.qwk.echoarea.relay_rules_title', {}, locale, ['common']) }}</label>
+                                                    <div class="form-text mb-2">{{ t('ui.qwk.echoarea.relay_rules_help', {}, locale, ['common']) }}</div>
+                                                    <div id="echoareaRelayRulesContainer" class="vstack gap-2"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header" id="echoareaTransportGatesHeading">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#echoareaTransportGatesPanel" aria-expanded="false" aria-controls="echoareaTransportGatesPanel">
+                                                <span>{{ t('ui.qwk.echoarea.gates_title', {}, locale, ['common']) }}</span>
+                                                <span class="echoarea-accordion-summary ms-3" id="echoareaGatesSummary"></span>
+                                            </button>
+                                        </h2>
+                                        <div id="echoareaTransportGatesPanel" class="accordion-collapse collapse" aria-labelledby="echoareaTransportGatesHeading" data-bs-parent="#echoareaTransportAccordion">
+                                            <div class="accordion-body">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <div class="form-text mb-0">{{ t('ui.qwk.echoarea.gates_help', {}, locale, ['common']) }}</div>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addGateRow()">
+                                                        <i class="fas fa-plus me-1"></i>{{ t('ui.common.add', {}, locale, ['common']) }}
+                                                    </button>
+                                                </div>
+                                                <div id="qwkGatesContainer" class="vstack gap-2"></div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-
-                                <div class="mt-4">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <div>
-                                            <label class="form-label mb-0">{{ t('ui.qwk.echoarea.gates_title', {}, locale, ['common']) }}</label>
-                                            <div class="form-text">{{ t('ui.qwk.echoarea.gates_help', {}, locale, ['common']) }}</div>
-                                        </div>
-                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addGateRow()">
-                                            <i class="fas fa-plus me-1"></i>{{ t('ui.common.add', {}, locale, ['common']) }}
-                                        </button>
-                                    </div>
-                                    <div id="qwkGatesContainer" class="vstack gap-2"></div>
+                                <div class="alert alert-secondary d-none mt-3 mb-0" id="echoareaLocalOnlyTransportNotice">
+                                    {{ t('ui.qwk.echoarea.local_only_notice', {}, locale, ['common']) }}
                                 </div>
                             </div>
                         </div>
@@ -477,6 +535,89 @@
 .sortable-col:hover {
     background-color: rgba(0, 0, 0, 0.05);
 }
+
+.echoarea-editor-card {
+    background-color: var(--bg-card, var(--message-bg, #ffffff));
+    border-color: var(--border-color, var(--bs-border-color)) !important;
+    color: var(--text-color, inherit);
+}
+
+.echoarea-editor-section-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-color-muted, #6c757d);
+    margin-bottom: 1rem;
+}
+
+.echoarea-editor-card .form-label,
+.echoarea-editor-card .form-check-label,
+.echoarea-editor-card .accordion-button,
+.echoarea-editor-card .accordion-body,
+.echoarea-editor-card .form-select,
+.echoarea-editor-card .form-control {
+    color: var(--text-color, inherit);
+}
+
+.echoarea-editor-card .form-text,
+.echoarea-editor-card .text-muted {
+    color: var(--text-color-muted, #6c757d) !important;
+}
+
+.echoarea-transport-accordion .accordion-button {
+    font-weight: 600;
+    background-color: transparent;
+    box-shadow: none;
+    color: var(--text-color, inherit);
+    gap: 0.5rem;
+}
+
+.echoarea-transport-accordion .accordion-button:not(.collapsed) {
+    color: var(--text-color, inherit);
+    background-color: color-mix(in srgb, var(--fidonet-blue, #0d6efd) 12%, transparent);
+}
+
+.echoarea-transport-accordion .accordion-button::after {
+    background-image: none;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-right: 2px solid var(--text-color-muted, #6c757d);
+    border-bottom: 2px solid var(--text-color-muted, #6c757d);
+    transform: rotate(45deg);
+    margin-top: -0.2rem;
+}
+
+.echoarea-transport-accordion .accordion-button:not(.collapsed)::after {
+    transform: rotate(-135deg);
+}
+
+.echoarea-transport-accordion .accordion-item {
+    background-color: color-mix(in srgb, var(--message-bg, #ffffff) 92%, transparent);
+    border: 1px solid var(--border-color, var(--bs-border-color));
+    border-radius: 0.5rem;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.echoarea-transport-accordion .accordion-item:last-child {
+    margin-bottom: 0;
+}
+
+.echoarea-accordion-summary {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-color-muted, #6c757d);
+}
+
+.relay-mode-group .btn {
+    white-space: nowrap;
+}
+
+.transport-disabled {
+    opacity: 0.55;
+    pointer-events: none;
+}
 </style>
 <script>
 let currentFilter = 'active';
@@ -494,6 +635,7 @@ let currentEchoareaInfo = null;
 let currentQwkMailboxId = null;
 let qwkMailboxCache = [];
 let availableGateAreas = [];
+let availableRelayTransports = ['ftn', 'qwk'];
 const configuredNetworkDomains = {{ networks|map(n => n.domain)|json_encode|raw }};
 
 function apiError(payload, fallback) {
@@ -837,16 +979,20 @@ function showAddEchoareaModal() {
     $('#echoareaPostingNamePolicy').val('inherit');
     $('#echoareaArtFormatHint').val('inherit');
     $('#echoareaAllowMedia').val('inherit');
+    setRelayMode('auto');
     $('#echoareaLovlyNetSyncButton').addClass('d-none').prop('disabled', false).html(
         `<i class="fas fa-sync-alt me-1"></i>${uiT('ui.echoareas.lovlynet_sync_button', 'Sync')}`
     );
+    availableRelayTransports = ['ftn', 'qwk'];
     availableGateAreas = allEchoareas.map(area => ({
         id: area.id,
         tag: area.tag,
         domain: area.domain || ''
     }));
     renderQwkSubscriptions([]);
+    renderRelayConfig('auto', []);
     renderGateRows([]);
+    updateTransportEditorState();
     updateColorSelection('#28a745');
     ensureQwkMailboxesLoaded().always(function() {
         $('#echoareaModal').modal('show');
@@ -895,6 +1041,7 @@ function editEchoarea(id) {
             toggleLovlyNetSyncButton(area);
             updateColorSelection(area.color || '#28a745');
             loadEchoareaQwkConfig(id).always(function() {
+                updateTransportEditorState();
                 $('#echoareaModal').modal('show');
             });
         })
@@ -1145,12 +1292,19 @@ function loadEchoareaQwkConfig(id) {
         return $.get(`/api/echoareas/${id}/qwk-config`);
     }).done(function(data) {
             availableGateAreas = Array.isArray(data.available_areas) ? data.available_areas : [];
+            availableRelayTransports = Array.from(new Set([].concat(
+                Array.isArray(data.available_transports) ? data.available_transports : [],
+                ['ftn', 'qwk']
+            )));
             qwkMailboxCache = Array.isArray(data.mailboxes) ? data.mailboxes : qwkMailboxCache;
             renderQwkSubscriptions(Array.isArray(data.subscriptions) ? data.subscriptions : []);
+            renderRelayConfig(String(data.relay_mode || 'auto'), Array.isArray(data.relay_rules) ? data.relay_rules : []);
             renderGateRows(Array.isArray(data.gates) ? data.gates : []);
         })
         .fail(function() {
+            availableRelayTransports = ['ftn', 'qwk'];
             renderQwkSubscriptions([]);
+            renderRelayConfig('auto', []);
             renderGateRows([]);
         });
 }
@@ -1158,7 +1312,8 @@ function loadEchoareaQwkConfig(id) {
 function renderQwkSubscriptions(subscriptions) {
     const container = $('#qwkSubscriptionsContainer');
     if (!subscriptions.length) {
-        container.html(`<div class="text-muted small">${uiT('ui.qwk.echoarea.none_configured', 'None configured')}</div>`);
+        container.html(`<div class="text-muted small">${uiT('ui.qwk.echoarea.none_subscriptions', 'No QWK subscriptions yet')}</div>`);
+        updateTransportAccordionSummaries();
         return;
     }
 
@@ -1167,6 +1322,7 @@ function renderQwkSubscriptions(subscriptions) {
         html += qwkSubscriptionRowHtml(subscription);
     });
     container.html(html);
+    updateTransportAccordionSummaries();
 }
 
 function addQwkSubscriptionRow(subscription = {}) {
@@ -1175,6 +1331,7 @@ function addQwkSubscriptionRow(subscription = {}) {
         container.empty();
     }
     container.append(qwkSubscriptionRowHtml(subscription));
+    updateTransportAccordionSummaries();
 }
 
 function qwkSubscriptionRowHtml(subscription) {
@@ -1214,7 +1371,8 @@ function qwkSubscriptionRowHtml(subscription) {
 function renderGateRows(gates) {
     const container = $('#qwkGatesContainer');
     if (!gates.length) {
-        container.html(`<div class="text-muted small">${uiT('ui.qwk.echoarea.none_configured', 'None configured')}</div>`);
+        container.html(`<div class="text-muted small">${uiT('ui.qwk.echoarea.none_gates', 'No gates configured')}</div>`);
+        updateTransportAccordionSummaries();
         return;
     }
 
@@ -1224,6 +1382,7 @@ function renderGateRows(gates) {
         html += gateRowHtml({ target_area_id: targetId, bidirectional: gate.bidirectional });
     });
     container.html(html);
+    updateTransportAccordionSummaries();
 }
 
 function addGateRow(gate = {}) {
@@ -1232,6 +1391,7 @@ function addGateRow(gate = {}) {
         container.empty();
     }
     container.append(gateRowHtml(gate));
+    updateTransportAccordionSummaries();
 }
 
 function gateRowHtml(gate) {
@@ -1267,6 +1427,87 @@ function gateRowHtml(gate) {
     `;
 }
 
+function renderRelayConfig(mode, rules) {
+    setRelayMode(mode || 'auto');
+    renderRelayRuleRows(Array.isArray(rules) ? rules : []);
+    updateRelayRuleVisibility();
+    updateTransportAccordionSummaries();
+}
+
+function renderRelayRuleRows(rules) {
+    const container = $('#echoareaRelayRulesContainer');
+    const transports = Array.from(new Set((availableRelayTransports || []).filter(Boolean)));
+    const pairs = [];
+    transports.forEach(function(originType) {
+        transports.forEach(function(targetType) {
+            if (originType !== targetType) {
+                pairs.push({ origin_type: originType, target_type: targetType });
+            }
+        });
+    });
+
+    if (!pairs.length) {
+        container.html(`<div class="text-muted small">${uiT('ui.qwk.echoarea.relay_rules_unavailable', 'Connect more than one transport to use manual relay rules')}</div>`);
+        updateTransportAccordionSummaries();
+        return;
+    }
+
+    const allowedPairs = new Set(
+        rules
+            .filter(function(rule) {
+                return rule && rule.origin_type && rule.target_type && !!rule.is_allowed;
+            })
+            .map(function(rule) {
+                return `${String(rule.origin_type).toLowerCase()}->${String(rule.target_type).toLowerCase()}`;
+            })
+    );
+
+    let html = '';
+    pairs.forEach(function(pair) {
+        const key = `${pair.origin_type}->${pair.target_type}`;
+        const checked = allowedPairs.has(key) ? 'checked' : '';
+        html += `
+            <div class="relay-rule-row border rounded p-2 bg-light">
+                <div class="form-check">
+                    <input class="form-check-input relay-rule-allowed" type="checkbox"
+                           data-origin-type="${escapeHtmlAttr(pair.origin_type)}"
+                           data-target-type="${escapeHtmlAttr(pair.target_type)}" ${checked}>
+                    <label class="form-check-label small">
+                        ${escapeHtml(getRelayTransportLabel(pair.origin_type))} -> ${escapeHtml(getRelayTransportLabel(pair.target_type))}
+                    </label>
+                </div>
+            </div>
+        `;
+    });
+    container.html(html);
+    updateTransportAccordionSummaries();
+}
+
+function updateRelayRuleVisibility() {
+    const isManual = getRelayMode() === 'manual';
+    $('#echoareaRelayRulesSection').toggleClass('d-none', !isManual);
+}
+
+function getRelayMode() {
+    return String($('input[name="echoareaRelayMode"]:checked').val() || 'auto');
+}
+
+function setRelayMode(mode) {
+    const normalized = ['none', 'auto', 'manual'].includes(String(mode)) ? String(mode) : 'auto';
+    $(`input[name="echoareaRelayMode"][value="${normalized}"]`).prop('checked', true);
+}
+
+function getRelayTransportLabel(type) {
+    const normalized = String(type || '').toLowerCase();
+    if (normalized === 'ftn') {
+        return uiT('ui.qwk.echoarea.transport_ftn', 'FTN');
+    }
+    if (normalized === 'qwk') {
+        return uiT('ui.qwk.echoarea.transport_qwk', 'QWK');
+    }
+    return normalized.toUpperCase();
+}
+
 function ensureQwkEmptyState() {
     if ($('#qwkSubscriptionsContainer').find('.qwk-subscription-row').length === 0) {
         renderQwkSubscriptions([]);
@@ -1274,6 +1515,7 @@ function ensureQwkEmptyState() {
     if ($('#qwkGatesContainer').find('.qwk-gate-row').length === 0) {
         renderGateRows([]);
     }
+    updateTransportAccordionSummaries();
 }
 
 function collectEchoareaQwkConfig() {
@@ -1302,7 +1544,56 @@ function collectEchoareaQwkConfig() {
         }
     });
 
-    return { subscriptions, gates };
+    const relayMode = getRelayMode();
+    const relayRules = [];
+    if (relayMode === 'manual') {
+        $('#echoareaRelayRulesContainer .relay-rule-allowed').each(function() {
+            if (!$(this).is(':checked')) {
+                return;
+            }
+            relayRules.push({
+                origin_type: String($(this).data('origin-type') || '').toLowerCase(),
+                target_type: String($(this).data('target-type') || '').toLowerCase(),
+                is_allowed: true
+            });
+        });
+    }
+
+    return { subscriptions, gates, relay_mode: relayMode, relay_rules: relayRules };
+}
+
+function updateTransportAccordionSummaries() {
+    const subscriptionCount = $('#qwkSubscriptionsContainer .qwk-subscription-row').length;
+    $('#echoareaSubscriptionsSummary').text(
+        subscriptionCount > 0
+            ? uiT('ui.qwk.echoarea.summary_subscriptions', '{count} linked', { count: subscriptionCount })
+            : uiT('ui.qwk.echoarea.summary_subscriptions_none', 'None')
+    );
+
+    const gateCount = $('#qwkGatesContainer .qwk-gate-row').length;
+    $('#echoareaGatesSummary').text(
+        gateCount > 0
+            ? uiT('ui.qwk.echoarea.summary_gates', '{count} configured', { count: gateCount })
+            : uiT('ui.qwk.echoarea.summary_gates_none', 'None')
+    );
+
+    const relayMode = getRelayMode();
+    let relaySummary = uiT('ui.qwk.echoarea.relay_mode_auto_short', 'Auto');
+    if (relayMode === 'none') {
+        relaySummary = uiT('ui.qwk.echoarea.relay_mode_none_short', 'Off');
+    } else if (relayMode === 'manual') {
+        const ruleCount = $('#echoareaRelayRulesContainer .relay-rule-allowed:checked').length;
+        relaySummary = ruleCount > 0
+            ? uiT('ui.qwk.echoarea.summary_rules', '{count} rules', { count: ruleCount })
+            : uiT('ui.qwk.echoarea.summary_rules_none', 'Manual');
+    }
+    $('#echoareaRelaySummary').text(relaySummary);
+}
+
+function updateTransportEditorState() {
+    const isLocal = $('#echoareaLocal').is(':checked');
+    $('#echoareaTransportAccordion').toggleClass('transport-disabled', isLocal);
+    $('#echoareaLocalOnlyTransportNotice').toggleClass('d-none', !isLocal);
 }
 
 function saveEchoareaQwkConfig(echoareaId) {
@@ -1335,6 +1626,15 @@ function resetQwkMailboxForm() {
     $('#qwkMailboxEnabled').prop('checked', true);
     resetQwkMailboxPasswordVisibility();
 }
+
+$('input[name="echoareaRelayMode"]').on('change', function() {
+    updateRelayRuleVisibility();
+    updateTransportAccordionSummaries();
+});
+
+$('#echoareaLocal').on('change', function() {
+    updateTransportEditorState();
+});
 
 function loadQwkMailboxList() {
     $('#qwkMailboxList').html(`<div class="text-muted">${uiT('ui.common.loading', 'Loading...')}</div>`);

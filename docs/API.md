@@ -2080,8 +2080,9 @@ Array of echo areas
 **Requires authentication**
 
 Admin-only endpoint that returns the QWK-network configuration for one echo
-area: mapped remote conferences, local gate rules, all configured QWK mailboxes,
-and other available local areas that can be chosen as gate targets.
+area: mapped remote conferences, imported-message relay policy, local gate
+rules, all configured QWK mailboxes, and other available local areas that can
+be chosen as gate targets.
 
 **Path Parameters**
 
@@ -2094,6 +2095,9 @@ and other available local areas that can be chosen as gate targets.
 | Field | Type | Description |
 |-------|------|-------------|
 | `subscriptions` | array | QWK conference mappings for this echo area |
+| `relay_mode` | string | Imported-message relay mode: `none`, `auto`, or `manual` |
+| `relay_rules` | array | Manual relay rules as `{origin_type, target_type, is_allowed}` objects |
+| `available_transports` | array | Transport types currently relevant to this area |
 | `gates` | array | Gate definitions involving this echo area |
 | `mailboxes` | array | All configured QWK mailboxes |
 | `available_areas` | array | Other local echo areas available as gate targets |
@@ -2111,8 +2115,8 @@ and other available local areas that can be chosen as gate targets.
 
 **Requires authentication**
 
-Admin-only endpoint that atomically replaces the QWK conference subscriptions
-and local gate rules for an echo area.
+Admin-only endpoint that atomically replaces the QWK conference subscriptions,
+imported-message relay policy, and local gate rules for an echo area.
 
 **Path Parameters**
 
@@ -2125,6 +2129,8 @@ and local gate rules for an echo area.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `subscriptions` | array | No | Array of `{mailbox_id, conference_tag, conference_number}` objects |
+| `relay_mode` | string | No | Imported-message relay mode: `none`, `auto`, or `manual` |
+| `relay_rules` | array | No | Array of `{origin_type, target_type, is_allowed}` objects |
 | `gates` | array | No | Array of `{target_area_id, bidirectional}` objects |
 
 **Response** _(JSON)_

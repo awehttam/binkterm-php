@@ -56,6 +56,12 @@ class BinkdProcessor
      */
     public bool $useGapDetectParser = false;
 
+    /**
+     * When true, imported echomail is stored without triggering cross-transport
+     * relay fanout or gate processing. Used by kept-packet rescans.
+     */
+    private bool $suppressImportedFanout = false;
+
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
@@ -324,19 +330,25 @@ class BinkdProcessor
         $imported = 0;
         $failed   = 0;
 
-        while (!feof($handle)) {
-            try {
-                $message = $this->readMessage($handle, $packetInfo);
-                if (!$message) {
-                    continue;
+        $previousSuppressImportedFanout = $this->suppressImportedFanout;
+        $this->suppressImportedFanout = true;
+        try {
+            while (!feof($handle)) {
+                try {
+                    $message = $this->readMessage($handle, $packetInfo);
+                    if (!$message) {
+                        continue;
+                    }
+                    $undeliverable = false;
+                    $this->storeMessage($message, $packetInfo, false, $undeliverable);
+                    $imported++;
+                } catch (\Exception $e) {
+                    $failed++;
+                    $this->log("[RESCAN] Failed to process message in $packetName: " . $e->getMessage());
                 }
-                $undeliverable = false;
-                $this->storeMessage($message, $packetInfo, false, $undeliverable);
-                $imported++;
-            } catch (\Exception $e) {
-                $failed++;
-                $this->log("[RESCAN] Failed to process message in $packetName: " . $e->getMessage());
             }
+        } finally {
+            $this->suppressImportedFanout = $previousSuppressImportedFanout;
         }
 
         fclose($handle);
@@ -1505,6 +1517,15 @@ class BinkdProcessor
                 mb_substr($message['fromName'] ?? '', 0, 100),
                 $echoarea['id'],
             ]);
+        }
+
+        if ($newId > 0 && !$this->suppressImportedFanout) {
+            (new \BinktermPHP\MessageHandler())->finalizeImportedTransportDelivery(
+                $newId,
+                (string)$echoarea['tag'],
+                (string)$domain,
+                \BinktermPHP\Echomail\RelayPolicyManager::TRANSPORT_FTN
+            );
         }
 
         //$this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);

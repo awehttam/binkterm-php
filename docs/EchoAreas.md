@@ -129,6 +129,22 @@ Each subscription row contains:
 
 This is area-level transport mapping. QWK mailbox hostnames, credentials, schedules, and FTP settings are managed from the separate **Manage QWK Mailboxes** dialog. For inter-BBS QWK transport details, see [docs/QWKNetworking.md](QWKNetworking.md).
 
+### Imported Message Relay
+
+The same edit dialog also includes an **Imported Message Relay** setting. This
+controls only what happens after a message is imported from an external
+transport such as FTN or inter-BBS QWK.
+
+The available modes are:
+
+- **No relay** — imported messages are stored in this area only
+- **Auto relay** — imported messages are forwarded to all other connected transports for this area, skipping the same origin transport
+- **Manual relay rules** — imported messages are forwarded only for explicitly allowed origin → target transport pairs
+
+This relay policy does not change how local users posting directly into the
+area behave. Local posts still use the area's normal outbound transport
+subscriptions.
+
 ### Gates
 
 The same edit dialog also includes a **Gates** panel. Gates are not QWK-specific even though they currently share the same configuration section.
@@ -206,7 +222,7 @@ Inbound echomail can arrive through two external transports: FTN packets and int
 4. **Auto-creation when needed** — If a conference mapping does not yet exist, BinktermPHP can auto-create a placeholder area and subscription for that remote conference.
 5. **Duplicate check** — QWK duplicates are detected using the mailbox ID, conference number, and remote message number.
 6. **Storage and linkage** — The message is stored in `echomail` with QWK source metadata so replies can preserve QWK threading and so the same message is not echoed straight back to the mailbox it came from.
-7. **Post-import fanout** — Once stored, the message can still be copied through gates or delivered to other configured external transports, except back to the same originating QWK mailbox.
+7. **Post-import fanout** — Once stored, the message can still be copied through gates or delivered to other configured external transports according to the area's imported-message relay mode. Inter-BBS QWK imports are never sent back to the same originating mailbox.
 
 Character encoding is detected via the `CHRS` kludge and converted to UTF-8 for storage.
 

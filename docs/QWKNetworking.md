@@ -41,6 +41,9 @@ This is configured from the admin web interface:
    remote path, and poll schedule.
 3. Edit a local echo area and add one or more **QWK Subscriptions** mapping the
    local area to remote conference numbers on that mailbox.
+4. Choose the area's **Imported Message Relay** mode to decide whether inbound
+   transport traffic should stay local, auto-relay to other connected
+   transports, or follow manual origin → target rules.
 
 If the BinkP scheduler daemon is running, enabled QWK mailboxes with a
 `poll_schedule` are polled automatically by that scheduler. Mailboxes with a
@@ -72,6 +75,7 @@ For each enabled mailbox, BinktermPHP:
 - Inbound deduplication uses `(qwk_mailbox_id, qwk_conference_number, qwk_msg_number)`.
 - Unknown conferences are auto-created into the built-in `qwk` network using the remote conference name as the description. The sysop can later move the area into a different network domain if needed.
 - Outbound replies preserve QWK reply threading when the parent message came from the same mailbox and conference.
+- Imported QWK messages obey the echo area's imported-message relay mode. In `auto` mode they can relay to other connected transport types; in `manual` mode only explicit rules apply; in `none` mode they are stored locally only.
 
 ---
 

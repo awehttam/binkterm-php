@@ -137,6 +137,8 @@ class QwkInbound
                 'qwk_mailbox_id' => $mailboxId,
                 'qwk_conference_number' => $message->conferenceNumber,
                 'qwk_msg_number' => $message->messageNumber,
+                'origin_type' => \BinktermPHP\Echomail\RelayPolicyManager::TRANSPORT_QWK,
+                'use_relay_policy' => true,
                 'exclude_qwk_mailbox_id' => $mailboxId,
                 'apply_gates' => true,
             ]);
