@@ -116,6 +116,7 @@
         window.appI18nNamespaces = {{ i18n_namespaces|json_encode|raw }};
         window.siteConfig = {
             ansiRendererMode: {{ ansi_renderer_mode|json_encode|raw }},
+            pipeCodeParserMode: {{ pipe_code_parser_mode|json_encode|raw }},
             sseTransportMode: {{ effective_sse_transport_mode|json_encode|raw }},
             configuredRealtimeTransportMode: {{ configured_realtime_transport_mode|json_encode|raw }},
             realtimeTransportMode: {{ effective_realtime_transport_mode|json_encode|raw }},

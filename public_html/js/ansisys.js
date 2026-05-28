@@ -1592,6 +1592,40 @@ function hasAnsiCodes(text) {
     return /\x1b[\[\]PX^_][^\x1b]*|(\x1b.)/.test(text);
 }
 
+function getPipeCodeParserMode() {
+    const mode = String(window.siteConfig?.pipeCodeParserMode || 'decimal_relaxed').toLowerCase();
+    if (mode === 'decimal_relaxed' || mode === 'loose') {
+        return mode;
+    }
+    return 'decimal_relaxed';
+}
+
+function getPipeCodeDetectionRegex() {
+    const mode = getPipeCodeParserMode();
+    if (mode === 'decimal_relaxed') {
+        return /\|(?:[0-9]{2}|[0-9](?![0-9])|[0-9A-F][A-F](?![0-9A-F])|[A-Z]{2}(?![A-Z]))/;
+    }
+    if (mode === 'loose') {
+        return /\|(?:[0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2}|[A-Z]{2})/i;
+    }
+    return /\|(?:[0-9](?![0-9A-F])|[0-9A-F]{2}(?![0-9A-F])|[A-Z]{2}(?![A-Z]))/;
+}
+
+function getPipeCodeColorRegex() {
+    const mode = getPipeCodeParserMode();
+    if (mode === 'decimal_relaxed') {
+        return /\|([0-9]{2}|[0-9](?![0-9])|[0-9A-F][A-F](?![0-9A-F]))/g;
+    }
+    if (mode === 'loose') {
+        return /\|([0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2})/gi;
+    }
+    return /\|([0-9](?![0-9A-F])|[0-9A-F]{2}(?![0-9A-F]))/g;
+}
+
+function getPipeCodeLetterRegex() {
+    return getPipeCodeParserMode() === 'loose' ? /\|([A-Z]{2})/gi : /\|([A-Z]{2})/g;
+}
+
 /**
  * Check if text contains pipe codes (BBS color codes like |15, |04, etc. or special codes like |CL)
  */
@@ -1601,12 +1635,7 @@ function hasPipeCodes(text) {
     }
 
     const normalized = String(text).replace(/\|\|/g, '');
-    // Match single-digit shorthand (|1), two-digit color codes (|01, |0A, |1F),
-    // or special letter codes (|CL, |PA, etc.).
-    // Requires uppercase letters for both hex and letter codes — all real BBS software
-    // produces uppercase pipe codes, and the case-insensitive version causes false positives
-    // on natural English text (e.g. |Advertise → |Ad matches as a Mystic hex color code).
-    return /\|(?:[0-9](?![0-9A-F])|[0-9A-F]{2}(?![0-9A-F])|[A-Z]{2}(?![A-Z]))/.test(normalized);
+    return getPipeCodeDetectionRegex().test(normalized);
 }
 
 /**
@@ -1643,8 +1672,9 @@ function convertPipeCodesToAnsi(text) {
         'KP', 'KR', 'KS', 'KT', 'KU', 'KD',
         'GE', 'GV', 'GL', 'GR', 'GN', 'GO'
     ];
-    text = text.replace(/\|([A-Z]{2})/g, (match, code) => {
-        return knownPipeCodes.includes(code) ? '' : match;
+    text = text.replace(getPipeCodeLetterRegex(), (match, code) => {
+        const normalizedCode = getPipeCodeParserMode() === 'loose' ? code.toUpperCase() : code;
+        return knownPipeCodes.includes(normalizedCode) ? '' : match;
     });
 
     // Pipe code to ANSI color mapping
@@ -1690,7 +1720,7 @@ function convertPipeCodesToAnsi(text) {
     // Codes use Renegade-style decimal notation: |00-|15 = foreground, |16-|23 = background.
     // Mystic-style hex codes (|0A = bright green, |1F = blue bg + white fg, etc.) are also
     // handled: codes with letters A-F are parsed as hex nibbles.
-    text = text.replace(/\|([0-9](?![0-9A-F])|[0-9A-F]{2}(?![0-9A-F]))/g, (match, codeStr) => {
+    text = text.replace(getPipeCodeColorRegex(), (match, codeStr) => {
         if (codeStr.length === 1) {
             const ansiFg = pipeToAnsiFg[parseInt(codeStr, 10)] || 37;
             return `\x1b[${ansiFg}m`;
@@ -1787,9 +1817,12 @@ function parsePipeCodes(text) {
     let result = '';
     let spanOpen = false;
 
-    // Pipe code pattern: |XX where XX is exactly two decimal digits (00-99).
-    // Greedy 2-digit match so |152 is parsed as color code |15 followed by literal "2".
-    const pipePattern = /\|([0-9]{2})/g;
+    // Pipe code pattern depends on PIPE_CODE_PARSER_MODE.
+    // strict: conservative uppercase-only matching with lookahead boundary.
+    // decimal_relaxed: greedily accepts two-digit decimal codes so |152 parses as |15 + 2
+    // and |01A parses as |01 + A.
+    // loose: legacy permissive matcher for experiments.
+    const pipePattern = getPipeCodeColorRegex();
     let lastIndex = 0;
     let match;
 

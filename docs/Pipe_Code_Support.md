@@ -47,7 +47,21 @@ Examples:
 
 ## Usage
 
-Pipe codes are automatically detected and rendered when displaying messages. No special configuration is needed.
+Pipe codes are automatically detected and rendered when displaying messages.
+
+### Parser Mode
+
+Pipe-code detection is controlled by the `PIPE_CODE_PARSER_MODE` environment variable in `.env`:
+
+```env
+PIPE_CODE_PARSER_MODE=decimal_relaxed
+```
+
+Supported values:
+
+- `strict` - conservative uppercase-only parsing with a trailing boundary check. Avoids false positives such as `|Advertise`, but can leave sequences like `|01A side of beans` unparsed.
+- `decimal_relaxed` - default. Greedily accepts two-digit decimal color codes (`|00`-`|99`) even when followed by uppercase text, so `|01A side of beans` parses as `|01` + `A side of beans`. Uppercase hex-with-letter codes and two-letter control codes remain stricter.
+- `loose` - legacy permissive behavior for experiments. Re-enables broader matching and can reintroduce false positives in normal prose.
 
 ### In Message Bodies
 
@@ -71,7 +85,7 @@ Pipe codes can be mixed with ANSI escape sequences in the same message:
 
 The pipe code parser works by:
 
-1. Detecting pipe codes in the format `|XX` where XX is a hex digit
+1. Detecting pipe codes according to `PIPE_CODE_PARSER_MODE`
 2. Converting them to ANSI escape sequences
 3. Processing through the existing ANSI parser
 
@@ -163,8 +177,9 @@ Mystic BBS theme colour codes (`|T0`–`|T9`) are also stripped as they are them
 
 ## Notes
 
-- Pipe codes are case-insensitive (`|0F` = `|0f`, `|CL` = `|cl`)
+- In `strict` and `decimal_relaxed` modes, letter-based pipe codes are uppercase-sensitive by design.
+- `loose` mode restores case-insensitive matching for experiments.
 - Mystic-style hex colour codes (`|0A`–`|FF`) are parsed as two hex nibbles: upper = background, lower = foreground
 - Renegade-style decimal colour codes (`|00`–`|23`) use decimal values: 00–15 = foreground, 16–23 = background
-- All unrecognised two-letter codes are stripped (rather than passed through as literal text)
+- Recognized two-letter control/info codes are stripped; unknown ones are preserved as literal text
 - The implementation covers Renegade, Mystic, Synchronet, and other FTN-compatible BBS software

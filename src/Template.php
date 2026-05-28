@@ -261,6 +261,15 @@ class Template
         // enables URL hyperlinking) or 'perchar' (one span per character, original behavior).
         $ansiRendererMode = Config::env('ANSI_RENDERER_MODE', 'grouped');
         $this->twig->addGlobal('ansi_renderer_mode', in_array($ansiRendererMode, ['grouped', 'perchar'], true) ? $ansiRendererMode : 'grouped');
+        // PIPE_CODE_PARSER_MODE controls how pipe color codes are recognized.
+        // strict = conservative uppercase-only matching; decimal_relaxed =
+        // greedily accepts two-digit decimal codes before uppercase text;
+        // loose = legacy permissive matching for experiments.
+        $pipeCodeParserMode = strtolower(trim((string)Config::env('PIPE_CODE_PARSER_MODE', 'decimal_relaxed')));
+        $this->twig->addGlobal(
+            'pipe_code_parser_mode',
+            in_array($pipeCodeParserMode, ['strict', 'decimal_relaxed', 'loose'], true) ? $pipeCodeParserMode : 'decimal_relaxed'
+        );
 
         $this->twig->addGlobal('media_player_enabled', AppearanceConfig::isMediaPlayerEnabled());
 

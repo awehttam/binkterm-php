@@ -2,6 +2,14 @@
 
 Architectural and implementation reference for developers working on the BinktermPHP terminal server. For the user-facing feature reference and sysop configuration options see [TerminalServer.md](TerminalServer.md).
 
+## Pipe Code Parser Mode
+
+Terminal-side bulletin rendering in `telnet/src/BulletinsHandler.php` follows the shared `.env` setting `PIPE_CODE_PARSER_MODE` so sysops can experiment with the same detection strategy on both the web and terminal sides.
+
+- `strict` matches the conservative uppercase-only behavior.
+- `decimal_relaxed` is the default and greedily accepts two-digit decimal color codes such as `|01` before uppercase text.
+- `loose` restores the older permissive matcher for debugging and comparison.
+
 ---
 
 ## Key Source Files

@@ -72,6 +72,8 @@ Custom shells can be added by placing plugin definition files in
 
 The terminal server uses a shell abstraction layer (`TuiShell` for normal-size terminals, `LineShell` for low-capability sessions) to present UI intents consistently across feature handlers. For architecture details, the widget reference, shell selection rules, style profile, and developer patterns see [Terminal Server Developer Guide](TerminalServerDevGuide.md).
 
+Pipe-code rendering for plain bulletins and other ANSI/pipe text shared with the web renderer is controlled by the `.env` setting `PIPE_CODE_PARSER_MODE`. The default is `decimal_relaxed`, which favors common BBS content where decimal pipe codes are immediately followed by uppercase text. `strict` remains available when avoiding false positives in prose matters more.
+
 ### Screen-Aware Display
 
 - Automatically detects terminal dimensions via NAWS (Negotiate About Window Size)

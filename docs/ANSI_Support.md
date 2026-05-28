@@ -269,6 +269,16 @@ ANSI_RENDERER_MODE=grouped   # default
 ANSI_RENDERER_MODE=perchar   # one span per character
 ```
 
+Pipe-code recognition has a separate environment control:
+
+```env
+PIPE_CODE_PARSER_MODE=decimal_relaxed
+```
+
+- `strict` keeps the conservative uppercase-only boundary checks.
+- `decimal_relaxed` is the default mode and greedily accepts two-digit decimal codes such as `|01` even when followed by uppercase text.
+- `loose` restores the older permissive behavior for testing.
+
 Use `perchar` if you observe rendering differences with specific art files and want to compare. `grouped` is recommended for normal operation.
 
 ## Compatibility
