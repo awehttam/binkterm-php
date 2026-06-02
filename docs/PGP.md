@@ -68,6 +68,17 @@ The lookup can match:
 
 This matters because a user's published PGP identity and their BBS account name are not always the same thing. The selector is there so the user can choose the exact public key before sending.
 
+When the destination address is blank or points at one of this system's own FTN addresses, compose searches the local public-key store only.
+
+When the destination is a remote FTN address, compose switches to remote lookup:
+
+- it resolves the destination node in the nodelist
+- it extracts the node's BinkP hostname from the nodelist flags
+- it checks for `_hkps._tcp.<hostname>` SRV records and uses that target when present
+- if no HKPS SRV record exists, it falls back to `https://<resolved-binkp-ip>/pks/lookup`
+
+Remote HKP requests use a 3-second timeout so compose does not stall for long on unreachable systems.
+
 The compose screen only shows the recipient selector when managed private keys are enabled, because the netmail encryption and echomail signing flows depend on browser-side access to the stored private key.
 
 ## Public Endpoints
@@ -80,6 +91,8 @@ When PGP is enabled, the following routes are active:
 - `/pks/download/{fingerprint}`
 
 These are the public-facing keyserver routes used for discovery and retrieval.
+
+The authenticated compose UI also uses `GET /api/pgp/lookup` for destination-aware local-vs-remote key resolution.
 
 ## Operational Notes
 

@@ -7922,6 +7922,57 @@ Public PGP key listing for one user.
 
 ---
 
+#### `GET /api/pgp/lookup`
+
+**Requires authentication**
+
+Performs destination-aware public-key lookup for the compose UI. Local destinations query this BBS's public-key store. Remote FTN destinations resolve the node's BinkP host from the nodelist, prefer `_hkps._tcp` SRV records when available, and otherwise fall back to `https://<resolved-binkp-ip>/pks/lookup`.
+
+**Query Parameters**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `search` | string | Yes | Key fingerprint or search text |
+| `address` | string | No | Destination FTN address; blank means local delivery |
+| `op` | string | No | `index` (default) for a candidate list or `get` for one armored key |
+
+**Response** _(JSON, `op=index`)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `is_local_address` | boolean | Whether the destination was treated as local |
+| `keys` | array<object> | Matching public keys |
+| `keys[].fingerprint` | string | 40-character uppercase PGP fingerprint |
+| `keys[].user_id_string` | string\|null | Parsed OpenPGP user ID string or HKP `uid` line |
+| `keys[].username` | string\|null | Local BBS username when the match came from the local store |
+| `keys[].key_algorithm` | string\|null | Public key algorithm when known |
+| `keys[].key_created_at` | string\|null | Key creation timestamp when known |
+| `keys[].lookup_source` | string | `local`, `remote_srv`, or `remote_ip` |
+
+**Response** _(JSON, `op=get`)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `is_local_address` | boolean | Whether the destination was treated as local |
+| `key` | object\|null | Resolved public key, or `null` when no match was found |
+| `key.fingerprint` | string | 40-character uppercase PGP fingerprint |
+| `key.armored_public_key` | string | ASCII-armored public key block |
+| `key.user_id_string` | string\|null | Parsed OpenPGP user ID string |
+| `key.email` | string\|null | Parsed email address from the key, if available |
+| `key.key_algorithm` | string\|null | Parsed public key algorithm |
+| `key.key_created_at` | string\|null | Key creation timestamp when known |
+| `key.lookup_source` | string | `local`, `remote_srv`, or `remote_ip` |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 500 | Failed to load PGP keys |
+
+---
+
 #### `GET /api/user/pgp/keys`
 
 **Requires authentication**

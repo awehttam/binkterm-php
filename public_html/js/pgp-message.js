@@ -188,6 +188,52 @@
         return candidates;
     }
 
+    async function fetchComposePublicKeyCandidates(search, destinationAddress) {
+        const normalizedSearch = String(search || '').trim();
+        const normalizedAddress = String(destinationAddress || '').trim();
+        if (!normalizedSearch) {
+            return [];
+        }
+
+        const cacheKey = 'compose-search:' + normalizedAddress.toLowerCase() + ':' + normalizedSearch.toLowerCase();
+        if (state.publicKeyCache.has(cacheKey)) {
+            return state.publicKeyCache.get(cacheKey);
+        }
+
+        const data = await fetchJson('/api/pgp/lookup?search='
+            + encodeURIComponent(normalizedSearch)
+            + '&address=' + encodeURIComponent(normalizedAddress));
+        const candidates = Array.isArray(data && data.keys) ? data.keys : [];
+        state.publicKeyCache.set(cacheKey, candidates);
+        return candidates;
+    }
+
+    async function fetchComposePublicKeyArmor(search, destinationAddress) {
+        const normalizedSearch = String(search || '').trim();
+        const normalizedAddress = String(destinationAddress || '').trim();
+        if (!normalizedSearch) {
+            return null;
+        }
+
+        const cacheKey = 'compose-key:' + normalizedAddress.toLowerCase() + ':' + normalizedSearch.toLowerCase();
+        if (state.publicKeyCache.has(cacheKey)) {
+            return state.publicKeyCache.get(cacheKey);
+        }
+
+        const data = await fetchJson('/api/pgp/lookup?op=get&search='
+            + encodeURIComponent(normalizedSearch)
+            + '&address=' + encodeURIComponent(normalizedAddress));
+        const armored = (data && data.key && data.key.armored_public_key)
+            ? String(data.key.armored_public_key)
+            : '';
+        if (!armored || armored.indexOf('BEGIN PGP PUBLIC KEY BLOCK') === -1) {
+            return null;
+        }
+
+        state.publicKeyCache.set(cacheKey, armored);
+        return armored;
+    }
+
     function isCleartextSigned(text) {
         return /-----BEGIN PGP SIGNED MESSAGE-----/i.test(String(text || ''));
     }
@@ -221,6 +267,25 @@
         }
 
         const publicKeyArmor = await fetchPublicKeyArmor(recipientSearch);
+        if (!publicKeyArmor) {
+            throw new Error('Recipient public key not found.');
+        }
+
+        const publicKey = await window.openpgp.readKey({ armoredKey: publicKeyArmor });
+        const message = await window.openpgp.createMessage({ text: String(text || '') });
+        return await window.openpgp.encrypt({
+            message: message,
+            encryptionKeys: [publicKey],
+            format: 'armored'
+        });
+    }
+
+    async function encryptMessageForDestination(text, recipientSearch, destinationAddress) {
+        if (!hasOpenPgp()) {
+            throw new Error('OpenPGP.js is unavailable.');
+        }
+
+        const publicKeyArmor = await fetchComposePublicKeyArmor(recipientSearch, destinationAddress);
         if (!publicKeyArmor) {
             throw new Error('Recipient public key not found.');
         }
@@ -298,10 +363,13 @@
         getCurrentUserDecryptedPrivateKey: getCurrentUserDecryptedPrivateKey,
         fetchPublicKeyArmor: fetchPublicKeyArmor,
         fetchPublicKeyCandidates: fetchPublicKeyCandidates,
+        fetchComposePublicKeyCandidates: fetchComposePublicKeyCandidates,
+        fetchComposePublicKeyArmor: fetchComposePublicKeyArmor,
         isCleartextSigned: isCleartextSigned,
         isEncryptedMessage: isEncryptedMessage,
         signCleartextMessage: signCleartextMessage,
         encryptMessage: encryptMessage,
+        encryptMessageForDestination: encryptMessageForDestination,
         decryptMessage: decryptMessage,
         verifySignedMessage: verifySignedMessage
     };

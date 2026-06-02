@@ -9366,6 +9366,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/pgp/lookup', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        $search = trim((string)($_GET['search'] ?? ''));
+        $address = trim((string)($_GET['address'] ?? ''));
+        $op = strtolower(trim((string)($_GET['op'] ?? 'index')));
+
+        try {
+            $service = new \BinktermPHP\PgpLookupService();
+            $isLocalAddress = $service->isLocalAddress($address);
+
+            if ($op === 'get') {
+                $key = $service->findPublicKeyForDestination($search, $address);
+                echo json_encode([
+                    'success' => true,
+                    'is_local_address' => $isLocalAddress,
+                    'key' => $key,
+                ]);
+                return;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'is_local_address' => $isLocalAddress,
+                'keys' => $service->searchPublicKeysForDestination($search, $address),
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.load_failed', apiLocalizedText('errors.pgp.load_failed', 'Failed to load PGP keys', $user), 500);
+        }
+    });
+
     SimpleRouter::get('/user/pgp/keys', function() {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');

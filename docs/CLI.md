@@ -5,6 +5,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 ## Table of Contents
 
 - [Message Posting Tool](#message-posting-tool)
+- [PGP Lookup Tool](#pgp-lookup-tool)
 - [Weather Report Generator](#weather-report-generator)
 - [New Files Report](#new-files-report)
 - [Echomail Traffic Report](#echomail-traffic-report)
@@ -59,6 +60,25 @@ php scripts/post_message.php --type=echomail \
 php scripts/post_message.php --list-users
 php scripts/post_message.php --list-areas
 ```
+
+## PGP Lookup Tool
+Perform the same destination-aware PGP lookup used by netmail compose. The script reports whether the lookup is local or remote, and for remote lookups it prints the exact `/pks/lookup` URL queried.
+
+```bash
+# Local lookup (blank destination address means local delivery)
+php scripts/pgp.lookup.php sysop
+
+# Remote candidate listing for a specific FTN destination
+php scripts/pgp.lookup.php alice@example.com --address=2:280/555
+
+# Fetch one armored key instead of listing candidates
+php scripts/pgp.lookup.php 0123456789ABCDEF0123456789ABCDEF01234567 --address=2:280/555 --get
+```
+
+Options:
+- `--address=FTN` - Destination FTN address. Blank means local delivery.
+- `--get` - Fetch one armored public key instead of listing matches.
+- `--help` - Show usage.
 
 ## Weather Report Generator
 Generate detailed weather forecasts for posting to echomail areas:
