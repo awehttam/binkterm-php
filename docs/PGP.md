@@ -13,6 +13,13 @@ PGP support lets each user maintain more than one public key and choose a prefer
 
 The platform also exposes a public keyserver view so other systems can look up published keys. When managed private keys are enabled, the browser can also use them for netmail encryption and echomail signing.
 
+Like any OpenPGP deployment, users can also do PGP work entirely outside the BBS
+by copying and pasting ASCII-armored text into their own local tools. The BBS-side
+managed-key option is there for users and sysops who want browser-based encryption,
+decryption, and signing directly inside BinktermPHP instead of using an external
+keyring or desktop mail workflow, and who accept the policy and liability tradeoffs
+that come with allowing the BBS to host encrypted private-key blobs.
+
 ## Default State
 
 PGP is disabled by default. Fresh installations start with both of these BBS settings turned off:
@@ -43,6 +50,10 @@ When `Enable PGP` is on:
 
 The keyserver publishes the user's preferred key and key listings for lookup.
 
+In this mode, users can still use the system as a public-key directory while doing
+their actual encryption and decryption locally with their own OpenPGP software and
+ASCII-armored messages.
+
 When `Allow BBS-managed private keys` is also on:
 
 - the PGP settings page shows a managed-key generator
@@ -51,6 +62,10 @@ When `Allow BBS-managed private keys` is also on:
 - users can encrypt outgoing netmail to a recipient's preferred public key from the compose screen
 - users can sign outgoing echomail with their stored private key from the compose screen
 - readers can decrypt encrypted netmail or verify signed echomail in the message viewer
+
+This is the optional in-BBS workflow. Instead of requiring users to leave the site
+and use an external OpenPGP program, the browser can perform encryption, decryption,
+and signing against the user's managed key material directly in the BinktermPHP UI.
 
 When decrypting, the reader inspects the encrypted message's recipient key IDs and
 prefers the matching managed private key. If no direct match is found, it falls
