@@ -308,6 +308,51 @@
                     </div>
                 </div>
 
+                {% if pgp_enabled and pgp_managed_keys_enabled %}
+                <div class="mb-3 d-none" id="pgpComposeSection">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-key me-2"></i>{{ t('ui.compose.pgp.title', {}, locale, ['common']) }}</h6>
+                        </div>
+                        <div class="card-body">
+                            {% if type == 'netmail' %}
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="pgpEncryptMessage">
+                                <label class="form-check-label" for="pgpEncryptMessage">
+                                    {{ t('ui.compose.pgp.encrypt_netmail', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.compose.pgp.encrypt_netmail_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="mb-3 d-none" id="pgpEncryptRecipientGroup">
+                                <label for="pgpRecipientKeySelect" class="form-label">{{ t('ui.compose.pgp.encrypt_recipient_label', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="pgpRecipientKeySelect" disabled></select>
+                                <div class="form-text">{{ t('ui.compose.pgp.encrypt_recipient_help', {}, locale, ['common']) }}</div>
+                                <div class="small text-muted mt-2" id="pgpRecipientKeySummary"></div>
+                            </div>
+                            {% endif %}
+
+                            {% if type == 'echomail' %}
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="pgpSignMessage">
+                                <label class="form-check-label" for="pgpSignMessage">
+                                    {{ t('ui.compose.pgp.sign_echomail', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.compose.pgp.sign_echomail_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="mb-0" id="pgpPassphraseGroup" style="display:none;">
+                                <label for="pgpPassphrase" class="form-label">{{ t('ui.settings.pgp.passphrase', {}, locale, ['common']) }}</label>
+                                <input type="password" class="form-control" id="pgpPassphrase" autocomplete="new-password"
+                                       placeholder="{{ t('ui.settings.pgp.passphrase_placeholder', {}, locale, ['common']) }}">
+                                <div class="form-text">{{ t('ui.settings.pgp.passphrase_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            {% endif %}
+
+                            <div id="pgpComposeNotice" class="mt-3 text-muted small"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <div class="mb-3">
                     <label for="taglineSelect" class="form-label">{{ t('ui.compose.select_tagline', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="taglineSelect" name="tagline">
@@ -412,6 +457,8 @@
 {% block scripts %}
 <script src="/vendor/toastui-editor-3.2.2/toastui-editor-all.min.js"></script>
 <script src="/js/markdown-editor.js"></script>
+<script src="/vendor/openpgp-6.2.2/openpgp.min.js"></script>
+<script src="/js/pgp-message.js"></script>
 <script>
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -426,6 +473,7 @@ const interestEchoareas = {{ interest_echoareas|json_encode|raw }};
 {% else %}
 const interestEchoareas = null;
 {% endif %}
+window.currentUser = {{ current_user|json_encode(15)|raw }};
 let allEchoareas = [];
 let markdownSupportTimer = null;
 
@@ -654,7 +702,7 @@ let markdownSupportTimer = null;
                 uiT('ui.compose.node_search.searching', 'Searching...') + '</span>';
             dd.style.display = 'block';
         }
-        fetch('/api/address-book/search/' + encodeURIComponent(q))
+        fetch('/api/address-book?search=' + encodeURIComponent(q))
             .then(function(r) { return r.json(); })
             .then(function(data) { if (data.success) renderResults(data.entries || []); })
             .catch(function() { closeDropdown(); });
@@ -712,6 +760,8 @@ const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
 const defaultCharset  = {{ default_charset|default("CP437")|json_encode|raw }};
 const replyCharset    = {{ reply_charset|default("")|json_encode|raw }};
 const domainCharsets  = {{ domain_charsets|default({})|json_encode|raw }};
+const pgpEnabled = {{ pgp_enabled ? 'true' : 'false' }};
+const pgpManagedKeysEnabled = {{ pgp_managed_keys_enabled ? 'true' : 'false' }};
 
 // Pre-select the charset from the reply context, or the configured default for new messages
 (function() {
@@ -745,6 +795,16 @@ $('#insertImageBtn, #insertImageBtnSc').on('click', function() {
 const MESSAGE_MAX_BYTES = 16384;
 const MESSAGE_WARN_BYTES = Math.floor(MESSAGE_MAX_BYTES * 0.8); // ~13 KB
 let messageSizeWarnAcknowledged = false;
+let pgpComposeState = {
+    keys: [],
+    privateKeyAvailable: false,
+    initialized: false,
+    recipientSearch: '',
+    recipientCandidates: [],
+    recipientSelectedFingerprint: '',
+    recipientLookupTimer: null,
+    controlsBound: false
+};
 
 /**
  * Estimate the encoded byte size of the message body for the selected charset.
@@ -759,6 +819,281 @@ function getMessageByteCount() {
     }
     // Single-byte charsets: 1 byte per character after encoding
     return text.length;
+}
+
+function getPgpRecipientSearchText() {
+    return ($('#toName').val() || $('#toAddress').val() || '').trim();
+}
+
+function getPgpRecipientLabel(candidate) {
+    if (!candidate) {
+        return '';
+    }
+    const parts = [];
+    const uid = (candidate.user_id_string || '').trim();
+    const user = (candidate.username || '').trim();
+    if (uid) {
+        parts.push(uid);
+    } else if (user) {
+        parts.push(user);
+    }
+    if (candidate.fingerprint) {
+        parts.push('[' + String(candidate.fingerprint).toUpperCase() + ']');
+    }
+    return parts.join(' ');
+}
+
+function renderPgpRecipientSelector() {
+    const group = document.getElementById('pgpEncryptRecipientGroup');
+    const select = document.getElementById('pgpRecipientKeySelect');
+    const summary = document.getElementById('pgpRecipientKeySummary');
+    const checkbox = document.getElementById('pgpEncryptMessage');
+    if (!group || !select || !summary || !checkbox) {
+        return;
+    }
+
+    if (!checkbox.checked) {
+        group.classList.add('d-none');
+        select.innerHTML = '';
+        select.disabled = true;
+        summary.textContent = '';
+        pgpComposeState.recipientCandidates = [];
+        pgpComposeState.recipientSearch = '';
+        pgpComposeState.recipientSelectedFingerprint = '';
+        return;
+    }
+
+    group.classList.remove('d-none');
+    const candidates = pgpComposeState.recipientCandidates || [];
+    const selectedFingerprint = String(pgpComposeState.recipientSelectedFingerprint || '').toUpperCase();
+    select.innerHTML = '';
+
+    if (!candidates.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = uiT('ui.compose.pgp.encrypt_no_key', 'No matching public key found.');
+        select.appendChild(option);
+        select.disabled = true;
+        summary.textContent = uiT('ui.compose.pgp.encrypt_no_key_help', 'Enter a recipient that has a published public key.');
+        summary.className = 'small text-danger mt-2';
+        return;
+    }
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = uiT('ui.compose.pgp.encrypt_recipient_placeholder', 'Select the public key to encrypt to');
+    select.appendChild(placeholder);
+
+    candidates.forEach(function(candidate) {
+        const option = document.createElement('option');
+        option.value = String(candidate.fingerprint || '').toUpperCase();
+        option.textContent = getPgpRecipientLabel(candidate);
+        select.appendChild(option);
+    });
+
+    let activeFingerprint = selectedFingerprint && candidates.some(function(candidate) {
+        return String(candidate.fingerprint || '').toUpperCase() === selectedFingerprint;
+    }) ? selectedFingerprint : String(candidates[0].fingerprint || '').toUpperCase();
+    if (!activeFingerprint) {
+        activeFingerprint = '';
+    }
+
+    select.value = activeFingerprint;
+    select.disabled = false;
+    const activeCandidate = candidates.find(function(candidate) {
+        return String(candidate.fingerprint || '').toUpperCase() === activeFingerprint;
+    }) || null;
+    summary.textContent = activeCandidate
+        ? uiT('ui.compose.pgp.encrypting_for', 'Encrypting for {recipient}', {
+            recipient: getPgpRecipientLabel(activeCandidate)
+        })
+        : '';
+    summary.className = 'small text-muted mt-2';
+    pgpComposeState.recipientSelectedFingerprint = activeFingerprint;
+}
+
+async function refreshPgpRecipientCandidates(force) {
+    if (!pgpEnabled || !pgpManagedKeysEnabled || !window.PgpMessageSupport || !pgpComposeState.privateKeyAvailable) {
+        return;
+    }
+
+    const checkbox = document.getElementById('pgpEncryptMessage');
+    if (!checkbox || !checkbox.checked) {
+        renderPgpRecipientSelector();
+        return;
+    }
+
+    const search = getPgpRecipientSearchText();
+    if (!search) {
+        pgpComposeState.recipientSearch = '';
+        pgpComposeState.recipientCandidates = [];
+        pgpComposeState.recipientSelectedFingerprint = '';
+        renderPgpRecipientSelector();
+        return;
+    }
+
+    if (!force && pgpComposeState.recipientSearch === search && pgpComposeState.recipientCandidates.length) {
+        renderPgpRecipientSelector();
+        return;
+    }
+
+    pgpComposeState.recipientSearch = search;
+    const summary = document.getElementById('pgpRecipientKeySummary');
+    const select = document.getElementById('pgpRecipientKeySelect');
+    if (summary) {
+        summary.className = 'small text-muted mt-2';
+        summary.textContent = uiT('ui.common.loading', 'Loading...');
+    }
+    if (select) {
+        select.disabled = true;
+    }
+    try {
+        const candidates = await window.PgpMessageSupport.fetchPublicKeyCandidates(search);
+        pgpComposeState.recipientCandidates = candidates || [];
+        if (pgpComposeState.recipientCandidates.length === 1) {
+            pgpComposeState.recipientSelectedFingerprint = String(pgpComposeState.recipientCandidates[0].fingerprint || '').toUpperCase();
+        }
+    } catch (error) {
+        pgpComposeState.recipientCandidates = [];
+    }
+    renderPgpRecipientSelector();
+}
+
+async function initPgpComposeControls() {
+    const section = document.getElementById('pgpComposeSection');
+    if (!section || !pgpEnabled || !pgpManagedKeysEnabled || !window.PgpMessageSupport) {
+        return;
+    }
+
+    try {
+        const keys = await window.PgpMessageSupport.loadCurrentUserKeys();
+        pgpComposeState.keys = keys || [];
+        pgpComposeState.privateKeyAvailable = pgpComposeState.keys.some(function(key) {
+            return !!key.has_private_key;
+        });
+        pgpComposeState.initialized = true;
+
+        if (!pgpComposeState.privateKeyAvailable) {
+            section.classList.add('d-none');
+            return;
+        }
+
+        section.classList.remove('d-none');
+        const notice = document.getElementById('pgpComposeNotice');
+        if (notice) {
+            notice.textContent = uiT('ui.pgp.notice', 'PGP actions use your stored managed private key. If you only uploaded a public key, signing and decrypting are unavailable.');
+        }
+
+        const encryptToggle = document.getElementById('pgpEncryptMessage');
+        if (encryptToggle && encryptToggle.checked) {
+            void refreshPgpRecipientCandidates(true);
+        }
+
+        const signToggle = document.getElementById('pgpSignMessage');
+        const passphraseGroup = document.getElementById('pgpPassphraseGroup');
+        if (signToggle && passphraseGroup) {
+            const syncPassphrase = function() {
+                passphraseGroup.style.display = signToggle.checked ? '' : 'none';
+            };
+            signToggle.addEventListener('change', syncPassphrase);
+            syncPassphrase();
+        }
+    } catch (error) {
+        section.classList.add('d-none');
+    }
+}
+
+function bindPgpRecipientControls() {
+    if (pgpComposeState.controlsBound) {
+        return;
+    }
+    const encryptToggle = document.getElementById('pgpEncryptMessage');
+    const encryptRecipientSelect = document.getElementById('pgpRecipientKeySelect');
+    const toName = document.getElementById('toName');
+    const toAddress = document.getElementById('toAddress');
+    if (!encryptToggle || !encryptRecipientSelect) {
+        return;
+    }
+
+    const syncRecipientLookup = function(force) {
+        if (pgpComposeState.recipientLookupTimer) {
+            clearTimeout(pgpComposeState.recipientLookupTimer);
+            pgpComposeState.recipientLookupTimer = null;
+        }
+        const runLookup = function() {
+            pgpComposeState.recipientLookupTimer = null;
+            void refreshPgpRecipientCandidates(!!force);
+        };
+        if (force) {
+            runLookup();
+            return;
+        }
+        pgpComposeState.recipientLookupTimer = setTimeout(runLookup, 300);
+    };
+
+    encryptToggle.addEventListener('change', function() {
+        if (encryptToggle.checked) {
+            syncRecipientLookup(true);
+        } else {
+            renderPgpRecipientSelector();
+        }
+    });
+
+    encryptRecipientSelect.addEventListener('change', function() {
+        pgpComposeState.recipientSelectedFingerprint = String(encryptRecipientSelect.value || '').toUpperCase();
+        renderPgpRecipientSelector();
+    });
+
+    ['input', 'blur'].forEach(function(eventName) {
+        if (toName) {
+            toName.addEventListener(eventName, function() {
+                if (encryptToggle.checked) {
+                    syncRecipientLookup(false);
+                }
+            });
+        }
+        if (toAddress) {
+            toAddress.addEventListener(eventName, function() {
+                if (encryptToggle.checked) {
+                    syncRecipientLookup(false);
+                }
+            });
+        }
+    });
+
+    pgpComposeState.controlsBound = true;
+}
+
+async function preparePgpMessageForSend(messageType, messageText, composeData) {
+    if (pgpEnabled && pgpManagedKeysEnabled && window.PgpMessageSupport && !pgpComposeState.initialized) {
+        await initPgpComposeControls();
+    }
+
+    if (!pgpEnabled || !pgpManagedKeysEnabled || !window.PgpMessageSupport || !pgpComposeState.initialized || !pgpComposeState.privateKeyAvailable) {
+        return { messageText, pgpMode: null };
+    }
+
+    if (messageType === 'netmail' && $('#pgpEncryptMessage').length && $('#pgpEncryptMessage').is(':checked')) {
+        await refreshPgpRecipientCandidates(true);
+        const recipientFingerprint = ($('#pgpRecipientKeySelect').val() || '').trim();
+        const recipientSearch = getPgpRecipientSearchText();
+        if (!recipientSearch || !recipientFingerprint) {
+            throw new Error(uiT('errors.pgp.recipient_required', 'A recipient public key could not be resolved.'));
+        }
+        const encrypted = await window.PgpMessageSupport.encryptMessage(messageText, recipientFingerprint);
+        return { messageText: encrypted, pgpMode: 'encrypt' };
+    }
+
+    if (messageType === 'echomail' && $('#pgpSignMessage').length && $('#pgpSignMessage').is(':checked')) {
+        const passphrase = ($('#pgpPassphrase').val() || '').trim();
+        if (!passphrase) {
+            throw new Error(uiT('errors.pgp.passphrase_required', 'Enter your PGP passphrase.'));
+        }
+        const signed = await window.PgpMessageSupport.signCleartextMessage(messageText, passphrase);
+        return { messageText: signed, pgpMode: 'sign' };
+    }
+
+    return { messageText, pgpMode: null };
 }
 
 
@@ -1666,6 +2001,11 @@ $(document).ready(function() {
     // Initialise hard wrap keydown handler
     initHardWrap();
 
+    if (pgpEnabled && pgpManagedKeysEnabled) {
+        bindPgpRecipientControls();
+        initPgpComposeControls();
+    }
+
     // Real-time message size warning — show/hide #sendStatus as user types/pastes
     $('#messageText').on('input', function() {
         const bytes = getMessageByteCount();
@@ -1692,6 +2032,18 @@ $(document).ready(function() {
                 clearTimeout(markdownSupportTimer);
             }
             markdownSupportTimer = setTimeout(refreshMarkdownSupportForNetmail, 300);
+        });
+
+        $('#toName').on('input blur', function() {
+            if ($('#pgpEncryptMessage').length && $('#pgpEncryptMessage').is(':checked')) {
+                if (pgpComposeState.recipientLookupTimer) {
+                    clearTimeout(pgpComposeState.recipientLookupTimer);
+                }
+                pgpComposeState.recipientLookupTimer = setTimeout(function() {
+                    pgpComposeState.recipientLookupTimer = null;
+                    void refreshPgpRecipientCandidates(true);
+                }, 300);
+            }
         });
 
         // Show attachment section for netmail
@@ -1876,7 +2228,7 @@ function validateFidonetAddressField(field) {
     }
 }
 
-function sendMessage() {
+async function sendMessage() {
     const messageType = $('#messageType').val();
     const form = $('#composeForm');
 
@@ -1921,21 +2273,36 @@ function sendMessage() {
         crossPostAreas.push($(this).val());
     });
 
-        const formData = {
-            type: messageType,
-            to_address: $('#toAddress').val(),
-            to_name: $('#toName').val(),
-            echoarea: $('#echoarea').val(),
-            subject: $('#subject').val(),
-            message_text: $('#messageText').val(),
-            reply_to_id: $('#replyToId').val() || null,
-            crashmail: $('#crashmail').is(':checked'),
-            is_freq: $('#freqCheckbox').is(':checked'),
-            tagline: $('#taglineSelect').val(),
-            cross_post_areas: crossPostAreas,
-            markup_type: $('#markupType').length ? ($('#markupType').val() || null) : null,
-            charset: $('#charsetSelect').val() || 'UTF-8'
-        };
+    let messageText = $('#messageText').val();
+    const formData = {
+        type: messageType,
+        to_address: $('#toAddress').val(),
+        to_name: $('#toName').val(),
+        echoarea: $('#echoarea').val(),
+        subject: $('#subject').val(),
+        message_text: messageText,
+        reply_to_id: $('#replyToId').val() || null,
+        crashmail: $('#crashmail').is(':checked'),
+        is_freq: $('#freqCheckbox').is(':checked'),
+        tagline: $('#taglineSelect').val(),
+        cross_post_areas: crossPostAreas,
+        markup_type: $('#markupType').length ? ($('#markupType').val() || null) : null,
+        charset: $('#charsetSelect').val() || 'UTF-8',
+        pgp_mode: null
+    };
+
+    try {
+        const pgpPrepared = await preparePgpMessageForSend(messageType, messageText, formData);
+        messageText = pgpPrepared.messageText;
+        formData.message_text = messageText;
+        formData.pgp_mode = pgpPrepared.pgpMode;
+        if (formData.pgp_mode) {
+            formData.markup_type = null;
+        }
+    } catch (error) {
+        showError(error.message || uiT('errors.pgp.save_failed', 'Failed to prepare PGP message.'));
+        return;
+    }
 
     // Show sending status
     $('#sendStatus').show().html(`
@@ -2067,7 +2434,10 @@ function saveDraft(silent = false) {
             charset: $('#charsetSelect').val() || null,
             markup_type: $('#markupType').val() || null,
             hard_wrap: hardWrapLimit,
-            tagline: $('#taglineSelect').val() || null
+            tagline: $('#taglineSelect').val() || null,
+            pgp_mode: $('#pgpEncryptMessage').length && $('#pgpEncryptMessage').is(':checked')
+                ? 'encrypt'
+                : ($('#pgpSignMessage').length && $('#pgpSignMessage').is(':checked') ? 'sign' : null)
         }
     };
 
@@ -2162,6 +2532,12 @@ function loadDraft(draftId) {
                         if (draft.meta.hard_wrap !== undefined && draft.meta.hard_wrap !== null) {
                             hardWrapLimit = parseInt(draft.meta.hard_wrap, 10) || 0;
                             $('#hardWrapSelect').val(String(hardWrapLimit));
+                        }
+                        if (draft.meta.pgp_mode === 'encrypt' && $('#pgpEncryptMessage').length) {
+                            $('#pgpEncryptMessage').prop('checked', true);
+                        }
+                        if (draft.meta.pgp_mode === 'sign' && $('#pgpSignMessage').length) {
+                            $('#pgpSignMessage').prop('checked', true).trigger('change');
                         }
                         // Charset: apply now for netmail (no echoarea override).
                         // populateEchoareaSelect() will re-apply for echomail after

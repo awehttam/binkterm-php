@@ -39,6 +39,13 @@
                     type="button" role="tab">
                 <i class="fas fa-robot me-2"></i>{{ t('ui.settings.tab.ai', {}, locale, ['common']) }}
             </button>
+            {% if pgp_enabled %}
+            <button class="nav-link text-start" id="tab-pgp-btn"
+                    data-bs-toggle="pill" data-bs-target="#tab-pgp"
+                    type="button" role="tab">
+                <i class="fas fa-key me-2"></i>{{ t('ui.settings.tab.pgp', {}, locale, ['common']) }}
+            </button>
+            {% endif %}
             <button class="nav-link text-start" id="tab-meshcore-btn"
                     data-bs-toggle="pill" data-bs-target="#tab-meshcore"
                     type="button" role="tab">
@@ -609,6 +616,150 @@
             </div>
 
             {# ------------------------------------------------------------------ #}
+            {# PGP tab                                                             #}
+            {# ------------------------------------------------------------------ #}
+            {% if pgp_enabled %}
+            <div class="tab-pane fade" id="tab-pgp" role="tabpanel">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ t('ui.settings.pgp.heading', {}, locale, ['common']) }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">{{ t('ui.settings.pgp.help', {}, locale, ['common']) }}</p>
+
+                        <div class="row g-4">
+                            <div class="{% if pgp_managed_keys_enabled %}col-lg-6{% else %}col-12{% endif %}">
+                                <h6>{{ t('ui.settings.pgp.upload_heading', {}, locale, ['common']) }}</h6>
+                                <div class="mb-3">
+                                    <label for="pgpUploadLabel" class="form-label">{{ t('ui.settings.pgp.key_label', {}, locale, ['common']) }}</label>
+                                    <input type="text" class="form-control" id="pgpUploadLabel" maxlength="120"
+                                           placeholder="{{ t('ui.settings.pgp.key_label_placeholder', {}, locale, ['common']) }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="pgpPublicKey" class="form-label">{{ t('ui.settings.pgp.public_key', {}, locale, ['common']) }}</label>
+                                    <textarea class="form-control font-monospace" id="pgpPublicKey" rows="8"
+                                              placeholder="{{ t('ui.settings.pgp.public_key_placeholder', {}, locale, ['common']) }}"></textarea>
+                                </div>
+                                <button type="button" class="btn btn-outline-primary" onclick="uploadPgpPublicKey()">
+                                    <i class="fas fa-upload me-1"></i>{{ t('ui.settings.pgp.upload_button', {}, locale, ['common']) }}
+                                </button>
+                            </div>
+
+                            {% if pgp_managed_keys_enabled %}
+                            <div class="col-lg-6">
+                                <h6>{{ t('ui.settings.pgp.generate_heading', {}, locale, ['common']) }}</h6>
+                                <div class="mb-3">
+                                    <label for="pgpManagedLabel" class="form-label">{{ t('ui.settings.pgp.key_label', {}, locale, ['common']) }}</label>
+                                    <input type="text" class="form-control" id="pgpManagedLabel" maxlength="120"
+                                           placeholder="{{ t('ui.settings.pgp.managed_label_placeholder', {}, locale, ['common']) }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="pgpPassphrase" class="form-label">{{ t('ui.settings.pgp.passphrase', {}, locale, ['common']) }}</label>
+                                    <input type="password" class="form-control" id="pgpPassphrase"
+                                           placeholder="{{ t('ui.settings.pgp.passphrase_placeholder', {}, locale, ['common']) }}">
+                                    <div class="form-text">{{ t('ui.settings.pgp.passphrase_help', {}, locale, ['common']) }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="pgpPassphraseConfirm" class="form-label">{{ t('ui.settings.pgp.passphrase_confirm', {}, locale, ['common']) }}</label>
+                                    <input type="password" class="form-control" id="pgpPassphraseConfirm"
+                                           placeholder="{{ t('ui.settings.pgp.passphrase_confirm_placeholder', {}, locale, ['common']) }}">
+                                </div>
+                                <button type="button" class="btn btn-fidonet" onclick="generateManagedPgpKey()">
+                                    <i class="fas fa-magic me-1"></i>{{ t('ui.settings.pgp.generate_button', {}, locale, ['common']) }}
+                                </button>
+                                <div class="form-text mt-2">{{ t('ui.settings.pgp.generate_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div id="pgpStatus" class="mt-3" style="display:none;"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ t('ui.settings.pgp.saved_keys_heading', {}, locale, ['common']) }}</h5>
+                        <a class="btn btn-sm btn-outline-secondary" href="/keyserver">
+                            <i class="fas fa-search me-1"></i>{{ t('ui.settings.pgp.keyserver_button', {}, locale, ['common']) }}
+                        </a>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="pgpKeysContainer">
+                            <div class="text-center py-3 text-muted">
+                                <i class="fas fa-spinner fa-spin me-2"></i>{{ t('ui.common.loading', {}, locale, ['common']) }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="modal fade" id="pgpKeyDetailsModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <div>
+                                <h5 class="modal-title mb-0">{{ t('ui.settings.pgp.key_details_title', {}, locale, ['common']) }}</h5>
+                                <div class="text-muted small" id="pgpKeyDetailsSubtitle"></div>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.common.label', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsLabel" class="fw-semibold"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.common.username', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsUsername" class="fw-semibold"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.common.real_name', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsRealName" class="fw-semibold"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.common.email', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsEmail" class="fw-semibold"></div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="text-muted small">{{ t('ui.common.key', {}, locale, ['common']) }}</div>
+                                    <code id="pgpKeyDetailsFingerprint" class="d-block text-break"></code>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.settings.pgp.col_source', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsSource" class="fw-semibold"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.settings.pgp.col_created', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsCreated" class="fw-semibold"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.settings.pgp.col_primary', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsPrimary" class="fw-semibold"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.settings.pgp.private_key_available', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsPrivate" class="fw-semibold"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.settings.pgp.algorithm', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsAlgorithm" class="fw-semibold"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">{{ t('ui.common.description', {}, locale, ['common']) }}</div>
+                                    <div id="pgpKeyDetailsUserId" class="fw-semibold"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# ------------------------------------------------------------------ #}
             {# MeshCore tab                                                        #}
             {# ------------------------------------------------------------------ #}
             <div class="tab-pane fade" id="tab-meshcore" role="tabpanel">
@@ -770,6 +921,7 @@
 
 {% block scripts %}
 <script src="/js/jsqr.js"></script>
+<script src="/vendor/openpgp-6.2.2/openpgp.min.js"></script>
 <script>
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -777,6 +929,18 @@ function uiT(key, fallback, params = {}) {
     }
     return fallback;
 }
+
+const currentPgpAccount = {
+    username: {{ current_user.username|json_encode|raw }},
+    real_name: {{ (current_user.real_name ?: current_user.username)|json_encode|raw }}
+};
+const siteHostname = (() => {
+    try {
+        return new URL({{ site_url|json_encode|raw }}).hostname;
+    } catch (error) {
+        return window.location.hostname || '';
+    }
+})();
 
 let settingsLoaded = false;
 let initialSettingsSnapshot = {};
@@ -799,13 +963,15 @@ $(document).ready(function() {
             const target = e.target.getAttribute('data-bs-target');
             UserStorage.setItem('settingsActiveTab', target);
             $('#saveButtonRow').toggle(
-                target !== '#tab-account' && target !== '#tab-ai' && target !== '#tab-meshcore'
+                target !== '#tab-account' && target !== '#tab-ai' && target !== '#tab-pgp' && target !== '#tab-meshcore'
             );
         });
     });
 
-    // Hide Save button if Account, AI, or MeshCore tab was restored
-    if (savedTab === '#tab-account' || savedTab === '#tab-ai' || savedTab === '#tab-meshcore') {
+    const pgpTabAvailable = document.getElementById('tab-pgp-btn') !== null;
+
+    // Hide Save button if Account, AI, PGP, or MeshCore tab was restored
+    if (savedTab === '#tab-account' || savedTab === '#tab-ai' || (pgpTabAvailable && savedTab === '#tab-pgp') || savedTab === '#tab-meshcore') {
         $('#saveButtonRow').hide();
     }
 
@@ -823,6 +989,13 @@ $(document).ready(function() {
     });
     if (savedTab === '#tab-ai') {
         loadMcpKeyStatus();
+    }
+
+    document.getElementById('tab-pgp-btn')?.addEventListener('shown.bs.tab', function() {
+        loadPgpKeys();
+    });
+    if (savedTab === '#tab-pgp') {
+        loadPgpKeys();
     }
 
     // Load MeshCore contacts when the MeshCore tab is shown
@@ -968,6 +1141,348 @@ function loadEchomailIgnoreRules() {
                 : uiT('ui.settings.echomail_ignore_rules.load_failed', 'Failed to load ignore rules');
             container.html(`<div class="text-danger">${escapeHtml(error)}</div>`);
         });
+}
+
+function loadPgpKeys() {
+    const container = document.getElementById('pgpKeysContainer');
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = `<div class="text-center py-3 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.common.loading', 'Loading…')}</div>`;
+
+    $.get('/api/user/pgp/keys')
+        .done(function(response) {
+            renderPgpKeys(Array.isArray(response.keys) ? response.keys : []);
+        })
+        .fail(function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.pgp.load_failed', 'Failed to load PGP keys'))
+                : uiT('errors.pgp.load_failed', 'Failed to load PGP keys');
+            container.innerHTML = `<div class="p-3 text-danger">${escapeHtml(error)}</div>`;
+        });
+}
+
+function renderPgpKeys(keys) {
+    const container = document.getElementById('pgpKeysContainer');
+    if (!container) {
+        return;
+    }
+
+    window.currentPgpKeys = Array.isArray(keys) ? keys : [];
+
+    if (!keys.length) {
+        container.innerHTML = `<div class="p-4 text-center text-muted">${uiT('ui.settings.pgp.no_keys', 'No PGP keys saved yet.')}</div>`;
+        return;
+    }
+
+    let html = `<div class="p-3 border-bottom">
+        <label for="pgpPrimarySelector" class="form-label mb-1">${uiT('ui.settings.pgp.primary_selector', 'Preferred public key')}</label>
+        <select id="pgpPrimarySelector" class="form-select" onchange="setPrimaryPgpKey(this.value)">
+            ${keys.map(function(key) {
+                const label = key.label ? `${key.label} ` : '';
+                const suffix = key.fingerprint.slice(-8);
+                const selected = key.is_primary ? ' selected' : '';
+                return `<option value="${escapeHtml(key.fingerprint)}"${selected}>${escapeHtml(label)}${escapeHtml(suffix)}</option>`;
+            }).join('')}
+        </select>
+        <div class="form-text mt-2">${uiT('ui.settings.pgp.primary_help', 'Pick a key here, or use the Make Primary button in the table below, to change which public key is listed as your preferred key on the keyserver.')}</div>
+    </div>
+    <div class="table-responsive"><table class="table table-hover mb-0">
+        <thead>
+            <tr>
+                <th>${uiT('ui.settings.pgp.col_primary', 'Primary')}</th>
+                <th>${uiT('ui.settings.pgp.col_label', 'Label')}</th>
+                <th>${uiT('ui.settings.pgp.col_fingerprint', 'Fingerprint')}</th>
+                <th>${uiT('ui.settings.pgp.col_source', 'Source')}</th>
+                <th>${uiT('ui.settings.pgp.col_created', 'Created')}</th>
+                <th>${uiT('ui.settings.pgp.col_actions', 'Actions')}</th>
+            </tr>
+        </thead><tbody>`;
+
+    keys.forEach(function(key) {
+        const created = formatPgpDate(key.key_created_at || key.created_at);
+        const label = key.label
+            ? escapeHtml(key.label)
+            : '<span class="text-muted">—</span>';
+        const source = key.source === 'managed'
+            ? uiT('ui.settings.pgp.source_managed', 'BBS managed')
+            : uiT('ui.settings.pgp.source_uploaded', 'Uploaded');
+        const hasPrivate = key.has_private_key
+            ? `<div class="text-muted small">${uiT('ui.settings.pgp.private_key_available', 'Encrypted private key stored')}</div>`
+            : '';
+        const userIdLine = key.user_id_string
+            ? `<div class="text-muted small">${escapeHtml(key.user_id_string)}</div>`
+            : '';
+
+        html += `<tr>
+            <td>
+                ${key.is_primary
+                    ? `<span class="badge bg-success">${uiT('ui.settings.pgp.primary_selected', 'Primary')}</span>`
+                    : `<span class="text-muted">${uiT('ui.settings.pgp.secondary_key', 'Secondary')}</span>`}
+            </td>
+            <td>
+                <button type="button" class="btn btn-link p-0 text-start text-decoration-underline fw-semibold"
+                        style="color: inherit;"
+                        onclick="openPgpKeyDetails('${escapeJs(key.fingerprint)}')">${label}</button>
+                ${userIdLine}
+            </td>
+            <td>
+                <button type="button" class="btn btn-link p-0 text-start text-decoration-underline"
+                        style="color: inherit;"
+                        onclick="openPgpKeyDetails('${escapeJs(key.fingerprint)}')">
+                    <span class="font-monospace">${escapeHtml(key.fingerprint)}</span>
+                </button>
+                ${hasPrivate}
+            </td>
+            <td>${escapeHtml(source)}</td>
+            <td>${escapeHtml(created)}</td>
+            <td>
+                <div class="d-flex gap-2">
+                    ${key.is_primary
+                        ? `<button type="button" class="btn btn-sm btn-success" disabled>${uiT('ui.settings.pgp.current_primary_button', 'Current Primary')}</button>`
+                        : `<button type="button" class="btn btn-sm btn-outline-success" onclick="setPrimaryPgpKey('${escapeJs(key.fingerprint)}')">${uiT('ui.settings.pgp.make_primary_button', 'Make Primary')}</button>`}
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyPgpFingerprint('${escapeJs(key.fingerprint)}')">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deletePgpKey('${escapeJs(key.fingerprint)}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function uploadPgpPublicKey() {
+    const armoredPublicKey = ($('#pgpPublicKey').val() || '').trim();
+    const label = ($('#pgpUploadLabel').val() || '').trim();
+
+    if (!armoredPublicKey) {
+        setPgpStatus('danger', uiT('errors.pgp.public_key_required', 'A public key is required'));
+        return;
+    }
+
+    setPgpStatus('info', uiT('ui.settings.pgp.uploading', 'Uploading public key...'));
+
+    $.ajax({
+        url: '/api/user/pgp/keys',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            armored_public_key: armoredPublicKey,
+            label: label
+        }),
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.settings.pgp.upload_success', 'PGP public key saved.'))
+                : uiT('ui.settings.pgp.upload_success', 'PGP public key saved.');
+            $('#pgpPublicKey').val('');
+            $('#pgpUploadLabel').val('');
+            setPgpStatus('success', successMessage);
+            loadPgpKeys();
+        },
+        error: function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.pgp.invalid_key', 'Invalid PGP public key'))
+                : uiT('errors.pgp.invalid_key', 'Invalid PGP public key');
+            setPgpStatus('danger', error);
+        }
+    });
+}
+
+async function generateManagedPgpKey() {
+    if (!window.openpgp || typeof window.openpgp.generateKey !== 'function') {
+        setPgpStatus('warning', uiT('ui.settings.pgp.openpgp_missing', 'OpenPGP.js is not installed on this BBS yet, so browser key generation is not available.'));
+        return;
+    }
+
+    const passphrase = ($('#pgpPassphrase').val() || '').trim();
+    const confirmPassphrase = ($('#pgpPassphraseConfirm').val() || '').trim();
+    const label = ($('#pgpManagedLabel').val() || '').trim();
+    const effectiveLabel = label || uiT('ui.settings.pgp.managed_label_placeholder', 'BinktermPHP managed key');
+
+    if (passphrase.length < 8) {
+        setPgpStatus('danger', uiT('errors.pgp.passphrase_too_short', 'Use a longer PGP passphrase.'));
+        return;
+    }
+    if (passphrase !== confirmPassphrase) {
+        setPgpStatus('danger', uiT('errors.pgp.passphrase_mismatch', 'Passphrase confirmation does not match.'));
+        return;
+    }
+
+    setPgpStatus('info', uiT('ui.settings.pgp.generating', 'Generating PGP keypair...'));
+
+    try {
+        const email = currentPgpAccount.username && siteHostname
+            ? `${currentPgpAccount.username}@${siteHostname}`
+            : null;
+        const userId = {
+            name: currentPgpAccount.real_name
+        };
+        if (email) {
+            userId.email = email;
+        }
+        const keyOptions = {
+            type: 'ecc',
+            curve: 'curve25519',
+            userIDs: [userId],
+            passphrase: passphrase,
+            format: 'armored'
+        };
+        const generated = await window.openpgp.generateKey(keyOptions);
+
+        await $.ajax({
+            url: '/api/user/pgp/keys/managed',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                armored_public_key: generated.publicKey,
+                encrypted_private_key: generated.privateKey,
+                label: effectiveLabel
+            })
+        });
+
+        $('#pgpManagedLabel').val('');
+        $('#pgpPassphrase').val('');
+        $('#pgpPassphraseConfirm').val('');
+        setPgpStatus('success', uiT('ui.settings.pgp.generate_success', 'Managed PGP key generated and saved.'));
+        loadPgpKeys();
+    } catch (error) {
+        setPgpStatus('danger', uiT('errors.pgp.generation_failed', 'Failed to generate managed PGP key.'));
+    }
+}
+
+function setPrimaryPgpKey(fingerprint) {
+    if (!fingerprint) {
+        return;
+    }
+
+    $.post(`/api/user/pgp/keys/${encodeURIComponent(fingerprint)}/primary`)
+        .done(function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.settings.pgp.primary_updated', 'Primary PGP key updated.'))
+                : uiT('ui.settings.pgp.primary_updated', 'Primary PGP key updated.');
+            setPgpStatus('success', successMessage);
+            loadPgpKeys();
+        })
+        .fail(function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.pgp.save_failed', 'Failed to save PGP key'))
+                : uiT('errors.pgp.save_failed', 'Failed to save PGP key');
+            setPgpStatus('danger', error);
+        });
+}
+
+function deletePgpKey(fingerprint) {
+    if (!confirm(uiT('ui.settings.pgp.delete_confirm', 'Delete this PGP key?'))) {
+        return;
+    }
+
+    $.ajax({
+        url: `/api/user/pgp/keys/${encodeURIComponent(fingerprint)}`,
+        method: 'DELETE',
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.settings.pgp.delete_success', 'PGP key deleted.'))
+                : uiT('ui.settings.pgp.delete_success', 'PGP key deleted.');
+            setPgpStatus('success', successMessage);
+            loadPgpKeys();
+        },
+        error: function(xhr) {
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.pgp.delete_failed', 'Failed to delete PGP key'))
+                : uiT('errors.pgp.delete_failed', 'Failed to delete PGP key');
+            setPgpStatus('danger', error);
+        }
+    });
+}
+
+function copyPgpFingerprint(fingerprint) {
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+        setPgpStatus('danger', uiT('errors.generic.copy_failed', 'Copy failed.'));
+        return;
+    }
+
+    navigator.clipboard.writeText(fingerprint)
+        .then(function() {
+            setPgpStatus('success', uiT('ui.settings.pgp.copy_success', 'Fingerprint copied.'));
+        })
+        .catch(function() {
+            setPgpStatus('danger', uiT('errors.generic.copy_failed', 'Copy failed.'));
+        });
+}
+
+function setPgpStatus(level, message) {
+    $('#pgpStatus').show().html(`
+        <div class="alert alert-${level}">
+            ${escapeHtml(message)}
+        </div>
+    `);
+}
+
+function formatPgpDate(value) {
+    if (!value) {
+        return '—';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return date.toLocaleString();
+}
+
+function openPgpKeyDetails(fingerprint) {
+    const keys = Array.isArray(window.currentPgpKeys) ? window.currentPgpKeys : [];
+    const key = keys.find(function(entry) {
+        return String(entry.fingerprint || '').toUpperCase() === String(fingerprint || '').toUpperCase();
+    });
+    if (!key) {
+        return;
+    }
+
+    const setText = function(id, value, fallback) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const text = value !== undefined && value !== null && String(value).trim() !== '' ? String(value) : (fallback || '—');
+        el.textContent = text;
+    };
+
+    const modal = document.getElementById('pgpKeyDetailsModal');
+    if (!modal) {
+        return;
+    }
+
+    const source = key.source === 'managed'
+        ? uiT('ui.settings.pgp.source_managed', 'BBS managed')
+        : uiT('ui.settings.pgp.source_uploaded', 'Uploaded');
+    const primary = key.is_primary
+        ? uiT('ui.settings.pgp.primary_selected', 'Primary')
+        : uiT('ui.settings.pgp.secondary_key', 'Secondary');
+    const privateKey = key.has_private_key
+        ? uiT('ui.settings.pgp.private_key_available', 'Encrypted private key stored')
+        : uiT('ui.common.no', 'No');
+    const username = currentPgpAccount.username || '—';
+    const realName = currentPgpAccount.real_name || username;
+    const subtitle = `${realName} @ ${username}`;
+
+    setText('pgpKeyDetailsSubtitle', subtitle, '');
+    setText('pgpKeyDetailsLabel', key.label, '—');
+    setText('pgpKeyDetailsUsername', username, '—');
+    setText('pgpKeyDetailsRealName', realName, '—');
+    setText('pgpKeyDetailsEmail', key.email, '—');
+    setText('pgpKeyDetailsFingerprint', String(key.fingerprint || '').toUpperCase(), '—');
+    setText('pgpKeyDetailsSource', source, '—');
+    setText('pgpKeyDetailsCreated', formatPgpDate(key.key_created_at || key.created_at), '—');
+    setText('pgpKeyDetailsPrimary', primary, '—');
+    setText('pgpKeyDetailsPrivate', privateKey, '—');
+    setText('pgpKeyDetailsAlgorithm', key.key_algorithm || '—', '—');
+    setText('pgpKeyDetailsUserId', key.user_id_string, '—');
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
 }
 
 function deleteEchomailIgnoreRule(ruleId) {
@@ -1634,6 +2149,10 @@ function showMeshcoreRadioError(msg) {
 
 function escHtmlSettings(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escapeJs(text) {
+    return String(text).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 // ---- MeshCore QR scanner ----

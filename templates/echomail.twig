@@ -843,6 +843,9 @@ let domain = {{ domain|default(null)|json_encode|raw }};
 window.currentUserRealName = {{ current_user.real_name|json_encode|raw }};
 window.isAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
 window.echomailDateField = '{{ echomail_date_field|default("received") }}';
+window.currentUser = {{ current_user|json_encode(15)|raw }};
+window.pgpEnabled = {{ pgp_enabled ? 'true' : 'false' }};
+window.pgpManagedKeysEnabled = {{ pgp_managed_keys_enabled ? 'true' : 'false' }};
 </script>
 {% if interests_enabled %}
 <script src="/js/ansisys.js"></script>
@@ -851,6 +854,8 @@ window.echomailDateField = '{{ echomail_date_field|default("received") }}';
 <script src="/js/message-list-context-menu.js"></script>
 <script src="/js/file-preview.js"></script>
 {% endif %}
+<script src="/vendor/openpgp-6.2.2/openpgp.min.js"></script>
+<script src="/js/pgp-message.js"></script>
 <script src="/js/echomail.js"></script>
 <script src="/vendor/marked.min.js"></script>
 {% if ai_assistant_enabled %}

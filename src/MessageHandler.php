@@ -1251,7 +1251,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false, $charset = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false, $charset = null, $pgpMode = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1399,7 +1399,7 @@ class MessageHandler
             $msgId = trim($matches[1]);
         }
 
-        $finalMessageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
+        $finalMessageText = $pgpMode ? $messageText : $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
         $storage = $this->prepareLocalMessageStorage($finalMessageText);
 
         $stmt = $this->db->prepare("
@@ -1716,7 +1716,7 @@ class MessageHandler
     /**
      * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
      */
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '', $tearlineComponent = null, $charset = null)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '', $tearlineComponent = null, $charset = null, $pgpMode = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1813,7 +1813,7 @@ class MessageHandler
             $msgId = trim($matches[1]);
         }
 
-        $finalMessageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
+        $finalMessageText = $pgpMode ? $messageText : $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline);
         $storage = $this->prepareLocalMessageStorage($finalMessageText);
 
         // Determine whether this post needs to be held for moderation.

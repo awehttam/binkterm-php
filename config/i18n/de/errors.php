@@ -86,6 +86,9 @@ return [
     'errors.messages.send.invalid_type' => 'Ungültig: message type',
     'errors.messages.send.failed' => 'Nachricht konnte nicht gesendet werden',
     'errors.messages.send.exception' => 'Nachricht konnte nicht gesendet werden',
+    'errors.pgp.decrypt_failed' => 'PGP-Nachricht konnte nicht entschlüsselt werden.',
+    'errors.pgp.recipient_required' => 'Es konnte kein öffentlicher Schlüssel für den Empfänger ermittelt werden.',
+    'errors.pgp.passphrase_required' => 'Bitte gib Deine PGP-Passphrase ein.',
 
     // Notify
     'errors.notify.user_id_missing' => 'Kann nicht aufgelöst werden: user session',
@@ -722,4 +725,17 @@ return [
     'errors.meshcore.not_found' => 'Kontakt nicht gefunden.',
     'errors.meshcore.qr_unrecognized' => 'Unbekanntes QR-Code-Format.',
     'errors.meshcore.qr_camera_denied' => 'Kamerazugriff verweigert.',
+    'errors.pgp.load_failed' => 'PGP-Schluessel konnten nicht geladen werden.',
+    'errors.pgp.public_key_required' => 'Ein oeffentlicher Schluessel ist erforderlich.',
+    'errors.pgp.invalid_key' => 'Ungueltiger PGP-Schluessel.',
+    'errors.pgp.save_failed' => 'PGP-Schluessel konnte nicht gespeichert werden.',
+    'errors.pgp.invalid_keypair' => 'Ungueltiges PGP-Schluesselpaar.',
+    'errors.pgp.key_not_found' => 'PGP-Schluessel nicht gefunden.',
+    'errors.pgp.private_key_not_found' => 'Privater Schluessel nicht gefunden.',
+    'errors.pgp.delete_failed' => 'PGP-Schluessel konnte nicht geloescht werden.',
+    'errors.pgp.disabled' => 'PGP ist auf diesem System deaktiviert.',
+    'errors.pgp.managed_disabled' => 'Die Erzeugung verwalteter PGP-Schluessel ist auf diesem System deaktiviert.',
+    'errors.pgp.passphrase_too_short' => 'Verwenden Sie eine laengere PGP-Passphrase.',
+    'errors.pgp.passphrase_mismatch' => 'Die Passphrase-Bestaetigung stimmt nicht ueberein.',
+    'errors.pgp.generation_failed' => 'BBS-verwalteter PGP-Schluessel konnte nicht erzeugt werden.',
 ];

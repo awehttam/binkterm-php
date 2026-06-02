@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Web Interface](#web-interface)
+- [PGP Key Management](#pgp-key-management)
 - [Developer / Infrastructure](#developer--infrastructure)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -18,6 +19,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - The user-facing echoarea subscription manager at `/subscriptions` now uses a more compact filter layout modeled after `/echolist`, with network filtering and an option to show only interest groups that currently have message traffic.
 - Subscribing or unsubscribing from an echoarea in `/subscriptions` now updates in place instead of reloading the page, preserving the current scroll position and active search/filter state.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
+- User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
+- BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
 
 ### Developer / Infrastructure
 
@@ -45,6 +48,29 @@ The updated page adds:
 - in-place subscribe/unsubscribe updates that do not reset the current search, filters, or scroll position
 
 This change is user-facing only. It does not alter subscriptions, interest membership, or message access rules.
+
+### PGP Key Management
+
+The new PGP settings tab lets users manage multiple public keys on a single account. Users can upload armored public keys, choose a preferred key, and browse the public keyserver from the keyserver link in settings.
+
+Two BBS-level flags control the feature:
+
+- `Enable PGP` turns the user-facing PGP tab and public keyserver on or off
+- `Allow BBS-managed private keys` controls whether users can generate and store a BBS-managed private key pair
+
+Both settings default to off. After upgrading, sysops who want the feature must enable it in **Admin -> BBS Settings**.
+
+If managed private keys are disabled, users can still upload public keys and select a primary key, but the private-key generator is hidden.
+
+The compose page now also uses the public-key directory for netmail encryption lookups. When users enable `Encrypt this netmail`, the UI searches the keyserver using the recipient text and shows an explicit public-key selector before sending. That lookup can surface:
+
+- the user's published PGP UID
+- the key fingerprint
+- the key label
+- matching BBS usernames and real names
+- saved address-book entries, including local-user matches surfaced by the address-book search API
+
+If the compose autocomplete only shows saved contacts and not local users, make sure the address-book search route is returning both data sources. The current implementation exposes both through `GET /api/address-book?search=...` and the legacy `/api/address-book/search/{query}` alias.
 
 ## Developer / Infrastructure
 

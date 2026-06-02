@@ -86,6 +86,9 @@ return [
     'errors.messages.send.invalid_type' => 'Tipo de mensaje invalido',
     'errors.messages.send.failed' => 'No se pudo enviar el mensaje',
     'errors.messages.send.exception' => 'No se pudo enviar el mensaje',
+    'errors.pgp.decrypt_failed' => 'No se pudo descifrar el mensaje PGP.',
+    'errors.pgp.recipient_required' => 'No se pudo resolver una clave pública para el destinatario.',
+    'errors.pgp.passphrase_required' => 'Introduce tu frase de acceso PGP.',
 
     // Notify
     'errors.notify.user_id_missing' => 'No se pudo resolver la sesion del usuario',
@@ -720,4 +723,17 @@ return [
     'errors.meshcore.not_found' => 'Contacto no encontrado.',
     'errors.meshcore.qr_unrecognized' => 'Formato de código QR no reconocido.',
     'errors.meshcore.qr_camera_denied' => 'Acceso a la cámara denegado.',
+    'errors.pgp.load_failed' => 'No se pudieron cargar las claves PGP.',
+    'errors.pgp.public_key_required' => 'Se requiere una clave publica.',
+    'errors.pgp.invalid_key' => 'Clave publica PGP invalida.',
+    'errors.pgp.save_failed' => 'No se pudo guardar la clave PGP.',
+    'errors.pgp.invalid_keypair' => 'Par de claves PGP invalido.',
+    'errors.pgp.key_not_found' => 'No se encontro la clave PGP.',
+    'errors.pgp.private_key_not_found' => 'No se encontro la clave privada.',
+    'errors.pgp.delete_failed' => 'No se pudo eliminar la clave PGP.',
+    'errors.pgp.disabled' => 'PGP esta desactivado en este sistema.',
+    'errors.pgp.managed_disabled' => 'La generacion de claves PGP gestionadas esta desactivada en este sistema.',
+    'errors.pgp.passphrase_too_short' => 'Use una frase de acceso PGP mas larga.',
+    'errors.pgp.passphrase_mismatch' => 'La confirmacion de la frase de acceso no coincide.',
+    'errors.pgp.generation_failed' => 'No se pudo generar la clave PGP administrada.',
 ];

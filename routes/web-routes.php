@@ -527,6 +527,8 @@ SimpleRouter::get('/netmail', function() {
         'system_address'   => $systemAddress,
         'crashmail_enabled' => $crashmailEnabled,
         'ai_assistant_enabled' => $aiAssistantEnabled,
+        'pgp_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp'),
+        'pgp_managed_keys_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys'),
     ]);
 });
 
@@ -585,6 +587,8 @@ SimpleRouter::get('/echomail', function() {
         'has_interests'          => $hasInterests,
         'ai_assistant_enabled'   => $aiAssistantEnabled,
         'ai_share_summary_enabled' => $aiShareSummaryEnabled,
+        'pgp_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp'),
+        'pgp_managed_keys_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys'),
     ]);
 });
 
@@ -618,6 +622,8 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
         'has_interests'          => $hasInterests,
         'ai_assistant_enabled'   => $aiAssistantEnabled,
         'ai_share_summary_enabled' => $aiShareSummaryEnabled,
+        'pgp_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp'),
+        'pgp_managed_keys_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys'),
     ]);
 })->where(['echoarea' => "[-A-Za-z0-9@._'!%]+"]);
 
@@ -1062,10 +1068,129 @@ SimpleRouter::get('/settings', function() {
         'license_valid' => \BinktermPHP\License::isValid(),
         'mcp_server_url' => \BinktermPHP\Config::env('MCP_SERVER_URL', ''),
         'mcp_service_running' => (bool)((\BinktermPHP\SystemStatus::getDaemonStatus()['mcp_server']['running'] ?? false)),
+        'pgp_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp'),
+        'pgp_managed_keys_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys'),
     ];
 
     $template = new Template();
     $template->renderResponse('settings.twig', $templateVars);
+});
+
+SimpleRouter::get('/keyserver', function() {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+        http_response_code(404);
+        return;
+    }
+
+    $search = trim((string)($_GET['search'] ?? ''));
+
+    try {
+        $service = new \BinktermPHP\PgpKeyService();
+        $results = $service->searchPublicKeys($search, $search === '' ? 100 : 200);
+    } catch (\Throwable $e) {
+        $results = [];
+    }
+
+    $template = new Template();
+    $template->renderResponse('keyserver.twig', [
+        'search_query' => $search,
+        'pgp_keys' => $results,
+    ]);
+});
+
+SimpleRouter::get('/pks/lookup', function() {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Not found';
+        return;
+    }
+
+    $op = strtolower(trim((string)($_GET['op'] ?? 'index')));
+    $search = trim((string)($_GET['search'] ?? ''));
+
+    $service = new \BinktermPHP\PgpKeyService();
+
+    if ($op === 'get') {
+        $key = $service->findPublicKey($search);
+        if (!$key) {
+            http_response_code(404);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo 'Not found';
+            return;
+        }
+
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo (string)$key['armored_public_key'];
+        return;
+    }
+
+    $keys = $service->searchPublicKeys($search, 200);
+    header('Content-Type: text/plain; charset=UTF-8');
+    echo "info:1:1\n";
+    foreach ($keys as $key) {
+        $created = '';
+        if (!empty($key['key_created_at'])) {
+            $created = date('Y-m-d', strtotime((string)$key['key_created_at'])) ?: '';
+        }
+        echo 'pub:' . $key['fingerprint'] . ':' . ($key['key_algorithm'] ?? '') . ':' . $created . ':' . ($key['username'] ?? '') . "\n";
+        if (!empty($key['user_id_string'])) {
+            echo 'uid:' . $key['user_id_string'] . "\n";
+        } elseif (!empty($key['real_name']) || !empty($key['username'])) {
+            echo 'uid:' . trim((string)($key['real_name'] ?: $key['username'])) . "\n";
+        }
+    }
+});
+
+SimpleRouter::post('/pks/add', function() {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Not found';
+        return;
+    }
+
+    $user = \BinktermPHP\RouteHelper::requireAuth();
+    header('Content-Type: text/plain; charset=UTF-8');
+
+    $keyText = trim((string)($_POST['keytext'] ?? file_get_contents('php://input')));
+    if ($keyText === '') {
+        http_response_code(400);
+        echo 'Missing keytext';
+        return;
+    }
+
+    try {
+        $service = new \BinktermPHP\PgpKeyService();
+        $service->uploadPublicKey((int)($user['user_id'] ?? $user['id'] ?? 0), $keyText, null);
+        echo 'OK';
+    } catch (\InvalidArgumentException $e) {
+        http_response_code(400);
+        echo 'Invalid key';
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo 'Error';
+    }
+});
+
+SimpleRouter::get('/pks/download/{fingerprint}', function($fingerprint) {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    $service = new \BinktermPHP\PgpKeyService();
+    $key = $service->findPublicKey((string)$fingerprint);
+    if (!$key) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    header('Content-Type: application/pgp-keys; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . strtoupper((string)$key['fingerprint']) . '.asc"');
+    echo (string)$key['armored_public_key'];
 });
 
 SimpleRouter::get('/chat', function() {
@@ -1538,6 +1663,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'default_charset' => $defaultCharset,
         'domain_charsets' => $domainCharsets,
         'return_to' => is_string($returnTo) ? $returnTo : '',
+        'pgp_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp'),
+        'pgp_managed_keys_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys'),
     ];
 
     if ($prefillMessageId) {

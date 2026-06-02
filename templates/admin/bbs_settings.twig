@@ -156,6 +156,16 @@
                             <label class="form-check-label" for="bbsQwk">{{ t('ui.admin.bbs_settings.features.enable_qwk', {}, locale, ['common']) }}</label>
                             <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.qwk_help', {}, locale, ['common']) }}</small></div>
                         </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bbsPgp">
+                            <label class="form-check-label" for="bbsPgp">{{ t('ui.admin.bbs_settings.features.enable_pgp', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.pgp_help', {}, locale, ['common']) }}</small></div>
+                        </div>
+                        <div class="form-check mb-3 ms-4">
+                            <input class="form-check-input" type="checkbox" id="bbsPgpManagedKeys">
+                            <label class="form-check-label" for="bbsPgpManagedKeys">{{ t('ui.admin.bbs_settings.features.enable_pgp_managed_keys', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.pgp_managed_keys_help', {}, locale, ['common']) }}</small></div>
+                        </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsQwkBbsId">{{ t('ui.admin.bbs_settings.features.qwk_bbs_id', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control font-monospace" id="bbsQwkBbsId" maxlength="8" style="max-width:12rem;" placeholder="e.g. MYBBS">
@@ -372,6 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadBbsSystem();
         loadAdminUsers('bbsSystemSysop');
         loadBbsTaglines();
+        document.getElementById('bbsPgp')?.addEventListener('change', syncPgpManagedKeysToggle);
     });
 });
 
@@ -393,7 +404,10 @@ function loadBbsSettings() {
             document.getElementById('bbsGuestDoorsPage').checked = !!features.guest_doors_page;
             document.getElementById('bbsBbsDirectory').checked = features.bbs_directory !== false;
             document.getElementById('bbsQwk').checked = !!features.qwk;
+            document.getElementById('bbsPgp').checked = !!features.pgp;
+            document.getElementById('bbsPgpManagedKeys').checked = !!features.pgp_managed_keys;
             document.getElementById('bbsQwkBbsId').value = data.config?.qwk?.bbs_id || '';
+            syncPgpManagedKeysToggle();
             const bbsPublicFilesIndexEl = document.getElementById('bbsPublicFilesIndex');
             if (bbsPublicFilesIndexEl) bbsPublicFilesIndexEl.checked = !!features.public_files_index;
             document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
@@ -507,7 +521,9 @@ function saveBbsSettings() {
                     guest_doors_page: document.getElementById('bbsGuestDoorsPage').checked,
                     bbs_directory: document.getElementById('bbsBbsDirectory').checked,
                     public_files_index: document.getElementById('bbsPublicFilesIndex') ? document.getElementById('bbsPublicFilesIndex').checked : false,
-                    qwk: document.getElementById('bbsQwk').checked
+                    qwk: document.getElementById('bbsQwk').checked,
+                    pgp: document.getElementById('bbsPgp').checked,
+                    pgp_managed_keys: document.getElementById('bbsPgpManagedKeys').checked
                 },
                 credits: credits,
                 qwk: Object.assign({}, currentQwk, { bbs_id: qwkBbsIdRaw }),
@@ -926,6 +942,19 @@ function showBbsSystemAlert(message, type) {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
+}
+
+function syncPgpManagedKeysToggle() {
+    const pgpEnabled = !!document.getElementById('bbsPgp')?.checked;
+    const managedToggle = document.getElementById('bbsPgpManagedKeys');
+    if (!managedToggle) {
+        return;
+    }
+
+    managedToggle.disabled = !pgpEnabled;
+    if (!pgpEnabled) {
+        managedToggle.checked = false;
+    }
 }
 
 function loadAdminUsers(selectId) {

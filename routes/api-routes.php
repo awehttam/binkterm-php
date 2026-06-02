@@ -10,6 +10,7 @@ use BinktermPHP\Database;
 use BinktermPHP\I18n\LocaleResolver;
 use BinktermPHP\I18n\Translator;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\PgpKeyService;
 use BinktermPHP\RouteHelper;
 use BinktermPHP\UserCredit;
 use BinktermPHP\UserMeta;
@@ -6721,6 +6722,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $handler = new MessageHandler();
 
         try {
+            $pgpMode = isset($input['pgp_mode']) ? strtolower(trim((string)$input['pgp_mode'])) : null;
+            if (!in_array($pgpMode, [null, '', 'encrypt', 'sign'], true)) {
+                $pgpMode = null;
+            }
+            if ($pgpMode !== null) {
+                if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+                    apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+                    return;
+                }
+                if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys')) {
+                    apiError('errors.pgp.managed_disabled', apiLocalizedText('errors.pgp.managed_disabled', 'Managed PGP key generation is disabled on this system.', $user), 403);
+                    return;
+                }
+            }
+
             if ($type === 'netmail') {
 
                 if(trim($input['to_address'])==""){
@@ -6756,7 +6772,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $attachment,
                     $markupType,
                     $isFreq,
-                    $charset
+                    $charset,
+                    $pgpMode
                 );
             } elseif ($type === 'echomail') {
                 $foo = explode("@", (string)($input['echoarea'] ?? ''), 2);
@@ -6779,7 +6796,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $markupType,
                     '',
                     null,
-                    $charset
+                    $charset,
+                    $pgpMode
                 );
 
                 // Handle cross-posting to additional areas
@@ -6818,7 +6836,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                                 $markupType,
                                 '',
                                 null,
-                                $charset
+                                $charset,
+                                $pgpMode
                             );
                             $crossPostCount++;
                         } catch (\Exception $e) {
@@ -9326,6 +9345,192 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     // User settings API endpoints
+    SimpleRouter::get('/pgp/key/{userId}', function($userId) {
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.'), 404);
+        }
+
+        header('Content-Type: application/json');
+
+        try {
+            $service = new PgpKeyService();
+            $keys = $service->getPublicKeysForUser((int)$userId);
+
+            echo json_encode([
+                'success' => true,
+                'preferred_key' => $keys[0] ?? null,
+                'keys' => $keys
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.load_failed', apiLocalizedText('errors.pgp.load_failed', 'Failed to load PGP keys'), 500);
+        }
+    });
+
+    SimpleRouter::get('/user/pgp/keys', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        try {
+            $service = new PgpKeyService();
+            echo json_encode([
+                'success' => true,
+                'keys' => $service->listKeysForUser($userId)
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.load_failed', apiLocalizedText('errors.pgp.load_failed', 'Failed to load PGP keys', $user), 500);
+        }
+    });
+
+    SimpleRouter::post('/user/pgp/keys', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        $armoredPublicKey = trim((string)($body['armored_public_key'] ?? ''));
+        $label = isset($body['label']) ? (string)$body['label'] : null;
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        if ($armoredPublicKey === '') {
+            apiError('errors.pgp.public_key_required', apiLocalizedText('errors.pgp.public_key_required', 'A public key is required', $user), 400);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $key = $service->uploadPublicKey($userId, $armoredPublicKey, $label);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.pgp.upload_success',
+                'key' => $key
+            ]);
+        } catch (InvalidArgumentException $e) {
+            apiError('errors.pgp.invalid_key', apiLocalizedText('errors.pgp.invalid_key', 'Invalid PGP public key', $user), 400);
+        } catch (Exception $e) {
+            apiError('errors.pgp.save_failed', apiLocalizedText('errors.pgp.save_failed', 'Failed to save PGP key', $user), 500);
+        }
+    });
+
+    SimpleRouter::post('/user/pgp/keys/managed', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys')) {
+            apiError('errors.pgp.managed_disabled', apiLocalizedText('errors.pgp.managed_disabled', 'Managed PGP key generation is disabled on this system.', $user), 403);
+        }
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        $armoredPublicKey = trim((string)($body['armored_public_key'] ?? ''));
+        $encryptedPrivateKey = trim((string)($body['encrypted_private_key'] ?? ''));
+        $label = isset($body['label']) ? (string)$body['label'] : null;
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        if ($armoredPublicKey === '' || $encryptedPrivateKey === '') {
+            apiError('errors.pgp.invalid_keypair', apiLocalizedText('errors.pgp.invalid_keypair', 'A public and private key are required', $user), 400);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $key = $service->storeManagedKeyPair($userId, $armoredPublicKey, $encryptedPrivateKey, $label);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.pgp.generate_success',
+                'key' => $key
+            ]);
+        } catch (InvalidArgumentException $e) {
+            apiError('errors.pgp.invalid_keypair', apiLocalizedText('errors.pgp.invalid_keypair', 'Invalid PGP keypair', $user), 400);
+        } catch (Exception $e) {
+            apiError('errors.pgp.save_failed', apiLocalizedText('errors.pgp.save_failed', 'Failed to save PGP key', $user), 500);
+        }
+    });
+
+    SimpleRouter::post('/user/pgp/keys/{fingerprint}/primary', function($fingerprint) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $changed = $service->setPrimaryKey((int)($user['user_id'] ?? $user['id'] ?? 0), (string)$fingerprint);
+            if (!$changed) {
+                apiError('errors.pgp.key_not_found', apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found', $user), 404);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.pgp.primary_updated'
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.save_failed', apiLocalizedText('errors.pgp.save_failed', 'Failed to save PGP key', $user), 500);
+        }
+    });
+
+    SimpleRouter::delete('/user/pgp/keys/{fingerprint}', function($fingerprint) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $deleted = $service->deleteKey((int)($user['user_id'] ?? $user['id'] ?? 0), (string)$fingerprint);
+            if (!$deleted) {
+                apiError('errors.pgp.key_not_found', apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found', $user), 404);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.pgp.delete_success'
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.delete_failed', apiLocalizedText('errors.pgp.delete_failed', 'Failed to delete PGP key', $user), 500);
+        }
+    });
+
+    SimpleRouter::get('/user/pgp/private-key/{fingerprint}', function($fingerprint) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys')) {
+            apiError('errors.pgp.managed_disabled', apiLocalizedText('errors.pgp.managed_disabled', 'Managed PGP key generation is disabled on this system.', $user), 403);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $row = $service->getEncryptedPrivateKey((int)($user['user_id'] ?? $user['id'] ?? 0), (string)$fingerprint);
+            if (!$row) {
+                apiError('errors.pgp.private_key_not_found', apiLocalizedText('errors.pgp.private_key_not_found', 'Private key not found', $user), 404);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'fingerprint' => $row['fingerprint'],
+                'encrypted_private_key' => $row['encrypted_private_key']
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.load_failed', apiLocalizedText('errors.pgp.load_failed', 'Failed to load PGP keys', $user), 500);
+        }
+    });
+
     SimpleRouter::get('/user/settings', function() {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
@@ -10717,6 +10922,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     // Address Book API routes
     SimpleRouter::group(['prefix' => '/address-book'], function() {
 
+        // Legacy autocomplete/search endpoint used by older compose JS bundles.
+        SimpleRouter::get('/search/{query}', function($query) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            header('Content-Type: application/json');
+
+            try {
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $addressBook = new AddressBookController();
+                $entries = $addressBook->searchEntries($userId, (string)$query);
+
+                echo json_encode(['success' => true, 'entries' => $entries]);
+            } catch (Exception $e) {
+                apiError(
+                    'errors.address_book.list_failed',
+                    apiLocalizedText('errors.address_book.list_failed', 'Failed to load address book entries', $user, [], 'errors')
+                );
+                return;
+            }
+        })->where(['query' => '.+']);
+
         // Get user's address book entries
         SimpleRouter::get('/', function() {
             $auth = new Auth();
@@ -10728,7 +10955,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $search = $_GET['search'] ?? '';
                 $userId = $user['user_id'] ?? $user['id'] ?? null;
                 $addressBook = new AddressBookController();
-                $entries = $addressBook->getUserEntries($userId, $search);
+                $entries = $addressBook->searchEntries($userId, $search);
 
                 echo json_encode(['success' => true, 'entries' => $entries]);
             } catch (Exception $e) {

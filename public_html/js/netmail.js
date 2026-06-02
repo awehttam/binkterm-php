@@ -1024,6 +1024,9 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
                 </div>
             </div>
             ` : ''}
+            <div class="row mt-2">
+                <div class="col-12" id="pgpStatusContainer"></div>
+            </div>
         </div>
 
         <div id="kludgeContainer" class="kludge-lines mb-3" style="display: none;">
@@ -1068,6 +1071,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     $('#messageContent').html(html);
 
     initSenderPopover(message, message.from_address, message.from_name);
+    void renderNetmailPgpState(message, parsedMessage);
 
     // Wire up save button and header icon
     updateModalSaveButton(message);
@@ -1108,6 +1112,67 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     });
 
     // Edit button is always shown — getMessage already enforces sender/receiver access
+}
+
+function renderNetmailPgpState(message, parsedMessage) {
+    const container = document.getElementById('pgpStatusContainer');
+    if (!container || !window.pgpEnabled || !window.PgpMessageSupport) {
+        return;
+    }
+
+    const body = parsedMessage && parsedMessage.messageBody ? parsedMessage.messageBody : (message.message_text || '');
+
+    if (window.PgpMessageSupport.isEncryptedMessage(body)) {
+        if (!window.pgpManagedKeysEnabled) {
+            container.innerHTML = '<span class="badge bg-secondary">PGP encrypted</span>';
+            return;
+        }
+
+        container.innerHTML = `
+            <button type="button" class="btn btn-sm btn-outline-primary" id="pgpDecryptButton">
+                <i class="fas fa-unlock me-1"></i>${uiT('ui.pgp.decrypt_button', 'Decrypt')}
+            </button>
+            <span class="ms-2 text-muted small">${uiT('ui.pgp.decrypt_help', 'This message is encrypted with PGP.')}</span>
+        `;
+
+        $('#pgpDecryptButton').off('click').on('click', async function() {
+            const passphrase = window.prompt(uiT('ui.pgp.passphrase_prompt', 'Enter your PGP passphrase to decrypt this message.'));
+            if (passphrase === null) {
+                return;
+            }
+
+            try {
+                const decrypted = await window.PgpMessageSupport.decryptMessage(body, passphrase);
+                currentParsedMessage.messageBody = decrypted;
+                currentMessageData.message_text = decrypted;
+                renderCurrentMessageBody();
+                container.innerHTML = '<span class="badge bg-success">' + uiT('ui.pgp.decrypted', 'PGP decrypted') + '</span>';
+            } catch (error) {
+                container.innerHTML = '<span class="badge bg-danger">' + uiT('errors.pgp.decrypt_failed', 'Failed to decrypt PGP message.') + '</span>';
+            }
+        });
+        return;
+    }
+
+    if (window.PgpMessageSupport.isCleartextSigned(body)) {
+        container.innerHTML = '<span class="badge bg-secondary">' + uiT('ui.pgp.verifying', 'Verifying PGP signature...') + '</span>';
+        void window.PgpMessageSupport.verifySignedMessage(body, message.from_name || message.replyto_name || message.from_address)
+            .then(function(result) {
+                if (result && result.verified) {
+                    container.innerHTML = '<span class="badge bg-success">' + uiT('ui.pgp.verified', 'PGP signature verified') + '</span>';
+                } else if (result && result.reason === 'public_key_missing') {
+                    container.innerHTML = '<span class="badge bg-secondary">' + uiT('ui.pgp.no_public_key', 'PGP public key not found') + '</span>';
+                } else {
+                    container.innerHTML = '<span class="badge bg-danger">' + uiT('ui.pgp.invalid', 'Invalid PGP signature') + '</span>';
+                }
+            })
+            .catch(function() {
+                container.innerHTML = '<span class="badge bg-danger">' + uiT('ui.pgp.invalid', 'Invalid PGP signature') + '</span>';
+            });
+        return;
+    }
+
+    container.innerHTML = '';
 }
 
 function openEditMessage() {

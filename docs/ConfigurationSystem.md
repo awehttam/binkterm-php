@@ -97,7 +97,7 @@ Written via: Admin UI → BinkP Config (via AdminDaemonClient `save_binkp_config
 
 ### `config/bbs.json` → `BbsConfig` (Static)
 
-`src/BbsConfig.php` manages BBS-level feature flags, credits settings, AI assistant configuration, echomail moderation, QWK settings, and other sysop-configurable options.
+`src/BbsConfig.php` manages BBS-level feature flags, credits settings, AI assistant configuration, echomail moderation, QWK settings, PGP availability, managed-key hosting policy, and other sysop-configurable options.
 
 On load it merges `config/bbs.json` over `config/bbs.json.example` using `array_replace_recursive`. The `features` sub-key is handled separately: each known feature is explicitly cast to `bool`, and features absent from `bbs.json` inherit the example default.
 

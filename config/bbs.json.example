@@ -9,7 +9,9 @@
         "guest_doors_page": false,
         "bbs_directory": true,
         "public_files_index": false,
-        "qwk": true
+        "qwk": true,
+        "pgp": false,
+        "pgp_managed_keys": false
     },
     "default_echo_interface": "echolist",
     "bulletin_display_mode": "once",

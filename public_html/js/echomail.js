@@ -1991,6 +1991,9 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
                     ${message.is_shared == 1 ? `<i class="fas fa-share-alt text-success ms-2" title="${uiT('ui.common.shared', 'Shared')}"></i>` : ''}
                 </div>
             </div>
+            <div class="row mt-2">
+                <div class="col-12" id="pgpStatusContainer"></div>
+            </div>
         </div>
 
         <div id="kludgeContainer" class="kludge-lines mb-3" style="display: none;">
@@ -2013,6 +2016,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     const echoNetmailAddr = (message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address;
     const echoNetmailName = (message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name;
     initSenderPopover(message, echoNetmailAddr, echoNetmailName);
+    void renderEchomailPgpState(message, parsedMessage);
 
     // Update save button state AFTER HTML is inserted
     updateModalSaveButton(message);
@@ -2048,6 +2052,34 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     $('#shareButton').show().off('click').on('click', function() {
         showShareDialog(currentMessageId);
     });
+}
+
+function renderEchomailPgpState(message, parsedMessage) {
+    const container = document.getElementById('pgpStatusContainer');
+    if (!container || !window.pgpEnabled || !window.PgpMessageSupport) {
+        return;
+    }
+
+    const body = parsedMessage && parsedMessage.messageBody ? parsedMessage.messageBody : (message.message_text || '');
+    if (window.PgpMessageSupport.isCleartextSigned(body)) {
+        container.innerHTML = '<span class="badge bg-secondary">' + uiT('ui.pgp.verifying', 'Verifying PGP signature...') + '</span>';
+        void window.PgpMessageSupport.verifySignedMessage(body, message.from_name || message.replyto_name || '')
+            .then(function(result) {
+                if (result && result.verified) {
+                    container.innerHTML = '<span class="badge bg-success">' + uiT('ui.pgp.verified', 'PGP signature verified') + '</span>';
+                } else if (result && result.reason === 'public_key_missing') {
+                    container.innerHTML = '<span class="badge bg-secondary">' + uiT('ui.pgp.no_public_key', 'PGP public key not found') + '</span>';
+                } else {
+                    container.innerHTML = '<span class="badge bg-danger">' + uiT('ui.pgp.invalid', 'Invalid PGP signature') + '</span>';
+                }
+            })
+            .catch(function() {
+                container.innerHTML = '<span class="badge bg-danger">' + uiT('ui.pgp.invalid', 'Invalid PGP signature') + '</span>';
+            });
+        return;
+    }
+
+    container.innerHTML = '';
 }
 
 function composeMessage(type, replyToId = null) {

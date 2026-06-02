@@ -86,6 +86,9 @@ return [
     'errors.messages.send.invalid_type' => 'Invalid message type',
     'errors.messages.send.failed' => 'Failed to send message',
     'errors.messages.send.exception' => 'Failed to send message',
+    'errors.pgp.decrypt_failed' => 'Failed to decrypt PGP message.',
+    'errors.pgp.recipient_required' => 'A recipient public key could not be resolved.',
+    'errors.pgp.passphrase_required' => 'Enter your PGP passphrase.',
 
     // Notify
     'errors.notify.user_id_missing' => 'Unable to resolve user session',
@@ -722,4 +725,17 @@ return [
     'errors.meshcore.not_found' => 'Contact not found.',
     'errors.meshcore.qr_unrecognized' => 'Unrecognized QR code format.',
     'errors.meshcore.qr_camera_denied' => 'Camera access denied.',
+    'errors.pgp.load_failed' => 'Failed to load PGP keys.',
+    'errors.pgp.public_key_required' => 'A public key is required.',
+    'errors.pgp.invalid_key' => 'Invalid PGP public key.',
+    'errors.pgp.save_failed' => 'Failed to save PGP key.',
+    'errors.pgp.invalid_keypair' => 'Invalid PGP keypair.',
+    'errors.pgp.key_not_found' => 'PGP key not found.',
+    'errors.pgp.private_key_not_found' => 'Private key not found.',
+    'errors.pgp.delete_failed' => 'Failed to delete PGP key.',
+    'errors.pgp.disabled' => 'PGP is disabled on this system.',
+    'errors.pgp.managed_disabled' => 'Managed PGP key generation is disabled on this system.',
+    'errors.pgp.passphrase_too_short' => 'Use a longer PGP passphrase.',
+    'errors.pgp.passphrase_mismatch' => 'Passphrase confirmation does not match.',
+    'errors.pgp.generation_failed' => 'Failed to generate managed PGP key.',
 ];

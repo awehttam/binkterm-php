@@ -5116,7 +5116,7 @@ Complete echomail message object
 
 **Requires authentication**
 
-Sends a message (netmail or echomail) with support for multiple charsets, markdown/plaintext markup, and file attachments. Enforces 16 KB FidoNet message body limit. For netmail, resolves attachment tokens to file paths. Supports crashmail flag and file request (FREQ) mode. Validates charset against a whitelist of safe values. Defaults to system address if no recipient specified for netmail.
+Sends a message (netmail or echomail) with support for multiple charsets, markdown/plaintext markup, file attachments, and optional PGP payload handling. Enforces 16 KB FidoNet message body limit. For netmail, resolves attachment tokens to file paths. Supports crashmail flag and file request (FREQ) mode. Validates charset against a whitelist of safe values. Defaults to system address if no recipient specified for netmail.
 
 **Request Body** _(JSON)_
 
@@ -5132,6 +5132,7 @@ Message composition payload
 | `attachment_token` | string | No | 32-character hex token from attachment upload endpoint |
 | `crashmail` | boolean | No | Send as crashmail (netmail only) |
 | `is_freq` | boolean | No | Mark as file request (netmail only) |
+| `pgp_mode` | string | No | PGP handling mode: `encrypt` for netmail encryption or `sign` for echomail signing |
 
 **Response** _(JSON)_
 
@@ -7320,6 +7321,13 @@ Open Graph metadata or error
 | `POST` | [`/api/user/echolist-preference`](#post-apiuserecholist-preference) | Yes | Update echolist filter preferences for authenticated user. |
 | `POST` | [`/api/user/activity`](#post-apiuseractivity) | Yes | Update user's current activity status. |
 | `GET` | [`/api/user/shares`](#get-apiusershares) | Yes | List all message shares created by the authenticated user. |
+| `GET` | [`/api/pgp/key/{userId}`](#get-apipgpkeyuserid) | No | List public PGP keys for a user and return the preferred key first. |
+| `GET` | [`/api/user/pgp/keys`](#get-apiuserpgpkeys) | Yes | List the authenticated user's saved PGP keys. |
+| `POST` | [`/api/user/pgp/keys`](#post-apiuserpgpkeys) | Yes | Upload a public PGP key for the authenticated user. |
+| `POST` | [`/api/user/pgp/keys/managed`](#post-apiuserpgpkeysmanaged) | Yes | Store a browser-generated managed PGP keypair for the authenticated user. |
+| `POST` | [`/api/user/pgp/keys/{fingerprint}/primary`](#post-apiuserpgpkeysfingerprintprimary) | Yes | Set the preferred public PGP key for the authenticated user. |
+| `DELETE` | [`/api/user/pgp/keys/{fingerprint}`](#delete-apiuserpgpkeysfingerprint) | Yes | Delete one of the authenticated user's PGP keys. |
+| `GET` | [`/api/user/pgp/private-key/{fingerprint}`](#get-apiuserpgpprivate-keyfingerprint) | Yes | Fetch the encrypted private key blob for a managed PGP key. |
 | `GET` | [`/api/user/settings`](#get-apiusersettings) | Yes | Retrieve authenticated user's settings and preferences. |
 | `POST` | [`/api/user/settings`](#post-apiusersettings) | Yes | Update authenticated user's settings and preferences. |
 | `POST` | [`/api/user/reset-onboarding`](#post-apiuserreset-onboarding) | Yes | Reset echomail onboarding flag for user. |
@@ -7869,6 +7877,247 @@ User's message shares
 | Status | Description |
 |--------|-------------|
 | 500 | Failed to load user shares |
+
+---
+
+#### `GET /api/pgp/key/{userId}`
+
+Returns the public PGP keys associated with the specified user account. The first key in the response is the preferred key if one is set.
+
+**Response** _(JSON)_
+
+Public PGP key listing for one user.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `preferred_key` | object\|null | Preferred public key for the user, or `null` when no keys are saved |
+| `preferred_key.fingerprint` | string | 40-character uppercase PGP fingerprint |
+| `preferred_key.armored_public_key` | string | ASCII-armored public key block |
+| `preferred_key.source` | string | `uploaded` or `managed` |
+| `preferred_key.label` | string\|null | Optional user-defined label |
+| `preferred_key.user_id_string` | string\|null | Parsed OpenPGP user ID string |
+| `preferred_key.email` | string\|null | Parsed email address from the key, if present |
+| `preferred_key.key_algorithm` | string\|null | Parsed public key algorithm |
+| `preferred_key.key_created_at` | string\|null | Key creation timestamp in UTC when available |
+| `preferred_key.is_primary` | boolean | Whether this key is marked preferred |
+| `preferred_key.created_at` | string | Server-side record creation timestamp |
+| `keys` | array<object> | All public keys for the user in preferred-first order |
+| `keys[].fingerprint` | string | 40-character uppercase PGP fingerprint |
+| `keys[].armored_public_key` | string | ASCII-armored public key block |
+| `keys[].source` | string | `uploaded` or `managed` |
+| `keys[].label` | string\|null | Optional user-defined label |
+| `keys[].user_id_string` | string\|null | Parsed OpenPGP user ID string |
+| `keys[].email` | string\|null | Parsed email address from the key, if present |
+| `keys[].key_algorithm` | string\|null | Parsed public key algorithm |
+| `keys[].key_created_at` | string\|null | Key creation timestamp in UTC when available |
+| `keys[].is_primary` | boolean | Whether this key is marked preferred |
+| `keys[].created_at` | string | Server-side record creation timestamp |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 500 | Failed to load PGP keys |
+
+---
+
+#### `GET /api/user/pgp/keys`
+
+**Requires authentication**
+
+Lists the authenticated user's saved PGP keys, including whether each key has an encrypted managed private key blob stored on the server.
+
+**Response** _(JSON)_
+
+Authenticated user's PGP key inventory.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `keys` | array<object> | Saved PGP keys in preferred-first order |
+| `keys[].id` | integer | Database ID for the saved key row |
+| `keys[].fingerprint` | string | 40-character uppercase PGP fingerprint |
+| `keys[].source` | string | `uploaded` or `managed` |
+| `keys[].label` | string\|null | Optional user-defined label |
+| `keys[].user_id_string` | string\|null | Parsed OpenPGP user ID string |
+| `keys[].email` | string\|null | Parsed email address from the key, if present |
+| `keys[].key_algorithm` | string\|null | Parsed public key algorithm |
+| `keys[].key_created_at` | string\|null | Key creation timestamp in UTC when available |
+| `keys[].is_primary` | boolean | Whether this key is marked preferred |
+| `keys[].created_at` | string | Server-side record creation timestamp |
+| `keys[].updated_at` | string | Last modification timestamp |
+| `keys[].has_private_key` | boolean | Whether an encrypted managed private key blob exists for this key |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 500 | Failed to load PGP keys |
+
+---
+
+#### `POST /api/user/pgp/keys`
+
+**Requires authentication**
+
+Uploads an ASCII-armored public key, parses its metadata, and stores it in the authenticated user's key inventory.
+
+**Request Body** _(JSON)_
+
+Public key upload payload.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `armored_public_key` | string | Yes | ASCII-armored public key block |
+| `label` | string | No | Optional label shown in settings and key listings |
+
+**Response** _(JSON)_
+
+Stored public key record.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `message_code` | string | Translation key for the success message |
+| `key` | object | Stored key metadata |
+| `key.id` | integer | Database ID for the key row |
+| `key.fingerprint` | string | 40-character uppercase PGP fingerprint |
+| `key.source` | string | `uploaded` |
+| `key.label` | string\|null | Optional label shown in settings and key listings |
+| `key.user_id_string` | string\|null | Parsed OpenPGP user ID string |
+| `key.email` | string\|null | Parsed email address from the key, if present |
+| `key.key_algorithm` | string\|null | Parsed public key algorithm |
+| `key.key_created_at` | string\|null | Key creation timestamp in UTC when available |
+| `key.is_primary` | boolean | Whether this key became the preferred key |
+| `key.created_at` | string | Server-side record creation timestamp |
+| `key.updated_at` | string | Last modification timestamp |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Public key missing or invalid |
+| 500 | Failed to save PGP key |
+
+---
+
+#### `POST /api/user/pgp/keys/managed`
+
+**Requires authentication**
+
+Stores a browser-generated managed PGP keypair. The server stores the ASCII-armored public key and the encrypted private key blob; it does not expose the private key blob except through the authenticated private-key endpoint.
+
+**Request Body** _(JSON)_
+
+Managed keypair storage payload.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `armored_public_key` | string | Yes | ASCII-armored public key block |
+| `encrypted_private_key` | string | Yes | ASCII-armored encrypted private key block |
+| `label` | string | No | Optional label shown in settings and key listings |
+
+**Response** _(JSON)_
+
+Stored managed public key record.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `message_code` | string | Translation key for the success message |
+| `key` | object | Stored public key metadata |
+| `key.id` | integer | Database ID for the key row |
+| `key.fingerprint` | string | 40-character uppercase PGP fingerprint |
+| `key.source` | string | `managed` |
+| `key.label` | string\|null | Optional label shown in settings and key listings |
+| `key.user_id_string` | string\|null | Parsed OpenPGP user ID string |
+| `key.email` | string\|null | Parsed email address from the key, if present |
+| `key.key_algorithm` | string\|null | Parsed public key algorithm |
+| `key.key_created_at` | string\|null | Key creation timestamp in UTC when available |
+| `key.is_primary` | boolean | Whether this key became the preferred key |
+| `key.created_at` | string | Server-side record creation timestamp |
+| `key.updated_at` | string | Last modification timestamp |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Public/private keypair missing or invalid |
+| 500 | Failed to save PGP key |
+
+---
+
+#### `POST /api/user/pgp/keys/{fingerprint}/primary`
+
+**Requires authentication**
+
+Marks one saved PGP key as the preferred public key for the authenticated user.
+
+**Response** _(JSON)_
+
+Preference update confirmation.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `message_code` | string | Translation key for the success message |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 404 | PGP key not found for this user |
+| 500 | Failed to save PGP key |
+
+---
+
+#### `DELETE /api/user/pgp/keys/{fingerprint}`
+
+**Requires authentication**
+
+Deletes one saved PGP key from the authenticated user's inventory. If the deleted key was preferred, the oldest remaining key is promoted automatically.
+
+**Response** _(JSON)_
+
+Deletion confirmation.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `message_code` | string | Translation key for the success message |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 404 | PGP key not found for this user |
+| 500 | Failed to delete PGP key |
+
+---
+
+#### `GET /api/user/pgp/private-key/{fingerprint}`
+
+**Requires authentication**
+
+Fetches the encrypted private key blob for one managed PGP key owned by the authenticated user.
+
+**Response** _(JSON)_
+
+Encrypted private key record.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success flag |
+| `fingerprint` | string | 40-character uppercase PGP fingerprint |
+| `encrypted_private_key` | string | ASCII-armored encrypted private key block |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 404 | Managed private key not found |
+| 500 | Failed to load PGP keys |
 
 ---
 

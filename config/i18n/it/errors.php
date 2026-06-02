@@ -86,6 +86,9 @@ return [
     'errors.messages.send.invalid_type' => 'Tipo di messaggio non valido',
     'errors.messages.send.failed' => 'Impossibile inviare il messaggio',
     'errors.messages.send.exception' => 'Impossibile inviare il messaggio',
+    'errors.pgp.decrypt_failed' => 'Impossibile decifrare il messaggio PGP.',
+    'errors.pgp.recipient_required' => 'Impossibile risolvere una chiave pubblica per il destinatario.',
+    'errors.pgp.passphrase_required' => 'Inserisci la tua passphrase PGP.',
 
     // Notify
     'errors.notify.user_id_missing' => 'Impossibile risolvere la sessione utente',
@@ -720,4 +723,17 @@ return [
     'errors.meshcore.not_found' => 'Contatto non trovato.',
     'errors.meshcore.qr_unrecognized' => 'Formato QR non riconosciuto.',
     'errors.meshcore.qr_camera_denied' => 'Accesso alla fotocamera negato.',
+    'errors.pgp.load_failed' => 'Impossibile caricare le chiavi PGP.',
+    'errors.pgp.public_key_required' => 'E richiesta una chiave pubblica.',
+    'errors.pgp.invalid_key' => 'Chiave pubblica PGP non valida.',
+    'errors.pgp.save_failed' => 'Impossibile salvare la chiave PGP.',
+    'errors.pgp.invalid_keypair' => 'Coppia di chiavi PGP non valida.',
+    'errors.pgp.key_not_found' => 'Chiave PGP non trovata.',
+    'errors.pgp.private_key_not_found' => 'Chiave privata non trovata.',
+    'errors.pgp.delete_failed' => 'Impossibile eliminare la chiave PGP.',
+    'errors.pgp.disabled' => 'PGP e disabilitato su questo sistema.',
+    'errors.pgp.managed_disabled' => 'La generazione di chiavi PGP gestite e disabilitata su questo sistema.',
+    'errors.pgp.passphrase_too_short' => 'Usa una passphrase PGP piu lunga.',
+    'errors.pgp.passphrase_mismatch' => 'La conferma della passphrase non corrisponde.',
+    'errors.pgp.generation_failed' => 'Impossibile generare la chiave PGP gestita.',
 ];

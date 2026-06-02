@@ -60,7 +60,9 @@ class BbsConfig
                 'webdoors' => true,
                 'shoutbox' => true,
                 'advertising' => true,
-                'voting_booth' => true
+                'voting_booth' => true,
+                'pgp' => false,
+                'pgp_managed_keys' => false
             ]
         ];
     }
