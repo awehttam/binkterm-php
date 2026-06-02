@@ -9,6 +9,7 @@ PGP support lets each user maintain more than one public key and choose a prefer
 - upload one or more public keys
 - pick which key is primary
 - generate a BBS-managed private key pair, if that policy is allowed
+- save correspondent public keys privately through the address book for encrypted replies
 
 The platform also exposes a public keyserver view so other systems can look up published keys. When managed private keys are enabled, the browser can also use them for netmail encryption and echomail signing.
 
@@ -72,12 +73,15 @@ When the destination address is blank or points at one of this system's own FTN 
 
 When the destination is a remote FTN address, compose switches to remote lookup:
 
+- it first checks the current user's saved correspondent keys, including any key linked to an address-book contact
 - it resolves the destination node in the nodelist
 - it extracts the node's BinkP hostname from the nodelist flags
 - it checks for `_hkps._tcp.<hostname>` SRV records and uses that target when present
 - if no HKPS SRV record exists, it falls back to `https://<nodelist-hostname>/pks/lookup`
 
 Remote HKP requests use a 3-second timeout so compose does not stall for long on unreachable systems.
+
+Saved correspondent keys are private to the owning user account. They are not published on `/pks/lookup` and do not change the user's preferred public key on the keyserver.
 
 The compose screen only shows the recipient selector when managed private keys are enabled, because the netmail encryption and echomail signing flows depend on browser-side access to the stored private key.
 

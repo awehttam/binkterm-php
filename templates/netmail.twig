@@ -375,6 +375,13 @@
                                   placeholder="{{ t('ui.address_book.description_placeholder', {}, locale, ['common']) }}"></textarea>
                     </div>
 
+                    <div class="mb-3">
+                        <label for="addressBookPgpPublicKey" class="form-label">{{ t('ui.address_book.pgp_public_key', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
+                        <textarea class="form-control font-monospace" id="addressBookPgpPublicKey" rows="5"
+                                  placeholder="{{ t('ui.address_book.pgp_public_key_placeholder', {}, locale, ['common']) }}"></textarea>
+                        <div class="form-text">{{ t('ui.address_book.pgp_public_key_help', {}, locale, ['common']) }}</div>
+                    </div>
+
                     {% if crashmail_enabled %}
                     <div class="mb-3">
                         <div class="form-check">

@@ -1789,6 +1789,7 @@ function renderAddressBook(entries) {
                         <div class="fw-bold small">${escapeHtml(entry.name || uiT('ui.address_book.unnamed', 'Unnamed'))}</div>
                         <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || uiT('ui.common.unknown', 'Unknown'))}</div>
                         <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || uiT('ui.address_book.no_address', 'No address'))}</div>
+                        ${entry.pgp_key_fingerprint ? `<div class="mt-1"><span class="badge bg-secondary">${uiT('ui.address_book.pgp_key_linked', 'PGP key linked')}</span></div>` : ''}
                         ${entry.description ? `<div class="text-muted smaller">${escapeHtml(entry.description.substring(0, 30) + (entry.description.length > 30 ? '...' : ''))}</div>` : ''}
                     </div>
                     <div class="dropdown">
@@ -1816,6 +1817,7 @@ function showAddAddressModal() {
     $('#addressBookModalTitle').text(uiT('ui.address_book.add_entry', 'Add Address Book Entry'));
     $('#addressBookEntryId').val('');
     $('#addressBookForm')[0].reset();
+    $('#addressBookPgpPublicKey').val('');
     clearAddressBookModalError();
     $('#addressBookModal').modal('show');
 }
@@ -1852,6 +1854,7 @@ function editAddressBookEntry(entryId) {
                 $('#addressBookEmail').val(entry.email || '');
                 $('#addressBookDescription').val(entry.description || '');
                 $('#addressBookAlwaysCrashmail').prop('checked', !!entry.always_crashmail);
+                $('#addressBookPgpPublicKey').val(entry.pgp_armored_public_key || '');
                 $('#addressBookModal').modal('show');
             } else {
                 showError(uiT('ui.netmail.address_book.load_entry_failed_prefix', 'Failed to load entry: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
@@ -1872,6 +1875,7 @@ function saveAddressBookEntry() {
         email: $('#addressBookEmail').val().trim(),
         description: $('#addressBookDescription').val().trim(),
         always_crashmail: $('#addressBookAlwaysCrashmail').is(':checked'),
+        pgp_public_key: $('#addressBookPgpPublicKey').val().trim(),
     };
 
     // Basic validation

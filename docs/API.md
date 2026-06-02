@@ -181,6 +181,10 @@ Array of address book entries matching the search criteria
 | `entries[].email` | string\|null | Email address |
 | `entries[].description` | string\|null | Free-text notes |
 | `entries[].always_crashmail` | boolean | Always send crashmail to this address |
+| `entries[].pgp_contact_key_id` | integer\|null | Linked saved correspondent-key ID |
+| `entries[].pgp_key_fingerprint` | string\|null | Linked correspondent-key fingerprint |
+| `entries[].pgp_key_user_id_string` | string\|null | Linked correspondent-key user ID |
+| `entries[].pgp_key_label` | string\|null | Linked correspondent-key label |
 | `entries[].created_at` | string | ISO 8601 creation timestamp |
 | `entries[].updated_at` | string | ISO 8601 last-update timestamp |
 
@@ -219,6 +223,11 @@ Single address book entry object
 | `entry.email` | string\|null | Email address |
 | `entry.description` | string\|null | Free-text notes |
 | `entry.always_crashmail` | boolean | Always send crashmail to this address |
+| `entry.pgp_contact_key_id` | integer\|null | Linked saved correspondent-key ID |
+| `entry.pgp_key_fingerprint` | string\|null | Linked correspondent-key fingerprint |
+| `entry.pgp_key_user_id_string` | string\|null | Linked correspondent-key user ID |
+| `entry.pgp_key_label` | string\|null | Linked correspondent-key label |
+| `entry.pgp_armored_public_key` | string\|null | Linked correspondent ASCII-armored public key |
 | `entry.created_at` | string | ISO 8601 creation timestamp |
 | `entry.updated_at` | string | ISO 8601 last-update timestamp |
 
@@ -244,7 +253,12 @@ Address book entry data
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Contact name |
-| `address` | string | Yes | FTN address or email |
+| `messaging_user_id` | string | Yes | User ID or handle used for FTN messaging |
+| `node_address` | string | Yes | FTN destination address |
+| `email` | string | No | Reference email address |
+| `description` | string | No | Free-text notes |
+| `always_crashmail` | boolean | No | Whether compose should default this contact to crashmail |
+| `pgp_public_key` | string | No | ASCII-armored correspondent public key to save and link to the contact |
 
 **Response** _(JSON)_
 
@@ -283,7 +297,12 @@ Updated address book entry data (partial updates supported)
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | No | Contact name |
-| `address` | string | No | FTN address or email |
+| `messaging_user_id` | string | No | User ID or handle used for FTN messaging |
+| `node_address` | string | No | FTN destination address |
+| `email` | string | No | Reference email address |
+| `description` | string | No | Free-text notes |
+| `always_crashmail` | boolean | No | Whether compose should default this contact to crashmail |
+| `pgp_public_key` | string | No | ASCII-armored correspondent public key to save and link to the contact; submit an empty string to unlink |
 
 **Response** _(JSON)_
 
@@ -366,6 +385,10 @@ Array of matching autocomplete entries
 | `entries[].email` | string\|null | Email address |
 | `entries[].description` | string\|null | Free-text notes |
 | `entries[].always_crashmail` | boolean | Always send crashmail to this address |
+| `entries[].pgp_contact_key_id` | integer\|null | Linked saved correspondent-key ID |
+| `entries[].pgp_key_fingerprint` | string\|null | Linked correspondent-key fingerprint |
+| `entries[].pgp_key_user_id_string` | string\|null | Linked correspondent-key user ID |
+| `entries[].pgp_key_label` | string\|null | Linked correspondent-key label |
 | `entries[].created_at` | string | ISO 8601 creation timestamp |
 | `entries[].updated_at` | string | ISO 8601 last-update timestamp |
 | `entries[].node_system_name` | string\|null | System name from nodelist (search results only) |
@@ -7926,7 +7949,7 @@ Public PGP key listing for one user.
 
 **Requires authentication**
 
-Performs destination-aware public-key lookup for the compose UI. Local destinations query this BBS's public-key store. Remote FTN destinations resolve the node's BinkP host from the nodelist, prefer `_hkps._tcp` SRV records when available, and otherwise fall back to `https://<nodelist-hostname>/pks/lookup`.
+Performs destination-aware public-key lookup for the compose UI. Local destinations query this BBS's public-key store. Remote FTN destinations first check the authenticated user's saved correspondent keys, then resolve the node's BinkP host from the nodelist, prefer `_hkps._tcp` SRV records when available, and otherwise fall back to `https://<nodelist-hostname>/pks/lookup`.
 
 **Query Parameters**
 
@@ -7948,7 +7971,10 @@ Performs destination-aware public-key lookup for the compose UI. Local destinati
 | `keys[].username` | string\|null | Local BBS username when the match came from the local store |
 | `keys[].key_algorithm` | string\|null | Public key algorithm when known |
 | `keys[].key_created_at` | string\|null | Key creation timestamp when known |
-| `keys[].lookup_source` | string | `local`, `remote_srv`, or `remote_host` |
+| `keys[].lookup_source` | string | `local`, `saved_contact`, `remote_srv`, or `remote_host` |
+| `keys[].address_book_entry_id` | integer\|null | Linked address-book entry ID when the match came from a saved correspondent key |
+| `keys[].address_book_name` | string\|null | Linked address-book contact name when the match came from a saved correspondent key |
+| `keys[].address_book_node_address` | string\|null | Linked address-book FTN address when the match came from a saved correspondent key |
 
 **Response** _(JSON, `op=get`)_
 
@@ -7963,7 +7989,10 @@ Performs destination-aware public-key lookup for the compose UI. Local destinati
 | `key.email` | string\|null | Parsed email address from the key, if available |
 | `key.key_algorithm` | string\|null | Parsed public key algorithm |
 | `key.key_created_at` | string\|null | Key creation timestamp when known |
-| `key.lookup_source` | string | `local`, `remote_srv`, or `remote_host` |
+| `key.lookup_source` | string | `local`, `saved_contact`, `remote_srv`, or `remote_host` |
+| `key.address_book_entry_id` | integer\|null | Linked address-book entry ID when the match came from a saved correspondent key |
+| `key.address_book_name` | string\|null | Linked address-book contact name when the match came from a saved correspondent key |
+| `key.address_book_node_address` | string\|null | Linked address-book FTN address when the match came from a saved correspondent key |
 
 **Error Responses**
 

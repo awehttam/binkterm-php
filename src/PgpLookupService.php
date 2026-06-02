@@ -10,15 +10,18 @@ class PgpLookupService
     private const TIMEOUT_SECONDS = 3;
 
     private PgpKeyService $localKeyService;
+    private PgpContactKeyService $contactKeyService;
     private NodelistManager $nodelistManager;
     private BinkpConfig $binkpConfig;
 
     public function __construct(
         ?PgpKeyService $localKeyService = null,
+        ?PgpContactKeyService $contactKeyService = null,
         ?NodelistManager $nodelistManager = null,
         ?BinkpConfig $binkpConfig = null
     ) {
         $this->localKeyService = $localKeyService ?? new PgpKeyService();
+        $this->contactKeyService = $contactKeyService ?? new PgpContactKeyService();
         $this->nodelistManager = $nodelistManager ?? new NodelistManager();
         $this->binkpConfig = $binkpConfig ?? BinkpConfig::getInstance();
     }
@@ -60,7 +63,7 @@ class PgpLookupService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function searchPublicKeysForDestination(string $search, string $address): array
+    public function searchPublicKeysForDestination(string $search, string $address, ?int $userId = null): array
     {
         $search = trim($search);
         if ($search === '') {
@@ -75,13 +78,20 @@ class PgpLookupService
             );
         }
 
+        if ($userId !== null && $userId > 0) {
+            $savedKeys = $this->contactKeyService->searchPublicKeysForUser($userId, $search, $address, 200);
+            if ($savedKeys !== []) {
+                return $this->normalizeRows($savedKeys, 'saved_contact', true);
+            }
+        }
+
         return $this->searchRemotePublicKeys($search, $address);
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    public function findPublicKeyForDestination(string $search, string $address): ?array
+    public function findPublicKeyForDestination(string $search, string $address, ?int $userId = null): ?array
     {
         $search = trim($search);
         if ($search === '') {
@@ -91,6 +101,13 @@ class PgpLookupService
         if ($this->isLocalAddress($address)) {
             $row = $this->localKeyService->findPublicKey($search);
             return $row ? $this->normalizeRow($row, 'local', true) : null;
+        }
+
+        if ($userId !== null && $userId > 0) {
+            $savedKey = $this->contactKeyService->findPublicKeyForUser($userId, $search, $address);
+            if ($savedKey !== null) {
+                return $this->normalizeRow($savedKey, 'saved_contact', true);
+            }
         }
 
         return $this->findRemotePublicKey($search, $address);
@@ -351,6 +368,16 @@ class PgpLookupService
         if ($includeArmor) {
             $normalized['armored_public_key'] = $row['armored_public_key'] ?? null;
             $normalized['email'] = $row['email'] ?? null;
+        }
+
+        if (array_key_exists('address_book_entry_id', $row)) {
+            $normalized['address_book_entry_id'] = $row['address_book_entry_id'];
+        }
+        if (array_key_exists('address_book_name', $row)) {
+            $normalized['address_book_name'] = $row['address_book_name'];
+        }
+        if (array_key_exists('address_book_node_address', $row)) {
+            $normalized['address_book_node_address'] = $row['address_book_node_address'];
         }
 
         return $normalized;

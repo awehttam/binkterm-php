@@ -750,6 +750,20 @@
                                     <div class="text-muted small">{{ t('ui.common.description', {}, locale, ['common']) }}</div>
                                     <div id="pgpKeyDetailsUserId" class="fw-semibold"></div>
                                 </div>
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div class="text-muted small">{{ t('ui.settings.pgp.public_key', {}, locale, ['common']) }}</div>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" id="pgpKeyDetailsCopyButton" onclick="copyPgpPublicKeyFromDetails()">
+                                                <i class="fas fa-copy me-1"></i>{{ t('ui.settings.pgp.copy_public_key_button', {}, locale, ['common']) }}
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" id="pgpKeyDetailsDownloadButton" onclick="downloadPgpPublicKeyFromDetails()">
+                                                <i class="fas fa-download me-1"></i>{{ t('ui.settings.pgp.download_public_key_button', {}, locale, ['common']) }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <textarea id="pgpKeyDetailsPublicKey" class="form-control font-monospace" rows="10" readonly></textarea>
+                                </div>
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -1245,6 +1259,9 @@ function renderPgpKeys(keys) {
                     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyPgpFingerprint('${escapeJs(key.fingerprint)}')">
                         <i class="fas fa-copy"></i>
                     </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="openPgpKeyDetails('${escapeJs(key.fingerprint)}')">
+                        <i class="fas fa-eye"></i>
+                    </button>
                     <button type="button" class="btn btn-sm btn-outline-danger" onclick="deletePgpKey('${escapeJs(key.fingerprint)}')">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -1416,6 +1433,53 @@ function copyPgpFingerprint(fingerprint) {
         });
 }
 
+function copyPgpPublicKeyFromDetails() {
+    const textarea = document.getElementById('pgpKeyDetailsPublicKey');
+    if (!textarea) {
+        return;
+    }
+    const publicKey = String(textarea.value || '').trim();
+    if (!publicKey) {
+        setPgpStatus('danger', uiT('errors.pgp.public_key_required', 'A public key is required'));
+        return;
+    }
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+        setPgpStatus('danger', uiT('errors.generic.copy_failed', 'Copy failed.'));
+        return;
+    }
+    navigator.clipboard.writeText(publicKey)
+        .then(function() {
+            setPgpStatus('success', uiT('ui.settings.pgp.copy_public_key_success', 'Public key copied.'));
+        })
+        .catch(function() {
+            setPgpStatus('danger', uiT('errors.generic.copy_failed', 'Copy failed.'));
+        });
+}
+
+function downloadPgpPublicKeyFromDetails() {
+    const textarea = document.getElementById('pgpKeyDetailsPublicKey');
+    const fingerprintEl = document.getElementById('pgpKeyDetailsFingerprint');
+    if (!textarea || !fingerprintEl) {
+        return;
+    }
+
+    const publicKey = String(textarea.value || '').trim();
+    const fingerprint = String(fingerprintEl.textContent || '').trim().toUpperCase();
+    if (!publicKey || !fingerprint) {
+        return;
+    }
+
+    const blob = new Blob([publicKey + '\n'], { type: 'application/pgp-keys; charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `pgp-public-key-${fingerprint}.asc`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+}
+
 function setPgpStatus(level, message) {
     $('#pgpStatus').show().html(`
         <div class="alert alert-${level}">
@@ -1481,6 +1545,10 @@ function openPgpKeyDetails(fingerprint) {
     setText('pgpKeyDetailsPrivate', privateKey, '—');
     setText('pgpKeyDetailsAlgorithm', key.key_algorithm || '—', '—');
     setText('pgpKeyDetailsUserId', key.user_id_string, '—');
+    const publicKeyEl = document.getElementById('pgpKeyDetailsPublicKey');
+    if (publicKeyEl) {
+        publicKeyEl.value = key.armored_public_key || '';
+    }
 
     bootstrap.Modal.getOrCreateInstance(modal).show();
 }

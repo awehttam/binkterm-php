@@ -9381,9 +9381,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $service = new \BinktermPHP\PgpLookupService();
             $isLocalAddress = $service->isLocalAddress($address);
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
 
             if ($op === 'get') {
-                $key = $service->findPublicKeyForDestination($search, $address);
+                $key = $service->findPublicKeyForDestination($search, $address, $userId);
                 echo json_encode([
                     'success' => true,
                     'is_local_address' => $isLocalAddress,
@@ -9395,7 +9396,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode([
                 'success' => true,
                 'is_local_address' => $isLocalAddress,
-                'keys' => $service->searchPublicKeysForDestination($search, $address),
+                'keys' => $service->searchPublicKeysForDestination($search, $address, $userId),
             ]);
         } catch (Exception $e) {
             apiError('errors.pgp.load_failed', apiLocalizedText('errors.pgp.load_failed', 'Failed to load PGP keys', $user), 500);

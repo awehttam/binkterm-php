@@ -24,7 +24,7 @@ class PgpKeyService
     public function listKeysForUser(int $userId): array
     {
         $stmt = $this->db->prepare("
-            SELECT k.id, k.fingerprint, k.source, k.label, k.user_id_string, k.email,
+            SELECT k.id, k.fingerprint, k.armored_public_key, k.source, k.label, k.user_id_string, k.email,
                    k.key_algorithm, k.key_created_at, k.is_primary, k.created_at, k.updated_at,
                    CASE WHEN p.id IS NULL THEN FALSE ELSE TRUE END AS has_private_key
             FROM user_pgp_keys k
