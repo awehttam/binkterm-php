@@ -57,6 +57,93 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 
+function promptForPgpPassphrase() {
+    return new Promise(function(resolve) {
+        const modalId = 'pgpPassphrasePromptModal';
+        const existingModal = document.getElementById(modalId);
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = modalId;
+        modal.tabIndex = -1;
+        modal.setAttribute('aria-hidden', 'true');
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-key me-2"></i>${uiT('ui.pgp.decrypt_button', 'Decrypt')}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${uiT('ui.common.close', 'Close')}"></button>
+                    </div>
+                    <form>
+                        <div class="modal-body">
+                            <label for="pgpPassphrasePromptInput" class="form-label">${uiT('ui.settings.pgp.passphrase', 'PGP passphrase')}</label>
+                            <input
+                                type="password"
+                                class="form-control"
+                                id="pgpPassphrasePromptInput"
+                                autocomplete="current-password"
+                                placeholder="${uiT('ui.settings.pgp.passphrase_placeholder', 'Enter a PGP passphrase')}"
+                            >
+                            <div class="form-text">${uiT('ui.pgp.passphrase_prompt', 'Enter your PGP passphrase to decrypt this message.')}</div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                ${uiT('ui.common.cancel', 'Cancel')}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-unlock me-1"></i>${uiT('ui.pgp.decrypt_button', 'Decrypt')}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const modalInstance = new bootstrap.Modal(modal);
+        const input = modal.querySelector('#pgpPassphrasePromptInput');
+        const form = modal.querySelector('form');
+        let settled = false;
+
+        function finish(value) {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            resolve(value);
+            modalInstance.hide();
+        }
+
+        modal.addEventListener('shown.bs.modal', function() {
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        });
+
+        modal.addEventListener('hidden.bs.modal', function() {
+            modal.remove();
+            if (!settled) {
+                settled = true;
+                resolve(null);
+            }
+        });
+
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            finish(input ? input.value : '');
+        });
+
+        modalInstance.show();
+    });
+}
+
 $(document).ready(function() {
     loadNetmailSettings().then(function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -1136,7 +1223,7 @@ function renderNetmailPgpState(message, parsedMessage) {
         `;
 
         $('#pgpDecryptButton').off('click').on('click', async function() {
-            const passphrase = window.prompt(uiT('ui.pgp.passphrase_prompt', 'Enter your PGP passphrase to decrypt this message.'));
+            const passphrase = await promptForPgpPassphrase();
             if (passphrase === null) {
                 return;
             }

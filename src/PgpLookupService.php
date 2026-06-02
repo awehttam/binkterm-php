@@ -170,16 +170,11 @@ class PgpLookupService
             return $srvEndpoint;
         }
 
-        $ip = $this->resolveIpAddress($hostname);
-        if ($ip === null) {
-            return null;
-        }
-
         return [
-            'base_url' => 'https://' . $this->formatHostForUrl($ip) . '/pks/lookup',
-            'host_header' => $hostname,
-            'verify_tls' => false,
-            'source' => 'remote_ip',
+            'base_url' => 'https://' . $this->formatHostForUrl($hostname) . '/pks/lookup',
+            'host_header' => null,
+            'verify_tls' => true,
+            'source' => 'remote_host',
         ];
     }
 
@@ -246,39 +241,6 @@ class PgpLookupService
                 'verify_tls' => true,
                 'source' => 'remote_srv',
             ];
-        }
-
-        return null;
-    }
-
-    private function resolveIpAddress(string $hostname): ?string
-    {
-        if (filter_var($hostname, FILTER_VALIDATE_IP)) {
-            return $hostname;
-        }
-
-        if (function_exists('dns_get_record')) {
-            $dnsTypes = DNS_A;
-            if (defined('DNS_AAAA')) {
-                $dnsTypes += DNS_AAAA;
-            }
-
-            $records = @dns_get_record($hostname, $dnsTypes);
-            if (is_array($records)) {
-                foreach ($records as $record) {
-                    if (!empty($record['ip']) && filter_var($record['ip'], FILTER_VALIDATE_IP)) {
-                        return (string)$record['ip'];
-                    }
-                    if (!empty($record['ipv6']) && filter_var($record['ipv6'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-                        return (string)$record['ipv6'];
-                    }
-                }
-            }
-        }
-
-        $resolved = @gethostbyname($hostname);
-        if ($resolved !== false && $resolved !== $hostname && filter_var($resolved, FILTER_VALIDATE_IP)) {
-            return $resolved;
         }
 
         return null;

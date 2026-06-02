@@ -75,7 +75,7 @@ When the destination is a remote FTN address, compose switches to remote lookup:
 - it resolves the destination node in the nodelist
 - it extracts the node's BinkP hostname from the nodelist flags
 - it checks for `_hkps._tcp.<hostname>` SRV records and uses that target when present
-- if no HKPS SRV record exists, it falls back to `https://<resolved-binkp-ip>/pks/lookup`
+- if no HKPS SRV record exists, it falls back to `https://<nodelist-hostname>/pks/lookup`
 
 Remote HKP requests use a 3-second timeout so compose does not stall for long on unreachable systems.
 

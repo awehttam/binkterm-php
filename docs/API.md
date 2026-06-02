@@ -7926,7 +7926,7 @@ Public PGP key listing for one user.
 
 **Requires authentication**
 
-Performs destination-aware public-key lookup for the compose UI. Local destinations query this BBS's public-key store. Remote FTN destinations resolve the node's BinkP host from the nodelist, prefer `_hkps._tcp` SRV records when available, and otherwise fall back to `https://<resolved-binkp-ip>/pks/lookup`.
+Performs destination-aware public-key lookup for the compose UI. Local destinations query this BBS's public-key store. Remote FTN destinations resolve the node's BinkP host from the nodelist, prefer `_hkps._tcp` SRV records when available, and otherwise fall back to `https://<nodelist-hostname>/pks/lookup`.
 
 **Query Parameters**
 
@@ -7948,7 +7948,7 @@ Performs destination-aware public-key lookup for the compose UI. Local destinati
 | `keys[].username` | string\|null | Local BBS username when the match came from the local store |
 | `keys[].key_algorithm` | string\|null | Public key algorithm when known |
 | `keys[].key_created_at` | string\|null | Key creation timestamp when known |
-| `keys[].lookup_source` | string | `local`, `remote_srv`, or `remote_ip` |
+| `keys[].lookup_source` | string | `local`, `remote_srv`, or `remote_host` |
 
 **Response** _(JSON, `op=get`)_
 
@@ -7963,7 +7963,7 @@ Performs destination-aware public-key lookup for the compose UI. Local destinati
 | `key.email` | string\|null | Parsed email address from the key, if available |
 | `key.key_algorithm` | string\|null | Parsed public key algorithm |
 | `key.key_created_at` | string\|null | Key creation timestamp when known |
-| `key.lookup_source` | string | `local`, `remote_srv`, or `remote_ip` |
+| `key.lookup_source` | string | `local`, `remote_srv`, or `remote_host` |
 
 **Error Responses**
 
