@@ -110,6 +110,13 @@ function promptForPgpPassphrase() {
         const input = modal.querySelector('#pgpPassphrasePromptInput');
         const form = modal.querySelector('form');
         let settled = false;
+        const swallowKeyEvent = function(event) {
+            event.stopPropagation();
+        };
+
+        modal.addEventListener('keydown', swallowKeyEvent);
+        modal.addEventListener('keypress', swallowKeyEvent);
+        modal.addEventListener('keyup', swallowKeyEvent);
 
         function finish(value) {
             if (settled) {
