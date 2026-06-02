@@ -249,6 +249,32 @@ class PgpKeyService
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findPublicKeyByEmail(string $email): ?array
+    {
+        $email = trim($email);
+        if ($email === '') {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT k.fingerprint, k.armored_public_key, k.source, k.label, k.user_id_string, k.email,
+                   k.key_algorithm, k.key_created_at, k.is_primary, k.created_at,
+                   u.id AS owner_user_id, u.username, u.real_name
+            FROM user_pgp_keys k
+            INNER JOIN users u ON u.id = k.user_id
+            WHERE LOWER(COALESCE(k.email, '')) = LOWER(?)
+            ORDER BY k.is_primary DESC, k.created_at ASC, k.id ASC
+            LIMIT 1
+        ");
+        $stmt->execute([$email]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ? $this->normalizeKeyRow($row) : null;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function storeKey(int $userId, string $armoredPublicKey, ?string $encryptedPrivateKey, ?string $label, string $source): array

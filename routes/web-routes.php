@@ -149,6 +149,33 @@ if (!function_exists('bbsDirectoryEntryPath')) {
     }
 }
 
+if (!function_exists('pgpDiscoveryHostConfig')) {
+    /**
+     * Return the configured site host details used for HKPS discovery.
+     *
+     * @return array{host:string,port:int|null}|null
+     */
+    function pgpDiscoveryHostConfig(): ?array
+    {
+        $siteUrl = \BinktermPHP\Config::getSiteUrl();
+        $parts = parse_url($siteUrl);
+        $host = trim((string)($parts['host'] ?? ''));
+        if ($host === '') {
+            return null;
+        }
+
+        $port = isset($parts['port']) ? (int)$parts['port'] : null;
+        if ($port !== null && $port <= 0) {
+            $port = null;
+        }
+
+        return [
+            'host' => $host,
+            'port' => $port,
+        ];
+    }
+}
+
 SimpleRouter::get('/', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -1141,6 +1168,71 @@ SimpleRouter::get('/pks/lookup', function() {
         }
     }
 });
+
+SimpleRouter::get('/pks/lookup/v1/get/{search}', function($search) {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Not found';
+        return;
+    }
+
+    $search = urldecode((string)$search);
+    $service = new \BinktermPHP\PgpKeyService();
+
+    $key = str_contains($search, '@')
+        ? $service->findPublicKeyByEmail($search)
+        : $service->findPublicKey($search);
+
+    if (!$key) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Not found';
+        return;
+    }
+
+    header('Content-Type: application/openpgp-keys');
+    echo (string)$key['armored_public_key'];
+})->where(['search' => '[^/]+']);
+
+SimpleRouter::get('/.well-known/openpgpkey/{domain}/hkps', function($domain) {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Not found';
+        return;
+    }
+
+    $hostConfig = pgpDiscoveryHostConfig();
+    if ($hostConfig === null) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Not found';
+        return;
+    }
+
+    $requestHost = strtolower(trim((string)$domain));
+    $siteHost = strtolower($hostConfig['host']);
+    $expectedHosts = [$siteHost];
+    if (str_starts_with($siteHost, 'openpgpkey.')) {
+        $expectedHosts[] = substr($siteHost, strlen('openpgpkey.'));
+    }
+
+    if (!in_array($requestHost, $expectedHosts, true)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Not found';
+        return;
+    }
+
+    header('Content-Type: text/plain; charset=UTF-8');
+    echo "version:1\n";
+    $serverLine = 'server:' . $hostConfig['host'];
+    if ($hostConfig['port'] !== null && $hostConfig['port'] !== 443) {
+        $serverLine .= ':' . $hostConfig['port'];
+    }
+    echo $serverLine . "\n";
+})->where(['domain' => '[A-Za-z0-9.-]+']);
 
 SimpleRouter::post('/pks/add', function() {
     if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {

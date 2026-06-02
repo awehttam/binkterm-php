@@ -38,6 +38,7 @@ When `Enable PGP` is on:
 - users see a **PGP** tab in their settings page
 - users can upload armored public keys
 - users can select a preferred key from a dropdown/list
+- users can view, copy, or download their saved public key material
 - the public keyserver becomes available
 
 The keyserver publishes the user's preferred key and key listings for lookup.
@@ -50,6 +51,10 @@ When `Allow BBS-managed private keys` is also on:
 - users can encrypt outgoing netmail to a recipient's preferred public key from the compose screen
 - users can sign outgoing echomail with their stored private key from the compose screen
 - readers can decrypt encrypted netmail or verify signed echomail in the message viewer
+
+When decrypting, the reader inspects the encrypted message's recipient key IDs and
+prefers the matching managed private key. If no direct match is found, it falls
+back to the other stored managed private keys for the account.
 
 If managed keys are disabled, the PGP tab still works for public-key upload and preferred-key selection, but the generator section is replaced with a notice.
 
@@ -91,12 +96,35 @@ When PGP is enabled, the following routes are active:
 
 - `/keyserver`
 - `/pks/lookup`
+- `/pks/lookup/v1/get/{search}`
 - `/pks/add`
 - `/pks/download/{fingerprint}`
+- `/.well-known/openpgpkey/{domain}/hkps`
 
 These are the public-facing keyserver routes used for discovery and retrieval.
 
+The `.well-known` HKPS discovery file advertises the local keyserver using the
+same site host configured for BinktermPHP. Clients that follow it can then use
+the v1 HKPS path at `/pks/lookup/v1/get/{search}` for exact key retrieval.
+
+For that discovery path to work from other systems, the relevant hostname must
+actually resolve to this BinktermPHP instance. In practice that usually means
+`openpgpkey.<your-domain>` needs DNS and web routing to this app, unless the
+site host itself already uses that name.
+
 The authenticated compose UI also uses `GET /api/pgp/lookup` for destination-aware local-vs-remote key resolution.
+
+## CLI Helper
+
+The repository also includes a CLI helper at `scripts/pgp.lookup.php`.
+
+It uses the same destination-aware local-vs-remote logic as netmail compose:
+
+- local destinations query the local key store
+- remote FTN destinations use saved correspondent keys first, then remote HKPS lookup
+
+For remote lookups it prints the exact `/pks/lookup` endpoint being queried, which
+is useful for testing node resolution and HKPS discovery outside the browser.
 
 ## Operational Notes
 
