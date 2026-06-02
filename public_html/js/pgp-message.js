@@ -1,10 +1,10 @@
 (function() {
     const state = {
         currentUserKeys: null,
-        currentUserPrivateKey: null,
-        currentUserPrivateKeyFingerprint: null,
         publicKeyCache: new Map(),
-        privateKeyCache: new Map()
+        privateKeyCache: new Map(),
+        decryptedPrivateKeyCache: new Map(),
+        parsedPublicKeyCache: new Map()
     };
 
     function hasOpenPgp() {
@@ -82,8 +82,9 @@
 
         const data = await fetchJson('/api/user/pgp/keys');
         state.currentUserKeys = normalizeKeysResponse(data);
-        state.currentUserPrivateKey = null;
-        state.currentUserPrivateKeyFingerprint = null;
+        state.privateKeyCache.clear();
+        state.decryptedPrivateKeyCache.clear();
+        state.parsedPublicKeyCache.clear();
         return state.currentUserKeys;
     }
 
@@ -98,18 +99,19 @@
         }) || null;
     }
 
-    async function getCurrentUserPrivateKeyInfo(forceReload = false) {
-        const keys = await loadCurrentUserKeys(forceReload);
-        const row = getPreferredPrivateKeyRow(keys);
-        if (!row) {
-            return null;
+    function getManagedPrivateKeyRows(keys) {
+        if (!Array.isArray(keys) || keys.length === 0) {
+            return [];
         }
 
-        if (state.currentUserPrivateKey && state.currentUserPrivateKeyFingerprint === row.fingerprint && !forceReload) {
-            return {
-                keyRow: row,
-                privateKey: state.currentUserPrivateKey
-            };
+        return keys.filter(function(key) {
+            return !!key.has_private_key;
+        });
+    }
+
+    async function getEncryptedPrivateKeyInfoForRow(row) {
+        if (!row || !row.fingerprint) {
+            return null;
         }
 
         const cacheKey = String(row.fingerprint || '').toUpperCase();
@@ -129,15 +131,25 @@
         };
     }
 
-    async function getCurrentUserDecryptedPrivateKey(passphrase, forceReload = false) {
-        const info = await getCurrentUserPrivateKeyInfo(forceReload);
+    async function getCurrentUserPrivateKeyInfo(forceReload = false) {
+        const keys = await loadCurrentUserKeys(forceReload);
+        const row = getPreferredPrivateKeyRow(keys);
+        if (!row) {
+            return null;
+        }
+
+        return getEncryptedPrivateKeyInfoForRow(row);
+    }
+
+    async function getDecryptedPrivateKeyForRow(row, passphrase, forceReload = false) {
+        const info = await getEncryptedPrivateKeyInfoForRow(row);
         if (!info || !info.encryptedPrivateKey) {
             return null;
         }
 
         const cacheKey = String(info.keyRow.fingerprint || '').toUpperCase() + '|' + String(passphrase || '');
-        if (state.currentUserPrivateKey && state.currentUserPrivateKeyFingerprint === cacheKey && !forceReload) {
-            return state.currentUserPrivateKey;
+        if (state.decryptedPrivateKeyCache.has(cacheKey) && !forceReload) {
+            return state.decryptedPrivateKeyCache.get(cacheKey);
         }
 
         const privateKey = await window.openpgp.readPrivateKey({ armoredKey: info.encryptedPrivateKey });
@@ -146,9 +158,176 @@
             passphrase: passphrase
         });
 
-        state.currentUserPrivateKey = decryptedKey;
-        state.currentUserPrivateKeyFingerprint = cacheKey;
+        state.decryptedPrivateKeyCache.set(cacheKey, decryptedKey);
         return decryptedKey;
+    }
+
+    async function getCurrentUserDecryptedPrivateKey(passphrase, forceReload = false) {
+        const info = await getCurrentUserPrivateKeyInfo(forceReload);
+        if (!info || !info.keyRow) {
+            return null;
+        }
+
+        return getDecryptedPrivateKeyForRow(info.keyRow, passphrase, forceReload);
+    }
+
+    function normalizeKeyId(value) {
+        if (!value) {
+            return '';
+        }
+        if (typeof value.toHex === 'function') {
+            value = value.toHex();
+        }
+        return String(value || '').trim().toUpperCase().replace(/^0X/, '');
+    }
+
+    function collectKeyIdsFromKeyLike(keyLike, ids) {
+        if (!keyLike || !ids) {
+            return;
+        }
+
+        if (typeof keyLike.getKeyID === 'function') {
+            const keyId = normalizeKeyId(keyLike.getKeyID());
+            if (keyId) {
+                ids.add(keyId);
+            }
+        }
+
+        if (typeof keyLike.getKeyIDs === 'function') {
+            const keyIds = keyLike.getKeyIDs();
+            if (Array.isArray(keyIds)) {
+                keyIds.forEach(function(keyId) {
+                    keyId = normalizeKeyId(keyId);
+                    if (keyId) {
+                        ids.add(keyId);
+                    }
+                });
+            }
+        }
+
+        if (keyLike.keyPacket && typeof keyLike.keyPacket.getKeyID === 'function') {
+            const packetKeyId = normalizeKeyId(keyLike.keyPacket.getKeyID());
+            if (packetKeyId) {
+                ids.add(packetKeyId);
+            }
+        }
+    }
+
+    function collectKeyIdentifiers(key) {
+        const ids = new Set();
+        if (!key) {
+            return ids;
+        }
+
+        if (typeof key.getEncryptionKeyIDs === 'function') {
+            const encryptionKeyIds = key.getEncryptionKeyIDs();
+            if (Array.isArray(encryptionKeyIds)) {
+                encryptionKeyIds.forEach(function(keyId) {
+                    keyId = normalizeKeyId(keyId);
+                    if (keyId) {
+                        ids.add(keyId);
+                    }
+                });
+            }
+        }
+
+        collectKeyIdsFromKeyLike(key, ids);
+
+        if (typeof key.getKeys === 'function') {
+            const subkeys = key.getKeys();
+            if (Array.isArray(subkeys)) {
+                subkeys.forEach(function(subkey) {
+                    collectKeyIdsFromKeyLike(subkey, ids);
+                });
+            }
+        }
+
+        if (typeof key.getFingerprint === 'function') {
+            const fingerprint = normalizeKeyId(key.getFingerprint());
+            if (fingerprint) {
+                ids.add(fingerprint);
+                if (fingerprint.length >= 16) {
+                    ids.add(fingerprint.slice(-16));
+                }
+            }
+        }
+
+        return ids;
+    }
+
+    function getMessageEncryptionKeyIds(message) {
+        const ids = new Set();
+        if (!message || typeof message.getEncryptionKeyIDs !== 'function') {
+            return ids;
+        }
+
+        const messageKeyIds = message.getEncryptionKeyIDs();
+        if (!Array.isArray(messageKeyIds)) {
+            return ids;
+        }
+
+        messageKeyIds.forEach(function(keyId) {
+            keyId = normalizeKeyId(keyId);
+            if (keyId) {
+                ids.add(keyId);
+            }
+        });
+
+        return ids;
+    }
+
+    async function getParsedPublicKeyForRow(row) {
+        if (!row || !row.fingerprint || !row.armored_public_key) {
+            return null;
+        }
+
+        const cacheKey = String(row.fingerprint || '').toUpperCase();
+        if (state.parsedPublicKeyCache.has(cacheKey)) {
+            return state.parsedPublicKeyCache.get(cacheKey);
+        }
+
+        const parsedKey = await window.openpgp.readKey({ armoredKey: String(row.armored_public_key) });
+        state.parsedPublicKeyCache.set(cacheKey, parsedKey);
+        return parsedKey;
+    }
+
+    async function findCandidatePrivateKeyRowsForMessage(armoredText, forceReload = false) {
+        const message = await window.openpgp.readMessage({ armoredMessage: String(armoredText || '') });
+        const allRows = getManagedPrivateKeyRows(await loadCurrentUserKeys(forceReload));
+        const messageKeyIds = getMessageEncryptionKeyIds(message);
+
+        if (allRows.length <= 1 || messageKeyIds.size === 0) {
+            return {
+                message: message,
+                rows: allRows
+            };
+        }
+
+        const matchedRows = [];
+        const unmatchedRows = [];
+
+        for (const row of allRows) {
+            try {
+                const publicKey = await getParsedPublicKeyForRow(row);
+                const rowKeyIds = collectKeyIdentifiers(publicKey);
+                const hasMatch = Array.from(messageKeyIds).some(function(messageKeyId) {
+                    return rowKeyIds.has(messageKeyId);
+                });
+
+                if (hasMatch) {
+                    matchedRows.push(row);
+                } else {
+                    unmatchedRows.push(row);
+                }
+            } catch (error) {
+                unmatchedRows.push(row);
+            }
+        }
+
+        return {
+            message: message,
+            rows: matchedRows.length > 0 ? matchedRows.concat(unmatchedRows) : allRows
+        };
     }
 
     async function fetchPublicKeyArmor(search) {
@@ -304,20 +483,34 @@
             throw new Error('OpenPGP.js is unavailable.');
         }
 
-        const keyInfo = await getCurrentUserPrivateKeyInfo(false);
-        if (!keyInfo) {
+        const keys = getManagedPrivateKeyRows(await loadCurrentUserKeys(false));
+        if (!keys.length) {
             throw new Error('No stored private key is available.');
         }
 
-        const privateKey = await getCurrentUserDecryptedPrivateKey(passphrase, false);
-        const message = await window.openpgp.readMessage({ armoredMessage: String(armoredText || '') });
-        const decrypted = await window.openpgp.decrypt({
-            message: message,
-            decryptionKeys: [privateKey],
-            format: 'utf8'
-        });
+        const selection = await findCandidatePrivateKeyRowsForMessage(armoredText, false);
+        let lastError = null;
 
-        return decrypted.data || '';
+        for (const row of selection.rows) {
+            try {
+                const privateKey = await getDecryptedPrivateKeyForRow(row, passphrase, false);
+                if (!privateKey) {
+                    continue;
+                }
+
+                const decrypted = await window.openpgp.decrypt({
+                    message: selection.message,
+                    decryptionKeys: [privateKey],
+                    format: 'utf8'
+                });
+
+                return decrypted.data || '';
+            } catch (error) {
+                lastError = error;
+            }
+        }
+
+        throw lastError || new Error('No stored private key is available.');
     }
 
     async function verifySignedMessage(armoredText, senderSearch) {
