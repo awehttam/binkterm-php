@@ -127,6 +127,24 @@ actually resolve to this BinktermPHP instance. In practice that usually means
 `openpgpkey.<your-domain>` needs DNS and web routing to this app, unless the
 site host itself already uses that name.
 
+Example using `mybbs.example.com` as the public Internet hostname of the BBS:
+
+```dns
+; Main HTTPS host used by the BBS itself
+mybbs.example.com.                 IN A      203.0.113.10
+
+; Optional HKPS SRV record used by remote FTN lookup
+_hkps._tcp.mybbs.example.com.      IN SRV    0 1 443 mybbs.example.com.
+
+; Optional WKD/OpenPGP discovery host if you want external clients
+; to use /.well-known/openpgpkey/.../hkps
+openpgpkey.example.com.            IN CNAME  mybbs.example.com.
+```
+
+If you publish a BinkP hostname for your node in nodelists, it should match the
+hostname remote systems are expected to use for PGP key lookup. In this example,
+that means the node's advertised BinkP host should also be `mybbs.example.com`.
+
 The authenticated compose UI also uses `GET /api/pgp/lookup` for destination-aware local-vs-remote key resolution.
 
 ## CLI Helper
