@@ -5030,7 +5030,7 @@ return [
     'ui.keyserver.manage_keys' => 'Administrar mis claves',
     'ui.keyserver.search_label' => 'Buscar',
     'ui.keyserver.search_placeholder' => 'Nombre de usuario, nombre real, correo o huella',
-    'ui.keyserver.search_help' => 'Busque en el directorio por nombre de cuenta, direccion de correo o huella completa.',
+    'ui.keyserver.search_help' => 'Busque por nombre de cuenta, direccion de correo, huella completa o una busqueda remota calificada como awehttam@227:1/200 o foobar@claudes.lovelybits.org.',
     'ui.keyserver.search_button' => 'Buscar',
     'ui.keyserver.results_heading' => 'Claves publicas',
     'ui.keyserver.col_user' => 'Usuario',

@@ -5027,7 +5027,7 @@ return [
     'ui.keyserver.manage_keys' => 'Gestisci le mie chiavi',
     'ui.keyserver.search_label' => 'Cerca',
     'ui.keyserver.search_placeholder' => 'Nome utente, nome reale, email o fingerprint',
-    'ui.keyserver.search_help' => 'Cerca nella directory pubblica per nome account, indirizzo email o fingerprint completo.',
+    'ui.keyserver.search_help' => 'Cerca per nome account, indirizzo email, fingerprint completo o una ricerca remota qualificata come awehttam@227:1/200 o foobar@claudes.lovelybits.org.',
     'ui.keyserver.search_button' => 'Cerca',
     'ui.keyserver.results_heading' => 'Chiavi pubbliche',
     'ui.keyserver.col_user' => 'Utente',

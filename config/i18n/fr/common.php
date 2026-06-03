@@ -4969,7 +4969,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.keyserver.manage_keys' => 'Gerer mes cles',
     'ui.keyserver.search_label' => 'Recherche',
     'ui.keyserver.search_placeholder' => 'Nom d\'utilisateur, nom reel, courriel ou empreinte',
-    'ui.keyserver.search_help' => 'Recherchez dans le repertoire public par nom de compte, adresse courriel ou empreinte complete.',
+    'ui.keyserver.search_help' => 'Recherchez par nom de compte, adresse courriel, empreinte complete ou recherche distante qualifiee comme awehttam@227:1/200 ou foobar@claudes.lovelybits.org.',
     'ui.keyserver.search_button' => 'Rechercher',
     'ui.keyserver.results_heading' => 'Cles publiques',
     'ui.keyserver.col_user' => 'Utilisateur',

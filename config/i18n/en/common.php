@@ -5064,7 +5064,7 @@ return [
     'ui.keyserver.manage_keys' => 'Manage My Keys',
     'ui.keyserver.search_label' => 'Search',
     'ui.keyserver.search_placeholder' => 'Username, real name, email, or fingerprint',
-    'ui.keyserver.search_help' => 'Search the public key directory by account name, email address, or full fingerprint.',
+    'ui.keyserver.search_help' => 'Search by account name, email address, full fingerprint, or a remote-qualified lookup such as awehttam@227:1/200 or foobar@claudes.lovelybits.org.',
     'ui.keyserver.search_button' => 'Search',
     'ui.keyserver.results_heading' => 'Public Keys',
     'ui.keyserver.col_user' => 'User',
