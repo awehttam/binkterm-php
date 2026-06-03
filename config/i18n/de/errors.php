@@ -89,6 +89,7 @@ return [
     'errors.pgp.decrypt_failed' => 'PGP-Nachricht konnte nicht entschlüsselt werden.',
     'errors.pgp.recipient_required' => 'Es konnte kein öffentlicher Schlüssel für den Empfänger ermittelt werden.',
     'errors.pgp.passphrase_required' => 'Bitte gib Deine PGP-Passphrase ein.',
+    'errors.pgp.private_key_required' => 'Zum Signieren ist ein verwalteter privater Schluessel erforderlich.',
 
     // Notify
     'errors.notify.user_id_missing' => 'Kann nicht aufgelöst werden: user session',

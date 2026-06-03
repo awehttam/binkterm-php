@@ -5045,6 +5045,7 @@ return [
     'ui.compose.pgp.encrypt_netmail_help' => 'Encrypts the message for the recipient using their published public key.',
     'ui.compose.pgp.sign_echomail' => 'Sign this echomail',
     'ui.compose.pgp.sign_echomail_help' => 'Signs the message with your stored managed private key.',
+    'ui.compose.pgp.encrypt_only_notice' => 'Netmail encryption only needs the recipient public key. Signing and decrypting require your managed private key.',
     'ui.compose.pgp.encrypt_recipient_label' => 'Recipient public key',
     'ui.compose.pgp.encrypt_recipient_help' => 'Choose the public key that will be used to encrypt this netmail.',
     'ui.compose.pgp.encrypt_recipient_placeholder' => 'Select the public key to encrypt to',

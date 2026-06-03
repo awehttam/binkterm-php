@@ -89,6 +89,7 @@ return [
     'errors.pgp.decrypt_failed' => 'Failed to decrypt PGP message.',
     'errors.pgp.recipient_required' => 'A recipient public key could not be resolved.',
     'errors.pgp.passphrase_required' => 'Enter your PGP passphrase.',
+    'errors.pgp.private_key_required' => 'A managed private key is required for signing.',
 
     // Notify
     'errors.notify.user_id_missing' => 'Unable to resolve user session',

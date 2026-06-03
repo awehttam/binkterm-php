@@ -89,6 +89,7 @@ return [
     'errors.pgp.decrypt_failed' => 'Impossibile decifrare il messaggio PGP.',
     'errors.pgp.recipient_required' => 'Impossibile risolvere una chiave pubblica per il destinatario.',
     'errors.pgp.passphrase_required' => 'Inserisci la tua passphrase PGP.',
+    'errors.pgp.private_key_required' => 'Per firmare e necessaria una chiave privata gestita.',
 
     // Notify
     'errors.notify.user_id_missing' => 'Impossibile risolvere la sessione utente',

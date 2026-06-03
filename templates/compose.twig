@@ -308,7 +308,7 @@
                     </div>
                 </div>
 
-                {% if pgp_enabled and pgp_managed_keys_enabled %}
+                {% if pgp_enabled %}
                 <div class="mb-3 d-none" id="pgpComposeSection">
                     <div class="card">
                         <div class="card-header">
@@ -919,7 +919,7 @@ function renderPgpRecipientSelector() {
 }
 
 async function refreshPgpRecipientCandidates(force) {
-    if (!pgpEnabled || !pgpManagedKeysEnabled || !window.PgpMessageSupport || !pgpComposeState.privateKeyAvailable) {
+    if (!pgpEnabled || !window.PgpMessageSupport) {
         return;
     }
 
@@ -976,7 +976,7 @@ async function refreshPgpRecipientCandidates(force) {
 
 async function initPgpComposeControls() {
     const section = document.getElementById('pgpComposeSection');
-    if (!section || !pgpEnabled || !pgpManagedKeysEnabled || !window.PgpMessageSupport) {
+    if (!section || !pgpEnabled || !window.PgpMessageSupport) {
         return;
     }
 
@@ -988,7 +988,12 @@ async function initPgpComposeControls() {
         });
         pgpComposeState.initialized = true;
 
-        if (!pgpComposeState.privateKeyAvailable) {
+        const isNetmailCompose = {{ type|json_encode|raw }} === 'netmail';
+        const isEchomailCompose = {{ type|json_encode|raw }} === 'echomail';
+        const canEncryptInCompose = isNetmailCompose;
+        const canSignInCompose = isEchomailCompose && pgpManagedKeysEnabled && pgpComposeState.privateKeyAvailable;
+
+        if (!canEncryptInCompose && !canSignInCompose) {
             section.classList.add('d-none');
             return;
         }
@@ -996,7 +1001,11 @@ async function initPgpComposeControls() {
         section.classList.remove('d-none');
         const notice = document.getElementById('pgpComposeNotice');
         if (notice) {
-            notice.textContent = uiT('ui.pgp.notice', 'PGP actions use your stored managed private key. If you only uploaded a public key, signing and decrypting are unavailable.');
+            if (canEncryptInCompose && !canSignInCompose) {
+                notice.textContent = uiT('ui.compose.pgp.encrypt_only_notice', 'Netmail encryption only needs the recipient public key. Signing and decrypting require your managed private key.');
+            } else {
+                notice.textContent = uiT('ui.pgp.notice', 'PGP actions use your stored managed private key. If you only uploaded a public key, signing and decrypting are unavailable.');
+            }
         }
 
         const encryptToggle = document.getElementById('pgpEncryptMessage');
@@ -1006,6 +1015,12 @@ async function initPgpComposeControls() {
 
         const signToggle = document.getElementById('pgpSignMessage');
         const passphraseGroup = document.getElementById('pgpPassphraseGroup');
+        if (signToggle) {
+            signToggle.disabled = !canSignInCompose;
+            if (!canSignInCompose) {
+                signToggle.checked = false;
+            }
+        }
         if (signToggle && passphraseGroup) {
             const syncPassphrase = function() {
                 passphraseGroup.style.display = signToggle.checked ? '' : 'none';
@@ -1080,11 +1095,11 @@ function bindPgpRecipientControls() {
 }
 
 async function preparePgpMessageForSend(messageType, messageText, composeData) {
-    if (pgpEnabled && pgpManagedKeysEnabled && window.PgpMessageSupport && !pgpComposeState.initialized) {
+    if (pgpEnabled && window.PgpMessageSupport && !pgpComposeState.initialized) {
         await initPgpComposeControls();
     }
 
-    if (!pgpEnabled || !pgpManagedKeysEnabled || !window.PgpMessageSupport || !pgpComposeState.initialized || !pgpComposeState.privateKeyAvailable) {
+    if (!pgpEnabled || !window.PgpMessageSupport || !pgpComposeState.initialized) {
         return { messageText, pgpMode: null };
     }
 
@@ -1105,6 +1120,9 @@ async function preparePgpMessageForSend(messageType, messageText, composeData) {
     }
 
     if (messageType === 'echomail' && $('#pgpSignMessage').length && $('#pgpSignMessage').is(':checked')) {
+        if (!pgpManagedKeysEnabled || !pgpComposeState.privateKeyAvailable) {
+            throw new Error(uiT('errors.pgp.private_key_required', 'A managed private key is required for signing.'));
+        }
         const passphrase = ($('#pgpPassphrase').val() || '').trim();
         if (!passphrase) {
             throw new Error(uiT('errors.pgp.passphrase_required', 'Enter your PGP passphrase.'));

@@ -65,6 +65,7 @@ return [
     'errors.pgp.decrypt_failed' => 'Impossible de dechiffrer le message PGP.',
     'errors.pgp.recipient_required' => 'Impossible de resoudre une cle publique pour le destinataire.',
     'errors.pgp.passphrase_required' => 'Saisissez votre phrase de passe PGP.',
+    'errors.pgp.private_key_required' => 'Une cle privee geree est requise pour signer.',
     'errors.notify.user_id_missing' => 'Impossible de résoudre la session utilisateur',
     'errors.notify.invalid_state' => 'Charge utile d\'état de notification invalide',
     'errors.notify.invalid_target' => 'Cible de notification invalide',

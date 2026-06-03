@@ -5011,6 +5011,7 @@ return [
     'ui.compose.pgp.encrypt_netmail_help' => 'Cifra el mensaje para el destinatario usando su clave pública publicada.',
     'ui.compose.pgp.sign_echomail' => 'Firmar este echomail',
     'ui.compose.pgp.sign_echomail_help' => 'Firma el mensaje con tu clave privada administrada almacenada.',
+    'ui.compose.pgp.encrypt_only_notice' => 'El cifrado de netmail solo necesita la clave publica del destinatario. Firmar y descifrar requieren tu clave privada administrada.',
     'ui.compose.pgp.encrypt_recipient_label' => 'Clave pública del destinatario',
     'ui.compose.pgp.encrypt_recipient_help' => 'Elige la clave pública que se usará para cifrar este netmail.',
     'ui.compose.pgp.encrypt_recipient_placeholder' => 'Seleccione la clave pública para cifrar',

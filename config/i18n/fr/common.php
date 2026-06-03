@@ -4950,6 +4950,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.compose.pgp.encrypt_netmail_help' => 'Chiffre le message pour le destinataire a l’aide de sa cle publique publiee.',
     'ui.compose.pgp.sign_echomail' => 'Signer cet echomail',
     'ui.compose.pgp.sign_echomail_help' => 'Signe le message avec votre cle privee geree stockee.',
+    'ui.compose.pgp.encrypt_only_notice' => 'Le chiffrement netmail a seulement besoin de la cle publique du destinataire. La signature et le dechiffrement exigent votre cle privee geree.',
     'ui.compose.pgp.encrypt_recipient_label' => 'Cle publique du destinataire',
     'ui.compose.pgp.encrypt_recipient_help' => 'Choisissez la cle publique qui sera utilisee pour chiffrer ce netmail.',
     'ui.compose.pgp.encrypt_recipient_placeholder' => 'Selectionnez la cle publique pour le chiffrement',
