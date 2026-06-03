@@ -30,6 +30,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - `.env` may now include `PIPE_CODE_PARSER_MODE` to control how BBS pipe color codes are recognized by the web renderer and terminal bulletin renderer.
 - A new developer reference document, `docs/PostgreSQLDependencies.md`, tracks intentional PostgreSQL-specific dependencies and where they currently live.
 - BinkP session logging now closes failed session rows more aggressively and retires orphaned `active` rows whose handler process has already exited, so the admin BinkP session view no longer treats dead pre-handshake sessions as long-running live connections.
+- The `user_settings.theme` column now allows up to 300 characters instead of 20 so custom theme stylesheet paths and longer theme identifiers can be stored without truncation.
 
 ---
 
@@ -117,6 +118,12 @@ Supported modes:
 - `loose` - restores broader legacy matching for testing and comparison.
 
 This change is primarily intended to improve compatibility with messages that contain decimal pipe color codes immediately followed by uppercase text, such as `|01A side of beans`, without forcing a code change when sysops want to compare parser behavior.
+
+### User Theme Length Increase
+
+The `user_settings.theme` column has been widened from `VARCHAR(20)` to `VARCHAR(300)`.
+
+This supports longer stored theme values, including custom stylesheet paths that exceed the previous 20-character limit.
 
 ### BinkP Session Log Cleanup
 
