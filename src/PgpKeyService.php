@@ -191,24 +191,52 @@ class PgpKeyService
         $sql = "
             SELECT k.fingerprint, k.armored_public_key, k.source, k.label, k.user_id_string, k.email,
                    k.key_algorithm, k.key_created_at, k.is_primary, k.created_at,
-                   u.id AS owner_user_id, u.username, u.real_name
+                   u.id AS owner_user_id, u.username, u.real_name, u.fidonet_address
             FROM user_pgp_keys k
             INNER JOIN users u ON u.id = k.user_id
         ";
 
         $params = [];
         if ($search !== '') {
-            $normalizedFingerprint = strtoupper(ltrim($search, '0x'));
-            $sql .= "
-                WHERE k.fingerprint = ?
-                   OR LOWER(u.username) LIKE LOWER(?)
-                   OR LOWER(u.real_name) LIKE LOWER(?)
-                   OR LOWER(COALESCE(k.email, '')) LIKE LOWER(?)
-                   OR LOWER(COALESCE(k.user_id_string, '')) LIKE LOWER(?)
-                   OR LOWER(COALESCE(k.label, '')) LIKE LOWER(?)
-            ";
-            $like = '%' . $search . '%';
-            $params = [$normalizedFingerprint, $like, $like, $like, $like, $like];
+            $qualified = $this->parseQualifiedLookupSearch($search);
+            if ($qualified !== null) {
+                $identityLike = '%' . $qualified['identity'] . '%';
+                $params = [$identityLike, $identityLike, $identityLike, $identityLike];
+
+                if ($qualified['type'] === 'host') {
+                    $sql .= "
+                        WHERE (
+                            LOWER(u.username) LIKE LOWER(?)
+                            OR LOWER(u.real_name) LIKE LOWER(?)
+                            OR LOWER(COALESCE(k.user_id_string, '')) LIKE LOWER(?)
+                            OR LOWER(COALESCE(k.label, '')) LIKE LOWER(?)
+                        )
+                    ";
+                } else {
+                    $sql .= "
+                        WHERE LOWER(COALESCE(u.fidonet_address, '')) = LOWER(?)
+                          AND (
+                              LOWER(u.username) LIKE LOWER(?)
+                              OR LOWER(u.real_name) LIKE LOWER(?)
+                              OR LOWER(COALESCE(k.user_id_string, '')) LIKE LOWER(?)
+                              OR LOWER(COALESCE(k.label, '')) LIKE LOWER(?)
+                          )
+                    ";
+                    array_unshift($params, $qualified['network']);
+                }
+            } else {
+                $normalizedFingerprint = strtoupper(ltrim($search, '0x'));
+                $sql .= "
+                    WHERE k.fingerprint = ?
+                       OR LOWER(u.username) LIKE LOWER(?)
+                       OR LOWER(u.real_name) LIKE LOWER(?)
+                       OR LOWER(COALESCE(k.email, '')) LIKE LOWER(?)
+                       OR LOWER(COALESCE(k.user_id_string, '')) LIKE LOWER(?)
+                       OR LOWER(COALESCE(k.label, '')) LIKE LOWER(?)
+                ";
+                $like = '%' . $search . '%';
+                $params = [$normalizedFingerprint, $like, $like, $like, $like, $like];
+            }
         }
 
         $sql .= " ORDER BY k.is_primary DESC, u.username ASC, k.created_at ASC LIMIT " . (int)$limit;
@@ -233,7 +261,7 @@ class PgpKeyService
             $stmt = $this->db->prepare("
                 SELECT k.fingerprint, k.armored_public_key, k.source, k.label, k.user_id_string, k.email,
                        k.key_algorithm, k.key_created_at, k.is_primary, k.created_at,
-                       u.id AS owner_user_id, u.username, u.real_name
+                       u.id AS owner_user_id, u.username, u.real_name, u.fidonet_address
                 FROM user_pgp_keys k
                 INNER JOIN users u ON u.id = k.user_id
                 WHERE k.fingerprint = ?
@@ -242,6 +270,14 @@ class PgpKeyService
             $stmt->execute([$normalizedFingerprint]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             return $row ? $this->normalizeKeyRow($row) : null;
+        }
+
+        $qualified = $this->parseQualifiedLookupSearch($search);
+        if ($qualified !== null) {
+            $row = $this->findPublicKeyByQualifiedLookup($qualified);
+            if ($row !== null) {
+                return $row;
+            }
         }
 
         $results = $this->searchPublicKeys($search, 1);
@@ -261,7 +297,7 @@ class PgpKeyService
         $stmt = $this->db->prepare("
             SELECT k.fingerprint, k.armored_public_key, k.source, k.label, k.user_id_string, k.email,
                    k.key_algorithm, k.key_created_at, k.is_primary, k.created_at,
-                   u.id AS owner_user_id, u.username, u.real_name
+                   u.id AS owner_user_id, u.username, u.real_name, u.fidonet_address
             FROM user_pgp_keys k
             INNER JOIN users u ON u.id = k.user_id
             WHERE LOWER(COALESCE(k.email, '')) = LOWER(?)
@@ -269,6 +305,112 @@ class PgpKeyService
             LIMIT 1
         ");
         $stmt->execute([$email]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ? $this->normalizeKeyRow($row) : null;
+    }
+
+    /**
+     * @return array{identity:string,network:string,type:string}|null
+     */
+    private function parseQualifiedLookupSearch(string $search): ?array
+    {
+        $search = trim($search);
+        $atPos = strrpos($search, '@');
+        if ($search === '' || $atPos === false || $atPos === 0 || $atPos === strlen($search) - 1) {
+            return null;
+        }
+
+        $identity = trim(substr($search, 0, $atPos));
+        $network = trim(substr($search, $atPos + 1));
+        if ($identity === '' || $network === '') {
+            return null;
+        }
+
+        if ($this->isFtnAddress($network)) {
+            return [
+                'identity' => $identity,
+                'network' => $network,
+                'type' => 'ftn',
+            ];
+        }
+
+        if ($this->looksLikeHostname($network)) {
+            return [
+                'identity' => $identity,
+                'network' => strtolower($network),
+                'type' => 'host',
+            ];
+        }
+
+        return null;
+    }
+
+    private function isFtnAddress(string $value): bool
+    {
+        return preg_match('/^[0-9]+:[0-9]+\/[0-9]+(?:\.[0-9]+)?$/', trim($value)) === 1;
+    }
+
+    private function getConfiguredSiteHost(): ?string
+    {
+        $siteUrl = Config::getSiteUrl();
+        $parts = parse_url($siteUrl);
+        $host = trim((string)($parts['host'] ?? ''));
+        return $host !== '' ? $host : null;
+    }
+
+    private function looksLikeHostname(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '' || str_contains($value, ' ')) {
+            return false;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) !== false) {
+            return true;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_IP) !== false;
+    }
+
+    /**
+     * @param array{identity:string,network:string,type:string} $qualified
+     * @return array<string, mixed>|null
+     */
+    private function findPublicKeyByQualifiedLookup(array $qualified): ?array
+    {
+        $sql = "
+            SELECT k.fingerprint, k.armored_public_key, k.source, k.label, k.user_id_string, k.email,
+                   k.key_algorithm, k.key_created_at, k.is_primary, k.created_at,
+                   u.id AS owner_user_id, u.username, u.real_name, u.fidonet_address
+            FROM user_pgp_keys k
+            INNER JOIN users u ON u.id = k.user_id
+        ";
+
+        $params = [];
+        if ($qualified['type'] === 'host') {
+            $sql .= "
+                WHERE LOWER(u.username) = LOWER(?)
+                   OR LOWER(u.real_name) = LOWER(?)
+                   OR LOWER(COALESCE(k.user_id_string, '')) = LOWER(?)
+            ";
+            $params = [$qualified['identity'], $qualified['identity'], $qualified['identity']];
+        } else {
+            $sql .= "
+                WHERE LOWER(COALESCE(u.fidonet_address, '')) = LOWER(?)
+                  AND (
+                      LOWER(u.username) = LOWER(?)
+                      OR LOWER(u.real_name) = LOWER(?)
+                      OR LOWER(COALESCE(k.user_id_string, '')) = LOWER(?)
+                  )
+            ";
+            $params = [$qualified['network'], $qualified['identity'], $qualified['identity'], $qualified['identity']];
+        }
+
+        $sql .= " ORDER BY k.is_primary DESC, k.created_at ASC, k.id ASC LIMIT 1";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $row ? $this->normalizeKeyRow($row) : null;

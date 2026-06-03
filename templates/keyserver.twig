@@ -51,10 +51,15 @@
                         {% for key in pgp_keys %}
                             <tr>
                                 <td>
-                                    <div class="fw-semibold">{{ key.real_name ?: key.username }}</div>
-                                    <div class="text-muted small">@{{ key.username }}</div>
+                                    <div class="fw-semibold">{{ key.real_name ?: key.user_id_string ?: key.username ?: key.fingerprint }}</div>
+                                    {% if key.username %}
+                                        <div class="text-muted small">@{{ key.username }}</div>
+                                    {% endif %}
                                     {% if key.email %}
                                         <div class="text-muted small">{{ key.email }}</div>
+                                    {% endif %}
+                                    {% if key.lookup_source and key.lookup_source != 'local' %}
+                                        <div class="text-muted small">{{ key.lookup_source }}</div>
                                     {% endif %}
                                 </td>
                                 <td>

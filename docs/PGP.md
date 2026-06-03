@@ -54,6 +54,19 @@ In this mode, users can still use the system as a public-key directory while doi
 their actual encryption and decryption locally with their own OpenPGP software and
 ASCII-armored messages.
 
+The public keyserver search is network-aware. In addition to plain username,
+real-name, email, and fingerprint searches, the `/keyserver` web UI also
+understands qualified forms such as:
+
+- `awehttam@claudes.lovelybits.org`
+- `awehttam@227:1/200`
+- `Firstname Lastname@1:153/150`
+
+When the suffix is a hostname, `/keyserver` performs a remote HKPS lookup against
+that host. When the suffix is an FTN address, `/keyserver` resolves the node from
+the nodelist and performs the same remote HKPS lookup flow used by encrypted
+netmail compose.
+
 When `Allow BBS-managed private keys` is also on:
 
 - the PGP settings page shows a managed-key generator

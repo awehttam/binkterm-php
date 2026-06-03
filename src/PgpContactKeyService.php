@@ -36,7 +36,10 @@ class PgpContactKeyService
 
         $label = $this->normalizeLabel($label);
 
-        $this->db->beginTransaction();
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
+        }
 
         try {
             $existingStmt = $this->db->prepare("
@@ -91,11 +94,13 @@ class PgpContactKeyService
             }
 
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            $this->db->commit();
+            if ($ownsTransaction && $this->db->inTransaction()) {
+                $this->db->commit();
+            }
 
             return $row ? $this->normalizeRow($row) : [];
         } catch (Throwable $e) {
-            if ($this->db->inTransaction()) {
+            if ($ownsTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             throw $e;

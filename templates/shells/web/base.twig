@@ -275,6 +275,9 @@
                                 {% if meshcore_nodes_available %}
                                 <li><a class="dropdown-item" href="/packetbbs-nodes"><i class="fas fa-broadcast-tower"></i> {{ t('ui.base.meshcore_nodes', {}, 'common') }}</a></li>
                                 {% endif %}
+                                {% if bbs_feature_enabled('pgp') %}
+                                <li><a class="dropdown-item" href="/keyserver"><i class="fas fa-key"></i> {{ t('ui.settings.pgp.heading', {}, 'common') }}</a></li>
+                                {% endif %}
                             </ul>
                         </li>
                         {% else %}

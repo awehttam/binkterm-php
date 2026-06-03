@@ -1112,8 +1112,8 @@ SimpleRouter::get('/keyserver', function() {
     $search = trim((string)($_GET['search'] ?? ''));
 
     try {
-        $service = new \BinktermPHP\PgpKeyService();
-        $results = $service->searchPublicKeys($search, $search === '' ? 100 : 200);
+        $service = new \BinktermPHP\PgpLookupService();
+        $results = $service->searchPublicKeysForKeyserverQuery($search);
     } catch (\Throwable $e) {
         $results = [];
     }

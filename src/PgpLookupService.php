@@ -37,6 +37,36 @@ class PgpLookupService
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function searchPublicKeysForKeyserverQuery(string $search): array
+    {
+        $search = trim($search);
+        if ($search === '') {
+            return $this->normalizeRows(
+                $this->localKeyService->searchPublicKeys('', 100),
+                'local',
+                false
+            );
+        }
+
+        $qualified = $this->parseQualifiedKeyserverSearch($search);
+        if ($qualified === null) {
+            return $this->normalizeRows(
+                $this->localKeyService->searchPublicKeys($search, 200),
+                'local',
+                false
+            );
+        }
+
+        if ($qualified['type'] === 'ftn') {
+            return $this->searchRemotePublicKeys($qualified['identity'], $qualified['network']);
+        }
+
+        return $this->searchRemotePublicKeysByHost($qualified['identity'], $qualified['network']);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function describeLookupTarget(string $address): array
@@ -133,6 +163,25 @@ class PgpLookupService
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function searchRemotePublicKeysByHost(string $search, string $hostname): array
+    {
+        $endpoint = $this->resolveHostKeyserverEndpoint($hostname);
+        if ($endpoint === null) {
+            return [];
+        }
+
+        $url = $endpoint['base_url'] . '?op=index&search=' . rawurlencode($search);
+        $response = $this->httpGet($url, $endpoint);
+        if ($response === null || $response === '') {
+            return [];
+        }
+
+        return $this->parseRemoteIndexResponse($response, $endpoint['source']);
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     private function findRemotePublicKey(string $search, string $address): ?array
@@ -178,6 +227,29 @@ class PgpLookupService
         }
 
         $hostname = trim((string)$routeInfo['hostname']);
+        if ($hostname === '') {
+            return null;
+        }
+
+        $srvEndpoint = $this->resolveSrvEndpoint($hostname);
+        if ($srvEndpoint !== null) {
+            return $srvEndpoint;
+        }
+
+        return [
+            'base_url' => 'https://' . $this->formatHostForUrl($hostname) . '/pks/lookup',
+            'host_header' => null,
+            'verify_tls' => true,
+            'source' => 'remote_host',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveHostKeyserverEndpoint(string $hostname): ?array
+    {
+        $hostname = trim($hostname);
         if ($hostname === '') {
             return null;
         }
@@ -404,6 +476,10 @@ class PgpLookupService
                     'key_algorithm' => $parts[2] ?? '',
                     'key_created_at' => $parts[3] ?? '',
                     'username' => $parts[4] ?? '',
+                    'real_name' => null,
+                    'email' => null,
+                    'label' => null,
+                    'is_primary' => false,
                     'user_id_string' => '',
                     'armored_public_key' => null,
                     'lookup_source' => $lookupSource,
@@ -415,10 +491,86 @@ class PgpLookupService
             }
 
             if (strpos($line, 'uid:') === 0 && !empty($results)) {
-                $results[array_key_last($results)]['user_id_string'] = trim(substr($line, 4));
+                $uid = trim(substr($line, 4));
+                $index = array_key_last($results);
+                $results[$index]['user_id_string'] = $uid;
+                $parsedUid = $this->parseUidString($uid);
+                if ($parsedUid['real_name'] !== null) {
+                    $results[$index]['real_name'] = $parsedUid['real_name'];
+                }
+                if ($parsedUid['email'] !== null) {
+                    $results[$index]['email'] = $parsedUid['email'];
+                }
             }
         }
 
         return $results;
+    }
+
+    /**
+     * @return array{identity:string,network:string,type:string}|null
+     */
+    private function parseQualifiedKeyserverSearch(string $search): ?array
+    {
+        $search = trim($search);
+        $atPos = strrpos($search, '@');
+        if ($search === '' || $atPos === false || $atPos === 0 || $atPos === strlen($search) - 1) {
+            return null;
+        }
+
+        $identity = trim(substr($search, 0, $atPos));
+        $network = trim(substr($search, $atPos + 1));
+        if ($identity === '' || $network === '') {
+            return null;
+        }
+
+        if (preg_match('/^[0-9]+:[0-9]+\/[0-9]+(?:\.[0-9]+)?$/', $network) === 1) {
+            return [
+                'identity' => $identity,
+                'network' => $network,
+                'type' => 'ftn',
+            ];
+        }
+
+        if (filter_var($network, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) !== false
+            || filter_var($network, FILTER_VALIDATE_IP) !== false) {
+            return [
+                'identity' => $identity,
+                'network' => strtolower($network),
+                'type' => 'host',
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{real_name:?string,email:?string}
+     */
+    private function parseUidString(string $uid): array
+    {
+        $uid = trim($uid);
+        if ($uid === '') {
+            return ['real_name' => null, 'email' => null];
+        }
+
+        $realName = $uid;
+        $email = null;
+        if (preg_match('/^(.*?)\s*<([^>]+)>$/', $uid, $matches)) {
+            $realName = trim((string)$matches[1]);
+            $email = trim((string)$matches[2]);
+        }
+
+        if ($realName === '') {
+            $realName = null;
+        }
+        if ($email === '') {
+            $email = null;
+        }
+
+        return [
+            'real_name' => $realName,
+            'email' => $email,
+        ];
     }
 }
