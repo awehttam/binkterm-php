@@ -72,7 +72,6 @@ When `Allow BBS-managed private keys` is also on:
 - the PGP settings page shows a managed-key generator
 - generated private keys are handled by the browser and stored by the BBS in encrypted form
 - users can retrieve their stored private key material later from their account key list
-- users can encrypt outgoing netmail to a recipient's preferred public key from the compose screen
 - users can sign outgoing echomail with their stored private key from the compose screen
 - readers can decrypt encrypted netmail or verify signed echomail in the message viewer
 
@@ -84,11 +83,23 @@ When decrypting, the reader inspects the encrypted message's recipient key IDs a
 prefers the matching managed private key. If no direct match is found, it falls
 back to the other stored managed private keys for the account.
 
+Signed-message verification in the reader is intentionally private-keyring driven
+for remote correspondents. The browser first checks the authenticated user's saved
+correspondent/address-book keys and does not perform remote HKPS lookups during
+signature verification. If the sender is local to this BBS, verification can also
+fall back to the local published public-key store.
+
 If managed keys are disabled, the PGP tab still works for public-key upload and preferred-key selection, but the generator section is replaced with a notice.
 
-If `Allow BBS-managed private keys` is off, the server does not provide the stored private key material needed for browser-side signing or decryption. In that mode, users can still publish public keys and choose a primary key, but the compose and reader-side PGP message handling stays disabled.
+If `Allow BBS-managed private keys` is off, the server does not provide the stored private key material needed for browser-side signing or decryption. In that mode, users can still publish public keys and choose a primary key, and they can still encrypt outgoing netmail to a published recipient public key from the compose screen, but browser-side signing and reader-side decryption stay unavailable.
 
 ## Compose Lookup
+
+The compose form exposes its PGP controls inside **Advanced Options**.
+
+- on netmail compose, users can enable encryption there
+- on echomail compose, users can enable signing there
+- signing still prompts for the managed-key passphrase when needed
 
 Netmail encryption uses the compose form's recipient lookup. The browser searches for public keys using the text in the recipient fields and shows an explicit selector before the message is encrypted.
 
@@ -116,7 +127,7 @@ Remote HKP requests use a 3-second timeout so compose does not stall for long on
 
 Saved correspondent keys are private to the owning user account. They are not published on `/pks/lookup` and do not change the user's preferred public key on the keyserver.
 
-The compose screen only shows the recipient selector when managed private keys are enabled, because the netmail encryption and echomail signing flows depend on browser-side access to the stored private key.
+Netmail encryption does not require the sender to have a managed private key. It only needs the selected recipient public key. Echomail signing still requires the sender's managed private key and passphrase because the browser must unlock the stored private key material to create the signature.
 
 ## Public Endpoints
 
@@ -178,7 +189,7 @@ is useful for testing node resolution and HKPS discovery outside the browser.
 - If the PGP tab is missing from user settings, confirm that `Enable PGP` is on.
 - If users can upload keys but cannot generate managed keys, confirm that `Allow BBS-managed private keys` is on.
 - Changing the preferred key affects which key is published and used as the user's primary public key.
-- Netmail encryption and echomail signing both require managed private keys. If you leave managed keys disabled, those compose and reader features stay hidden.
+- Netmail encryption only requires the recipient public key. Echomail signing and reader-side decryption require managed private keys. If you leave managed keys disabled, the signing and decrypt flows stay unavailable, but users can still use compose-time netmail encryption against published recipient keys.
 - If users see address-book results but not local user matches in the compose autocomplete, confirm the address-book search route is returning both saved entries and local-user matches.
 
 ## Administration Checklist

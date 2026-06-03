@@ -144,6 +144,35 @@ class PgpLookupService
     }
 
     /**
+     * Verification lookup prefers the authenticated user's saved correspondent keys
+     * and never performs remote network requests.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findPublicKeyForVerification(string $search, string $address = '', ?int $userId = null): ?array
+    {
+        $search = trim($search);
+        $address = trim($address);
+        if ($search === '') {
+            return null;
+        }
+
+        if ($userId !== null && $userId > 0) {
+            $savedKey = $this->contactKeyService->findPublicKeyForUser($userId, $search, $address);
+            if ($savedKey !== null) {
+                return $this->normalizeRow($savedKey, 'saved_contact', true);
+            }
+        }
+
+        if ($this->isLocalAddress($address)) {
+            $row = $this->localKeyService->findPublicKey($search);
+            return $row ? $this->normalizeRow($row, 'local', true) : null;
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function searchRemotePublicKeys(string $search, string $address): array

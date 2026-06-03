@@ -7958,6 +7958,7 @@ Performs destination-aware public-key lookup for the compose UI. Local destinati
 | `search` | string | Yes | Key fingerprint or search text |
 | `address` | string | No | Destination FTN address; blank means local delivery |
 | `op` | string | No | `index` (default) for a candidate list or `get` for one armored key |
+| `mode` | string | No | `compose` (default) for destination-aware compose lookup, or `verify` for message-signature verification that checks saved correspondent keys and never performs remote HKPS lookup |
 
 **Response** _(JSON, `op=index`)_
 

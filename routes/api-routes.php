@@ -9377,6 +9377,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $search = trim((string)($_GET['search'] ?? ''));
         $address = trim((string)($_GET['address'] ?? ''));
         $op = strtolower(trim((string)($_GET['op'] ?? 'index')));
+        $mode = strtolower(trim((string)($_GET['mode'] ?? 'compose')));
 
         try {
             $service = new \BinktermPHP\PgpLookupService();
@@ -9384,7 +9385,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
 
             if ($op === 'get') {
-                $key = $service->findPublicKeyForDestination($search, $address, $userId);
+                $key = ($mode === 'verify')
+                    ? $service->findPublicKeyForVerification($search, $address, $userId)
+                    : $service->findPublicKeyForDestination($search, $address, $userId);
                 echo json_encode([
                     'success' => true,
                     'is_local_address' => $isLocalAddress,

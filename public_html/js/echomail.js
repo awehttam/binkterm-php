@@ -2063,7 +2063,11 @@ function renderEchomailPgpState(message, parsedMessage) {
     const body = parsedMessage && parsedMessage.messageBody ? parsedMessage.messageBody : (message.message_text || '');
     if (window.PgpMessageSupport.isCleartextSigned(body)) {
         container.innerHTML = '<span class="badge bg-secondary">' + uiT('ui.pgp.verifying', 'Verifying PGP signature...') + '</span>';
-        void window.PgpMessageSupport.verifySignedMessage(body, message.from_name || message.replyto_name || '')
+        void window.PgpMessageSupport.verifySignedMessage(
+            body,
+            message.from_name || message.replyto_name || '',
+            message.from_address || ''
+        )
             .then(function(result) {
                 if (result && result.verified) {
                     container.innerHTML = '<span class="badge bg-success">' + uiT('ui.pgp.verified', 'PGP signature verified') + '</span>';

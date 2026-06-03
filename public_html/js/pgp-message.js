@@ -350,6 +350,32 @@
         return response;
     }
 
+    async function fetchVerificationPublicKeyArmor(search, senderAddress) {
+        const normalizedSearch = String(search || '').trim();
+        const normalizedAddress = String(senderAddress || '').trim();
+        if (!normalizedSearch) {
+            return null;
+        }
+
+        const cacheKey = 'verify-key:' + normalizedAddress.toLowerCase() + ':' + normalizedSearch.toLowerCase();
+        if (state.publicKeyCache.has(cacheKey)) {
+            return state.publicKeyCache.get(cacheKey);
+        }
+
+        const data = await fetchJson('/api/pgp/lookup?op=get&mode=verify&search='
+            + encodeURIComponent(normalizedSearch)
+            + '&address=' + encodeURIComponent(normalizedAddress));
+        const armored = (data && data.key && data.key.armored_public_key)
+            ? String(data.key.armored_public_key)
+            : '';
+        if (!armored || armored.indexOf('BEGIN PGP PUBLIC KEY BLOCK') === -1) {
+            return null;
+        }
+
+        state.publicKeyCache.set(cacheKey, armored);
+        return armored;
+    }
+
     async function fetchPublicKeyCandidates(search) {
         const normalizedSearch = String(search || '').trim();
         if (!normalizedSearch) {
@@ -513,12 +539,12 @@
         throw lastError || new Error('No stored private key is available.');
     }
 
-    async function verifySignedMessage(armoredText, senderSearch) {
+    async function verifySignedMessage(armoredText, senderSearch, senderAddress) {
         if (!hasOpenPgp()) {
             throw new Error('OpenPGP.js is unavailable.');
         }
 
-        const publicKeyArmor = await fetchPublicKeyArmor(senderSearch);
+        const publicKeyArmor = await fetchVerificationPublicKeyArmor(senderSearch, senderAddress);
         if (!publicKeyArmor) {
             return {
                 verified: false,
@@ -555,6 +581,7 @@
         getCurrentUserPrivateKeyInfo: getCurrentUserPrivateKeyInfo,
         getCurrentUserDecryptedPrivateKey: getCurrentUserDecryptedPrivateKey,
         fetchPublicKeyArmor: fetchPublicKeyArmor,
+        fetchVerificationPublicKeyArmor: fetchVerificationPublicKeyArmor,
         fetchPublicKeyCandidates: fetchPublicKeyCandidates,
         fetchComposePublicKeyCandidates: fetchComposePublicKeyCandidates,
         fetchComposePublicKeyArmor: fetchComposePublicKeyArmor,
