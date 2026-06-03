@@ -1074,22 +1074,22 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
 
     const html = `
         <div class="message-header-full mb-3">
-            <div class="row align-items-center">
-                <div class="col-md-6 d-flex align-items-center gap-1 flex-wrap">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center gap-1 flex-wrap">
                     <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer;">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
+                    </div>
+                    <div class="mt-2">
+                        <strong>${uiT('ui.common.date_label', 'Date:')}</strong> <span title="${uiT('ui.common.sent_prefix', 'Sent:')} ${formatFullDate(message.date_written)}">${formatFullDate(message.date_received)}</span>
+                    </div>
                 </div>
-                <div class="col-md-6 text-end">
+                <div class="col-md-6 mt-2 mt-md-0">
                     <strong>${uiT('ui.common.to_label', 'To:')}</strong> ${escapeHtml(message.to_name)}
                     <small class="text-muted ms-2">${formatFidonetAddress(message.to_address, message.to_system_name)}</small>
-                </div>
-            </div>
-            <div class="row mt-2">
-                <div class="col-md-6">
-                    <strong>${uiT('ui.common.date_label', 'Date:')}</strong> <span title="${uiT('ui.common.sent_prefix', 'Sent:')} ${formatFullDate(message.date_written)}">${formatFullDate(message.date_received)}</span>
-                </div>
-                <div class="col-md-6">
+                    <div class="mt-2">
                     <strong>${uiT('ui.common.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}
+                    </div>
                 </div>
             </div>
             <div class="row mt-2 align-items-center">
