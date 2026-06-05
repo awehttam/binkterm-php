@@ -1193,7 +1193,7 @@ SimpleRouter::get('/pks/lookup/v1/get/{search}', function($search) {
 
     header('Content-Type: application/openpgp-keys');
     echo (string)$key['armored_public_key'];
-})->where(['search' => '[^/]+']);
+})->where(['search' => '[^\/]+']);
 
 SimpleRouter::get('/.well-known/openpgpkey/{domain}/hkps', function($domain) {
     if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
