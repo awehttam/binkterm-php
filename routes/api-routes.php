@@ -12958,7 +12958,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: image/svg+xml');
         header('Cache-Control: public, max-age=3600');
         $handle = $node['handle'] ?? $node['node_id'];
-        echo $service->getQrCodeSvg((string)$handle, (string)$node['node_id']);
+        $publicKey = $node['public_key'] ?? $node['node_id'];
+        echo $service->getQrCodeSvg((string)$handle, (string)$publicKey);
     })->where(['id' => '[0-9]+']);
 
 });
