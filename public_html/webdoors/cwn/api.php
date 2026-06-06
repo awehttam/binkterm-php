@@ -181,7 +181,7 @@ function handleGetNetwork($db)
 {
     $id = (int)($_GET['id'] ?? 0);
 
-    if ($id <= 0) {
+    if ($id === 0) {
         throw new Exception('Invalid network ID');
     }
 
