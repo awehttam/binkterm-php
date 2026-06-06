@@ -21,16 +21,20 @@ class PacketBbsNodeService
     /** All nodes ordered: mapped first, then unmapped. */
     public function getPublicNodes(): array
     {
-        $stmt = $this->db->query($this->buildEffectiveNodeQuery() . '
-              ORDER BY (lat IS NOT NULL AND lon IS NOT NULL) DESC, id ASC');
+        $stmt = $this->db->query(
+            'SELECT * FROM (' . $this->buildEffectiveNodeQuery() . ') AS packet_bbs_node_view
+              ORDER BY (lat IS NOT NULL AND lon IS NOT NULL) DESC, id ASC'
+        );
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     /** Nodes with lat/lon set, for map layers. */
     public function getMappableNodes(): array
     {
-        $stmt = $this->db->query($this->buildEffectiveNodeQuery() . '
-              WHERE lat IS NOT NULL AND lon IS NOT NULL');
+        $stmt = $this->db->query(
+            'SELECT * FROM (' . $this->buildEffectiveNodeQuery() . ') AS packet_bbs_node_view
+              WHERE lat IS NOT NULL AND lon IS NOT NULL'
+        );
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
@@ -44,7 +48,7 @@ class PacketBbsNodeService
     public function getNodeById(int $id): ?array
     {
         $stmt = $this->db->prepare(
-            $this->buildEffectiveNodeQuery() . '
+            'SELECT * FROM (' . $this->buildEffectiveNodeQuery() . ') AS packet_bbs_node_view
               WHERE id = ?'
         );
         $stmt->execute([$id]);
