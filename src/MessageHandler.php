@@ -406,10 +406,33 @@ class MessageHandler
         $filterClause = "";
         $filterParams = [];
         
+        $needsReadJoin = true;
+        $readSelectSql = "CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read";
+
         if ($filter === 'unread' && $userId) {
-            $filterClause = " AND mrs.read_at IS NULL";
+            $needsReadJoin = false;
+            $readSelectSql = "0 as is_read";
+            $filterClause = " AND NOT EXISTS (
+                SELECT 1
+                FROM message_read_status mrs_filter
+                WHERE mrs_filter.user_id = ?
+                  AND mrs_filter.message_type = 'echomail'
+                  AND mrs_filter.message_id = em.id
+                  AND mrs_filter.read_at IS NOT NULL
+            )";
+            $filterParams[] = $userId;
         } elseif ($filter === 'read' && $userId) {
-            $filterClause = " AND mrs.read_at IS NOT NULL";
+            $needsReadJoin = false;
+            $readSelectSql = "1 as is_read";
+            $filterClause = " AND EXISTS (
+                SELECT 1
+                FROM message_read_status mrs_filter
+                WHERE mrs_filter.user_id = ?
+                  AND mrs_filter.message_type = 'echomail'
+                  AND mrs_filter.message_id = em.id
+                  AND mrs_filter.read_at IS NOT NULL
+            )";
+            $filterParams[] = $userId;
         } elseif ($filter === 'tome' && $userId) {
             $user = $this->getUserById($userId);
             if ($user) {
@@ -635,10 +658,33 @@ class MessageHandler
         $filterClause = "";
         $filterParams = [];
 
+        $needsReadJoin = true;
+        $readSelectSql = "CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read";
+
         if ($filter === 'unread') {
-            $filterClause = " AND mrs.read_at IS NULL";
+            $needsReadJoin = false;
+            $readSelectSql = "0 as is_read";
+            $filterClause = " AND NOT EXISTS (
+                SELECT 1
+                FROM message_read_status mrs_filter
+                WHERE mrs_filter.user_id = ?
+                  AND mrs_filter.message_type = 'echomail'
+                  AND mrs_filter.message_id = em.id
+                  AND mrs_filter.read_at IS NOT NULL
+            )";
+            $filterParams[] = $userId;
         } elseif ($filter === 'read') {
-            $filterClause = " AND mrs.read_at IS NOT NULL";
+            $needsReadJoin = false;
+            $readSelectSql = "1 as is_read";
+            $filterClause = " AND EXISTS (
+                SELECT 1
+                FROM message_read_status mrs_filter
+                WHERE mrs_filter.user_id = ?
+                  AND mrs_filter.message_type = 'echomail'
+                  AND mrs_filter.message_id = em.id
+                  AND mrs_filter.read_at IS NOT NULL
+            )";
+            $filterParams[] = $userId;
         } elseif ($filter === 'tome') {
             $user = $this->getUserById($userId);
             if ($user) {
@@ -673,25 +719,33 @@ class MessageHandler
             default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
         };
 
+        $readJoinSql = $needsReadJoin
+            ? "\n            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)"
+            : '';
+
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
                    em.message_id, em.reply_to_id,
                    ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
-                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   {$readSelectSql},
                    CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            {$readJoinSql}
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            WHERE em.echoarea_id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
             ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
 
-        $params = [$userId, $userId];
+        $params = [];
+        if ($needsReadJoin) {
+            $params[] = $userId;
+        }
+        $params[] = $userId;
         $params = array_merge($params, $echoareaIds);
         foreach ($filterParams as $param) {
             $params[] = $param;
@@ -709,7 +763,7 @@ class MessageHandler
         // filter actually depends on it so the common "all" path avoids extra work.
         $countJoinSql = '';
         $countParams = [];
-        if ($filter === 'unread' || $filter === 'read') {
+        if (($filter === 'unread' || $filter === 'read') && $needsReadJoin) {
             $countJoinSql .= "
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)";
             $countParams[] = $userId;
@@ -723,7 +777,7 @@ class MessageHandler
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id{$countJoinSql}
-            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            WHERE em.echoarea_id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
         ");
 
         $countParams = array_merge($countParams, $echoareaIds);
@@ -5444,10 +5498,33 @@ class MessageHandler
         $filterClause = "";
         $filterParams = [];
         
+        $needsReadJoin = true;
+        $readSelectSql = "CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read";
+
         if ($filter === 'unread' && $userId) {
-            $filterClause = " AND mrs.read_at IS NULL";
+            $needsReadJoin = false;
+            $readSelectSql = "0 as is_read";
+            $filterClause = " AND NOT EXISTS (
+                SELECT 1
+                FROM message_read_status mrs_filter
+                WHERE mrs_filter.user_id = ?
+                  AND mrs_filter.message_type = 'echomail'
+                  AND mrs_filter.message_id = em.id
+                  AND mrs_filter.read_at IS NOT NULL
+            )";
+            $filterParams[] = $userId;
         } elseif ($filter === 'read' && $userId) {
-            $filterClause = " AND mrs.read_at IS NOT NULL";
+            $needsReadJoin = false;
+            $readSelectSql = "1 as is_read";
+            $filterClause = " AND EXISTS (
+                SELECT 1
+                FROM message_read_status mrs_filter
+                WHERE mrs_filter.user_id = ?
+                  AND mrs_filter.message_type = 'echomail'
+                  AND mrs_filter.message_id = em.id
+                  AND mrs_filter.read_at IS NOT NULL
+            )";
+            $filterParams[] = $userId;
         } elseif ($filter === 'tome' && $userId) {
             $user = $this->getUserById($userId);
             if ($user) {
@@ -5484,25 +5561,33 @@ class MessageHandler
             default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
         };
 
+        $readJoinSql = $needsReadJoin
+            ? "\n            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)"
+            : '';
+
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
                    em.message_id, em.reply_to_id,
                    ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
-                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   {$readSelectSql},
                    CASE WHEN EXISTS (SELECT 1 FROM shared_messages WHERE message_id = em.id AND message_type = 'echomail' AND is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            {$readJoinSql}
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            WHERE em.echoarea_id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
             ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
 
-        $params = [$userId, $userId];
+        $params = [];
+        if ($needsReadJoin) {
+            $params[] = $userId;
+        }
+        $params[] = $userId;
         $params = array_merge($params, $echoareaIds);
         foreach ($filterParams as $param) {
             $params[] = $param;
@@ -5543,12 +5628,16 @@ class MessageHandler
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            {$readJoinSql}
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            WHERE em.echoarea_id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
         ");
-        
-        $countParams = [$userId, $userId];
+
+        $countParams = [];
+        if ($needsReadJoin) {
+            $countParams[] = $userId;
+        }
+        $countParams[] = $userId;
         $countParams = array_merge($countParams, $echoareaIds);
         foreach ($filterParams as $param) {
             $countParams[] = $param;
