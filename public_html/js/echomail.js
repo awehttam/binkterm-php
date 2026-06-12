@@ -40,6 +40,7 @@ let statsCacheData = null;
 let statsCacheFetchedAt = 0;
 let statsRequestKey = null;
 let statsRequestPromise = null;
+let echomailRefreshPromise = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -101,9 +102,8 @@ $(document).ready(function() {
         const messageParam = urlParams.get('message');
         requestedMessageId = messageParam && /^\d+$/.test(messageParam) ? parseInt(messageParam, 10) : null;
 
-        loadEchoareas();
-
         if (searchQuery) {
+            refreshEchomailView({ reloadMessages: false });
             // Populate search input and trigger search
             $('#searchInput').val(searchQuery);
             $('#mobileSearchInput').val(searchQuery);
@@ -114,8 +114,10 @@ $(document).ready(function() {
             if (echoPageMemory[memKey]) {
                 currentPage = echoPageMemory[memKey];
             }
-            loadMessages(function() {
-                openRequestedMessage();
+            refreshEchomailView({
+                messageCallback: function() {
+                    openRequestedMessage();
+                }
             });
         }
     });
@@ -216,10 +218,11 @@ $(document).ready(function() {
             // Only refresh if the page was hidden for more than 30 seconds.
             if (Date.now() - _hiddenAt >= 30000) {
                 if (!isSearchActive) {
-                    loadMessages(null, true);
+                    refreshEchomailView({ silentMessages: true });
+                } else {
+                    loadStats();
+                    loadEchoareas();
                 }
-                loadStats();
-                loadEchoareas();
             }
             _hiddenAt = null;
         }
@@ -233,10 +236,11 @@ $(document).ready(function() {
             clearTimeout(_dashboardRefreshTimer);
             _dashboardRefreshTimer = setTimeout(function() {
                 if (!isSearchActive) {
-                    loadMessages(null, true);
+                    refreshEchomailView({ silentMessages: true });
+                } else {
+                    loadStats();
+                    loadEchoareas();
                 }
-                loadStats();
-                loadEchoareas();
             }, 2000);
         });
 
@@ -280,8 +284,55 @@ function cleanupMessageModalMedia() {
     });
 }
 
+function refreshEchomailView(options = {}) {
+    const silentMessages = options.silentMessages === true;
+    const reloadMessages = options.reloadMessages !== false;
+    const reloadEchoareas = options.reloadEchoareas !== false;
+    const messageCallback = typeof options.messageCallback === 'function' ? options.messageCallback : null;
+
+    if (echomailRefreshPromise) {
+        return echomailRefreshPromise;
+    }
+
+    echomailRefreshPromise = new Promise(function(resolve) {
+        let pending = 0;
+
+        function track(req) {
+            pending++;
+            if (req && typeof req.always === 'function') {
+                req.always(done);
+            } else {
+                done();
+            }
+        }
+
+        function done() {
+            pending--;
+            if (pending <= 0) {
+                echomailRefreshPromise = null;
+                resolve();
+            }
+        }
+
+        if (reloadEchoareas) {
+            track(loadEchoareas());
+        }
+
+        if (reloadMessages) {
+            track(loadMessages(messageCallback, silentMessages));
+        }
+
+        if (pending === 0) {
+            echomailRefreshPromise = null;
+            resolve();
+        }
+    });
+
+    return echomailRefreshPromise;
+}
+
 function loadEchoareas(callback) {
-    $.get('/api/echoareas?subscribed_only=true')
+    return $.get('/api/echoareas?subscribed_only=true')
         .done(function(data) {
             allEchoareas = data.echoareas;
             applyEchoareaFilter();
@@ -774,12 +825,11 @@ function loadMessages(callback, silent = false) {
 
     if (currentFilter === 'drafts') {
         // Load drafts instead of regular messages
-        loadDrafts();
-        return;
+        return loadDrafts();
     }
 
     if (currentConversationMessageId) {
-        $.get(`/api/messages/echomail/message/${currentConversationMessageId}/conversation`)
+        return $.get(`/api/messages/echomail/message/${currentConversationMessageId}/conversation`)
             .done(function(data) {
                 displayMessages(data.messages, true);
                 updatePagination(data.pagination);
@@ -808,7 +858,7 @@ function loadMessages(callback, silent = false) {
         url += '&threaded=true';
     }
 
-    $.get(url)
+    return $.get(url)
         .done(function(data) {
             // If the saved page is beyond the last page, reset to page 1 and reload
             if (currentPage > 1 && data.messages && data.messages.length === 0 && data.pagination && data.pagination.pages < currentPage) {
@@ -836,7 +886,7 @@ function loadMessages(callback, silent = false) {
 }
 
 function loadDrafts() {
-    $.get('/api/messages/drafts?type=echomail')
+    return $.get('/api/messages/drafts?type=echomail')
         .done(function(data) {
             if (data.success) {
                 displayDrafts(data.drafts);
@@ -2617,8 +2667,7 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
 window.addEventListener('popstate', function(event) {
     if (event.state && event.state.echoarea !== undefined) {
         currentEchoarea = event.state.echoarea;
-        loadEchoareas();
-        loadMessages();
+        refreshEchomailView();
     }
 });
 
@@ -2791,9 +2840,7 @@ function markSelectedAsRead() {
                     : (response.message || uiT('ui.echomail.bulk_mark_read_success', 'Marked {count} message(s) as read', { count: markedCount })));
                 clearSelection();
                 invalidateStatsCache();
-                loadMessages();
-                loadStats();
-                loadEchoareas();
+                refreshEchomailView();
             } else {
                 showError(apiError(response, uiT('errors.messages.echomail.bulk_read.failed', 'Failed to mark messages as read')));
             }
@@ -2867,9 +2914,7 @@ function deleteSelectedMessages() {
                     : (response.message || uiT('ui.echomail.bulk_delete.success', 'Deleted {count} message(s)', { count: deletedCount })));
                 clearSelection();
                 invalidateStatsCache();
-                loadMessages(); // Reload messages
-                loadStats(); // Update statistics
-                loadEchoareas(); // Update sidebar unread badges
+                refreshEchomailView();
             } else {
                 showError(apiError(response, uiT('ui.echomail.bulk_delete.failed', 'Failed to delete messages')));
             }
