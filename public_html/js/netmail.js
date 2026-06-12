@@ -854,9 +854,6 @@ function viewMessage(messageId) {
     // Update navigation buttons
     updateNavigationButtons();
 
-    // Mark as read immediately
-    markMessageAsRead(messageId);
-
     // Add history entry for mobile back button support
     if (!history.state || history.state.modal !== 'message') {
         history.pushState({modal: 'message', messageId: messageId}, '', '');
@@ -875,6 +872,7 @@ function viewMessage(messageId) {
     $.get(`/api/messages/netmail/${messageId}`)
         .done(function(data) {
             displayMessageContent(data);
+            markMessageAsRead(messageId);
         })
         .fail(function() {
             $('#messageContent').html(`<div class="text-danger">${uiT('errors.messages.netmail.get_failed', 'Failed to load message')}</div>`);
@@ -2156,9 +2154,6 @@ function navigateMessage(direction) {
     // Update navigation buttons
     updateNavigationButtons();
 
-    // Mark as read immediately
-    markMessageAsRead(newMessage.id);
-
     // Show loading
     $('#messageContent').html(`
         <div class="loading-spinner">
@@ -2171,6 +2166,7 @@ function navigateMessage(direction) {
     $.get(`/api/messages/netmail/${newMessage.id}`)
         .done(function(data) {
             displayMessageContent(data);
+            markMessageAsRead(newMessage.id);
             // Auto-scroll to top of modal content
             $('#messageModal .modal-body').scrollTop(0);
         })

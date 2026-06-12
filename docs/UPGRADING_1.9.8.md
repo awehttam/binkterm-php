@@ -21,6 +21,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
+- MeshCore repeater adverts are now stored in a dedicated `meshcore_node_adverts` table keyed by full public key. The CWN map/list and the public PacketBBS node directory still show MeshCore nodes after upgrade, but live advert writes no longer go into `cwn_networks`.
 
 ### Developer / Infrastructure
 
@@ -72,6 +73,20 @@ The compose page now also uses the public-key directory for netmail encryption l
 - saved address-book entries, including local-user matches surfaced by the address-book search API
 
 If the compose autocomplete only shows saved contacts and not local users, make sure the address-book search route is returning both data sources. The current implementation exposes both through `GET /api/address-book?search=...` and the legacy `/api/address-book/search/{query}` alias.
+
+### MeshCore Advert Storage Refactor
+
+MeshCore repeater advert ingest no longer writes directly into `cwn_networks`.
+
+Instead:
+
+- live repeater adverts are written to `meshcore_node_adverts`
+- `packet_bbs_nodes` gains a nullable `public_key` column so registered MeshCore bridge nodes can be linked to their live advert rows
+- the CWN WebDoor now reads manual CWN rows plus live MeshCore advert rows through a projected union
+
+During `php scripts/setup.php`, the new migration backfills existing legacy `cwn_networks.source_type = 'meshcore'` rows into `meshcore_node_adverts`. Manual CWN submissions stay in `cwn_networks` unchanged.
+
+If you use MeshCore or PacketBBS bridge nodes, make sure `php scripts/setup.php` completes successfully before letting the bridge send fresh adverts. Until the migration has run, the new advert endpoint will not have its destination table available.
 
 ## Developer / Infrastructure
 

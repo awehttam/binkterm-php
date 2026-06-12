@@ -1470,9 +1470,6 @@ function viewMessage(messageId) {
         history.pushState({modal: 'message', messageId: messageId}, '', '');
     }
 
-    // Mark as read immediately
-    markEchomailAsRead(messageId);
-
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
@@ -1494,6 +1491,7 @@ function viewMessage(messageId) {
     $.get(apiUrl)
         .done(function(data) {
             displayMessageContent(data);
+            markEchomailAsRead(messageId);
             // Auto-scroll to top of modal content
             $('#messageModal .modal-body').scrollTop(0);
         })
@@ -3199,9 +3197,6 @@ function navigateMessage(direction) {
     // Update navigation buttons
     updateNavigationButtons();
 
-    // Mark as read immediately
-    markEchomailAsRead(newMessage.id);
-
     // Show loading
     $('#messageContent').html(`
         <div class="loading-spinner">
@@ -3221,6 +3216,7 @@ function navigateMessage(direction) {
     $.get(apiUrl)
         .done(function(data) {
             displayMessageContent(data);
+            markEchomailAsRead(newMessage.id);
             // Auto-scroll to top of modal content
             $('#messageModal .modal-body').scrollTop(0);
         })
