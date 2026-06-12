@@ -705,16 +705,27 @@ class MessageHandler
         $stmt->execute($params);
         $messages = $stmt->fetchAll();
 
-        // Get total count for pagination
+        // Get total count for pagination. Only join read/saved state when the current
+        // filter actually depends on it so the common "all" path avoids extra work.
+        $countJoinSql = '';
+        $countParams = [];
+        if ($filter === 'unread' || $filter === 'read') {
+            $countJoinSql .= "
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)";
+            $countParams[] = $userId;
+        }
+        if ($filter === 'saved') {
+            $countJoinSql .= "
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)";
+            $countParams[] = $userId;
+        }
+
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM echomail em
-            JOIN echoareas ea ON em.echoarea_id = ea.id
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            JOIN echoareas ea ON em.echoarea_id = ea.id{$countJoinSql}
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
         ");
-        
-        $countParams = [$userId, $userId];
+
         $countParams = array_merge($countParams, $echoareaIds);
         foreach ($filterParams as $param) {
             $countParams[] = $param;
@@ -726,8 +737,11 @@ class MessageHandler
         $countStmt->execute($countParams);
         $total = $countStmt->fetch()['total'];
 
-        // Get unread count
+        // Disabled: this duplicate unread-count scan is expensive on large installs and
+        // the web client already refreshes the same badge via /api/messages/echomail/stats.
+        // Keep the response field for compatibility, but do not run the extra query here.
         $unreadCount = 0;
+        /*
         if ($userId) {
             $unreadCountStmt = $this->db->prepare("
                 SELECT COUNT(*) as count FROM echomail em
@@ -744,6 +758,7 @@ class MessageHandler
             $unreadCountStmt->execute($unreadParams);
             $unreadCount = $unreadCountStmt->fetch()['count'];
         }
+        */
 
         // Clean message data for proper JSON encoding
         $cleanMessages = [];
@@ -773,7 +788,6 @@ class MessageHandler
 
         return [
             'messages' => $cleanMessages,
-            'unreadCount' => $unreadCount,
             'pagination' => [
                 'page' => $page,
                 'limit' => $limit,

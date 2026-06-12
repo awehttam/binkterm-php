@@ -779,7 +779,9 @@ function loadMessages(callback, silent = false) {
             }
             displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
-            updateUnreadCount(data.unreadCount || 0);
+            if (Object.prototype.hasOwnProperty.call(data, 'unreadCount')) {
+                updateUnreadCount(data.unreadCount || 0);
+            }
             // Remember the current page for this area (null = All Messages, stored as '__all__')
             echoPageMemory[currentEchoarea || '__all__'] = currentPage;
             saveEchoPositions();
