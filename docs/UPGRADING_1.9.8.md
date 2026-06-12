@@ -18,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - The user-facing echoarea subscription manager at `/subscriptions` now uses a more compact filter layout modeled after `/echolist`, with network filtering and an option to show only interest groups that currently have message traffic.
 - Subscribing or unsubscribing from an echoarea in `/subscriptions` now updates in place instead of reloading the page, preserving the current scroll position and active search/filter state.
+- The subscribed echomail message list now avoids duplicate unread-count work and skips unnecessary joins in its pagination count query, which reduces page-load time on systems with large echomail message bases.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
@@ -50,6 +51,18 @@ The updated page adds:
 - in-place subscribe/unsubscribe updates that do not reset the current search, filters, or scroll position
 
 This change is user-facing only. It does not alter subscriptions, interest membership, or message access rules.
+
+### Echomail List Performance
+
+The subscribed-message view behind `/echomail` now does less repeated database work per page load on large systems.
+
+What changed:
+
+- the list endpoint no longer performs its own duplicate unread-count scan for the subscribed-all-areas view
+- the unread badge continues to refresh from the existing stats endpoint
+- the pagination total query now avoids joining read-state and saved-message tables unless the selected filter actually needs them
+
+On systems with large echomail message bases and users subscribed to many areas, this reduces the amount of full-table work needed to render the default message list without changing the visible behavior of the page.
 
 ### PGP Key Management
 
