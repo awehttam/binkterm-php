@@ -651,17 +651,23 @@
                                 <div class="mb-3">
                                     <label for="pgpManagedLabel" class="form-label">{{ t('ui.settings.pgp.key_label', {}, locale, ['common']) }}</label>
                                     <input type="text" class="form-control" id="pgpManagedLabel" maxlength="120"
+                                           value=""
+                                           autocomplete="off"
                                            placeholder="{{ t('ui.settings.pgp.managed_label_placeholder', {}, locale, ['common']) }}">
                                 </div>
                                 <div class="mb-3">
                                     <label for="pgpPassphrase" class="form-label">{{ t('ui.settings.pgp.passphrase', {}, locale, ['common']) }}</label>
                                     <input type="password" class="form-control" id="pgpPassphrase"
+                                           value=""
+                                           autocomplete="new-password"
                                            placeholder="{{ t('ui.settings.pgp.passphrase_placeholder', {}, locale, ['common']) }}">
                                     <div class="form-text">{{ t('ui.settings.pgp.passphrase_help', {}, locale, ['common']) }}</div>
                                 </div>
                                 <div class="mb-3">
                                     <label for="pgpPassphraseConfirm" class="form-label">{{ t('ui.settings.pgp.passphrase_confirm', {}, locale, ['common']) }}</label>
                                     <input type="password" class="form-control" id="pgpPassphraseConfirm"
+                                           value=""
+                                           autocomplete="new-password"
                                            placeholder="{{ t('ui.settings.pgp.passphrase_confirm_placeholder', {}, locale, ['common']) }}">
                                 </div>
                                 <button type="button" class="btn btn-fidonet" onclick="generateManagedPgpKey()">
@@ -963,6 +969,7 @@ $(document).ready(function() {
     setSettingsLoading('#settingsForm', true);
     loadSettings();
     loadEchomailIgnoreRules();
+    resetManagedPgpForm();
 
     // Restore last active tab
     const savedTab = UserStorage.getItem('settingsActiveTab');
@@ -1006,9 +1013,11 @@ $(document).ready(function() {
     }
 
     document.getElementById('tab-pgp-btn')?.addEventListener('shown.bs.tab', function() {
+        resetManagedPgpForm();
         loadPgpKeys();
     });
     if (savedTab === '#tab-pgp') {
+        resetManagedPgpForm();
         loadPgpKeys();
     }
 
@@ -1034,6 +1043,10 @@ $(document).ready(function() {
         previewNotificationSound($(this).val());
     });
 });
+
+function resetManagedPgpForm() {
+    $('#pgpManagedLabel, #pgpPassphrase, #pgpPassphraseConfirm').val('');
+}
 
 function enforceSignatureLineLimit(textarea) {
     const value = textarea.value || '';
