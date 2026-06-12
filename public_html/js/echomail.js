@@ -91,6 +91,29 @@ function applyStatsToUi(data) {
     }
 }
 
+function updateMessagesHeaderTitle() {
+    const titleEl = $('#messagesHeaderTitle');
+    if (!titleEl.length) return;
+
+    if (currentFilter === 'drafts') {
+        titleEl.text(uiT('ui.common.drafts', 'Drafts'));
+        return;
+    }
+
+    const messagesLabel = uiT('ui.echoareas.messages', 'Messages');
+    if (currentEchoarea) {
+        titleEl.text(`${currentEchoarea} ${messagesLabel}`);
+        return;
+    }
+
+    if (currentInterestId && currentInterestName) {
+        titleEl.text(`${currentInterestName} ${messagesLabel}`);
+        return;
+    }
+
+    titleEl.text(uiT('ui.echomail.recent_messages', 'Recent Messages'));
+}
+
 // Date display configuration: 'written' or 'received'
 // Sourced from server-side ECHOMAIL_ORDER_DATE env configuration.
 const USE_DATE_FIELD = (window.echomailDateField === 'written') ? 'written' : 'received';
@@ -351,6 +374,7 @@ function loadEchoareas(callback) {
  * If no echo is selected the bar is hidden.
  */
 function updateEchoInfoBar() {
+    updateMessagesHeaderTitle();
     if (!currentEchoarea) {
         // No specific area selected — show a generic "All Messages" bar with compose button
         $('#echoTitle').text(uiT('ui.common.all_messages', 'All Messages'));
@@ -450,6 +474,7 @@ function renderEchoInfoBar(area, subscribed) {
  * @param {string} name  Interest name
  */
 function renderInterestInfoBar(name) {
+    updateMessagesHeaderTitle();
     $('#echoTitle').text(name);
     $('#echoDescription').text('');
     $('#echoSubscribeBtn').addClass('d-none');
@@ -1457,6 +1482,7 @@ function setFilter(filter) {
     currentFilter = filter;
     currentPage = 1;
     updateFilterTabs();
+    updateMessagesHeaderTitle();
     loadMessages();
 }
 
