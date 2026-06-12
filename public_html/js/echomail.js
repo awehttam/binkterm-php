@@ -34,6 +34,12 @@ let currentConversationMessageId = null;
 let currentConversationSubject = '';
 let currentContextMenuMessageId = null;
 let currentContextMenuMessageSaved = false;
+const ECHOMAIL_STATS_CACHE_TTL_MS = 10000;
+let statsCacheKey = null;
+let statsCacheData = null;
+let statsCacheFetchedAt = 0;
+let statsRequestKey = null;
+let statsRequestPromise = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -50,6 +56,38 @@ function uiT(key, fallback, params = {}) {
         return window.t(key, params, fallback);
     }
     return fallback;
+}
+
+function getStatsCacheKey() {
+    if (currentInterestId) {
+        return `interest:${currentInterestId}`;
+    }
+    return `echo:${currentEchoarea || '__all__'}`;
+}
+
+function invalidateStatsCache() {
+    statsCacheKey = null;
+    statsCacheData = null;
+    statsCacheFetchedAt = 0;
+    statsRequestKey = null;
+    statsRequestPromise = null;
+}
+
+function applyStatsToUi(data) {
+    console.log('Echomail stats response:', data);
+    $('#totalMessages').text(data.total || 0);
+    $('#unreadMessages').text(data.unread || 0);
+    $('#recentMessages').text(data.recent || 0);
+
+    if (data.areas !== undefined) {
+        $('#totalAreas').text(data.areas || 0);
+    } else {
+        $('#totalAreas').text('-');
+    }
+
+    if (data.filter_counts) {
+        updateFilterCounts(data.filter_counts);
+    }
 }
 
 // Date display configuration: 'written' or 'received'
@@ -392,6 +430,7 @@ function toggleSubscription() {
                 // Update button immediately, then reload sidebar in background
                 renderEchoInfoBar(currentEchoareaData, !subscribed);
                 allEchoareasCache = null;
+                invalidateStatsCache();
                 loadEchoareas();
             } else {
                 btn.prop('disabled', false);
@@ -2585,6 +2624,18 @@ window.addEventListener('popstate', function(event) {
 
 function loadStats() {
     console.log('Loading echomail statistics...');
+    const cacheKey = getStatsCacheKey();
+    const now = Date.now();
+
+    if (statsRequestPromise && statsRequestKey === cacheKey) {
+        return statsRequestPromise;
+    }
+
+    if (statsCacheKey === cacheKey && statsCacheData && (now - statsCacheFetchedAt) < ECHOMAIL_STATS_CACHE_TTL_MS) {
+        applyStatsToUi(statsCacheData);
+        return Promise.resolve(statsCacheData);
+    }
+
     let url;
     if (currentInterestId) {
         url = '/api/interests/' + encodeURIComponent(currentInterestId) + '/stats';
@@ -2595,23 +2646,13 @@ function loadStats() {
         }
     }
 
-    $.get(url)
+    statsRequestKey = cacheKey;
+    statsRequestPromise = $.get(url)
         .done(function(data) {
-            console.log('Echomail stats response:', data);
-            $('#totalMessages').text(data.total || 0);
-            $('#unreadMessages').text(data.unread || 0);
-            $('#recentMessages').text(data.recent || 0);
-
-            if (data.areas !== undefined) {
-                $('#totalAreas').text(data.areas || 0);
-            } else {
-                $('#totalAreas').text('-');
-            }
-
-            // Update filter counts if available
-            if (data.filter_counts) {
-                updateFilterCounts(data.filter_counts);
-            }
+            statsCacheKey = cacheKey;
+            statsCacheData = data;
+            statsCacheFetchedAt = Date.now();
+            applyStatsToUi(data);
         })
         .fail(function(xhr, status, error) {
             console.error('Echomail stats loading failed:', xhr.status, status, error);
@@ -2620,7 +2661,15 @@ function loadStats() {
             $('#unreadMessages').text(uiT('ui.common.error', 'Error'));
             $('#recentMessages').text(uiT('ui.common.error', 'Error'));
             $('#totalAreas').text(uiT('ui.common.error', 'Error'));
+        })
+        .always(function() {
+            if (statsRequestKey === cacheKey) {
+                statsRequestKey = null;
+                statsRequestPromise = null;
+            }
         });
+
+    return statsRequestPromise;
 }
 
 // Selection and bulk operations functionality
@@ -2741,6 +2790,7 @@ function markSelectedAsRead() {
                     ? window.getApiMessage(response, uiT('ui.echomail.bulk_mark_read_success', 'Marked {count} message(s) as read', { count: markedCount }))
                     : (response.message || uiT('ui.echomail.bulk_mark_read_success', 'Marked {count} message(s) as read', { count: markedCount })));
                 clearSelection();
+                invalidateStatsCache();
                 loadMessages();
                 loadStats();
                 loadEchoareas();
@@ -2816,6 +2866,7 @@ function deleteSelectedMessages() {
                     ? window.getApiMessage(response, uiT('ui.echomail.bulk_delete.success', 'Deleted {count} message(s)', { count: deletedCount }))
                     : (response.message || uiT('ui.echomail.bulk_delete.success', 'Deleted {count} message(s)', { count: deletedCount })));
                 clearSelection();
+                invalidateStatsCache();
                 loadMessages(); // Reload messages
                 loadStats(); // Update statistics
                 loadEchoareas(); // Update sidebar unread badges
