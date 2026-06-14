@@ -20,7 +20,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The user-facing echoarea subscription manager at `/subscriptions` now uses a more compact filter layout modeled after `/echolist`, with network filtering and an option to show only interest groups that currently have message traffic.
 - Subscribing or unsubscribing from an echoarea in `/subscriptions` now updates in place instead of reloading the page, preserving the current scroll position and active search/filter state.
 - The subscribed echomail message list now avoids duplicate unread-count work, skips unnecessary joins in its pagination count query, and deduplicates overlapping client-side refreshes, which reduces page-load time on systems with large echomail message bases.
-- New-user registration approval is now controlled by a dedicated BBS setting. Self-registrations still require manual approval by default, but sysops can now disable that requirement and have new accounts activated immediately.
+- New-user registration approval is now controlled by a dedicated BBS setting. Self-registrations still require manual approval by default, but sysops can now disable that requirement and have new accounts activated immediately. Approved registrations are also retained as history records instead of being deleted from `pending_users`.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
@@ -51,6 +51,19 @@ Default behavior after upgrading remains the same as earlier 1.9.x builds:
 - sysops can approve or reject those registrations manually
 
 If you disable the setting, new registrations are converted into active accounts immediately instead of waiting in the pending queue. The registration form and terminal registration flow both follow the same setting.
+
+Approved registrations are now retained as audit-history rows in `pending_users` instead of being deleted when the real user account is created.
+
+What changes in the data model:
+
+- `pending_users` now gains a `created_user_id` link to the user account created during approval
+- approved rows remain in place with `status = approved`, review timestamps, reviewer ID, and any admin notes
+- rejected rows continue to remain in place with `status = rejected`
+- cleanup now removes only old rejected rows; approved registration history is kept
+
+To support retained history, the upgrade also replaces the old global uniqueness behavior on `pending_users.username` and `pending_users.real_name` with pending-only uniqueness. This allows a historical approved or rejected registration row to remain in the table without blocking a later unrelated registration attempt that uses the same name.
+
+This change does not restore approved registration rows that were deleted by earlier versions. It applies to approvals performed after you upgrade and run `php scripts/setup.php`.
 
 ### Subscription Manager
 

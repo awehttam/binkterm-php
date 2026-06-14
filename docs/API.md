@@ -6402,6 +6402,9 @@ Pending user registration details
 | `user.referrer_id` | integer\|null | User ID of the referrer |
 | `user.referrer_username` | string\|null | Username of the referrer |
 | `user.referrer_real_name` | string\|null | Real name of the referrer |
+| `user.created_user_id` | integer\|null | User ID created from this registration after approval |
+| `user.created_user_username` | string\|null | Username of the created account |
+| `user.created_user_real_name` | string\|null | Real name of the created account |
 
 **Error Responses**
 
@@ -6418,7 +6421,7 @@ Pending user registration details
 
 **Requires authentication**
 
-Converts a pending user to an active user account. Admin-only. Accepts optional notes field. Returns newly created user ID on success. Throws 400 if approval fails (e.g., duplicate username, invalid state).
+Converts a pending user to an active user account. Admin-only. Accepts optional notes field. Returns newly created user ID on success. The original registration row is retained as an approved audit record linked to the created user account. Throws 400 if approval fails (e.g., duplicate username, invalid state).
 
 **Path Parameters**
 
@@ -6458,7 +6461,7 @@ Approval confirmation with new user ID
 
 **Requires authentication**
 
-Denies a pending user registration. Admin-only. Accepts optional notes field. Removes the pending user record. Throws 400 if rejection fails.
+Denies a pending user registration. Admin-only. Accepts optional notes field. The registration row is retained with `status = rejected`. Throws 400 if rejection fails.
 
 **Path Parameters**
 
@@ -9019,7 +9022,7 @@ New user creation result
 
 **Requires authentication**
 
-Performs full cleanup of old registration records including approved and rejected entries. Returns counts of removed records. Useful for maintenance and database hygiene.
+Performs cleanup of old rejected registration records while retaining approved registration history. Returns counts of removed records. Useful for maintenance and database hygiene.
 
 **Response** _(JSON)_
 
@@ -9029,7 +9032,7 @@ Cleanup operation results
 |-------|------|-------------|
 | `success` | boolean | Whether cleanup completed |
 | `result` | object | Cleanup statistics |
-| `result.approved_removed` | integer | Number of approved registration records removed |
+| `result.approved_removed` | integer | Number of approved registration records removed (currently always `0`; approved history is retained) |
 | `result.old_rejected_removed` | integer | Number of old rejected registration records removed |
 | `result.total_cleaned` | integer | Total records removed |
 | `message_code` | string | Localization key for success message |

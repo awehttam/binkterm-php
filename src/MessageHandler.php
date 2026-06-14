@@ -3948,9 +3948,27 @@ class MessageHandler
             $subscriptionManager = new EchoareaSubscriptionManager();
             $subscriptionManager->createDefaultSubscriptions($newUserId);
 
-            // Remove the pending user record since they're now a real user
-            $deleteStmt = $this->db->prepare("DELETE FROM pending_users WHERE id = ?");
-            $deleteStmt->execute([$pendingUserId]);
+            $reviewedBy = (int)$adminUserId > 0 ? (int)$adminUserId : null;
+            $approvalNotes = trim((string)$notes);
+            $updateStmt = $this->db->prepare("
+                UPDATE pending_users
+                SET status = 'approved',
+                    reviewed_by = ?,
+                    reviewed_at = NOW(),
+                    admin_notes = ?,
+                    created_user_id = ?
+                WHERE id = ? AND status = 'pending'
+            ");
+            $updateStmt->execute([
+                $reviewedBy,
+                $approvalNotes !== '' ? $approvalNotes : null,
+                $newUserId,
+                $pendingUserId
+            ]);
+
+            if ($updateStmt->rowCount() === 0) {
+                throw new \RuntimeException('Failed to finalize pending user approval record');
+            }
 
             $this->db->commit();
 
@@ -4165,9 +4183,10 @@ class MessageHandler
     public function getPendingUsers()
     {
         $stmt = $this->db->query("
-            SELECT p.*, u.username as reviewed_by_username
+            SELECT p.*, u.username as reviewed_by_username, cu.username as created_user_username
             FROM pending_users p
             LEFT JOIN users u ON p.reviewed_by = u.id
+            LEFT JOIN users cu ON p.created_user_id = cu.id
             WHERE p.status = 'pending'
             ORDER BY p.requested_at DESC
         ");
@@ -4181,9 +4200,10 @@ class MessageHandler
     public function getAllPendingUsers()
     {
         $stmt = $this->db->query("
-            SELECT p.*, u.username as reviewed_by_username
+            SELECT p.*, u.username as reviewed_by_username, cu.username as created_user_username
             FROM pending_users p
             LEFT JOIN users u ON p.reviewed_by = u.id
+            LEFT JOIN users cu ON p.created_user_id = cu.id
             ORDER BY p.requested_at DESC
         ");
         
@@ -4206,28 +4226,16 @@ class MessageHandler
     }
     
     /**
-     * Clean up all approved registrations (since they're now real users)
-     * This is useful for cleaning up historical data
-     */
-    public function cleanupApprovedRegistrations()
-    {
-        $stmt = $this->db->prepare("DELETE FROM pending_users WHERE status = 'approved'");
-        $stmt->execute();
-        return $stmt->rowCount();
-    }
-    
-    /**
-     * Full cleanup: remove approved registrations and old rejected ones
+     * Full cleanup: remove old rejected registrations while retaining approved history
      */
     public function performFullCleanup()
     {
-        $approvedCleaned = $this->cleanupApprovedRegistrations();
         $rejectedCleaned = $this->cleanupOldRejectedRegistrations();
         
         return [
-            'approved_removed' => $approvedCleaned,
+            'approved_removed' => 0,
             'old_rejected_removed' => $rejectedCleaned,
-            'total_cleaned' => $approvedCleaned + $rejectedCleaned
+            'total_cleaned' => $rejectedCleaned
         ];
     }
 

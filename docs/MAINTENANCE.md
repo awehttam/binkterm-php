@@ -109,7 +109,7 @@ The script uses the following retention periods:
 | Password reset tokens | 24 hours | Security best practice |
 | Gateway tokens | Immediate** | One-time use or expired |
 | Webshare links | Per link expiry | User-configurable expiration |
-| Rejected pending users | 90 days | Audit trail for rejections |
+| Rejected pending users | 30 days | Audit trail for rejections |
 | Login attempts | 30 days | Security monitoring |
 
 \* Only deleted when both sender AND recipient have marked as deleted

@@ -10414,9 +10414,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $db = Database::getInstance()->getPdo();
             $stmt = $db->prepare("
-                SELECT p.*, u.username as referrer_username, u.real_name as referrer_real_name
+                SELECT p.*, u.username as referrer_username, u.real_name as referrer_real_name,
+                       cu.username as created_user_username, cu.real_name as created_user_real_name
                 FROM pending_users p
                 LEFT JOIN users u ON p.referrer_id = u.id
+                LEFT JOIN users cu ON p.created_user_id = cu.id
                 WHERE p.id = ?
             ");
             $stmt->execute([$id]);
@@ -10859,7 +10861,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'result' => $result,
                 'message_code' => 'ui.admin_users.cleanup_success',
                 'message_params' => [
-                    'approved' => $result['approved_removed'] ?? 0,
                     'rejected' => $result['old_rejected_removed'] ?? 0,
                     'total' => $result['total_cleaned'] ?? 0
                 ]

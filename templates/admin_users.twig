@@ -595,6 +595,11 @@ function viewUser(userId) {
                     referrerInfo = `<tr><th>${uiT('ui.admin_users.referred_by', 'Referred By:')}</th><td><strong>${escapeHtml(user.referrer_username)}</strong> (${escapeHtml(user.referrer_real_name || '')})</td></tr>`;
                 }
 
+                let createdUserInfo = '';
+                if (user.created_user_id) {
+                    createdUserInfo = `<tr><th>${uiT('ui.admin_users.created_account', 'Created Account:')}</th><td><strong>${escapeHtml(user.created_user_username || '')}</strong> (#${user.created_user_id})${user.created_user_real_name ? ' (' + escapeHtml(user.created_user_real_name) + ')' : ''}</td></tr>`;
+                }
+
                 let details = `
                     <div class="row">
                         <div class="col-md-6">
@@ -605,9 +610,11 @@ function viewUser(userId) {
                                 <tr><th>${uiT('ui.common.email', 'Email')}:</th><td>${escapeHtml(user.email || uiT('ui.admin_users.not_provided', 'Not provided'))}</td></tr>
                                 <tr><th>${uiT('ui.common.location', 'Location')}:</th><td>${escapeHtml(user.location || uiT('ui.admin_users.not_provided', 'Not provided'))}</td></tr>
                                 <tr><th>${uiT('ui.admin_users.requested', 'Requested')}:</th><td>${requestedDate}</td></tr>
+                                <tr><th>${uiT('ui.common.status', 'Status')}:</th><td>${escapeHtml(user.status || '')}</td></tr>
                                 <tr><th>${uiT('ui.common.ip_address', 'IP Address')}:</th><td><code>${escapeHtml(user.ip_address || '')}</code></td></tr>
                                 <tr><th>${uiT('ui.admin_users.source', 'Source')}:</th><td>${renderSourceBadge(user.registration_source)}</td></tr>
                                 ${referrerInfo}
+                                ${createdUserInfo}
                             </table>
                         </div>
                         <div class="col-md-6">
@@ -980,7 +987,7 @@ function saveNewUser() {
 }
 
 function cleanupRegistrations() {
-    if (!confirm(uiT('ui.admin_users.cleanup_confirm', 'This will remove all approved registration records and old rejected registrations (30+ days). Are you sure?'))) {
+    if (!confirm(uiT('ui.admin_users.cleanup_confirm', 'This will remove old rejected registrations (30+ days) while keeping approved registration history. Are you sure?'))) {
         return;
     }
     
@@ -995,8 +1002,7 @@ function cleanupRegistrations() {
         success: function(response) {
             if (response.success) {
                 const result = response.result;
-                const fallbackMessage = uiT('ui.admin_users.cleanup_success', 'Cleanup completed! Removed {approved} approved and {rejected} old rejected registrations ({total} total).', {
-                    approved: result.approved_removed,
+                const fallbackMessage = uiT('ui.admin_users.cleanup_success', 'Cleanup completed! Removed {rejected} old rejected registrations ({total} total).', {
                     rejected: result.old_rejected_removed,
                     total: result.total_cleaned
                 });
