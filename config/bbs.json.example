@@ -18,6 +18,7 @@
     "dashboard_ad_rotate_interval_seconds": 20,
     "max_cross_post_areas": 5,
     "echomail_moderation_threshold": 0,
+    "registration_requires_approval": true,
     "outgoing_charset": "CP437",
     "qwk": {
         "bbs_id": "",

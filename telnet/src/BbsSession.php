@@ -2481,11 +2481,14 @@ class BbsSession
             ], null);
 
             if ($result['status'] === 200 || $result['status'] === 201) {
+                $autoApproved = !empty($result['data']['auto_approved']);
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.registration.success', 'Registration successful!', [], $state['locale']), self::ANSI_GREEN . self::ANSI_BOLD));
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.pending',        'Your account has been created and is pending approval.', [], $state['locale']));
-                $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.pending_review', 'You will be notified once an administrator has reviewed your registration.', [], $state['locale']));
+                if (!$autoApproved) {
+                    $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.pending',        'Your account has been created and is pending approval.', [], $state['locale']));
+                    $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.pending_review', 'You will be notified once an administrator has reviewed your registration.', [], $state['locale']));
+                }
                 $this->writeLine($conn, '');
                 return true;
             }

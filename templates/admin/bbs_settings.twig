@@ -211,6 +211,11 @@
                             <input type="number" class="form-control" id="bbsEchomailModerationThreshold" min="0" step="1" value="0">
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.echomail_moderation_threshold_help', {}, locale, ['common']) }}</small>
                         </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsRegistrationRequiresApproval">
+                            <label class="form-check-label" for="bbsRegistrationRequiresApproval">{{ t('ui.admin.bbs_settings.features.require_registration_approval', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.require_registration_approval_help', {}, locale, ['common']) }}</small></div>
+                        </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsDashboardAdRotateInterval">{{ t('ui.admin.bbs_settings.features.dashboard_ad_rotate_interval', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" id="bbsDashboardAdRotateInterval" min="5" max="300" step="1" value="20">
@@ -416,6 +421,7 @@ function loadBbsSettings() {
             document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
             const echomailModerationThreshold = parseInt(data.config?.echomail_moderation_threshold, 10);
             document.getElementById('bbsEchomailModerationThreshold').value = Number.isNaN(echomailModerationThreshold) ? 0 : echomailModerationThreshold;
+            document.getElementById('bbsRegistrationRequiresApproval').checked = data.config?.registration_requires_approval !== false;
             const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
@@ -529,6 +535,7 @@ function saveBbsSettings() {
                 qwk: Object.assign({}, currentQwk, { bbs_id: qwkBbsIdRaw }),
                 max_cross_post_areas: maxCrossPost,
                 echomail_moderation_threshold: echomailModerationThreshold,
+                registration_requires_approval: document.getElementById('bbsRegistrationRequiresApproval').checked,
                 dashboard_ad_rotate_interval_seconds: dashboardAdRotateInterval,
                 default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value,
                 bulletin_display_mode: document.getElementById('bbsBulletinDisplayMode').value,

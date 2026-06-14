@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Web Interface](#web-interface)
+  - [Registration Approval Setting](#registration-approval-setting)
 - [PGP Key Management](#pgp-key-management)
 - [Developer / Infrastructure](#developer--infrastructure)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -19,6 +20,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The user-facing echoarea subscription manager at `/subscriptions` now uses a more compact filter layout modeled after `/echolist`, with network filtering and an option to show only interest groups that currently have message traffic.
 - Subscribing or unsubscribing from an echoarea in `/subscriptions` now updates in place instead of reloading the page, preserving the current scroll position and active search/filter state.
 - The subscribed echomail message list now avoids duplicate unread-count work, skips unnecessary joins in its pagination count query, and deduplicates overlapping client-side refreshes, which reduces page-load time on systems with large echomail message bases.
+- New-user registration approval is now controlled by a dedicated BBS setting. Self-registrations still require manual approval by default, but sysops can now disable that requirement and have new accounts activated immediately.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
@@ -37,6 +39,18 @@ Make sure you have a current backup of your database and files before upgrading.
 ---
 
 ## Web Interface
+
+### Registration Approval Setting
+
+Self-registration approval is now configurable in **Admin -> BBS Settings -> Features** with a new **Require approval for new users** toggle.
+
+Default behavior after upgrading remains the same as earlier 1.9.x builds:
+
+- the setting defaults to enabled
+- new self-registrations continue to enter **Admin -> Users -> Pending**
+- sysops can approve or reject those registrations manually
+
+If you disable the setting, new registrations are converted into active accounts immediately instead of waiting in the pending queue. The registration form and terminal registration flow both follow the same setting.
 
 ### Subscription Manager
 

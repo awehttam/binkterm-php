@@ -27,9 +27,11 @@
             <div class="card-body">
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle me-2"></i>
+                    {% if registration_requires_approval %}
                     <strong>{{ t('ui.register.approval_required', {}, 'common') }}</strong> {{ t('ui.register.approval_required_help', {}, 'common') }}
+                    {% endif %}
                     {{ t('ui.register.subject_to_rules', {}, 'common') }} <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">{{ t('ui.about.house_rules', {}, 'common') }}</a>.
-                    <br><small class="mt-1 d-inline-block"><i class="fas fa-envelope me-1"></i>{{ t('ui.register.email_notification_note', {}, 'common') }}</small>
+                    <br><small class="mt-1 d-inline-block"><i class="fas fa-envelope me-1"></i>{% if registration_requires_approval %}{{ t('ui.register.email_notification_note', {}, 'common') }}{% else %}{{ t('ui.register.auto_approval_login_note', {}, 'common') }}{% endif %}</small>
                 </div>
 
                 <div id="alert-container"></div>
@@ -253,9 +255,15 @@ $(document).ready(function() {
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
+                    const fallbackKey = response && response.auto_approved
+                        ? 'ui.register.auto_approved_success'
+                        : 'ui.register.submitted_success';
+                    const fallbackText = response && response.auto_approved
+                        ? 'Registration completed successfully! You can now log in.'
+                        : 'Registration submitted successfully! You will be notified when your account is approved.';
                     const successMessage = window.getApiMessage
-                        ? window.getApiMessage(response, uiT('ui.register.submitted_success', 'Registration submitted successfully! You will be notified when your account is approved.'))
-                        : uiT('ui.register.submitted_success', 'Registration submitted successfully! You will be notified when your account is approved.');
+                        ? window.getApiMessage(response, uiT(fallbackKey, fallbackText))
+                        : uiT(fallbackKey, fallbackText);
                     showAlert(successMessage, 'success');
                     // Hide the form after successful registration
                     $('#registerForm').hide();

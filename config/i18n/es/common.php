@@ -1857,6 +1857,8 @@ return [
     'ui.admin.bbs_settings.features.enable_file_areas' => 'Habilitar areas de archivos',
     'ui.admin.bbs_settings.features.enable_guest_doors_page' => 'Habilitar pagina de puertas de invitados',
     'ui.admin.bbs_settings.features.guest_doors_page_help' => 'Muestra una pagina publica /guest-doors con puertas de acceso anonimo. Tambien muestra un enlace en la pagina de inicio de sesion.',
+    'ui.admin.bbs_settings.features.require_registration_approval' => 'Requerir aprobacion para nuevos usuarios',
+    'ui.admin.bbs_settings.features.require_registration_approval_help' => 'Cuando esta opcion esta activada, los auto-registros quedan en la cola de pendientes hasta que un administrador los apruebe. Desactivela para aprobar automaticamente las cuentas nuevas de inmediato.',
     'ui.admin.bbs_settings.features.enable_bbs_directory' => 'Habilitar directorio BBS',
     'ui.admin.bbs_settings.features.bbs_directory_help' => 'Muestra la pagina publica /bbs-directory y el menu de navegacion de listas BBS. Cuando esta deshabilitado, la pagina devuelve 404.',
     'ui.admin.bbs_settings.features.enable_qwk' => 'Habilitar correo sin conexion QWK',
@@ -2551,6 +2553,8 @@ return [
     'ui.register.create_account' => 'Crear cuenta',
     'ui.register.approval_required' => 'El registro requiere aprobacion.',
     'ui.register.approval_required_help' => 'Su cuenta sera revisada por un administrador antes de activarse.',
+    'ui.register.auto_approval_enabled_help' => 'Las cuentas nuevas se activan inmediatamente despues del registro.',
+    'ui.register.auto_approval_login_note' => 'Despues de enviar el formulario, use el enlace de inicio de sesion de abajo para entrar con su nueva cuenta.',
     'ui.register.subject_to_rules' => 'Todas las cuentas estan sujetas a',
     'ui.register.email_notification_note' => 'Recibirá un correo electrónico cuando su cuenta sea aprobada. También se pueden enviar correos de recordatorio. Por favor, revise su carpeta de correo no deseado/spam si no lo encuentra.',
     'ui.register.honeypot_website_leave_blank' => 'Sitio web (dejar en blanco)',
@@ -2578,6 +2582,7 @@ return [
     'ui.register.passwords_do_not_match' => 'Las contrasenas no coinciden.',
     'ui.register.submitting' => 'Enviando...',
     'ui.register.submitted_success' => 'Registro enviado correctamente. Se le notificara cuando su cuenta sea aprobada.',
+    'ui.register.auto_approved_success' => 'Registro completado correctamente. Ya puede iniciar sesion.',
     'ui.register.go_to_login' => 'Ir al inicio de sesion',
 
     // Forgot Password Page

@@ -39,7 +39,7 @@ Both daemon entry points manually `require_once` every `telnet/src/` class they 
 Both daemons hand off to the same `BbsSession` flow after transport setup:
 
 1. **Transport handshake** — Telnet negotiates NAWS, echo control, and optional TLS; SSH reads PTY dimensions from `pty-req` and probes Sixel capability.
-2. **Pre-login menu** — Login / Register / Reset password / QWK (when enabled) / Quit.
+2. **Pre-login menu** — Login / Register / Reset password / QWK (when enabled) / Quit. Registration posts to the shared `/api/register` flow, so whether the account stays pending or is auto-approved is controlled centrally by `BbsConfig::shouldRequireRegistrationApproval()`.
 3. **Authentication** — Username/password via `POST /api/auth/login`; session cookie stored in `$state`.
 4. **Session init** — Single `GET /api/config/session-init` call returns timezone, locale, date format, charset, ANSI color flag, idle timeout thresholds, and main menu key bindings.
 5. **Main menu loop** — `BbsSession::handle()` runs the menu, dispatches to feature handlers, and processes resize events on each iteration.

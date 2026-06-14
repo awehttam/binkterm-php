@@ -513,14 +513,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $pendingUserRow = $insertStmt->fetch(\PDO::FETCH_ASSOC);
             $pendingUserId = $pendingUserRow ? (int)$pendingUserRow['id'] : 0;
+            $requiresApproval = \BinktermPHP\BbsConfig::shouldRequireRegistrationApproval();
+            $handler = new MessageHandler();
 
-            // Send notification to sysop
-            try {
-                $handler = new MessageHandler();
-                $handler->sendRegistrationNotification($pendingUserId, $username, $realName, $email, $reason, $ipAddress);
-            } catch (Exception $e) {
-                // Log error but don't fail registration
-                getServerLogger()->error("Failed to send registration notification: " . $e->getMessage());
+            if ($requiresApproval) {
+                // Send notification to sysop
+                try {
+                    $handler->sendRegistrationNotification($pendingUserId, $username, $realName, $email, $reason, $ipAddress);
+                } catch (Exception $e) {
+                    // Log error but don't fail registration
+                    getServerLogger()->error("Failed to send registration notification: " . $e->getMessage());
+                }
+            } else {
+                $handler->approveUserRegistration($pendingUserId, 0, 'Auto-approved by registration setting');
             }
 
             // Mark registration attempt as successful
@@ -543,7 +548,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             echo json_encode([
                 'success' => true,
-                'message_code' => 'ui.register.submitted_success'
+                'auto_approved' => !$requiresApproval,
+                'message_code' => $requiresApproval
+                    ? 'ui.register.submitted_success'
+                    : 'ui.register.auto_approved_success'
             ]);
 
         } catch (Exception $e) {

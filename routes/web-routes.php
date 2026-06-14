@@ -499,6 +499,7 @@ SimpleRouter::get('/register', function() {
     $template = new Template();
     $template->renderResponse('register.twig', [
         'register_splash' => $registerSplashHtml,
+        'registration_requires_approval' => \BinktermPHP\BbsConfig::shouldRequireRegistrationApproval(),
     ]);
 });
 

@@ -239,6 +239,13 @@ class BbsConfig
         return max(0, $value);
     }
 
+    public static function shouldRequireRegistrationApproval(): bool
+    {
+        self::load();
+        return !array_key_exists('registration_requires_approval', self::$config)
+            || !empty(self::$config['registration_requires_approval']);
+    }
+
     public static function getOutgoingCharset(): string
     {
         self::load();

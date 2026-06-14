@@ -1751,6 +1751,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $config['echomail_moderation_threshold'] = $threshold;
                 }
 
+                if (array_key_exists('registration_requires_approval', $config)) {
+                    $config['registration_requires_approval'] = !empty($config['registration_requires_approval']);
+                }
+
                 // Validate max_cross_post_areas if provided
                 if (array_key_exists('max_cross_post_areas', $config)) {
                     $maxCrossPost = (int)$config['max_cross_post_areas'];

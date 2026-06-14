@@ -1804,6 +1804,8 @@ return [
     'ui.admin.bbs_settings.features.enable_file_areas' => 'Abilita aree file',
     'ui.admin.bbs_settings.features.enable_guest_doors_page' => 'Abilita pagina door ospite',
     'ui.admin.bbs_settings.features.guest_doors_page_help' => 'Mostra una pagina pubblica /guest-doors con le door accessibili in modo anonimo. Mostra anche un link nella pagina di login.',
+    'ui.admin.bbs_settings.features.require_registration_approval' => 'Richiedi approvazione per i nuovi utenti',
+    'ui.admin.bbs_settings.features.require_registration_approval_help' => 'Quando questa opzione e attiva, le auto-registrazioni restano in coda finche un amministratore non le approva. Disattivala per approvare immediatamente i nuovi account.',
     'ui.admin.bbs_settings.features.enable_bbs_directory' => 'Abilita directory BBS',
     'ui.admin.bbs_settings.features.bbs_directory_help' => 'Mostra la pagina pubblica /bbs-directory e il menu di navigazione Liste BBS. Se disabilitata, la pagina restituisce 404.',
     'ui.admin.bbs_settings.features.enable_qwk' => 'Abilita posta offline QWK',
@@ -2550,6 +2552,8 @@ return [
     'ui.register.create_account' => 'Crea account',
     'ui.register.approval_required' => 'La registrazione richiede approvazione.',
     'ui.register.approval_required_help' => 'Il tuo account verrà esaminato da un amministratore prima dell’attivazione.',
+    'ui.register.auto_approval_enabled_help' => 'I nuovi account vengono attivati immediatamente dopo la registrazione.',
+    'ui.register.auto_approval_login_note' => 'Dopo l\'invio, usa il link di accesso qui sotto per entrare con il tuo nuovo account.',
     'ui.register.subject_to_rules' => 'Tutti gli account sono soggetti a',
     'ui.register.email_notification_note' => 'Riceverai un’email quando il tuo account sarà approvato. Potrebbero essere inviate anche email di promemoria. Controlla la cartella spam/indesiderata se non la trovi.',
     'ui.register.honeypot_website_leave_blank' => 'Sito web (lascia vuoto)',
@@ -2577,6 +2581,7 @@ return [
     'ui.register.passwords_do_not_match' => 'Le password non corrispondono.',
     'ui.register.submitting' => 'Invio...',
     'ui.register.submitted_success' => 'Registrazione inviata correttamente! Riceverai una notifica quando il tuo account sarà approvato.',
+    'ui.register.auto_approved_success' => 'Registrazione completata correttamente! Ora puoi accedere.',
     'ui.register.go_to_login' => 'Vai al login',
 
     // Forgot Password Page

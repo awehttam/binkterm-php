@@ -1823,6 +1823,8 @@ return [
     'ui.admin.bbs_settings.features.enable_file_areas' => 'Enable File Areas',
     'ui.admin.bbs_settings.features.enable_guest_doors_page' => 'Enable Guest Doors Page',
     'ui.admin.bbs_settings.features.guest_doors_page_help' => 'Shows a public /guest-doors page listing anonymous-accessible doors. Also shows a link on the login page.',
+    'ui.admin.bbs_settings.features.require_registration_approval' => 'Require approval for new users',
+    'ui.admin.bbs_settings.features.require_registration_approval_help' => 'When enabled, self-registrations stay in the pending queue until an admin approves them. Disable this to auto-approve new accounts immediately.',
     'ui.admin.bbs_settings.features.enable_bbs_directory' => 'Enable BBS Directory',
     'ui.admin.bbs_settings.features.bbs_directory_help' => 'Shows the public /bbs-directory page and BBS Lists nav menu. When disabled, the page returns 404.',
     'ui.admin.bbs_settings.features.enable_qwk' => 'Enable QWK Offline Mail',
@@ -2568,6 +2570,8 @@ return [
     'ui.register.create_account' => 'Create Account',
     'ui.register.approval_required' => 'Registration requires approval.',
     'ui.register.approval_required_help' => 'Your account will be reviewed by an administrator before activation.',
+    'ui.register.auto_approval_enabled_help' => 'New accounts are activated immediately after registration.',
+    'ui.register.auto_approval_login_note' => 'After submitting, use the login link below to sign in with your new account.',
     'ui.register.subject_to_rules' => 'All accounts are subject to',
     'ui.register.email_notification_note' => 'You will receive an email when your account is approved. Reminder emails may also be sent. Please check your junk/spam folder if you don\'t see it.',
     'ui.register.honeypot_website_leave_blank' => 'Website (leave blank)',
@@ -2595,6 +2599,7 @@ return [
     'ui.register.passwords_do_not_match' => 'Passwords do not match.',
     'ui.register.submitting' => 'Submitting...',
     'ui.register.submitted_success' => 'Registration submitted successfully! You will be notified when your account is approved.',
+    'ui.register.auto_approved_success' => 'Registration completed successfully! You can now log in.',
     'ui.register.go_to_login' => 'Go to Login',
 
     // Forgot Password Page
