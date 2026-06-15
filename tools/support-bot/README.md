@@ -1,130 +1,169 @@
 # BinktermPHP RAG Support Tools
 
-Called by an AI Bot using the RagPromptInjectorMiddleware.php.  
+These scripts build and query a local retrieval index for BinktermPHP
+documentation. The current active pieces are the Python index builder,
+embedding helper, retrieval helper, and optional long-running embedding server.
 
-Answers sysop questions about BinktermPHP by retrieving relevant passages from the
-official documentation and passing them as context to Claude Haiku.
+## Current scripts
 
-This can be used as an example for writing your own RAG indexer.
+- `build_index.py`
+  Reads documentation from the local BinktermPHP repo, chunks it, embeds it
+  with `sentence-transformers/all-MiniLM-L6-v2` via `fastembed`, and rebuilds
+  `binkterm_knowledge.db` using `sqlite-vec`.
+- `query_retrieve.py`
+  Embeds a question, runs a vector search against the SQLite index, reranks the
+  candidate chunks, and returns the best matches as JSON.
+- `query_embed.py`
+  Small helper that returns the raw embedding vector for a single input string.
+  It uses the embedding daemon if available and falls back to local model loading
+  otherwise.
+- `embed_server.py`
+  Optional local HTTP service that keeps the embedding model loaded in memory so
+  `query_embed.py` and `query_retrieve.py` avoid repeated cold starts.
+- `bot_query.php`
+  Old - for reference. This legacy script wraps retrieval and then calls the
+  Anthropic API to produce an answer, but it is no longer the active path.
 
-## How it works
+## How the index is built
 
-1. **`build_index.py`** fetches README.md, FAQ.md, and docs/index.md from GitHub,
-   splits them into overlapping ~500-token chunks (100-token overlap), embeds each
-   chunk with `all-MiniLM-L6-v2` (runs locally, no API key needed), and stores
-   everything in `binkterm_knowledge.db` using the sqlite-vec extension.
+`build_index.py` works from the local repository, not from remote GitHub fetches.
 
-2. **`bot_query.php`** receives a question, shells out to `query_retrieve.py` to
-   embed it with the same model, performs a KNN cosine-similarity search against
-   the database to retrieve the 4 most relevant chunks, injects them into a
-   system prompt, and calls the Anthropic API (Claude Haiku) to generate a
-   grounded answer.
+It looks for:
 
-3. **`query_embed.py`** is a small helper for standalone embedding tests. Both it
-   and `query_retrieve.py` use the same `fastembed` model as `build_index.py`.
+- `README.md`
+- `FAQ.md`
+- `docs/index.md`
+
+It then parses markdown links from `docs/index.md`, loads each linked `.md`
+file under `docs/`, and indexes them in that order.
+
+Chunking behavior:
+
+- Target chunk size is about 500 tokens.
+- Overlap between chunks is about 100 tokens.
+- Heading breadcrumbs are prepended to each chunk before embedding so retrieval
+  keeps section context.
+- Heading-only blocks are skipped.
+
+The database is rebuilt from scratch on every run.
 
 ## Requirements
 
 - Python 3.10+
-- PHP 8.2+ with the `sqlite3` and `curl` extensions enabled
-- PHP's SQLite3 extension must allow `loadExtension()` — see note below
-- An Anthropic API key
+- Dependencies from `requirements.txt`
 
-## Setup
+Install them with:
 
 ```bash
-# 1. Install Python dependencies
 pip install -r requirements.txt
+```
 
-# 2. Build the knowledge base (downloads ~90 MB model on first run)
+## Build the index
+
+```bash
 python3 build_index.py
-# Produces: binkterm_knowledge.db
-
-# 3. Set your Anthropic API key
-export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-## Usage
+Output:
 
-**CLI:**
-```bash
-php bot_query.php "How do I set up echomail with a hub?"
-php bot_query.php "What are the requirements for running BinktermPHP?"
-php bot_query.php "How do I install DOSBox for door games?"
-```
+- `binkterm_knowledge.db`
 
-**HTTP POST** (when served by a web server):
-```bash
-curl -X POST -H 'Content-Type: application/json' \
-     -d '{"question":"How do I configure the binkp mailer?"}' \
-     https://your-bbs/tools/support-bot/bot_query.php
-```
+Re-run this whenever the local documentation changes.
 
-## Rebuilding the index
+## Query helpers
 
-Re-run `build_index.py` any time the upstream documentation changes. It drops and
-recreates the database from scratch on each run.
-
-
-## Optional: persistent embedding daemon
-
-By default `query_embed.py` loads the model in-process on every call, which takes
-roughly 15 seconds on a cold start. Running `embed_server.py` as a background
-daemon eliminates this delay: the model is loaded once at startup and subsequent
-calls return in milliseconds.
-
-`query_embed.py` detects the daemon automatically — no flags or config required.
-If the daemon is unreachable it silently falls back to the in-process path.
-
-### Starting the daemon manually
+Embed a single string:
 
 ```bash
-python3 embed_server.py &
-# Listens on http://127.0.0.1:5001 (loopback only)
+python3 query_embed.py "How do I configure echomail?"
 ```
 
-### Installing as a systemd user service
+Retrieve the most relevant chunks:
 
-A ready-made unit file is provided at `embed_server.service`.
+```bash
+python3 query_retrieve.py "How do I configure echomail?"
+python3 query_retrieve.py "What changed in 2.0.15?" 6
+python3 query_retrieve.py "How do I configure the binkp mailer?" 4 ./binkterm_knowledge.db
+```
 
-1. **Edit the paths** in the unit file to match your setup:
-   - `WorkingDirectory` — absolute path to this directory
-   - `ExecStart` — absolute path to the Python interpreter in your virtualenv
-     (find it with `which python3` after activating the venv, or adjust to use
-     the system Python if you installed dependencies globally)
+`query_retrieve.py` returns a JSON array with:
 
-2. **Install and enable:**
+- `source`
+- `heading_context`
+- `content`
+- `distance`
 
-   ```bash
-   mkdir -p ~/.config/systemd/user
-   cp embed_server.service ~/.config/systemd/user/
-   systemctl --user daemon-reload
-   systemctl --user enable --now embed_server
-   ```
+Retrieval details:
 
-3. **Verify:**
+- Uses the same `all-MiniLM-L6-v2` embedding model as `build_index.py`.
+- Searches the vector index for a larger candidate set first, then reranks it.
+- Applies extra bias for substantive chunks and exact version matches.
+- Penalizes short or table-of-contents-like chunks.
 
-   ```bash
-   systemctl --user status embed_server
-   curl http://127.0.0.1:5001/health   # should return {"status":"ok"}
-   ```
+## Optional embedding server
 
-The service restarts automatically on failure. It runs as your user account, not
-root, so it can access the same virtualenv and model cache that you use
-interactively.
+Without the daemon, `query_embed.py` and `query_retrieve.py` may need to load
+the embedding model in-process, which can add roughly 15 seconds on a cold start.
+
+`embed_server.py` keeps the model resident and listens on `http://127.0.0.1:5001`.
+Both query scripts automatically try the daemon first and fall back to local
+embedding if it is unavailable.
+
+Start it manually:
+
+```bash
+python3 embed_server.py
+```
+
+Available endpoints:
+
+- `GET /health` returns `{"status":"ok"}`
+- `POST /embed` with `{"text":"..."}` returns the 384-dimensional embedding array
+
+## systemd user service
+
+`embed_server.service` is included as a template for running the embedding server
+persistently.
+
+Before enabling it, update:
+
+- `WorkingDirectory`
+- `ExecStart`
+
+Then install it:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp embed_server.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now embed_server
+```
+
+Verify:
+
+```bash
+systemctl --user status embed_server
+curl http://127.0.0.1:5001/health
+```
+
+## Legacy script
+
+`bot_query.php` is kept only as old reference code. It requires PHP, `curl`,
+`sqlite3`, and an `ANTHROPIC_API_KEY`, but that script is no longer part of the
+current workflow documented here.
 
 ## Troubleshooting
 
-**`Error: could not locate the sqlite-vec shared library`**
-: Run `pip install sqlite-vec` and verify that
-  `python3 -c "import sqlite_vec; print(sqlite_vec.loadable_path())"` prints a path.
+**`Error: sqlite-vec not installed`**
+Run `pip install -r requirements.txt`.
 
-**`Error: query_retrieve.py produced no output`**
-: Confirm the Python dependencies are installed: `pip install -r requirements.txt`
+**`Error: database not found`**
+Build the index first with `python3 build_index.py`.
 
-**`Anthropic API returned HTTP 401`**
-: Check that `ANTHROPIC_API_KEY` is exported in the environment PHP runs under.
+**`embed_server not reachable, loading model locally`**
+This is a fallback path, not a hard failure. Start `embed_server.py` if you want
+faster repeated queries.
 
-**Answers seem off-topic or hallucinated**
-: Rebuild the index (`python3 build_index.py`) to pick up the latest docs, and
-  confirm the question is something the BinktermPHP documentation actually covers.
+**Retrieval results seem off-topic**
+Rebuild the index and confirm the relevant docs exist in the local repo being
+indexed.
