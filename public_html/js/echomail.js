@@ -174,43 +174,56 @@ $(document).ready(function() {
 
     // Add keyboard navigation for message modal
     $(document).on('keydown', function(e) {
-        // Only handle keyboard shortcuts when the message modal is open
-        if ($('#messageModal').hasClass('show')) {
-            switch(e.key) {
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    navigateMessage(-1);
-                    break;
-                case 'ArrowRight':
-                    e.preventDefault();
-                    navigateMessage(1);
-                    break;
-                case 'd':
-                case 'D':
-                    e.preventDefault();
-                    downloadCurrentMessage();
-                    break;
-                case 'Escape':
-                    // Let the default modal behavior handle this
-                    break;
-                case 'f':
-                case 'F':
-                    if (e.ctrlKey || e.metaKey) break;
-                    e.preventDefault();
-                    toggleModalFullscreen();
-                    break;
-                case 'a':
-                case 'A':
-                    e.preventDefault();
-                    cycleRenderMode();
-                    break;
-                case '?':
-                case 'h':
-                case 'H':
-                    e.preventDefault();
-                    toggleKeyboardHelp();
-                    break;
-            }
+        // Only handle keyboard shortcuts when the message modal is the active modal.
+        if (!$('#messageModal').hasClass('show')) {
+            return;
+        }
+
+        const $activeModal = $('.modal.show').last();
+        if ($activeModal.length && !$activeModal.is('#messageModal')) {
+            return;
+        }
+
+        const $target = $(e.target);
+        if ($target.is('input, textarea, select, [contenteditable="true"]') ||
+            $target.closest('input, textarea, select, [contenteditable="true"]').length) {
+            return;
+        }
+
+        switch(e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                navigateMessage(-1);
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                navigateMessage(1);
+                break;
+            case 'd':
+            case 'D':
+                e.preventDefault();
+                downloadCurrentMessage();
+                break;
+            case 'Escape':
+                // Let the default modal behavior handle this
+                break;
+            case 'f':
+            case 'F':
+                if (e.ctrlKey || e.metaKey) break;
+                e.preventDefault();
+                toggleModalFullscreen();
+                break;
+            case 'a':
+            case 'A':
+                e.preventDefault();
+                cycleRenderMode();
+                break;
+            case '?':
+            case 'h':
+            case 'H':
+                e.preventDefault();
+                toggleKeyboardHelp();
+                break;
         }
     });
 
