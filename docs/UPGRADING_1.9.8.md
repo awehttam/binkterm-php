@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [Web Interface](#web-interface)
   - [Registration Approval Setting](#registration-approval-setting)
+  - [Notification Sound Unlock Fix](#notification-sound-unlock-fix)
 - [PGP Key Management](#pgp-key-management)
 - [Developer / Infrastructure](#developer--infrastructure)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -23,6 +24,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - New-user registration approval is now controlled by a dedicated BBS setting. Self-registrations still require manual approval by default, but sysops can now disable that requirement and have new accounts activated immediately. Approved registrations are also retained as history records instead of being deleted from `pending_users`.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
 - Echomail tag validation is now less strict across the web UI, admin echoarea editor, importer, and route matching. Common FTN tag punctuation such as `&`, `!`, and `%` is now accepted in area tags, so names like `AT&T_CHAT` no longer fail validation.
+- The browser notification-sound unlock path now respects each user's saved sound settings and no longer primes disabled sounds on first click. This avoids false notification sounds on Safari and Firefox when notification sounds are turned off.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
 - MeshCore repeater adverts are now stored in a dedicated `meshcore_node_adverts` table keyed by full public key. The CWN map/list and the public PacketBBS node directory still show MeshCore nodes after upgrade, but live advert writes no longer go into `cwn_networks`.
@@ -106,6 +108,20 @@ What changed:
 - file-area comment echoareas now use the same shared validation rule
 
 This is intended for common FTN-style tags such as `AT&T_CHAT`. Non-ASCII / UTF-8 echoarea tags are still not treated as safe or supported for interoperability.
+
+### Notification Sound Unlock Fix
+
+The web notifier no longer primes disabled notification sounds when the user first clicks on the page.
+
+This fixes a browser-specific issue reported on Safari and Firefox where a notification sound could play on any click even when the affected notification sound setting was set to `disabled`.
+
+What changed:
+
+- the first-click audio unlock path now checks the user's saved notification sound settings before attempting to prime audio
+- only sounds that are actually enabled for that user are unlocked
+- if all notification sounds are disabled, the unlock step now does nothing
+
+This change is client-side only. Make sure updated clients receive the new cached assets after upgrade.
 
 ### PGP Key Management
 

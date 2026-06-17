@@ -26,6 +26,12 @@
         netmail: 'notify1',
         files: 'disabled'
     };
+    const notificationSoundKeys = [
+        'chat_notification_sound',
+        'echomail_notification_sound',
+        'netmail_notification_sound',
+        'file_notification_sound'
+    ];
 
     function getAudio(soundName) {
         if (!audioCache.has(soundName)) {
@@ -55,6 +61,16 @@
         return 'notify1';
     }
 
+    function getEnabledNotificationSounds() {
+        if (!window.userSettings) {
+            return [];
+        }
+
+        return [...new Set(notificationSoundKeys
+            .map((key) => getNotificationSound(key))
+            .filter((soundName) => soundName !== 'disabled'))];
+    }
+
     function playNotificationSound(type) {
         const keyMap = {
             chat: 'chat_notification_sound',
@@ -80,14 +96,18 @@
         if (audioUnlocked) {
             return;
         }
+        const enabledSounds = getEnabledNotificationSounds();
+        if (enabledSounds.length === 0) {
+            return;
+        }
+
         audioUnlocked = true;
         document.removeEventListener('pointerdown', unlockAudio);
         document.removeEventListener('keydown', unlockAudio);
 
-        // Prime each shipped sound after a user gesture so later notifications
-        // are not blocked by browser autoplay restrictions.
-        for (let i = 1; i <= 5; i++) {
-            const audio = getAudio(`notify${i}`);
+        // Prime only the sounds this user actually has enabled.
+        for (const soundName of enabledSounds) {
+            const audio = getAudio(soundName);
             audio.muted = true;
             try {
                 audio.currentTime = 0;
