@@ -4256,7 +4256,7 @@ return [
     'ui.echoareas_import.error_open_na' => 'Unable to open uploaded .NA file.',
     'ui.echoareas_import.error_duplicate_row' => 'Duplicate ECHOTAG within the import file.',
     'ui.echoareas_import.error_tag_description_required' => 'ECHOTAG and DESCRIPTION are required.',
-    'ui.echoareas_import.error_invalid_tag' => 'Invalid ECHOTAG. Use only letters, numbers, dots, underscores, and hyphens.',
+    'ui.echoareas_import.error_invalid_tag' => 'Invalid ECHOTAG. Use only letters, numbers, dots, underscores, hyphens, apostrophes, ampersands, exclamation marks, and percent signs.',
     'ui.echoareas_import.error_invalid_domain' => 'Invalid DOMAIN. Use only letters, numbers, underscores, and hyphens.',
     'ui.echoareas_import.error_unknown_domain' => 'Unknown DOMAIN \'{domain}\'. Add the network domain first in BinkP configuration.',
     'ui.echoareas_import.error_apply_failed' => 'Import failed and no changes were applied.',

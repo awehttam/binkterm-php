@@ -3514,7 +3514,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.echoareas_import.error_open_na' => 'Impossible d\'ouvrir le fichier .NA téléversé.',
     'ui.echoareas_import.error_duplicate_row' => 'ECHOTAG en double dans le fichier d\'importation.',
     'ui.echoareas_import.error_tag_description_required' => 'ECHOTAG et DESCRIPTION sont obligatoires.',
-    'ui.echoareas_import.error_invalid_tag' => 'ECHOTAG invalide. Utilisez uniquement des lettres, des chiffres, des points, des tirets bas et des tirets.',
+    'ui.echoareas_import.error_invalid_tag' => 'ECHOTAG invalide. Utilisez uniquement des lettres, des chiffres, des points, des tirets bas, des tirets, des apostrophes, des esperluettes, des points d\'exclamation et des signes de pourcentage.',
     'ui.echoareas_import.error_invalid_domain' => 'DOMAIN invalide. Utilisez uniquement des lettres, des chiffres, des tirets bas et des tirets.',
     'ui.echoareas_import.error_unknown_domain' => 'DOMAIN inconnu « {domain} ». Ajoutez d\'abord le domaine réseau dans la configuration BinkP.',
     'ui.echoareas_import.error_apply_failed' => 'L\'importation a échoué et aucune modification n\'a été appliquée.',

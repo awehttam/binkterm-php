@@ -653,7 +653,7 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
         'pgp_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp'),
         'pgp_managed_keys_enabled' => \BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys'),
     ]);
-})->where(['echoarea' => "[-A-Za-z0-9@._'!%]+"]);
+})->where(['echoarea' => \BinktermPHP\EchoareaManager::ROUTE_ECHOAREA_PATTERN]);
 
 SimpleRouter::get('/shared-image/{slug}', function($slug) {
     // Public, no-auth route used by social media crawlers to fetch og:image previews.

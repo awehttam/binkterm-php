@@ -139,7 +139,7 @@ class EchoareaImporter
 
     private function validateRow(array $row, BinkpConfig $config): array
     {
-        $tag = strtoupper(trim((string)($row[0] ?? '')));
+        $tag = EchoareaManager::normalizeTag((string)($row[0] ?? ''));
         $description = trim((string)($row[1] ?? ''));
         $domain = strtolower(trim((string)($row[2] ?? '')));
 
@@ -151,11 +151,11 @@ class EchoareaImporter
             );
         }
 
-        if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
+        if (!EchoareaManager::isValidTag($tag)) {
             throw new EchoareaImportException(
                 'ui.echoareas_import.error_invalid_tag',
                 [],
-                "Invalid ECHOTAG. Use only letters, numbers, dots, underscores, hyphens, and apostrophes."
+                'Invalid ECHOTAG. Use only letters, numbers, dots, underscores, hyphens, apostrophes, ampersands, exclamation marks, and percent signs.'
             );
         }
 
@@ -384,7 +384,7 @@ class EchoareaImporter
 
             // Split on first run of whitespace: tag + rest-as-description
             $parts = preg_split('/\s+/', $line, 2);
-            $tag = strtoupper(trim($parts[0] ?? ''));
+            $tag = EchoareaManager::normalizeTag((string)($parts[0] ?? ''));
             $description = trim($parts[1] ?? '');
 
             try {
@@ -396,11 +396,11 @@ class EchoareaImporter
                     );
                 }
 
-                if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
+                if (!EchoareaManager::isValidTag($tag)) {
                     throw new EchoareaImportException(
                         'ui.echoareas_import.error_invalid_tag',
                         [],
-                        'Invalid ECHOTAG. Use only letters, numbers, dots, underscores, hyphens, and apostrophes.'
+                        'Invalid ECHOTAG. Use only letters, numbers, dots, underscores, hyphens, apostrophes, ampersands, exclamation marks, and percent signs.'
                     );
                 }
 

@@ -4225,7 +4225,7 @@ return [
     'ui.echoareas_import.error_open_csv' => 'Impossibile aprire il file CSV caricato.',
     'ui.echoareas_import.error_duplicate_row' => 'Combinazione ECHOTAG/DOMAIN duplicata nel file CSV.',
     'ui.echoareas_import.error_tag_description_required' => 'ECHOTAG e DESCRIPTION sono obbligatori.',
-    'ui.echoareas_import.error_invalid_tag' => 'ECHOTAG non valido. Usa solo lettere, numeri, punti, underscore e trattini.',
+    'ui.echoareas_import.error_invalid_tag' => 'ECHOTAG non valido. Usa solo lettere, numeri, punti, underscore, trattini, apostrofi, e commerciali, punti esclamativi e segni di percentuale.',
     'ui.echoareas_import.error_invalid_domain' => 'DOMAIN non valido. Usa solo lettere, numeri, underscore e trattini.',
     'ui.echoareas_import.error_unknown_domain' => 'DOMAIN sconosciuto \'{domain}\'. Aggiungi prima il dominio rete nella configurazione BinkP.',
     'ui.echoareas_import.error_apply_failed' => 'Importazione non riuscita e nessuna modifica applicata.',

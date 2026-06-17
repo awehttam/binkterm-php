@@ -2339,8 +2339,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Tag and description are required');
             }
 
-            if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
-                throw new \Exception("Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, and apostrophes");
+            if (!\BinktermPHP\EchoareaManager::isValidTag($tag)) {
+                throw new \Exception('Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, apostrophes, ampersands, exclamation marks, and percent signs');
             }
 
             if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
@@ -2441,8 +2441,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Tag and description are required');
             }
 
-            if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
-                throw new \Exception("Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, and apostrophes");
+            if (!\BinktermPHP\EchoareaManager::isValidTag($tag)) {
+                throw new \Exception('Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, apostrophes, ampersands, exclamation marks, and percent signs');
             }
 
             if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
@@ -5366,7 +5366,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
         } elseif ($action === 'create') {
-            $tag         = strtoupper(trim($input['tag'] ?? ''));
+            $tag         = \BinktermPHP\EchoareaManager::normalizeTag((string)($input['tag'] ?? ''));
             $description = trim($input['description'] ?? '');
 
             if ($tag === '') {
@@ -5375,7 +5375,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
 
-            if (!preg_match("/^[A-Z0-9._'-]+$/", $tag)) {
+            if (!\BinktermPHP\EchoareaManager::isValidTag($tag)) {
                 http_response_code(400);
                 apiError('errors.fileareas.comment_area_failed', 'Invalid tag format');
                 return;
@@ -6181,7 +6181,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         unset($stats['areas']);
 
         echo json_encode($stats);
-    })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
+    })->where(['echoarea' => \BinktermPHP\EchoareaManager::ROUTE_ECHOAREA_PATTERN]);
 
     $prepareEchomailAdBodyForSave = static function(array $message): string {
         $body = '';
@@ -6579,7 +6579,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
 
         echo json_encode($result);
-    })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
+    })->where(['echoarea' => \BinktermPHP\EchoareaManager::ROUTE_ECHOAREA_PATTERN]);
 
     SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) use ($resolveEchomailMediaPermission) {
         $user = RouteHelper::requireAuth();
@@ -6635,7 +6635,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
         }
-    })->where(['echoarea' => '[-A-Za-z0-9._@\'!%]+', 'id' => '[0-9]+']);
+    })->where(['echoarea' => \BinktermPHP\EchoareaManager::ROUTE_ECHOAREA_PATTERN, 'id' => '[0-9]+']);
 
     /**
      * Upload a file for attachment to an outbound netmail.

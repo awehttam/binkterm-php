@@ -22,6 +22,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The subscribed echomail message list now avoids duplicate unread-count work, skips unnecessary joins in its pagination count query, and deduplicates overlapping client-side refreshes, which reduces page-load time on systems with large echomail message bases.
 - New-user registration approval is now controlled by a dedicated BBS setting. Self-registrations still require manual approval by default, but sysops can now disable that requirement and have new accounts activated immediately. Approved registrations are also retained as history records instead of being deleted from `pending_users`.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
+- Echomail tag validation is now less strict across the web UI, admin echoarea editor, importer, and route matching. Common FTN tag punctuation such as `&`, `!`, and `%` is now accepted in area tags, so names like `AT&T_CHAT` no longer fail validation.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
 - MeshCore repeater adverts are now stored in a dedicated `meshcore_node_adverts` table keyed by full public key. The CWN map/list and the public PacketBBS node directory still show MeshCore nodes after upgrade, but live advert writes no longer go into `cwn_networks`.
@@ -92,6 +93,19 @@ What changed:
 - high-churn refresh paths such as initial load, visibility restore, websocket-triggered updates, and bulk actions now share a centralized refresh flow instead of independently reloading the sidebar, list, and stats endpoints
 
 On systems with large echomail message bases and users subscribed to many areas, this reduces the amount of full-table work needed to render the default message list without changing the visible behavior of the page.
+
+### Echomail Tag Validation
+
+Echomail area tags now accept a broader ASCII punctuation set in the main validation paths.
+
+What changed:
+
+- the admin echoarea create and edit API now accepts tags containing `&`, `!`, and `%`
+- the CSV and `.NA` echoarea importer now accepts the same character set
+- echomail route matching now accepts those tags in URL paths instead of rejecting them before the page handler runs
+- file-area comment echoareas now use the same shared validation rule
+
+This is intended for common FTN-style tags such as `AT&T_CHAT`. Non-ASCII / UTF-8 echoarea tags are still not treated as safe or supported for interoperability.
 
 ### PGP Key Management
 
