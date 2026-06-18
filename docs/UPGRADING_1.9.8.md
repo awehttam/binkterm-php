@@ -25,6 +25,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
 - Echomail tag validation is now less strict across the web UI, admin echoarea editor, importer, and route matching. Common FTN tag punctuation such as `&`, `!`, and `%` is now accepted in area tags, so names like `AT&T_CHAT` no longer fail validation.
 - The browser notification-sound unlock path now respects each user's saved sound settings and no longer primes disabled sounds on first click. This avoids false notification sounds on Safari and Firefox when notification sounds are turned off.
+- The example nginx config in `docs/INSTALL.md` now includes cache-control rules for `/sw.js`, `.css`, and `.js` so updated frontend assets are revalidated more reliably. The nginx example remains untested and unsupported.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
 - MeshCore repeater adverts are now stored in a dedicated `meshcore_node_adverts` table keyed by full public key. The CWN map/list and the public PacketBBS node directory still show MeshCore nodes after upgrade, but live advert writes no longer go into `cwn_networks`.
@@ -122,6 +123,18 @@ What changed:
 - if all notification sounds are disabled, the unlock step now does nothing
 
 This change is client-side only. Make sure updated clients receive the new cached assets after upgrade.
+
+### Nginx Example Cache Rules
+
+The example nginx config in `docs/INSTALL.md` now includes explicit cache-control rules for the service worker and frontend assets.
+
+What changed:
+
+- `/sw.js` is now served with `Cache-Control: no-cache`
+- `.css` and `.js` files are now served with `Cache-Control: max-age=0, must-revalidate`
+- the example adds `try_files` handling in those static-cache locations so missing assets return `404` instead of falling through unexpectedly
+
+This update is intended to reduce cases where browsers continue using stale cached frontend code after an upgrade. The nginx example remains a starting point only and is still untested because nginx is not a supported deployment target.
 
 ### PGP Key Management
 

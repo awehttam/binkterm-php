@@ -321,6 +321,20 @@ server {
     root /home/binktermphp/binkterm-php/public_html;
     index index.php;
 
+    # Service worker must revalidate on every load so updated cached assets
+    # can be discovered promptly.
+    location = /sw.js {
+        add_header Cache-Control "no-cache" always;
+        try_files $uri =404;
+    }
+
+    # CSS/JS are versioned by the service worker; require revalidation so
+    # browser and proxy caches do not pin old frontend code indefinitely.
+    location ~* \.(css|js)$ {
+        add_header Cache-Control "max-age=0, must-revalidate" always;
+        try_files $uri =404;
+    }
+
     # Realtime WebSocket daemon (scripts/realtime_server.php)
     location /ws {
         proxy_pass         http://127.0.0.1:6010;
