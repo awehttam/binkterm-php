@@ -41,7 +41,7 @@ class EchoareaManager
 
         [$domainClause, $params] = $this->buildDomainWhereClause($domains);
         $sql = "
-            SELECT id, tag, description, domain, uplink_address, is_active, is_local
+            SELECT id, tag, description, domain, uplink_address, is_active, is_local, missing_chrs_charset
             FROM echoareas
             WHERE UPPER(tag) = UPPER(?)
               AND {$domainClause}
@@ -61,7 +61,7 @@ class EchoareaManager
         }
 
         $stmt = $this->db->prepare("
-            SELECT id, tag, description, domain, uplink_address, is_active, is_local
+            SELECT id, tag, description, domain, uplink_address, is_active, is_local, missing_chrs_charset
             FROM echoareas
             WHERE id = ?
             LIMIT 1
@@ -169,14 +169,15 @@ class EchoareaManager
         $moderator = isset($data['moderator']) && trim((string)$data['moderator']) !== '' ? trim((string)$data['moderator']) : null;
         $postingNamePolicy = isset($data['posting_name_policy']) && trim((string)$data['posting_name_policy']) !== '' ? trim((string)$data['posting_name_policy']) : null;
         $artFormatHint = isset($data['art_format_hint']) && trim((string)$data['art_format_hint']) !== '' ? trim((string)$data['art_format_hint']) : null;
+        $missingChrsCharset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($data['missing_chrs_charset'] ?? null);
         $color = isset($data['color']) && trim((string)$data['color']) !== '' ? trim((string)$data['color']) : '#28a745';
 
         $insertStmt = $this->db->prepare("
             INSERT INTO echoareas (
                 tag, description, moderator, uplink_address,
-                posting_name_policy, art_format_hint, color,
+                posting_name_policy, art_format_hint, missing_chrs_charset, color,
                 is_active, is_local, is_sysop_only, domain, gemini_public
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $insertStmt->execute([
             $tag,
@@ -185,6 +186,7 @@ class EchoareaManager
             $normalizedUplinkAddress,
             $postingNamePolicy,
             $artFormatHint,
+            $missingChrsCharset,
             $color,
             $isActive ? 'true' : 'false',
             $isLocal ? 'true' : 'false',

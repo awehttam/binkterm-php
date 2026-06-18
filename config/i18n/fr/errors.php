@@ -100,6 +100,7 @@ return [
     'errors.echoareas.not_found' => 'Zone echo introuvable',
     'errors.echoareas.invalid_posting_name_policy' => 'Politique de nom de publication invalide',
     'errors.echoareas.invalid_art_format_hint' => 'Indication de format artistique invalide',
+    'errors.echoareas.invalid_missing_chrs_charset' => 'Jeu de caracteres sans CHRS invalide',
     'errors.echoareas.tag_description_required' => 'Le tag et la description sont requis',
     'errors.echoareas.invalid_tag_format' => 'Format de tag invalide',
     'errors.echoareas.invalid_color_format' => 'Format de couleur invalide',
@@ -545,6 +546,7 @@ return [
     // Messages - Echomail
     'errors.messages.echomail.edit.admin_required' => 'Des privilèges administrateur sont requis',
     'errors.messages.echomail.edit.invalid_art_format' => 'Valeur de format artistique invalide',
+    'errors.messages.echomail.edit.invalid_message_charset' => 'Jeu de caracteres du message invalide',
     'errors.messages.body_too_large' => 'Le corps du message dépasse la limite FidoNet de 16 Ko',
     'errors.messages.echomail.edit.nothing_to_update' => 'Aucun champ à mettre à jour',
     'errors.messages.echomail.edit.save_failed' => 'Échec de l\'enregistrement des modifications',

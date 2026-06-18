@@ -2015,6 +2015,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.moderator,
                     e.uplink_address,
                     e.posting_name_policy,
+                    e.missing_chrs_charset,
                     e.color,
                     e.is_active,
                     e.created_at,
@@ -2316,6 +2317,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
             $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
+            $missingChrsCharsetInput = trim((string)($input['missing_chrs_charset'] ?? ''));
+            if ($missingChrsCharsetInput === '' || strtolower($missingChrsCharsetInput) === 'inherit') {
+                $missingChrsCharsetInput = '';
+            }
+            $missingChrsCharset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($missingChrsCharsetInput);
             $allowMediaInput = $input['allow_media'] ?? 'inherit';
             $allowMedia = match((string)$allowMediaInput) {
                 'allow', 'true' => 'true',
@@ -2333,6 +2339,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $artFormatHint = null;
             } elseif (!in_array($artFormatHint, ['ansi', 'amiga_ansi', 'petscii'], true)) {
                 throw new \Exception('Invalid art format hint');
+            }
+
+            if ($missingChrsCharsetInput !== '' && $missingChrsCharset === null) {
+                throw new \Exception('Invalid missing CHRS charset');
             }
 
             if (empty($tag) || empty($description)) {
@@ -2354,11 +2364,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public, allow_media)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, missing_chrs_charset, color, is_active, is_local, is_sysop_only, domain, gemini_public, allow_media)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $missingChrsCharset, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia]);
 
             if ($result) {
                 echo json_encode([
@@ -2376,6 +2386,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_posting_name_policy', apiLocalizedText('errors.echoareas.invalid_posting_name_policy', 'Invalid posting name policy', $user));
             } elseif ($message === 'Invalid art format hint') {
                 apiError('errors.echoareas.invalid_art_format_hint', apiLocalizedText('errors.echoareas.invalid_art_format_hint', 'Invalid art format hint', $user));
+            } elseif ($message === 'Invalid missing CHRS charset') {
+                apiError('errors.echoareas.invalid_missing_chrs_charset', apiLocalizedText('errors.echoareas.invalid_missing_chrs_charset', 'Invalid missing CHRS charset', $user));
             } elseif ($message === 'Tag and description are required') {
                 apiError('errors.echoareas.tag_description_required', apiLocalizedText('errors.echoareas.tag_description_required', 'Tag and description are required', $user));
             } elseif (str_starts_with($message, 'Invalid tag format')) {
@@ -2418,6 +2430,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
             $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
+            $missingChrsCharsetInput = trim((string)($input['missing_chrs_charset'] ?? ''));
+            if ($missingChrsCharsetInput === '' || strtolower($missingChrsCharsetInput) === 'inherit') {
+                $missingChrsCharsetInput = '';
+            }
+            $missingChrsCharset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($missingChrsCharsetInput);
             $allowMediaInput = $input['allow_media'] ?? 'inherit';
             $allowMedia = match((string)$allowMediaInput) {
                 'allow', 'true' => 'true',
@@ -2435,6 +2452,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $artFormatHint = null;
             } elseif (!in_array($artFormatHint, ['ansi', 'amiga_ansi', 'petscii'], true)) {
                 throw new \Exception('Invalid art format hint');
+            }
+
+            if ($missingChrsCharsetInput !== '' && $missingChrsCharset === null) {
+                throw new \Exception('Invalid missing CHRS charset');
             }
 
             if (empty($tag) || empty($description)) {
@@ -2457,11 +2478,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?, allow_media = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, missing_chrs_charset = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?, allow_media = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia, $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $missingChrsCharset, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia, $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode([
@@ -2478,6 +2499,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_posting_name_policy', apiLocalizedText('errors.echoareas.invalid_posting_name_policy', 'Invalid posting name policy', $user));
             } elseif ($message === 'Invalid art format hint') {
                 apiError('errors.echoareas.invalid_art_format_hint', apiLocalizedText('errors.echoareas.invalid_art_format_hint', 'Invalid art format hint', $user));
+            } elseif ($message === 'Invalid missing CHRS charset') {
+                apiError('errors.echoareas.invalid_missing_chrs_charset', apiLocalizedText('errors.echoareas.invalid_missing_chrs_charset', 'Invalid missing CHRS charset', $user));
             } elseif ($message === 'Tag and description are required') {
                 apiError('errors.echoareas.tag_description_required', apiLocalizedText('errors.echoareas.tag_description_required', 'Tag and description are required', $user));
             } elseif (str_starts_with($message, 'Invalid tag format')) {
@@ -5781,7 +5804,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         // Verify the message exists and belongs to the current user
-        $stmt = $db->prepare('SELECT user_id FROM netmail WHERE id = ?');
+        $stmt = $db->prepare('SELECT user_id, raw_message_bytes FROM netmail WHERE id = ?');
         $stmt->execute([(int)$id]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
@@ -5809,6 +5832,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        $normalizedMessageCharset = \BinktermPHP\MessageCharsetConverter::normalizeDecodableCharset($charset);
+        if ($charset !== null && $charset !== '' && $normalizedMessageCharset === null) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_message_charset', apiLocalizedText('errors.messages.echomail.edit.invalid_message_charset', 'Invalid message charset', $user));
+            return;
+        }
+
         $setClauses = [];
         $params     = [];
 
@@ -5818,7 +5848,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         if ($charset !== null) {
             $setClauses[] = 'message_charset = ?';
-            $params[]     = $charset === '' ? null : $charset;
+            $params[]     = $charset === '' ? null : $normalizedMessageCharset;
+            if ($charset !== '') {
+                $redecodedText = \BinktermPHP\MessageCharsetConverter::decodeStoredMessageBytes($row['raw_message_bytes'] ?? null, $charset);
+                if ($redecodedText !== null) {
+                    $setClauses[] = 'message_text = ?';
+                    $params[]     = $redecodedText;
+                }
+            }
         }
 
         if (empty($setClauses)) {
@@ -6520,6 +6557,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        $normalizedMessageCharset = \BinktermPHP\MessageCharsetConverter::normalizeDecodableCharset($charset);
+        if ($charset !== null && $charset !== '' && $normalizedMessageCharset === null) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_message_charset', apiLocalizedText('errors.messages.echomail.edit.invalid_message_charset', 'Invalid message charset', $user));
+            return;
+        }
+
+        $messageMetaStmt = $db->prepare('SELECT raw_message_bytes FROM echomail WHERE id = ?');
+        $messageMetaStmt->execute([(int)$id]);
+        $messageMeta = $messageMetaStmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$messageMeta) {
+            http_response_code(404);
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+            return;
+        }
+
         // Build update
         $setClauses = [];
         $params     = [];
@@ -6530,7 +6583,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         if ($charset !== null) {
             $setClauses[] = 'message_charset = ?';
-            $params[]     = $charset === '' ? null : $charset;
+            $params[]     = $charset === '' ? null : $normalizedMessageCharset;
+            if ($charset !== '') {
+                $redecodedText = \BinktermPHP\MessageCharsetConverter::decodeStoredMessageBytes($messageMeta['raw_message_bytes'] ?? null, $charset);
+                if ($redecodedText !== null) {
+                    $setClauses[] = 'message_text = ?';
+                    $params[]     = $redecodedText;
+                }
+            }
         }
 
         if (empty($setClauses)) {

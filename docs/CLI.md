@@ -36,6 +36,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [RAM Usage Report](#ram-usage-report)
 - [Who](#who)
 - [Fix Date Received](#fix-date-received)
+- [Rebuild Echomail Message Text](#rebuild-echomail-message-text)
 - [Auto Feed Poster](#auto-feed-poster)
 - [Import BBS List](#import-bbs-list)
 
@@ -1000,6 +1001,31 @@ Options:
 - `--domain` and `--tag` combined — selects only areas matching both filters (intersection).
 - `--all` — Apply to every echo area on the system.
 - `--dry-run` — Show how many rows would be updated without making any changes.
+
+## Rebuild Echomail Message Text
+
+Re-decodes `echomail.message_text` from `raw_message_bytes` for one echo area or one network domain. The script prefers the message's `CHRS` kludge when present; otherwise it uses the echo area's **Missing CHRS Charset**, then the network-level fallback, then the stored `message_charset`. You can also force a charset explicitly.
+
+```bash
+# Rebuild all echomail in one network using configured CHRS fallbacks
+php scripts/rebuild_echomail_message_text.php --domain=fidonet
+
+# Rebuild one area, inferring the domain from TAG@domain
+php scripts/rebuild_echomail_message_text.php --echoarea=GENERAL@fidonet
+
+# Preview changes without writing
+php scripts/rebuild_echomail_message_text.php --domain=fidonet --dry-run
+
+# Force one charset for the selected rows
+php scripts/rebuild_echomail_message_text.php --echoarea=GENERAL@fidonet --charset=CP850
+```
+
+Options:
+- `--domain=<name>` — Limit to one network domain.
+- `--echoarea=<TAG[@domain]>` — Limit to one echo area tag, optionally with its domain.
+- `--charset=<charset>` — Force one charset for all matched rows.
+- `--dry-run` — Show what would change without writing.
+- `--help` — Show usage information.
 
 ## Import BBS List
 

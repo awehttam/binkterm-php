@@ -2133,6 +2133,7 @@ Single echo area object with extended metadata
 | `echoarea.tag` | string | Echo area tag |
 | `echoarea.description` | string | Description |
 | `echoarea.domain` | string | Domain (e.g., 'lovlynet') |
+| `echoarea.missing_chrs_charset` | string\|null | Fallback charset used when inbound FTN messages for this area have no `CHRS` kludge |
 | `echoarea.is_sysop_only` | boolean | Sysop-only flag |
 | `echoarea.is_active` | boolean | Whether area is active |
 | `echoarea.is_local` | boolean | Whether area is local-only (not forwarded) |
@@ -2179,6 +2180,7 @@ Echo area configuration
 | `domain` | string | No | Domain name (e.g., 'lovlynet') |
 | `posting_name_policy` | string|null | No | 'real_name', 'username', or null for inherit |
 | `art_format_hint` | string|null | No | 'ansi', 'amiga_ansi', 'petscii', or null for auto |
+| `missing_chrs_charset` | string|null | No | Charset to use only when inbound FTN messages for this area have no `CHRS` kludge; null or 'inherit' uses the network setting |
 | `allow_media` | string | No | 'allow'/'true', 'deny'/'false', or 'inherit' (default) |
 | `gemini_public` | boolean | No | Whether area is public on Gemini protocol |
 
@@ -2230,6 +2232,7 @@ Echo area configuration (same as POST, all fields optional)
 | `domain` | string | No | Domain name |
 | `posting_name_policy` | string|null | No | Posting name policy |
 | `art_format_hint` | string|null | No | Art format hint |
+| `missing_chrs_charset` | string|null | No | Charset to use only when inbound FTN messages for this area have no `CHRS` kludge; null or 'inherit' uses the network setting |
 | `allow_media` | string | No | Media policy |
 | `gemini_public` | boolean | No | Gemini public flag |
 
@@ -4587,7 +4590,7 @@ Plain text file download with CRLF line endings
 
 **Requires authentication**
 
-Updates display metadata for a netmail message. Only the message owner or admins can edit. Supports setting art_format (ansi, amiga_ansi, petscii, plain, or empty) and message_charset (uppercase). At least one field must be provided. Returns 403 if user lacks permission.
+Updates display metadata for a netmail message. Only the message owner or admins can edit. Supports setting art_format (ansi, amiga_ansi, petscii, plain, or empty) and message_charset (uppercase). When `message_charset` is changed to a non-empty value and `raw_message_bytes` are present, `message_text` is rebuilt from the raw bytes using the new charset.
 
 **Path Parameters**
 
@@ -5025,7 +5028,7 @@ Message content as plain text file attachment
 
 **Requires authentication**
 
-Updates message metadata fields (art_format, message_charset) for an echomail message. Admin privileges required. Accepts JSON body with optional art_format and message_charset fields. Valid art formats: '', 'ansi', 'amiga_ansi', 'petscii', 'plain'. Returns 404 if message not found.
+Updates message metadata fields (art_format, message_charset) for an echomail message. Admin privileges required. Accepts JSON body with optional art_format and message_charset fields. Valid art formats: '', 'ansi', 'amiga_ansi', 'petscii', 'plain'. When `message_charset` is changed to a non-empty value and `raw_message_bytes` are present, `message_text` is rebuilt from the raw bytes using the new charset.
 
 **Path Parameters**
 

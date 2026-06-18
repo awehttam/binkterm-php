@@ -24,6 +24,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - New-user registration approval is now controlled by a dedicated BBS setting. Self-registrations still require manual approval by default, but sysops can now disable that requirement and have new accounts activated immediately. Approved registrations are also retained as history records instead of being deleted from `pending_users`.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
 - Echomail tag validation is now less strict across the web UI, admin echoarea editor, importer, and route matching. Common FTN tag punctuation such as `&`, `!`, and `%` is now accepted in area tags, so names like `AT&T_CHAT` no longer fail validation.
+- Network and echoarea settings now include a **Missing CHRS fallback charset** used only when inbound FTN messages arrive without a `CHRS` kludge. Message charset edits for netmail and echomail now rebuild `message_text` from `raw_message_bytes` when raw bytes are available, and a new CLI tool can bulk rebuild stored echomail text for a selected area or domain.
 - The browser notification-sound unlock path now respects each user's saved sound settings and no longer primes disabled sounds on first click. This avoids false notification sounds on Safari and Firefox when notification sounds are turned off.
 - The example nginx config in `docs/INSTALL.md` now includes cache-control rules for `/sw.js`, `.css`, and `.js` so updated frontend assets are revalidated more reliably. The nginx example remains untested and unsupported.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
@@ -109,6 +110,29 @@ What changed:
 - file-area comment echoareas now use the same shared validation rule
 
 This is intended for common FTN-style tags such as `AT&T_CHAT`. Non-ASCII / UTF-8 echoarea tags are still not treated as safe or supported for interoperability.
+
+### Missing CHRS Charset Fallbacks
+
+Inbound FTN messages that arrive without a `CHRS` kludge can now use explicit fallback charset settings instead of relying only on the historical guess order.
+
+What changed:
+
+- **Admin -> Networks** now includes a **Missing CHRS fallback charset** setting
+- **Admin -> Echo Areas** now includes a per-area **Missing CHRS charset** override
+- inbound packet processing now uses this order when `CHRS` is missing:
+  - echoarea `missing_chrs_charset`
+  - network `missing_chrs_charset`
+  - the legacy guess order (`CP437`, `CP850`, `ISO-8859-1`, `CP1252`)
+- the existing network **Default Outgoing Charset** setting continues to control newly composed outbound messages; it is no longer described as a general-purpose fallback for inbound mail
+
+If you have existing imported echomail that was decoded with the wrong charset because `CHRS` was missing, you can now rebuild `message_text` from the stored raw bytes with:
+
+```bash
+php scripts/rebuild_echomail_message_text.php --domain=fidonet --dry-run
+php scripts/rebuild_echomail_message_text.php --echoarea=GENERAL@fidonet
+```
+
+Message metadata edits now also re-decode from `raw_message_bytes` when you change `message_charset` on an individual netmail or echomail message.
 
 ### Notification Sound Unlock Fix
 
