@@ -739,4 +739,8 @@ return [
     'errors.pgp.passphrase_too_short' => 'Use una frase de acceso PGP mas larga.',
     'errors.pgp.passphrase_mismatch' => 'La confirmacion de la frase de acceso no coincide.',
     'errors.pgp.generation_failed' => 'No se pudo generar la clave PGP administrada.',
+    'errors.admin.appearance.term_menu_keys.invalid_key' => 'Las teclas del menu deben ser una sola letra o digito',
+    'errors.admin.appearance.term_menu_keys.duplicate_key' => 'Cada tecla del menu debe ser unica',
+    'errors.admin.appearance.term_menu_keys.quit_required' => 'Debe asignarse una tecla a Salir',
+    'errors.admin.appearance.term_menu_keys.save_failed' => 'No se pudo guardar la configuracion de las teclas del menu',
 ];
