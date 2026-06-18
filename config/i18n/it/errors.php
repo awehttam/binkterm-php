@@ -739,4 +739,8 @@ return [
     'errors.pgp.passphrase_too_short' => 'Usa una passphrase PGP piu lunga.',
     'errors.pgp.passphrase_mismatch' => 'La conferma della passphrase non corrisponde.',
     'errors.pgp.generation_failed' => 'Impossibile generare la chiave PGP gestita.',
+    'errors.admin.appearance.term_menu_keys.invalid_key' => 'I tasti del menu devono essere una singola lettera o cifra',
+    'errors.admin.appearance.term_menu_keys.duplicate_key' => 'Ogni tasto del menu deve essere univoco',
+    'errors.admin.appearance.term_menu_keys.quit_required' => 'Deve essere assegnato un tasto a Esci',
+    'errors.admin.appearance.term_menu_keys.save_failed' => 'Impossibile salvare le impostazioni dei tasti del menu',
 ];

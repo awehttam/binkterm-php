@@ -741,4 +741,8 @@ return [
     'errors.pgp.passphrase_too_short' => 'Verwenden Sie eine laengere PGP-Passphrase.',
     'errors.pgp.passphrase_mismatch' => 'Die Passphrase-Bestaetigung stimmt nicht ueberein.',
     'errors.pgp.generation_failed' => 'BBS-verwalteter PGP-Schluessel konnte nicht erzeugt werden.',
+    'errors.admin.appearance.term_menu_keys.invalid_key' => 'Menütasten müssen aus genau einem Buchstaben oder einer Ziffer bestehen',
+    'errors.admin.appearance.term_menu_keys.duplicate_key' => 'Jede Menütaste muss eindeutig sein',
+    'errors.admin.appearance.term_menu_keys.quit_required' => 'Für Beenden muss eine Taste zugewiesen sein',
+    'errors.admin.appearance.term_menu_keys.save_failed' => 'Die Menütasteneinstellungen konnten nicht gespeichert werden',
 ];
