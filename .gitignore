@@ -72,3 +72,6 @@ tools/support-bot/*.db
 
 # Matterbridge
 matterbridge/matterbridge*
+
+# Local troubleshooting notes
+bugreports/
