@@ -12,6 +12,7 @@
 | Errol Casey | Extensive testing |
 | Freddy Krueger | Italian translation |
 | Neo67 | German translation |
+| pztrn | Russian translation |
 
 ## Third-Party Libraries
 
