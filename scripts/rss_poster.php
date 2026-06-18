@@ -684,7 +684,7 @@ function postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose) 
     $userId = $feed['post_as_user_id'] ?? 1;
 
     // Post to echoarea
-    $subject = truncate($article['title'], 72); // FTN subject line limit
+    $subject = buildArticleSubject($feed, $article);
 
     // Attempt subject-based threading when enabled for this feed
     $replyToId = null;
@@ -724,6 +724,28 @@ function postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose) 
         WHERE id = ?
     ");
     $stmt->execute([$feed['id']]);
+}
+
+/**
+ * Build the FTN subject line for an auto-feed article.
+ *
+ * @param array $feed Feed configuration
+ * @param array $article Article data
+ * @return string
+ */
+function buildArticleSubject(array $feed, array $article): string
+{
+    $title = trim((string)($article['title'] ?? ''));
+
+    if (!empty($feed['include_feed_name_in_subject'])) {
+        $feedName = trim((string)($feed['feed_name'] ?? ''));
+        if ($feedName !== '') {
+            $subject = $title !== '' ? '[' . $feedName . '] ' . $title : '[' . $feedName . ']';
+            return truncate($subject, 72);
+        }
+    }
+
+    return truncate($title, 72);
 }
 
 /**

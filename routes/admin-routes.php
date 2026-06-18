@@ -5695,8 +5695,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 INSERT INTO auto_feed_sources
                 (feed_url, feed_name, source_type, echoarea_id, post_as_user_id,
                  max_articles_per_check, active, thread_replies, thread_lookup_limit,
+                 include_feed_name_in_subject,
                  created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                 RETURNING id
             ");
             $stmt->execute([
@@ -5709,6 +5710,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $input['active'] ?? true ? 'true' : 'false',
                 isset($input['thread_replies']) && $input['thread_replies'] ? 'true' : 'false',
                 max(100, min(10000, (int)($input['thread_lookup_limit'] ?? 1000))),
+                isset($input['include_feed_name_in_subject']) && $input['include_feed_name_in_subject'] ? 'true' : 'false',
             ]);
 
             $feedId = (int)$stmt->fetchColumn();
@@ -5798,6 +5800,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     active = ?,
                     thread_replies = ?,
                     thread_lookup_limit = ?,
+                    include_feed_name_in_subject = ?,
                     updated_at = NOW()
                 WHERE id = ?
             ");
@@ -5811,6 +5814,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 isset($input['active']) && $input['active'] ? 'true' : 'false',
                 isset($input['thread_replies']) && $input['thread_replies'] ? 'true' : 'false',
                 max(100, min(10000, (int)($input['thread_lookup_limit'] ?? 1000))),
+                isset($input['include_feed_name_in_subject']) && $input['include_feed_name_in_subject'] ? 'true' : 'false',
                 $id
             ]);
 

@@ -2445,6 +2445,8 @@ return [
     'ui.admin.auto_feed.thread_replies_help' => 'Attempt to thread reply messages by matching RE:/Fwd: subject prefixes against existing echomail in this area',
     'ui.admin.auto_feed.thread_lookup_limit' => 'Thread Lookup Limit',
     'ui.admin.auto_feed.thread_lookup_limit_help' => 'Number of recent messages to scan when searching for a reply parent',
+    'ui.admin.auto_feed.include_feed_name_in_subject' => 'Include Feed Name in Subject',
+    'ui.admin.auto_feed.include_feed_name_in_subject_help' => 'Prefix posted subjects with the configured feed name, for example [2600.network] Title of Post',
 
     // Echo Areas Page
     'ui.echoareas.page_title' => 'Echo Areas',

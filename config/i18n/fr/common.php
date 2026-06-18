@@ -1990,6 +1990,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.auto_feed.thread_replies_help' => 'Tenter de regrouper les messages de réponse en détectant les préfixes RE:/Fwd: dans les sujets',
     'ui.admin.auto_feed.thread_lookup_limit' => 'Limite de recherche',
     'ui.admin.auto_feed.thread_lookup_limit_help' => 'Nombre de messages récents à analyser pour trouver le message parent',
+    'ui.admin.auto_feed.include_feed_name_in_subject' => 'Inclure le nom du flux dans le sujet',
+    'ui.admin.auto_feed.include_feed_name_in_subject_help' => 'Préfixer les sujets publiés avec le nom du flux configuré, par exemple [2600.network] Titre du billet',
     'ui.echoareas.page_title' => 'Zones d\'écho',
     'ui.echoareas.heading' => 'Gestion des zones d\'écho',
     'ui.echoareas.add_echo_area' => 'Ajouter une zone d\'écho',

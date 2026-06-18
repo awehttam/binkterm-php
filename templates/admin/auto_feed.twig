@@ -141,6 +141,14 @@
                         </div>
                     </div>
 
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="feedIncludeNameInSubject" name="include_feed_name_in_subject">
+                        <label class="form-check-label fw-semibold" for="feedIncludeNameInSubject">
+                            {{ t('ui.admin.auto_feed.include_feed_name_in_subject') }}
+                        </label>
+                        <div class="form-text">{{ t('ui.admin.auto_feed.include_feed_name_in_subject_help') }}</div>
+                    </div>
+
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="feedActive" name="active" checked>
                         <label class="form-check-label" for="feedActive">
@@ -363,6 +371,7 @@ function showAddFeedModal() {
     $('#feedThreadReplies').prop('checked', false);
     $('#feedThreadLookupLimit').val(1000);
     $('#threadLookupLimitGroup').hide();
+    $('#feedIncludeNameInSubject').prop('checked', false);
     setSelectedFeedUser(null);
     $('#feedModal').modal('show');
 }
@@ -390,6 +399,7 @@ function editFeed(id) {
             $('#feedThreadReplies').prop('checked', threadReplies);
             $('#feedThreadLookupLimit').val(feed.thread_lookup_limit || 1000);
             $('#threadLookupLimitGroup').toggle(threadReplies);
+            $('#feedIncludeNameInSubject').prop('checked', !!feed.include_feed_name_in_subject);
             $('#feedModal').modal('show');
         })
         .fail(function() {
@@ -414,7 +424,8 @@ function saveFeed() {
         max_articles_per_check: parseInt($('#feedMaxArticles').val()),
         active: $('#feedActive').is(':checked'),
         thread_replies: $('#feedThreadReplies').is(':checked'),
-        thread_lookup_limit: parseInt($('#feedThreadLookupLimit').val()) || 1000
+        thread_lookup_limit: parseInt($('#feedThreadLookupLimit').val()) || 1000,
+        include_feed_name_in_subject: $('#feedIncludeNameInSubject').is(':checked')
     };
 
     const url = currentFeedId ? `/admin/api/auto-feed/feeds/${currentFeedId}` : '/admin/api/auto-feed/feeds';

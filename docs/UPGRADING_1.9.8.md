@@ -14,6 +14,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Notification Sound Unlock Fix](#notification-sound-unlock-fix)
   - [Nginx Example Cache Rules](#nginx-example-cache-rules)
   - [PGP Key Management](#pgp-key-management)
+  - [Auto Feed Subject Prefix Option](#auto-feed-subject-prefix-option)
   - [MeshCore Advert Storage Refactor](#meshcore-advert-storage-refactor)
 - [Developer / Infrastructure](#developer--infrastructure)
   - [Realtime Signaling Abstraction](#realtime-signaling-abstraction)
@@ -40,6 +41,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The example nginx config in `docs/INSTALL.md` now includes cache-control rules for `/sw.js`, `.css`, and `.js` so updated frontend assets are revalidated more reliably. The nginx example remains untested and unsupported.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, browse the public keyserver, and use that public-key directory from the netmail compose flow when encrypting outbound mail.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
+- Auto Feed sources now have an option to prefix posted echomail subjects with the configured feed name, producing subjects like `[2600.network] TITLEOFPOST` before the FTN 72-character subject limit is applied.
 - MeshCore repeater adverts are now stored in a dedicated `meshcore_node_adverts` table keyed by full public key. The CWN map/list and the public PacketBBS node directory still show MeshCore nodes after upgrade, but live advert writes no longer go into `cwn_networks`.
 
 ### Developer / Infrastructure
@@ -193,6 +195,20 @@ The compose page now also uses the public-key directory for netmail encryption l
 - saved address-book entries, including local-user matches surfaced by the address-book search API
 
 If the compose autocomplete only shows saved contacts and not local users, make sure the address-book search route is returning both data sources. The current implementation exposes both through `GET /api/address-book?search=...` and the legacy `/api/address-book/search/{query}` alias.
+
+### Auto Feed Subject Prefix Option
+
+Auto Feed sources now have a per-feed option to prefix each posted echomail subject with the configured feed name.
+
+When enabled in **Admin -> Auto Feed**, subjects are generated in this form:
+
+```text
+[feed_name] article title
+```
+
+This is useful when multiple feeds post into the same echo area and readers need to identify the source at a glance from the subject line alone.
+
+The prefix is applied before the normal FTN 72-character subject limit, so long feed names reduce the space available for the article title.
 
 ### MeshCore Advert Storage Refactor
 

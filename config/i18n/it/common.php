@@ -2427,6 +2427,8 @@ return [
     'ui.admin.auto_feed.thread_replies_help' => 'Tentare di raggruppare i messaggi di risposta rilevando i prefissi RE:/Fwd: nel soggetto',
     'ui.admin.auto_feed.thread_lookup_limit' => 'Limite di ricerca',
     'ui.admin.auto_feed.thread_lookup_limit_help' => 'Numero di messaggi recenti da analizzare durante la ricerca del messaggio padre',
+    'ui.admin.auto_feed.include_feed_name_in_subject' => 'Includi il nome del feed nell\'oggetto',
+    'ui.admin.auto_feed.include_feed_name_in_subject_help' => 'Anteponi il nome configurato del feed agli oggetti pubblicati, per esempio [2600.network] Titolo del post',
 
     // Echo Areas Page
     'ui.echoareas.page_title' => 'Aree echo',
