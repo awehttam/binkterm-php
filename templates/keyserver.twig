@@ -1,0 +1,99 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.keyserver.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">
+        <i class="fas fa-key me-2"></i>{{ t('ui.keyserver.title', {}, locale, ['common']) }}
+    </h2>
+    <a class="btn btn-outline-secondary" href="/settings">
+        <i class="fas fa-cog me-1"></i>{{ t('ui.keyserver.manage_keys', {}, locale, ['common']) }}
+    </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="/keyserver" class="row g-3 align-items-end">
+            <div class="col-md-9">
+                <label for="keyserverSearch" class="form-label">{{ t('ui.keyserver.search_label', {}, locale, ['common']) }}</label>
+                <input id="keyserverSearch" class="form-control" type="text" name="search" value="{{ search_query }}"
+                       placeholder="{{ t('ui.keyserver.search_placeholder', {}, locale, ['common']) }}">
+                <div class="form-text">{{ t('ui.keyserver.search_help', {}, locale, ['common']) }}</div>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-fidonet w-100" type="submit">
+                    <i class="fas fa-search me-1"></i>{{ t('ui.keyserver.search_button', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">{{ t('ui.keyserver.results_heading', {}, locale, ['common']) }}</h5>
+    </div>
+    <div class="card-body p-0">
+        {% if pgp_keys %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>{{ t('ui.keyserver.col_user', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.keyserver.col_fingerprint', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.keyserver.col_type', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.keyserver.col_created', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.keyserver.col_actions', {}, locale, ['common']) }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for key in pgp_keys %}
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">{{ key.real_name ?: key.user_id_string ?: key.username ?: key.fingerprint }}</div>
+                                    {% if key.username %}
+                                        <div class="text-muted small">@{{ key.username }}</div>
+                                    {% endif %}
+                                    {% if key.email %}
+                                        <div class="text-muted small">{{ key.email }}</div>
+                                    {% endif %}
+                                    {% if key.lookup_source and key.lookup_source != 'local' %}
+                                        <div class="text-muted small">{{ key.lookup_source }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <code>{{ key.fingerprint }}</code>
+                                    {% if key.is_primary %}
+                                        <span class="badge bg-success ms-2">{{ t('ui.keyserver.primary_badge', {}, locale, ['common']) }}</span>
+                                    {% endif %}
+                                    {% if key.label %}
+                                        <div class="text-muted small">{{ key.label }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ key.key_algorithm ?: key.source }}</td>
+                                <td>
+                                    {% if key.key_created_at %}
+                                        {{ key.key_created_at|date('Y-m-d') }}
+                                    {% else %}
+                                        {{ key.created_at|date('Y-m-d') }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a class="btn btn-sm btn-outline-primary" href="/pks/download/{{ key.fingerprint }}">
+                                        <i class="fas fa-download me-1"></i>{{ t('ui.keyserver.download_button', {}, locale, ['common']) }}
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="p-4 text-center text-muted">
+                {{ t('ui.keyserver.no_results', {}, locale, ['common']) }}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -22,7 +22,7 @@ class NetworkManager
     {
         $stmt = $this->db->query("
             SELECT id, domain, name, description, website, network_type, allow_markup, allow_media,
-                   default_charset, posting_name_policy, is_builtin, created_at, updated_at
+                   default_charset, missing_chrs_charset, posting_name_policy, is_builtin, created_at, updated_at
             FROM networks
             ORDER BY is_builtin DESC, LOWER(name), LOWER(domain)
         ");
@@ -34,7 +34,7 @@ class NetworkManager
     {
         $stmt = $this->db->prepare("
             SELECT id, domain, name, description, website, network_type, allow_markup, allow_media,
-                   default_charset, posting_name_policy, is_builtin, created_at, updated_at
+                   default_charset, missing_chrs_charset, posting_name_policy, is_builtin, created_at, updated_at
             FROM networks
             WHERE id = ?
             LIMIT 1
@@ -54,7 +54,7 @@ class NetworkManager
 
         $stmt = $this->db->prepare("
             SELECT id, domain, name, description, website, network_type, allow_markup, allow_media,
-                   default_charset, posting_name_policy, is_builtin, created_at, updated_at
+                   default_charset, missing_chrs_charset, posting_name_policy, is_builtin, created_at, updated_at
             FROM networks
             WHERE LOWER(domain) = LOWER(?)
             LIMIT 1
@@ -88,8 +88,8 @@ class NetworkManager
         $stmt = $this->db->prepare("
             INSERT INTO networks (
                 domain, name, description, website, network_type, allow_markup, allow_media,
-                default_charset, posting_name_policy, is_builtin
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                default_charset, missing_chrs_charset, posting_name_policy, is_builtin
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
         ");
         $stmt->execute([
@@ -101,6 +101,7 @@ class NetworkManager
             $values['allow_markup'] ? 'true' : 'false',
             $values['allow_media'] ? 'true' : 'false',
             $values['default_charset'],
+            $values['missing_chrs_charset'],
             $values['posting_name_policy'],
             !empty($data['is_builtin']) ? 'true' : 'false',
         ]);
@@ -131,6 +132,7 @@ class NetworkManager
                 allow_markup = ?,
                 allow_media = ?,
                 default_charset = ?,
+                missing_chrs_charset = ?,
                 posting_name_policy = ?,
                 updated_at = NOW() AT TIME ZONE 'UTC'
             WHERE id = ?
@@ -143,6 +145,7 @@ class NetworkManager
             $values['allow_markup'] ? 'true' : 'false',
             $values['allow_media'] ? 'true' : 'false',
             $values['default_charset'],
+            $values['missing_chrs_charset'],
             $values['posting_name_policy'],
             $id,
         ]);
@@ -197,6 +200,7 @@ class NetworkManager
             'allow_markup' => true,
             'allow_media' => true,
             'default_charset' => 'UTF-8',
+            'missing_chrs_charset' => 'UTF-8',
             'posting_name_policy' => 'username',
             'is_builtin' => true,
             'network_type' => self::NETWORK_TYPE_FIDONET,
@@ -218,7 +222,17 @@ class NetworkManager
     private function normalizeSettings(array $data): array
     {
         $charset = trim((string)($data['default_charset'] ?? ''));
+        $missingChrsCharset = trim((string)($data['missing_chrs_charset'] ?? ''));
         $policy = strtolower(trim((string)($data['posting_name_policy'] ?? 'real_name')));
+        $normalizedDefaultCharset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($charset);
+        $normalizedMissingChrsCharset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($missingChrsCharset);
+
+        if ($charset !== '' && $normalizedDefaultCharset === null) {
+            throw new \InvalidArgumentException('Invalid outgoing charset');
+        }
+        if ($missingChrsCharset !== '' && $normalizedMissingChrsCharset === null) {
+            throw new \InvalidArgumentException('Invalid missing CHRS charset');
+        }
 
         return [
             'description' => trim((string)($data['description'] ?? '')) ?: null,
@@ -226,7 +240,8 @@ class NetworkManager
             'network_type' => $this->normalizeNetworkType($data['network_type'] ?? self::NETWORK_TYPE_FIDONET),
             'allow_markup' => filter_var($data['allow_markup'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'allow_media' => filter_var($data['allow_media'] ?? false, FILTER_VALIDATE_BOOLEAN),
-            'default_charset' => $charset !== '' ? \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset($charset) : null,
+            'default_charset' => $normalizedDefaultCharset,
+            'missing_chrs_charset' => $normalizedMissingChrsCharset,
             'posting_name_policy' => in_array($policy, ['real_name', 'username'], true) ? $policy : 'real_name',
         ];
     }

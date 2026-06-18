@@ -58,6 +58,7 @@ One row per echo area (conference/forum).
 | `is_active` | Inactive areas are hidden from all queries and API responses |
 | `is_sysop_only` | When true, only admin users can see the area |
 | `moderator` | FTN address of the area moderator, if any |
+| `missing_chrs_charset` | Optional fallback charset used only when inbound FTN messages for this area have no `CHRS` kludge |
 
 The `(tag, domain)` pair is the logical key. Code that looks up areas by tag must also filter by domain when multiple networks are connected.
 

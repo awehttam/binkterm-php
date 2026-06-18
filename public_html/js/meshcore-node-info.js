@@ -48,6 +48,7 @@
             .then(function (r) { return r.json(); })
             .then(function (node) {
                 nameEl.textContent = node.handle || node.node_id;
+                const publicKey = node.public_key || node.node_id;
 
                 const lat = node.lat != null ? parseFloat(node.lat).toFixed(6) : null;
                 const lon = node.lon != null ? parseFloat(node.lon).toFixed(6) : null;
@@ -77,7 +78,7 @@
                     (node.interface_type === 'meshcore'
                         ? '<dt>' + window.t('ui.meshcore_nodes.public_key', {}, 'Public Key') + '</dt>' +
                           '<dd class="d-flex align-items-center gap-2">' +
-                          '<code class="text-break small">' + escHtml(node.node_id) + '</code>' +
+                          '<code class="text-break small">' + escHtml(publicKey) + '</code>' +
                           '<button class="btn btn-sm btn-outline-secondary flex-shrink-0" id="meshcoreNodeKeyCopyBtn">' +
                           '<i class="fas fa-copy"></i></button></dd>'
                         : '') +
@@ -100,7 +101,7 @@
                 const copyBtn = document.getElementById('meshcoreNodeKeyCopyBtn');
                 if (copyBtn) {
                     copyBtn.addEventListener('click', function () {
-                        copyText(node.node_id, copyBtn);
+                        copyText(publicKey, copyBtn);
                     });
                 }
             })

@@ -2,6 +2,14 @@
 
 Architectural and implementation reference for developers working on the BinktermPHP terminal server. For the user-facing feature reference and sysop configuration options see [TerminalServer.md](TerminalServer.md).
 
+## Pipe Code Parser Mode
+
+Terminal-side bulletin rendering in `telnet/src/BulletinsHandler.php` follows the shared `.env` setting `PIPE_CODE_PARSER_MODE` so sysops can experiment with the same detection strategy on both the web and terminal sides.
+
+- `strict` matches the conservative uppercase-only behavior.
+- `decimal_relaxed` is the default and greedily accepts two-digit decimal color codes such as `|01` before uppercase text.
+- `loose` restores the older permissive matcher for debugging and comparison.
+
 ---
 
 ## Key Source Files
@@ -31,7 +39,7 @@ Both daemon entry points manually `require_once` every `telnet/src/` class they 
 Both daemons hand off to the same `BbsSession` flow after transport setup:
 
 1. **Transport handshake** — Telnet negotiates NAWS, echo control, and optional TLS; SSH reads PTY dimensions from `pty-req` and probes Sixel capability.
-2. **Pre-login menu** — Login / Register / Reset password / QWK (when enabled) / Quit.
+2. **Pre-login menu** — Login / Register / Reset password / QWK (when enabled) / Quit. Registration posts to the shared `/api/register` flow, so whether the account stays pending or is auto-approved is controlled centrally by `BbsConfig::shouldRequireRegistrationApproval()`.
 3. **Authentication** — Username/password via `POST /api/auth/login`; session cookie stored in `$state`.
 4. **Session init** — Single `GET /api/config/session-init` call returns timezone, locale, date format, charset, ANSI color flag, idle timeout thresholds, and main menu key bindings.
 5. **Main menu loop** — `BbsSession::handle()` runs the menu, dispatches to feature handlers, and processes resize events on each iteration.

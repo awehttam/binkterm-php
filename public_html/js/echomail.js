@@ -34,6 +34,13 @@ let currentConversationMessageId = null;
 let currentConversationSubject = '';
 let currentContextMenuMessageId = null;
 let currentContextMenuMessageSaved = false;
+const ECHOMAIL_STATS_CACHE_TTL_MS = 10000;
+let statsCacheKey = null;
+let statsCacheData = null;
+let statsCacheFetchedAt = 0;
+let statsRequestKey = null;
+let statsRequestPromise = null;
+let echomailRefreshPromise = null;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -52,6 +59,61 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 
+function getStatsCacheKey() {
+    if (currentInterestId) {
+        return `interest:${currentInterestId}`;
+    }
+    return `echo:${currentEchoarea || '__all__'}`;
+}
+
+function invalidateStatsCache() {
+    statsCacheKey = null;
+    statsCacheData = null;
+    statsCacheFetchedAt = 0;
+    statsRequestKey = null;
+    statsRequestPromise = null;
+}
+
+function applyStatsToUi(data) {
+    console.log('Echomail stats response:', data);
+    $('#totalMessages').text(data.total || 0);
+    $('#unreadMessages').text(data.unread || 0);
+    $('#recentMessages').text(data.recent || 0);
+
+    if (data.areas !== undefined) {
+        $('#totalAreas').text(data.areas || 0);
+    } else {
+        $('#totalAreas').text('-');
+    }
+
+    if (data.filter_counts) {
+        updateFilterCounts(data.filter_counts);
+    }
+}
+
+function updateMessagesHeaderTitle() {
+    const titleEl = $('#messagesHeaderTitle');
+    if (!titleEl.length) return;
+
+    if (currentFilter === 'drafts') {
+        titleEl.text(uiT('ui.common.drafts', 'Drafts'));
+        return;
+    }
+
+    const messagesLabel = uiT('ui.echoareas.messages', 'Messages');
+    if (currentEchoarea) {
+        titleEl.text(`${currentEchoarea} ${messagesLabel}`);
+        return;
+    }
+
+    if (currentInterestId && currentInterestName) {
+        titleEl.text(`${currentInterestName} ${messagesLabel}`);
+        return;
+    }
+
+    titleEl.text(uiT('ui.echomail.recent_messages', 'Recent Messages'));
+}
+
 // Date display configuration: 'written' or 'received'
 // Sourced from server-side ECHOMAIL_ORDER_DATE env configuration.
 const USE_DATE_FIELD = (window.echomailDateField === 'written') ? 'written' : 'received';
@@ -63,9 +125,8 @@ $(document).ready(function() {
         const messageParam = urlParams.get('message');
         requestedMessageId = messageParam && /^\d+$/.test(messageParam) ? parseInt(messageParam, 10) : null;
 
-        loadEchoareas();
-
         if (searchQuery) {
+            refreshEchomailView({ reloadMessages: false });
             // Populate search input and trigger search
             $('#searchInput').val(searchQuery);
             $('#mobileSearchInput').val(searchQuery);
@@ -76,8 +137,10 @@ $(document).ready(function() {
             if (echoPageMemory[memKey]) {
                 currentPage = echoPageMemory[memKey];
             }
-            loadMessages(function() {
-                openRequestedMessage();
+            refreshEchomailView({
+                messageCallback: function() {
+                    openRequestedMessage();
+                }
             });
         }
     });
@@ -111,43 +174,56 @@ $(document).ready(function() {
 
     // Add keyboard navigation for message modal
     $(document).on('keydown', function(e) {
-        // Only handle keyboard shortcuts when the message modal is open
-        if ($('#messageModal').hasClass('show')) {
-            switch(e.key) {
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    navigateMessage(-1);
-                    break;
-                case 'ArrowRight':
-                    e.preventDefault();
-                    navigateMessage(1);
-                    break;
-                case 'd':
-                case 'D':
-                    e.preventDefault();
-                    downloadCurrentMessage();
-                    break;
-                case 'Escape':
-                    // Let the default modal behavior handle this
-                    break;
-                case 'f':
-                case 'F':
-                    if (e.ctrlKey || e.metaKey) break;
-                    e.preventDefault();
-                    toggleModalFullscreen();
-                    break;
-                case 'a':
-                case 'A':
-                    e.preventDefault();
-                    cycleRenderMode();
-                    break;
-                case '?':
-                case 'h':
-                case 'H':
-                    e.preventDefault();
-                    toggleKeyboardHelp();
-                    break;
-            }
+        // Only handle keyboard shortcuts when the message modal is the active modal.
+        if (!$('#messageModal').hasClass('show')) {
+            return;
+        }
+
+        const $activeModal = $('.modal.show').last();
+        if ($activeModal.length && !$activeModal.is('#messageModal')) {
+            return;
+        }
+
+        const $target = $(e.target);
+        if ($target.is('input, textarea, select, [contenteditable="true"]') ||
+            $target.closest('input, textarea, select, [contenteditable="true"]').length) {
+            return;
+        }
+
+        switch(e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                navigateMessage(-1);
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                navigateMessage(1);
+                break;
+            case 'd':
+            case 'D':
+                e.preventDefault();
+                downloadCurrentMessage();
+                break;
+            case 'Escape':
+                // Let the default modal behavior handle this
+                break;
+            case 'f':
+            case 'F':
+                if (e.ctrlKey || e.metaKey) break;
+                e.preventDefault();
+                toggleModalFullscreen();
+                break;
+            case 'a':
+            case 'A':
+                e.preventDefault();
+                cycleRenderMode();
+                break;
+            case '?':
+            case 'h':
+            case 'H':
+                e.preventDefault();
+                toggleKeyboardHelp();
+                break;
         }
     });
 
@@ -178,10 +254,11 @@ $(document).ready(function() {
             // Only refresh if the page was hidden for more than 30 seconds.
             if (Date.now() - _hiddenAt >= 30000) {
                 if (!isSearchActive) {
-                    loadMessages(null, true);
+                    refreshEchomailView({ silentMessages: true });
+                } else {
+                    loadStats();
+                    loadEchoareas();
                 }
-                loadStats();
-                loadEchoareas();
             }
             _hiddenAt = null;
         }
@@ -195,10 +272,11 @@ $(document).ready(function() {
             clearTimeout(_dashboardRefreshTimer);
             _dashboardRefreshTimer = setTimeout(function() {
                 if (!isSearchActive) {
-                    loadMessages(null, true);
+                    refreshEchomailView({ silentMessages: true });
+                } else {
+                    loadStats();
+                    loadEchoareas();
                 }
-                loadStats();
-                loadEchoareas();
             }, 2000);
         });
 
@@ -242,8 +320,55 @@ function cleanupMessageModalMedia() {
     });
 }
 
+function refreshEchomailView(options = {}) {
+    const silentMessages = options.silentMessages === true;
+    const reloadMessages = options.reloadMessages !== false;
+    const reloadEchoareas = options.reloadEchoareas !== false;
+    const messageCallback = typeof options.messageCallback === 'function' ? options.messageCallback : null;
+
+    if (echomailRefreshPromise) {
+        return echomailRefreshPromise;
+    }
+
+    echomailRefreshPromise = new Promise(function(resolve) {
+        let pending = 0;
+
+        function track(req) {
+            pending++;
+            if (req && typeof req.always === 'function') {
+                req.always(done);
+            } else {
+                done();
+            }
+        }
+
+        function done() {
+            pending--;
+            if (pending <= 0) {
+                echomailRefreshPromise = null;
+                resolve();
+            }
+        }
+
+        if (reloadEchoareas) {
+            track(loadEchoareas());
+        }
+
+        if (reloadMessages) {
+            track(loadMessages(messageCallback, silentMessages));
+        }
+
+        if (pending === 0) {
+            echomailRefreshPromise = null;
+            resolve();
+        }
+    });
+
+    return echomailRefreshPromise;
+}
+
 function loadEchoareas(callback) {
-    $.get('/api/echoareas?subscribed_only=true')
+    return $.get('/api/echoareas?subscribed_only=true')
         .done(function(data) {
             allEchoareas = data.echoareas;
             applyEchoareaFilter();
@@ -262,6 +387,7 @@ function loadEchoareas(callback) {
  * If no echo is selected the bar is hidden.
  */
 function updateEchoInfoBar() {
+    updateMessagesHeaderTitle();
     if (!currentEchoarea) {
         // No specific area selected — show a generic "All Messages" bar with compose button
         $('#echoTitle').text(uiT('ui.common.all_messages', 'All Messages'));
@@ -361,6 +487,7 @@ function renderEchoInfoBar(area, subscribed) {
  * @param {string} name  Interest name
  */
 function renderInterestInfoBar(name) {
+    updateMessagesHeaderTitle();
     $('#echoTitle').text(name);
     $('#echoDescription').text('');
     $('#echoSubscribeBtn').addClass('d-none');
@@ -392,6 +519,7 @@ function toggleSubscription() {
                 // Update button immediately, then reload sidebar in background
                 renderEchoInfoBar(currentEchoareaData, !subscribed);
                 allEchoareasCache = null;
+                invalidateStatsCache();
                 loadEchoareas();
             } else {
                 btn.prop('disabled', false);
@@ -735,12 +863,11 @@ function loadMessages(callback, silent = false) {
 
     if (currentFilter === 'drafts') {
         // Load drafts instead of regular messages
-        loadDrafts();
-        return;
+        return loadDrafts();
     }
 
     if (currentConversationMessageId) {
-        $.get(`/api/messages/echomail/message/${currentConversationMessageId}/conversation`)
+        return $.get(`/api/messages/echomail/message/${currentConversationMessageId}/conversation`)
             .done(function(data) {
                 displayMessages(data.messages, true);
                 updatePagination(data.pagination);
@@ -769,7 +896,7 @@ function loadMessages(callback, silent = false) {
         url += '&threaded=true';
     }
 
-    $.get(url)
+    return $.get(url)
         .done(function(data) {
             // If the saved page is beyond the last page, reset to page 1 and reload
             if (currentPage > 1 && data.messages && data.messages.length === 0 && data.pagination && data.pagination.pages < currentPage) {
@@ -779,7 +906,9 @@ function loadMessages(callback, silent = false) {
             }
             displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
-            updateUnreadCount(data.unreadCount || 0);
+            if (Object.prototype.hasOwnProperty.call(data, 'unreadCount')) {
+                updateUnreadCount(data.unreadCount || 0);
+            }
             // Remember the current page for this area (null = All Messages, stored as '__all__')
             echoPageMemory[currentEchoarea || '__all__'] = currentPage;
             saveEchoPositions();
@@ -795,7 +924,7 @@ function loadMessages(callback, silent = false) {
 }
 
 function loadDrafts() {
-    $.get('/api/messages/drafts?type=echomail')
+    return $.get('/api/messages/drafts?type=echomail')
         .done(function(data) {
             if (data.success) {
                 displayDrafts(data.drafts);
@@ -1366,6 +1495,7 @@ function setFilter(filter) {
     currentFilter = filter;
     currentPage = 1;
     updateFilterTabs();
+    updateMessagesHeaderTitle();
     loadMessages();
 }
 
@@ -1470,9 +1600,6 @@ function viewMessage(messageId) {
         history.pushState({modal: 'message', messageId: messageId}, '', '');
     }
 
-    // Mark as read immediately
-    markEchomailAsRead(messageId);
-
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
@@ -1494,6 +1621,7 @@ function viewMessage(messageId) {
     $.get(apiUrl)
         .done(function(data) {
             displayMessageContent(data);
+            markEchomailAsRead(messageId);
             // Auto-scroll to top of modal content
             $('#messageModal .modal-body').scrollTop(0);
         })
@@ -1991,6 +2119,9 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
                     ${message.is_shared == 1 ? `<i class="fas fa-share-alt text-success ms-2" title="${uiT('ui.common.shared', 'Shared')}"></i>` : ''}
                 </div>
             </div>
+            <div class="row mt-2">
+                <div class="col-12" id="pgpStatusContainer"></div>
+            </div>
         </div>
 
         <div id="kludgeContainer" class="kludge-lines mb-3" style="display: none;">
@@ -2013,6 +2144,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     const echoNetmailAddr = (message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address;
     const echoNetmailName = (message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name;
     initSenderPopover(message, echoNetmailAddr, echoNetmailName);
+    void renderEchomailPgpState(message, parsedMessage);
 
     // Update save button state AFTER HTML is inserted
     updateModalSaveButton(message);
@@ -2048,6 +2180,38 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     $('#shareButton').show().off('click').on('click', function() {
         showShareDialog(currentMessageId);
     });
+}
+
+function renderEchomailPgpState(message, parsedMessage) {
+    const container = document.getElementById('pgpStatusContainer');
+    if (!container || !window.pgpEnabled || !window.PgpMessageSupport) {
+        return;
+    }
+
+    const body = parsedMessage && parsedMessage.messageBody ? parsedMessage.messageBody : (message.message_text || '');
+    if (window.PgpMessageSupport.isCleartextSigned(body)) {
+        container.innerHTML = '<span class="badge bg-secondary">' + uiT('ui.pgp.verifying', 'Verifying PGP signature...') + '</span>';
+        void window.PgpMessageSupport.verifySignedMessage(
+            body,
+            message.from_name || message.replyto_name || '',
+            message.from_address || ''
+        )
+            .then(function(result) {
+                if (result && result.verified) {
+                    container.innerHTML = '<span class="badge bg-success">' + uiT('ui.pgp.verified', 'PGP signature verified') + '</span>';
+                } else if (result && result.reason === 'public_key_missing') {
+                    container.innerHTML = '<span class="badge bg-secondary">' + uiT('ui.pgp.no_public_key', 'PGP public key not found') + '</span>';
+                } else {
+                    container.innerHTML = '<span class="badge bg-danger">' + uiT('ui.pgp.invalid', 'Invalid PGP signature') + '</span>';
+                }
+            })
+            .catch(function() {
+                container.innerHTML = '<span class="badge bg-danger">' + uiT('ui.pgp.invalid', 'Invalid PGP signature') + '</span>';
+            });
+        return;
+    }
+
+    container.innerHTML = '';
 }
 
 function composeMessage(type, replyToId = null) {
@@ -2542,13 +2706,24 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
 window.addEventListener('popstate', function(event) {
     if (event.state && event.state.echoarea !== undefined) {
         currentEchoarea = event.state.echoarea;
-        loadEchoareas();
-        loadMessages();
+        refreshEchomailView();
     }
 });
 
 function loadStats() {
     console.log('Loading echomail statistics...');
+    const cacheKey = getStatsCacheKey();
+    const now = Date.now();
+
+    if (statsRequestPromise && statsRequestKey === cacheKey) {
+        return statsRequestPromise;
+    }
+
+    if (statsCacheKey === cacheKey && statsCacheData && (now - statsCacheFetchedAt) < ECHOMAIL_STATS_CACHE_TTL_MS) {
+        applyStatsToUi(statsCacheData);
+        return Promise.resolve(statsCacheData);
+    }
+
     let url;
     if (currentInterestId) {
         url = '/api/interests/' + encodeURIComponent(currentInterestId) + '/stats';
@@ -2559,23 +2734,13 @@ function loadStats() {
         }
     }
 
-    $.get(url)
+    statsRequestKey = cacheKey;
+    statsRequestPromise = $.get(url)
         .done(function(data) {
-            console.log('Echomail stats response:', data);
-            $('#totalMessages').text(data.total || 0);
-            $('#unreadMessages').text(data.unread || 0);
-            $('#recentMessages').text(data.recent || 0);
-
-            if (data.areas !== undefined) {
-                $('#totalAreas').text(data.areas || 0);
-            } else {
-                $('#totalAreas').text('-');
-            }
-
-            // Update filter counts if available
-            if (data.filter_counts) {
-                updateFilterCounts(data.filter_counts);
-            }
+            statsCacheKey = cacheKey;
+            statsCacheData = data;
+            statsCacheFetchedAt = Date.now();
+            applyStatsToUi(data);
         })
         .fail(function(xhr, status, error) {
             console.error('Echomail stats loading failed:', xhr.status, status, error);
@@ -2584,7 +2749,15 @@ function loadStats() {
             $('#unreadMessages').text(uiT('ui.common.error', 'Error'));
             $('#recentMessages').text(uiT('ui.common.error', 'Error'));
             $('#totalAreas').text(uiT('ui.common.error', 'Error'));
+        })
+        .always(function() {
+            if (statsRequestKey === cacheKey) {
+                statsRequestKey = null;
+                statsRequestPromise = null;
+            }
         });
+
+    return statsRequestPromise;
 }
 
 // Selection and bulk operations functionality
@@ -2705,9 +2878,8 @@ function markSelectedAsRead() {
                     ? window.getApiMessage(response, uiT('ui.echomail.bulk_mark_read_success', 'Marked {count} message(s) as read', { count: markedCount }))
                     : (response.message || uiT('ui.echomail.bulk_mark_read_success', 'Marked {count} message(s) as read', { count: markedCount })));
                 clearSelection();
-                loadMessages();
-                loadStats();
-                loadEchoareas();
+                invalidateStatsCache();
+                refreshEchomailView();
             } else {
                 showError(apiError(response, uiT('errors.messages.echomail.bulk_read.failed', 'Failed to mark messages as read')));
             }
@@ -2780,9 +2952,8 @@ function deleteSelectedMessages() {
                     ? window.getApiMessage(response, uiT('ui.echomail.bulk_delete.success', 'Deleted {count} message(s)', { count: deletedCount }))
                     : (response.message || uiT('ui.echomail.bulk_delete.success', 'Deleted {count} message(s)', { count: deletedCount })));
                 clearSelection();
-                loadMessages(); // Reload messages
-                loadStats(); // Update statistics
-                loadEchoareas(); // Update sidebar unread badges
+                invalidateStatsCache();
+                refreshEchomailView();
             } else {
                 showError(apiError(response, uiT('ui.echomail.bulk_delete.failed', 'Failed to delete messages')));
             }
@@ -3163,9 +3334,6 @@ function navigateMessage(direction) {
     // Update navigation buttons
     updateNavigationButtons();
 
-    // Mark as read immediately
-    markEchomailAsRead(newMessage.id);
-
     // Show loading
     $('#messageContent').html(`
         <div class="loading-spinner">
@@ -3185,6 +3353,7 @@ function navigateMessage(direction) {
     $.get(apiUrl)
         .done(function(data) {
             displayMessageContent(data);
+            markEchomailAsRead(newMessage.id);
             // Auto-scroll to top of modal content
             $('#messageModal .modal-body').scrollTop(0);
         })

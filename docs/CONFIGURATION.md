@@ -275,7 +275,7 @@ FILEAREA_RULE_ACTION_LOG=data/logs/filearea_rules.log
 
 `config/binkp.json` defines your system's FTN identity, the binkp daemon, uplinks, and related services.  See `config/binkp.json.example` for an annotated reference.
 
-Network-level message policy settings are not stored in `config/binkp.json`. Manage each network's display name, default charset, markup setting, inline media setting, and posting-name policy from **Admin → Networks**. Uplink entries keep only connection, routing, polling, and authentication details and reference a network through their `domain` value.
+Network-level message policy settings are not stored in `config/binkp.json`. Manage each network's display name, outgoing default charset, missing-`CHRS` fallback charset, markup setting, inline media setting, and posting-name policy from **Admin → Networks**. Uplink entries keep only connection, routing, polling, and authentication details and reference a network through their `domain` value.
 
 **After editing this file, restart services.**
 
@@ -369,7 +369,7 @@ Each entry in the `uplinks` array defines one hub/uplink connection.
 "46:*/*"  → all Zone 46 (AgoraNet)
 ```
 
-**Network domain** — `domain` must match a configured network in **Admin → Networks**. Multiple uplinks may use the same domain, for example a primary and backup FidoNet hub. They share the network row's markup, inline media, default charset, and posting-name policy settings.
+**Network domain** — `domain` must match a configured network in **Admin → Networks**. Multiple uplinks may use the same domain, for example a primary and backup FidoNet hub. They share the network row's markup, inline media, outgoing default charset, missing-`CHRS` fallback charset, and posting-name policy settings.
 
 **Multiple networks example:**
 ```json

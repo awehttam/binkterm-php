@@ -214,6 +214,17 @@
                                 <div class="form-text">{{ t('ui.echoareas.art_format_hint_help', {}, locale, ['common']) }}</div>
                             </div>
 
+                            <div class="mb-3">
+                                <label for="echoareaMissingChrsCharset" class="form-label">{{ t('ui.echoareas.missing_chrs_charset', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="echoareaMissingChrsCharset" name="missing_chrs_charset">
+                                    <option value="inherit">{{ t('ui.echoareas.missing_chrs_charset_inherit', {}, locale, ['common']) }}</option>
+                                    {% for cs in supported_charsets %}
+                                        <option value="{{ cs.value }}">{{ cs.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">{{ t('ui.echoareas.missing_chrs_charset_help', {}, locale, ['common']) }}</div>
+                            </div>
+
                             <div class="border rounded p-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="echoareaActive" name="is_active" checked>
@@ -734,6 +745,7 @@ function editEchoarea(id) {
             $('#echoareaGeminiPublic').prop('checked', area.gemini_public);
             $('#echoareaPostingNamePolicy').val(area.posting_name_policy || 'inherit');
             $('#echoareaArtFormatHint').val(area.art_format_hint || 'inherit');
+            $('#echoareaMissingChrsCharset').val(area.missing_chrs_charset || 'inherit');
             const av = area.allow_media;
             $('#echoareaAllowMedia').val(av === null || av === undefined ? 'inherit' : (av ? 'allow' : 'deny'));
             toggleLovlyNetSyncButton(area);
@@ -821,6 +833,7 @@ function saveEchoarea() {
         domain: selectedDomain || null,
         posting_name_policy: $('#echoareaPostingNamePolicy').val(),
         art_format_hint: $('#echoareaArtFormatHint').val(),
+        missing_chrs_charset: $('#echoareaMissingChrsCharset').val(),
         allow_media: $('#echoareaAllowMedia').val()
     };
     

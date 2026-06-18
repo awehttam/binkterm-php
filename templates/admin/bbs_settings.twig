@@ -156,6 +156,16 @@
                             <label class="form-check-label" for="bbsQwk">{{ t('ui.admin.bbs_settings.features.enable_qwk', {}, locale, ['common']) }}</label>
                             <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.qwk_help', {}, locale, ['common']) }}</small></div>
                         </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bbsPgp">
+                            <label class="form-check-label" for="bbsPgp">{{ t('ui.admin.bbs_settings.features.enable_pgp', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.pgp_help', {}, locale, ['common']) }}</small></div>
+                        </div>
+                        <div class="form-check mb-3 ms-4">
+                            <input class="form-check-input" type="checkbox" id="bbsPgpManagedKeys">
+                            <label class="form-check-label" for="bbsPgpManagedKeys">{{ t('ui.admin.bbs_settings.features.enable_pgp_managed_keys', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.pgp_managed_keys_help', {}, locale, ['common']) }}</small></div>
+                        </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsQwkBbsId">{{ t('ui.admin.bbs_settings.features.qwk_bbs_id', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control font-monospace" id="bbsQwkBbsId" maxlength="8" style="max-width:12rem;" placeholder="e.g. MYBBS">
@@ -200,6 +210,11 @@
                             <label class="form-label" for="bbsEchomailModerationThreshold">{{ t('ui.admin.bbs_settings.features.echomail_moderation_threshold', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" id="bbsEchomailModerationThreshold" min="0" step="1" value="0">
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.echomail_moderation_threshold_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsRegistrationRequiresApproval">
+                            <label class="form-check-label" for="bbsRegistrationRequiresApproval">{{ t('ui.admin.bbs_settings.features.require_registration_approval', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.require_registration_approval_help', {}, locale, ['common']) }}</small></div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsDashboardAdRotateInterval">{{ t('ui.admin.bbs_settings.features.dashboard_ad_rotate_interval', {}, locale, ['common']) }}</label>
@@ -372,6 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadBbsSystem();
         loadAdminUsers('bbsSystemSysop');
         loadBbsTaglines();
+        document.getElementById('bbsPgp')?.addEventListener('change', syncPgpManagedKeysToggle);
     });
 });
 
@@ -393,7 +409,10 @@ function loadBbsSettings() {
             document.getElementById('bbsGuestDoorsPage').checked = !!features.guest_doors_page;
             document.getElementById('bbsBbsDirectory').checked = features.bbs_directory !== false;
             document.getElementById('bbsQwk').checked = !!features.qwk;
+            document.getElementById('bbsPgp').checked = !!features.pgp;
+            document.getElementById('bbsPgpManagedKeys').checked = !!features.pgp_managed_keys;
             document.getElementById('bbsQwkBbsId').value = data.config?.qwk?.bbs_id || '';
+            syncPgpManagedKeysToggle();
             const bbsPublicFilesIndexEl = document.getElementById('bbsPublicFilesIndex');
             if (bbsPublicFilesIndexEl) bbsPublicFilesIndexEl.checked = !!features.public_files_index;
             document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
@@ -402,6 +421,7 @@ function loadBbsSettings() {
             document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
             const echomailModerationThreshold = parseInt(data.config?.echomail_moderation_threshold, 10);
             document.getElementById('bbsEchomailModerationThreshold').value = Number.isNaN(echomailModerationThreshold) ? 0 : echomailModerationThreshold;
+            document.getElementById('bbsRegistrationRequiresApproval').checked = data.config?.registration_requires_approval !== false;
             const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
@@ -507,12 +527,15 @@ function saveBbsSettings() {
                     guest_doors_page: document.getElementById('bbsGuestDoorsPage').checked,
                     bbs_directory: document.getElementById('bbsBbsDirectory').checked,
                     public_files_index: document.getElementById('bbsPublicFilesIndex') ? document.getElementById('bbsPublicFilesIndex').checked : false,
-                    qwk: document.getElementById('bbsQwk').checked
+                    qwk: document.getElementById('bbsQwk').checked,
+                    pgp: document.getElementById('bbsPgp').checked,
+                    pgp_managed_keys: document.getElementById('bbsPgpManagedKeys').checked
                 },
                 credits: credits,
                 qwk: Object.assign({}, currentQwk, { bbs_id: qwkBbsIdRaw }),
                 max_cross_post_areas: maxCrossPost,
                 echomail_moderation_threshold: echomailModerationThreshold,
+                registration_requires_approval: document.getElementById('bbsRegistrationRequiresApproval').checked,
                 dashboard_ad_rotate_interval_seconds: dashboardAdRotateInterval,
                 default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value,
                 bulletin_display_mode: document.getElementById('bbsBulletinDisplayMode').value,
@@ -926,6 +949,19 @@ function showBbsSystemAlert(message, type) {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
+}
+
+function syncPgpManagedKeysToggle() {
+    const pgpEnabled = !!document.getElementById('bbsPgp')?.checked;
+    const managedToggle = document.getElementById('bbsPgpManagedKeys');
+    if (!managedToggle) {
+        return;
+    }
+
+    managedToggle.disabled = !pgpEnabled;
+    if (!pgpEnabled) {
+        managedToggle.checked = false;
+    }
 }
 
 function loadAdminUsers(selectId) {

@@ -178,7 +178,7 @@ window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)')
 3. Replace JS literals with `window.t(...)` (or `uiT(...)`) fallbacks, but do not invent a new inline fallback unless the corresponding catalog key was added first.
 4. Ensure API errors return `error_code`.
 5. Run both i18n check scripts before commit.
-6. **API route changes**: When adding, removing, or modifying routes in `routes/api-routes.php`, update `docs/API.md` to reflect the change.
+6. **API route changes**: When adding, removing, or modifying routes in `routes/api-routes.php`, update `docs/API.md`. Response tables must be complete: every field typed `object` or `array of objects` must have its sub-fields listed in the same table using dot-notation (`parent.child`) or bracket-notation (`items[].child`). A row typed `object` or `array` with no sub-rows is incomplete and must not be committed. See **Response table format** in `docs/DEVELOPER_GUIDE.md` for the full rules and an example.
 
 ## URL Construction
 

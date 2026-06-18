@@ -9,13 +9,16 @@
         "guest_doors_page": false,
         "bbs_directory": true,
         "public_files_index": false,
-        "qwk": true
+        "qwk": true,
+        "pgp": false,
+        "pgp_managed_keys": false
     },
     "default_echo_interface": "echolist",
     "bulletin_display_mode": "once",
     "dashboard_ad_rotate_interval_seconds": 20,
     "max_cross_post_areas": 5,
     "echomail_moderation_threshold": 0,
+    "registration_requires_approval": true,
     "outgoing_charset": "CP437",
     "qwk": {
         "bbs_id": "",

@@ -60,7 +60,9 @@ class BbsConfig
                 'webdoors' => true,
                 'shoutbox' => true,
                 'advertising' => true,
-                'voting_booth' => true
+                'voting_booth' => true,
+                'pgp' => false,
+                'pgp_managed_keys' => false
             ]
         ];
     }
@@ -235,6 +237,13 @@ class BbsConfig
         self::load();
         $value = (int)(self::$config['echomail_moderation_threshold'] ?? 0);
         return max(0, $value);
+    }
+
+    public static function shouldRequireRegistrationApproval(): bool
+    {
+        self::load();
+        return !array_key_exists('registration_requires_approval', self::$config)
+            || !empty(self::$config['registration_requires_approval']);
     }
 
     public static function getOutgoingCharset(): string

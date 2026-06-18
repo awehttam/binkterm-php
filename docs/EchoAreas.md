@@ -63,6 +63,7 @@ Fill in the form fields:
   - *(inherit)* — Use the policy configured for the network (default behavior).
   - `real_name` — Use the user's real name field.
   - `username` — Use the user's login username.
+- **Missing CHRS Charset** — Optional fallback used only for inbound FTN packets that do not include a `CHRS` kludge. *(inherit)* uses the network-level fallback for that domain.
 - **Active** — Uncheck to disable the area without deleting it.
 - **Local Only** — Check to prevent messages from being sent to uplinks.
 - **Sysop Access Only** — Check to restrict the area to admin users.
@@ -105,7 +106,7 @@ LOCALNEWS,Local News and Announcements,
 7. **Storage** — The message is stored in the `echomail` table. The `message_count` on the area is incremented. Kludge lines are split into top kludges and bottom kludges (SEEN-BY/PATH) per FTS-4009.
 8. **Failure handling** — If processing fails, the original packet is moved to `data/undeliverable/` rather than deleted, so it can be reprocessed manually.
 
-Character encoding is detected via the `CHRS` kludge and converted to UTF-8 for storage.
+Character encoding is normally taken from the `CHRS` kludge and converted to UTF-8 for storage. If `CHRS` is missing, BinktermPHP first checks the echo area's **Missing CHRS Charset**, then the network-level fallback, and only then falls back to its historical guess order.
 
 ---
 

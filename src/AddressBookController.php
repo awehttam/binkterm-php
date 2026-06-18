@@ -57,10 +57,13 @@ class AddressBookException extends \RuntimeException
 class AddressBookController
 {
     private $db;
+    private PgpContactKeyService $pgpContactKeyService;
+    private ?bool $hasPgpContactKeySupport = null;
 
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
+        $this->pgpContactKeyService = new PgpContactKeyService($this->db);
     }
 
     /**
@@ -68,24 +71,46 @@ class AddressBookController
      */
     public function getUserEntries($userId, $search = '')
     {
-        $sql = "
-            SELECT id, name, messaging_user_id, node_address, email, description, always_crashmail, created_at, updated_at
-            FROM address_book
-            WHERE user_id = ?
-        ";
+        if ($this->supportsPgpContactKeys()) {
+            $sql = "
+                SELECT ab.id, ab.name, ab.messaging_user_id, ab.node_address, ab.email, ab.description,
+                       ab.always_crashmail, ab.created_at, ab.updated_at, ab.pgp_contact_key_id,
+                       pk.fingerprint AS pgp_key_fingerprint, pk.user_id_string AS pgp_key_user_id_string,
+                       pk.label AS pgp_key_label
+                FROM address_book ab
+                LEFT JOIN user_pgp_contact_keys pk ON pk.id = ab.pgp_contact_key_id
+                WHERE ab.user_id = ?
+            ";
+        } else {
+            $sql = "
+                SELECT ab.id, ab.name, ab.messaging_user_id, ab.node_address, ab.email, ab.description,
+                       ab.always_crashmail, ab.created_at, ab.updated_at,
+                       NULL::integer AS pgp_contact_key_id,
+                       NULL::varchar AS pgp_key_fingerprint,
+                       NULL::varchar AS pgp_key_user_id_string,
+                       NULL::varchar AS pgp_key_label
+                FROM address_book ab
+                WHERE ab.user_id = ?
+            ";
+        }
         
         $params = [$userId];
         
         if (!empty($search)) {
-            $sql .= " AND (name ILIKE ? OR messaging_user_id ILIKE ? OR node_address ILIKE ? OR description ILIKE ?)";
+            $sql .= " AND (
+                ab.name ILIKE ? OR ab.messaging_user_id ILIKE ? OR ab.node_address ILIKE ? OR ab.description ILIKE ?
+                OR COALESCE(pk.user_id_string, '') ILIKE ? OR COALESCE(pk.fingerprint, '') ILIKE ?
+            )";
             $searchTerm = '%' . $search . '%';
+            $params[] = $searchTerm;
+            $params[] = $searchTerm;
             $params[] = $searchTerm;
             $params[] = $searchTerm;
             $params[] = $searchTerm;
             $params[] = $searchTerm;
         }
         
-        $sql .= " ORDER BY name ASC";
+        $sql .= " ORDER BY ab.name ASC";
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -98,11 +123,29 @@ class AddressBookController
      */
     public function getEntry($entryId, $userId)
     {
-        $stmt = $this->db->prepare("
-            SELECT id, name, messaging_user_id, node_address, email, description, always_crashmail, created_at, updated_at
-            FROM address_book
-            WHERE id = ? AND user_id = ?
-        ");
+        if ($this->supportsPgpContactKeys()) {
+            $stmt = $this->db->prepare("
+                SELECT ab.id, ab.name, ab.messaging_user_id, ab.node_address, ab.email, ab.description,
+                       ab.always_crashmail, ab.created_at, ab.updated_at, ab.pgp_contact_key_id,
+                       pk.fingerprint AS pgp_key_fingerprint, pk.user_id_string AS pgp_key_user_id_string,
+                       pk.label AS pgp_key_label, pk.armored_public_key AS pgp_armored_public_key
+                FROM address_book ab
+                LEFT JOIN user_pgp_contact_keys pk ON pk.id = ab.pgp_contact_key_id
+                WHERE ab.id = ? AND ab.user_id = ?
+            ");
+        } else {
+            $stmt = $this->db->prepare("
+                SELECT ab.id, ab.name, ab.messaging_user_id, ab.node_address, ab.email, ab.description,
+                       ab.always_crashmail, ab.created_at, ab.updated_at,
+                       NULL::integer AS pgp_contact_key_id,
+                       NULL::varchar AS pgp_key_fingerprint,
+                       NULL::varchar AS pgp_key_user_id_string,
+                       NULL::varchar AS pgp_key_label,
+                       NULL::text AS pgp_armored_public_key
+                FROM address_book ab
+                WHERE ab.id = ? AND ab.user_id = ?
+            ");
+        }
         $stmt->execute([$entryId, $userId]);
         
         return $stmt->fetch();
@@ -117,6 +160,7 @@ class AddressBookController
         if (empty($data['name']) || empty($data['messaging_user_id']) || empty($data['node_address'])) {
             throw new AddressBookException(
                 'errors.address_book.required_fields',
+                null,
                 400
             );
         }
@@ -125,6 +169,7 @@ class AddressBookController
         if (!$this->isValidFidonetAddress($data['node_address'])) {
             throw new AddressBookException(
                 'errors.address_book.invalid_fidonet_format',
+                null,
                 400
             );
         }
@@ -139,35 +184,82 @@ class AddressBookController
         if ($checkStmt->fetch()) {
             throw new AddressBookException(
                 'errors.address_book.duplicate_entry',
+                null,
                 409
             );
         }
 
         $alwaysCrashmail = !empty($data['always_crashmail']);
+        $pgpContactKeyId = null;
 
-        $stmt = $this->db->prepare("
-            INSERT INTO address_book (user_id, name, messaging_user_id, node_address, email, description, always_crashmail)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ");
+        $this->db->beginTransaction();
 
-        $result = $stmt->execute([
-            $userId,
-            $data['name'],
-            $data['messaging_user_id'],
-            $data['node_address'],
-            $data['email'] ?? null,
-            $data['description'] ?? null,
-            $alwaysCrashmail ? 'true' : 'false',
-        ]);
+        try {
+            if ($this->supportsPgpContactKeys()) {
+                $pgpContactKeyId = $this->resolvePgpContactKeyId($userId, $data);
 
-        if ($result) {
-            return $this->db->lastInsertId();
+                $stmt = $this->db->prepare("
+                    INSERT INTO address_book (
+                        user_id, name, messaging_user_id, node_address, email, description, always_crashmail, pgp_contact_key_id
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    RETURNING id
+                ");
+
+                $stmt->execute([
+                    $userId,
+                    $data['name'],
+                    $data['messaging_user_id'],
+                    $data['node_address'],
+                    $data['email'] ?? null,
+                    $data['description'] ?? null,
+                    $alwaysCrashmail ? 'true' : 'false',
+                    $pgpContactKeyId,
+                ]);
+            } else {
+                $stmt = $this->db->prepare("
+                    INSERT INTO address_book (
+                        user_id, name, messaging_user_id, node_address, email, description, always_crashmail
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    RETURNING id
+                ");
+
+                $stmt->execute([
+                    $userId,
+                    $data['name'],
+                    $data['messaging_user_id'],
+                    $data['node_address'],
+                    $data['email'] ?? null,
+                    $data['description'] ?? null,
+                    $alwaysCrashmail ? 'true' : 'false',
+                ]);
+            }
+
+            $row = $stmt->fetch();
+            $entryId = $row ? (int)$row['id'] : 0;
+            if ($entryId <= 0) {
+                throw new AddressBookException('errors.address_book.create_failed', null, 400);
+            }
+
+            $this->db->commit();
+            return $entryId;
+        } catch (AddressBookException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        } catch (\InvalidArgumentException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw new AddressBookException('errors.pgp.invalid_key', $e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw new AddressBookException('errors.address_book.create_failed', null, 400);
         }
-        
-        throw new AddressBookException(
-            'errors.address_book.create_failed',
-            400
-        );
     }
 
     /**
@@ -180,6 +272,7 @@ class AddressBookController
         if (!$entry) {
             throw new AddressBookException(
                 'errors.address_book.not_found',
+                null,
                 404
             );
         }
@@ -188,6 +281,7 @@ class AddressBookController
         if (empty($data['name']) || empty($data['messaging_user_id']) || empty($data['node_address'])) {
             throw new AddressBookException(
                 'errors.address_book.required_fields',
+                null,
                 400
             );
         }
@@ -196,6 +290,7 @@ class AddressBookController
         if (!$this->isValidFidonetAddress($data['node_address'])) {
             throw new AddressBookException(
                 'errors.address_book.invalid_fidonet_format',
+                null,
                 400
             );
         }
@@ -210,29 +305,75 @@ class AddressBookController
         if ($checkStmt->fetch()) {
             throw new AddressBookException(
                 'errors.address_book.duplicate_entry',
+                null,
                 409
             );
         }
 
         $alwaysCrashmail = !empty($data['always_crashmail']);
 
-        $stmt = $this->db->prepare("
-            UPDATE address_book
-            SET name = ?, messaging_user_id = ?, node_address = ?, email = ?, description = ?,
-                always_crashmail = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ? AND user_id = ?
-        ");
+        $this->db->beginTransaction();
 
-        return $stmt->execute([
-            $data['name'],
-            $data['messaging_user_id'],
-            $data['node_address'],
-            $data['email'] ?? null,
-            $data['description'] ?? null,
-            $alwaysCrashmail ? 'true' : 'false',
-            $entryId,
-            $userId,
-        ]);
+        try {
+            if ($this->supportsPgpContactKeys()) {
+                $pgpContactKeyId = $this->resolvePgpContactKeyId($userId, $data);
+
+                $stmt = $this->db->prepare("
+                    UPDATE address_book
+                    SET name = ?, messaging_user_id = ?, node_address = ?, email = ?, description = ?,
+                        always_crashmail = ?, pgp_contact_key_id = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND user_id = ?
+                ");
+
+                $result = $stmt->execute([
+                    $data['name'],
+                    $data['messaging_user_id'],
+                    $data['node_address'],
+                    $data['email'] ?? null,
+                    $data['description'] ?? null,
+                    $alwaysCrashmail ? 'true' : 'false',
+                    $pgpContactKeyId,
+                    $entryId,
+                    $userId,
+                ]);
+            } else {
+                $stmt = $this->db->prepare("
+                    UPDATE address_book
+                    SET name = ?, messaging_user_id = ?, node_address = ?, email = ?, description = ?,
+                        always_crashmail = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND user_id = ?
+                ");
+
+                $result = $stmt->execute([
+                    $data['name'],
+                    $data['messaging_user_id'],
+                    $data['node_address'],
+                    $data['email'] ?? null,
+                    $data['description'] ?? null,
+                    $alwaysCrashmail ? 'true' : 'false',
+                    $entryId,
+                    $userId,
+                ]);
+            }
+
+            $this->db->commit();
+            return $result;
+        } catch (AddressBookException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        } catch (\InvalidArgumentException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw new AddressBookException('errors.pgp.invalid_key', $e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw new AddressBookException('errors.address_book.update_failed', null, 400);
+        }
     }
 
     /**
@@ -254,11 +395,27 @@ class AddressBookController
         $exactTerm  = $query . '%';
         $normalizedQuery = trim((string)$query);
 
+        $pgpSelect = $this->supportsPgpContactKeys()
+            ? "ab.pgp_contact_key_id,
+                pk.fingerprint AS pgp_key_fingerprint,
+                pk.user_id_string AS pgp_key_user_id_string,
+                pk.label AS pgp_key_label"
+            : "NULL::integer AS pgp_contact_key_id,
+                NULL::varchar AS pgp_key_fingerprint,
+                NULL::varchar AS pgp_key_user_id_string,
+                NULL::varchar AS pgp_key_label";
+
+        $pgpJoin = $this->supportsPgpContactKeys()
+            ? "LEFT JOIN user_pgp_contact_keys pk ON pk.id = ab.pgp_contact_key_id"
+            : "";
+
         $stmt = $this->db->prepare("
             SELECT ab.id, ab.name, ab.messaging_user_id, ab.node_address, ab.email, ab.always_crashmail,
+                {$pgpSelect},
                 nl.system_name AS node_system_name,
                 nl.domain      AS node_domain
             FROM address_book ab
+            {$pgpJoin}
             LEFT JOIN LATERAL (
                 SELECT n.system_name, n.domain FROM nodelist n
                 WHERE ab.node_address ~ E'^\\d+:\\d+/\\d+'
@@ -329,6 +486,10 @@ class AddressBookController
                     'node_address' => '',
                     'email' => null,
                     'always_crashmail' => false,
+                    'pgp_contact_key_id' => null,
+                    'pgp_key_fingerprint' => null,
+                    'pgp_key_user_id_string' => null,
+                    'pgp_key_label' => null,
                     'node_system_name' => '',
                     'node_domain' => '',
                 ]);
@@ -371,6 +532,10 @@ class AddressBookController
                     'node_address' => '',
                     'email' => null,
                     'always_crashmail' => false,
+                    'pgp_contact_key_id' => null,
+                    'pgp_key_fingerprint' => null,
+                    'pgp_key_user_id_string' => null,
+                    'pgp_key_label' => null,
                     'node_system_name' => '',
                     'node_domain' => '',
                 ]);
@@ -405,6 +570,42 @@ class AddressBookController
     {
         // Basic Fidonet address validation: zone:net/node or zone:net/node.point
         return preg_match('/^\d+:\d+\/\d+(\.\d+)?$/', $address);
+    }
+
+    private function resolvePgpContactKeyId(int $userId, array $data): ?int
+    {
+        if (!$this->supportsPgpContactKeys()) {
+            return null;
+        }
+
+        $armoredPublicKey = trim((string)($data['pgp_public_key'] ?? ''));
+        if ($armoredPublicKey === '') {
+            return null;
+        }
+
+        $label = trim((string)($data['pgp_key_label'] ?? $data['name'] ?? ''));
+        $key = $this->pgpContactKeyService->savePublicKey($userId, $armoredPublicKey, $label, 'address_book');
+        return isset($key['id']) ? (int)$key['id'] : null;
+    }
+
+    private function supportsPgpContactKeys(): bool
+    {
+        if ($this->hasPgpContactKeySupport !== null) {
+            return $this->hasPgpContactKeySupport;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'address_book'
+              AND column_name = 'pgp_contact_key_id'
+            LIMIT 1
+        ");
+        $stmt->execute();
+        $this->hasPgpContactKeySupport = (bool)$stmt->fetchColumn();
+
+        return $this->hasPgpContactKeySupport;
     }
 
     /**

@@ -57,6 +57,100 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 
+function promptForPgpPassphrase() {
+    return new Promise(function(resolve) {
+        const modalId = 'pgpPassphrasePromptModal';
+        const existingModal = document.getElementById(modalId);
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = modalId;
+        modal.tabIndex = -1;
+        modal.setAttribute('aria-hidden', 'true');
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-key me-2"></i>${uiT('ui.pgp.decrypt_button', 'Decrypt')}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${uiT('ui.common.close', 'Close')}"></button>
+                    </div>
+                    <form>
+                        <div class="modal-body">
+                            <label for="pgpPassphrasePromptInput" class="form-label">${uiT('ui.settings.pgp.passphrase', 'PGP passphrase')}</label>
+                            <input
+                                type="password"
+                                class="form-control"
+                                id="pgpPassphrasePromptInput"
+                                autocomplete="current-password"
+                                placeholder="${uiT('ui.settings.pgp.passphrase_placeholder', 'Enter a PGP passphrase')}"
+                            >
+                            <div class="form-text">${uiT('ui.pgp.passphrase_prompt', 'Enter your PGP passphrase to decrypt this message.')}</div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                ${uiT('ui.common.cancel', 'Cancel')}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-unlock me-1"></i>${uiT('ui.pgp.decrypt_button', 'Decrypt')}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const modalInstance = new bootstrap.Modal(modal);
+        const input = modal.querySelector('#pgpPassphrasePromptInput');
+        const form = modal.querySelector('form');
+        let settled = false;
+        const swallowKeyEvent = function(event) {
+            event.stopPropagation();
+        };
+
+        modal.addEventListener('keydown', swallowKeyEvent);
+        modal.addEventListener('keypress', swallowKeyEvent);
+        modal.addEventListener('keyup', swallowKeyEvent);
+
+        function finish(value) {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            resolve(value);
+            modalInstance.hide();
+        }
+
+        modal.addEventListener('shown.bs.modal', function() {
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        });
+
+        modal.addEventListener('hidden.bs.modal', function() {
+            modal.remove();
+            if (!settled) {
+                settled = true;
+                resolve(null);
+            }
+        });
+
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            finish(input ? input.value : '');
+        });
+
+        modalInstance.show();
+    });
+}
+
 $(document).ready(function() {
     loadNetmailSettings().then(function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -760,9 +854,6 @@ function viewMessage(messageId) {
     // Update navigation buttons
     updateNavigationButtons();
 
-    // Mark as read immediately
-    markMessageAsRead(messageId);
-
     // Add history entry for mobile back button support
     if (!history.state || history.state.modal !== 'message') {
         history.pushState({modal: 'message', messageId: messageId}, '', '');
@@ -781,6 +872,7 @@ function viewMessage(messageId) {
     $.get(`/api/messages/netmail/${messageId}`)
         .done(function(data) {
             displayMessageContent(data);
+            markMessageAsRead(messageId);
         })
         .fail(function() {
             $('#messageContent').html(`<div class="text-danger">${uiT('errors.messages.netmail.get_failed', 'Failed to load message')}</div>`);
@@ -980,22 +1072,22 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
 
     const html = `
         <div class="message-header-full mb-3">
-            <div class="row align-items-center">
-                <div class="col-md-6 d-flex align-items-center gap-1 flex-wrap">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center gap-1 flex-wrap">
                     <strong>${uiT('ui.common.from_label', 'From:')}</strong> <span id="senderNamePopoverTrigger" style="cursor:pointer;">${escapeHtml(message.from_name)}</span>
                     ${addressBookButton}
+                    </div>
+                    <div class="mt-2">
+                        <strong>${uiT('ui.common.date_label', 'Date:')}</strong> <span title="${uiT('ui.common.sent_prefix', 'Sent:')} ${formatFullDate(message.date_written)}">${formatFullDate(message.date_received)}</span>
+                    </div>
                 </div>
-                <div class="col-md-6 text-end">
+                <div class="col-md-6 mt-2 mt-md-0">
                     <strong>${uiT('ui.common.to_label', 'To:')}</strong> ${escapeHtml(message.to_name)}
                     <small class="text-muted ms-2">${formatFidonetAddress(message.to_address, message.to_system_name)}</small>
-                </div>
-            </div>
-            <div class="row mt-2">
-                <div class="col-md-6">
-                    <strong>${uiT('ui.common.date_label', 'Date:')}</strong> <span title="${uiT('ui.common.sent_prefix', 'Sent:')} ${formatFullDate(message.date_written)}">${formatFullDate(message.date_received)}</span>
-                </div>
-                <div class="col-md-6">
+                    <div class="mt-2">
                     <strong>${uiT('ui.common.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}
+                    </div>
                 </div>
             </div>
             <div class="row mt-2 align-items-center">
@@ -1024,6 +1116,9 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
                 </div>
             </div>
             ` : ''}
+            <div class="row mt-2">
+                <div class="col-12" id="pgpStatusContainer"></div>
+            </div>
         </div>
 
         <div id="kludgeContainer" class="kludge-lines mb-3" style="display: none;">
@@ -1068,6 +1163,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     $('#messageContent').html(html);
 
     initSenderPopover(message, message.from_address, message.from_name);
+    void renderNetmailPgpState(message, parsedMessage);
 
     // Wire up save button and header icon
     updateModalSaveButton(message);
@@ -1108,6 +1204,71 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     });
 
     // Edit button is always shown — getMessage already enforces sender/receiver access
+}
+
+function renderNetmailPgpState(message, parsedMessage) {
+    const container = document.getElementById('pgpStatusContainer');
+    if (!container || !window.pgpEnabled || !window.PgpMessageSupport) {
+        return;
+    }
+
+    const body = parsedMessage && parsedMessage.messageBody ? parsedMessage.messageBody : (message.message_text || '');
+
+    if (window.PgpMessageSupport.isEncryptedMessage(body)) {
+        if (!window.pgpManagedKeysEnabled) {
+            container.innerHTML = '<span class="badge bg-secondary">PGP encrypted</span>';
+            return;
+        }
+
+        container.innerHTML = `
+            <button type="button" class="btn btn-sm btn-outline-primary" id="pgpDecryptButton">
+                <i class="fas fa-unlock me-1"></i>${uiT('ui.pgp.decrypt_button', 'Decrypt')}
+            </button>
+            <span class="ms-2 text-muted small">${uiT('ui.pgp.decrypt_help', 'This message is encrypted with PGP.')}</span>
+        `;
+
+        $('#pgpDecryptButton').off('click').on('click', async function() {
+            const passphrase = await promptForPgpPassphrase();
+            if (passphrase === null) {
+                return;
+            }
+
+            try {
+                const decrypted = await window.PgpMessageSupport.decryptMessage(body, passphrase);
+                currentParsedMessage.messageBody = decrypted;
+                currentMessageData.message_text = decrypted;
+                renderCurrentMessageBody();
+                container.innerHTML = '<span class="badge bg-success">' + uiT('ui.pgp.decrypted', 'PGP decrypted') + '</span>';
+            } catch (error) {
+                container.innerHTML = '<span class="badge bg-danger">' + uiT('errors.pgp.decrypt_failed', 'Failed to decrypt PGP message.') + '</span>';
+            }
+        });
+        return;
+    }
+
+    if (window.PgpMessageSupport.isCleartextSigned(body)) {
+        container.innerHTML = '<span class="badge bg-secondary">' + uiT('ui.pgp.verifying', 'Verifying PGP signature...') + '</span>';
+        void window.PgpMessageSupport.verifySignedMessage(
+            body,
+            message.from_name || message.replyto_name || message.from_address,
+            message.from_address || ''
+        )
+            .then(function(result) {
+                if (result && result.verified) {
+                    container.innerHTML = '<span class="badge bg-success">' + uiT('ui.pgp.verified', 'PGP signature verified') + '</span>';
+                } else if (result && result.reason === 'public_key_missing') {
+                    container.innerHTML = '<span class="badge bg-secondary">' + uiT('ui.pgp.no_public_key', 'PGP public key not found') + '</span>';
+                } else {
+                    container.innerHTML = '<span class="badge bg-danger">' + uiT('ui.pgp.invalid', 'Invalid PGP signature') + '</span>';
+                }
+            })
+            .catch(function() {
+                container.innerHTML = '<span class="badge bg-danger">' + uiT('ui.pgp.invalid', 'Invalid PGP signature') + '</span>';
+            });
+        return;
+    }
+
+    container.innerHTML = '';
 }
 
 function openEditMessage() {
@@ -1630,6 +1791,7 @@ function renderAddressBook(entries) {
                         <div class="fw-bold small">${escapeHtml(entry.name || uiT('ui.address_book.unnamed', 'Unnamed'))}</div>
                         <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || uiT('ui.common.unknown', 'Unknown'))}</div>
                         <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || uiT('ui.address_book.no_address', 'No address'))}</div>
+                        ${entry.pgp_key_fingerprint ? `<div class="mt-1"><span class="badge bg-secondary">${uiT('ui.address_book.pgp_key_linked', 'PGP key linked')}</span></div>` : ''}
                         ${entry.description ? `<div class="text-muted smaller">${escapeHtml(entry.description.substring(0, 30) + (entry.description.length > 30 ? '...' : ''))}</div>` : ''}
                     </div>
                     <div class="dropdown">
@@ -1657,6 +1819,7 @@ function showAddAddressModal() {
     $('#addressBookModalTitle').text(uiT('ui.address_book.add_entry', 'Add Address Book Entry'));
     $('#addressBookEntryId').val('');
     $('#addressBookForm')[0].reset();
+    $('#addressBookPgpPublicKey').val('');
     clearAddressBookModalError();
     $('#addressBookModal').modal('show');
 }
@@ -1693,6 +1856,7 @@ function editAddressBookEntry(entryId) {
                 $('#addressBookEmail').val(entry.email || '');
                 $('#addressBookDescription').val(entry.description || '');
                 $('#addressBookAlwaysCrashmail').prop('checked', !!entry.always_crashmail);
+                $('#addressBookPgpPublicKey').val(entry.pgp_armored_public_key || '');
                 $('#addressBookModal').modal('show');
             } else {
                 showError(uiT('ui.netmail.address_book.load_entry_failed_prefix', 'Failed to load entry: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
@@ -1713,6 +1877,7 @@ function saveAddressBookEntry() {
         email: $('#addressBookEmail').val().trim(),
         description: $('#addressBookDescription').val().trim(),
         always_crashmail: $('#addressBookAlwaysCrashmail').is(':checked'),
+        pgp_public_key: $('#addressBookPgpPublicKey').val().trim(),
     };
 
     // Basic validation
@@ -1989,9 +2154,6 @@ function navigateMessage(direction) {
     // Update navigation buttons
     updateNavigationButtons();
 
-    // Mark as read immediately
-    markMessageAsRead(newMessage.id);
-
     // Show loading
     $('#messageContent').html(`
         <div class="loading-spinner">
@@ -2004,6 +2166,7 @@ function navigateMessage(direction) {
     $.get(`/api/messages/netmail/${newMessage.id}`)
         .done(function(data) {
             displayMessageContent(data);
+            markMessageAsRead(newMessage.id);
             // Auto-scroll to top of modal content
             $('#messageModal .modal-body').scrollTop(0);
         })

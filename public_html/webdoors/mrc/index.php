@@ -65,6 +65,10 @@ $realtimeWsUrl = trim((string)Config::env('BINKSTREAM_WS_PUBLIC_URL', Config::en
 if ($realtimeWsUrl === '') {
     $realtimeWsUrl = '/ws';
 }
+$pipeCodeParserMode = strtolower(trim((string)Config::env('PIPE_CODE_PARSER_MODE', 'decimal_relaxed')));
+if (!in_array($pipeCodeParserMode, ['strict', 'decimal_relaxed', 'loose'], true)) {
+    $pipeCodeParserMode = 'decimal_relaxed';
+}
 $effectiveRealtimeTransportMode = $configuredRealtimeTransportMode;
 if ($configuredRealtimeTransportMode === 'auto') {
     $effectiveRealtimeTransportMode = mrcRealtimeDaemonAvailable() ? 'ws' : 'sse';
@@ -200,6 +204,7 @@ if ($configuredRealtimeTransportMode === 'auto') {
         window.mrcCurrentUser = <?php echo json_encode($currentUser['username'] ?? ''); ?>;
         window.mrcCurrentBbs = <?php echo json_encode($bbsName); ?>;
         window.siteConfig = {
+            pipeCodeParserMode: <?php echo json_encode($pipeCodeParserMode); ?>,
             sseTransportMode: <?php echo json_encode($effectiveRealtimeTransportMode); ?>,
             configuredRealtimeTransportMode: <?php echo json_encode($configuredRealtimeTransportMode); ?>,
             realtimeTransportMode: <?php echo json_encode($effectiveRealtimeTransportMode); ?>,

@@ -1,0 +1,206 @@
+# PGP Key Management
+
+This guide covers BinktermPHP's PGP support from a sysop's point of view: how to enable it, what it exposes to users, and how the managed-private-key option changes behavior.
+
+## What The Feature Does
+
+PGP support lets each user maintain more than one public key and choose a preferred key for their account. When enabled, users get a **PGP** tab in their settings page where they can:
+
+- upload one or more public keys
+- pick which key is primary
+- generate a BBS-managed private key pair, if that policy is allowed
+- save correspondent public keys privately through the address book for encrypted replies
+
+The platform also exposes a public keyserver view so other systems can look up published keys. When managed private keys are enabled, the browser can also use them for netmail encryption and echomail signing.
+
+Like any OpenPGP deployment, users can also do PGP work entirely outside the BBS
+by copying and pasting ASCII-armored text into their own local tools. The BBS-side
+managed-key option is there for users and sysops who want browser-based encryption,
+decryption, and signing directly inside BinktermPHP instead of using an external
+keyring or desktop mail workflow, and who accept the policy and liability tradeoffs
+that come with allowing the BBS to host encrypted private-key blobs.
+
+## Default State
+
+PGP is disabled by default. Fresh installations start with both of these BBS settings turned off:
+
+- `Enable PGP`
+- `Allow BBS-managed private keys`
+
+That means a sysop must explicitly turn the feature on before users see the PGP settings tab or the public keyserver routes.
+
+## Enabling PGP
+
+Open **Admin -> BBS Settings** and enable:
+
+- `Enable PGP` to expose user key management and the public keyserver
+- `Allow BBS-managed private keys` only if you want the system to host encrypted private keys for users
+
+The second setting depends on the first one. If PGP is disabled, managed-key generation is also unavailable.
+
+## User-Facing Behavior
+
+When `Enable PGP` is on:
+
+- users see a **PGP** tab in their settings page
+- users can upload armored public keys
+- users can select a preferred key from a dropdown/list
+- users can view, copy, or download their saved public key material
+- the public keyserver becomes available
+
+The keyserver publishes the user's preferred key and key listings for lookup.
+
+In this mode, users can still use the system as a public-key directory while doing
+their actual encryption and decryption locally with their own OpenPGP software and
+ASCII-armored messages.
+
+The public keyserver search is network-aware. In addition to plain username,
+real-name, email, and fingerprint searches, the `/keyserver` web UI also
+understands qualified forms such as:
+
+- `awehttam@claudes.lovelybits.org`
+- `awehttam@227:1/200`
+- `Firstname Lastname@1:153/150`
+
+When the suffix is a hostname, `/keyserver` performs a remote HKPS lookup against
+that host. When the suffix is an FTN address, `/keyserver` resolves the node from
+the nodelist and performs the same remote HKPS lookup flow used by encrypted
+netmail compose.
+
+When `Allow BBS-managed private keys` is also on:
+
+- the PGP settings page shows a managed-key generator
+- generated private keys are handled by the browser and stored by the BBS in encrypted form
+- users can retrieve their stored private key material later from their account key list
+- users can sign outgoing echomail with their stored private key from the compose screen
+- readers can decrypt encrypted netmail or verify signed echomail in the message viewer
+
+This is the optional in-BBS workflow. Instead of requiring users to leave the site
+and use an external OpenPGP program, the browser can perform encryption, decryption,
+and signing against the user's managed key material directly in the BinktermPHP UI.
+
+When decrypting, the reader inspects the encrypted message's recipient key IDs and
+prefers the matching managed private key. If no direct match is found, it falls
+back to the other stored managed private keys for the account.
+
+Signed-message verification in the reader is intentionally private-keyring driven
+for remote correspondents. The browser first checks the authenticated user's saved
+correspondent/address-book keys and does not perform remote HKPS lookups during
+signature verification. If the sender is local to this BBS, verification can also
+fall back to the local published public-key store.
+
+If managed keys are disabled, the PGP tab still works for public-key upload and preferred-key selection, but the generator section is replaced with a notice.
+
+If `Allow BBS-managed private keys` is off, the server does not provide the stored private key material needed for browser-side signing or decryption. In that mode, users can still publish public keys and choose a primary key, and they can still encrypt outgoing netmail to a published recipient public key from the compose screen, but browser-side signing and reader-side decryption stay unavailable.
+
+## Compose Lookup
+
+The compose form exposes its PGP controls inside **Advanced Options**.
+
+- on netmail compose, users can enable encryption there
+- on echomail compose, users can enable signing there
+- signing still prompts for the managed-key passphrase when needed
+
+Netmail encryption uses the compose form's recipient lookup. The browser searches for public keys using the text in the recipient fields and shows an explicit selector before the message is encrypted.
+
+The lookup can match:
+
+- the key fingerprint
+- the published PGP user ID
+- the key label, if one was set
+- the BBS user's username or real name
+- saved address-book entries and local user matches surfaced by the address-book search API
+
+This matters because a user's published PGP identity and their BBS account name are not always the same thing. The selector is there so the user can choose the exact public key before sending.
+
+When the destination address is blank or points at one of this system's own FTN addresses, compose searches the local public-key store only.
+
+When the destination is a remote FTN address, compose switches to remote lookup:
+
+- it first checks the current user's saved correspondent keys, including any key linked to an address-book contact
+- it resolves the destination node in the nodelist
+- it extracts the node's BinkP hostname from the nodelist flags
+- it checks for `_hkps._tcp.<hostname>` SRV records and uses that target when present
+- if no HKPS SRV record exists, it falls back to `https://<nodelist-hostname>/pks/lookup`
+
+Remote HKP requests use a 3-second timeout so compose does not stall for long on unreachable systems.
+
+Saved correspondent keys are private to the owning user account. They are not published on `/pks/lookup` and do not change the user's preferred public key on the keyserver.
+
+Netmail encryption does not require the sender to have a managed private key. It only needs the selected recipient public key. Echomail signing still requires the sender's managed private key and passphrase because the browser must unlock the stored private key material to create the signature.
+
+## Public Endpoints
+
+When PGP is enabled, the following routes are active:
+
+- `/keyserver`
+- `/pks/lookup`
+- `/pks/lookup/v1/get/{search}`
+- `/pks/add`
+- `/pks/download/{fingerprint}`
+- `/.well-known/openpgpkey/{domain}/hkps`
+
+These are the public-facing keyserver routes used for discovery and retrieval.
+
+The `.well-known` HKPS discovery file advertises the local keyserver using the
+same site host configured for BinktermPHP. Clients that follow it can then use
+the v1 HKPS path at `/pks/lookup/v1/get/{search}` for exact key retrieval.
+
+For that discovery path to work from other systems, the relevant hostname must
+actually resolve to this BinktermPHP instance. In practice that usually means
+`openpgpkey.<your-domain>` needs DNS and web routing to this app, unless the
+site host itself already uses that name.
+
+Example using `mybbs.example.com` as the public Internet hostname of the BBS:
+
+```dns
+; Main HTTPS host used by the BBS itself
+mybbs.example.com.                 IN A      203.0.113.10
+
+; Optional HKPS SRV record used by remote FTN lookup
+_hkps._tcp.mybbs.example.com.      IN SRV    0 1 443 mybbs.example.com.
+
+; Optional WKD/OpenPGP discovery host if you want external clients
+; to use /.well-known/openpgpkey/.../hkps
+openpgpkey.example.com.            IN CNAME  mybbs.example.com.
+```
+
+If you publish a BinkP hostname for your node in nodelists, it should match the
+hostname remote systems are expected to use for PGP key lookup. In this example,
+that means the node's advertised BinkP host should also be `mybbs.example.com`.
+
+The authenticated compose UI also uses `GET /api/pgp/lookup` for destination-aware local-vs-remote key resolution.
+
+## CLI Helper
+
+The repository also includes a CLI helper at `scripts/pgp.lookup.php`.
+
+It uses the same destination-aware local-vs-remote logic as netmail compose:
+
+- local destinations query the local key store
+- remote FTN destinations use saved correspondent keys first, then remote HKPS lookup
+
+For remote lookups it prints the exact `/pks/lookup` endpoint being queried, which
+is useful for testing node resolution and HKPS discovery outside the browser.
+
+## Operational Notes
+
+- Use the admin UI to change the BBS settings. The feature flags live in `config/bbs.json`, but the supported path is **Admin -> BBS Settings**.
+- If the PGP tab is missing from user settings, confirm that `Enable PGP` is on.
+- If users can upload keys but cannot generate managed keys, confirm that `Allow BBS-managed private keys` is on.
+- Changing the preferred key affects which key is published and used as the user's primary public key.
+- Netmail encryption only requires the recipient public key. Echomail signing and reader-side decryption require managed private keys. If you leave managed keys disabled, the signing and decrypt flows stay unavailable, but users can still use compose-time netmail encryption against published recipient keys.
+- If users see address-book results but not local user matches in the compose autocomplete, confirm the address-book search route is returning both saved entries and local-user matches.
+
+## Administration Checklist
+
+Before you enable this feature in production, decide whether you want the BBS to host private key material at all.
+
+Recommended rollout order:
+
+1. Enable `Enable PGP`
+2. Test public-key upload and preferred-key selection
+3. Decide whether to enable `Allow BBS-managed private keys`
+4. Communicate the policy to users so they know whether they should generate keys locally or use the managed option
+
+If you only want public-key publishing, leave managed private keys disabled.

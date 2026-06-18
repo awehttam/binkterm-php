@@ -398,12 +398,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return true;
         }
 
-        const ids = card.dataset.interestIds ? card.dataset.interestIds.split(',').filter(Boolean) : [];
-        if (ids.length === 0) {
-            return false;
-        }
-
-        return ids.some(id => interestMessageAvailability.has(id));
+        return (parseInt(card.dataset.messages, 10) || 0) > 0;
     }
 
     function applyFilters() {

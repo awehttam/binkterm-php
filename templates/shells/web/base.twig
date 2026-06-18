@@ -106,6 +106,7 @@
         window.appI18nNamespaces = {{ i18n_namespaces|json_encode|raw }};
         window.siteConfig = {
             ansiRendererMode: {{ ansi_renderer_mode|json_encode|raw }},
+            pipeCodeParserMode: {{ pipe_code_parser_mode|json_encode|raw }},
             mediaPlayerEnabled: {{ media_player_enabled ? 'true' : 'false' }},
             sseTransportMode: {{ effective_sse_transport_mode|json_encode|raw }},
             configuredRealtimeTransportMode: {{ configured_realtime_transport_mode|json_encode|raw }},
@@ -273,6 +274,9 @@
                                 <li><a class="dropdown-item" href="/nodelist"><i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}</a></li>
                                 {% if meshcore_nodes_available %}
                                 <li><a class="dropdown-item" href="/packetbbs-nodes"><i class="fas fa-broadcast-tower"></i> {{ t('ui.base.meshcore_nodes', {}, 'common') }}</a></li>
+                                {% endif %}
+                                {% if bbs_feature_enabled('pgp') %}
+                                <li><a class="dropdown-item" href="/keyserver"><i class="fas fa-key"></i> {{ t('ui.settings.pgp.heading', {}, 'common') }}</a></li>
                                 {% endif %}
                             </ul>
                         </li>

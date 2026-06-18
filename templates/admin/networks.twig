@@ -70,31 +70,46 @@
                         <input type="url" class="form-control" id="networkWebsite">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="networkPostingNamePolicy">{{ t('ui.admin.binkp_config.uplinks.modal.posting_name_policy', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="networkPostingNamePolicy">
-                            <option value="real_name">{{ t('ui.admin.binkp_config.uplinks.real_name', {}, locale, ['common']) }}</option>
-                            <option value="username">{{ t('ui.admin.binkp_config.uplinks.username', {}, locale, ['common']) }}</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="networkDefaultCharset">{{ t('ui.admin.binkp_config.uplinks.modal.default_charset', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="networkDefaultCharset">
-                            <option value="">{{ t('ui.admin.networks.no_charset_override', {}, locale, ['common']) }}</option>
-                            {% for cs in supported_charsets %}
-                                <option value="{{ cs.value }}">{{ cs.label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="networkAllowMarkup">
-                            <label class="form-check-label" for="networkAllowMarkup">{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup', {}, locale, ['common']) }}</label>
+                        <div class="border rounded p-3 h-100">
+                            <div class="mb-4">
+                                <label class="form-label" for="networkPostingNamePolicy">{{ t('ui.admin.binkp_config.uplinks.modal.posting_name_policy', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="networkPostingNamePolicy">
+                                    <option value="real_name">{{ t('ui.admin.binkp_config.uplinks.real_name', {}, locale, ['common']) }}</option>
+                                    <option value="username">{{ t('ui.admin.binkp_config.uplinks.username', {}, locale, ['common']) }}</option>
+                                </select>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="networkAllowMarkup">
+                                <label class="form-check-label" for="networkAllowMarkup">{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="networkAllowMedia">
+                                <label class="form-check-label" for="networkAllowMedia">{{ t('ui.admin.binkp_config.uplinks.modal.allow_media', {}, locale, ['common']) }}</label>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="networkAllowMedia">
-                            <label class="form-check-label" for="networkAllowMedia">{{ t('ui.admin.binkp_config.uplinks.modal.allow_media', {}, locale, ['common']) }}</label>
+                        <div class="border rounded p-3 h-100">
+                            <div class="mb-3">
+                                <label class="form-label" for="networkDefaultCharset">{{ t('ui.admin.binkp_config.uplinks.modal.default_charset', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="networkDefaultCharset">
+                                    <option value="">{{ t('ui.admin.networks.no_charset_override', {}, locale, ['common']) }}</option>
+                                    {% for cs in supported_charsets %}
+                                        <option value="{{ cs.value }}">{{ cs.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">{{ t('ui.admin.networks.outgoing_charset_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div>
+                                <label class="form-label" for="networkMissingChrsCharset">{{ t('ui.admin.networks.missing_chrs_charset', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="networkMissingChrsCharset">
+                                    <option value="">{{ t('ui.admin.networks.no_charset_override', {}, locale, ['common']) }}</option>
+                                    {% for cs in supported_charsets %}
+                                        <option value="{{ cs.value }}">{{ cs.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">{{ t('ui.admin.networks.missing_chrs_charset_help', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -170,7 +185,8 @@ function renderNetworks() {
         const flags = [
             network.allow_markup ? uiT('ui.admin.networks.markup', 'Markup') : null,
             network.allow_media ? uiT('ui.admin.networks.media', 'Media') : null,
-            network.default_charset ? String(network.default_charset) : null,
+            network.default_charset ? `${uiT('ui.admin.networks.outgoing_charset_badge', 'Outgoing')}: ${String(network.default_charset)}` : null,
+            network.missing_chrs_charset ? `${uiT('ui.admin.networks.missing_chrs_badge', 'Missing CHRS')}: ${String(network.missing_chrs_charset)}` : null,
             network.posting_name_policy === 'username' ? uiT('ui.admin.binkp_config.uplinks.username', 'Username') : uiT('ui.admin.binkp_config.uplinks.real_name', 'Real Name'),
         ].filter(Boolean);
         const row = document.createElement('tr');
@@ -239,6 +255,7 @@ function openNetworkModal(id = null) {
     document.getElementById('networkWebsite').value = network ? (network.website || '') : '';
     document.getElementById('networkPostingNamePolicy').value = network && network.posting_name_policy === 'username' ? 'username' : 'real_name';
     document.getElementById('networkDefaultCharset').value = network ? (network.default_charset || '') : '';
+    document.getElementById('networkMissingChrsCharset').value = network ? (network.missing_chrs_charset || '') : '';
     document.getElementById('networkAllowMarkup').checked = !!(network && network.allow_markup);
     document.getElementById('networkAllowMedia').checked = !!(network && network.allow_media);
     document.getElementById('networkModalTitle').textContent = network ? uiT('ui.admin.networks.edit_network', 'Edit Network') : uiT('ui.admin.networks.add_network', 'Add Network');
@@ -263,6 +280,7 @@ function saveNetwork() {
         website: document.getElementById('networkWebsite').value.trim(),
         posting_name_policy: document.getElementById('networkPostingNamePolicy').value,
         default_charset: document.getElementById('networkDefaultCharset').value,
+        missing_chrs_charset: document.getElementById('networkMissingChrsCharset').value,
         allow_markup: document.getElementById('networkAllowMarkup').checked,
         allow_media: document.getElementById('networkAllowMedia').checked
     };

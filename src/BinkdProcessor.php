@@ -505,15 +505,22 @@ class BinkdProcessor
             }
         }
 
-        // Extract CHRS kludge to determine character encoding before conversion
+        // CHRS is authoritative. When it is absent, prefer explicit area/network
+        // defaults before falling back to the historical guess order.
+        $packetDomain = $this->resolvePacketDomain($packetInfo);
+        $rawEchoareaTag = $this->extractRawEchoareaTag($messageTextRaw);
         $detectedEncoding = $this->extractChrsKludge($messageTextRaw);
-        
-        // Convert all strings from detected/default encoding to UTF-8 for database storage
-        $dateTime = $this->convertToUtf8($dateTimeRaw, $detectedEncoding);
-        $toName = $this->convertToUtf8($toNameRaw, $detectedEncoding);
-        $fromName = $this->convertToUtf8($fromNameRaw, $detectedEncoding);
-        $subject = $this->convertToUtf8($subjectRaw, $detectedEncoding);
-        $messageText = $this->convertToUtf8($messageTextRaw, $detectedEncoding);
+        $preferredEncoding = $detectedEncoding ?? $this->resolveMissingChrsCharset($packetDomain, $rawEchoareaTag);
+
+        $decodedMessage = \BinktermPHP\MessageCharsetConverter::decodeToUtf8WithCharset($messageTextRaw, $preferredEncoding);
+        $effectiveEncoding = $decodedMessage['charset'];
+        $messageText = $decodedMessage['text'];
+
+        // Apply the same chosen charset to the header fields from the same packet.
+        $dateTime = $this->convertToUtf8($dateTimeRaw, $effectiveEncoding);
+        $toName = $this->convertToUtf8($toNameRaw, $effectiveEncoding);
+        $fromName = $this->convertToUtf8($fromNameRaw, $effectiveEncoding);
+        $subject = $this->convertToUtf8($subjectRaw, $effectiveEncoding);
 
         // Use packet zone information as fallback if not available in message header
         $origZone = $packetInfo['origZone'] ?? 1;
@@ -606,7 +613,7 @@ class BinkdProcessor
             'dateTime' => trim($dateTime),
             'text' => $messageText,
             'textRaw' => $messageTextRaw ?? null,
-            'detectedEncoding' => $detectedEncoding,
+            'detectedEncoding' => $effectiveEncoding,
             'attributes' => $header['attr']
         ];
 
@@ -715,56 +722,10 @@ class BinkdProcessor
 
     private function convertToUtf8($string, $preferredEncoding = null)
     {
-        // Skip conversion if string is already valid UTF-8
-        if (mb_check_encoding($string, 'UTF-8')) {
-            return $string;
-        }
-        
-        // Build encoding list: try CHRS-detected encoding first, then common Fidonet encodings
-        $encodings = ['CP437', 'CP850', 'ISO-8859-1', 'Windows-1252'];
-        
-        // If CHRS kludge specified an encoding, try it first
-        if ($preferredEncoding) {
-            array_unshift($encodings, $preferredEncoding);
-            // Remove duplicates while preserving order
-            $encodings = array_unique($encodings);
-        }
-        
-        // Check if iconv is available
-        if (function_exists('iconv')) {
-            foreach ($encodings as $encoding) {
-                try {
-                    $converted = iconv($encoding, 'UTF-8//IGNORE', $string);
-                    if ($converted !== false && mb_check_encoding($converted, 'UTF-8')) {
-                        return $converted;
-                    }
-                } catch (Exception $e) {
-                    // Skip this encoding and try the next one
-                    $this->log("iconv encoding $encoding failed: " . $e->getMessage());
-                    continue;
-                }
-            }
-        }
-        
-        // Fallback to mb_convert_encoding if iconv fails or is not available
-        $supportedEncodings = mb_list_encodings();
-        foreach ($encodings as $encoding) {
-            if (in_array($encoding, $supportedEncodings)) {
-                try {
-                    $converted = mb_convert_encoding($string, 'UTF-8', $encoding);
-                    if (mb_check_encoding($converted, 'UTF-8')) {
-                        return $converted;
-                    }
-                } catch (ValueError $e) {
-                    $this->log("mb_convert_encoding $encoding failed: " . $e->getMessage());
-                    continue;
-                }
-            }
-        }
-        
-        // If all else fails, use mb_convert_encoding with error handling
-        // This will convert invalid bytes to ? characters but prevent database errors
-        return mb_convert_encoding($string, 'UTF-8', 'UTF-8//IGNORE');
+        return \BinktermPHP\MessageCharsetConverter::decodeToUtf8WithCharset(
+            (string)$string,
+            is_string($preferredEncoding) ? $preferredEncoding : null
+        )['text'];
     }
 
     private function splitFtnLines(string $text): array
@@ -826,6 +787,71 @@ class BinkdProcessor
         }
         
         return null; // No CHRS kludge found
+    }
+
+    private function resolvePacketDomain(?array $packetInfo): ?string
+    {
+        if ($packetInfo === null) {
+            return null;
+        }
+
+        $origZone = (int)($packetInfo['origZone'] ?? 0);
+        $origNet = (int)($packetInfo['origNet'] ?? 0);
+        $origNode = (int)($packetInfo['origNode'] ?? 0);
+        if ($origZone <= 0 || ($origNet <= 0 && $origNode <= 0)) {
+            return null;
+        }
+
+        $address = $origZone . ':' . $origNet . '/' . $origNode;
+        try {
+            return \BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getDomainByAddress($address) ?: null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function extractRawEchoareaTag(string $messageTextRaw): ?string
+    {
+        foreach ($this->splitFtnLines($messageTextRaw) as $index => $line) {
+            if ($index !== 0 || !str_starts_with($line, 'AREA:')) {
+                continue;
+            }
+
+            $areaLine = trim(substr($line, 5));
+            $parts = preg_split('/[\s\x01-\x1F]+/', $areaLine);
+            $tag = strtoupper(trim((string)($parts[0] ?? '')));
+            return $tag !== '' ? $tag : null;
+        }
+
+        return null;
+    }
+
+    private function resolveMissingChrsCharset(?string $domain, ?string $echoareaTag): ?string
+    {
+        if ($echoareaTag !== null && $domain !== null && $domain !== '') {
+            $stmt = $this->db->prepare("
+                SELECT missing_chrs_charset
+                FROM echoareas
+                WHERE UPPER(tag) = UPPER(?)
+                  AND LOWER(COALESCE(domain, '')) = LOWER(?)
+                LIMIT 1
+            ");
+            $stmt->execute([$echoareaTag, $domain]);
+            $charset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($stmt->fetchColumn());
+            if ($charset !== null) {
+                return $charset;
+            }
+        }
+
+        if ($domain !== null && $domain !== '') {
+            $network = (new \BinktermPHP\NetworkManager($this->db))->getByDomain($domain);
+            $charset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($network['missing_chrs_charset'] ?? null);
+            if ($charset !== null) {
+                return $charset;
+            }
+        }
+
+        return null;
     }
 
     private function storeMessage($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)

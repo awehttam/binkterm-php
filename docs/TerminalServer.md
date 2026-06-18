@@ -72,6 +72,8 @@ Custom shells can be added by placing plugin definition files in
 
 The terminal server uses a shell abstraction layer (`TuiShell` for normal-size terminals, `LineShell` for low-capability sessions) to present UI intents consistently across feature handlers. For architecture details, the widget reference, shell selection rules, style profile, and developer patterns see [Terminal Server Developer Guide](TerminalServerDevGuide.md).
 
+Pipe-code rendering for plain bulletins and other ANSI/pipe text shared with the web renderer is controlled by the `.env` setting `PIPE_CODE_PARSER_MODE`. The default is `decimal_relaxed`, which favors common BBS content where decimal pipe codes are immediately followed by uppercase text. `strict` remains available when avoiding false positives in prose matters more.
+
 ### Screen-Aware Display
 
 - Automatically detects terminal dimensions via NAWS (Negotiate About Window Size)
@@ -362,7 +364,7 @@ Before authenticating, users are shown a pre-login menu:
 - **K** — QWK transfer (only shown when QWK is enabled)
 - **Q** — Quit / disconnect
 
-New users who register are disconnected after registration and must reconnect to log in.
+New users who register are disconnected after registration and must reconnect to log in. If **Require approval for new users** is enabled in **Admin → BBS Settings → Features** (the default), the new account remains pending until a sysop approves it. If that setting is disabled, the account is created immediately.
 
 ### Terminal Detection Wizard
 

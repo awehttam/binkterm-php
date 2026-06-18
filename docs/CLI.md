@@ -5,6 +5,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 ## Table of Contents
 
 - [Message Posting Tool](#message-posting-tool)
+- [PGP Lookup Tool](#pgp-lookup-tool)
 - [Weather Report Generator](#weather-report-generator)
 - [New Files Report](#new-files-report)
 - [Echomail Traffic Report](#echomail-traffic-report)
@@ -35,6 +36,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [RAM Usage Report](#ram-usage-report)
 - [Who](#who)
 - [Fix Date Received](#fix-date-received)
+- [Rebuild Echomail Message Text](#rebuild-echomail-message-text)
 - [Auto Feed Poster](#auto-feed-poster)
 - [Import BBS List](#import-bbs-list)
 
@@ -59,6 +61,25 @@ php scripts/post_message.php --type=echomail \
 php scripts/post_message.php --list-users
 php scripts/post_message.php --list-areas
 ```
+
+## PGP Lookup Tool
+Perform the same destination-aware PGP lookup used by netmail compose. The script reports whether the lookup is local or remote, and for remote lookups it prints the exact `/pks/lookup` URL queried.
+
+```bash
+# Local lookup (blank destination address means local delivery)
+php scripts/pgp.lookup.php sysop
+
+# Remote candidate listing for a specific FTN destination
+php scripts/pgp.lookup.php alice@example.com --address=2:280/555
+
+# Fetch one armored key instead of listing candidates
+php scripts/pgp.lookup.php 0123456789ABCDEF0123456789ABCDEF01234567 --address=2:280/555 --get
+```
+
+Options:
+- `--address=FTN` - Destination FTN address. Blank means local delivery.
+- `--get` - Fetch one armored public key instead of listing matches.
+- `--help` - Show usage.
 
 ## Weather Report Generator
 Generate detailed weather forecasts for posting to echomail areas:
@@ -981,6 +1002,31 @@ Options:
 - `--all` — Apply to every echo area on the system.
 - `--dry-run` — Show how many rows would be updated without making any changes.
 
+## Rebuild Echomail Message Text
+
+Re-decodes `echomail.message_text` from `raw_message_bytes` for one echo area or one network domain. The script prefers the message's `CHRS` kludge when present; otherwise it uses the echo area's **Missing CHRS Charset**, then the network-level fallback, then the stored `message_charset`. You can also force a charset explicitly.
+
+```bash
+# Rebuild all echomail in one network using configured CHRS fallbacks
+php scripts/rebuild_echomail_message_text.php --domain=fidonet
+
+# Rebuild one area, inferring the domain from TAG@domain
+php scripts/rebuild_echomail_message_text.php --echoarea=GENERAL@fidonet
+
+# Preview changes without writing
+php scripts/rebuild_echomail_message_text.php --domain=fidonet --dry-run
+
+# Force one charset for the selected rows
+php scripts/rebuild_echomail_message_text.php --echoarea=GENERAL@fidonet --charset=CP850
+```
+
+Options:
+- `--domain=<name>` — Limit to one network domain.
+- `--echoarea=<TAG[@domain]>` — Limit to one echo area tag, optionally with its domain.
+- `--charset=<charset>` — Force one charset for all matched rows.
+- `--dry-run` — Show what would change without writing.
+- `--help` — Show usage information.
+
 ## Import BBS List
 
 Imports a BBS list from a ZIP archive containing `bbslist.csv` into the BBS Directory. Entries are upserted by name (case-insensitive); no deletions are performed.
@@ -1091,6 +1137,8 @@ You can trigger this script automatically whenever a matching ZIP arrives in a f
 ## Auto Feed Poster
 
 Checks active auto feed sources (RSS/Atom and Bluesky) and posts new items to their configured echo areas. See [Auto Feed](Autofeed.md) for full setup and configuration details.
+
+Each posted item normally uses the article title as its subject. If a feed has **Include Feed Name in Subject** enabled in **Admin -> Auto Feed**, the script posts subjects in the form `[feed_name] article title` before applying the 72-character FTN subject limit.
 
 ```bash
 # Check all active feeds

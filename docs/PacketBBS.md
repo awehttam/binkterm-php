@@ -1020,6 +1020,8 @@ The page shows:
 - a sortable table listing all registered nodes by handle, interface type, and location description
 - a node info modal (handle, location description, coordinates with a copy button, public key with a copy button, and QR code)
 
+For MeshCore bridge nodes, the page prefers the latest live coordinates and last-seen timestamp from `meshcore_node_adverts` when the node's full public key is known. Admin-entered location text remains the fallback description shown in the directory.
+
 Linking to a specific node info modal uses the URL hash `#node-{id}`:
 
 ```text
@@ -1051,6 +1053,12 @@ Authorization: Bearer <node-api-key>
 During normal operation, the bridge also reports contacts pushed by the radio in real time (for example, when a new node is heard and automatically added to the companion list).
 
 The BBS upserts on the contact's full 64-character public key. If a user has already pre-registered a contact by its 12-character prefix (see [User Radio Registration](#user-radio-registration) below), the incoming full-key report claims that row and fills in the complete key.
+
+### MeshCore Advert Storage
+
+The bridge reports repeater adverts to `POST /api/meshcore/advert`. These live adverts are stored in `meshcore_node_adverts`, keyed by full public key, rather than being merged directly into `cwn_networks`.
+
+The CWN WebDoor reads MeshCore advert rows through a projected union so the public CWN map and list still show heard MeshCore repeaters alongside manual CWN submissions. Legacy `cwn_networks.source_type = 'meshcore'` rows are treated as migration-only data and are no longer the live write target.
 
 ### Contact Identifiers
 

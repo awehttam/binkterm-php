@@ -416,6 +416,44 @@ Use `AdminDaemonClient::log($level, $message, $context)` for application-level l
 
 **Maintaining `docs/API.md`**: The repository's `docs/API.md` is the canonical REST API reference and must be kept up to date as routes are added, modified, or removed. Update it by hand for incremental changes. Do not use the generator to overwrite `docs/API.md` — the script is intended for local exploration and bulk regeneration by maintainers, not as a substitute for keeping the committed doc current.
 
+### Response table format
+
+Every `**Response** _(JSON)_` block must include a pipe-delimited field table. Incomplete tables are the most common documentation debt — follow these rules for every route change:
+
+**Rule 1 — Expand every `object` and `array of objects` field.**
+A row typed `object` or `array` (or `array of objects`) with no sub-field rows below it is incomplete. Every such field must have its child fields listed in the same table:
+- Objects use dot-notation: `parent.child`
+- Arrays use bracket-notation: `items[].child`
+
+**Rule 2 — Atomic array elements do not need sub-rows.**
+Use a specific type like `array of strings` or `array of integers` in the Type column. These do not need further expansion.
+
+**Rule 3 — Dynamic structures must explain themselves in prose.**
+If a field's keys vary at runtime (e.g. a namespace-keyed i18n map, a command-specific payload), sub-rows cannot be defined. In that case the Type column must say `object` and the Description cell must explain the key and value shape in plain English. Do not leave the description as just "Object".
+
+**Rule 4 — Cross-section references are explicit, not implicit.**
+If the object shape is documented in a dedicated sub-section (e.g. a "Message object" table), the parent array row's Description must include a parenthetical like `(see **Message object** below)`. Do not leave the type as bare `array` with a generic description and expect the reader to find the adjacent section.
+
+#### Complete response table example
+
+```markdown
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the operation succeeded |
+| `user` | object | Updated user record |
+| `user.id` | integer | User ID |
+| `user.username` | string | Username |
+| `user.created_at` | string | UTC timestamp when account was created |
+| `tags` | array of strings | Slugs of tags applied to the user |
+| `sessions` | array of objects | Currently active sessions |
+| `sessions[].id` | string | Session token |
+| `sessions[].ip_address` | string | Client IP address |
+| `sessions[].created_at` | string | Session start time (UTC) |
+```
+
+
 ### Output formats
 
 | Format | Flag | Use case |

@@ -10,6 +10,7 @@ use BinktermPHP\Database;
 use BinktermPHP\I18n\LocaleResolver;
 use BinktermPHP\I18n\Translator;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\PgpKeyService;
 use BinktermPHP\RouteHelper;
 use BinktermPHP\UserCredit;
 use BinktermPHP\UserMeta;
@@ -512,14 +513,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $pendingUserRow = $insertStmt->fetch(\PDO::FETCH_ASSOC);
             $pendingUserId = $pendingUserRow ? (int)$pendingUserRow['id'] : 0;
+            $requiresApproval = \BinktermPHP\BbsConfig::shouldRequireRegistrationApproval();
+            $handler = new MessageHandler();
 
-            // Send notification to sysop
-            try {
-                $handler = new MessageHandler();
-                $handler->sendRegistrationNotification($pendingUserId, $username, $realName, $email, $reason, $ipAddress);
-            } catch (Exception $e) {
-                // Log error but don't fail registration
-                getServerLogger()->error("Failed to send registration notification: " . $e->getMessage());
+            if ($requiresApproval) {
+                // Send notification to sysop
+                try {
+                    $handler->sendRegistrationNotification($pendingUserId, $username, $realName, $email, $reason, $ipAddress);
+                } catch (Exception $e) {
+                    // Log error but don't fail registration
+                    getServerLogger()->error("Failed to send registration notification: " . $e->getMessage());
+                }
+            } else {
+                $handler->approveUserRegistration($pendingUserId, 0, 'Auto-approved by registration setting');
             }
 
             // Mark registration attempt as successful
@@ -542,7 +548,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             echo json_encode([
                 'success' => true,
-                'message_code' => 'ui.register.submitted_success'
+                'auto_approved' => !$requiresApproval,
+                'message_code' => $requiresApproval
+                    ? 'ui.register.submitted_success'
+                    : 'ui.register.auto_approved_success'
             ]);
 
         } catch (Exception $e) {
@@ -2006,6 +2015,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.moderator,
                     e.uplink_address,
                     e.posting_name_policy,
+                    e.missing_chrs_charset,
                     e.color,
                     e.is_active,
                     e.created_at,
@@ -2307,6 +2317,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
             $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
+            $missingChrsCharsetInput = trim((string)($input['missing_chrs_charset'] ?? ''));
+            if ($missingChrsCharsetInput === '' || strtolower($missingChrsCharsetInput) === 'inherit') {
+                $missingChrsCharsetInput = '';
+            }
+            $missingChrsCharset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($missingChrsCharsetInput);
             $allowMediaInput = $input['allow_media'] ?? 'inherit';
             $allowMedia = match((string)$allowMediaInput) {
                 'allow', 'true' => 'true',
@@ -2326,12 +2341,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Invalid art format hint');
             }
 
+            if ($missingChrsCharsetInput !== '' && $missingChrsCharset === null) {
+                throw new \Exception('Invalid missing CHRS charset');
+            }
+
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
             }
 
-            if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
-                throw new \Exception("Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, and apostrophes");
+            if (!\BinktermPHP\EchoareaManager::isValidTag($tag)) {
+                throw new \Exception('Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, apostrophes, ampersands, exclamation marks, and percent signs');
             }
 
             if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
@@ -2345,11 +2364,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public, allow_media)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, missing_chrs_charset, color, is_active, is_local, is_sysop_only, domain, gemini_public, allow_media)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $missingChrsCharset, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia]);
 
             if ($result) {
                 echo json_encode([
@@ -2367,6 +2386,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_posting_name_policy', apiLocalizedText('errors.echoareas.invalid_posting_name_policy', 'Invalid posting name policy', $user));
             } elseif ($message === 'Invalid art format hint') {
                 apiError('errors.echoareas.invalid_art_format_hint', apiLocalizedText('errors.echoareas.invalid_art_format_hint', 'Invalid art format hint', $user));
+            } elseif ($message === 'Invalid missing CHRS charset') {
+                apiError('errors.echoareas.invalid_missing_chrs_charset', apiLocalizedText('errors.echoareas.invalid_missing_chrs_charset', 'Invalid missing CHRS charset', $user));
             } elseif ($message === 'Tag and description are required') {
                 apiError('errors.echoareas.tag_description_required', apiLocalizedText('errors.echoareas.tag_description_required', 'Tag and description are required', $user));
             } elseif (str_starts_with($message, 'Invalid tag format')) {
@@ -2409,6 +2430,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
             $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
+            $missingChrsCharsetInput = trim((string)($input['missing_chrs_charset'] ?? ''));
+            if ($missingChrsCharsetInput === '' || strtolower($missingChrsCharsetInput) === 'inherit') {
+                $missingChrsCharsetInput = '';
+            }
+            $missingChrsCharset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($missingChrsCharsetInput);
             $allowMediaInput = $input['allow_media'] ?? 'inherit';
             $allowMedia = match((string)$allowMediaInput) {
                 'allow', 'true' => 'true',
@@ -2428,12 +2454,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Invalid art format hint');
             }
 
+            if ($missingChrsCharsetInput !== '' && $missingChrsCharset === null) {
+                throw new \Exception('Invalid missing CHRS charset');
+            }
+
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
             }
 
-            if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
-                throw new \Exception("Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, and apostrophes");
+            if (!\BinktermPHP\EchoareaManager::isValidTag($tag)) {
+                throw new \Exception('Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, apostrophes, ampersands, exclamation marks, and percent signs');
             }
 
             if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
@@ -2448,11 +2478,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?, allow_media = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, missing_chrs_charset = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?, allow_media = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia, $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $missingChrsCharset, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $allowMedia, $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode([
@@ -2469,6 +2499,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_posting_name_policy', apiLocalizedText('errors.echoareas.invalid_posting_name_policy', 'Invalid posting name policy', $user));
             } elseif ($message === 'Invalid art format hint') {
                 apiError('errors.echoareas.invalid_art_format_hint', apiLocalizedText('errors.echoareas.invalid_art_format_hint', 'Invalid art format hint', $user));
+            } elseif ($message === 'Invalid missing CHRS charset') {
+                apiError('errors.echoareas.invalid_missing_chrs_charset', apiLocalizedText('errors.echoareas.invalid_missing_chrs_charset', 'Invalid missing CHRS charset', $user));
             } elseif ($message === 'Tag and description are required') {
                 apiError('errors.echoareas.tag_description_required', apiLocalizedText('errors.echoareas.tag_description_required', 'Tag and description are required', $user));
             } elseif (str_starts_with($message, 'Invalid tag format')) {
@@ -5357,7 +5389,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
         } elseif ($action === 'create') {
-            $tag         = strtoupper(trim($input['tag'] ?? ''));
+            $tag         = \BinktermPHP\EchoareaManager::normalizeTag((string)($input['tag'] ?? ''));
             $description = trim($input['description'] ?? '');
 
             if ($tag === '') {
@@ -5366,7 +5398,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
 
-            if (!preg_match("/^[A-Z0-9._'-]+$/", $tag)) {
+            if (!\BinktermPHP\EchoareaManager::isValidTag($tag)) {
                 http_response_code(400);
                 apiError('errors.fileareas.comment_area_failed', 'Invalid tag format');
                 return;
@@ -5772,7 +5804,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         // Verify the message exists and belongs to the current user
-        $stmt = $db->prepare('SELECT user_id FROM netmail WHERE id = ?');
+        $stmt = $db->prepare('SELECT user_id, raw_message_bytes FROM netmail WHERE id = ?');
         $stmt->execute([(int)$id]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
@@ -5800,6 +5832,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        $normalizedMessageCharset = \BinktermPHP\MessageCharsetConverter::normalizeDecodableCharset($charset);
+        if ($charset !== null && $charset !== '' && $normalizedMessageCharset === null) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_message_charset', apiLocalizedText('errors.messages.echomail.edit.invalid_message_charset', 'Invalid message charset', $user));
+            return;
+        }
+
         $setClauses = [];
         $params     = [];
 
@@ -5809,7 +5848,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         if ($charset !== null) {
             $setClauses[] = 'message_charset = ?';
-            $params[]     = $charset === '' ? null : $charset;
+            $params[]     = $charset === '' ? null : $normalizedMessageCharset;
+            if ($charset !== '') {
+                $redecodedText = \BinktermPHP\MessageCharsetConverter::decodeStoredMessageBytes($row['raw_message_bytes'] ?? null, $charset);
+                if ($redecodedText !== null) {
+                    $setClauses[] = 'message_text = ?';
+                    $params[]     = $redecodedText;
+                }
+            }
         }
 
         if (empty($setClauses)) {
@@ -6172,7 +6218,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         unset($stats['areas']);
 
         echo json_encode($stats);
-    })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
+    })->where(['echoarea' => \BinktermPHP\EchoareaManager::ROUTE_ECHOAREA_PATTERN]);
 
     $prepareEchomailAdBodyForSave = static function(array $message): string {
         $body = '';
@@ -6511,6 +6557,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        $normalizedMessageCharset = \BinktermPHP\MessageCharsetConverter::normalizeDecodableCharset($charset);
+        if ($charset !== null && $charset !== '' && $normalizedMessageCharset === null) {
+            http_response_code(400);
+            apiError('errors.messages.echomail.edit.invalid_message_charset', apiLocalizedText('errors.messages.echomail.edit.invalid_message_charset', 'Invalid message charset', $user));
+            return;
+        }
+
+        $messageMetaStmt = $db->prepare('SELECT raw_message_bytes FROM echomail WHERE id = ?');
+        $messageMetaStmt->execute([(int)$id]);
+        $messageMeta = $messageMetaStmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$messageMeta) {
+            http_response_code(404);
+            apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
+            return;
+        }
+
         // Build update
         $setClauses = [];
         $params     = [];
@@ -6521,7 +6583,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         if ($charset !== null) {
             $setClauses[] = 'message_charset = ?';
-            $params[]     = $charset === '' ? null : $charset;
+            $params[]     = $charset === '' ? null : $normalizedMessageCharset;
+            if ($charset !== '') {
+                $redecodedText = \BinktermPHP\MessageCharsetConverter::decodeStoredMessageBytes($messageMeta['raw_message_bytes'] ?? null, $charset);
+                if ($redecodedText !== null) {
+                    $setClauses[] = 'message_text = ?';
+                    $params[]     = $redecodedText;
+                }
+            }
         }
 
         if (empty($setClauses)) {
@@ -6570,7 +6639,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
 
         echo json_encode($result);
-    })->where(['echoarea' => '[-A-Za-z0-9@._\'!%]+']);
+    })->where(['echoarea' => \BinktermPHP\EchoareaManager::ROUTE_ECHOAREA_PATTERN]);
 
     SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) use ($resolveEchomailMediaPermission) {
         $user = RouteHelper::requireAuth();
@@ -6626,7 +6695,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             apiError('errors.messages.echomail.not_found', apiLocalizedText('errors.messages.echomail.not_found', 'Message not found', $user));
         }
-    })->where(['echoarea' => '[-A-Za-z0-9._@\'!%]+', 'id' => '[0-9]+']);
+    })->where(['echoarea' => \BinktermPHP\EchoareaManager::ROUTE_ECHOAREA_PATTERN, 'id' => '[0-9]+']);
 
     /**
      * Upload a file for attachment to an outbound netmail.
@@ -6721,6 +6790,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $handler = new MessageHandler();
 
         try {
+            $pgpMode = isset($input['pgp_mode']) ? strtolower(trim((string)$input['pgp_mode'])) : null;
+            if (!in_array($pgpMode, [null, '', 'encrypt', 'sign'], true)) {
+                $pgpMode = null;
+            }
+            if ($pgpMode !== null) {
+                if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+                    apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+                    return;
+                }
+                if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys')) {
+                    apiError('errors.pgp.managed_disabled', apiLocalizedText('errors.pgp.managed_disabled', 'Managed PGP key generation is disabled on this system.', $user), 403);
+                    return;
+                }
+            }
+
             if ($type === 'netmail') {
 
                 if(trim($input['to_address'])==""){
@@ -6756,7 +6840,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $attachment,
                     $markupType,
                     $isFreq,
-                    $charset
+                    $charset,
+                    $pgpMode
                 );
             } elseif ($type === 'echomail') {
                 $foo = explode("@", (string)($input['echoarea'] ?? ''), 2);
@@ -6779,7 +6864,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $markupType,
                     '',
                     null,
-                    $charset
+                    $charset,
+                    $pgpMode
                 );
 
                 // Handle cross-posting to additional areas
@@ -6818,7 +6904,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                                 $markupType,
                                 '',
                                 null,
-                                $charset
+                                $charset,
+                                $pgpMode
                             );
                             $crossPostCount++;
                         } catch (\Exception $e) {
@@ -9326,6 +9413,232 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     // User settings API endpoints
+    SimpleRouter::get('/pgp/key/{userId}', function($userId) {
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.'), 404);
+        }
+
+        header('Content-Type: application/json');
+
+        try {
+            $service = new PgpKeyService();
+            $keys = $service->getPublicKeysForUser((int)$userId);
+
+            echo json_encode([
+                'success' => true,
+                'preferred_key' => $keys[0] ?? null,
+                'keys' => $keys
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.load_failed', apiLocalizedText('errors.pgp.load_failed', 'Failed to load PGP keys'), 500);
+        }
+    });
+
+    SimpleRouter::get('/pgp/lookup', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        $search = trim((string)($_GET['search'] ?? ''));
+        $address = trim((string)($_GET['address'] ?? ''));
+        $op = strtolower(trim((string)($_GET['op'] ?? 'index')));
+        $mode = strtolower(trim((string)($_GET['mode'] ?? 'compose')));
+
+        try {
+            $service = new \BinktermPHP\PgpLookupService();
+            $isLocalAddress = $service->isLocalAddress($address);
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+            if ($op === 'get') {
+                $key = ($mode === 'verify')
+                    ? $service->findPublicKeyForVerification($search, $address, $userId)
+                    : $service->findPublicKeyForDestination($search, $address, $userId);
+                echo json_encode([
+                    'success' => true,
+                    'is_local_address' => $isLocalAddress,
+                    'key' => $key,
+                ]);
+                return;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'is_local_address' => $isLocalAddress,
+                'keys' => $service->searchPublicKeysForDestination($search, $address, $userId),
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.load_failed', apiLocalizedText('errors.pgp.load_failed', 'Failed to load PGP keys', $user), 500);
+        }
+    });
+
+    SimpleRouter::get('/user/pgp/keys', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        try {
+            $service = new PgpKeyService();
+            echo json_encode([
+                'success' => true,
+                'keys' => $service->listKeysForUser($userId)
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.load_failed', apiLocalizedText('errors.pgp.load_failed', 'Failed to load PGP keys', $user), 500);
+        }
+    });
+
+    SimpleRouter::post('/user/pgp/keys', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        $armoredPublicKey = trim((string)($body['armored_public_key'] ?? ''));
+        $label = isset($body['label']) ? (string)$body['label'] : null;
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        if ($armoredPublicKey === '') {
+            apiError('errors.pgp.public_key_required', apiLocalizedText('errors.pgp.public_key_required', 'A public key is required', $user), 400);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $key = $service->uploadPublicKey($userId, $armoredPublicKey, $label);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.pgp.upload_success',
+                'key' => $key
+            ]);
+        } catch (InvalidArgumentException $e) {
+            apiError('errors.pgp.invalid_key', apiLocalizedText('errors.pgp.invalid_key', 'Invalid PGP public key', $user), 400);
+        } catch (Exception $e) {
+            apiError('errors.pgp.save_failed', apiLocalizedText('errors.pgp.save_failed', 'Failed to save PGP key', $user), 500);
+        }
+    });
+
+    SimpleRouter::post('/user/pgp/keys/managed', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys')) {
+            apiError('errors.pgp.managed_disabled', apiLocalizedText('errors.pgp.managed_disabled', 'Managed PGP key generation is disabled on this system.', $user), 403);
+        }
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        $armoredPublicKey = trim((string)($body['armored_public_key'] ?? ''));
+        $encryptedPrivateKey = trim((string)($body['encrypted_private_key'] ?? ''));
+        $label = isset($body['label']) ? (string)$body['label'] : null;
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        if ($armoredPublicKey === '' || $encryptedPrivateKey === '') {
+            apiError('errors.pgp.invalid_keypair', apiLocalizedText('errors.pgp.invalid_keypair', 'A public and private key are required', $user), 400);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $key = $service->storeManagedKeyPair($userId, $armoredPublicKey, $encryptedPrivateKey, $label);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.pgp.generate_success',
+                'key' => $key
+            ]);
+        } catch (InvalidArgumentException $e) {
+            apiError('errors.pgp.invalid_keypair', apiLocalizedText('errors.pgp.invalid_keypair', 'Invalid PGP keypair', $user), 400);
+        } catch (Exception $e) {
+            apiError('errors.pgp.save_failed', apiLocalizedText('errors.pgp.save_failed', 'Failed to save PGP key', $user), 500);
+        }
+    });
+
+    SimpleRouter::post('/user/pgp/keys/{fingerprint}/primary', function($fingerprint) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $changed = $service->setPrimaryKey((int)($user['user_id'] ?? $user['id'] ?? 0), (string)$fingerprint);
+            if (!$changed) {
+                apiError('errors.pgp.key_not_found', apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found', $user), 404);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.pgp.primary_updated'
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.save_failed', apiLocalizedText('errors.pgp.save_failed', 'Failed to save PGP key', $user), 500);
+        }
+    });
+
+    SimpleRouter::delete('/user/pgp/keys/{fingerprint}', function($fingerprint) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $deleted = $service->deleteKey((int)($user['user_id'] ?? $user['id'] ?? 0), (string)$fingerprint);
+            if (!$deleted) {
+                apiError('errors.pgp.key_not_found', apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found', $user), 404);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.pgp.delete_success'
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.delete_failed', apiLocalizedText('errors.pgp.delete_failed', 'Failed to delete PGP key', $user), 500);
+        }
+    });
+
+    SimpleRouter::get('/user/pgp/private-key/{fingerprint}', function($fingerprint) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+            apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user), 403);
+        }
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp_managed_keys')) {
+            apiError('errors.pgp.managed_disabled', apiLocalizedText('errors.pgp.managed_disabled', 'Managed PGP key generation is disabled on this system.', $user), 403);
+        }
+
+        try {
+            $service = new PgpKeyService();
+            $row = $service->getEncryptedPrivateKey((int)($user['user_id'] ?? $user['id'] ?? 0), (string)$fingerprint);
+            if (!$row) {
+                apiError('errors.pgp.private_key_not_found', apiLocalizedText('errors.pgp.private_key_not_found', 'Private key not found', $user), 404);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'fingerprint' => $row['fingerprint'],
+                'encrypted_private_key' => $row['encrypted_private_key']
+            ]);
+        } catch (Exception $e) {
+            apiError('errors.pgp.load_failed', apiLocalizedText('errors.pgp.load_failed', 'Failed to load PGP keys', $user), 500);
+        }
+    });
+
     SimpleRouter::get('/user/settings', function() {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
@@ -10161,9 +10474,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $db = Database::getInstance()->getPdo();
             $stmt = $db->prepare("
-                SELECT p.*, u.username as referrer_username, u.real_name as referrer_real_name
+                SELECT p.*, u.username as referrer_username, u.real_name as referrer_real_name,
+                       cu.username as created_user_username, cu.real_name as created_user_real_name
                 FROM pending_users p
                 LEFT JOIN users u ON p.referrer_id = u.id
+                LEFT JOIN users cu ON p.created_user_id = cu.id
                 WHERE p.id = ?
             ");
             $stmt->execute([$id]);
@@ -10606,7 +10921,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'result' => $result,
                 'message_code' => 'ui.admin_users.cleanup_success',
                 'message_params' => [
-                    'approved' => $result['approved_removed'] ?? 0,
                     'rejected' => $result['old_rejected_removed'] ?? 0,
                     'total' => $result['total_cleaned'] ?? 0
                 ]
@@ -10717,6 +11031,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     // Address Book API routes
     SimpleRouter::group(['prefix' => '/address-book'], function() {
 
+        // Legacy autocomplete/search endpoint used by older compose JS bundles.
+        SimpleRouter::get('/search/{query}', function($query) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            header('Content-Type: application/json');
+
+            try {
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $addressBook = new AddressBookController();
+                $entries = $addressBook->searchEntries($userId, (string)$query);
+
+                echo json_encode(['success' => true, 'entries' => $entries]);
+            } catch (Exception $e) {
+                apiError(
+                    'errors.address_book.list_failed',
+                    apiLocalizedText('errors.address_book.list_failed', 'Failed to load address book entries', $user, [], 'errors')
+                );
+                return;
+            }
+        })->where(['query' => '.+']);
+
         // Get user's address book entries
         SimpleRouter::get('/', function() {
             $auth = new Auth();
@@ -10728,7 +11064,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $search = $_GET['search'] ?? '';
                 $userId = $user['user_id'] ?? $user['id'] ?? null;
                 $addressBook = new AddressBookController();
-                $entries = $addressBook->getUserEntries($userId, $search);
+                $entries = $addressBook->searchEntries($userId, $search);
 
                 echo json_encode(['success' => true, 'entries' => $entries]);
             } catch (Exception $e) {
@@ -12691,7 +13027,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: image/svg+xml');
         header('Cache-Control: public, max-age=3600');
         $handle = $node['handle'] ?? $node['node_id'];
-        echo $service->getQrCodeSvg((string)$handle, (string)$node['node_id']);
+        $publicKey = $node['public_key'] ?? $node['node_id'];
+        echo $service->getQrCodeSvg((string)$handle, (string)$publicKey);
     })->where(['id' => '[0-9]+']);
 
 });

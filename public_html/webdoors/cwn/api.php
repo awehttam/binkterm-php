@@ -41,13 +41,20 @@ $action = $_GET['action'] ?? '';
 // packetbbs_nodes is public — serve it before the auth check
 if ($action === 'packetbbs_nodes') {
     $stmt = $db->query(
-        "SELECT id, handle, interface_type, location,
-                CAST(lat AS FLOAT) AS lat,
-                CAST(lon AS FLOAT) AS lon,
-                last_seen_at,
+        "SELECT n.id,
+                COALESCE(n.handle, a.name) AS handle,
+                n.interface_type,
+                n.location,
+                CAST(COALESCE(a.latitude, n.lat) AS FLOAT) AS lat,
+                CAST(COALESCE(a.longitude, n.lon) AS FLOAT) AS lon,
+                COALESCE(a.last_seen_at, n.last_seen_at) AS last_seen_at,
                 left(node_id, 12) AS node_id_prefix
-           FROM packet_bbs_nodes
-          WHERE lat IS NOT NULL AND lon IS NOT NULL"
+           FROM packet_bbs_nodes n
+      LEFT JOIN meshcore_node_adverts a
+             ON a.public_key = n.public_key
+            AND n.interface_type = 'meshcore'
+          WHERE COALESCE(a.latitude, n.lat) IS NOT NULL
+            AND COALESCE(a.longitude, n.lon) IS NOT NULL"
     );
     echo json_encode(['nodes' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
     exit;
@@ -118,7 +125,7 @@ function handleListNetworks($db)
     $offset = max((int)($params['offset'] ?? 0), 0);
     $activeOnly = ($params['active_only'] ?? 'true') === 'true';
 
-    $sql = "SELECT * FROM cwn_networks WHERE 1=1";
+    $sql = "SELECT * FROM (" . cwnUnifiedNetworksSql() . ") AS cwn_nodes WHERE 1=1";
     $sqlParams = [];
     $whereSql = "";
     $whereParams = [];
@@ -126,8 +133,6 @@ function handleListNetworks($db)
     if ($activeOnly) {
         $whereSql .= " AND is_active = TRUE";
     }
-
-    $whereSql .= cwnMeshcoreExpiryClause();
 
     // Bounding box filter
     if (!empty($params['bbox'])) {
@@ -140,7 +145,7 @@ function handleListNetworks($db)
 
     $sql .= $whereSql;
     $sqlParams = $whereParams;
-    $sql .= " ORDER BY date_added DESC LIMIT ? OFFSET ?";
+    $sql .= " ORDER BY COALESCE(last_seen_at, date_added) DESC, id DESC LIMIT ? OFFSET ?";
     $sqlParams[] = $limit;
     $sqlParams[] = $offset;
 
@@ -149,16 +154,15 @@ function handleListNetworks($db)
     $networks = $stmt->fetchAll();
 
     // Get total count
-    $countSql = "SELECT COUNT(*) FROM cwn_networks WHERE 1=1" . $whereSql;
+    $countSql = "SELECT COUNT(*) FROM (" . cwnUnifiedNetworksSql() . ") AS cwn_nodes WHERE 1=1" . $whereSql;
     $countStmt = $db->prepare($countSql);
     $countStmt->execute($whereParams);
     $total = $countStmt->fetchColumn();
 
-    $totalAllSql = "SELECT COUNT(*) FROM cwn_networks WHERE 1=1";
+    $totalAllSql = "SELECT COUNT(*) FROM (" . cwnUnifiedNetworksSql() . ") AS cwn_nodes WHERE 1=1";
     if ($activeOnly) {
         $totalAllSql .= " AND is_active = TRUE";
     }
-    $totalAllSql .= cwnMeshcoreExpiryClause();
     $totalAll = $db->query($totalAllSql)->fetchColumn();
 
     echo json_encode([
@@ -177,12 +181,45 @@ function handleGetNetwork($db)
 {
     $id = (int)($_GET['id'] ?? 0);
 
-    if ($id <= 0) {
+    if ($id === 0) {
         throw new Exception('Invalid network ID');
     }
 
-    $stmt = $db->prepare("SELECT * FROM cwn_networks WHERE id = ?");
-    $stmt->execute([$id]);
+    if ($id < 0) {
+        $stmt = $db->prepare("
+            SELECT -id AS id,
+                   name AS ssid,
+                   CAST(latitude AS FLOAT) AS latitude,
+                   CAST(longitude AS FLOAT) AS longitude,
+                   NULL::TEXT AS description,
+                   NULL::VARCHAR(100) AS wifi_password,
+                   adv_type AS network_type,
+                   NULL::INT AS submitted_by,
+                   NULL::VARCHAR(50) AS submitted_by_username,
+                   bbs_name,
+                   created_at AS date_added,
+                   updated_at AS date_updated,
+                   last_seen_at AS date_verified,
+                   TRUE AS is_active,
+                   created_at,
+                   public_key,
+                   'meshcore' AS source_type,
+                   last_seen_at,
+                   hop_count
+              FROM meshcore_node_adverts
+             WHERE id = ?
+               AND last_seen_at > NOW() - INTERVAL '2 days'
+        ");
+        $stmt->execute([abs($id)]);
+    } else {
+        $stmt = $db->prepare("
+            SELECT *
+              FROM cwn_networks
+             WHERE id = ?
+               AND source_type IS DISTINCT FROM 'meshcore'
+        ");
+        $stmt->execute([$id]);
+    }
     $network = $stmt->fetch();
 
     if (!$network) {
@@ -449,9 +486,8 @@ function searchByRadius($db, float $lat, float $lon, float $radiusKm, array $fil
                     cos(radians(longitude) - radians(?)) +
                     sin(radians(?)) * sin(radians(latitude))
                 )) AS distance_km
-            FROM cwn_networks
+            FROM (" . cwnUnifiedNetworksSql() . ") AS cwn_nodes
             WHERE is_active = TRUE
-            " . cwnMeshcoreExpiryClause() . "
         ) AS networks_with_distance
         WHERE distance_km <= ?
         ORDER BY distance_km
@@ -469,14 +505,13 @@ function searchByRadius($db, float $lat, float $lon, float $radiusKm, array $fil
 function searchByKeyword($db, string $keyword, array $filters): array
 {
     $sql = "
-        SELECT * FROM cwn_networks
+        SELECT * FROM (" . cwnUnifiedNetworksSql() . ") AS cwn_nodes
         WHERE is_active = TRUE
-        " . cwnMeshcoreExpiryClause() . "
         AND (
             ssid ILIKE ? OR
             description ILIKE ?
         )
-        ORDER BY date_added DESC
+        ORDER BY COALESCE(last_seen_at, date_added) DESC
         LIMIT 100
     ";
 
@@ -541,11 +576,57 @@ function validateNetworkData(array $data, bool $requireAll = true): void
 }
 
 /**
- * Hide MeshCore-sourced CWN rows that have not been heard recently.
+ * Manual CWN rows plus synthetic MeshCore advert rows.
  */
-function cwnMeshcoreExpiryClause(): string
+function cwnUnifiedNetworksSql(): string
 {
-    return " AND (source_type != 'meshcore' OR last_seen_at > NOW() - INTERVAL '2 days')";
+    return "
+        SELECT id,
+               ssid,
+               CAST(latitude AS FLOAT) AS latitude,
+               CAST(longitude AS FLOAT) AS longitude,
+               description,
+               wifi_password,
+               network_type,
+               submitted_by,
+               submitted_by_username,
+               bbs_name,
+               date_added,
+               date_updated,
+               date_verified,
+               is_active,
+               created_at,
+               public_key,
+               source_type,
+               last_seen_at,
+               hop_count
+          FROM cwn_networks
+         WHERE source_type IS DISTINCT FROM 'meshcore'
+
+        UNION ALL
+
+        SELECT -id AS id,
+               name AS ssid,
+               CAST(latitude AS FLOAT) AS latitude,
+               CAST(longitude AS FLOAT) AS longitude,
+               NULL::TEXT AS description,
+               NULL::VARCHAR(100) AS wifi_password,
+               adv_type AS network_type,
+               NULL::INT AS submitted_by,
+               NULL::VARCHAR(50) AS submitted_by_username,
+               bbs_name,
+               created_at AS date_added,
+               updated_at AS date_updated,
+               last_seen_at AS date_verified,
+               TRUE AS is_active,
+               created_at,
+               public_key,
+               'meshcore' AS source_type,
+               last_seen_at,
+               hop_count
+          FROM meshcore_node_adverts
+         WHERE last_seen_at > NOW() - INTERVAL '2 days'
+    ";
 }
 
 /**

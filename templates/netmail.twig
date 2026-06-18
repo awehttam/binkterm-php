@@ -375,6 +375,13 @@
                                   placeholder="{{ t('ui.address_book.description_placeholder', {}, locale, ['common']) }}"></textarea>
                     </div>
 
+                    <div class="mb-3">
+                        <label for="addressBookPgpPublicKey" class="form-label">{{ t('ui.address_book.pgp_public_key', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
+                        <textarea class="form-control font-monospace" id="addressBookPgpPublicKey" rows="5"
+                                  placeholder="{{ t('ui.address_book.pgp_public_key_placeholder', {}, locale, ['common']) }}"></textarea>
+                        <div class="form-text">{{ t('ui.address_book.pgp_public_key_help', {}, locale, ['common']) }}</div>
+                    </div>
+
                     {% if crashmail_enabled %}
                     <div class="mb-3">
                         <div class="form-check">
@@ -473,11 +480,15 @@
 <script>
 window.systemAddress = '{{ system_address }}';
 window.currentUser = {{ current_user|json_encode(15)|raw }};
+window.pgpEnabled = {{ pgp_enabled ? 'true' : 'false' }};
+window.pgpManagedKeysEnabled = {{ pgp_managed_keys_enabled ? 'true' : 'false' }};
 </script>
 <script src="/js/ansisys.js"></script>
 <script src="/js/sixel.js"></script>
 <script src="/js/pcboard.js"></script>
 <script src="/js/message-list-context-menu.js"></script>
+<script src="/vendor/openpgp-6.2.2/openpgp.min.js"></script>
+<script src="/js/pgp-message.js"></script>
 <script src="/js/netmail.js"></script>
 <script src="/vendor/marked.min.js"></script>
 <script src="/js/ai-assistant.js?v=1"></script>

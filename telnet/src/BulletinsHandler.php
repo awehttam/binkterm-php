@@ -2,6 +2,8 @@
 
 namespace BinktermPHP\TelnetServer;
 
+use BinktermPHP\Config;
+
 /**
  * Displays sysop bulletins in telnet/SSH sessions.
  */
@@ -203,8 +205,10 @@ class BulletinsHandler
             'KP', 'KR', 'KS', 'KT', 'KU', 'KD',
             'GE', 'GV', 'GL', 'GR', 'GN', 'GO'
         ];
-        $text = preg_replace_callback('/\|([A-Z]{2})/', static function (array $match) use ($knownPipeCodes): string {
-            return in_array($match[1], $knownPipeCodes, true) ? '' : $match[0];
+        $letterPattern = $this->getPipeCodeParserMode() === 'loose' ? '/\|([A-Z]{2})/i' : '/\|([A-Z]{2})/';
+        $text = preg_replace_callback($letterPattern, static function (array $match) use ($knownPipeCodes): string {
+            $code = strtoupper($match[1]);
+            return in_array($code, $knownPipeCodes, true) ? '' : $match[0];
         }, $text) ?? $text;
 
         $pipeToAnsiFg = [
@@ -216,7 +220,7 @@ class BulletinsHandler
             8 => 100, 9 => 104, 10 => 102, 11 => 106, 12 => 101, 13 => 105, 14 => 103, 15 => 107
         ];
 
-        $text = preg_replace_callback('/\|([0-9](?![0-9A-F])|[0-9A-F]{2}(?![0-9A-F]))/', static function (array $match) use ($pipeToAnsiFg, $pipeToAnsiBg): string {
+        $text = preg_replace_callback($this->getPipeCodeColorPattern(), static function (array $match) use ($pipeToAnsiFg, $pipeToAnsiBg): string {
             $code = $match[1];
             if (strlen($code) === 1) {
                 return "\033[" . ($pipeToAnsiFg[(int)$code] ?? 37) . 'm';
@@ -245,6 +249,21 @@ class BulletinsHandler
 
         $text = preg_replace('/\|T[0-9]/i', '', $text) ?? $text;
         return str_replace(["\x00DOUBLEPIPE\x00", "\x00PIPE\x00"], ['||', '|'], $text);
+    }
+
+    private function getPipeCodeParserMode(): string
+    {
+        $mode = strtolower(trim((string)Config::env('PIPE_CODE_PARSER_MODE', 'decimal_relaxed')));
+        return in_array($mode, ['strict', 'decimal_relaxed', 'loose'], true) ? $mode : 'decimal_relaxed';
+    }
+
+    private function getPipeCodeColorPattern(): string
+    {
+        return match ($this->getPipeCodeParserMode()) {
+            'decimal_relaxed' => '/\|([0-9]{2}|[0-9](?![0-9])|[0-9A-F][A-F](?![0-9A-F]))/',
+            'loose' => '/\|([0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2})/i',
+            default => '/\|([0-9](?![0-9A-F])|[0-9A-F]{2}(?![0-9A-F]))/',
+        };
     }
 
     /**

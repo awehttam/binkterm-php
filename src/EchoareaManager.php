@@ -6,6 +6,13 @@ use PDO;
 
 class EchoareaManager
 {
+    /**
+     * FTN area tags are case-insensitive opaque tokens. We accept the common
+     * punctuation seen in echolist/areafix usage and keep spaces out.
+     */
+    public const TAG_PATTERN = "/^[A-Z0-9._'!%&-]+$/";
+    public const ROUTE_ECHOAREA_PATTERN = "[-A-Za-z0-9@._'!%&]+";
+
     private PDO $db;
 
     public function __construct(?PDO $db = null)
@@ -13,16 +20,28 @@ class EchoareaManager
         $this->db = $db ?? Database::getInstance()->getPdo();
     }
 
+    public static function normalizeTag(string $tag): string
+    {
+        return strtoupper(trim($tag));
+    }
+
+    public static function isValidTag(string $tag): bool
+    {
+        $normalizedTag = self::normalizeTag($tag);
+
+        return $normalizedTag !== '' && preg_match(self::TAG_PATTERN, $normalizedTag) === 1;
+    }
+
     public function findByTagAndDomains(string $tag, array $domains = []): ?array
     {
-        $normalizedTag = strtoupper(trim($tag));
+        $normalizedTag = self::normalizeTag($tag);
         if ($normalizedTag === '') {
             return null;
         }
 
         [$domainClause, $params] = $this->buildDomainWhereClause($domains);
         $sql = "
-            SELECT id, tag, description, domain, uplink_address, is_active, is_local
+            SELECT id, tag, description, domain, uplink_address, is_active, is_local, missing_chrs_charset
             FROM echoareas
             WHERE UPPER(tag) = UPPER(?)
               AND {$domainClause}
@@ -42,7 +61,7 @@ class EchoareaManager
         }
 
         $stmt = $this->db->prepare("
-            SELECT id, tag, description, domain, uplink_address, is_active, is_local
+            SELECT id, tag, description, domain, uplink_address, is_active, is_local, missing_chrs_charset
             FROM echoareas
             WHERE id = ?
             LIMIT 1
@@ -116,7 +135,7 @@ class EchoareaManager
      */
     public function createIfMissing(array $data, array $domains = []): int
     {
-        $tag = strtoupper(trim((string)($data['tag'] ?? '')));
+        $tag = self::normalizeTag((string)($data['tag'] ?? ''));
         if ($tag === '') {
             throw new \InvalidArgumentException('Echo area tag is required');
         }
@@ -150,14 +169,15 @@ class EchoareaManager
         $moderator = isset($data['moderator']) && trim((string)$data['moderator']) !== '' ? trim((string)$data['moderator']) : null;
         $postingNamePolicy = isset($data['posting_name_policy']) && trim((string)$data['posting_name_policy']) !== '' ? trim((string)$data['posting_name_policy']) : null;
         $artFormatHint = isset($data['art_format_hint']) && trim((string)$data['art_format_hint']) !== '' ? trim((string)$data['art_format_hint']) : null;
+        $missingChrsCharset = \BinktermPHP\MessageCharsetConverter::normalizeSupportedCharset($data['missing_chrs_charset'] ?? null);
         $color = isset($data['color']) && trim((string)$data['color']) !== '' ? trim((string)$data['color']) : '#28a745';
 
         $insertStmt = $this->db->prepare("
             INSERT INTO echoareas (
                 tag, description, moderator, uplink_address,
-                posting_name_policy, art_format_hint, color,
+                posting_name_policy, art_format_hint, missing_chrs_charset, color,
                 is_active, is_local, is_sysop_only, domain, gemini_public
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $insertStmt->execute([
             $tag,
@@ -166,6 +186,7 @@ class EchoareaManager
             $normalizedUplinkAddress,
             $postingNamePolicy,
             $artFormatHint,
+            $missingChrsCharset,
             $color,
             $isActive ? 'true' : 'false',
             $isLocal ? 'true' : 'false',

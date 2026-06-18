@@ -14,6 +14,7 @@
  */
 
 use BinktermPHP\PacketBbs\PacketBbsGateway;
+use BinktermPHP\PacketBbs\MeshcoreAdvertService;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use Pecee\SimpleRouter\SimpleRouter;
 
@@ -108,7 +109,7 @@ SimpleRouter::post('/api/packetbbs/command', function () {
  * POST /api/meshcore/advert
  *
  * Receive a MeshCore node advertisement from the bridge and upsert it into the
- * CWN WebDoor network table.
+ * dedicated MeshCore advert table.
  *
  * Request body (JSON):
  *   {
@@ -181,123 +182,31 @@ SimpleRouter::post('/api/meshcore/advert', function () {
         ? max(0, min(32767, (int)$body['hop_count']))
         : null;
 
-    $db      = \BinktermPHP\Database::getInstance()->getPdo();
     $bbsName = BinkpConfig::getInstance()->getSystemName();
-
-    // Two-step upsert: the table has two unique constraints — (public_key) partial and
-    // (ssid, latitude, longitude) — and PostgreSQL only allows one ON CONFLICT clause.
-    // Step 1: update by public_key if a matching row exists.
-    // Step 2: insert with ON CONFLICT on (ssid, latitude, longitude) for new nodes or
-    //         location collisions with a pre-existing manually-added entry.
-    $db->beginTransaction();
-
-    // Remove any row that occupies the target (ssid, latitude, longitude) with a different
-    // public_key before the UPDATE runs. This must be a separate statement: PostgreSQL CTE
-    // sub-statements run concurrently with the same snapshot, so a DELETE inside a WITH
-    // clause does not satisfy the unique-constraint check fired by the UPDATE in the same
-    // statement.
-    $cleanupParams = [
-        ':ssid'       => $name,
-        ':latitude'   => $latitude,
-        ':longitude'  => $longitude,
-        ':public_key' => $pubKeyHex,
-    ];
-    $cleanupStmt = $db->prepare("
-        DELETE FROM cwn_networks
-        WHERE ssid      = :ssid
-          AND latitude  = :latitude
-          AND longitude = :longitude
-          AND (public_key IS DISTINCT FROM :public_key)
-    ");
-    $cleanupStmt->execute($cleanupParams);
-
-    $updateParams = [
-        ':public_key'   => $pubKeyHex,
-        ':ssid'         => $name,
-        ':latitude'     => $latitude,
-        ':longitude'    => $longitude,
-        ':hop_count'    => $hopCount,
-        ':network_type' => $advType,
-    ];
-    $updateStmt = $db->prepare("
-        UPDATE cwn_networks
-        SET ssid         = :ssid,
-            latitude     = :latitude,
-            longitude    = :longitude,
-            hop_count    = :hop_count,
-            network_type = :network_type,
-            source_type  = 'meshcore',
-            last_seen_at = NOW(),
-            date_updated = NOW()
-        WHERE public_key = :public_key
-        RETURNING id
-    ");
-
-    // Use a savepoint so that if a concurrent transaction committed a row at the target
-    // position between our cleanup DELETE and this UPDATE, we can roll back only the
-    // UPDATE attempt, redo the cleanup (which will now see the race-committed row), and
-    // retry — without unwinding the entire transaction.
-    $db->exec("SAVEPOINT meshcore_advert_update");
     try {
-        $updateStmt->execute($updateParams);
-        $db->exec("RELEASE SAVEPOINT meshcore_advert_update");
-    } catch (\PDOException $e) {
-        if ($e->getCode() === '23505') {
-            $db->exec("ROLLBACK TO SAVEPOINT meshcore_advert_update");
-            $cleanupStmt->execute($cleanupParams);
-            $updateStmt->execute($updateParams);
-            $db->exec("RELEASE SAVEPOINT meshcore_advert_update");
-        } else {
-            $db->rollBack();
-            http_response_code(500);
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['success' => false, 'error' => 'Database error.']);
-            return;
-        }
-    }
-    $row = $updateStmt->fetch(\PDO::FETCH_ASSOC);
-
-    if ($row) {
-        $db->commit();
-        $action    = 'updated';
-        $networkId = (int)$row['id'];
-    } else {
-        $insertStmt = $db->prepare("
-            INSERT INTO cwn_networks
-                (public_key, ssid, latitude, longitude, source_type, hop_count, last_seen_at,
-                 network_type, bbs_name)
-            VALUES
-                (:public_key, :ssid, :latitude, :longitude, 'meshcore', :hop_count, NOW(),
-                 :network_type, :bbs_name)
-            ON CONFLICT (ssid, latitude, longitude) DO UPDATE SET
-                public_key   = COALESCE(EXCLUDED.public_key, cwn_networks.public_key),
-                hop_count    = EXCLUDED.hop_count,
-                network_type = EXCLUDED.network_type,
-                source_type  = EXCLUDED.source_type,
-                last_seen_at = NOW(),
-                date_updated = NOW()
-            RETURNING id, (xmax = 0) AS was_inserted
-        ");
-        $insertStmt->execute([
-            ':public_key'   => $pubKeyHex,
-            ':ssid'         => $name,
-            ':latitude'     => $latitude,
-            ':longitude'    => $longitude,
-            ':hop_count'    => $hopCount,
-            ':network_type' => $advType,
-            ':bbs_name'     => $bbsName,
-        ]);
-        $row = $insertStmt->fetch(\PDO::FETCH_ASSOC);
-        $db->commit();
-        $action    = (!empty($row['was_inserted']) && $row['was_inserted'] !== 'f') ? 'created' : 'updated';
-        $networkId = (int)($row['id'] ?? 0);
+        $result = (new MeshcoreAdvertService())->upsertAdvert(
+            $bridgeNodeId,
+            $pubKeyHex,
+            $name,
+            $advType,
+            $latitude,
+            $longitude,
+            $hopCount,
+            $bbsName
+        );
+    } catch (\Throwable $e) {
+        getServerLogger()->error('meshcore advert upsert error: ' . $e->getMessage());
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'error' => 'Database error.']);
+        return;
     }
 
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'success'    => true,
-        'action'     => $action,
-        'network_id' => $networkId,
+        'action'     => $result['action'],
+        'network_id' => $result['id'],
     ]);
 });
 

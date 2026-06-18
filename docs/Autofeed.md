@@ -38,6 +38,7 @@ Go to **Admin → Auto Feed** to manage feed sources.
 | **Echo Area** | The echo area where new posts will appear. |
 | **Post As** | The user whose identity is used when posting the echomail message. |
 | **Max Articles Per Check** | Maximum number of new items to post per script run. Default 10, range 1–50. |
+| **Include Feed Name in Subject** | When enabled, the posted subject becomes `[feed_name] article title` before FTN truncation is applied. |
 | **Active** | Whether this feed is checked during script runs. |
 
 ### Manual Check
@@ -69,7 +70,7 @@ Each posted item becomes an echomail message addressed to `All`. The body contai
 5. A link to the original item (`View post` for Bluesky, `Read more` for RSS).
 6. The item's published date and time.
 
-The subject line is the item title, truncated to 72 characters to respect the FTN message header limit.
+The subject line is normally the item title, truncated to 72 characters to respect the FTN message header limit. If **Include Feed Name in Subject** is enabled for a feed and that feed has a name, the subject becomes `[feed_name] item title` before the same 72-character FTN truncation is applied.
 
 ## CLI Script
 
@@ -115,6 +116,7 @@ Feed sources are stored in the `auto_feed_sources` table.
 | `post_as_user_id` | `INTEGER` | FK to `users(id)`. |
 | `active` | `BOOLEAN` | Whether the feed is checked on each run. |
 | `max_articles_per_check` | `INTEGER` | Article cap per run. Default 10. |
+| `include_feed_name_in_subject` | `BOOLEAN` | Whether subjects should be prefixed with `[feed_name]` before posting. |
 | `last_article_guid` | `TEXT` | GUID/URI of the most recently posted item; used for deduplication. |
 | `last_check` | `TIMESTAMP` | When the feed was last successfully checked. |
 | `articles_posted` | `INTEGER` | Running total of articles posted via this feed. |

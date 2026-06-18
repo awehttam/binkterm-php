@@ -77,6 +77,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 
 - [Local Chat](LocalChat.md) — Real-time room chat and direct messages: rooms, moderation, Matterbridge bridging, and AI bots
 - [MRC Chat](MRC_Chat.md) — Multi-Relay Chat protocol integration
+- [PGP Key Management](PGP.md) — User public-key upload, preferred-key selection, public keyserver publishing, and managed private keys
 - [Shoutbox](Shoutbox.md) — Public message wall: posting, moderation, and dashboard card
 - [Bulletins](Bulletins.md) — Sysop notices shown at login and on demand: scheduling, display modes, and terminal rendering
 - [Voting Booth](VotingBooth.md) — User polls: creating, voting, results, and terminal access
