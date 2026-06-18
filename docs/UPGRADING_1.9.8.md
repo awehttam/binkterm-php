@@ -7,9 +7,20 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [Web Interface](#web-interface)
   - [Registration Approval Setting](#registration-approval-setting)
+  - [Subscription Manager](#subscription-manager)
+  - [Echomail List Performance](#echomail-list-performance)
+  - [Echomail Tag Validation](#echomail-tag-validation)
+  - [Missing CHRS Charset Fallbacks](#missing-chrs-charset-fallbacks)
   - [Notification Sound Unlock Fix](#notification-sound-unlock-fix)
-- [PGP Key Management](#pgp-key-management)
+  - [Nginx Example Cache Rules](#nginx-example-cache-rules)
+  - [PGP Key Management](#pgp-key-management)
+  - [MeshCore Advert Storage Refactor](#meshcore-advert-storage-refactor)
 - [Developer / Infrastructure](#developer--infrastructure)
+  - [Realtime Signaling Abstraction](#realtime-signaling-abstraction)
+  - [Database Bootstrap Abstraction](#database-bootstrap-abstraction)
+  - [Pipe Code Parser Mode](#pipe-code-parser-mode)
+  - [User Theme Length Increase](#user-theme-length-increase)
+  - [BinkP Session Log Cleanup](#binkp-session-log-cleanup)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -24,10 +35,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - New-user registration approval is now controlled by a dedicated BBS setting. Self-registrations still require manual approval by default, but sysops can now disable that requirement and have new accounts activated immediately. Approved registrations are also retained as history records instead of being deleted from `pending_users`.
 - Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
 - Echomail tag validation is now less strict across the web UI, admin echoarea editor, importer, and route matching. Common FTN tag punctuation such as `&`, `!`, and `%` is now accepted in area tags, so names like `AT&T_CHAT` no longer fail validation.
-- Network and echoarea settings now include a **Missing CHRS fallback charset** used only when inbound FTN messages arrive without a `CHRS` kludge. Message charset edits for netmail and echomail now rebuild `message_text` from `raw_message_bytes` when raw bytes are available, and a new CLI tool can bulk rebuild stored echomail text for a selected area or domain.
+- Network and echoarea settings now include a **Missing CHRS fallback charset** used only when inbound FTN messages arrive without a `CHRS` kludge. Inbound decode order now prefers the per-area override, then the network fallback, then the legacy guess order. Message charset edits for netmail and echomail now rebuild `message_text` from `raw_message_bytes` when raw bytes are available, and a new CLI tool can bulk rebuild stored echomail text for a selected area or domain.
 - The browser notification-sound unlock path now respects each user's saved sound settings and no longer primes disabled sounds on first click. This avoids false notification sounds on Safari and Firefox when notification sounds are turned off.
 - The example nginx config in `docs/INSTALL.md` now includes cache-control rules for `/sw.js`, `.css`, and `.js` so updated frontend assets are revalidated more reliably. The nginx example remains untested and unsupported.
-- User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, and browse the public keyserver.
+- User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, browse the public keyserver, and use that public-key directory from the netmail compose flow when encrypting outbound mail.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
 - MeshCore repeater adverts are now stored in a dedicated `meshcore_node_adverts` table keyed by full public key. The CWN map/list and the public PacketBBS node directory still show MeshCore nodes after upgrade, but live advert writes no longer go into `cwn_networks`.
 
