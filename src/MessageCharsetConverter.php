@@ -52,10 +52,7 @@ class MessageCharsetConverter
 
     public static function isSupportedCharset(string $charset): bool
     {
-        $normalized = self::normalizeSupportedCharset($charset);
-        if ($normalized === null) {
-            return false;
-        }
+        $normalized = \BinktermPHP\Binkp\Config\BinkpConfig::normalizeCharset($charset);
 
         foreach (\BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets() as $supported) {
             if (($supported['value'] ?? '') === $normalized) {
