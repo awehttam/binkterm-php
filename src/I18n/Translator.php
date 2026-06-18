@@ -20,20 +20,20 @@ class Translator
     public function __construct(?string $basePath = null, ?string $defaultLocale = null, ?array $supportedLocales = null)
     {
         $this->basePath = $basePath ?? (__DIR__ . '/../../config/i18n');
-        $this->defaultLocale = $this->normalizeLocale($defaultLocale ?? (string)Config::env('I18N_DEFAULT_LOCALE', 'en'));
-        $this->logMissingKeys = $this->parseBooleanEnv((string)Config::env('I18N_LOG_MISSING_KEYS', 'false'));
-        $logFile = trim((string)Config::env('I18N_MISSING_KEYS_LOG_FILE', ''));
+        $this->defaultLocale = $this->normalizeLocale($defaultLocale ?? (string) Config::env('I18N_DEFAULT_LOCALE', 'en'));
+        $this->logMissingKeys = $this->parseBooleanEnv((string) Config::env('I18N_LOG_MISSING_KEYS', 'false'));
+        $logFile = trim((string) Config::env('I18N_MISSING_KEYS_LOG_FILE', ''));
         $this->missingKeysLogFile = ($logFile !== '') ? $logFile : null;
 
         if (is_array($supportedLocales) && !empty($supportedLocales)) {
             foreach ($supportedLocales as $locale) {
-                $normalized = $this->normalizeLocale((string)$locale);
+                $normalized = $this->normalizeLocale((string) $locale);
                 if ($normalized !== '') {
                     $this->supportedLocales[$normalized] = true;
                 }
             }
         } else {
-            $configured = (string)Config::env('I18N_SUPPORTED_LOCALES', '');
+            $configured = (string) Config::env('I18N_SUPPORTED_LOCALES', '');
             if ($configured !== '') {
                 $parts = preg_split('/\s*,\s*/', $configured) ?: [];
                 foreach ($parts as $part) {
@@ -98,6 +98,7 @@ class Translator
             'es' => 'Español',
             'fr' => 'Français',
             'it' => 'Italiano',
+            'ru' => 'Русский',
         ];
         return $names[$code] ?? $code;
     }
@@ -180,7 +181,7 @@ class Translator
 
     private function resolveToSupportedLocale(?string $locale): string
     {
-        $normalized = $this->normalizeLocale((string)$locale);
+        $normalized = $this->normalizeLocale((string) $locale);
         if ($normalized !== '' && isset($this->supportedLocales[$normalized])) {
             return $normalized;
         }
@@ -201,7 +202,7 @@ class Translator
     {
         $normalized = [];
         foreach ($namespaces as $namespace) {
-            $ns = trim((string)$namespace);
+            $ns = trim((string) $namespace);
             if ($ns !== '') {
                 $normalized[] = $ns;
             }
@@ -219,7 +220,7 @@ class Translator
         foreach ($namespaces as $namespace) {
             $catalog = $this->loadCatalog($locale, $namespace);
             if (isset($catalog[$key])) {
-                return (string)$catalog[$key];
+                return (string) $catalog[$key];
             }
         }
         return null;
@@ -256,7 +257,7 @@ class Translator
         // Apply JSON overlay overrides (sysop-customized phrases)
         $overlayPath = $this->getOverlayPath($locale, $namespace);
         if (is_file($overlayPath)) {
-            $overlayRaw  = file_get_contents($overlayPath);
+            $overlayRaw = file_get_contents($overlayPath);
             $overlayData = ($overlayRaw !== false) ? json_decode($overlayRaw, true) : null;
             if (is_array($overlayData)) {
                 foreach ($overlayData as $k => $v) {
@@ -278,7 +279,7 @@ class Translator
         }
 
         foreach ($params as $key => $paramValue) {
-            $value = str_replace('{' . $key . '}', (string)$paramValue, $value);
+            $value = str_replace('{' . $key . '}', (string) $paramValue, $value);
         }
 
         return $value;

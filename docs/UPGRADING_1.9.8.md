@@ -54,6 +54,14 @@ Make sure you have a current backup of your database and files before upgrading.
 - BinkP session logging now closes failed session rows more aggressively and retires orphaned `active` rows whose handler process has already exited, so the admin BinkP session view no longer treats dead pre-handshake sessions as long-running live connections.
 - The `user_settings.theme` column now allows up to 300 characters instead of 20 so custom theme stylesheet paths and longer theme identifiers can be stored without truncation.
 
+### Developer / Infrastructure
+
+- Realtime wake-up signaling now has a small transport abstraction around PostgreSQL `LISTEN/NOTIFY`. The current implementation is still PostgreSQL-only, but the direct `pg_*` calls are now concentrated in dedicated realtime classes instead of being spread across `BinkStream`, the AI bot daemon, and the admin daemon.
+- Database bootstrap now has a minimal platform abstraction for DSN construction, session initialization, and base schema selection. PostgreSQL remains the only supported backend, but connection and setup behavior is no longer hardcoded in one place.
+- `.env` may now include `DB_DRIVER=pgsql`. PostgreSQL is still the only supported value today. This setting exists to make future backend setup work easier to isolate if it is ever pursued.
+- A new developer reference document, `docs/PostgreSQLDependencies.md`, tracks intentional PostgreSQL-specific dependencies and where they currently live.
+- BinkP session logging now closes failed session rows more aggressively and retires orphaned `active` rows whose handler process has already exited, so the admin BinkP session view no longer treats dead pre-handshake sessions as long-running live connections.
+
 ---
 
 ## Web Interface
