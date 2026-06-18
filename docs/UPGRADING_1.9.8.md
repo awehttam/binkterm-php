@@ -15,6 +15,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Nginx Example Cache Rules](#nginx-example-cache-rules)
   - [PGP Key Management](#pgp-key-management)
   - [Auto Feed Subject Prefix Option](#auto-feed-subject-prefix-option)
+  - [Russian Translation](#russian-translation)
   - [MeshCore Advert Storage Refactor](#meshcore-advert-storage-refactor)
 - [Developer / Infrastructure](#developer--infrastructure)
   - [Realtime Signaling Abstraction](#realtime-signaling-abstraction)
@@ -42,6 +43,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, browse the public keyserver, and use that public-key directory from the netmail compose flow when encrypting outbound mail.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
 - Auto Feed sources now have an option to prefix posted echomail subjects with the configured feed name, producing subjects like `[2600.network] TITLEOFPOST` before the FTN 72-character subject limit is applied.
+- A new Russian interface translation is now bundled under the `ru` locale, extending BinktermPHP's built-in language coverage for the web UI, API error text, and terminal strings.
 - MeshCore repeater adverts are now stored in a dedicated `meshcore_node_adverts` table keyed by full public key. The CWN map/list and the public PacketBBS node directory still show MeshCore nodes after upgrade, but live advert writes no longer go into `cwn_networks`.
 
 ### Developer / Infrastructure
@@ -217,6 +219,14 @@ When enabled in **Admin -> Auto Feed**, subjects are generated in this form:
 This is useful when multiple feeds post into the same echo area and readers need to identify the source at a glance from the subject line alone.
 
 The prefix is applied before the normal FTN 72-character subject limit, so long feed names reduce the space available for the article title.
+
+### Russian Translation
+
+BinktermPHP 1.9.8 now includes a bundled Russian translation under the `ru` locale.
+
+The new locale covers the main web interface catalog, API error text, and terminal/BBS strings through the standard `common.php`, `errors.php`, and `terminalserver.php` catalogs in `config/i18n/ru/`.
+
+If you rely on a pinned locale allowlist through `I18N_SUPPORTED_LOCALES`, add `ru` there after upgrading so users can select Russian. Installations that use locale auto-discovery will pick it up automatically from the new catalog directory.
 
 ### MeshCore Advert Storage Refactor
 
