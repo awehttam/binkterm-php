@@ -3968,7 +3968,7 @@ return [
     'ui.compose.invalid_fidonet_address_format' => 'Неверный формат адреса Fidonet (например, 1:123/456)',
     'ui.compose.send_failed_type' => 'Не удалось отправить {type}',
     'ui.compose.upload_attachment_failed' => 'Не удалось загрузить вложение',
-    'ui.compose.reply_attribution' => 'В {date} {name} написал(а):',
+    'ui.compose.reply_attribution' => 'On {date} {name} wrote:',
     'ui.compose.markdown.help.text_formatting' => 'Форматирование текста',
     'ui.compose.markdown.help.syntax' => 'Синтаксис',
     'ui.compose.markdown.help.result' => 'Результат',
