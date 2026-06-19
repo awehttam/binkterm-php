@@ -1257,7 +1257,11 @@ return [
     'ui.admin.users.credit_grant_success' => 'Кредиты успешно добавлены',
     'ui.admin.users.credit_grant_failed' => 'Не удалось добавить кредиты',
     'ui.admin.users.echomail_moderation_forced' => 'Принудительная модерация Echomail',
-    'ui.admin.users.echomail_moderation_forced_help' => 'Все сетевые публикации Echomail от этого пользователя будут удерживаться для проверки, независимо от глобальных настроек модерации.',
+    'ui.admin.users.echomail_moderation_forced_help' => 'Аварийное переопределение для злоупотребляющих или рискованных пользователей.',
+    'ui.admin.users.echomail_moderation_forced_tooltip' => 'Принудительно отправляет каждое сетевое сообщение Echomail от этого пользователя в очередь модерации, даже если обычно он обходил бы модерацию. Используйте это как аварийный тормоз для злоупотребляющих или рискованных пользователей.',
+    'ui.admin.users.can_post_netecho_unmoderated' => 'Разрешить немодерируемую публикацию в netecho',
+    'ui.admin.users.can_post_netecho_unmoderated_help' => 'Обычный пользовательский обход глобальной модерации, применяемой к новым пользователям.',
+    'ui.admin.users.can_post_netecho_unmoderated_tooltip' => 'Позволяет этому пользователю пропускать обычную очередь модерации netecho и публиковать сообщения напрямую в сетевые области Echomail. Это обычное пользовательское переопределение глобального порога модерации для новых пользователей.',
 
     // Admin Chat Rooms
     'ui.admin.chat_rooms.load_failed' => 'Ошибка загрузки чатов',

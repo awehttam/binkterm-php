@@ -257,6 +257,28 @@
                                 </label>
                                 <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, locale, ['common']) }}</div>
                             </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="edit-echomail-moderation-forced">
+                                <label class="form-check-label text-warning" for="edit-echomail-moderation-forced">
+                                    {{ t('ui.admin.users.echomail_moderation_forced', {}, locale, ['common']) }}
+                                    <i class="fas fa-circle-info ms-1 text-muted"
+                                       data-bs-toggle="tooltip"
+                                       data-bs-placement="top"
+                                       title="{{ t('ui.admin.users.echomail_moderation_forced_tooltip', {}, locale, ['common']) }}"></i>
+                                </label>
+                                <div class="form-text">{{ t('ui.admin.users.echomail_moderation_forced_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="edit-can-post-netecho-unmoderated">
+                                <label class="form-check-label" for="edit-can-post-netecho-unmoderated">
+                                    {{ t('ui.admin.users.can_post_netecho_unmoderated', {}, locale, ['common']) }}
+                                    <i class="fas fa-circle-info ms-1 text-muted"
+                                       data-bs-toggle="tooltip"
+                                       data-bs-placement="top"
+                                       title="{{ t('ui.admin.users.can_post_netecho_unmoderated_tooltip', {}, locale, ['common']) }}"></i>
+                                </label>
+                                <div class="form-text">{{ t('ui.admin.users.can_post_netecho_unmoderated_help', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check mb-3">
@@ -272,13 +294,6 @@
                                     {{ t('ui.admin_users.is_system_account', {}, locale, ['common']) }}
                                 </label>
                                 <div class="form-text">{{ t('ui.admin_users.is_system_account_help', {}, locale, ['common']) }}</div>
-                            </div>
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" id="edit-echomail-moderation-forced">
-                                <label class="form-check-label text-warning" for="edit-echomail-moderation-forced">
-                                    {{ t('ui.admin.users.echomail_moderation_forced', {}, locale, ['common']) }}
-                                </label>
-                                <div class="form-text">{{ t('ui.admin.users.echomail_moderation_forced_help', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
@@ -735,6 +750,7 @@ function editUser(userId) {
                 $('#edit-is-admin').prop('checked', !!user.is_admin);
                 $('#edit-is-system').prop('checked', !!user.is_system);
                 $('#edit-echomail-moderation-forced').prop('checked', !!user.echomail_moderation_forced);
+                $('#edit-can-post-netecho-unmoderated').prop('checked', !!user.can_post_netecho_unmoderated);
                 $('#edit-credit-balance').val(user.credit_balance || 0);
                 $('#edit-grant-credits-amount').val('');
                 $('#edit-grant-credits-note').val('');
@@ -769,7 +785,8 @@ function saveUserChanges() {
         is_active: $('#edit-is-active').is(':checked') ? 1 : 0,
         is_admin: $('#edit-is-admin').is(':checked') ? 1 : 0,
         is_system: $('#edit-is-system').is(':checked') ? 1 : 0,
-        echomail_moderation_forced: $('#edit-echomail-moderation-forced').is(':checked') ? 1 : 0
+        echomail_moderation_forced: $('#edit-echomail-moderation-forced').is(':checked') ? 1 : 0,
+        can_post_netecho_unmoderated: $('#edit-can-post-netecho-unmoderated').is(':checked') ? 1 : 0
     };
     
     // Only include password if it's provided

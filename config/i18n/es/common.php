@@ -1271,7 +1271,11 @@ return [
     'ui.admin.users.credit_grant_success' => 'Créditos agregados correctamente',
     'ui.admin.users.credit_grant_failed' => 'No se pudieron agregar los créditos',
     'ui.admin.users.echomail_moderation_forced' => 'Forzar moderación de echomail',
-    'ui.admin.users.echomail_moderation_forced_help' => 'Retener todos los mensajes de echomail en red de este usuario para revisión, independientemente de la configuración global de moderación.',
+    'ui.admin.users.echomail_moderation_forced_help' => 'Anulación de emergencia para usuarios abusivos o de alto riesgo.',
+    'ui.admin.users.echomail_moderation_forced_tooltip' => 'Obliga a que cada mensaje de echomail en red de este usuario entre en la cola de moderación, incluso si normalmente omitiría la moderación. Úselo como freno de mano para usuarios abusivos o de alto riesgo.',
+    'ui.admin.users.can_post_netecho_unmoderated' => 'Permitir publicación netecho sin moderación',
+    'ui.admin.users.can_post_netecho_unmoderated_help' => 'Omite por usuario la moderación global aplicada normalmente a cuentas nuevas.',
+    'ui.admin.users.can_post_netecho_unmoderated_tooltip' => 'Permite que este usuario omita la cola estándar de moderación de netecho y publique directamente en áreas echomail en red. Esta es la anulación normal por usuario del umbral global de moderación para usuarios nuevos.',
 
     // Admin Chat Rooms
     'ui.admin.chat_rooms.load_failed' => 'Error al cargar salas de chat',

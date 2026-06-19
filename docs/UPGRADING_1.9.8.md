@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Web Interface](#web-interface)
+  - [Per-User Netecho Moderation Controls](#per-user-netecho-moderation-controls)
   - [Registration Approval Setting](#registration-approval-setting)
   - [Subscription Manager](#subscription-manager)
   - [Echomail List Performance](#echomail-list-performance)
@@ -33,6 +34,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Web Interface
 
+- **Admin -> Users -> Edit User** now includes two separate per-user netecho moderation controls. **Allow unmoderated netecho posting** is the normal bypass for the global new-user moderation threshold, while **Force echomail moderation** is an emergency override that pushes all networked echomail posts from a specific user back into the moderation queue.
 - The user-facing echoarea subscription manager at `/subscriptions` now uses a more compact filter layout modeled after `/echolist`, with network filtering and an option to show only interest groups that currently have message traffic.
 - Subscribing or unsubscribing from an echoarea in `/subscriptions` now updates in place instead of reloading the page, preserving the current scroll position and active search/filter state.
 - The subscribed echomail message list now avoids duplicate unread-count work, skips unnecessary joins in its pagination count query, and deduplicates overlapping client-side refreshes, which reduces page-load time on systems with large echomail message bases.
@@ -71,6 +73,20 @@ Make sure you have a current backup of your database and files before upgrading.
 ---
 
 ## Web Interface
+
+### Per-User Netecho Moderation Controls
+
+The user edit screen at **Admin -> Users -> Edit User** now exposes two separate moderation controls for networked echomail posting.
+
+What changed:
+
+- **Allow unmoderated netecho posting** toggles the `users.can_post_netecho_unmoderated` flag directly
+- this is the normal per-user override for the global **Echomail Moderation Threshold** setting used for new or not-yet-trusted users
+- **Force echomail moderation** remains the stronger emergency override for abusive or high-risk users
+- when **Force echomail moderation** is enabled, that user is held for review even if they would otherwise bypass moderation because of their trusted status, history, or the unmoderated-posting flag
+- the edit screen now includes clearer inline help and hover text so sysops can distinguish the routine trust override from the emergency hand-brake setting
+
+This change does not alter the global moderation threshold itself. It adds a clearer per-user control path in the admin UI for deciding whether a specific account should bypass or always enter the netecho moderation queue.
 
 ### Registration Approval Setting
 

@@ -1237,7 +1237,11 @@ return [
     'ui.admin.users.credit_grant_success' => 'Credits added successfully',
     'ui.admin.users.credit_grant_failed' => 'Failed to add credits',
     'ui.admin.users.echomail_moderation_forced' => 'Force echomail moderation',
-    'ui.admin.users.echomail_moderation_forced_help' => 'Hold all networked echomail posts from this user for review, regardless of global moderation settings.',
+    'ui.admin.users.echomail_moderation_forced_help' => 'Emergency override for abusive or high-risk users.',
+    'ui.admin.users.echomail_moderation_forced_tooltip' => 'Forces every networked echomail post from this user into the moderation queue, even if they would normally bypass moderation. Use this as a hand brake for abusive or high-risk users.',
+    'ui.admin.users.can_post_netecho_unmoderated' => 'Allow unmoderated netecho posting',
+    'ui.admin.users.can_post_netecho_unmoderated_help' => 'Normal per-user bypass for the global new-user moderation setting.',
+    'ui.admin.users.can_post_netecho_unmoderated_tooltip' => 'Lets this user skip the standard netecho moderation queue and post directly to networked echomail areas. This is the normal per-user override for the global new-user moderation threshold.',
 
     // Admin Chat Rooms
     'ui.admin.chat_rooms.load_failed' => 'Error loading chat rooms',

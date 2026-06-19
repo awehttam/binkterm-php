@@ -118,7 +118,7 @@ The project uses key-based localization for both Twig and JavaScript. Translatio
 - `config/i18n/<locale>/common.php`
 - `config/i18n/<locale>/errors.php`
 
-Current locale folders under `config/i18n/` must be kept in sync when adding or renaming keys. Do not update only the language you are actively reading; French keys are easy to miss, so check all locale directories every time.
+Current locale folders under `config/i18n/` must be kept in sync when adding or renaming keys. Do not update only the language you are actively reading. For any i18n key change, enumerate the actual locale directories on disk under `config/i18n/` and update every real locale folder you find there; do not guess the locale set from memory. Exclude only `config/i18n/overrides/`, which is not a base locale.
 
 **Adding a new language:** New locales are typically added by dropping a `config/i18n/<code>/` directory with translated `common.php` and `errors.php` files. When this happens, also add the locale code and its native display name to the `$names` map in `Translator::getLocaleName()` (`src/I18n/Translator.php`) so it appears correctly in language selectors across both the web and terminal interfaces.
 
@@ -126,6 +126,7 @@ Current locale folders under `config/i18n/` must be kept in sync when adding or 
 - Never hardcode new user-facing UI text in templates/JS when adding or changing features.
 - Add a translation key first, then use it from Twig/JS.
 - Keep every locale in `config/i18n/` in sync for every new key in normal feature work, including `fr` when present.
+- Determine the locale set from the filesystem, not from assumption. If `config/i18n/de/`, `config/i18n/it/`, `config/i18n/ru/`, or any future locale directory exists, it must be updated too.
 - Prefer stable key names by page/feature area, e.g. `ui.settings.*`, `ui.polls.*`, `errors.polls.*`.
 - Do not change existing key names unless required (avoid breaking references).
 
@@ -165,19 +166,21 @@ window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)')
 
 ### Required Validation After i18n Changes
 - Run:
+  - `php scripts/check_i18n_missing_keys.php`
   - `php scripts/check_i18n_hardcoded_strings.php`
   - `php scripts/check_i18n_error_keys.php`
 - Goal:
+  - no missing catalog keys in any locale directory under `config/i18n/` (excluding `overrides`)
   - no new hardcoded string violations
   - no missing `errors.*` catalog keys used by `apiError(...)`
-  - no locale folders left behind when adding keys, especially `config/i18n/fr/`
+  - no locale folders left behind when adding keys
 
 ### Practical Checklist for New UI/API Work
 1. Add new `ui.*`/`errors.*` keys to every locale under `config/i18n/` (`en`, `es`, `fr`, etc.).
 2. Replace literals in Twig with `t(...)`.
 3. Replace JS literals with `window.t(...)` (or `uiT(...)`) fallbacks, but do not invent a new inline fallback unless the corresponding catalog key was added first.
 4. Ensure API errors return `error_code`.
-5. Run both i18n check scripts before commit.
+5. Run all required i18n check scripts before commit, including `php scripts/check_i18n_missing_keys.php`.
 6. **API route changes**: When adding, removing, or modifying routes in `routes/api-routes.php`, update `docs/API.md`. Response tables must be complete: every field typed `object` or `array of objects` must have its sub-fields listed in the same table using dot-notation (`parent.child`) or bracket-notation (`items[].child`). A row typed `object` or `array` with no sub-rows is incomplete and must not be committed. See **Response table format** in `docs/DEVELOPER_GUIDE.md` for the full rules and an example.
 
 ## URL Construction
