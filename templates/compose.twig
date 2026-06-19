@@ -2118,7 +2118,8 @@ function populateEchoareaSelect(areas, preselect) {
     allEchoareas = areas;
     areas.forEach(function(area) {
         const val = area.domain ? area.tag + '@' + area.domain : area.tag;
-        select.append(`<option value="${val}" data-color="${area.color || '#28a745'}" data-is-local="${area.is_local ? '1' : ''}">${val}</option>`);
+        const label = area.domain ? area.tag + '@' + area.domain : (area.is_local ? area.tag + '@local' : area.tag);
+        select.append(`<option value="${val}" data-color="${area.color || '#28a745'}" data-is-local="${area.is_local ? '1' : ''}">${escapeHtml(label)}</option>`);
     });
     select.on('change', function() {
         const color = $(this).find('option:selected').data('color');
@@ -2211,7 +2212,7 @@ function populateCrossPostAreas() {
         if (val === primaryVal) return;
 
         const id = 'crosspost_' + val.replace(/[@.]/g, '_');
-        const areaLabel = area.domain ? area.tag + '@' + area.domain : area.tag;
+        const areaLabel = area.domain ? area.tag + '@' + area.domain : (area.is_local ? area.tag + '@local' : area.tag);
         const colorDot = `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:${area.color || '#28a745'}; margin-right:6px; vertical-align:middle;"></span>`;
         container.append(
             `<div class="form-check">

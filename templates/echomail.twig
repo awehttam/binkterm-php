@@ -1,6 +1,7 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.echomail.title', {}, locale, ['common']) }}{% if echoarea %} - {{ echoarea }}{% endif %} - {{ parent() }}{% endblock %}
+{% set display_echoarea = echoarea ? (domain ? echoarea ~ '@' ~ domain : echoarea ~ '@local') : '' %}
+{% block title %}{{ t('ui.echomail.title', {}, locale, ['common']) }}{% if display_echoarea %} - {{ display_echoarea }}{% endif %} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <!-- Echo area info bar: description + subscribe toggle + post (desktop only, visible only when an echo is selected) -->
@@ -41,7 +42,7 @@
                     <i class="fas fa-list me-2"></i>
                     <span id="mobileAccordionText">
                         {% if echoarea %}
-                            {{ t('ui.echomail.viewing_prefix', {}, locale, ['common']) }} {{ echoarea }}
+                            {{ t('ui.echomail.viewing_prefix', {}, locale, ['common']) }} {{ display_echoarea }}
                         {% else %}
                             {{ t('ui.echomail.viewing_all', {}, locale, ['common']) }}
                         {% endif %}
@@ -144,7 +145,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0" id="messagesHeaderTitle">
                         {% if echoarea %}
-                            {{ echoarea }} Messages
+                            {{ display_echoarea }} Messages
                         {% else %}
                             {{ t('ui.echomail.recent_messages', {}, locale, ['common']) }}
                         {% endif %}

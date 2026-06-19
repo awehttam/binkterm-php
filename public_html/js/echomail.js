@@ -59,6 +59,18 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 
+function formatEchoareaDisplay(tag, domain, isLocal = false) {
+    const safeTag = (tag || '').toString().trim();
+    const safeDomain = (domain || '').toString().trim();
+    if (!safeTag) {
+        return '';
+    }
+    if (safeDomain) {
+        return `${safeTag}@${safeDomain}`;
+    }
+    return isLocal ? `${safeTag}@local` : safeTag;
+}
+
 function getStatsCacheKey() {
     if (currentInterestId) {
         return `interest:${currentInterestId}`;
@@ -102,7 +114,10 @@ function updateMessagesHeaderTitle() {
 
     const messagesLabel = uiT('ui.echoareas.messages', 'Messages');
     if (currentEchoarea) {
-        titleEl.text(`${currentEchoarea} ${messagesLabel}`);
+        const displayEchoarea = currentEchoareaData
+            ? formatEchoareaDisplay(currentEchoareaData.tag, currentEchoareaData.domain, !!currentEchoareaData.is_local)
+            : currentEchoarea;
+        titleEl.text(`${displayEchoarea} ${messagesLabel}`);
         return;
     }
 
@@ -395,6 +410,7 @@ function updateEchoInfoBar() {
         $('#echoSubscribeBtn').addClass('d-none');
         $('#echoInfoBar').removeClass('d-none');
         currentEchoareaData = null;
+        updateMobileAccordionText(null);
         return;
     }
 
@@ -446,12 +462,13 @@ function updateEchoInfoBar() {
  * @param {boolean}     subscribed
  */
 function renderEchoInfoBar(area, subscribed) {
-    const title       = area ? (area.domain ? `${area.tag}@${area.domain}` : (area.tag || '')) : '';
+    const title       = area ? formatEchoareaDisplay(area.tag, area.domain, !!area.is_local) : '';
     const description = area ? (area.description || '') : '';
     const areaId      = area ? area.id : null;
 
     $('#echoTitle').text(title);
     $('#echoDescription').text(description);
+    updateMobileAccordionText(title);
 
     const btn = $('#echoSubscribeBtn');
     btn.prop('disabled', false).attr('data-area-id', areaId || '').attr('data-subscribed', subscribed ? '1' : '0');
@@ -641,6 +658,7 @@ function displayEchoareas(echoareas) {
         echoareas.forEach(function(area) {
             const areaDomain = (area.domain || '').toString().trim();
             const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
+            const displayTag = formatEchoareaDisplay(area.tag, areaDomain, !!area.is_local);
             const isActive = currentEchoarea === fullTag;
             const unreadCount = area.unread_count || 0;
             const totalCount = area.message_count || 0;
@@ -657,7 +675,7 @@ function displayEchoareas(echoareas) {
                 <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="node-address">${area.tag} ${area.domain ? `<span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
+                            <div class="node-address">${escapeHtml(displayTag)}</div>
                             <div class="node-system">${escapeHtml(area.description)}</div>
                         </div>
                         ${countDisplay}
@@ -693,6 +711,7 @@ function displayMobileEchoareas(echoareas) {
         echoareas.forEach(function(area) {
             const areaDomain = (area.domain || '').toString().trim();
             const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
+            const displayTag = formatEchoareaDisplay(area.tag, areaDomain, !!area.is_local);
             const isActive = currentEchoarea === fullTag;
             const unreadCount = area.unread_count || 0;
             const totalCount = area.message_count || 0;
@@ -709,7 +728,7 @@ function displayMobileEchoareas(echoareas) {
                 <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="fw-bold">${area.tag} ${area.domain ? `<span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
+                            <div class="fw-bold">${escapeHtml(displayTag)}</div>
                             <div class="text-muted small">${escapeHtml(area.description)}</div>
                         </div>
                         ${countDisplay}
@@ -1107,8 +1126,7 @@ function displayMessages(messages, isThreaded = false) {
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
-                            <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${msg.echoarea}</span>
-                            ${msg.echoarea_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${msg.echoarea_domain}</span>` : ''}
+                            <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${escapeHtml(formatEchoareaDisplay(msg.echoarea, msg.echoarea_domain, !msg.echoarea_domain))}</span>
                         </div>` : ''}
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
@@ -2096,7 +2114,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
                     <strong>${uiT('ui.common.to_label', 'To:')}</strong> ${escapeHtml(message.to_name || uiT('ui.common.all', 'All'))}
                 </div>
                 <div class="col-md-4">
-                    <strong>${uiT('ui.common.area_label', 'Area:')}</strong> ${escapeHtml(message.echoarea)}${message.domain ? '@' + escapeHtml(message.domain) : ''}
+                    <strong>${uiT('ui.common.area_label', 'Area:')}</strong> ${escapeHtml(formatEchoareaDisplay(message.echoarea, message.domain, !message.domain))}
                 </div>
             </div>
             <div class="row mt-2">
@@ -2991,8 +3009,9 @@ function updateMobileAccordionText(selectedArea, interestName) {
     if (interestName) {
         textSpan.text(`${uiT('ui.echomail.viewing_prefix', 'Viewing:')} ${interestName}`);
     } else if (selectedArea) {
-        // Strip domain from display (show just the tag)
-        const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
+        const displayTag = currentEchoareaData
+            ? formatEchoareaDisplay(currentEchoareaData.tag, currentEchoareaData.domain, !!currentEchoareaData.is_local)
+            : selectedArea;
         textSpan.text(`${uiT('ui.echomail.viewing_prefix', 'Viewing:')} ${displayTag}`);
     } else {
         textSpan.text(uiT('ui.echomail.viewing_all_messages', 'Viewing: All Messages'));
@@ -3050,7 +3069,9 @@ function openRequestedMessage() {
  */
 function showEndOfEchoPrompt(nextEcho) {
     const currentDisplayTag = currentEchoarea
-        ? (currentEchoarea.includes('@') ? currentEchoarea.split('@')[0] : currentEchoarea)
+        ? (currentEchoareaData
+            ? formatEchoareaDisplay(currentEchoareaData.tag, currentEchoareaData.domain, !!currentEchoareaData.is_local)
+            : currentEchoarea)
         : uiT('ui.echomail.echo_list', 'Echo List');
 
     let bodyHtml = `
@@ -3061,7 +3082,7 @@ function showEndOfEchoPrompt(nextEcho) {
             <h5>${uiT('ui.echomail.end_of_echo_title', 'End of {echo}').replace('{echo}', escapeHtml(currentDisplayTag))}</h5>`;
 
     if (nextEcho) {
-        const nextDisplayTag = nextEcho.tag.includes('@') ? nextEcho.tag.split('@')[0] : nextEcho.tag;
+        const nextDisplayTag = formatEchoareaDisplay(nextEcho.tag, nextEcho.domain, !!nextEcho.is_local);
         // Build full tag including domain so selectEchoarea hits the correct API path
         const nextFullTag = nextEcho.domain ? `${nextEcho.tag}@${nextEcho.domain}` : nextEcho.tag;
         bodyHtml += `
