@@ -42,7 +42,7 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 - **Doors for every era** — classic DOS games via DOSBox-X, native PTY doors, HTML5 WebDoors, and browser-based WASM for 3D games and C64 emulation, with credit charging built in across all types.
 - **Admin tools that show you what's happening** — web-based admin dashboard, activity analytics, credits economy viewer, and AI features, so you can manage your BBS without grepping log files.
 - **Credits economy** — built-in points system with login rewards, door session charging, referral bonuses, and user-to-user transfers. Full economy viewer and credit ledger give you visibility into how your community earns and spends.
-- **AI integration** — provider-agnostic AI layer supports OpenAI, Anthropic, and Ollama (local inference); expose echo areas via MCP, give users an in-reader AI assistant, and deploy chatbots to any chat room.
+- **AI integration** — provider-agnostic AI layer supports OpenAI, Anthropic, OpenRouter, and Ollama (local inference); expose echo areas via MCP, give users an in-reader AI assistant, and deploy chatbots to any chat room.
 
 ---
 
@@ -101,13 +101,14 @@ BinktermPHP runs in any modern browser across different features and themes.
 - **Gemini** — capsule hosting for Gemini-protocol clients
 - **QWK** — packet download/upload via built-in passive FTP daemon
 - **MCP** — Model Context Protocol access for AI assistants and automation clients
-- **PacketBBS** — compact one-line command interface for mesh radio nodes; supports MeshCore (TCP/IP) and AX.25 KISS TNC interfaces
+- **PacketBBS** — compact one-line command interface for mesh radio nodes; supports MeshCore (LoRa) and AX.25 KISS TNC interfaces
 - **FTP** — standalone passive FTP daemon for file area transfers
 
 ### FTN / Networking
 - **Native BinkP mailer** — inbound server, polling scheduler, and on-demand poll
 - Multiple simultaneous FTN network connections (FidoNet, fsxnet, DoveNet, LovlyNet, and others)
 - AreaFix and FileFix for automated subscription management with hub uplinks
+- **PGP support** — public key directory, encrypted netmail composition, and optional BBS-managed private keys
 - Nodelist browser with text/address/flag search, map view, and crashmail routing
 - **LovlyNet** — Zone 227 FTN with automated node registration (`scripts/lovlynet_setup.php`)
 ### Doors & Games
@@ -126,7 +127,7 @@ BinktermPHP runs in any modern browser across different features and themes.
 
 ### AI / MCP / Automation
 - **MCP server** — AI assistants read echo areas and messages via Model Context Protocol
-- **Multiple AI providers** — OpenAI, Anthropic, and Ollama (local inference) via a shared provider-agnostic interface; per-feature provider and model overrides; usage and cost accounting in the admin dashboard
+- **Multiple AI providers** — OpenAI, Anthropic, OpenRouter, and Ollama (local inference) via a shared provider-agnostic interface; per-feature provider and model overrides; usage and cost accounting in the admin dashboard
 - **AI message assistant** — in-reader AI assistant for echomail and netmail with credit charging
 - **AI bots** — configurable per-room chatbot middleware with a custom middleware pipeline
 - **Broadcast/Advertising** — scheduled postings, ad rotation, bulletins, weather reports, and related content workflows
