@@ -15,6 +15,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Nginx Example Cache Rules](#nginx-example-cache-rules)
   - [PGP Key Management](#pgp-key-management)
   - [Auto Feed Subject Prefix Option](#auto-feed-subject-prefix-option)
+  - [Local Echomail Area Display](#local-echomail-area-display)
+  - [Nodelist Import File Picker](#nodelist-import-file-picker)
   - [Russian Translation](#russian-translation)
   - [MeshCore Advert Storage Refactor](#meshcore-advert-storage-refactor)
 - [Developer / Infrastructure](#developer--infrastructure)
@@ -43,6 +45,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, browse the public keyserver, and use that public-key directory from the netmail compose flow when encrypting outbound mail.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
 - Auto Feed sources now have an option to prefix posted echomail subjects with the configured feed name, producing subjects like `[2600.network] TITLEOFPOST` before the FTN 72-character subject limit is applied.
+- Local-only echomail areas now display with an explicit `@local` suffix in the web reader and compose UI, so area tags appear as `CHAT@local` instead of looking like a domain-qualified remote echo.
+- The manual nodelist import page no longer relies on a browser `accept` filter that attempted to match `Zxx` archives with `.z*`. Valid weekly nodelist bundles such as `LOVLYNET.Z25` now show up normally in the file chooser instead of requiring users to disable the picker filter by hand.
 - A new Russian interface translation is now bundled under the `ru` locale, extending BinktermPHP's built-in language coverage for the web UI, API error text, and terminal strings.
 - MeshCore repeater adverts are now stored in a dedicated `meshcore_node_adverts` table keyed by full public key. The CWN map/list and the public PacketBBS node directory still show MeshCore nodes after upgrade, but live advert writes no longer go into `cwn_networks`.
 
@@ -219,6 +223,25 @@ When enabled in **Admin -> Auto Feed**, subjects are generated in this form:
 This is useful when multiple feeds post into the same echo area and readers need to identify the source at a glance from the subject line alone.
 
 The prefix is applied before the normal FTN 72-character subject limit, so long feed names reduce the space available for the article title.
+
+### Local Echomail Area Display
+
+The web echomail reader and compose interface now display local-only echomail areas with an explicit `@local` suffix.
+
+Examples:
+
+- `CHAT` is now shown to users as `CHAT@local`
+- remote areas with a real FTN domain, such as `GENERAL@fidonet`, continue to display with their normal domain suffix
+
+This change is presentation-only. Local areas continue to use their existing stored tag values and routing behavior; the UI now makes it clearer at a glance that the area is local to this BBS rather than part of a remote FTN domain.
+
+### Nodelist Import File Picker
+
+The manual nodelist import form at **Admin -> Nodelist -> Import** no longer uses a browser-side file chooser filter that tried to express weekly `Zxx` bundles with `.z*`.
+
+In practice, some browsers treated that pattern literally instead of as a wildcard extension. This caused valid files such as `LOVLYNET.Z25` to be hidden in the picker unless the user manually changed the chooser to show all files.
+
+The import form now leaves file-type filtering to the server-side importer, so supported plain-text nodelists and compressed weekly bundles can be selected normally from the browser dialog.
 
 ### Russian Translation
 
