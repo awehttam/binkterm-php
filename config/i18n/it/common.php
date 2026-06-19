@@ -1218,7 +1218,11 @@ return [
     'ui.admin.users.credit_grant_success' => 'Crediti aggiunti correttamente',
     'ui.admin.users.credit_grant_failed' => 'Impossibile aggiungere crediti',
     'ui.admin.users.echomail_moderation_forced' => 'Forza moderazione echomail',
-    'ui.admin.users.echomail_moderation_forced_help' => 'Trattieni tutti i messaggi echomail in rete di questo utente per revisione, indipendentemente dalle impostazioni globali di moderazione.',
+    'ui.admin.users.echomail_moderation_forced_help' => 'Override di emergenza per utenti abusivi o ad alto rischio.',
+    'ui.admin.users.echomail_moderation_forced_tooltip' => 'Forza ogni messaggio echomail in rete di questo utente nella coda di moderazione, anche se normalmente aggirerebbe la moderazione. Usalo come freno di emergenza per utenti abusivi o ad alto rischio.',
+    'ui.admin.users.can_post_netecho_unmoderated' => 'Consenti pubblicazione netecho senza moderazione',
+    'ui.admin.users.can_post_netecho_unmoderated_help' => 'Normale bypass per utente della moderazione globale applicata ai nuovi utenti.',
+    'ui.admin.users.can_post_netecho_unmoderated_tooltip' => 'Consente a questo utente di saltare la normale coda di moderazione netecho e pubblicare direttamente nelle aree echomail di rete. Questo e il normale override per utente della soglia globale di moderazione per i nuovi utenti.',
 
     // Admin Chat Rooms
     'ui.admin.chat_rooms.load_failed' => 'Errore durante il caricamento delle stanze chat',

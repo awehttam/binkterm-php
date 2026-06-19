@@ -142,6 +142,8 @@ Moderation is controlled by a single threshold in **Admin → BBS Settings**:
 
 All users who had at least one active session at the time the migration ran are grandfathered in with `can_post_netecho_unmoderated = true`, so existing accounts are never disrupted when the feature is first enabled. Only accounts created after the migration are subject to moderation.
 
+Admins can override an individual account from **Admin → Users → Edit User** by toggling **Allow unmoderated netecho posting**.
+
 ### The Pending Queue
 
 When a post is held, the message is stored in the `echomail` table with `moderation_status = 'pending'`. No outbound packet is written and no poll is triggered.

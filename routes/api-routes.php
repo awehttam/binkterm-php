@@ -10590,7 +10590,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, echomail_moderation_forced, created_at, last_login FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, echomail_moderation_forced, can_post_netecho_unmoderated, created_at, last_login FROM users WHERE id = ?");
             $stmt->execute([$id]);
             $userData = $stmt->fetch();
 
@@ -10705,6 +10705,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
             $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
             $echomailModerationForced = isset($_POST['echomail_moderation_forced']) ? (int)$_POST['echomail_moderation_forced'] : 0;
+            $canPostNetechoUnmoderated = isset($_POST['can_post_netecho_unmoderated']) ? (int)$_POST['can_post_netecho_unmoderated'] : 0;
             $password = $_POST['password'] ?? '';
 
             if (empty($realName)) {
@@ -10720,9 +10721,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'is_active = ?',
                 'is_admin = ?',
                 'is_system = ?',
-                'echomail_moderation_forced = ?'
+                'echomail_moderation_forced = ?',
+                'can_post_netecho_unmoderated = ?'
             ];
-            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem, $echomailModerationForced ? 'true' : 'false'];
+            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem, $echomailModerationForced ? 'true' : 'false', $canPostNetechoUnmoderated ? 'true' : 'false'];
 
             // Add password if provided
             if ($password) {

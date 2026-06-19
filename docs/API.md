@@ -8844,6 +8844,7 @@ User details for editing
 | `user.is_admin` | boolean | Whether user has admin privileges |
 | `user.is_system` | boolean | Whether this is a system account |
 | `user.echomail_moderation_forced` | boolean | Whether echomail moderation is forced for this user |
+| `user.can_post_netecho_unmoderated` | boolean | Whether the user bypasses netecho moderation and posts immediately |
 | `user.created_at` | string | Account creation timestamp (ISO 8601) |
 | `user.last_login` | string\|null | Last login timestamp (ISO 8601) |
 
@@ -8922,6 +8923,7 @@ User update fields
 | `is_admin` | integer | No | 1 to grant admin, 0 to revoke (default: 0) |
 | `is_system` | integer | No | 1 for system account, 0 otherwise (default: 0) |
 | `echomail_moderation_forced` | integer | No | 1 to force moderation, 0 to allow (default: 0) |
+| `can_post_netecho_unmoderated` | integer | No | 1 to bypass netecho moderation, 0 to require normal moderation rules (default: 0) |
 | `password` | string | No | New password (if provided, updates user's password) |
 
 **Response** _(JSON)_

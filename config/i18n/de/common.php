@@ -1223,7 +1223,11 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.users.credit_grant_success' => 'Credits added successfully',
     'ui.admin.users.credit_grant_failed' => 'Kredite konnten nicht hinzugefügt werden',
     'ui.admin.users.echomail_moderation_forced' => 'Echomail-Moderation erzwingen',
-    'ui.admin.users.echomail_moderation_forced_help' => 'Alle vernetzten Echomail-Beiträge dieses Benutzers zur Prüfung zurückhalten, unabhängig von den globalen Moderationseinstellungen.',
+    'ui.admin.users.echomail_moderation_forced_help' => 'Notfall-Override für missbräuchliche oder risikoreiche Benutzer.',
+    'ui.admin.users.echomail_moderation_forced_tooltip' => 'Zwingt jeden vernetzten Echomail-Beitrag dieses Benutzers in die Moderationswarteschlange, selbst wenn der Benutzer die Moderation normalerweise umgehen würde. Als Notbremse für missbräuchliche oder risikoreiche Benutzer verwenden.',
+    'ui.admin.users.can_post_netecho_unmoderated' => 'Unmoderiertes Netecho-Posting erlauben',
+    'ui.admin.users.can_post_netecho_unmoderated_help' => 'Normale benutzerbezogene Ausnahme für die globale Neubenutzer-Moderation.',
+    'ui.admin.users.can_post_netecho_unmoderated_tooltip' => 'Erlaubt diesem Benutzer, die normale Netecho-Moderationswarteschlange zu überspringen und direkt in vernetzte Echomail-Bereiche zu posten. Dies ist die normale benutzerbezogene Ausnahme für den globalen Moderationsschwellenwert für neue Benutzer.',
 
     // Admin Chat Rooms
     'ui.admin.chat_rooms.load_failed' => 'Fehler beim Laden der Chaträume',
