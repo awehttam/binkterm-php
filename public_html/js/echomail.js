@@ -402,7 +402,6 @@ function loadEchoareas(callback) {
  * If no echo is selected the bar is hidden.
  */
 function updateEchoInfoBar() {
-    updateMessagesHeaderTitle();
     if (!currentEchoarea) {
         // No specific area selected — show a generic "All Messages" bar with compose button
         $('#echoTitle').text(uiT('ui.common.all_messages', 'All Messages'));
@@ -411,6 +410,7 @@ function updateEchoInfoBar() {
         $('#echoInfoBar').removeClass('d-none');
         currentEchoareaData = null;
         updateMobileAccordionText(null);
+        updateMessagesHeaderTitle();
         return;
     }
 
@@ -428,17 +428,20 @@ function updateEchoInfoBar() {
 
     if (currentEchoareaData) {
         renderEchoInfoBar(currentEchoareaData, true);
+        updateMessagesHeaderTitle();
     } else {
         // Area not in subscribed list — lazy-fetch all areas to get description + ID
         if (allEchoareasCache) {
             const found = allEchoareasCache[currentEchoarea] || null;
             currentEchoareaData = found;
             renderEchoInfoBar(found, false);
+            updateMessagesHeaderTitle();
         } else {
             // Show bar immediately with spinner while fetching
             $('#echoDescription').text('');
             $('#echoSubscribeBtn').prop('disabled', true).text('...');
             $('#echoInfoBar').removeClass('d-none');
+            updateMessagesHeaderTitle();
 
             $.get('/api/echoareas').done(function(data) {
                 allEchoareasCache = {};
@@ -449,8 +452,10 @@ function updateEchoInfoBar() {
                 const found = allEchoareasCache[currentEchoarea] || null;
                 currentEchoareaData = found;
                 renderEchoInfoBar(found, false);
+                updateMessagesHeaderTitle();
             }).fail(function() {
                 renderEchoInfoBar(null, false);
+                updateMessagesHeaderTitle();
             });
         }
     }
