@@ -848,8 +848,8 @@
 {% block scripts %}
 <script>
 // Twig-rendered variables
-let currentEchoarea = {{ echoarea|default(null)|json_encode|raw }};
 let domain = {{ domain|default(null)|json_encode|raw }};
+let currentEchoarea = {{ ((echoarea and domain) ? (echoarea ~ '@' ~ domain) : echoarea)|default(null)|json_encode|raw }};
 window.initialDisplayEchoarea = {{ display_echoarea|json_encode|raw }};
 window.currentUserRealName = {{ current_user.real_name|json_encode|raw }};
 window.isAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
