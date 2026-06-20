@@ -41,6 +41,7 @@ let statsCacheFetchedAt = 0;
 let statsRequestKey = null;
 let statsRequestPromise = null;
 let echomailRefreshPromise = null;
+let echomailBaseDocumentTitle = document.title || 'Echomail';
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -69,6 +70,41 @@ function formatEchoareaDisplay(tag, domain, isLocal = false) {
         return `${safeTag}@${safeDomain}`;
     }
     return isLocal ? `${safeTag}@local` : safeTag;
+}
+
+function getEchomailBaseDocumentTitle() {
+    if (window.initialDisplayEchoarea) {
+        const initialSegment = ` - ${window.initialDisplayEchoarea} - `;
+        if (echomailBaseDocumentTitle.includes(initialSegment)) {
+            return echomailBaseDocumentTitle.replace(initialSegment, ' - ');
+        }
+    }
+    return echomailBaseDocumentTitle;
+}
+
+function updateDocumentTitle() {
+    const pageTitle = uiT('ui.echomail.title', 'Echomail');
+    const baseTitle = getEchomailBaseDocumentTitle();
+
+    if (currentFilter === 'drafts') {
+        document.title = `${pageTitle} - ${uiT('ui.common.drafts', 'Drafts')} - ${baseTitle}`;
+        return;
+    }
+
+    if (currentEchoarea) {
+        const displayEchoarea = currentEchoareaData
+            ? formatEchoareaDisplay(currentEchoareaData.tag, currentEchoareaData.domain, !!currentEchoareaData.is_local)
+            : currentEchoarea;
+        document.title = `${pageTitle} - ${displayEchoarea} - ${baseTitle}`;
+        return;
+    }
+
+    if (currentInterestId && currentInterestName) {
+        document.title = `${pageTitle} - ${currentInterestName} - ${baseTitle}`;
+        return;
+    }
+
+    document.title = `${pageTitle} - ${baseTitle}`;
 }
 
 function getStatsCacheKey() {
@@ -109,6 +145,7 @@ function updateMessagesHeaderTitle() {
 
     if (currentFilter === 'drafts') {
         titleEl.text(uiT('ui.common.drafts', 'Drafts'));
+        updateDocumentTitle();
         return;
     }
 
@@ -118,15 +155,18 @@ function updateMessagesHeaderTitle() {
             ? formatEchoareaDisplay(currentEchoareaData.tag, currentEchoareaData.domain, !!currentEchoareaData.is_local)
             : currentEchoarea;
         titleEl.text(`${displayEchoarea} ${messagesLabel}`);
+        updateDocumentTitle();
         return;
     }
 
     if (currentInterestId && currentInterestName) {
         titleEl.text(`${currentInterestName} ${messagesLabel}`);
+        updateDocumentTitle();
         return;
     }
 
     titleEl.text(uiT('ui.echomail.recent_messages', 'Recent Messages'));
+    updateDocumentTitle();
 }
 
 // Date display configuration: 'written' or 'received'
@@ -402,7 +442,6 @@ function loadEchoareas(callback) {
  * If no echo is selected the bar is hidden.
  */
 function updateEchoInfoBar() {
-    updateMessagesHeaderTitle();
     if (!currentEchoarea) {
         // No specific area selected — show a generic "All Messages" bar with compose button
         $('#echoTitle').text(uiT('ui.common.all_messages', 'All Messages'));
@@ -411,6 +450,7 @@ function updateEchoInfoBar() {
         $('#echoInfoBar').removeClass('d-none');
         currentEchoareaData = null;
         updateMobileAccordionText(null);
+        updateMessagesHeaderTitle();
         return;
     }
 
@@ -428,17 +468,20 @@ function updateEchoInfoBar() {
 
     if (currentEchoareaData) {
         renderEchoInfoBar(currentEchoareaData, true);
+        updateMessagesHeaderTitle();
     } else {
         // Area not in subscribed list — lazy-fetch all areas to get description + ID
         if (allEchoareasCache) {
             const found = allEchoareasCache[currentEchoarea] || null;
             currentEchoareaData = found;
             renderEchoInfoBar(found, false);
+            updateMessagesHeaderTitle();
         } else {
             // Show bar immediately with spinner while fetching
             $('#echoDescription').text('');
             $('#echoSubscribeBtn').prop('disabled', true).text('...');
             $('#echoInfoBar').removeClass('d-none');
+            updateMessagesHeaderTitle();
 
             $.get('/api/echoareas').done(function(data) {
                 allEchoareasCache = {};
@@ -449,8 +492,10 @@ function updateEchoInfoBar() {
                 const found = allEchoareasCache[currentEchoarea] || null;
                 currentEchoareaData = found;
                 renderEchoInfoBar(found, false);
+                updateMessagesHeaderTitle();
             }).fail(function() {
                 renderEchoInfoBar(null, false);
+                updateMessagesHeaderTitle();
             });
         }
     }
