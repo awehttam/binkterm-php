@@ -6,26 +6,11 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Web Interface](#web-interface)
-  - [Per-User Netecho Moderation Controls](#per-user-netecho-moderation-controls)
-  - [Registration Approval Setting](#registration-approval-setting)
-  - [Subscription Manager](#subscription-manager)
-  - [Echomail List Performance](#echomail-list-performance)
-  - [Echomail Tag Validation](#echomail-tag-validation)
-  - [Missing CHRS Charset Fallbacks](#missing-chrs-charset-fallbacks)
-  - [Notification Sound Unlock Fix](#notification-sound-unlock-fix)
-  - [Nginx Example Cache Rules](#nginx-example-cache-rules)
-  - [PGP Key Management](#pgp-key-management)
-  - [Auto Feed Subject Prefix Option](#auto-feed-subject-prefix-option)
-  - [Local Echomail Area Display](#local-echomail-area-display)
-  - [Nodelist Import File Picker](#nodelist-import-file-picker)
-  - [Russian Translation](#russian-translation)
-  - [MeshCore Advert Storage Refactor](#meshcore-advert-storage-refactor)
+  - [Admin Controls and Moderation](#admin-controls-and-moderation)
+  - [Messaging and FTN Behavior](#messaging-and-ftn-behavior)
+  - [User Experience and Reader UI](#user-experience-and-reader-ui)
+  - [Operations, Imports, and Localization](#operations-imports-and-localization)
 - [Developer / Infrastructure](#developer--infrastructure)
-  - [Realtime Signaling Abstraction](#realtime-signaling-abstraction)
-  - [Database Bootstrap Abstraction](#database-bootstrap-abstraction)
-  - [Pipe Code Parser Mode](#pipe-code-parser-mode)
-  - [User Theme Length Increase](#user-theme-length-increase)
-  - [BinkP Session Log Cleanup](#binkp-session-log-cleanup)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -34,23 +19,33 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Web Interface
 
+#### Admin Controls and Moderation
+
 - **Admin -> Users -> Edit User** now includes two separate per-user netecho moderation controls. **Allow unmoderated netecho posting** is the normal bypass for the global new-user moderation threshold, while **Force echomail moderation** is an emergency override that pushes all networked echomail posts from a specific user back into the moderation queue.
-- The user-facing echoarea subscription manager at `/subscriptions` now uses a more compact filter layout modeled after `/echolist`, with network filtering and an option to show only interest groups that currently have message traffic.
-- Subscribing or unsubscribing from an echoarea in `/subscriptions` now updates in place instead of reloading the page, preserving the current scroll position and active search/filter state.
-- The subscribed echomail message list now avoids duplicate unread-count work, skips unnecessary joins in its pagination count query, and deduplicates overlapping client-side refreshes, which reduces page-load time on systems with large echomail message bases.
 - New-user registration approval is now controlled by a dedicated BBS setting. Self-registrations still require manual approval by default, but sysops can now disable that requirement and have new accounts activated immediately. Approved registrations are also retained as history records instead of being deleted from `pending_users`.
-- Pipe-code rendering now defaults to a new `decimal_relaxed` parser mode so decimal color codes such as `|01` still parse when immediately followed by uppercase text. The parser behavior can be overridden with the new `.env` setting `PIPE_CODE_PARSER_MODE`.
-- Echomail tag validation is now less strict across the web UI, admin echoarea editor, importer, and route matching. Common FTN tag punctuation such as `&`, `!`, and `%` is now accepted in area tags, so names like `AT&T_CHAT` no longer fail validation.
+
+#### Messaging and FTN Behavior
+
 - Network and echoarea settings now include a **Missing CHRS fallback charset** used only when inbound FTN messages arrive without a `CHRS` kludge. Inbound decode order now prefers the per-area override, then the network fallback, then the legacy guess order. Message charset edits for netmail and echomail now rebuild `message_text` from `raw_message_bytes` when raw bytes are available, and a new CLI tool can bulk rebuild stored echomail text for a selected area or domain.
-- The browser notification-sound unlock path now respects each user's saved sound settings and no longer primes disabled sounds on first click. This avoids false notification sounds on Safari and Firefox when notification sounds are turned off.
-- The example nginx config in `docs/INSTALL.md` now includes cache-control rules for `/sw.js`, `.css`, and `.js` so updated frontend assets are revalidated more reliably. The nginx example remains untested and unsupported.
+- Echomail tag validation is now less strict across the web UI, admin echoarea editor, importer, and route matching. Common FTN tag punctuation such as `&`, `!`, and `%` is now accepted in area tags, so names like `AT&T_CHAT` no longer fail validation.
 - User settings now include a PGP tab where users can upload multiple public keys, choose a preferred key, browse the public keyserver, and use that public-key directory from the netmail compose flow when encrypting outbound mail.
 - BBS-managed private key hosting is available behind a separate sysop toggle and is off by default.
 - Auto Feed sources now have an option to prefix posted echomail subjects with the configured feed name, producing subjects like `[2600.network] TITLEOFPOST` before the FTN 72-character subject limit is applied.
-- Local-only echomail areas now display with an explicit `@local` suffix in the web reader and compose UI, so area tags appear as `CHAT@local` instead of looking like a domain-qualified remote echo.
-- The manual nodelist import page no longer relies on a browser `accept` filter that attempted to match `Zxx` archives with `.z*`. Valid weekly nodelist bundles such as `LOVLYNET.Z25` now show up normally in the file chooser instead of requiring users to disable the picker filter by hand.
-- A new Russian interface translation is now bundled under the `ru` locale, extending BinktermPHP's built-in language coverage for the web UI, API error text, and terminal strings.
 - MeshCore repeater adverts are now stored in a dedicated `meshcore_node_adverts` table keyed by full public key. The CWN map/list and the public PacketBBS node directory still show MeshCore nodes after upgrade, but live advert writes no longer go into `cwn_networks`.
+
+#### User Experience and Reader UI
+
+- The user-facing echoarea subscription manager at `/subscriptions` now uses a more compact filter layout modeled after `/echolist`, with network filtering and an option to show only interest groups that currently have message traffic.
+- Subscribing or unsubscribing from an echoarea in `/subscriptions` now updates in place instead of reloading the page, preserving the current scroll position and active search/filter state.
+- The subscribed echomail message list now avoids duplicate unread-count work, skips unnecessary joins in its pagination count query, and deduplicates overlapping client-side refreshes, which reduces page-load time on systems with large echomail message bases.
+- The browser notification-sound unlock path now respects each user's saved sound settings and no longer primes disabled sounds on first click. This avoids false notification sounds on Safari and Firefox when notification sounds are turned off.
+- Local-only echomail areas now display with an explicit `@local` suffix in the web reader and compose UI, so area tags appear as `CHAT@local` instead of looking like a domain-qualified remote echo.
+
+#### Operations, Imports, and Localization
+
+- The manual nodelist import page no longer relies on a browser `accept` filter that attempted to match `Zxx` archives with `.z*`. Valid weekly nodelist bundles such as `LOVLYNET.Z25` now show up normally in the file chooser instead of requiring users to disable the picker filter by hand.
+- The example nginx config in `docs/INSTALL.md` now includes cache-control rules for `/sw.js`, `.css`, and `.js` so updated frontend assets are revalidated more reliably. The nginx example remains untested and unsupported.
+- A new Russian interface translation is now bundled under the `ru` locale, extending BinktermPHP's built-in language coverage for the web UI, API error text, and terminal strings.
 
 ### Developer / Infrastructure
 
@@ -62,17 +57,11 @@ Make sure you have a current backup of your database and files before upgrading.
 - BinkP session logging now closes failed session rows more aggressively and retires orphaned `active` rows whose handler process has already exited, so the admin BinkP session view no longer treats dead pre-handshake sessions as long-running live connections.
 - The `user_settings.theme` column now allows up to 300 characters instead of 20 so custom theme stylesheet paths and longer theme identifiers can be stored without truncation.
 
-### Developer / Infrastructure
-
-- Realtime wake-up signaling now has a small transport abstraction around PostgreSQL `LISTEN/NOTIFY`. The current implementation is still PostgreSQL-only, but the direct `pg_*` calls are now concentrated in dedicated realtime classes instead of being spread across `BinkStream`, the AI bot daemon, and the admin daemon.
-- Database bootstrap now has a minimal platform abstraction for DSN construction, session initialization, and base schema selection. PostgreSQL remains the only supported backend, but connection and setup behavior is no longer hardcoded in one place.
-- `.env` may now include `DB_DRIVER=pgsql`. PostgreSQL is still the only supported value today. This setting exists to make future backend setup work easier to isolate if it is ever pursued.
-- A new developer reference document, `docs/PostgreSQLDependencies.md`, tracks intentional PostgreSQL-specific dependencies and where they currently live.
-- BinkP session logging now closes failed session rows more aggressively and retires orphaned `active` rows whose handler process has already exited, so the admin BinkP session view no longer treats dead pre-handshake sessions as long-running live connections.
-
 ---
 
 ## Web Interface
+
+### Admin Controls and Moderation
 
 ### Per-User Netecho Moderation Controls
 
@@ -113,46 +102,7 @@ To support retained history, the upgrade also replaces the old global uniqueness
 
 This change does not restore approved registration rows that were deleted by earlier versions. It applies to approvals performed after you upgrade and run `php scripts/setup.php`.
 
-### Subscription Manager
-
-The `/subscriptions` page now presents its filtering tools in a compact filter panel instead of a long row of controls and per-interest buttons.
-
-The updated page adds:
-
-- a network filter for narrowing the visible echoareas by network
-- a compact interest picker instead of a button wall
-- an `Only show groups with messages` filter that limits the visible results to interest-grouped areas with message activity
-- the search and sort controls inside the same filter panel for a tighter layout
-- in-place subscribe/unsubscribe updates that do not reset the current search, filters, or scroll position
-
-This change is user-facing only. It does not alter subscriptions, interest membership, or message access rules.
-
-### Echomail List Performance
-
-The subscribed-message view behind `/echomail` now does less repeated database work per page load on large systems.
-
-What changed:
-
-- the list endpoint no longer performs its own duplicate unread-count scan for the subscribed-all-areas view
-- the unread badge continues to refresh from the existing stats endpoint
-- the pagination total query now avoids joining read-state and saved-message tables unless the selected filter actually needs them
-- the browser now coalesces overlapping echomail stats refreshes for the same scope and reuses recent stats for a short window instead of issuing back-to-back duplicate requests
-- high-churn refresh paths such as initial load, visibility restore, websocket-triggered updates, and bulk actions now share a centralized refresh flow instead of independently reloading the sidebar, list, and stats endpoints
-
-On systems with large echomail message bases and users subscribed to many areas, this reduces the amount of full-table work needed to render the default message list without changing the visible behavior of the page.
-
-### Echomail Tag Validation
-
-Echomail area tags now accept a broader ASCII punctuation set in the main validation paths.
-
-What changed:
-
-- the admin echoarea create and edit API now accepts tags containing `&`, `!`, and `%`
-- the CSV and `.NA` echoarea importer now accepts the same character set
-- echomail route matching now accepts those tags in URL paths instead of rejecting them before the page handler runs
-- file-area comment echoareas now use the same shared validation rule
-
-This is intended for common FTN-style tags such as `AT&T_CHAT`. Non-ASCII / UTF-8 echoarea tags are still not treated as safe or supported for interoperability.
+### Messaging and FTN Behavior
 
 ### Missing CHRS Charset Fallbacks
 
@@ -177,31 +127,18 @@ php scripts/rebuild_echomail_message_text.php --echoarea=GENERAL@fidonet
 
 Message metadata edits now also re-decode from `raw_message_bytes` when you change `message_charset` on an individual netmail or echomail message.
 
-### Notification Sound Unlock Fix
+### Echomail Tag Validation
 
-The web notifier no longer primes disabled notification sounds when the user first clicks on the page.
-
-This fixes a browser-specific issue reported on Safari and Firefox where a notification sound could play on any click even when the affected notification sound setting was set to `disabled`.
+Echomail area tags now accept a broader ASCII punctuation set in the main validation paths.
 
 What changed:
 
-- the first-click audio unlock path now checks the user's saved notification sound settings before attempting to prime audio
-- only sounds that are actually enabled for that user are unlocked
-- if all notification sounds are disabled, the unlock step now does nothing
+- the admin echoarea create and edit API now accepts tags containing `&`, `!`, and `%`
+- the CSV and `.NA` echoarea importer now accepts the same character set
+- echomail route matching now accepts those tags in URL paths instead of rejecting them before the page handler runs
+- file-area comment echoareas now use the same shared validation rule
 
-This change is client-side only. Make sure updated clients receive the new cached assets after upgrade.
-
-### Nginx Example Cache Rules
-
-The example nginx config in `docs/INSTALL.md` now includes explicit cache-control rules for the service worker and frontend assets.
-
-What changed:
-
-- `/sw.js` is now served with `Cache-Control: no-cache`
-- `.css` and `.js` files are now served with `Cache-Control: max-age=0, must-revalidate`
-- the example adds `try_files` handling in those static-cache locations so missing assets return `404` instead of falling through unexpectedly
-
-This update is intended to reduce cases where browsers continue using stale cached frontend code after an upgrade. The nginx example remains a starting point only and is still untested because nginx is not a supported deployment target.
+This is intended for common FTN-style tags such as `AT&T_CHAT`. Non-ASCII / UTF-8 echoarea tags are still not treated as safe or supported for interoperability.
 
 ### PGP Key Management
 
@@ -240,33 +177,6 @@ This is useful when multiple feeds post into the same echo area and readers need
 
 The prefix is applied before the normal FTN 72-character subject limit, so long feed names reduce the space available for the article title.
 
-### Local Echomail Area Display
-
-The web echomail reader and compose interface now display local-only echomail areas with an explicit `@local` suffix.
-
-Examples:
-
-- `CHAT` is now shown to users as `CHAT@local`
-- remote areas with a real FTN domain, such as `GENERAL@fidonet`, continue to display with their normal domain suffix
-
-This change is presentation-only. Local areas continue to use their existing stored tag values and routing behavior; the UI now makes it clearer at a glance that the area is local to this BBS rather than part of a remote FTN domain.
-
-### Nodelist Import File Picker
-
-The manual nodelist import form at **Admin -> Nodelist -> Import** no longer uses a browser-side file chooser filter that tried to express weekly `Zxx` bundles with `.z*`.
-
-In practice, some browsers treated that pattern literally instead of as a wildcard extension. This caused valid files such as `LOVLYNET.Z25` to be hidden in the picker unless the user manually changed the chooser to show all files.
-
-The import form now leaves file-type filtering to the server-side importer, so supported plain-text nodelists and compressed weekly bundles can be selected normally from the browser dialog.
-
-### Russian Translation
-
-BinktermPHP 1.9.8 now includes a bundled Russian translation under the `ru` locale.
-
-The new locale covers the main web interface catalog, API error text, and terminal/BBS strings through the standard `common.php`, `errors.php`, and `terminalserver.php` catalogs in `config/i18n/ru/`.
-
-If you rely on a pinned locale allowlist through `I18N_SUPPORTED_LOCALES`, add `ru` there after upgrading so users can select Russian. Installations that use locale auto-discovery will pick it up automatically from the new catalog directory.
-
 ### MeshCore Advert Storage Refactor
 
 MeshCore repeater advert ingest no longer writes directly into `cwn_networks`.
@@ -280,6 +190,91 @@ Instead:
 During `php scripts/setup.php`, the new migration backfills existing legacy `cwn_networks.source_type = 'meshcore'` rows into `meshcore_node_adverts`. Manual CWN submissions stay in `cwn_networks` unchanged.
 
 If you use MeshCore or PacketBBS bridge nodes, make sure `php scripts/setup.php` completes successfully before letting the bridge send fresh adverts. Until the migration has run, the new advert endpoint will not have its destination table available.
+
+### User Experience and Reader UI
+
+### Subscription Manager
+
+The `/subscriptions` page now presents its filtering tools in a compact filter panel instead of a long row of controls and per-interest buttons.
+
+The updated page adds:
+
+- a network filter for narrowing the visible echoareas by network
+- a compact interest picker instead of a button wall
+- an `Only show groups with messages` filter that limits the visible results to interest-grouped areas with message activity
+- the search and sort controls inside the same filter panel for a tighter layout
+- in-place subscribe/unsubscribe updates that do not reset the current search, filters, or scroll position
+
+This change is user-facing only. It does not alter subscriptions, interest membership, or message access rules.
+
+### Echomail List Performance
+
+The subscribed-message view behind `/echomail` now does less repeated database work per page load on large systems.
+
+What changed:
+
+- the list endpoint no longer performs its own duplicate unread-count scan for the subscribed-all-areas view
+- the unread badge continues to refresh from the existing stats endpoint
+- the pagination total query now avoids joining read-state and saved-message tables unless the selected filter actually needs them
+- the browser now coalesces overlapping echomail stats refreshes for the same scope and reuses recent stats for a short window instead of issuing back-to-back duplicate requests
+- high-churn refresh paths such as initial load, visibility restore, websocket-triggered updates, and bulk actions now share a centralized refresh flow instead of independently reloading the sidebar, list, and stats endpoints
+
+On systems with large echomail message bases and users subscribed to many areas, this reduces the amount of full-table work needed to render the default message list without changing the visible behavior of the page.
+
+### Notification Sound Unlock Fix
+
+The web notifier no longer primes disabled notification sounds when the user first clicks on the page.
+
+This fixes a browser-specific issue reported on Safari and Firefox where a notification sound could play on any click even when the affected notification sound setting was set to `disabled`.
+
+What changed:
+
+- the first-click audio unlock path now checks the user's saved notification sound settings before attempting to prime audio
+- only sounds that are actually enabled for that user are unlocked
+- if all notification sounds are disabled, the unlock step now does nothing
+
+This change is client-side only. Make sure updated clients receive the new cached assets after upgrade.
+
+### Local Echomail Area Display
+
+The web echomail reader and compose interface now display local-only echomail areas with an explicit `@local` suffix.
+
+Examples:
+
+- `CHAT` is now shown to users as `CHAT@local`
+- remote areas with a real FTN domain, such as `GENERAL@fidonet`, continue to display with their normal domain suffix
+
+This change is presentation-only. Local areas continue to use their existing stored tag values and routing behavior; the UI now makes it clearer at a glance that the area is local to this BBS rather than part of a remote FTN domain.
+
+### Operations, Imports, and Localization
+
+### Nodelist Import File Picker
+
+The manual nodelist import form at **Admin -> Nodelist -> Import** no longer uses a browser-side file chooser filter that tried to express weekly `Zxx` bundles with `.z*`.
+
+In practice, some browsers treated that pattern literally instead of as a wildcard extension. This caused valid files such as `LOVLYNET.Z25` to be hidden in the picker unless the user manually changed the chooser to show all files.
+
+The import form now leaves file-type filtering to the server-side importer, so supported plain-text nodelists and compressed weekly bundles can be selected normally from the browser dialog.
+
+### Nginx Example Cache Rules
+
+The example nginx config in `docs/INSTALL.md` now includes explicit cache-control rules for the service worker and frontend assets.
+
+What changed:
+
+- `/sw.js` is now served with `Cache-Control: no-cache`
+- `.css` and `.js` files are now served with `Cache-Control: max-age=0, must-revalidate`
+- the example adds `try_files` handling in those static-cache locations so missing assets return `404` instead of falling through unexpectedly
+
+This update is intended to reduce cases where browsers continue using stale cached frontend code after an upgrade. The nginx example remains a starting point only and is still untested because nginx is not a supported deployment target.
+
+### Russian Translation
+
+BinktermPHP 1.9.8 now includes a bundled Russian translation under the `ru` locale.
+
+The new locale covers the main web interface catalog, API error text, and terminal/BBS strings through the standard `common.php`, `errors.php`, and `terminalserver.php` catalogs in `config/i18n/ru/`.
+
+If you rely on a pinned locale allowlist through `I18N_SUPPORTED_LOCALES`, add `ru` there after upgrading so users can select Russian. Installations that use locale auto-discovery will pick it up automatically from the new catalog directory.
 
 ## Developer / Infrastructure
 
