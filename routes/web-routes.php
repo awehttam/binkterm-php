@@ -579,6 +579,9 @@ SimpleRouter::get('/echomail', function() {
             $echoarea = $echoareaParam . '@' . $domainParam;
         } else {
             $echoarea = $echoareaParam;
+            if (strpos($echoarea, '@') !== false) {
+                [$echoareaParam, $domainParam] = explode('@', $echoarea, 2);
+            }
         }
     }
 
@@ -630,6 +633,10 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
 
     // URL decode the echoarea parameter to handle dots and special characters
     $echoarea = urldecode($echoarea);
+    $domain = null;
+    if (strpos($echoarea, '@') !== false) {
+        [$echoarea, $domain] = explode('@', $echoarea, 2);
+    }
     $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
     $isAdmin = !empty($user['is_admin']);
     $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
@@ -646,6 +653,7 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $template = new Template();
     $template->renderResponse('echomail.twig', [
         'echoarea'               => $echoarea,
+        'domain'                 => $domain,
         'echomail_date_field'    => $echoDateOrder,
         'has_interests'          => $hasInterests,
         'ai_assistant_enabled'   => $aiAssistantEnabled,

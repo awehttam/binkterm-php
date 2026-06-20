@@ -1,6 +1,15 @@
 {% extends "base.twig" %}
 
-{% set display_echoarea = echoarea ? (domain ? echoarea ~ '@' ~ domain : echoarea ~ '@local') : '' %}
+{% set display_echoarea = '' %}
+{% if echoarea %}
+    {% if '@' in echoarea %}
+        {% set display_echoarea = echoarea %}
+    {% elseif domain %}
+        {% set display_echoarea = echoarea ~ '@' ~ domain %}
+    {% else %}
+        {% set display_echoarea = echoarea ~ '@local' %}
+    {% endif %}
+{% endif %}
 {% block title %}{{ t('ui.echomail.title', {}, locale, ['common']) }}{% if display_echoarea %} - {{ display_echoarea }}{% endif %} - {{ parent() }}{% endblock %}
 
 {% block content %}
@@ -841,6 +850,7 @@
 // Twig-rendered variables
 let currentEchoarea = {{ echoarea|default(null)|json_encode|raw }};
 let domain = {{ domain|default(null)|json_encode|raw }};
+window.initialDisplayEchoarea = {{ display_echoarea|json_encode|raw }};
 window.currentUserRealName = {{ current_user.real_name|json_encode|raw }};
 window.isAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
 window.echomailDateField = '{{ echomail_date_field|default("received") }}';
