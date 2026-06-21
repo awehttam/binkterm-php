@@ -199,6 +199,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'Пользователь не найден',
+    'errors.admin.users.registration_history_load_failed' => 'Не удалось загрузить историю регистраций',
     'errors.admin.users.create_failed' => 'Не удалось создать пользователя',
     'errors.admin.users.update_failed' => 'Не удалось обновить пользователя',
     'errors.admin.users.delete_failed' => 'Не удалось удалить пользователя',

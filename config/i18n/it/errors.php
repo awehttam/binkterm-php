@@ -204,6 +204,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'Utente non trovato',
+    'errors.admin.users.registration_history_load_failed' => 'Impossibile caricare la cronologia registrazioni',
     'errors.admin.users.create_failed' => 'Impossibile creare l’utente',
     'errors.admin.users.update_failed' => 'Impossibile aggiornare l’utente',
     'errors.admin.users.delete_failed' => 'Impossibile eliminare l’utente',

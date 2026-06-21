@@ -204,6 +204,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'User not found',
+    'errors.admin.users.registration_history_load_failed' => 'Failed to load registration history',
     'errors.admin.users.create_failed' => 'Failed to create user',
     'errors.admin.users.update_failed' => 'Failed to update user',
     'errors.admin.users.delete_failed' => 'Failed to delete user',

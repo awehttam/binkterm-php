@@ -4193,6 +4193,48 @@ class MessageHandler
         
         return $stmt->fetchAll();
     }
+
+    /**
+     * Get approved registration history for admin lookup.
+     */
+    public function getApprovedRegistrationHistory(string $search = '', int $limit = 50)
+    {
+        $search = trim($search);
+        $limit = max(1, min($limit, 100));
+
+        $sql = "
+            SELECT p.*, reviewer.username as reviewed_by_username,
+                   cu.username as created_user_username, cu.real_name as created_user_real_name
+            FROM pending_users p
+            LEFT JOIN users reviewer ON p.reviewed_by = reviewer.id
+            LEFT JOIN users cu ON p.created_user_id = cu.id
+            WHERE p.status = 'approved'
+        ";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= "
+                AND (
+                    p.username ILIKE ?
+                    OR COALESCE(p.real_name, '') ILIKE ?
+                    OR COALESCE(p.email, '') ILIKE ?
+                    OR COALESCE(cu.username, '') ILIKE ?
+                )
+            ";
+            $like = '%' . $search . '%';
+            $params = [$like, $like, $like, $like];
+        }
+
+        $sql .= "
+            ORDER BY COALESCE(p.reviewed_at, p.requested_at) DESC
+            LIMIT {$limit}
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll();
+    }
     
     /**
      * Get all pending user registrations including processed ones (for admin history)

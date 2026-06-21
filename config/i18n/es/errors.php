@@ -204,6 +204,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'Usuario no encontrado',
+    'errors.admin.users.registration_history_load_failed' => 'No se pudo cargar el historial de registros',
     'errors.admin.users.create_failed' => 'No se pudo crear el usuario',
     'errors.admin.users.update_failed' => 'No se pudo actualizar el usuario',
     'errors.admin.users.delete_failed' => 'No se pudo eliminar el usuario',

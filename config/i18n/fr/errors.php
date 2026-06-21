@@ -147,6 +147,7 @@ return [
     'errors.admin.file_approvals.reject_failed' => 'Échec du rejet du téléversement',
     'errors.files.download.insufficient_credits' => 'Crédits insuffisants pour télécharger ce fichier',
     'errors.admin.users.not_found' => 'Utilisateur introuvable',
+    'errors.admin.users.registration_history_load_failed' => 'Échec du chargement de l\'historique des inscriptions',
     'errors.admin.users.create_failed' => 'Échec de la création de l\'utilisateur',
     'errors.admin.users.update_failed' => 'Échec de la mise à jour de l\'utilisateur',
     'errors.admin.users.delete_failed' => 'Échec de la suppression de l\'utilisateur',

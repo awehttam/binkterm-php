@@ -6331,6 +6331,7 @@ Confirmation of seen marker update
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/admin/pending-users`](#get-apiadminpending-users) | Yes | List all pending user registrations (admin only). |
+| `GET` | [`/api/admin/pending-users/history`](#get-apiadminpending-usershistory) | Yes | Search approved registration history (admin only). |
 | `GET` | [`/api/admin/pending-users/{id}`](#get-apiadminpending-usersid) | Yes | Retrieve single pending user registration details. |
 | `POST` | [`/api/admin/pending-users/{id}/approve`](#post-apiadminpending-usersidapprove) | Yes | Approve pending user registration and create active account. |
 | `POST` | [`/api/admin/pending-users/{id}/reject`](#post-apiadminpending-usersidreject) | Yes | Reject pending user registration. |
@@ -6373,6 +6374,51 @@ List of pending user registrations
 
 ---
 
+#### `GET /api/admin/pending-users/history`
+
+**Requires authentication**
+
+Searches retained approved registration records for admin lookup. Returns the most recent approved registrations by default and can filter by a free-text search over requested username, real name, email, or the created account username.
+
+**Query Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `search` | string | No | Free-text filter applied to username, real name, email, and created account username |
+| `limit` | integer | No | Maximum records to return. Defaults to `50`, capped at `100` |
+
+**Response** _(JSON)_
+
+Approved registration history results
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `users` | array | Array of approved registration records |
+| `users[].id` | integer | Pending user record ID |
+| `users[].username` | string | Requested username |
+| `users[].email` | string\|null | Email address provided during registration |
+| `users[].real_name` | string\|null | Real name provided during registration |
+| `users[].requested_at` | string | Registration request timestamp (ISO 8601) |
+| `users[].reviewed_at` | string\|null | Approval timestamp (ISO 8601) |
+| `users[].reviewed_by` | integer\|null | User ID of admin who approved |
+| `users[].reviewed_by_username` | string\|null | Username of approving admin |
+| `users[].created_user_id` | integer\|null | User ID created from this registration |
+| `users[].created_user_username` | string\|null | Username of the created account |
+| `users[].created_user_real_name` | string\|null | Real name of the created account |
+| `users[].registration_source` | string | Registration source (web, terminal, etc.) |
+| `users[].admin_notes` | string\|null | Admin notes stored with the approval |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | User is not an admin |
+| 401 | Authentication required |
+| 500 | Database error |
+
+---
+
 #### `GET /api/admin/pending-users/{id}`
 
 **Requires authentication**
@@ -6402,12 +6448,16 @@ Pending user registration details
 | `user.ip_address` | string\|null | IP address at registration |
 | `user.status` | string | Current status (pending, approved, rejected) |
 | `user.admin_notes` | string\|null | Admin notes |
+| `user.reviewed_by` | integer\|null | User ID of reviewing admin |
+| `user.reviewed_by_username` | string\|null | Username of reviewing admin |
+| `user.reviewed_at` | string\|null | Review timestamp (ISO 8601) |
 | `user.referrer_id` | integer\|null | User ID of the referrer |
 | `user.referrer_username` | string\|null | Username of the referrer |
 | `user.referrer_real_name` | string\|null | Real name of the referrer |
 | `user.created_user_id` | integer\|null | User ID created from this registration after approval |
 | `user.created_user_username` | string\|null | Username of the created account |
 | `user.created_user_real_name` | string\|null | Real name of the created account |
+| `user.registration_source` | string | Registration source (web, terminal, etc.) |
 
 **Error Responses**
 

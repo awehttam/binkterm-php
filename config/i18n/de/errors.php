@@ -203,6 +203,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'Benutzer nicht gefunden',
+    'errors.admin.users.registration_history_load_failed' => 'Registrierungshistorie konnte nicht geladen werden',
     'errors.admin.users.create_failed' => 'Benutzer konnte nicht erstellt werden',
     'errors.admin.users.update_failed' => 'Benutzer konnte nicht aktualisiert werden',
     'errors.admin.users.delete_failed' => 'Benutzer konnte nicht gelöscht werden',

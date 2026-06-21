@@ -10460,6 +10460,34 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/admin/pending-users/history', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            apiError('errors.auth.forbidden', apiLocalizedText('errors.auth.forbidden', 'Forbidden'), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $search = trim((string)($_GET['search'] ?? ''));
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 50;
+
+        try {
+            $handler = new MessageHandler();
+            $users = $handler->getApprovedRegistrationHistory($search, $limit);
+            echo json_encode(['success' => true, 'users' => $users]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            apiError(
+                'errors.admin.users.registration_history_load_failed',
+                apiLocalizedText('errors.admin.users.registration_history_load_failed', 'Failed to load registration history'),
+                500
+            );
+        }
+    });
+
     SimpleRouter::get('/admin/pending-users/{id}', function($id) {
         $user = RouteHelper::requireAuth();
 
@@ -10475,9 +10503,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
             $stmt = $db->prepare("
                 SELECT p.*, u.username as referrer_username, u.real_name as referrer_real_name,
+                       reviewer.username as reviewed_by_username,
                        cu.username as created_user_username, cu.real_name as created_user_real_name
                 FROM pending_users p
                 LEFT JOIN users u ON p.referrer_id = u.id
+                LEFT JOIN users reviewer ON p.reviewed_by = reviewer.id
                 LEFT JOIN users cu ON p.created_user_id = cu.id
                 WHERE p.id = ?
             ");
