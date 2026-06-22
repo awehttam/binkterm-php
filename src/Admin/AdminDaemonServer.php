@@ -915,6 +915,26 @@ class AdminDaemonServer
                     $this->logCommandResult('rehatch_file', $result);
                     $this->writeResponse($client, ['ok' => $result['exit_code'] === 0, 'result' => $result]);
                     break;
+                case 'check_auto_feed':
+                    $feedId = (int)($data['feed_id'] ?? 0);
+                    if ($feedId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_feed_id']);
+                        break;
+                    }
+                    $cmd = [PHP_BINARY, 'scripts/rss_poster.php', "--feed-id={$feedId}"];
+                    if (!empty($data['force'])) {
+                        $cmd[] = '--force';
+                    }
+                    if (!empty($data['verbose'])) {
+                        $cmd[] = '--verbose';
+                    }
+                    $result = $this->runCommand($cmd, [
+                        'BINKTERM_SKIP_IMMEDIATE_OUTBOUND_POLL' => '1',
+                        'BINKTERM_SKIP_ADMIN_DAEMON_REENTRY' => '1',
+                    ]);
+                    $this->logCommandResult('check_auto_feed', $result);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
                 case 'reindex_iso':
                     $areaId = (int)($data['area_id'] ?? 0);
                     if ($areaId <= 0) {
@@ -1007,14 +1027,19 @@ class AdminDaemonServer
         }
     }
 
-    private function runCommand(array $command): array
+    private function runCommand(array $command, array $env = []): array
     {
         $descriptorSpec = [
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w']
         ];
 
-        $process = proc_open($command, $descriptorSpec, $pipes, __DIR__ . '/../../');
+        $childEnv = null;
+        if (!empty($env)) {
+            $childEnv = array_merge($this->getCurrentEnvironment(), $env);
+        }
+
+        $process = proc_open($command, $descriptorSpec, $pipes, __DIR__ . '/../../', $childEnv);
         if (!is_resource($process)) {
             throw new \RuntimeException('Failed to start command');
         }
@@ -1137,6 +1162,34 @@ class AdminDaemonServer
             'cmd' => $cmd,
             'exit_code' => $result['exit_code'] ?? null
         ]);
+    }
+
+    /**
+     * Capture the current process environment for child commands.
+     *
+     * proc_open() with an env array can replace the inherited environment on
+     * Windows, so merge overrides with the current environment instead.
+     *
+     * @return array<string,string>
+     */
+    private function getCurrentEnvironment(): array
+    {
+        $env = getenv();
+        if (!is_array($env)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($env as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+            if (is_scalar($value)) {
+                $normalized[$key] = (string)$value;
+            }
+        }
+
+        return $normalized;
     }
 
     /**

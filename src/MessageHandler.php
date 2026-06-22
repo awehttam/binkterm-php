@@ -3391,6 +3391,11 @@ class MessageHandler
             return;
         }
 
+        if (in_array(strtolower((string)getenv('BINKTERM_SKIP_IMMEDIATE_OUTBOUND_POLL')), ['1', 'true', 'yes', 'on'], true)) {
+            $this->pendingImmediateOutboundPolls = [];
+            return;
+        }
+
         $client = null;
         try {
             $client = new \BinktermPHP\Admin\AdminDaemonClient();

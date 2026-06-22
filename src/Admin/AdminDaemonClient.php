@@ -573,6 +573,23 @@ class AdminDaemonClient
         return $this->sendCommand('rehatch_file', ['file_id' => $fileId]);
     }
 
+    /**
+     * Run the auto feed checker for a single feed and return the CLI output.
+     *
+     * @param int  $feedId  Auto feed source ID
+     * @param bool $force   Bypass the recent-check rate limit
+     * @param bool $verbose Include per-item output
+     * @return array{exit_code:int,stdout:string,stderr:string}
+     */
+    public function checkAutoFeed(int $feedId, bool $force = true, bool $verbose = true): array
+    {
+        return $this->sendCommand('check_auto_feed', [
+            'feed_id' => $feedId,
+            'force' => $force,
+            'verbose' => $verbose,
+        ]);
+    }
+
     public function close(): void
     {
         if ($this->socket && is_resource($this->socket)) {
@@ -588,6 +605,10 @@ class AdminDaemonClient
 
     private function connect(): void
     {
+        if (in_array(strtolower((string)getenv('BINKTERM_SKIP_ADMIN_DAEMON_REENTRY')), ['1', 'true', 'yes', 'on'], true)) {
+            throw new \RuntimeException('Admin daemon re-entry is disabled for this process');
+        }
+
         if ($this->secret === '') {
             throw new \RuntimeException('ADMIN_DAEMON_SECRET must be set');
         }

@@ -5888,17 +5888,28 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             return;
         }
 
-        // Execute rss_poster.php script for this feed
-        $scriptPath = __DIR__ . '/../scripts/rss_poster.php';
-        $command = PHP_BINARY . ' ' . escapeshellarg($scriptPath) . ' --feed-id=' . (int)$id . ' --verbose 2>&1';
-
-        $output = [];
-        $returnCode = 0;
-        exec($command, $output, $returnCode);
-
-        if ($returnCode !== 0) {
+        try {
+            $daemon = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $daemon->checkAutoFeed((int)$id, true, true);
+        } catch (\Throwable $e) {
             http_response_code(500);
-            apiError('errors.admin.auto_feed.check_failed', apiLocalizedText('errors.admin.auto_feed.check_failed', 'Feed check failed'));
+            apiError('errors.admin.auto_feed.check_failed', apiLocalizedText('errors.admin.auto_feed.check_failed', 'Feed check failed'), 500, [
+                'detail' => $e->getMessage(),
+            ]);
+            return;
+        }
+
+        $stdout = trim((string)($result['stdout'] ?? ''));
+        $stderr = trim((string)($result['stderr'] ?? ''));
+        $detail = $stderr !== '' ? $stderr : $stdout;
+
+        if (($result['exit_code'] ?? 1) !== 0) {
+            http_response_code(500);
+            apiError('errors.admin.auto_feed.check_failed', apiLocalizedText('errors.admin.auto_feed.check_failed', 'Feed check failed'), 500, [
+                'detail' => $detail !== '' ? $detail : apiLocalizedText('errors.admin.auto_feed.check_failed', 'Feed check failed'),
+                'stdout' => $stdout,
+                'stderr' => $stderr,
+            ]);
             return;
         }
 
@@ -5914,7 +5925,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             'message_code' => 'ui.admin.auto_feed.checked_articles_posted',
             'message_params' => ['count' => max(0, $articlesPosted)],
             'articles_posted' => max(0, $articlesPosted),
-            'output' => implode("\n", $output)
+            'stdout' => $stdout,
+            'stderr' => $stderr,
         ]);
     });
 

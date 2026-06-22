@@ -339,6 +339,7 @@ The client automatically closes after each `sendCommand()` call. Call `close()` 
 |---|---|
 | `scanFile(int $fileId)` | Run an on-demand virus scan for a file by database ID |
 | `runEchomailRobot(int $robotId)` | Run an echomail robot by ID (with `--debug` output) |
+| `checkAutoFeed(int $feedId, bool $force = true, bool $verbose = true)` | Run `scripts/rss_poster.php` for a single auto feed and return stdout/stderr |
 | `reindexIso(int $areaId)` | Spawn a background re-index of an ISO-backed file area |
 | `rehatchFile(int $fileId)` | Re-hatch a single file via `scripts/file_hatch.php` |
 

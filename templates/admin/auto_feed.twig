@@ -190,6 +190,25 @@
         </div>
     </div>
 </div>
+
+<!-- Check Output Modal -->
+<div class="modal fade" id="checkOutputModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.auto_feed.check_output_title') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3" id="checkOutputSummary"></p>
+                <pre id="checkOutputText" class="bg-light border rounded p-3 mb-0" style="white-space: pre-wrap;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -486,7 +505,12 @@ function deleteFeed() {
 }
 
 function checkFeed(id) {
-    showInfo(uiT('ui.admin.auto_feed.checking_feed', 'Checking feed...'));
+    const checkingMessage = uiT('ui.admin.auto_feed.checking_feed', 'Checking feed...');
+    if (typeof showSuccess === 'function') {
+        showSuccess(checkingMessage);
+    } else {
+        console.info(checkingMessage);
+    }
 
     $.post(`/admin/api/auto-feed/check/${id}`)
         .done(function(data) {
@@ -494,13 +518,46 @@ function checkFeed(id) {
                 ? window.getApiMessage(data, uiT('ui.admin.auto_feed.checked_articles_posted', 'Feed checked: {count} new article(s) posted', { count: data.articles_posted }))
                 : uiT('ui.admin.auto_feed.checked_articles_posted', 'Feed checked: {count} new article(s) posted', { count: data.articles_posted });
             showSuccess(successMessage);
+            showCheckOutput(successMessage, combineCommandOutput(data));
             loadFeeds();
             loadStats();
         })
         .fail(function(xhr) {
             const error = apiError(xhr.responseJSON, uiT('ui.admin.auto_feed.check_failed', 'Check failed'));
             showError(error);
+            const output = combineCommandOutput(xhr.responseJSON || {});
+            if (output) {
+                showCheckOutput(error, output);
+            }
         });
+}
+
+function combineCommandOutput(payload) {
+    if (!payload || typeof payload !== 'object') {
+        return '';
+    }
+
+    const parts = [];
+    if (typeof payload.detail === 'string' && payload.detail.trim() !== '') {
+        parts.push(payload.detail.trim());
+    }
+    if (typeof payload.stdout === 'string' && payload.stdout.trim() !== '') {
+        parts.push(payload.stdout.trim());
+    }
+    if (typeof payload.stderr === 'string' && payload.stderr.trim() !== '') {
+        parts.push(payload.stderr.trim());
+    }
+    if (!parts.length && typeof payload.output === 'string' && payload.output.trim() !== '') {
+        parts.push(payload.output.trim());
+    }
+
+    return parts.join('\n\n');
+}
+
+function showCheckOutput(summary, output) {
+    $('#checkOutputSummary').text(summary || '');
+    $('#checkOutputText').text(output || uiT('ui.admin.auto_feed.no_check_output', 'No output was returned.'));
+    $('#checkOutputModal').modal('show');
 }
 
 function loadStats() {

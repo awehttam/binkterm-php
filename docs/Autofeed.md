@@ -43,7 +43,7 @@ Go to **Admin → Auto Feed** to manage feed sources.
 
 ### Manual Check
 
-The admin UI includes a **Check Now** button for each feed that triggers `rss_poster.php --feed-id=N --verbose` immediately and displays the output. This is useful for testing a newly added feed before the cron job runs.
+The admin UI includes a **Check Now** button for each feed. The web route delegates the request to the admin daemon, which runs `rss_poster.php --feed-id=N --force --verbose` and returns the CLI output to the browser. This is useful for testing a newly added feed before the cron job runs and for seeing the exact fetch/post result immediately.
 
 ### Statistics
 

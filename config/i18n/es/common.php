@@ -2428,6 +2428,8 @@ return [
     'ui.admin.auto_feed.unknown' => 'Desconocido',
     'ui.admin.auto_feed.check_now' => 'Verificar ahora',
     'ui.admin.auto_feed.checking_feed' => 'Verificando feed...',
+    'ui.admin.auto_feed.check_output_title' => 'Salida de comprobacion',
+    'ui.admin.auto_feed.no_check_output' => 'No se devolvio ninguna salida.',
     'ui.admin.auto_feed.select_echo_area' => 'Seleccione area de eco...',
     'ui.admin.auto_feed.name_url' => 'Nombre/URL',
     'ui.admin.auto_feed.articles' => 'Articulos',
