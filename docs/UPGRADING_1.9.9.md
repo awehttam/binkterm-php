@@ -16,6 +16,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Admin -> Users** now includes an **Approved Registration History** lookup inside the registrations panel. Pending registrations and retained approved-registration history now share one tabbed panel, making it easier to review current signup requests and look up previously approved accounts without taking extra vertical space on the page.
 - When **Require approval for new users** is disabled, successful self-registrations now create an authenticated session immediately. Web users are signed in right away, and Telnet/SSH users continue directly into the terminal session without reconnecting.
+- **Admin -> Auto Feed** now supports arbitrary poster names instead of linked posting accounts, and each feed can target multiple echo areas. Existing feeds are migrated automatically from their old linked-user and single-area settings.
 - **Admin -> Auto Feed -> Check now** now runs through the admin daemon instead of spawning `rss_poster.php` directly from the web request. The manual check result is shown in the UI, and a Windows-specific daemon re-entry hang during feed posting has been fixed.
 
 ---
@@ -69,6 +70,23 @@ The manual check flow now:
 - avoids the Windows-specific re-entry deadlock during feed posting
 
 This is a behavior fix only. It does not add a schema change or require any extra upgrade step beyond the normal file update.
+
+### Auto Feed Poster Names and Multi-Area Posting
+
+**Admin -> Auto Feed** no longer stores a linked local user account as the visible author for generated posts. Each feed now stores a freeform **Poster Name** string instead.
+
+Existing feeds are migrated automatically:
+
+- the new `poster_name` field is populated from the currently linked account's real name or username
+- the old single `echoarea_id` value is moved into the new `auto_feed_source_echoareas` join table
+
+Each feed can now post to more than one echo area. The admin editor uses a searchable grouped checklist for selecting target areas, similar to the Interests editor, and the Auto Feed source list shows local areas as `@ Local`.
+
+The posting path also changed internally:
+
+- Auto Feed now fans each new source article out to every configured target area
+- the visible sender name comes from the feed's stored `poster_name`
+- the old linked posting-account field is no longer used by Auto Feed configuration
 
 ## Upgrade Instructions
 

@@ -1136,7 +1136,7 @@ You can trigger this script automatically whenever a matching ZIP arrives in a f
 
 ## Auto Feed Poster
 
-Checks active auto feed sources (RSS/Atom and Bluesky) and posts new items to their configured echo areas. See [Auto Feed](Autofeed.md) for full setup and configuration details.
+Checks active auto feed sources (RSS/Atom and Bluesky) and posts new items to their configured echo areas. A single feed can fan out to multiple areas, and each posted copy uses the feed's configured poster name. See [Auto Feed](Autofeed.md) for full setup and configuration details.
 
 Each posted item normally uses the article title as its subject. If a feed has **Include Feed Name in Subject** enabled in **Admin -> Auto Feed**, the script posts subjects in the form `[feed_name] article title` before applying the 72-character FTN subject limit.
 

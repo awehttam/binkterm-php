@@ -472,7 +472,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'Не удалось удалить пользовательский шаблон',
     'errors.admin.custom_templates.install_failed' => 'Не удалось установить пользовательский шаблон',
     'errors.admin.auto_feed.not_found' => 'Источник ленты не найден',
-    'errors.admin.auto_feed.required_fields' => 'URL ленты, эха и пользователь для публикаций обязательны',
+    'errors.admin.auto_feed.required_fields' => 'URL ленты, имя автора и как минимум одна эха обязательны',
     'errors.admin.auto_feed.invalid_url' => 'Недопустимый URL ленты',
     'errors.admin.auto_feed.echoarea_not_found' => 'Эха не найдена',
     'errors.admin.auto_feed.user_not_found' => 'Пользователь для публикаций не найден',

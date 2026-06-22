@@ -472,7 +472,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'No se pudo eliminar la plantilla personalizada',
     'errors.admin.custom_templates.install_failed' => 'No se pudo instalar la plantilla personalizada',
     'errors.admin.auto_feed.not_found' => 'Fuente de feed no encontrada',
-    'errors.admin.auto_feed.required_fields' => 'Se requieren URL del feed, area de eco y usuario de publicacion',
+    'errors.admin.auto_feed.required_fields' => 'Se requieren la URL del feed, el nombre del autor y al menos un area de eco',
     'errors.admin.auto_feed.invalid_url' => 'La URL del feed es invalida',
     'errors.admin.auto_feed.echoarea_not_found' => 'Area de eco no encontrada',
     'errors.admin.auto_feed.user_not_found' => 'Usuario de publicacion no encontrado',

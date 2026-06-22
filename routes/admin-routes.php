@@ -5611,14 +5611,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         header('Content-Type: application/json');
 
-        $stmt = $db->query("
-            SELECT f.*, u.username, e.tag as echoarea_tag, e.domain as echoarea_domain, e.is_local as echoarea_is_local
-            FROM auto_feed_sources f
-            LEFT JOIN users u ON u.id = f.post_as_user_id
-            LEFT JOIN echoareas e ON e.id = f.echoarea_id
-            ORDER BY f.id DESC
-        ");
+        $stmt = $db->query("SELECT * FROM auto_feed_sources ORDER BY id DESC");
         $feeds = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $feeds = array_map(static function (array $feed) use ($db): array {
+            return hydrateAutoFeed($db, $feed);
+        }, $feeds);
 
         echo json_encode(['feeds' => $feeds]);
     });
@@ -5630,12 +5627,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         header('Content-Type: application/json');
 
-        $stmt = $db->prepare("
-            SELECT f.*, u.username, u.real_name
-            FROM auto_feed_sources f
-            LEFT JOIN users u ON u.id = f.post_as_user_id
-            WHERE f.id = ?
-        ");
+        $stmt = $db->prepare("SELECT * FROM auto_feed_sources WHERE id = ?");
         $stmt->execute([$id]);
         $feed = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -5645,7 +5637,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             return;
         }
 
-        echo json_encode(['feed' => $feed]);
+        echo json_encode(['feed' => hydrateAutoFeed($db, $feed)]);
     });
 
     // Auto Feed API - Create feed
@@ -5659,9 +5651,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $sourceType = normalizeAutoFeedSourceType($input['source_type'] ?? null, $input['feed_url'] ?? '');
 
         // Validate required fields
-        if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
+        $echoareaIds = normalizeAutoFeedEchoareaIds($input['echoarea_ids'] ?? []);
+        $posterName = trim((string)($input['poster_name'] ?? ''));
+
+        if (empty($input['feed_url']) || $posterName === '' || empty($echoareaIds)) {
             http_response_code(400);
-            apiError('errors.admin.auto_feed.required_fields', apiLocalizedText('errors.admin.auto_feed.required_fields', 'Feed URL, echo area, and posting user are required'));
+            apiError('errors.admin.auto_feed.required_fields', apiLocalizedText('errors.admin.auto_feed.required_fields', 'Feed URL, poster name, and at least one echo area are required'));
             return;
         }
 
@@ -5672,40 +5667,28 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             return;
         }
 
-        // Validate echoarea exists
-        $stmt = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
-        $stmt->execute([$input['echoarea_id']]);
-        if (!$stmt->fetch()) {
+        if (!autoFeedEchoareasExist($db, $echoareaIds)) {
             http_response_code(400);
             apiError('errors.admin.auto_feed.echoarea_not_found', apiLocalizedText('errors.admin.auto_feed.echoarea_not_found', 'Echo area not found'));
             return;
         }
 
-        // Validate user exists
-        $stmt = $db->prepare("SELECT id FROM users WHERE id = ?");
-        $stmt->execute([$input['post_as_user_id']]);
-        if (!$stmt->fetch()) {
-            http_response_code(400);
-            apiError('errors.admin.auto_feed.user_not_found', apiLocalizedText('errors.admin.auto_feed.user_not_found', 'Posting user not found'));
-            return;
-        }
-
         try {
+            $db->beginTransaction();
             $stmt = $db->prepare("
                 INSERT INTO auto_feed_sources
-                (feed_url, feed_name, source_type, echoarea_id, post_as_user_id,
+                (feed_url, feed_name, source_type, poster_name,
                  max_articles_per_check, active, thread_replies, thread_lookup_limit,
                  include_feed_name_in_subject,
                  created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                 RETURNING id
             ");
             $stmt->execute([
                 $input['feed_url'],
                 $input['feed_name'] ?? null,
                 $sourceType,
-                $input['echoarea_id'],
-                $input['post_as_user_id'],
+                $posterName,
                 $input['max_articles_per_check'] ?? 10,
                 $input['active'] ?? true ? 'true' : 'false',
                 isset($input['thread_replies']) && $input['thread_replies'] ? 'true' : 'false',
@@ -5714,13 +5697,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             ]);
 
             $feedId = (int)$stmt->fetchColumn();
+            syncAutoFeedEchoareas($db, $feedId, $echoareaIds);
+            $db->commit();
 
             // Log action
             $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
             AdminActionLogger::logAction($userId, 'auto_feed_created', [
                 'feed_id' => $feedId,
                 'feed_url' => $input['feed_url'],
-                'echoarea_id' => $input['echoarea_id']
+                'echoarea_ids' => $echoareaIds
             ]);
 
             echo json_encode([
@@ -5729,6 +5714,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'message_code' => 'ui.admin.auto_feed.created_success'
             ]);
         } catch (PDOException $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             http_response_code(400);
             if (strpos($e->getMessage(), 'duplicate key') !== false) {
                 apiError('errors.admin.auto_feed.duplicate_source', apiLocalizedText('errors.admin.auto_feed.duplicate_source', 'Feed source already exists'));
@@ -5760,9 +5748,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         }
 
         // Validate required fields
-        if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
+        $echoareaIds = normalizeAutoFeedEchoareaIds($input['echoarea_ids'] ?? []);
+        $posterName = trim((string)($input['poster_name'] ?? ''));
+
+        if (empty($input['feed_url']) || $posterName === '' || empty($echoareaIds)) {
             http_response_code(400);
-            apiError('errors.admin.auto_feed.required_fields', apiLocalizedText('errors.admin.auto_feed.required_fields', 'Feed URL, echo area, and posting user are required'));
+            apiError('errors.admin.auto_feed.required_fields', apiLocalizedText('errors.admin.auto_feed.required_fields', 'Feed URL, poster name, and at least one echo area are required'));
             return;
         }
 
@@ -5772,30 +5763,20 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             return;
         }
 
-        $stmt = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
-        $stmt->execute([$input['echoarea_id']]);
-        if (!$stmt->fetch()) {
+        if (!autoFeedEchoareasExist($db, $echoareaIds)) {
             http_response_code(400);
             apiError('errors.admin.auto_feed.echoarea_not_found', apiLocalizedText('errors.admin.auto_feed.echoarea_not_found', 'Echo area not found'));
             return;
         }
 
-        $stmt = $db->prepare("SELECT id FROM users WHERE id = ?");
-        $stmt->execute([$input['post_as_user_id']]);
-        if (!$stmt->fetch()) {
-            http_response_code(400);
-            apiError('errors.admin.auto_feed.user_not_found', apiLocalizedText('errors.admin.auto_feed.user_not_found', 'Posting user not found'));
-            return;
-        }
-
         try {
+            $db->beginTransaction();
             $stmt = $db->prepare("
                 UPDATE auto_feed_sources
                 SET feed_url = ?,
                     feed_name = ?,
                     source_type = ?,
-                    echoarea_id = ?,
-                    post_as_user_id = ?,
+                    poster_name = ?,
                     max_articles_per_check = ?,
                     active = ?,
                     thread_replies = ?,
@@ -5808,8 +5789,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $input['feed_url'],
                 $input['feed_name'] ?? null,
                 $sourceType,
-                $input['echoarea_id'],
-                $input['post_as_user_id'],
+                $posterName,
                 $input['max_articles_per_check'] ?? 10,
                 isset($input['active']) && $input['active'] ? 'true' : 'false',
                 isset($input['thread_replies']) && $input['thread_replies'] ? 'true' : 'false',
@@ -5817,13 +5797,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 isset($input['include_feed_name_in_subject']) && $input['include_feed_name_in_subject'] ? 'true' : 'false',
                 $id
             ]);
+            syncAutoFeedEchoareas($db, (int)$id, $echoareaIds);
+            $db->commit();
 
             // Log action
             $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
             AdminActionLogger::logAction($userId, 'auto_feed_updated', [
                 'feed_id' => $id,
                 'feed_url' => $input['feed_url'],
-                'echoarea_id' => $input['echoarea_id']
+                'echoarea_ids' => $echoareaIds
             ]);
 
             echo json_encode([
@@ -5831,6 +5813,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'message_code' => 'ui.admin.auto_feed.updated_success'
             ]);
         } catch (PDOException $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             http_response_code(400);
             apiError('errors.admin.auto_feed.update_failed', apiLocalizedText('errors.admin.auto_feed.update_failed', 'Failed to update feed source'));
         }
@@ -5962,6 +5947,88 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         }
 
         return in_array($sourceType, ['rss', 'bluesky'], true) ? $sourceType : 'rss';
+    }
+
+    /**
+     * @param mixed $input
+     * @return int[]
+     */
+    function normalizeAutoFeedEchoareaIds($input): array {
+        $values = is_array($input) ? $input : [$input];
+        $ids = [];
+        foreach ($values as $value) {
+            $id = (int)$value;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+
+        return array_values($ids);
+    }
+
+    /**
+     * @param PDO $db
+     * @param int[] $echoareaIds
+     * @return bool
+     */
+    function autoFeedEchoareasExist(PDO $db, array $echoareaIds): bool {
+        if (empty($echoareaIds)) {
+            return false;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($echoareaIds), '?'));
+        $stmt = $db->prepare("SELECT COUNT(*) FROM echoareas WHERE id IN ({$placeholders})");
+        $stmt->execute($echoareaIds);
+
+        return (int)$stmt->fetchColumn() === count($echoareaIds);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    function fetchAutoFeedEchoareas(PDO $db, int $feedId): array {
+        $stmt = $db->prepare("
+            SELECT e.id, e.tag, e.domain, e.is_local
+            FROM auto_feed_source_echoareas afe
+            JOIN echoareas e ON e.id = afe.echoarea_id
+            WHERE afe.auto_feed_source_id = ?
+            ORDER BY LOWER(e.tag), LOWER(COALESCE(e.domain, ''))
+        ");
+        $stmt->execute([$feedId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    function hydrateAutoFeed(PDO $db, array $feed): array {
+        $echoareas = fetchAutoFeedEchoareas($db, (int)$feed['id']);
+        $feed['echoareas'] = $echoareas;
+        $feed['echoarea_ids'] = array_map(static function (array $echoarea): int {
+            return (int)$echoarea['id'];
+        }, $echoareas);
+        return $feed;
+    }
+
+    /**
+     * @param PDO $db
+     * @param int $feedId
+     * @param int[] $echoareaIds
+     * @return void
+     */
+    function syncAutoFeedEchoareas(PDO $db, int $feedId, array $echoareaIds): void {
+        $deleteStmt = $db->prepare("DELETE FROM auto_feed_source_echoareas WHERE auto_feed_source_id = ?");
+        $deleteStmt->execute([$feedId]);
+
+        if (empty($echoareaIds)) {
+            return;
+        }
+
+        $insertStmt = $db->prepare("
+            INSERT INTO auto_feed_source_echoareas (auto_feed_source_id, echoarea_id, created_at)
+            VALUES (?, ?, NOW())
+        ");
+
+        foreach ($echoareaIds as $echoareaId) {
+            $insertStmt->execute([$feedId, $echoareaId]);
+        }
     }
 
     // Ad analytics API (license required)

@@ -476,7 +476,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'Failed to delete custom template',
     'errors.admin.custom_templates.install_failed' => 'Failed to install custom template',
     'errors.admin.auto_feed.not_found' => 'Feed source not found',
-    'errors.admin.auto_feed.required_fields' => 'Feed URL, echo area, and posting user are required',
+    'errors.admin.auto_feed.required_fields' => 'Feed URL, poster name, and at least one echo area are required',
     'errors.admin.auto_feed.invalid_url' => 'Feed URL is invalid',
     'errors.admin.auto_feed.echoarea_not_found' => 'Echo area not found',
     'errors.admin.auto_feed.user_not_found' => 'Posting user not found',

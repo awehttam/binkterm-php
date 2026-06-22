@@ -1783,8 +1783,9 @@ class MessageHandler
 
     /**
      * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
+     * @param string|null $fromNameOverride Override the visible sender name stored in echomail and used in generated kludges
      */
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '', $tearlineComponent = null, $charset = null, $pgpMode = null)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null, $prependKludges = '', $tearlineComponent = null, $charset = null, $pgpMode = null, $fromNameOverride = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1820,7 +1821,9 @@ class MessageHandler
         }
 
         // Generate kludges for this echomail
-        $fromName = $this->resolveEchomailPostingName($user, $echoarea, (string)$domain);
+        $fromName = $fromNameOverride !== null && trim((string)$fromNameOverride) !== ''
+            ? trim((string)$fromNameOverride)
+            : $this->resolveEchomailPostingName($user, $echoarea, (string)$domain);
         $toName = $toName ?: 'All';
         $markupAllowed = null;
         try {

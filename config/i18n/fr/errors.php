@@ -349,7 +349,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'Échec de la suppression du modèle personnalisé',
     'errors.admin.custom_templates.install_failed' => 'Échec de l\'installation du modèle personnalisé',
     'errors.admin.auto_feed.not_found' => 'Source de flux introuvable',
-    'errors.admin.auto_feed.required_fields' => 'L\'URL du flux, la zone d\'écho et l\'utilisateur publiant sont requis',
+    'errors.admin.auto_feed.required_fields' => 'L\'URL du flux, le nom de l\'auteur et au moins une zone d\'écho sont requis',
     'errors.admin.auto_feed.invalid_url' => 'L\'URL du flux est invalide',
     'errors.admin.auto_feed.echoarea_not_found' => 'Zone d\'écho introuvable',
     'errors.admin.auto_feed.user_not_found' => 'Utilisateur publiant introuvable',

@@ -472,7 +472,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'Impossibile eliminare il template personalizzato',
     'errors.admin.custom_templates.install_failed' => 'Impossibile installare il template personalizzato',
     'errors.admin.auto_feed.not_found' => 'Origine feed non trovata',
-    'errors.admin.auto_feed.required_fields' => 'URL feed, area echo e utente autore sono obbligatori',
+    'errors.admin.auto_feed.required_fields' => 'Sono obbligatori URL del feed, nome autore e almeno un\'area echo',
     'errors.admin.auto_feed.invalid_url' => 'URL feed non valido',
     'errors.admin.auto_feed.echoarea_not_found' => 'Area echo non trovata',
     'errors.admin.auto_feed.user_not_found' => 'Utente autore non trovato',
