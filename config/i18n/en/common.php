@@ -2445,6 +2445,7 @@ return [
     'ui.admin.auto_feed.never' => 'Never',
     'ui.admin.auto_feed.unnamed_feed' => 'Unnamed Feed',
     'ui.admin.auto_feed.unknown' => 'Unknown',
+    'ui.admin.auto_feed.local_domain_label' => 'Local',
     'ui.admin.auto_feed.check_now' => 'Check now',
     'ui.admin.auto_feed.checking_feed' => 'Checking feed...',
     'ui.admin.auto_feed.no_check_output' => 'No output was returned.',

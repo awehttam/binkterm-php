@@ -2426,6 +2426,7 @@ return [
     'ui.admin.auto_feed.never' => 'Nunca',
     'ui.admin.auto_feed.unnamed_feed' => 'Feed sin nombre',
     'ui.admin.auto_feed.unknown' => 'Desconocido',
+    'ui.admin.auto_feed.local_domain_label' => 'Local',
     'ui.admin.auto_feed.check_now' => 'Verificar ahora',
     'ui.admin.auto_feed.checking_feed' => 'Verificando feed...',
     'ui.admin.auto_feed.check_output_title' => 'Salida de comprobacion',

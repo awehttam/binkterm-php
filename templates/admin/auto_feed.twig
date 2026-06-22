@@ -327,6 +327,9 @@ function displayFeeds(feeds) {
             const feedName = escapeHtml(feed.feed_name || uiT('ui.admin.auto_feed.unnamed_feed', 'Unnamed Feed'));
             const feedUrl = escapeHtml(feed.feed_url);
             const truncatedUrl = feedUrl.length > 50 ? feedUrl.substring(0, 47) + '...' : feedUrl;
+            const echoareaDomainLabel = feed.echoarea_is_local
+                ? uiT('ui.admin.auto_feed.local_domain_label', 'Local')
+                : (feed.echoarea_domain || uiT('ui.admin.auto_feed.unknown', 'Unknown'));
 
             html += `
                 <tr class="${rowClass}">
@@ -341,7 +344,7 @@ function displayFeeds(feeds) {
                     </td>
                     <td>
                         <span class="font-monospace">${escapeHtml(feed.echoarea_tag || uiT('ui.admin.auto_feed.unknown', 'Unknown'))}</span><br>
-                        <small class="text-muted">@ ${escapeHtml(feed.echoarea_domain || uiT('ui.admin.auto_feed.unknown', 'Unknown'))}</small>
+                        <small class="text-muted">@ ${escapeHtml(echoareaDomainLabel)}</small>
                     </td>
                     <td>
                         <small>${escapeHtml(feed.username || (uiT('ui.admin.auto_feed.user_prefix', 'User #') + feed.post_as_user_id))}</small>

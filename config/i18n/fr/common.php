@@ -1990,6 +1990,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.auto_feed.never' => 'Jamais',
     'ui.admin.auto_feed.unnamed_feed' => 'Flux sans nom',
     'ui.admin.auto_feed.unknown' => 'Inconnu',
+    'ui.admin.auto_feed.local_domain_label' => 'Local',
     'ui.admin.auto_feed.check_now' => 'Vérifier maintenant',
     'ui.admin.auto_feed.checking_feed' => 'Vérification du flux...',
     'ui.admin.auto_feed.no_check_output' => 'Aucune sortie n\'a ete renvoyee.',

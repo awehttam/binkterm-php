@@ -5612,7 +5612,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         header('Content-Type: application/json');
 
         $stmt = $db->query("
-            SELECT f.*, u.username, e.tag as echoarea_tag, e.domain as echoarea_domain
+            SELECT f.*, u.username, e.tag as echoarea_tag, e.domain as echoarea_domain, e.is_local as echoarea_is_local
             FROM auto_feed_sources f
             LEFT JOIN users u ON u.id = f.post_as_user_id
             LEFT JOIN echoareas e ON e.id = f.echoarea_id

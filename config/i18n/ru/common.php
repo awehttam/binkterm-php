@@ -2460,6 +2460,7 @@ return [
     'ui.admin.auto_feed.never' => 'Никогда',
     'ui.admin.auto_feed.unnamed_feed' => 'Лента без названия',
     'ui.admin.auto_feed.unknown' => 'Неизвестно',
+    'ui.admin.auto_feed.local_domain_label' => 'Локальная',
     'ui.admin.auto_feed.check_now' => 'Проверить сейчас',
     'ui.admin.auto_feed.checking_feed' => 'Проверка ленты…',
     'ui.admin.auto_feed.no_check_output' => 'Вывод не был возвращен.',
