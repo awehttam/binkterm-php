@@ -516,6 +516,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $requiresApproval = \BinktermPHP\BbsConfig::shouldRequireRegistrationApproval();
             $handler = new MessageHandler();
 
+            $newUserId = 0;
             if ($requiresApproval) {
                 // Send notification to sysop
                 try {
@@ -525,7 +526,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     getServerLogger()->error("Failed to send registration notification: " . $e->getMessage());
                 }
             } else {
-                $handler->approveUserRegistration($pendingUserId, 0, 'Auto-approved by registration setting');
+                $newUserId = (int)$handler->approveUserRegistration($pendingUserId, 0, 'Auto-approved by registration setting');
             }
 
             // Mark registration attempt as successful
@@ -546,13 +547,41 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 getServerLogger()->error("Failed to update registration attempt: " . $e->getMessage());
             }
 
-            echo json_encode([
+            $response = [
                 'success' => true,
                 'auto_approved' => !$requiresApproval,
                 'message_code' => $requiresApproval
                     ? 'ui.register.submitted_success'
                     : 'ui.register.auto_approved_success'
-            ]);
+            ];
+
+            if (!$requiresApproval && $newUserId > 0) {
+                $service = $isTerminalRegistration ? $registrationSource : 'web';
+                $auth = new Auth();
+                $session = $auth->createAuthenticatedSession($newUserId, $service);
+                $sessionId = $session['session_id'];
+
+                setcookie('binktermphp_session', $sessionId, [
+                    'expires'  => time() + 86400 * 30,
+                    'path'     => '/',
+                    'httponly' => true,
+                    'samesite' => 'Lax',
+                ]);
+
+                if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
+                    $_SESSION['show_login_bulletins_for_session'] = $sessionId;
+                }
+
+                try {
+                    ActivityTracker::track($newUserId, ActivityTracker::TYPE_LOGIN);
+                } catch (\Throwable $e) {
+                    // Tracking errors must not break registration
+                }
+
+                $response['csrf_token'] = $session['csrf_token'];
+            }
+
+            echo json_encode($response);
 
         } catch (Exception $e) {
             getServerLogger()->error("Registration error: " . $e->getMessage());

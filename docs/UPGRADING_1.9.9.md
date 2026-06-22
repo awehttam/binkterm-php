@@ -15,6 +15,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Core Platform
 
 - **Admin -> Users** now includes an **Approved Registration History** lookup inside the registrations panel. Pending registrations and retained approved-registration history now share one tabbed panel, making it easier to review current signup requests and look up previously approved accounts without taking extra vertical space on the page.
+- When **Require approval for new users** is disabled, successful self-registrations now create an authenticated session immediately. Web users are signed in right away, and Telnet/SSH users continue directly into the terminal session without reconnecting.
 
 ---
 
@@ -41,6 +42,15 @@ When you open a registration record, the detail view now also shows review metad
 - admin notes
 
 This change builds on the retained registration-history behavior introduced in the 1.9.x series. It does not add a schema change or require any extra upgrade step beyond the normal file update.
+
+### Automatic Login After Auto-Approved Registration
+
+If **Admin -> BBS Settings -> Features -> Require approval for new users** is disabled, successful self-registration now logs the new account in immediately instead of leaving the user at a manual login step.
+
+- On the web interface, the registration flow now creates the normal authenticated session and redirects the new user into the site.
+- On the terminal services, the Telnet/SSH registration flow now continues directly into the authenticated BBS session instead of disconnecting after registration.
+
+This is a behavior change only. It does not add a schema change or require any extra upgrade step beyond the normal file update.
 
 ## Upgrade Instructions
 

@@ -6965,7 +6965,7 @@ System-wide referral statistics
 
 Public
 
-Creates a new user account with built-in anti-spam validation (honeypot, timing checks). Supports both JSON and form-encoded requests. Terminal clients (telnet/SSH) can bypass browser-only anti-spam checks by providing a valid X-Binkterm-Registration-Token header. Accepts optional X-Binkterm-Registration-Source and X-Binkterm-Client-IP headers for terminal registrations.
+Creates a new user account with built-in anti-spam validation (honeypot, timing checks). Supports both JSON and form-encoded requests. Terminal clients (telnet/SSH) can bypass browser-only anti-spam checks by providing a valid `X-Binkterm-Registration-Token` header. Accepts optional `X-Binkterm-Registration-Source` and `X-Binkterm-Client-IP` headers for terminal registrations. When registration approval is disabled and the account is auto-approved immediately, this endpoint also creates an authenticated session, returns a CSRF token, and sets the `binktermphp_session` cookie just like a normal login.
 
 **Request Body** _(JSON)_
 
@@ -6980,12 +6980,14 @@ User registration data (JSON or form-encoded)
 
 **Response** _(JSON)_
 
-Registration result with success status and optional email confirmation details
+Registration result with success status and optional auto-login details
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether registration succeeded |
+| `auto_approved` | boolean | Whether the account was activated immediately |
 | `message_code` | string | Localization key for success message |
+| `csrf_token` | string|null | Present when `auto_approved` is `true`; CSRF token for the new authenticated session |
 
 **Error Responses**
 

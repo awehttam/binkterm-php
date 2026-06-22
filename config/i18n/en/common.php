@@ -2588,7 +2588,7 @@ return [
     'ui.register.approval_required' => 'Registration requires approval.',
     'ui.register.approval_required_help' => 'Your account will be reviewed by an administrator before activation.',
     'ui.register.auto_approval_enabled_help' => 'New accounts are activated immediately after registration.',
-    'ui.register.auto_approval_login_note' => 'After submitting, use the login link below to sign in with your new account.',
+    'ui.register.auto_approval_login_note' => 'After submitting, your new account will be signed in automatically.',
     'ui.register.subject_to_rules' => 'All accounts are subject to',
     'ui.register.email_notification_note' => 'You will receive an email when your account is approved. Reminder emails may also be sent. Please check your junk/spam folder if you don\'t see it.',
     'ui.register.honeypot_website_leave_blank' => 'Website (leave blank)',
@@ -2616,7 +2616,7 @@ return [
     'ui.register.passwords_do_not_match' => 'Passwords do not match.',
     'ui.register.submitting' => 'Submitting...',
     'ui.register.submitted_success' => 'Registration submitted successfully! You will be notified when your account is approved.',
-    'ui.register.auto_approved_success' => 'Registration completed successfully! You can now log in.',
+    'ui.register.auto_approved_success' => 'Registration completed successfully! You are now logged in.',
     'ui.register.go_to_login' => 'Go to Login',
 
     // Forgot Password Page
