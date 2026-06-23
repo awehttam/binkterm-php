@@ -19,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Admin -> Auto Feed** now supports arbitrary poster names instead of linked posting accounts, and each feed can target multiple echo areas. Existing feeds are migrated automatically from their old linked-user and single-area settings.
 - **Admin -> Auto Feed -> Check now** now runs through the admin daemon instead of spawning `rss_poster.php` directly from the web request. The manual check result is shown in the UI, and a Windows-specific daemon re-entry hang during feed posting has been fixed.
 - All four door admin pages (DOS Doors, Native Doors, JS-DOS Doors, WebDoors) now include a **Door Manifest Editor** — a form-based UI for creating and editing door manifests without touching JSON files directly. An **Add New Door** panel lists door directories that do not yet have a manifest so new games can be set up from the admin interface. An **Auto fill with AI** button reads the door's README and NFO files and populates game metadata automatically when an AI provider is configured.
+- Echomail area links that use `?echoarea=AREA&domain=DOMAIN` now preserve the selected area correctly instead of internally resolving to `AREA@DOMAIN@DOMAIN`.
 
 ---
 
@@ -106,6 +107,13 @@ The manifest editor provides labelled form fields for every supported manifest f
 When an AI provider is configured, an **Auto fill with AI** button appears alongside the Save button. Clicking it instructs the admin daemon to read the door's text files (README, NFO, install docs, and similar) and send their content to the configured AI provider. The AI extracts game metadata — name, short name, description, author, version, release year, and genre — and pre-populates the matching form fields. The sysop reviews and adjusts the results before saving.
 
 The AI fill feature requires at least one AI provider to be configured via environment variables (`AI_DOOR_MANIFEST_AI_FILL_PROVIDER` / `AI_DOOR_MANIFEST_AI_FILL_MODEL`, or the system default provider). If no provider is available the button returns a service-unavailable error.
+### Echomail Query Link Area Selection
+
+Echomail URLs that specify an area with query parameters now initialize the selected area consistently with path-style area URLs.
+
+Previously, a URL such as `/echomail?echoarea=AREA&domain=DOMAIN` could be normalized as `AREA@DOMAIN` by the route and then have `@DOMAIN` appended again by the page template. The browser URL remained unchanged, but the in-page selected area became `AREA@DOMAIN@DOMAIN`, which did not match any echo area and could leave the page showing the all-areas view.
+
+The query form now keeps the area tag and domain separate for template initialization, matching `/echomail/AREA@DOMAIN` behavior.
 
 ## Upgrade Instructions
 

@@ -574,13 +574,11 @@ SimpleRouter::get('/echomail', function() {
 
     $echoarea = null;
     if ($echoareaParam) {
-        // Combine echoarea with domain if both provided
-        if ($domainParam) {
-            $echoarea = $echoareaParam . '@' . $domainParam;
-        } else {
-            $echoarea = $echoareaParam;
-            if (strpos($echoarea, '@') !== false) {
-                [$echoareaParam, $domainParam] = explode('@', $echoarea, 2);
+        $echoarea = $echoareaParam;
+        if (strpos($echoarea, '@') !== false) {
+            [$echoarea, $embeddedDomain] = explode('@', $echoarea, 2);
+            if (!$domainParam) {
+                $domainParam = $embeddedDomain;
             }
         }
     }
