@@ -410,6 +410,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'Impossibile salvare la configurazione doors JS-DOS',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Impossibile attivare la configurazione doors JS-DOS',
 
+    // Errori editor di manifesto per porte
+    'errors.admin.door_manifest.list_failed' => 'Impossibile elencare i target del manifesto porta',
+    'errors.admin.door_manifest.get_failed' => 'Impossibile recuperare il manifesto porta',
+    'errors.admin.door_manifest.save_failed' => 'Impossibile salvare il manifesto porta',
+    'errors.admin.door_manifest.files_failed' => 'Impossibile elencare i file della porta',
+    'errors.admin.door_manifest.missing_manifest' => 'I dati del manifesto sono assenti o non validi',
+    'errors.admin.door_manifest.ai_fill_failed' => 'Compilazione automatica con AI non riuscita',
+    'errors.admin.door_manifest.ai_no_provider' => 'Nessun provider AI configurato',
+    'errors.admin.door_manifest.ai_no_files' => 'Nessun file leggibile trovato nella directory della porta',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Gioco non trovato',
     'errors.jsdosdoor.session_create_failed' => 'Impossibile creare la sessione di gioco',

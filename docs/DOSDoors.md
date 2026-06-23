@@ -434,12 +434,21 @@ private const MAX_SESSIONS = 100;    // Maximum concurrent sessions
 
 ### Step 3: Create Door Manifest
 
-Create `dosbox-bridge/dos/DOORS/YOURDOOR/dosdoor.jsn`:
+The easiest way to create a manifest is through the admin interface:
+
+1. Go to **Admin → DOS Doors**.
+2. In the **Add New Door** panel, find your door directory and click **Create Manifest**.
+3. Fill in the form fields. Click **Auto fill with AI** to have BinktermPHP read the door's README/NFO files and pre-populate name, description, author, version, and genre automatically.
+4. Set the **Executable** field to the `.EXE`, `.BAT`, or `.COM` file that launches the door.
+5. Click **Create Manifest** to save.
+
+The manifest is saved as `dosbox-bridge/dos/DOORS/YOURDOOR/dosdoor.jsn`. For reference, a typical manifest looks like:
 
 ```json
 {
     "version": "1.0",
     "type": "dosdoor",
+    "managed": "web",
     "game": {
         "name": "Your Door Game",
         "short_name": "YDG",
@@ -456,7 +465,6 @@ Create `dosbox-bridge/dos/DOORS/YOURDOOR/dosdoor.jsn`:
         "type": "dos",
         "executable": "START.BAT",
         "launch_command": "call start.bat {node}",
-        "directory": "dosbox-bridge/dos/DOORS/YOURDOOR",
         "dropfile_format": "DOOR.SYS",
         "max_nodes": 10,
         "fossil_required": true
@@ -469,40 +477,20 @@ Create `dosbox-bridge/dos/DOORS/YOURDOOR/dosdoor.jsn`:
 }
 ```
 
-**Manifest Field Reference:**
-- `id`: Unique identifier (must match directory name)
-- `name`: Display name shown to users
-- `executable`: Main executable or batch file
-- `launch_command`: Full command with {node} and {dropfile} macros
-- `drop_file_format`: Currently only "DOOR.SYS" is supported
-- `max_nodes`: Maximum concurrent players (1-100)
-- `require_ansi`: Whether door requires ANSI support
+**Key manifest fields:**
+- `executable`: Main executable or batch file (required)
+- `launch_command`: Full command with `{node}` and `{dropfile}` macros
+- `dropfile_format`: Currently only `DOOR.SYS` is supported
+- `max_nodes`: Maximum concurrent players (1–100)
+- `ansi_required`: Whether door requires ANSI support
 - `fossil_required`: Load FOSSIL driver (default: `true`). Set to `false` for doors with internal comm routines (faster)
+- `managed`: Set to `"web"` by the manifest editor. Manifests without this field (or with another value) are treated as read-only in the admin UI.
 
 ### Step 4: Enable the Door
 
-1. **Scan for new doors:**
-   The system automatically scans `dosbox-bridge/dos/DOORS/` for `dosdoor.jsn` files
-
-2. **Enable via admin panel:**
-   - Login as admin
-   - Navigate to Games → DOS Doors
-   - Find your door in the list
-   - Click "Enable"
-   - Adjust settings if needed
-
-3. **Or enable manually:**
-
-   Edit `config/dosdoors.json`:
-   ```json
-   {
-       "yourdoor": {
-           "enabled": true,
-           "name": "Your Door Game",
-           "max_nodes": 10
-       }
-   }
-   ```
+1. Go to **Admin → DOS Doors**.
+2. Find your door in the list and toggle it on.
+3. Click **Save Configuration**.
 
 ### Step 5: Test the Door
 

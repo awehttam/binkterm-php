@@ -188,6 +188,48 @@ class AdminDaemonClient
         return $this->sendCommand('save_native_doors_config', ['json' => $json]);
     }
 
+    public function listDoorManifestTargets(string $doorType): array
+    {
+        return $this->sendCommand('list_door_manifest_targets', ['door_type' => $doorType]);
+    }
+
+    public function getDoorManifest(string $doorType, string $doorId): array
+    {
+        return $this->sendCommand('get_door_manifest', ['door_type' => $doorType, 'door_id' => $doorId]);
+    }
+
+    public function saveDoorManifest(string $doorType, string $doorId, array $manifest): array
+    {
+        return $this->sendCommand('save_door_manifest', [
+            'door_type' => $doorType,
+            'door_id'   => $doorId,
+            'manifest'  => $manifest,
+        ]);
+    }
+
+    public function listDoorManifestFiles(string $doorType, string $doorId, string $subdir = '', string $profile = ''): array
+    {
+        return $this->sendCommand('list_door_manifest_files', [
+            'door_type' => $doorType,
+            'door_id'   => $doorId,
+            'subdir'    => $subdir,
+            'profile'   => $profile,
+        ]);
+    }
+
+    /**
+     * Read readable text files from a door directory for AI metadata extraction.
+     *
+     * @return array{files:list<array{name:string,content:string}>,total_bytes:int}
+     */
+    public function readDoorTextFiles(string $doorType, string $doorId): array
+    {
+        return $this->sendCommand('read_door_text_files', [
+            'door_type' => $doorType,
+            'door_id'   => $doorId,
+        ]);
+    }
+
     public function getFileAreaRulesConfig(): array
     {
         return $this->sendCommand('get_filearea_rules');
