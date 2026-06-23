@@ -18,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - When **Require approval for new users** is disabled, successful self-registrations now create an authenticated session immediately. Web users are signed in right away, and Telnet/SSH users continue directly into the terminal session without reconnecting.
 - **Admin -> Auto Feed** now supports arbitrary poster names instead of linked posting accounts, and each feed can target multiple echo areas. Existing feeds are migrated automatically from their old linked-user and single-area settings.
 - **Admin -> Auto Feed -> Check now** now runs through the admin daemon instead of spawning `rss_poster.php` directly from the web request. The manual check result is shown in the UI, and a Windows-specific daemon re-entry hang during feed posting has been fixed.
+- Echomail area links that use `?echoarea=AREA&domain=DOMAIN` now preserve the selected area correctly instead of internally resolving to `AREA@DOMAIN@DOMAIN`.
 
 ---
 
@@ -87,6 +88,14 @@ The posting path also changed internally:
 - Auto Feed now fans each new source article out to every configured target area
 - the visible sender name comes from the feed's stored `poster_name`
 - the old linked posting-account field is no longer used by Auto Feed configuration
+
+### Echomail Query Link Area Selection
+
+Echomail URLs that specify an area with query parameters now initialize the selected area consistently with path-style area URLs.
+
+Previously, a URL such as `/echomail?echoarea=AREA&domain=DOMAIN` could be normalized as `AREA@DOMAIN` by the route and then have `@DOMAIN` appended again by the page template. The browser URL remained unchanged, but the in-page selected area became `AREA@DOMAIN@DOMAIN`, which did not match any echo area and could leave the page showing the all-areas view.
+
+The query form now keeps the area tag and domain separate for template initialization, matching `/echomail/AREA@DOMAIN` behavior.
 
 ## Upgrade Instructions
 
