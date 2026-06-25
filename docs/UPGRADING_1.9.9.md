@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [Core Platform](#core-platform)
 - [Auto Feed Full Article Content](#auto-feed-full-article-content)
+- [Re-post Attribution Header](#re-post-attribution-header)
 - [Security](#security)
 - [Messaging Menu Unread Counts](#messaging-menu-unread-counts)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -27,6 +28,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Auto Feed Full Article Content
 
 - The Auto Feed RSS poster now reads the full article body from feeds that provide it. For RSS 2.0 and RSS 1.0 feeds, `<content:encoded>` (the Content Module field used by WordPress, Ghost, Substack, and most modern CMS platforms) is preferred over `<description>`, which typically contains only an excerpt. For Atom feeds, `<content>` is now correctly preferred over `<summary>` (these were previously swapped). Bodies longer than 16 000 characters are truncated to fit within practical FTN message size limits.
+
+### Re-post Attribution Header
+
+- When reposting a message, the compose editor now opens with a standardised attribution block prepended to the body, identifying the original area, sender, subject, and date. See the full section below for the header format.
 
 ### Messaging Menu Unread Counts
 
@@ -137,6 +142,25 @@ The **Messaging** nav menu now displays unread message counts alongside each ent
 Counts appear in parentheses next to the label (e.g. `Messaging (41)`, `Netmail (36)`, `Echomail (5)`) and update in real time via BinkStream without requiring a page refresh. A count clears automatically when you navigate to the corresponding section.
 
 ## Security
+
+## Re-post Attribution Header
+
+When a message is reposted to another area or forwarded to netmail, the compose editor now opens with an attribution block at the top of the body:
+
+```
+--- Re-posted from: AREANAME@domain
+From: SenderName@1:234/56
+Subject: Original Subject
+Date: June 25, 2026
+---
+```
+
+- **Re-posted from** — the echomail area tag and domain the original message came from, or `Netmail` when reposting a netmail message.
+- **From** — the original sender's name and FTN node address. If no node address is recorded the name alone is shown.
+- **Subject** — the original subject line, unchanged.
+- **Date** — the date the original message was written.
+
+The original message body follows the header block. Recipients can immediately see the provenance of the reposted content without consulting kludge lines.
 
 ## Auto Feed Full Article Content
 
