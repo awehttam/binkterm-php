@@ -58,6 +58,11 @@
         .admin-menu-link.unread {
             color: #ffc107 !important;
         }
+        .msg-count {
+            font-size: 0.8em;
+            opacity: 0.75;
+            margin-left: 0.2em;
+        }
 
         /* Nested dropdown submenu styles */
         .dropdown-submenu {
@@ -180,17 +185,17 @@
                     {% if current_user %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-envelope-open-text messaging-menu-icon" id="messagingMenuIcon"></i> {{ t('ui.base.messaging', {}, 'common') }}
+                                <i class="fas fa-envelope-open-text messaging-menu-icon" id="messagingMenuIcon"></i> {{ t('ui.base.messaging', {}, 'common') }}<span class="msg-count" id="messagingMenuBadge"></span>
                             </a>
                             <ul class="dropdown-menu">
                                 <li>
                                     <a class="dropdown-item" href="/netmail">
-                                        <i class="fas fa-envelope mail-menu-icon" id="netmailMenuIcon"></i> {{ t('ui.base.netmail', {}, 'common') }}
+                                        <i class="fas fa-envelope mail-menu-icon" id="netmailMenuIcon"></i> {{ t('ui.base.netmail', {}, 'common') }}<span class="msg-count" id="netmailMenuBadge"></span>
                                     </a>
                                 </li>
                                 <li>
                                     <a class="dropdown-item" href="{{ default_echo_list == 'echolist' ? '/echolist' : '/echomail' }}">
-                                        <i class="fas fa-comments mail-menu-icon" id="echomailMenuIcon"></i> {{ t('ui.base.echomail', {}, 'common') }}
+                                        <i class="fas fa-comments mail-menu-icon" id="echomailMenuIcon"></i> {{ t('ui.base.echomail', {}, 'common') }}<span class="msg-count" id="echomailMenuBadge"></span>
                                     </a>
                                 </li>
                                 <li>

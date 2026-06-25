@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [Core Platform](#core-platform)
 - [Security](#security)
+- [Messaging Menu Unread Counts](#messaging-menu-unread-counts)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -21,6 +22,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Admin -> Auto Feed -> Check now** now runs through the admin daemon instead of spawning `rss_poster.php` directly from the web request. The manual check result is shown in the UI, and a Windows-specific daemon re-entry hang during feed posting has been fixed.
 - Echomail area links that use `?echoarea=AREA&domain=DOMAIN` now preserve the selected area correctly instead of internally resolving to `AREA@DOMAIN@DOMAIN`.
 - The archive entry preview endpoint now rejects absolute paths in addition to `..` traversal sequences, closing a gap where a specially crafted archive with absolute-path entries could cause the extraction tool to write outside the designated temp directory.
+
+### Messaging Menu Unread Counts
+
+- The **Messaging** nav menu now shows unread message counts next to each item. The parent entry shows the combined total; **Netmail** shows the number of unread messages in your inbox; **Echomail** shows new messages using the same badge mode configured on your dashboard (new since last visit, or true unread). Counts clear automatically when you navigate to the relevant section.
 
 ### Security
 
@@ -113,6 +118,18 @@ Echomail URLs that specify an area with query parameters now initialize the sele
 Previously, a URL such as `/echomail?echoarea=AREA&domain=DOMAIN` could be normalized as `AREA@DOMAIN` by the route and then have `@DOMAIN` appended again by the page template. The browser URL remained unchanged, but the in-page selected area became `AREA@DOMAIN@DOMAIN`, which did not match any echo area and could leave the page showing the all-areas view.
 
 The query form now keeps the area tag and domain separate for template initialization, matching `/echomail/AREA@DOMAIN` behavior.
+
+## Security
+
+## Messaging Menu Unread Counts
+
+The **Messaging** nav menu now displays unread message counts alongside each entry.
+
+- The **Messaging** parent item shows the combined total of unread netmail and new echomail.
+- The **Netmail** sub-item shows the number of messages in your inbox that you have not yet read.
+- The **Echomail** sub-item shows new messages using the same badge mode you have selected on your dashboard — either messages that arrived since your last visit to the echomail section, or a true unread count across your subscribed areas (configurable in dashboard settings).
+
+Counts appear in parentheses next to the label (e.g. `Messaging (41)`, `Netmail (36)`, `Echomail (5)`) and update in real time via BinkStream without requiring a page refresh. A count clears automatically when you navigate to the corresponding section.
 
 ## Security
 
