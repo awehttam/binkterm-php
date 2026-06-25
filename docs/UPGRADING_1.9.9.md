@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Core Platform](#core-platform)
+- [Security](#security)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -20,6 +21,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Admin -> Auto Feed -> Check now** now runs through the admin daemon instead of spawning `rss_poster.php` directly from the web request. The manual check result is shown in the UI, and a Windows-specific daemon re-entry hang during feed posting has been fixed.
 - Echomail area links that use `?echoarea=AREA&domain=DOMAIN` now preserve the selected area correctly instead of internally resolving to `AREA@DOMAIN@DOMAIN`.
 - The archive entry preview endpoint now rejects absolute paths in addition to `..` traversal sequences, closing a gap where a specially crafted archive with absolute-path entries could cause the extraction tool to write outside the designated temp directory.
+
+### Security
+
+- **PacketBBS bridge session binding**: Each radio-node PacketBBS session is now bound to the bridge that created it. A registered bridge can no longer submit commands or poll pending messages on behalf of a session established through a different bridge. A database migration adds the binding column to `packet_bbs_sessions`.
 
 ---
 
@@ -108,6 +113,18 @@ Echomail URLs that specify an area with query parameters now initialize the sele
 Previously, a URL such as `/echomail?echoarea=AREA&domain=DOMAIN` could be normalized as `AREA@DOMAIN` by the route and then have `@DOMAIN` appended again by the page template. The browser URL remained unchanged, but the in-page selected area became `AREA@DOMAIN@DOMAIN`, which did not match any echo area and could leave the page showing the all-areas view.
 
 The query form now keeps the area tag and domain separate for template initialization, matching `/echomail/AREA@DOMAIN` behavior.
+
+## Security
+
+### PacketBBS Bridge Session Binding
+
+The PacketBBS API now enforces that a radio-node session can only be accessed by the bridge that originally established it.
+
+Previously, the `/api/packetbbs/command` and `/api/packetbbs/pending` endpoints authenticated the request using the `bridge_node_id` field but loaded session state using the separately supplied `node_id`. Because these two values were not tied together, any registered bridge with a valid API key could supply a different `node_id` in the request body to access another node's active authenticated session — reading that user's netmail, posting echomail as that user, or intercepting queued outbound mail notifications.
+
+Each `packet_bbs_sessions` row now stores the `bridge_node_id` that first created it. Subsequent requests for that node must present the same bridge identity. Requests from a different bridge are rejected with an error before any session state is read or modified. Sessions created before this upgrade have a null bridge binding and will accept the first bridge that contacts them, after which the binding is fixed.
+
+A database migration adds the `bridge_node_id` column to `packet_bbs_sessions` and is applied automatically by `php scripts/setup.php`.
 
 ## Upgrade Instructions
 

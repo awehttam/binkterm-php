@@ -47,18 +47,32 @@ class PacketBbsSession
     /**
      * Get an existing session or create a fresh one for the node.
      *
-     * @return array<string,mixed>
+     * When $bridgeNodeId is provided it is written on creation. If the session
+     * already exists and belongs to a different bridge, this method returns
+     * null so the caller can reject the request.
+     *
+     * @return array<string,mixed>|null  null when the bridge binding is violated
      */
-    public function getOrCreate(string $nodeId): array
+    public function getOrCreate(string $nodeId, ?string $bridgeNodeId = null): ?array
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO packet_bbs_sessions (node_id)
-             VALUES (?)
+            'INSERT INTO packet_bbs_sessions (node_id, bridge_node_id)
+             VALUES (?, ?)
              ON CONFLICT (node_id) DO UPDATE SET last_activity_at = NOW()
              RETURNING *'
         );
-        $stmt->execute([$nodeId]);
-        return $this->normalizeRow($stmt->fetch(\PDO::FETCH_ASSOC) ?: []);
+        $stmt->execute([$nodeId, $bridgeNodeId]);
+        $row = $this->normalizeRow($stmt->fetch(\PDO::FETCH_ASSOC) ?: []);
+
+        // Reject if the session is owned by a different bridge.
+        if ($bridgeNodeId !== null && $bridgeNodeId !== '') {
+            $existing = $row['bridge_node_id'] ?? null;
+            if ($existing !== null && $existing !== '' && $existing !== $bridgeNodeId) {
+                return null;
+            }
+        }
+
+        return $row;
     }
 
     /**
@@ -95,6 +109,30 @@ class PacketBbsSession
         $params[] = $nodeId;
         $sql = 'UPDATE packet_bbs_sessions SET ' . implode(', ', $setClauses) . ' WHERE node_id = ?';
         $this->db->prepare($sql)->execute($params);
+    }
+
+    /**
+     * Return true when the given bridge is permitted to act for $nodeId.
+     *
+     * Returns true when:
+     * - no session exists yet (first contact — bridge will own it on getOrCreate), or
+     * - the session has no recorded bridge (legacy row), or
+     * - the session's bridge_node_id matches $bridgeNodeId.
+     */
+    public function isBridgeAuthorized(string $nodeId, string $bridgeNodeId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT bridge_node_id FROM packet_bbs_sessions WHERE node_id = ?'
+        );
+        $stmt->execute([$nodeId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return true;
+        }
+
+        $existing = $row['bridge_node_id'] ?? null;
+        return $existing === null || $existing === '' || $existing === $bridgeNodeId;
     }
 
     /**

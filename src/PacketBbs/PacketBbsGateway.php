@@ -90,7 +90,15 @@ class PacketBbsGateway
             (new PacketBbsLoginRateLimit())->cleanOld();
         }
 
-        $session = $this->sessionRepo->getOrCreate($nodeId);
+        $session = $this->sessionRepo->getOrCreate($nodeId, $authNodeId);
+        if ($session === null) {
+            $this->logger->warning(sprintf(
+                'rejected bridge mismatch node=%s bridge=%s',
+                $nodeId,
+                $authNodeId
+            ));
+            return 'Access denied: node session belongs to a different bridge.';
+        }
         $renderer = new PacketBbsTextRenderer($interface);
         $state = $this->getSessionState($session);
 
