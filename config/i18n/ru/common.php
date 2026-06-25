@@ -5008,6 +5008,10 @@ return [
     'ui.admin.bbs_settings.media_player.twitter_bearer_token_placeholder' => 'Вставьте ваш токен Bearer для Twitter',
     'ui.admin.bbs_settings.media_player.twitter_bearer_token_help' => 'Необязательно. Получите токен Bearer на портале разработчиков Twitter. Может потребоваться, если Twitter ограничивает неаутентифицированные запросы oEmbed.',
     'ui.admin.bbs_settings.media_player.provider_settings_hint' => 'Изменения вступят в силу после нажатия кнопки «Сохранить».',
+    'ui.admin.bbs_settings.media_player.social_api_keys_label' => 'API-ключи социальных сетей',
+    'ui.admin.bbs_settings.media_player.facebook_app_token' => 'Токен приложения Facebook / Instagram',
+    'ui.admin.bbs_settings.media_player.facebook_app_token_placeholder' => 'Вставьте токен доступа Meta App',
+    'ui.admin.bbs_settings.media_player.facebook_app_token_help' => 'Необходим для предварительного просмотра ссылок Facebook и Instagram. Создайте приложение Meta Developer и сгенерируйте долгосрочный токен доступа. Используется только для запросов предварительного просмотра URL, не для встраивания.',
 
     'ui.base.admin.networks' => 'Сети',
     'ui.admin.binkp_config.uplinks.modal.edit_network_settings' => 'Редактировать настройки сети',

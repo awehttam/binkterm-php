@@ -156,7 +156,7 @@ class AppearanceConfig
                         'reverbnation' => true,
                         'raw_media'    => true,
                     ],
-                    'api_keys' => ['soundcloud' => '', 'twitter' => ''],
+                    'api_keys' => ['soundcloud' => '', 'twitter' => '', 'facebook' => ''],
                 ],
             ],
             'file_areas' => [

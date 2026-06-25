@@ -7123,6 +7123,59 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         }
 
+        // oEmbed dispatch for platforms that block HTML scraping
+        $normalizedHost = strtolower(preg_replace('/^www\./i', '', $host));
+        $facebookToken = trim((string)(\BinktermPHP\AppearanceConfig::getMediaPlayerConfig()['api_keys']['facebook'] ?? ''));
+
+        $oembedEndpoint = null;
+        if ($normalizedHost === 'facebook.com' && $facebookToken !== '') {
+            $type = preg_match('#/videos?/#i', $url) ? 'video' : 'post';
+            $oembedEndpoint = 'https://www.facebook.com/plugins/' . $type . '/oembed.json/?url=' . rawurlencode($url) . '&access_token=' . rawurlencode($facebookToken);
+        } elseif ($normalizedHost === 'instagram.com' && $facebookToken !== '') {
+            $oembedEndpoint = 'https://graph.facebook.com/v18.0/instagram_oembed?url=' . rawurlencode($url) . '&access_token=' . rawurlencode($facebookToken);
+        }
+
+        if ($oembedEndpoint !== null) {
+            $oCh = curl_init();
+            curl_setopt_array($oCh, [
+                CURLOPT_URL            => $oembedEndpoint,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS      => 3,
+                CURLOPT_TIMEOUT        => 8,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; BinktermBot/1.0; +https://lovelybits.org/binktermphp)',
+                CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
+            $oembedRaw = curl_exec($oCh);
+            $oembedErrno = curl_errno($oCh);
+            curl_close($oCh);
+
+            if ($oembedErrno === CURLE_OK && $oembedRaw !== false) {
+                $oembed = json_decode($oembedRaw, true);
+                if (is_array($oembed)) {
+                    $oTitle = mb_substr(htmlspecialchars_decode(strip_tags((string)($oembed['title'] ?? '')), ENT_QUOTES), 0, 200);
+                    $oDesc  = mb_substr(htmlspecialchars_decode(strip_tags((string)($oembed['author_name'] ?? '')), ENT_QUOTES), 0, 400);
+                    $oImage = (string)($oembed['thumbnail_url'] ?? '');
+                    if (!preg_match('/^https?:\/\//i', $oImage)) {
+                        $oImage = '';
+                    }
+                    if ($oTitle !== '' || $oImage !== '') {
+                        echo json_encode([
+                            'success'     => true,
+                            'title'       => $oTitle,
+                            'description' => $oDesc,
+                            'image'       => $oImage,
+                            'url'         => $url,
+                        ]);
+                        return;
+                    }
+                }
+            }
+            // oEmbed failed or returned no useful data; fall through to HTML scraping
+        }
+
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => $url,

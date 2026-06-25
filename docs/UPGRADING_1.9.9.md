@@ -10,6 +10,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Re-post Attribution Header](#re-post-attribution-header)
 - [Auto Feed Full Article Content](#auto-feed-full-article-content)
 - [PGP Keyserver Address Book Import](#pgp-keyserver-address-book-import)
+- [Facebook and Instagram Link Previews](#facebook-and-instagram-link-previews)
 - [Security](#security)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -41,6 +42,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### PGP Keyserver Address Book Import
 
 - The PGP keyserver search page now includes an **Add to address book** button next to every key result, including results returned from remote BBS keyservers. Clicking the button either links the PGP key to an existing address book entry that matches the key owner's username (when that entry has no PGP key set), or opens a short form to create a new address book entry with the key pre-attached. When the search was qualified with an FTN node address (e.g. `user@1:234/567`), the node address field is pre-filled automatically.
+
+### Facebook and Instagram Link Previews
+
+- URL preview cards pasted into the composer now use the Facebook and Instagram oEmbed APIs for `facebook.com` and `instagram.com` links, which previously returned no data because those platforms block HTML scraping. Previews show the post title, author name, and thumbnail. A Meta Developer App access token must be configured in **Admin → Appearance → Message Reader → Social Media API Keys** to enable this feature.
 
 ### Security
 
@@ -191,6 +196,16 @@ Clicking the button checks whether the authenticated user already has an address
 - If no matching entry exists, a short form opens pre-filled with the key owner's name and username. Enter the FTN node address of the BBS system and submit to create a new address book entry with the key attached.
 
 For remote results, the server fetches the armored public key from the remote BBS's keyserver before linking or creating the entry. When the search query included an FTN node address (e.g. `user@1:234/567`), the node address field in the creation form is pre-filled automatically.
+
+## Facebook and Instagram Link Previews
+
+Facebook and Instagram block HTML scraping, so link preview cards for those platforms previously returned no data. The `/api/url-preview` endpoint now queries the oEmbed API for `facebook.com` and `instagram.com` URLs before falling back to HTML scraping. Post title, author name, and thumbnail are extracted from the oEmbed response and displayed in the unfurl card the same way Open Graph data is used elsewhere.
+
+Facebook video URLs (those containing `/video/` in the path) are routed to the video oEmbed endpoint; all other Facebook URLs use the post endpoint. Instagram uses the Graph API's Instagram oEmbed endpoint.
+
+**To enable this feature**, configure a Meta Developer App access token in **Admin → Appearance → Message Reader → Social Media API Keys → Facebook / Instagram App Token**. The token is used only for URL preview lookups and is never included in page embeds or shared with users.
+
+If no token is configured, or if the oEmbed request fails, the endpoint falls through to the existing HTML scraping path and returns an empty preview — the same behaviour as before this change.
 
 ## Security
 
