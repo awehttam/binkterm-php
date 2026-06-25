@@ -515,16 +515,32 @@ function fetchRssFeed($url) {
 function parseRssFeed($xml) {
     $articles = [];
 
+    $contentNs = 'http://purl.org/rss/1.0/modules/content/';
+    $dcNs      = 'http://purl.org/dc/elements/1.1/';
+
     // Detect feed type (RSS 2.0, RSS 1.0/RDF, Atom, etc.)
     if (isset($xml->channel->item)) {
         // RSS 2.0
         getServerLogger()->info("Auto Feed: Parsing RSS 2.0 feed with " . count($xml->channel->item) . " items");
         foreach ($xml->channel->item as $item) {
+            $contentEncoded = (string)($item->children($contentNs)->encoded ?? '');
+            $dcDescription  = (string)($item->children($dcNs)->description ?? '');
+            if ($contentEncoded !== '') {
+                $body = $contentEncoded;
+                $bodyField = 'content:encoded';
+            } elseif ((string)($item->description ?? '') !== '') {
+                $body = (string)$item->description;
+                $bodyField = 'description';
+            } else {
+                $body = $dcDescription;
+                $bodyField = 'dc:description';
+            }
+            getServerLogger()->info("Auto Feed: RSS 2.0 item body source: {$bodyField}");
             $articles[] = [
                 'guid' => (string)($item->guid ?? $item->link),
                 'title' => (string)$item->title,
                 'link' => (string)$item->link,
-                'description' => (string)($item->description ?? ''),
+                'description' => $body,
                 'pubDate' => (string)($item->pubDate ?? '')
             ];
         }
@@ -532,16 +548,29 @@ function parseRssFeed($xml) {
         // RSS 1.0 (RDF) - items are direct children of root
         getServerLogger()->info("Auto Feed: Parsing RSS 1.0 (RDF) feed with " . count($xml->item) . " items");
         foreach ($xml->item as $item) {
+            $contentEncoded = (string)($item->children($contentNs)->encoded ?? '');
+            $dcDescription  = (string)($item->children($dcNs)->description ?? '');
+            if ($contentEncoded !== '') {
+                $body = $contentEncoded;
+                $bodyField = 'content:encoded';
+            } elseif ((string)($item->description ?? '') !== '') {
+                $body = (string)$item->description;
+                $bodyField = 'description';
+            } else {
+                $body = $dcDescription;
+                $bodyField = 'dc:description';
+            }
+            getServerLogger()->info("Auto Feed: RSS 1.0 item body source: {$bodyField}");
             $articles[] = [
                 'guid' => (string)($item->guid ?? $item->link),
                 'title' => (string)$item->title,
                 'link' => (string)$item->link,
-                'description' => (string)($item->description ?? ''),
+                'description' => $body,
                 'pubDate' => (string)($item->pubDate ?? $item->date ?? '')
             ];
         }
     } elseif (isset($xml->entry)) {
-        // Atom
+        // Atom — <content> is the full body; <summary> is the excerpt fallback
         getServerLogger()->info("Auto Feed: Parsing Atom feed with " . count($xml->entry) . " entries");
         foreach ($xml->entry as $entry) {
             $link = '';
@@ -549,11 +578,19 @@ function parseRssFeed($xml) {
                 $link = (string)$entry->link['href'];
             }
 
+            if ((string)($entry->content ?? '') !== '') {
+                $body = (string)$entry->content;
+                $bodyField = 'content';
+            } else {
+                $body = (string)($entry->summary ?? '');
+                $bodyField = 'summary';
+            }
+            getServerLogger()->info("Auto Feed: Atom entry body source: {$bodyField}");
             $articles[] = [
                 'guid' => (string)($entry->id ?? $link),
                 'title' => (string)$entry->title,
                 'link' => $link,
-                'description' => (string)($entry->summary ?? $entry->content ?? ''),
+                'description' => $body,
                 'pubDate' => (string)($entry->published ?? $entry->updated ?? '')
             ];
         }
@@ -852,6 +889,13 @@ function formatArticleMessage($article) {
 
         // Wrap text to 79 characters
         $description = wordwrap(trim($description), 79);
+
+        // Guard against extremely long full-content bodies exceeding practical
+        // FTN message size limits (~16 KB body). Truncate with a marker so the
+        // recipient knows the post was cut short.
+        if (strlen($description) > 16000) {
+            $description = substr($description, 0, 16000) . "\n[... truncated ...]";
+        }
 
         $body .= $description . "\n\n";
     }

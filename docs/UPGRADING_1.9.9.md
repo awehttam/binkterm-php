@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Core Platform](#core-platform)
+- [Auto Feed Full Article Content](#auto-feed-full-article-content)
 - [Security](#security)
 - [Messaging Menu Unread Counts](#messaging-menu-unread-counts)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -22,6 +23,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Admin -> Auto Feed -> Check now** now runs through the admin daemon instead of spawning `rss_poster.php` directly from the web request. The manual check result is shown in the UI, and a Windows-specific daemon re-entry hang during feed posting has been fixed.
 - Echomail area links that use `?echoarea=AREA&domain=DOMAIN` now preserve the selected area correctly instead of internally resolving to `AREA@DOMAIN@DOMAIN`.
 - The archive entry preview endpoint now rejects absolute paths in addition to `..` traversal sequences, closing a gap where a specially crafted archive with absolute-path entries could cause the extraction tool to write outside the designated temp directory.
+
+### Auto Feed Full Article Content
+
+- The Auto Feed RSS poster now reads the full article body from feeds that provide it. For RSS 2.0 and RSS 1.0 feeds, `<content:encoded>` (the Content Module field used by WordPress, Ghost, Substack, and most modern CMS platforms) is preferred over `<description>`, which typically contains only an excerpt. For Atom feeds, `<content>` is now correctly preferred over `<summary>` (these were previously swapped). Bodies longer than 16 000 characters are truncated to fit within practical FTN message size limits.
 
 ### Messaging Menu Unread Counts
 
@@ -130,6 +135,25 @@ The **Messaging** nav menu now displays unread message counts alongside each ent
 - The **Echomail** sub-item shows new messages using the same badge mode you have selected on your dashboard — either messages that arrived since your last visit to the echomail section, or a true unread count across your subscribed areas (configurable in dashboard settings).
 
 Counts appear in parentheses next to the label (e.g. `Messaging (41)`, `Netmail (36)`, `Echomail (5)`) and update in real time via BinkStream without requiring a page refresh. A count clears automatically when you navigate to the corresponding section.
+
+## Security
+
+## Auto Feed Full Article Content
+
+The Auto Feed RSS poster (`scripts/rss_poster.php`) now reads the full article body from feeds that carry it, rather than always falling back to the short excerpt.
+
+**RSS 2.0 and RSS 1.0 (RDF) feeds** — body field priority:
+
+1. `<content:encoded>` (RSS Content Module, namespace `http://purl.org/rss/1.0/modules/content/`) — the full HTML body, used by WordPress, Ghost, Substack, Feedburner, and most modern CMS platforms
+2. `<description>` — short excerpt or first paragraph (previous behaviour)
+3. `<dc:description>` (Dublin Core) — fallback for academic and library publishers
+
+**Atom feeds** — the priority of `<content>` and `<summary>` was previously inverted. The correct order per the Atom spec is:
+
+1. `<content>` — full article body
+2. `<summary>` — short excerpt fallback
+
+Bodies are truncated to 16 000 characters before posting to stay within practical FTN message size limits; a `[... truncated ...]` marker is appended when truncation occurs. The field actually used for each item is written to the Auto Feed log at info level to aid debugging.
 
 ## Security
 
