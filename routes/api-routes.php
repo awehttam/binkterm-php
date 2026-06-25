@@ -4250,7 +4250,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $entryPath = $_GET['path'] ?? '';
-        if ($entryPath === '' || str_contains($entryPath, '..')) {
+        $isAbsPath = str_starts_with($entryPath, '/') || str_starts_with($entryPath, '\\')
+            || (bool) preg_match('/^[A-Za-z]:[\/\\\\]/', $entryPath);
+        if ($entryPath === '' || str_contains($entryPath, '..') || $isAbsPath) {
             http_response_code(400);
             echo 'Invalid path';
             return;

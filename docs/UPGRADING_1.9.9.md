@@ -19,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Admin -> Auto Feed** now supports arbitrary poster names instead of linked posting accounts, and each feed can target multiple echo areas. Existing feeds are migrated automatically from their old linked-user and single-area settings.
 - **Admin -> Auto Feed -> Check now** now runs through the admin daemon instead of spawning `rss_poster.php` directly from the web request. The manual check result is shown in the UI, and a Windows-specific daemon re-entry hang during feed posting has been fixed.
 - Echomail area links that use `?echoarea=AREA&domain=DOMAIN` now preserve the selected area correctly instead of internally resolving to `AREA@DOMAIN@DOMAIN`.
+- The archive entry preview endpoint now rejects absolute paths in addition to `..` traversal sequences, closing a gap where a specially crafted archive with absolute-path entries could cause the extraction tool to write outside the designated temp directory.
 
 ---
 
@@ -88,6 +89,17 @@ The posting path also changed internally:
 - Auto Feed now fans each new source article out to every configured target area
 - the visible sender name comes from the feed's stored `poster_name`
 - the old linked posting-account field is no longer used by Auto Feed configuration
+
+### Archive Preview Path Validation
+
+The archive entry preview endpoint (`/api/files/{id}/archive-preview`) now rejects entry paths that are absolute in addition to the existing `..` traversal check.
+
+Previously, a crafted archive containing entries stored with absolute paths (e.g. `/var/www/html/evil.php` or `C:\inetpub\wwwroot\evil.php`) could pass the `..` check and be forwarded to the `unzip` or `7z` extraction tool. On installations with older versions of these tools, the tool could write outside the designated temp directory rather than treating the absolute path as relative to the extraction root.
+
+The fix validates entry paths in two places:
+
+- the API route rejects any path that begins with `/`, `\`, or a Windows drive prefix (`C:\`, `D:/`, etc.) before invoking the reader
+- `ArchiveReader::extractZipViaShell()` and `ArchiveReader::extract7z()` apply the same check internally as a defense-in-depth guard
 
 ### Echomail Query Link Area Selection
 
