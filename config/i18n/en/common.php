@@ -5117,4 +5117,13 @@ return [
     'ui.keyserver.primary_badge' => 'Primary',
     'ui.keyserver.download_button' => 'Download',
     'ui.keyserver.no_results' => 'No public keys matched your search.',
+    'ui.keyserver.add_to_address_book' => 'Add to address book',
+    'ui.keyserver.add_to_address_book_title' => 'Add to Address Book',
+    'ui.keyserver.pgp_key_updated' => 'PGP key linked to existing address book entry.',
+    'ui.keyserver.add_modal_name_label' => 'Name',
+    'ui.keyserver.add_modal_user_id_label' => 'User ID',
+    'ui.keyserver.add_modal_node_address_label' => 'Node Address',
+    'ui.keyserver.add_modal_node_address_help' => 'FTN address of the BBS system (e.g. 1:234/567)',
+    'ui.keyserver.add_modal_submit' => 'Add to Address Book',
+    'ui.keyserver.pgp_key_added' => 'Contact added to address book with PGP key.',
 ];

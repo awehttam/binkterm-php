@@ -42,21 +42,25 @@ class PgpLookupService
     public function searchPublicKeysForKeyserverQuery(string $search): array
     {
         $search = trim($search);
+        $localAddress = $this->binkpConfig->getSystemAddress();
+
         if ($search === '') {
-            return $this->normalizeRows(
-                $this->localKeyService->searchPublicKeys('', 100),
-                'local',
-                false
-            );
+            $rows = $this->localKeyService->searchPublicKeys('', 100);
+            foreach ($rows as &$row) {
+                $row['source_address'] = $localAddress;
+            }
+            unset($row);
+            return $this->normalizeRows($rows, 'local', false);
         }
 
         $qualified = $this->parseQualifiedKeyserverSearch($search);
         if ($qualified === null) {
-            return $this->normalizeRows(
-                $this->localKeyService->searchPublicKeys($search, 200),
-                'local',
-                false
-            );
+            $rows = $this->localKeyService->searchPublicKeys($search, 200);
+            foreach ($rows as &$row) {
+                $row['source_address'] = $localAddress;
+            }
+            unset($row);
+            return $this->normalizeRows($rows, 'local', false);
         }
 
         if ($qualified['type'] === 'ftn') {
@@ -188,7 +192,7 @@ class PgpLookupService
             return [];
         }
 
-        return $this->parseRemoteIndexResponse($response, $endpoint['source']);
+        return $this->parseRemoteIndexResponse($response, $endpoint['source'], $address);
     }
 
     /**
@@ -207,7 +211,7 @@ class PgpLookupService
             return [];
         }
 
-        return $this->parseRemoteIndexResponse($response, $endpoint['source']);
+        return $this->parseRemoteIndexResponse($response, $endpoint['source'], $hostname);
     }
 
     /**
@@ -461,9 +465,11 @@ class PgpLookupService
             'fingerprint' => strtoupper((string)($row['fingerprint'] ?? '')),
             'user_id_string' => $row['user_id_string'] ?? null,
             'username' => $row['username'] ?? null,
+            'real_name' => $row['real_name'] ?? null,
             'key_algorithm' => $row['key_algorithm'] ?? null,
             'key_created_at' => $row['key_created_at'] ?? null,
             'lookup_source' => $lookupSource,
+            'source_address' => $row['source_address'] ?? '',
         ];
 
         if ($includeArmor) {
@@ -487,7 +493,7 @@ class PgpLookupService
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function parseRemoteIndexResponse(string $text, string $lookupSource): array
+    private function parseRemoteIndexResponse(string $text, string $lookupSource, string $sourceAddress = ''): array
     {
         $results = [];
         $current = null;
@@ -512,6 +518,7 @@ class PgpLookupService
                     'user_id_string' => '',
                     'armored_public_key' => null,
                     'lookup_source' => $lookupSource,
+                    'source_address' => $sourceAddress,
                 ];
                 if ($current['fingerprint'] !== '') {
                     $results[] = $current;

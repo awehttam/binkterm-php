@@ -11342,6 +11342,153 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
         });
+
+        /**
+         * POST /api/address-book/import-from-keyserver
+         * Import a local PGP key into the address book.
+         * If the user already has an entry matching the key owner's username with no PGP key set,
+         * the PGP key is linked automatically. Otherwise, returns the key data so the caller
+         * can present a creation form.
+         *
+         * Body: { fingerprint: string }
+         * Response (auto-updated): { success: true, action: "updated", entry_id: int, entry_name: string }
+         * Response (needs create): { success: true, action: "needs_create", key_data: { ... } }
+         */
+        SimpleRouter::post('/import-from-keyserver', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            header('Content-Type: application/json');
+
+            if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+                apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user, [], 'errors'), 404);
+                return;
+            }
+
+            try {
+                $data = json_decode(file_get_contents('php://input'), true);
+                $fingerprint = strtoupper(trim((string)($data['fingerprint'] ?? '')));
+                $sourceAddress = trim((string)($data['source_address'] ?? ''));
+                // Username supplied by the caller from the keyserver result row; used as a
+                // fallback when the key fetch (especially remote op=get) returns username=null.
+                $suppliedUsername = trim((string)($data['username'] ?? ''));
+
+                if ($fingerprint === '') {
+                    apiError(
+                        'errors.pgp.key_not_found',
+                        apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found.', $user, [], 'errors'),
+                        400
+                    );
+                    return;
+                }
+
+                // Try local key store first; fall back to remote fetch when source_address is provided.
+                $keyService = new PgpKeyService();
+                $key = $keyService->findPublicKey($fingerprint);
+
+                if (!$key && $sourceAddress !== '') {
+                    $lookupService = new \BinktermPHP\PgpLookupService();
+                    $key = $lookupService->findPublicKeyForDestination($fingerprint, $sourceAddress);
+                }
+
+                if (!$key) {
+                    apiError(
+                        'errors.pgp.key_not_found',
+                        apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found.', $user, [], 'errors'),
+                        404
+                    );
+                    return;
+                }
+
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $db = Database::getInstance()->getPdo();
+
+                // Remote op=get responses return username=null; fall back to the value
+                // the caller sent from the keyserver index result.
+                $keyUsername = trim((string)($key['username'] ?? ''));
+                if ($keyUsername === '') {
+                    $keyUsername = $suppliedUsername;
+                }
+
+                // Check for an existing address book entry matching the key owner's username.
+                $matchEntry = null;
+                if ($keyUsername !== '') {
+                    $stmt = $db->prepare("
+                        SELECT ab.id, ab.name, ab.messaging_user_id, ab.node_address, ab.pgp_contact_key_id
+                        FROM address_book ab
+                        WHERE ab.user_id = ? AND LOWER(ab.messaging_user_id) = LOWER(?)
+                        LIMIT 1
+                    ");
+                    $stmt->execute([$userId, $keyUsername]);
+                    $matchEntry = $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+                }
+
+                if ($matchEntry) {
+                    if (!empty($matchEntry['pgp_contact_key_id'])) {
+                        apiError(
+                            'errors.address_book.pgp_key_already_set',
+                            apiLocalizedText('errors.address_book.pgp_key_already_set', 'This address book entry already has a PGP key set', $user, [], 'errors'),
+                            409
+                        );
+                        return;
+                    }
+
+                    // Update the existing entry with the PGP key.
+                    $addressBook = new AddressBookController();
+                    $entryData = [
+                        'name' => $matchEntry['name'],
+                        'messaging_user_id' => $matchEntry['messaging_user_id'],
+                        'node_address' => $matchEntry['node_address'],
+                        'pgp_public_key' => $key['armored_public_key'] ?? '',
+                    ];
+                    $addressBook->updateEntry((int)$matchEntry['id'], $userId, $entryData);
+
+                    echo json_encode([
+                        'success' => true,
+                        'action' => 'updated',
+                        'entry_id' => (int)$matchEntry['id'],
+                        'entry_name' => (string)$matchEntry['name'],
+                    ]);
+                    return;
+                }
+
+                // Determine a suggested node address from source_address when it is in FTN format.
+                $suggestedNodeAddress = '';
+                if ($sourceAddress !== '' && preg_match('/^\d+:\d+\/\d+/', $sourceAddress)) {
+                    $suggestedNodeAddress = $sourceAddress;
+                }
+
+                // No matching entry — return key data so the caller can show a creation form.
+                echo json_encode([
+                    'success' => true,
+                    'action' => 'needs_create',
+                    'key_data' => [
+                        'fingerprint' => $key['fingerprint'] ?? '',
+                        'armored_public_key' => $key['armored_public_key'] ?? '',
+                        'username' => $key['username'] ?? '',
+                        'real_name' => $key['real_name'] ?? '',
+                        'user_id_string' => $key['user_id_string'] ?? '',
+                        'key_algorithm' => $key['key_algorithm'] ?? '',
+                        'suggested_node_address' => $suggestedNodeAddress,
+                    ],
+                ]);
+            } catch (\BinktermPHP\AddressBookException $e) {
+                $errorCode = $e->getErrorCode();
+                apiError(
+                    $errorCode,
+                    apiLocalizedText($errorCode, $e->getMessage(), $user, [], 'errors'),
+                    $e->getHttpStatus()
+                );
+                return;
+            } catch (Exception $e) {
+                apiError(
+                    'errors.address_book.update_failed',
+                    apiLocalizedText('errors.address_book.update_failed', 'Failed to update address book entry', $user, [], 'errors'),
+                    500
+                );
+                return;
+            }
+        });
     });
 
     /**

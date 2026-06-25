@@ -58,7 +58,7 @@ Content-Type: application/json
 
 - [Public API](#public-api)
   - [Account](#account) (1)
-  - [Address Book](#address-book) (7)
+  - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
@@ -153,6 +153,7 @@ Reminder send result
 | `DELETE` | [`/api/address-book/{id}`](#delete-apiaddress-bookid) | Yes | Delete an address book entry. |
 | `GET` | [`/api/address-book/search/{query}`](#get-apiaddress-booksearchquery) | Yes | Search address book entries plus matching local users for autocomplete. |
 | `GET` | [`/api/address-book/stats`](#get-apiaddress-bookstats) | Yes | Get address book statistics for the user. |
+| `POST` | [`/api/address-book/import-from-keyserver`](#post-apiaddress-bookimport-from-keyserver) | Yes | Import a local PGP keyserver key into the address book (update or create). |
 
 #### `GET /api/address-book/`
 
@@ -425,6 +426,61 @@ Address book statistics object
 | Status | Description |
 |--------|-------------|
 | 500 | Failed to load address book statistics |
+
+---
+
+#### `POST /api/address-book/import-from-keyserver`
+
+**Requires authentication**
+
+Imports a PGP key into the address book by fingerprint. If the authenticated user has an existing address book entry whose `messaging_user_id` matches the key owner's username and that entry has no PGP key set, the key is linked automatically. Otherwise, the key data is returned so the caller can present a creation form.
+
+Local keys are fetched from the BBS's own PGP key table. When `source_address` is provided and the key is not found locally, the endpoint attempts to retrieve the armored public key from the remote BBS at that FTN address.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `fingerprint` | string | 40-character PGP key fingerprint to import |
+| `source_address` | string | Optional FTN address (`zone:net/node`) or hostname of the BBS that published this key; used to fetch the armored key for remote results and pre-fill the node address in the creation form |
+| `username` | string | Optional BBS username shown in the keyserver index result; used as a fallback when the armored-key fetch (remote `op=get`) does not carry a username |
+
+**Response** _(JSON)_ — action `updated`
+
+Returned when an existing address book entry was found and the PGP key was linked automatically.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True |
+| `action` | string | `"updated"` |
+| `entry_id` | integer | ID of the updated address book entry |
+| `entry_name` | string | Display name of the updated address book entry |
+
+**Response** _(JSON)_ — action `needs_create`
+
+Returned when no matching address book entry was found; the caller should present a creation form using the returned key data.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True |
+| `action` | string | `"needs_create"` |
+| `key_data` | object | Details of the PGP key |
+| `key_data.fingerprint` | string | Key fingerprint |
+| `key_data.armored_public_key` | string | ASCII-armored public key block |
+| `key_data.username` | string | BBS username of the key owner |
+| `key_data.real_name` | string | Real name of the key owner |
+| `key_data.user_id_string` | string | PGP user ID string |
+| `key_data.key_algorithm` | string | Key algorithm (e.g. `RSA4096`) |
+| `key_data.suggested_node_address` | string | Pre-filled FTN node address when `source_address` was an FTN address; empty string otherwise |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Fingerprint missing or invalid |
+| 404 | PGP key not found locally or remotely, or PGP is disabled |
+| 409 | Matching address book entry already has a PGP key set |
+| 500 | Failed to update address book entry |
 
 ---
 

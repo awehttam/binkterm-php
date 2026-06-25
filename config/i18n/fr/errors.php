@@ -370,6 +370,7 @@ return [
     'errors.address_book.delete_failed' => 'Échec de la suppression de l\'entrée du carnet d\'adresses',
     'errors.address_book.search_failed' => 'Échec de la recherche dans le carnet d\'adresses',
     'errors.address_book.stats_failed' => 'Échec du chargement des statistiques du carnet d\'adresses',
+    'errors.address_book.pgp_key_already_set' => 'Cette entrée du carnet d\'adresses a déjà une clé PGP',
     'errors.messages.shared.lookup_failed' => 'Échec du chargement du message partagé',
     'errors.messages.shared.user_shares_failed' => 'Échec du chargement des partages de l\'utilisateur',
     'errors.messages.shared.access_denied' => 'Message introuvable ou accès refusé',

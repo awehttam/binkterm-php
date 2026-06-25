@@ -6,10 +6,11 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Core Platform](#core-platform)
-- [Auto Feed Full Article Content](#auto-feed-full-article-content)
-- [Re-post Attribution Header](#re-post-attribution-header)
-- [Security](#security)
 - [Messaging Menu Unread Counts](#messaging-menu-unread-counts)
+- [Re-post Attribution Header](#re-post-attribution-header)
+- [Auto Feed Full Article Content](#auto-feed-full-article-content)
+- [PGP Keyserver Address Book Import](#pgp-keyserver-address-book-import)
+- [Security](#security)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -25,17 +26,21 @@ Make sure you have a current backup of your database and files before upgrading.
 - Echomail area links that use `?echoarea=AREA&domain=DOMAIN` now preserve the selected area correctly instead of internally resolving to `AREA@DOMAIN@DOMAIN`.
 - The archive entry preview endpoint now rejects absolute paths in addition to `..` traversal sequences, closing a gap where a specially crafted archive with absolute-path entries could cause the extraction tool to write outside the designated temp directory.
 
-### Auto Feed Full Article Content
+### Messaging Menu Unread Counts
 
-- The Auto Feed RSS poster now reads the full article body from feeds that provide it. For RSS 2.0 and RSS 1.0 feeds, `<content:encoded>` (the Content Module field used by WordPress, Ghost, Substack, and most modern CMS platforms) is preferred over `<description>`, which typically contains only an excerpt. For Atom feeds, `<content>` is now correctly preferred over `<summary>` (these were previously swapped). Bodies longer than 16 000 characters are truncated to fit within practical FTN message size limits.
+- The **Messaging** nav menu now shows unread message counts next to each item. The parent entry shows the combined total; **Netmail** shows the number of unread messages in your inbox; **Echomail** shows new messages using the same badge mode configured on your dashboard (new since last visit, or true unread). Counts clear automatically when you navigate to the relevant section.
 
 ### Re-post Attribution Header
 
 - When reposting a message, the compose editor now opens with a standardised attribution block prepended to the body, identifying the original area, sender, subject, and date. See the full section below for the header format.
 
-### Messaging Menu Unread Counts
+### Auto Feed Full Article Content
 
-- The **Messaging** nav menu now shows unread message counts next to each item. The parent entry shows the combined total; **Netmail** shows the number of unread messages in your inbox; **Echomail** shows new messages using the same badge mode configured on your dashboard (new since last visit, or true unread). Counts clear automatically when you navigate to the relevant section.
+- The Auto Feed RSS poster now reads the full article body from feeds that provide it. For RSS 2.0 and RSS 1.0 feeds, `<content:encoded>` (the Content Module field used by WordPress, Ghost, Substack, and most modern CMS platforms) is preferred over `<description>`, which typically contains only an excerpt. For Atom feeds, `<content>` is now correctly preferred over `<summary>` (these were previously swapped). Bodies longer than 16 000 characters are truncated to fit within practical FTN message size limits.
+
+### PGP Keyserver Address Book Import
+
+- The PGP keyserver search page now includes an **Add to address book** button next to every key result, including results returned from remote BBS keyservers. Clicking the button either links the PGP key to an existing address book entry that matches the key owner's username (when that entry has no PGP key set), or opens a short form to create a new address book entry with the key pre-attached. When the search was qualified with an FTN node address (e.g. `user@1:234/567`), the node address field is pre-filled automatically.
 
 ### Security
 
@@ -129,8 +134,6 @@ Previously, a URL such as `/echomail?echoarea=AREA&domain=DOMAIN` could be norma
 
 The query form now keeps the area tag and domain separate for template initialization, matching `/echomail/AREA@DOMAIN` behavior.
 
-## Security
-
 ## Messaging Menu Unread Counts
 
 The **Messaging** nav menu now displays unread message counts alongside each entry.
@@ -140,8 +143,6 @@ The **Messaging** nav menu now displays unread message counts alongside each ent
 - The **Echomail** sub-item shows new messages using the same badge mode you have selected on your dashboard — either messages that arrived since your last visit to the echomail section, or a true unread count across your subscribed areas (configurable in dashboard settings).
 
 Counts appear in parentheses next to the label (e.g. `Messaging (41)`, `Netmail (36)`, `Echomail (5)`) and update in real time via BinkStream without requiring a page refresh. A count clears automatically when you navigate to the corresponding section.
-
-## Security
 
 ## Re-post Attribution Header
 
@@ -178,6 +179,18 @@ The Auto Feed RSS poster (`scripts/rss_poster.php`) now reads the full article b
 2. `<summary>` — short excerpt fallback
 
 Bodies are truncated to 16 000 characters before posting to stay within practical FTN message size limits; a `[... truncated ...]` marker is appended when truncation occurs. The field actually used for each item is written to the Auto Feed log at info level to aid debugging.
+
+## PGP Keyserver Address Book Import
+
+The PGP keyserver search page (`/keyserver`) now shows an **Add to address book** button next to every key result, including results returned from remote BBS keyservers.
+
+Clicking the button checks whether the authenticated user already has an address book entry whose messaging user ID matches the key owner's username:
+
+- If a matching entry exists and it has no PGP key set, the key is linked to that entry automatically and a confirmation toast is shown.
+- If a matching entry already has a PGP key set, an error is shown and no changes are made.
+- If no matching entry exists, a short form opens pre-filled with the key owner's name and username. Enter the FTN node address of the BBS system and submit to create a new address book entry with the key attached.
+
+For remote results, the server fetches the armored public key from the remote BBS's keyserver before linking or creating the entry. When the search query included an FTN node address (e.g. `user@1:234/567`), the node address field in the creation form is pre-filled automatically.
 
 ## Security
 

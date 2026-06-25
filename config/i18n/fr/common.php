@@ -5022,4 +5022,13 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.keyserver.primary_badge' => 'Principale',
     'ui.keyserver.download_button' => 'Telecharger',
     'ui.keyserver.no_results' => 'Aucune cle publique ne correspond a votre recherche.',
+    'ui.keyserver.add_to_address_book' => 'Ajouter au carnet d\'adresses',
+    'ui.keyserver.add_to_address_book_title' => 'Ajouter au carnet d\'adresses',
+    'ui.keyserver.pgp_key_updated' => 'Clé PGP liée à l\'entrée existante du carnet d\'adresses.',
+    'ui.keyserver.add_modal_name_label' => 'Nom',
+    'ui.keyserver.add_modal_user_id_label' => 'Identifiant utilisateur',
+    'ui.keyserver.add_modal_node_address_label' => 'Adresse du noeud',
+    'ui.keyserver.add_modal_node_address_help' => 'Adresse FTN du système BBS (p. ex. 1:234/567)',
+    'ui.keyserver.add_modal_submit' => 'Ajouter au carnet d\'adresses',
+    'ui.keyserver.pgp_key_added' => 'Contact ajouté au carnet d\'adresses avec la clé PGP.',
 ];

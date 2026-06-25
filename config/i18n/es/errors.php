@@ -495,6 +495,7 @@ return [
     'errors.address_book.delete_failed' => 'No se pudo eliminar la entrada de la libreta de direcciones',
     'errors.address_book.search_failed' => 'No se pudieron buscar las entradas de la libreta de direcciones',
     'errors.address_book.stats_failed' => 'No se pudieron cargar las estadisticas de la libreta de direcciones',
+    'errors.address_book.pgp_key_already_set' => 'Esta entrada de la libreta de direcciones ya tiene una clave PGP',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'No se pudo cargar el mensaje compartido',

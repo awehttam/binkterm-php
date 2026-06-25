@@ -494,6 +494,7 @@ return [
     'errors.address_book.delete_failed' => 'address book entry konnte nicht gelöscht werden',
     'errors.address_book.search_failed' => 'Failed to search address book entries',
     'errors.address_book.stats_failed' => 'address book statistics konnten nicht geladen werden',
+    'errors.address_book.pgp_key_already_set' => 'Dieser Adressbucheintrag hat bereits einen PGP-Schluessel',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'shared message konnten nicht geladen werden',
