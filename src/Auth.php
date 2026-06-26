@@ -44,6 +44,7 @@ class Auth
      */
     public function createAuthenticatedSession(int $userId, string $service = 'web'): array
     {
+        $this->updateLastLogin($userId);
         $sessionId = $this->createSession($userId, $service);
 
         // Generate a fresh CSRF token and store it per-user in UserMeta so it
