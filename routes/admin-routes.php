@@ -425,6 +425,76 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/jsdosdoors_config.twig');
     });
 
+    // Door Manifest Editor page
+    SimpleRouter::get('/doors/{doorType}/{doorId}/manifest', function(string $doorType, string $doorId) {
+        $user = RouteHelper::requireAdmin();
+
+        $validTypes = ['dos', 'native', 'jsdos', 'web'];
+        if (!in_array($doorType, $validTypes, true)) {
+            http_response_code(404);
+            return;
+        }
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->getDoorManifest($doorType, $doorId);
+
+            // Resolve each form field's current value from the manifest and attach it.
+            $manifest = $result['manifest'];
+            $fieldSections = $result['field_sections'];
+
+            $resolveValue = function(array $manifest, string $path) use (&$resolveValue) {
+                $parts = explode('.', $path, 2);
+                $key = $parts[0];
+                if (!isset($manifest[$key]) && !array_key_exists($key, $manifest)) {
+                    return null;
+                }
+                if (count($parts) === 1) {
+                    return $manifest[$key];
+                }
+                if (!is_array($manifest[$key])) {
+                    return null;
+                }
+                return $resolveValue($manifest[$key], $parts[1]);
+            };
+
+            foreach ($fieldSections as &$section) {
+                foreach ($section['fields'] as &$field) {
+                    $field['value'] = $resolveValue($manifest, $field['path']);
+                    if ($field['value'] === null && isset($field['default'])) {
+                        $field['value'] = $field['default'];
+                    }
+                }
+                unset($field);
+            }
+            unset($section);
+
+            $template = new Template();
+            $template->renderResponse('admin/door_manifest_editor.twig', [
+                'door_type'            => $doorType,
+                'door_id'              => $doorId,
+                'door_type_display'    => $result['root_directory'],
+                'root_directory'       => $result['root_directory'],
+                'manifest_filename'    => $result['manifest_filename'],
+                'runtime_config_path'  => $result['runtime_config_path'],
+                'admin_page_url'       => $result['admin_page_url'],
+                'admin_page_title_key' => $result['admin_page_title_key'],
+                'manifest'             => $manifest,
+                'manifest_json'        => json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'field_sections'       => $fieldSections,
+                'field_sections_json'  => json_encode($result['field_sections'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'picker_profiles'      => $result['picker_profiles'],
+                'picker_profiles_json' => json_encode($result['picker_profiles'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'editable'             => $result['editable'],
+                'exists'               => $result['exists'],
+            ]);
+        } catch (\Throwable $e) {
+            http_response_code(404);
+            $template = new Template();
+            $template->renderResponse('error.twig', ['message' => $e->getMessage()]);
+        }
+    });
+
     // File area rules page
     SimpleRouter::get('/filearea-rules', function() {
         $user = RouteHelper::requireAdmin();
@@ -3612,6 +3682,184 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.native_doors.sync_failed', apiLocalizedText('errors.admin.native_doors.sync_failed', 'Failed to sync native doors'), 500);
+            }
+        });
+
+        // Door Manifest Editor API
+        SimpleRouter::get('/door-manifests/{doorType}', function(string $doorType) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->listDoorManifestTargets($doorType);
+                echo json_encode(['success' => true, 'targets' => $result['targets']]);
+            } catch (\Throwable $e) {
+                http_response_code(400);
+                apiError('errors.admin.door_manifest.list_failed', apiLocalizedText('errors.admin.door_manifest.list_failed', 'Failed to list door targets'), 400);
+            }
+        });
+
+        SimpleRouter::get('/door-manifest/{doorType}/{doorId}', function(string $doorType, string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->getDoorManifest($doorType, $doorId);
+                echo json_encode(['success' => true] + $result);
+            } catch (\Throwable $e) {
+                http_response_code(400);
+                apiError('errors.admin.door_manifest.get_failed', apiLocalizedText('errors.admin.door_manifest.get_failed', 'Failed to load door manifest'), 400);
+            }
+        });
+
+        SimpleRouter::post('/door-manifest/{doorType}/{doorId}', function(string $doorType, string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload  = json_decode((string)file_get_contents('php://input'), true);
+                $manifest = $payload['manifest'] ?? null;
+                if (!is_array($manifest)) {
+                    http_response_code(400);
+                    apiError('errors.admin.door_manifest.missing_manifest', apiLocalizedText('errors.admin.door_manifest.missing_manifest', 'Manifest data is required'), 400);
+                    return;
+                }
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->saveDoorManifest($doorType, $doorId, $manifest);
+                echo json_encode([
+                    'success'      => true,
+                    'message_code' => 'ui.admin.door_manifest_editor.saved_success',
+                ]);
+            } catch (\Throwable $e) {
+                http_response_code(400);
+                apiError('errors.admin.door_manifest.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::get('/door-manifest-files/{doorType}/{doorId}', function(string $doorType, string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $subdir  = (string)($_GET['dir'] ?? '');
+                $profile = (string)($_GET['profile'] ?? '');
+                $client  = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result  = $client->listDoorManifestFiles($doorType, $doorId, $subdir, $profile);
+                echo json_encode(['success' => true] + $result);
+            } catch (\Throwable $e) {
+                http_response_code(400);
+                apiError('errors.admin.door_manifest.files_failed', apiLocalizedText('errors.admin.door_manifest.files_failed', 'Failed to list door files'), 400);
+            }
+        });
+
+        SimpleRouter::post('/door-manifest/{doorType}/{doorId}/ai-fill', function(string $doorType, string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->readDoorTextFiles($doorType, $doorId);
+                $files  = $result['files'] ?? [];
+
+                if (empty($files)) {
+                    http_response_code(422);
+                    apiError('errors.admin.door_manifest.ai_no_files', apiLocalizedText('errors.admin.door_manifest.ai_no_files', 'No readable files found in door directory'), 422);
+                    return;
+                }
+
+                $aiService = \BinktermPHP\AI\AiService::create();
+                if (empty($aiService->getConfiguredProviders())) {
+                    http_response_code(503);
+                    apiError('errors.admin.door_manifest.ai_no_provider', apiLocalizedText('errors.admin.door_manifest.ai_no_provider', 'No AI provider configured'), 503);
+                    return;
+                }
+
+                $fileText = '';
+                foreach ($files as $f) {
+                    $fileText .= "=== {$f['name']} ===\n{$f['content']}\n\n";
+                }
+
+                $systemPrompt = <<<'PROMPT'
+You extract game metadata from BBS door game documentation files.
+Return ONLY a JSON object with these optional fields (omit any you cannot determine with reasonable confidence):
+{
+  "game": {
+    "name": "Full display name of the game",
+    "short_name": "Abbreviated name (up to ~16 chars)",
+    "description": "1-3 sentence description of the game",
+    "author": "Author or company name",
+    "version": "Version string",
+    "release_year": 1994,
+    "genre": ["Strategy", "Multiplayer"]
+  }
+}
+Return only valid JSON. No explanation, no markdown fences.
+PROMPT;
+
+                $userPrompt = "Extract game metadata from these files:\n\n{$fileText}";
+
+                $request = new \BinktermPHP\AI\AiRequest(
+                    feature: 'door_manifest_ai_fill',
+                    systemPrompt: $systemPrompt,
+                    userPrompt: $userPrompt,
+                    temperature: 0.1,
+                    maxOutputTokens: 512,
+                    timeoutSeconds: 30,
+                    userId: (int)($user['user_id'] ?? $user['id'] ?? 0) ?: null,
+                );
+
+                $response = $aiService->generateJson($request);
+                $parsed   = $response->getParsedJson();
+
+                if (!is_array($parsed) || !isset($parsed['game'])) {
+                    http_response_code(500);
+                    apiError('errors.admin.door_manifest.ai_fill_failed', apiLocalizedText('errors.admin.door_manifest.ai_fill_failed', 'AI fill failed'), 500);
+                    return;
+                }
+
+                $game = $parsed['game'];
+
+                // Sanitize/validate individual fields.
+                $fields = [];
+                if (!empty($game['name']) && is_string($game['name'])) {
+                    $fields['game.name'] = substr(trim($game['name']), 0, 128);
+                }
+                if (!empty($game['short_name']) && is_string($game['short_name'])) {
+                    $fields['game.short_name'] = substr(trim($game['short_name']), 0, 32);
+                }
+                if (!empty($game['description']) && is_string($game['description'])) {
+                    $fields['game.description'] = substr(trim($game['description']), 0, 1024);
+                }
+                if (!empty($game['author']) && is_string($game['author'])) {
+                    $fields['game.author'] = substr(trim($game['author']), 0, 128);
+                }
+                if (!empty($game['version']) && is_string($game['version'])) {
+                    $fields['game.version'] = substr(trim($game['version']), 0, 32);
+                }
+                if (!empty($game['release_year']) && is_numeric($game['release_year'])) {
+                    $year = (int)$game['release_year'];
+                    if ($year >= 1975 && $year <= (int)date('Y') + 1) {
+                        $fields['game.release_year'] = $year;
+                    }
+                }
+                if (!empty($game['genre']) && is_array($game['genre'])) {
+                    $genre = array_filter(array_map(fn($g) => is_string($g) ? substr(trim($g), 0, 64) : null, $game['genre']));
+                    if (!empty($genre)) {
+                        $fields['game.genre'] = array_values($genre);
+                    }
+                }
+
+                echo json_encode([
+                    'success'    => true,
+                    'fields'     => $fields,
+                    'files_read' => count($files),
+                ]);
+            } catch (\Throwable $e) {
+                getServerLogger()->error('Door manifest AI fill failed', ['error' => $e->getMessage()]);
+                http_response_code(500);
+                apiError('errors.admin.door_manifest.ai_fill_failed', apiLocalizedText('errors.admin.door_manifest.ai_fill_failed', 'AI fill failed'), 500);
             }
         });
 

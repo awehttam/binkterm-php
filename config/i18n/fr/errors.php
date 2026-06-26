@@ -301,6 +301,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'Échec de l\'enregistrement de la configuration des portes JS-DOS',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Échec de l\'activation de la configuration des portes JS-DOS',
 
+    // Door Manifest Editor errors
+    'errors.admin.door_manifest.list_failed' => 'Échec de la liste des cibles de manifeste de porte',
+    'errors.admin.door_manifest.get_failed' => 'Échec de la récupération du manifeste de porte',
+    'errors.admin.door_manifest.save_failed' => 'Échec de l\'enregistrement du manifeste de porte',
+    'errors.admin.door_manifest.files_failed' => 'Échec du listing des fichiers de porte',
+    'errors.admin.door_manifest.missing_manifest' => 'Les données du manifeste sont absentes ou invalides',
+    'errors.admin.door_manifest.ai_fill_failed' => 'Échec du remplissage automatique par IA',
+    'errors.admin.door_manifest.ai_no_provider' => 'Aucun fournisseur IA n\'est configuré',
+    'errors.admin.door_manifest.ai_no_files' => 'Aucun fichier lisible trouvé dans le répertoire de la porte',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Jeu introuvable',
     'errors.jsdosdoor.session_create_failed' => 'Impossible de créer la session de jeu',

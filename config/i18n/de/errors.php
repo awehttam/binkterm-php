@@ -409,6 +409,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'JS-DOS doors configuration konnte nicht gespeichert werden',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Failed to activate JS-DOS doors configuration',
 
+    // Door-Manifest-Editor-Fehler
+    'errors.admin.door_manifest.list_failed' => 'Door-Manifest-Ziele konnten nicht aufgelistet werden',
+    'errors.admin.door_manifest.get_failed' => 'Door-Manifest konnte nicht abgerufen werden',
+    'errors.admin.door_manifest.save_failed' => 'Door-Manifest konnte nicht gespeichert werden',
+    'errors.admin.door_manifest.files_failed' => 'Door-Dateien konnten nicht aufgelistet werden',
+    'errors.admin.door_manifest.missing_manifest' => 'Manifest-Daten fehlen oder sind ungültig',
+    'errors.admin.door_manifest.ai_fill_failed' => 'KI-Ausfüllung fehlgeschlagen',
+    'errors.admin.door_manifest.ai_no_provider' => 'Kein KI-Anbieter konfiguriert',
+    'errors.admin.door_manifest.ai_no_files' => 'Keine lesbaren Dateien im Door-Verzeichnis gefunden',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Spiel nicht gefunden',
     'errors.jsdosdoor.session_create_failed' => 'game session konnte nicht erstellt werden',

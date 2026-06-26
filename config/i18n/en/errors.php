@@ -414,6 +414,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'Failed to save JS-DOS doors configuration',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Failed to activate JS-DOS doors configuration',
 
+    // Door Manifest Editor errors
+    'errors.admin.door_manifest.list_failed' => 'Failed to list door manifest targets',
+    'errors.admin.door_manifest.get_failed' => 'Failed to retrieve door manifest',
+    'errors.admin.door_manifest.save_failed' => 'Failed to save door manifest',
+    'errors.admin.door_manifest.files_failed' => 'Failed to list door files',
+    'errors.admin.door_manifest.missing_manifest' => 'Manifest data is missing or invalid',
+    'errors.admin.door_manifest.ai_fill_failed' => 'AI fill failed',
+    'errors.admin.door_manifest.ai_no_provider' => 'No AI provider is configured',
+    'errors.admin.door_manifest.ai_no_files' => 'No readable files found in door directory',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Game not found',
     'errors.jsdosdoor.session_create_failed' => 'Failed to create game session',

@@ -25,6 +25,7 @@ use BinktermPHP\JsdosDoorSupport;
 use BinktermPHP\FileAreaManager;
 use BinktermPHP\Realtime\PostgresSseEventMaintenance;
 use BinktermPHP\Realtime\SseEventMaintenanceInterface;
+use BinktermPHP\Admin\DoorManifest\DoorManifestTypeRegistry;
 
 class AdminDaemonServer
 {
@@ -983,6 +984,38 @@ class AdminDaemonServer
                     );
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                     break;
+                case 'list_door_manifest_targets':
+                    $doorType = (string)($data['door_type'] ?? '');
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->listDoorManifestTargets($doorType)]);
+                    break;
+                case 'get_door_manifest':
+                    $doorType = (string)($data['door_type'] ?? '');
+                    $doorId   = (string)($data['door_id'] ?? '');
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getDoorManifest($doorType, $doorId)]);
+                    break;
+                case 'save_door_manifest':
+                    $doorType = (string)($data['door_type'] ?? '');
+                    $doorId   = (string)($data['door_id'] ?? '');
+                    $manifest = $data['manifest'] ?? null;
+                    if (!is_array($manifest)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_manifest']);
+                        break;
+                    }
+                    $this->saveDoorManifest($doorType, $doorId, $manifest);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['saved' => true]]);
+                    break;
+                case 'list_door_manifest_files':
+                    $doorType = (string)($data['door_type'] ?? '');
+                    $doorId   = (string)($data['door_id'] ?? '');
+                    $subdir   = (string)($data['subdir'] ?? '');
+                    $profile  = (string)($data['profile'] ?? '');
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->listDoorManifestFiles($doorType, $doorId, $subdir, $profile)]);
+                    break;
+                case 'read_door_text_files':
+                    $doorType = (string)($data['door_type'] ?? '');
+                    $doorId   = (string)($data['door_id'] ?? '');
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->readDoorTextFiles($doorType, $doorId)]);
+                    break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;
@@ -1811,6 +1844,438 @@ class AdminDaemonServer
     private function getNativeDoorsConfigPath(): string
     {
         return __DIR__ . '/../../config/nativedoors.json';
+    }
+
+    // -------------------------------------------------------------------------
+    // Door Manifest Editor commands
+    // -------------------------------------------------------------------------
+
+    /**
+     * Validate a door ID: alphanumeric, hyphens, underscores only.
+     */
+    private function isValidDoorManifestId(string $id): bool
+    {
+        return $id !== '' && preg_match('/^[A-Za-z0-9_-]+$/', $id) === 1;
+    }
+
+    /**
+     * Resolve the absolute filesystem root for a door type+id combination.
+     * Returns null if the combination is invalid or the directory does not exist.
+     */
+    private function resolveDoorRoot(string $typeKey, string $doorId): ?string
+    {
+        $typeDef = DoorManifestTypeRegistry::getType($typeKey);
+        if ($typeDef === null) {
+            return null;
+        }
+        if (!$this->isValidDoorManifestId($doorId)) {
+            return null;
+        }
+        $root = __DIR__ . '/../../' . $typeDef->getRootDirectory() . '/' . $doorId;
+        $real = realpath($root);
+        if ($real === false || !is_dir($real)) {
+            return null;
+        }
+        // Ensure the resolved path is actually inside the type's root directory.
+        $typeRoot = realpath(__DIR__ . '/../../' . $typeDef->getRootDirectory());
+        if ($typeRoot === false || !str_starts_with($real . DIRECTORY_SEPARATOR, $typeRoot . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+        return $real;
+    }
+
+    /**
+     * List all door directories of the given type along with their manifest status.
+     *
+     * @return array{targets: list<array{id:string,manifest_exists:bool,editable:bool,display_name:string}>}
+     */
+    private function listDoorManifestTargets(string $doorType): array
+    {
+        $typeDef = DoorManifestTypeRegistry::getType($doorType);
+        if ($typeDef === null) {
+            throw new \InvalidArgumentException("Unknown door type: {$doorType}");
+        }
+
+        $typeRootPath = __DIR__ . '/../../' . $typeDef->getRootDirectory();
+        if (!is_dir($typeRootPath)) {
+            return ['targets' => []];
+        }
+
+        $manifestFilename = $typeDef->getManifestFilename();
+        $targets = [];
+
+        foreach (scandir($typeRootPath) as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            if (!is_dir($typeRootPath . '/' . $entry)) {
+                continue;
+            }
+            if (!$this->isValidDoorManifestId($entry)) {
+                continue;
+            }
+
+            $manifestPath = $typeRootPath . '/' . $entry . '/' . $manifestFilename;
+            $manifestExists = file_exists($manifestPath);
+            $editable = false;
+            $displayName = $entry;
+
+            if ($manifestExists) {
+                $data = json_decode((string)file_get_contents($manifestPath), true);
+                if (is_array($data)) {
+                    $editable = ($data['managed'] ?? null) === 'web';
+                    $displayName = $data['game']['name'] ?? $data['name'] ?? $entry;
+                }
+            }
+
+            $targets[] = [
+                'id'              => $entry,
+                'manifest_exists' => $manifestExists,
+                'editable'        => $editable,
+                'display_name'    => $displayName,
+            ];
+        }
+
+        return ['targets' => $targets];
+    }
+
+    /**
+     * Return the manifest data, editability status, and form metadata for one door.
+     *
+     * @return array{manifest:array,editable:bool,exists:bool,field_sections:array,picker_profiles:array,root_directory:string,manifest_filename:string,runtime_config_path:string|null,admin_page_url:string,admin_page_title_key:string}
+     */
+    private function getDoorManifest(string $doorType, string $doorId): array
+    {
+        $typeDef = DoorManifestTypeRegistry::getType($doorType);
+        if ($typeDef === null) {
+            throw new \InvalidArgumentException("Unknown door type: {$doorType}");
+        }
+        if (!$this->isValidDoorManifestId($doorId)) {
+            throw new \InvalidArgumentException("Invalid door ID: {$doorId}");
+        }
+
+        $typeRootPath = __DIR__ . '/../../' . $typeDef->getRootDirectory();
+        $doorPath     = $typeRootPath . '/' . $doorId;
+
+        if (!is_dir($doorPath)) {
+            throw new \RuntimeException("Door directory not found: {$doorId}");
+        }
+
+        $manifestPath = $doorPath . '/' . $typeDef->getManifestFilename();
+        $exists = file_exists($manifestPath);
+        $editable = !$exists; // new manifests are always editable
+        $manifest = $typeDef->getDefaultManifest($doorId);
+
+        if ($exists) {
+            $data = json_decode((string)file_get_contents($manifestPath), true);
+            if (is_array($data)) {
+                $manifest = $data;
+                $editable = ($data['managed'] ?? null) === 'web';
+            }
+        }
+
+        return [
+            'manifest'              => $manifest,
+            'editable'              => $editable,
+            'exists'                => $exists,
+            'field_sections'        => $typeDef->getFieldSections(),
+            'picker_profiles'       => $typeDef->getFilePickerProfiles(),
+            'root_directory'        => $typeDef->getRootDirectory(),
+            'manifest_filename'     => $typeDef->getManifestFilename(),
+            'runtime_config_path'   => $typeDef->getRuntimeConfigPath(),
+            'admin_page_url'        => $typeDef->getAdminPageUrl(),
+            'admin_page_title_key'  => $typeDef->getAdminPageTitleKey(),
+        ];
+    }
+
+    /**
+     * Validate and write a door manifest via the adapter's rules.
+     */
+    private function saveDoorManifest(string $doorType, string $doorId, array $manifest): void
+    {
+        $typeDef = DoorManifestTypeRegistry::getType($doorType);
+        if ($typeDef === null) {
+            throw new \InvalidArgumentException("Unknown door type: {$doorType}");
+        }
+        if (!$this->isValidDoorManifestId($doorId)) {
+            throw new \InvalidArgumentException("Invalid door ID: {$doorId}");
+        }
+
+        $typeRootPath = __DIR__ . '/../../' . $typeDef->getRootDirectory();
+        $doorPath     = $typeRootPath . '/' . $doorId;
+
+        if (!is_dir($doorPath)) {
+            throw new \RuntimeException("Door directory not found: {$doorId}");
+        }
+
+        // Ownership gate: cannot take ownership of unmanaged manifests.
+        $manifestPath = $doorPath . '/' . $typeDef->getManifestFilename();
+        $existingManifest = null;
+        if (file_exists($manifestPath)) {
+            $data = json_decode((string)file_get_contents($manifestPath), true);
+            if (!is_array($data)) {
+                throw new \RuntimeException('Existing manifest contains invalid JSON');
+            }
+            if (($data['managed'] ?? null) !== 'web') {
+                throw new \RuntimeException('Manifest is not web-managed; cannot save via editor');
+            }
+            $existingManifest = $data;
+        }
+
+        // Payload must declare managed=web.
+        if (($manifest['managed'] ?? null) !== 'web') {
+            throw new \InvalidArgumentException('Manifest payload must include managed: "web"');
+        }
+
+        // Adapter validation.
+        $errors = $typeDef->validateForSave($doorId, $manifest, $existingManifest);
+        if (!empty($errors)) {
+            throw new \RuntimeException('Manifest validation failed: ' . implode('; ', $errors));
+        }
+
+        // Validate that any file-picker host paths stay within the door root.
+        $doorRealPath = realpath($doorPath);
+        if ($doorRealPath === false) {
+            throw new \RuntimeException('Cannot resolve door directory path');
+        }
+        $this->validateManifestPaths($manifest, $doorRealPath);
+
+        $json = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode manifest as JSON');
+        }
+
+        if (file_put_contents($manifestPath, $json . PHP_EOL) === false) {
+            throw new \RuntimeException("Failed to write manifest: {$manifestPath}");
+        }
+
+        $this->logger->info('Door manifest saved', [
+            'type' => $doorType,
+            'id'   => $doorId,
+        ]);
+    }
+
+    /**
+     * Walk a manifest recursively and reject any string value that looks like
+     * a path escaping the door root. Only validates non-empty string values
+     * that contain path separators or dots.
+     */
+    private function validateManifestPaths(mixed $value, string $doorRealPath): void
+    {
+        if (is_array($value)) {
+            foreach ($value as $v) {
+                $this->validateManifestPaths($v, $doorRealPath);
+            }
+            return;
+        }
+
+        if (!is_string($value) || $value === '') {
+            return;
+        }
+
+        // Skip values that clearly aren't paths (no / or \\ and no .)
+        if (!str_contains($value, '/') && !str_contains($value, '\\') && !str_contains($value, '.')) {
+            return;
+        }
+
+        // Reject absolute paths and traversal sequences.
+        if (str_starts_with($value, '/') || str_starts_with($value, '\\') || str_contains($value, '..')) {
+            throw new \RuntimeException("Manifest contains an unsafe path value: {$value}");
+        }
+    }
+
+    /**
+     * Return a confined directory listing for a type-aware file picker.
+     *
+     * @return array{entries:list<array{name:string,type:string,path:string}>,current_dir:string,parent_dir:string|null}
+     */
+    private function listDoorManifestFiles(string $doorType, string $doorId, string $subdir, string $profile): array
+    {
+        $typeDef = DoorManifestTypeRegistry::getType($doorType);
+        if ($typeDef === null) {
+            throw new \InvalidArgumentException("Unknown door type: {$doorType}");
+        }
+        if (!$this->isValidDoorManifestId($doorId)) {
+            throw new \InvalidArgumentException("Invalid door ID: {$doorId}");
+        }
+
+        $typeRootPath = __DIR__ . '/../../' . $typeDef->getRootDirectory();
+        $doorAbsPath  = realpath($typeRootPath . '/' . $doorId);
+        if ($doorAbsPath === false || !is_dir($doorAbsPath)) {
+            throw new \RuntimeException("Door directory not found: {$doorId}");
+        }
+
+        // Resolve target directory, staying within the door root.
+        $targetPath = $doorAbsPath;
+        if ($subdir !== '') {
+            $resolved = realpath($doorAbsPath . '/' . $subdir);
+            if ($resolved === false || !is_dir($resolved)) {
+                throw new \RuntimeException("Subdirectory not found: {$subdir}");
+            }
+            if (!str_starts_with($resolved . DIRECTORY_SEPARATOR, $doorAbsPath . DIRECTORY_SEPARATOR)) {
+                throw new \RuntimeException('Directory traversal detected');
+            }
+            $targetPath = $resolved;
+        }
+
+        // Determine allowed extensions for the requested picker profile.
+        $profiles = $typeDef->getFilePickerProfiles();
+        $allowedExtensions = null;
+        if ($profile !== '' && isset($profiles[$profile])) {
+            $allowedExtensions = $profiles[$profile]['allowed_extensions'];
+        }
+
+        $entries = [];
+        foreach (scandir($targetPath) as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+            $absEntry = $targetPath . '/' . $name;
+            if (is_dir($absEntry)) {
+                $relPath = ltrim(str_replace(DIRECTORY_SEPARATOR, '/', substr($absEntry, strlen($doorAbsPath))), '/');
+                $entries[] = ['name' => $name, 'type' => 'dir', 'path' => $relPath];
+                continue;
+            }
+            if (!is_file($absEntry)) {
+                continue;
+            }
+            if ($allowedExtensions !== null) {
+                $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                if (!in_array($ext, $allowedExtensions, true)) {
+                    continue;
+                }
+            }
+            $relPath = ltrim(str_replace(DIRECTORY_SEPARATOR, '/', substr($absEntry, strlen($doorAbsPath))), '/');
+            $entries[] = ['name' => $name, 'type' => 'file', 'path' => $relPath];
+        }
+
+        // Sort: dirs first, then files, both alphabetically.
+        usort($entries, static function (array $a, array $b): int {
+            if ($a['type'] !== $b['type']) {
+                return $a['type'] === 'dir' ? -1 : 1;
+            }
+            return strcasecmp($a['name'], $b['name']);
+        });
+
+        // Relative path of the current directory (empty string = door root).
+        $currentDir = ltrim(str_replace(DIRECTORY_SEPARATOR, '/', substr($targetPath, strlen($doorAbsPath))), '/');
+        $parentDir  = null;
+        if ($currentDir !== '') {
+            $parentDir = ltrim(str_replace(DIRECTORY_SEPARATOR, '/', substr(dirname($targetPath), strlen($doorAbsPath))), '/');
+        }
+
+        return [
+            'entries'     => $entries,
+            'current_dir' => $currentDir,
+            'parent_dir'  => $parentDir,
+        ];
+    }
+
+    /**
+     * Read readable text files from a door directory for AI metadata extraction.
+     *
+     * Returns an array with keys 'files' (array of {name, content}) and 'total_bytes'.
+     * Binary files and files with unsupported extensions are skipped.
+     *
+     * @return array{files:list<array{name:string,content:string}>,total_bytes:int}
+     */
+    private function readDoorTextFiles(string $doorType, string $doorId): array
+    {
+        $typeDef = DoorManifestTypeRegistry::getType($doorType);
+        if ($typeDef === null) {
+            throw new \InvalidArgumentException("Unknown door type: {$doorType}");
+        }
+        if (!$this->isValidDoorManifestId($doorId)) {
+            throw new \InvalidArgumentException("Invalid door ID: {$doorId}");
+        }
+
+        $typeRootPath = __DIR__ . '/../../' . $typeDef->getRootDirectory();
+        $doorAbsPath  = realpath($typeRootPath . '/' . $doorId);
+        if ($doorAbsPath === false || !is_dir($doorAbsPath)) {
+            throw new \RuntimeException("Door directory not found: {$doorId}");
+        }
+
+        $skipExtensions = [
+            'exe', 'com', 'bat', 'dll', 'ovl', 'cfg', 'jsn', 'json',
+            'zip', 'arc', 'arj', 'lzh', 'pak', 'lha', 'gz', 'tar',
+            'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'tga', 'pcx',
+            'wav', 'mid', 'mod', 'xm', 's3m', 'it', 'mp3', 'ogg',
+            'bin', 'dat', 'idx', 'db', 'sys', 'drv', 'vxd',
+        ];
+
+        // Priority order: readme-like files first.
+        $priorityPrefixes = ['readme', 'read.me', '.nfo', 'install', 'setup', 'help', 'whatsnew', 'changes', 'history', 'license', 'about'];
+
+        $maxFileBytes  = 8192;
+        $maxTotalBytes = 32768;
+
+        $candidates = [];
+        foreach (scandir($doorAbsPath) as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+            $absPath = $doorAbsPath . '/' . $name;
+            if (!is_file($absPath)) {
+                continue;
+            }
+            $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+            if (in_array($ext, $skipExtensions, true)) {
+                continue;
+            }
+            $lower = strtolower($name);
+            $priority = count($priorityPrefixes);
+            foreach ($priorityPrefixes as $idx => $prefix) {
+                if (str_starts_with($lower, $prefix) || $lower === $prefix) {
+                    $priority = $idx;
+                    break;
+                }
+            }
+            $candidates[] = ['path' => $absPath, 'name' => $name, 'priority' => $priority];
+        }
+
+        usort($candidates, static fn($a, $b) => $a['priority'] <=> $b['priority'] ?: strcasecmp($a['name'], $b['name']));
+
+        $files      = [];
+        $totalBytes = 0;
+
+        foreach ($candidates as $c) {
+            if ($totalBytes >= $maxTotalBytes) {
+                break;
+            }
+            $raw = @file_get_contents($c['path'], false, null, 0, $maxFileBytes);
+            if ($raw === false || $raw === '') {
+                continue;
+            }
+            // Binary check: skip if more than 15% of bytes are non-printable (excluding common whitespace).
+            $len = strlen($raw);
+            $nonPrintable = 0;
+            for ($i = 0; $i < $len; $i++) {
+                $b = ord($raw[$i]);
+                if ($b < 0x20 && $b !== 0x09 && $b !== 0x0A && $b !== 0x0D && $b !== 0x1A) {
+                    $nonPrintable++;
+                }
+            }
+            if ($len > 0 && ($nonPrintable / $len) > 0.15) {
+                continue;
+            }
+            // Strip trailing SAUCE record if present (starts with "SAUCE").
+            if (($saucePos = strpos($raw, 'SAUCE')) !== false && $saucePos > $len - 200) {
+                $raw = substr($raw, 0, $saucePos);
+            }
+            // Convert to UTF-8 if needed (best effort; ignore failures).
+            $text = @iconv('CP437', 'UTF-8//IGNORE', $raw);
+            if ($text === false || $text === '') {
+                $text = preg_replace('/[^\x09\x0A\x0D\x20-\x7E]/', '', $raw);
+            }
+            $text = trim($text);
+            if ($text === '') {
+                continue;
+            }
+            $files[]     = ['name' => $c['name'], 'content' => $text];
+            $totalBytes += strlen($text);
+        }
+
+        return ['files' => $files, 'total_bytes' => $totalBytes];
     }
 
     private function mergeUplinks(array $existing, array $incoming): array

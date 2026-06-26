@@ -410,6 +410,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'Не удалось сохранить конфигурацию JS‑DOS дверей',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Не удалось активировать конфигурацию JS‑DOS дверей',
 
+    // Ошибки редактора манифеста дверей
+    'errors.admin.door_manifest.list_failed' => 'Не удалось получить список целей манифеста двери',
+    'errors.admin.door_manifest.get_failed' => 'Не удалось получить манифест двери',
+    'errors.admin.door_manifest.save_failed' => 'Не удалось сохранить манифест двери',
+    'errors.admin.door_manifest.files_failed' => 'Не удалось получить список файлов двери',
+    'errors.admin.door_manifest.missing_manifest' => 'Данные манифеста отсутствуют или недействительны',
+    'errors.admin.door_manifest.ai_fill_failed' => 'Автозаполнение с помощью ИИ не удалось',
+    'errors.admin.door_manifest.ai_no_provider' => 'Провайдер ИИ не настроен',
+    'errors.admin.door_manifest.ai_no_files' => 'Читаемые файлы в директории двери не найдены',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Игра не найдена',
     'errors.jsdosdoor.session_create_failed' => 'Не удалось создать игровую сессию',

@@ -46,6 +46,20 @@
                     </button>
                 </div>
             </div>
+
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-plus-circle me-1"></i>{{ t('ui.admin.door_discover.heading', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body p-0" id="discoverDoorsList">
+                    <div class="text-center text-muted p-3">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
+                        </div>
+                        {{ t('ui.admin.door_discover.loading', {}, locale, ['common']) }}
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Configuration Editor -->
@@ -149,6 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadConfig();
         loadAvailableDoors();
+        loadDiscoverDoors();
     });
 
     document.getElementById('configEditor').addEventListener('input', () => {
@@ -193,6 +208,38 @@ function loadAvailableDoors() {
         })
         .catch(error => {
             showAlert('danger', uiT('ui.admin.nativedoors_config.load_doors_error_prefix', 'Error loading available doors: ') + error.message);
+        });
+}
+
+function loadDiscoverDoors() {
+    fetch('/admin/api/door-manifests/native')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('discoverDoorsList');
+            if (!data.success) { container.innerHTML = ''; return; }
+            const unmanifested = (data.targets || []).filter(t => !t.manifest_exists);
+            if (unmanifested.length === 0) {
+                container.innerHTML = '<div class="p-3 text-muted">' + uiT('ui.admin.door_discover.empty', 'No new door directories found.') + '</div>';
+                return;
+            }
+            let html = '<div class="list-group list-group-flush">';
+            unmanifested.forEach(t => {
+                html += `
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-semibold">${t.id}</div>
+                            <span class="badge bg-warning text-dark">${uiT('ui.admin.door_discover.no_manifest_badge', 'No manifest')}</span>
+                        </div>
+                        <a href="/admin/doors/native/${encodeURIComponent(t.id)}/manifest" class="btn btn-sm btn-outline-warning">
+                            <i class="fas fa-plus"></i> ${uiT('ui.admin.door_manifest_editor.create_btn', 'Create Manifest')}
+                        </a>
+                    </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        })
+        .catch(() => {
+            document.getElementById('discoverDoorsList').innerHTML = '';
         });
 }
 
@@ -269,6 +316,9 @@ function renderDoorsList() {
                                 title="${enabled ? uiT('ui.admin.nativedoors_config.disable', 'Disable') : uiT('ui.admin.nativedoors_config.enable', 'Enable')}">
                             <i class="fas fa-power-off"></i>
                         </button>
+                        <a href="/admin/doors/native/${escHtml(door.id)}/manifest" class="btn btn-outline-info" title="${uiT('ui.admin.door_manifest_editor.heading', 'Door Manifest Editor')}">
+                            <i class="fas fa-file-code"></i>
+                        </a>
                     </div>
                 </div>
             </div>

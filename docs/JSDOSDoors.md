@@ -262,18 +262,20 @@ If `config/jsdosdoors.json` does not exist, no JS-DOS doors are shown and no err
 
 ## Activation and Admin Interface
 
-1. Visit `/admin/jsdosdoors`.
-2. If no config exists, click **Activate JS-DOS Doors** to create `config/jsdosdoors.json` from the example.
-3. Edit the JSON to enable the games you want.
-4. Click **Save**.
-
-The door list on the left sidebar of the admin page shows all discovered manifests and whether each game is enabled. Games not present in the config JSON are shown as `(not in config)`.
+1. Visit **Admin → JS-DOS Doors** (`/admin/jsdosdoors`).
+2. If no config exists, click **Activate JS-DOS Doors** to create `config/jsdosdoors.json`.
+3. The sidebar lists all discovered manifests. Games not yet in the config are shown as `(not in config)`.
+4. To add a new game, use the **Add New Door** panel: find the directory and click **Create Manifest** to open the manifest editor.
+5. In the manifest editor, fill in the game metadata and emulator configuration. Click **Save** when done.
+6. Back on the JS-DOS Doors page, enable the game and click **Save Configuration**.
 
 ---
 
 ## Adding a Game: Doom Example
 
 The Doom shareware manifest is included at `public_html/jsdos-doors/doomsw/jsdosdoor.json`. It demonstrates both normal play mode and an admin-only `config` mode.
+
+For simple game metadata (name, description, genre, etc.) you can use the manifest editor in **Admin → JS-DOS Doors**. Fields like `emulator_config.game_files` and `emulator_config.autoexec` are best set directly in the JSON preview panel of the editor, or by editing `jsdosdoor.json` by hand for complex configurations like the Doom example below.
 
 A complete working manifest for Doom shareware looks like this:
 
