@@ -186,7 +186,7 @@ The following is the complete manifest for Trade Wars 2002 V3 Gold Edition, loca
 }
 ```
 
-The TW2002 V3 installer is available from the [ClassicTW wiki](https://www.wiki.classictw.com/index.php?title=Application:TradeWars_2002_v3). The `{node}` placeholder in `launch_command` is replaced at runtime with the player's node number. Trade Wars 2002 requires a FOSSIL driver and a `DOOR.SYS` drop file; ANSI is handled by the game itself.
+The TW2002 V3 installer is available from the [ClassicTW wiki](https://www.wiki.classictw.com/index.php?title=Application:TradeWars_2002_v3). The `{node}` placeholder in `launch_command` is replaced at runtime with the player's node number. Trade Wars 2002 requires FOSSIL serial emulation and a `DOOR.SYS` drop file; DOSBox-X provides FOSSIL support natively, so no separate FOSSIL driver installation is needed. ANSI is handled by the game itself.
 
 ### Archive Preview Path Validation
 
