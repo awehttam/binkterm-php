@@ -1588,7 +1588,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.door_manifest_editor.field.dos_executable' => 'Exécutable',
     'ui.admin.door_manifest_editor.field.dos_executable_help' => 'Le fichier .EXE, .BAT ou .COM à exécuter.',
     'ui.admin.door_manifest_editor.field.launch_command' => 'Commande de lancement',
-    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Remplacement complet de la commande DOSBox (optionnel).',
+    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Remplacement complet de la commande DOSBox (optionnel). Macros : {node} = numéro de noeud, {dropfile} = nom du fichier drop (DOOR.SYS), {user_number} = identifiant utilisateur.',
     'ui.admin.door_manifest_editor.field.dropfile_format' => 'Format du fichier drop',
     'ui.admin.door_manifest_editor.field.fossil_required' => 'FOSSIL requis',
     'ui.admin.door_manifest_editor.field.ansi_required' => 'ANSI requis',
@@ -1600,7 +1600,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Exécutable',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Chemin vers le binaire ou le script relatif au répertoire de la porte.',
-    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Commande de remplacement. Espaces réservés : {node}, {dropfile}, {user_number}.',
+    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Commande de remplacement. Macros : {node} = numéro de noeud, {dropfile} = chemin complet vers le fichier drop, {user_number} = identifiant utilisateur. Utilisez ${VAR:-default} pour développer les variables .env. Utilisez launch_command_windows pour une variante spécifique à Windows.',
     'ui.admin.door_manifest_editor.field.output_encoding' => 'Encodage de sortie',
     'ui.admin.door_manifest_editor.field.allow_anonymous' => 'Autoriser les anonymes',
     'ui.admin.door_manifest_editor.field.allow_anonymous_help' => 'Si les invités non enregistrés peuvent utiliser cette porte.',

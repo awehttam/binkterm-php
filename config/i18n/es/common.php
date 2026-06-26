@@ -1880,7 +1880,7 @@ return [
     'ui.admin.door_manifest_editor.field.dos_executable' => 'Ejecutable',
     'ui.admin.door_manifest_editor.field.dos_executable_help' => 'El archivo .EXE, .BAT o .COM a ejecutar.',
     'ui.admin.door_manifest_editor.field.launch_command' => 'Comando de inicio',
-    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Anulacion completa del comando DOSBox (opcional).',
+    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Anulacion completa del comando DOSBox (opcional). Macros: {node} = numero de nodo, {dropfile} = nombre del archivo drop (DOOR.SYS), {user_number} = ID de usuario.',
     'ui.admin.door_manifest_editor.field.dropfile_format' => 'Formato del archivo de datos',
     'ui.admin.door_manifest_editor.field.fossil_required' => 'FOSSIL requerido',
     'ui.admin.door_manifest_editor.field.ansi_required' => 'ANSI requerido',
@@ -1892,7 +1892,7 @@ return [
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Ejecutable',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Ruta al binario o script relativa al directorio de la puerta.',
-    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Comando de anulacion. Marcadores de posicion: {node}, {dropfile}, {user_number}.',
+    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Comando de anulacion. Macros: {node} = numero de nodo, {dropfile} = ruta completa al archivo drop, {user_number} = ID de usuario. Use ${VAR:-default} para expandir variables .env. Use launch_command_windows para un comando especifico de Windows.',
     'ui.admin.door_manifest_editor.field.output_encoding' => 'Codificacion de salida',
     'ui.admin.door_manifest_editor.field.allow_anonymous' => 'Permitir anonimos',
     'ui.admin.door_manifest_editor.field.allow_anonymous_help' => 'Si los invitados no registrados pueden usar esta puerta.',

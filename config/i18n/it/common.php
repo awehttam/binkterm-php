@@ -1827,7 +1827,7 @@ return [
     'ui.admin.door_manifest_editor.field.dos_executable' => 'Eseguibile',
     'ui.admin.door_manifest_editor.field.dos_executable_help' => 'Il file .EXE, .BAT o .COM da eseguire.',
     'ui.admin.door_manifest_editor.field.launch_command' => 'Comando di avvio',
-    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Override completo del comando DOSBox (opzionale).',
+    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Override completo del comando DOSBox (opzionale). Macro: {node} = numero nodo, {dropfile} = nome file drop (DOOR.SYS), {user_number} = ID utente.',
     'ui.admin.door_manifest_editor.field.dropfile_format' => 'Formato file drop',
     'ui.admin.door_manifest_editor.field.fossil_required' => 'FOSSIL richiesto',
     'ui.admin.door_manifest_editor.field.ansi_required' => 'ANSI richiesto',
@@ -1839,7 +1839,7 @@ return [
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Eseguibile',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Percorso al binario o script relativo alla directory della porta.',
-    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Comando di override. Segnaposto: {node}, {dropfile}, {user_number}.',
+    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Comando di override. Macro: {node} = numero nodo, {dropfile} = percorso completo al file drop, {user_number} = ID utente. Usare ${VAR:-default} per espandere variabili .env. Usare launch_command_windows per una variante specifica di Windows.',
     'ui.admin.door_manifest_editor.field.output_encoding' => 'Codifica di output',
     'ui.admin.door_manifest_editor.field.allow_anonymous' => 'Consenti anonimi',
     'ui.admin.door_manifest_editor.field.allow_anonymous_help' => 'Se gli ospiti non registrati possono usare questa porta.',

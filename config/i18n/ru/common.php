@@ -1866,7 +1866,7 @@ return [
     'ui.admin.door_manifest_editor.field.dos_executable' => 'Исполняемый файл',
     'ui.admin.door_manifest_editor.field.dos_executable_help' => 'Файл .EXE, .BAT или .COM для запуска.',
     'ui.admin.door_manifest_editor.field.launch_command' => 'Команда запуска',
-    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Полная замена команды DOSBox (необязательно).',
+    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Полная замена команды DOSBox (необязательно). Макросы: {node} = номер узла, {dropfile} = имя дроп-файла (DOOR.SYS), {user_number} = ID пользователя.',
     'ui.admin.door_manifest_editor.field.dropfile_format' => 'Формат drop-файла',
     'ui.admin.door_manifest_editor.field.fossil_required' => 'Требуется FOSSIL',
     'ui.admin.door_manifest_editor.field.ansi_required' => 'Требуется ANSI',
@@ -1878,7 +1878,7 @@ return [
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Исполняемый файл',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Путь к бинарному файлу или скрипту относительно директории двери.',
-    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Команда замены. Плейсхолдеры: {node}, {dropfile}, {user_number}.',
+    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Команда замены. Макросы: {node} = номер узла, {dropfile} = полный путь к дроп-файлу, {user_number} = ID пользователя. ${VAR:-default} подставляет переменные .env. launch_command_windows используется для варианта команды под Windows.',
     'ui.admin.door_manifest_editor.field.output_encoding' => 'Кодировка вывода',
     'ui.admin.door_manifest_editor.field.allow_anonymous' => 'Разрешить анонимных',
     'ui.admin.door_manifest_editor.field.allow_anonymous_help' => 'Могут ли незарегистрированные гости использовать эту дверь.',

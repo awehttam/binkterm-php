@@ -1846,7 +1846,7 @@ return [
     'ui.admin.door_manifest_editor.field.dos_executable' => 'Executable',
     'ui.admin.door_manifest_editor.field.dos_executable_help' => 'The .EXE, .BAT, or .COM file to run.',
     'ui.admin.door_manifest_editor.field.launch_command' => 'Launch Command',
-    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Full DOSBox command override (optional).',
+    'ui.admin.door_manifest_editor.field.launch_command_help' => 'Full DOSBox command override (optional). Macros: {node} = node number, {dropfile} = drop file name (DOOR.SYS), {user_number} = user ID.',
     'ui.admin.door_manifest_editor.field.dropfile_format' => 'Drop File Format',
     'ui.admin.door_manifest_editor.field.fossil_required' => 'FOSSIL Required',
     'ui.admin.door_manifest_editor.field.ansi_required' => 'ANSI Required',
@@ -1858,7 +1858,7 @@ return [
     // Native-specific
     'ui.admin.door_manifest_editor.field.native_executable' => 'Executable',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Path to the binary or script relative to the door directory.',
-    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Override command. Placeholders: {node}, {dropfile}, {user_number}.',
+    'ui.admin.door_manifest_editor.field.native_launch_command_help' => 'Override command. Macros: {node} = node number, {dropfile} = full path to drop file, {user_number} = user ID. Use ${VAR:-default} to expand .env variables. Use launch_command_windows for a Windows-specific override.',
     'ui.admin.door_manifest_editor.field.output_encoding' => 'Output Encoding',
     'ui.admin.door_manifest_editor.field.allow_anonymous' => 'Allow Anonymous',
     'ui.admin.door_manifest_editor.field.allow_anonymous_help' => 'Whether unregistered guests may use this door.',
