@@ -296,6 +296,25 @@
             }
         }
 
+        const netmailTotal = parseInt(stats?.total_netmail || 0, 10) || 0;
+        const netmailBadgeCount = (netmailTotal > 0 && !isPathMatch('/netmail') && clearTarget !== 'netmail') ? netmailTotal : 0;
+        const echomailBadgeCount = mailUnread.echomail ? echomailUnread : 0;
+        const messagingBadgeCount = netmailBadgeCount + echomailBadgeCount;
+
+        const netmailBadge = document.getElementById('netmailMenuBadge');
+        const echomailBadge = document.getElementById('echomailMenuBadge');
+        const messagingBadge = document.getElementById('messagingMenuBadge');
+
+        if (netmailBadge) {
+            netmailBadge.textContent = netmailBadgeCount > 0 ? '(' + netmailBadgeCount + ')' : '';
+        }
+        if (echomailBadge) {
+            echomailBadge.textContent = echomailBadgeCount > 0 ? '(' + echomailBadgeCount + ')' : '';
+        }
+        if (messagingBadge) {
+            messagingBadge.textContent = messagingBadgeCount > 0 ? '(' + messagingBadgeCount + ')' : '';
+        }
+
         updateMessagingIcon();
         updateCreditBalance(stats);
     }

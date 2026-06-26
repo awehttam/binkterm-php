@@ -473,6 +473,14 @@ SimpleRouter::get('/api/packetbbs/pending', function () {
         return;
     }
 
+    $sessionRepo = new \BinktermPHP\PacketBbs\PacketBbsSession();
+    if (!$sessionRepo->isBridgeAuthorized($nodeId, $bridgeNodeId)) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Access denied: node session belongs to a different bridge.']);
+        return;
+    }
+
     $gateway  = new PacketBbsGateway();
     $messages = $gateway->getPendingMessages($nodeId);
 

@@ -505,6 +505,7 @@ return [
     'errors.address_book.delete_failed' => 'Не удалось удалить запись адресной книги',
     'errors.address_book.search_failed' => 'Не удалось выполнить поиск записей адресной книги',
     'errors.address_book.stats_failed' => 'Не удалось загрузить статистику адресной книги',
+    'errors.address_book.pgp_key_already_set' => 'В этой записи адресной книги уже установлен ключ PGP',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'Не удалось загрузить общее сообщение',

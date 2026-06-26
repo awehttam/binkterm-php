@@ -505,6 +505,7 @@ return [
     'errors.address_book.delete_failed' => 'Impossibile eliminare la voce della rubrica',
     'errors.address_book.search_failed' => 'Impossibile cercare le voci della rubrica',
     'errors.address_book.stats_failed' => 'Impossibile caricare le statistiche della rubrica',
+    'errors.address_book.pgp_key_already_set' => 'Questa voce della rubrica ha già una chiave PGP impostata',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'Impossibile caricare il messaggio condiviso',

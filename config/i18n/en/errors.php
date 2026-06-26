@@ -509,6 +509,7 @@ return [
     'errors.address_book.delete_failed' => 'Failed to delete address book entry',
     'errors.address_book.search_failed' => 'Failed to search address book entries',
     'errors.address_book.stats_failed' => 'Failed to load address book statistics',
+    'errors.address_book.pgp_key_already_set' => 'This address book entry already has a PGP key set',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'Failed to load shared message',

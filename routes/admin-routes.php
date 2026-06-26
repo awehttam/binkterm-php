@@ -2453,7 +2453,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         $providers[$providerName] = !empty($mp['providers'][$providerName] ?? true);
                     }
                     $apiKeys = [];
-                    foreach (['soundcloud', 'twitter'] as $keyName) {
+                    foreach (['soundcloud', 'twitter', 'facebook'] as $keyName) {
                         $apiKeys[$keyName] = trim((string)($mp['api_keys'][$keyName] ?? ''));
                     }
                     $config['message_reader']['media_player'] = [

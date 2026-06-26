@@ -417,8 +417,27 @@ class ArchiveReader
         return $content; // false = entry not found; string = success
     }
 
+    private static function isSafeEntryPath(string $path): bool
+    {
+        if ($path === '' || str_contains($path, '..')) {
+            return false;
+        }
+        // Reject absolute paths (Unix and Windows drive-prefixed)
+        if (str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+            return false;
+        }
+        if (preg_match('/^[A-Za-z]:[\/\\\\]/', $path)) {
+            return false;
+        }
+        return true;
+    }
+
     private static function extractZipViaShell(string $archivePath, string $entryName): string|false
     {
+        if (!self::isSafeEntryPath($entryName)) {
+            return false;
+        }
+
         $null       = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
         $extractDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'bink_arc_' . bin2hex(random_bytes(8));
         if (!@mkdir($extractDir, 0700, true)) {
@@ -554,6 +573,10 @@ class ArchiveReader
      */
     private static function extract7z(string $archivePath, string $entryPath): string|false
     {
+        if (!self::isSafeEntryPath($entryPath)) {
+            return false;
+        }
+
         $sevenZ = self::find7z();
         if ($sevenZ === null) {
             throw new \RuntimeException('tool_unavailable');
