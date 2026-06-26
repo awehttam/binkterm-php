@@ -10,6 +10,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Re-post Attribution Header](#re-post-attribution-header)
 - [Auto Feed Full Article Content](#auto-feed-full-article-content)
 - [PGP Keyserver Address Book Import](#pgp-keyserver-address-book-import)
+- [DOS Door WebSocket Reconnect Window](#dos-door-websocket-reconnect-window)
 - [Facebook and Instagram Link Previews](#facebook-and-instagram-link-previews)
 - [Security](#security)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -25,6 +26,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Admin -> Auto Feed** now supports arbitrary poster names instead of linked posting accounts, and each feed can target multiple echo areas. Existing feeds are migrated automatically from their old linked-user and single-area settings.
 - **Admin -> Auto Feed -> Check now** now runs through the admin daemon instead of spawning `rss_poster.php` directly from the web request. The manual check result is shown in the UI, and a Windows-specific daemon re-entry hang during feed posting has been fixed.
 - All four door admin pages (DOS Doors, Native Doors, JS-DOS Doors, WebDoors) now include a **Door Manifest Editor** — a form-based UI for creating and editing door manifests without touching JSON files directly. An **Add New Door** panel lists door directories that do not yet have a manifest so new games can be set up from the admin interface. An **Auto fill with AI** button reads the door's README and NFO files and populates game metadata automatically when an AI provider is configured. Existing manifests that were not created through the editor are displayed read-only; add `"managed": "web"` to the manifest before the editor will allow changes to it. The door manifest editor is experimental — please report any issues on [GitHub](https://github.com/awehttam/binkterm-php) or the [support BBS](https://claudes.lovelybits.org).
+- The DOS door bridge now holds a session open for a short reconnect window (default 30 seconds, configurable via `DOSDOOR_RECONNECT_TIMEOUT`) after a WebSocket disconnect before terminating DOSBox. This allows the browser to reconnect after a page refresh or tab switch without losing the running game.
 - Echomail area links that use `?echoarea=AREA&domain=DOMAIN` now preserve the selected area correctly instead of internally resolving to `AREA@DOMAIN@DOMAIN`.
 - The archive entry preview endpoint now rejects absolute paths in addition to `..` traversal sequences, closing a gap where a specially crafted archive with absolute-path entries could cause the extraction tool to write outside the designated temp directory.
 
@@ -212,6 +214,14 @@ Clicking the button checks whether the authenticated user already has an address
 - If no matching entry exists, a short form opens pre-filled with the key owner's name and username. Enter the FTN node address of the BBS system and submit to create a new address book entry with the key attached.
 
 For remote results, the server fetches the armored public key from the remote BBS's keyserver before linking or creating the entry. When the search query included an FTN node address (e.g. `user@1:234/567`), the node address field in the creation form is pre-filled automatically.
+
+## DOS Door WebSocket Reconnect Window
+
+The DOS door bridge (`scripts/dosbox-bridge/multiplexing-server.js`) previously terminated the running DOSBox process as soon as the player's WebSocket connection closed. This meant that refreshing the door player page or switching to a second browser tab would drop the game session immediately.
+
+The bridge now holds the session open for a short reconnect window after a disconnect. If the browser reconnects within that window, the game resumes without interruption. If no reconnection arrives before the window expires, the bridge applies the existing `DOSDOOR_DISCONNECT_TIMEOUT` behavior — immediate termination when set to `0`, or a configurable grace period otherwise.
+
+The reconnect window is controlled by `DOSDOOR_RECONNECT_TIMEOUT` in your `.env` file (value in seconds, default `30`). Set it to `0` to restore the previous behavior of immediate termination on disconnect.
 
 ## Facebook and Instagram Link Previews
 

@@ -148,8 +148,9 @@ if (IS_DAEMON && !IS_DAEMON_CHILD) {
 // Configuration from environment
 const WS_PORT = parseInt(process.env.DOSDOOR_WS_PORT) || 6001;
 const WS_BIND_HOST = process.env.DOSDOOR_WS_BIND_HOST || '127.0.0.1';
-// These three are safe to reload via SIGHUP — they take effect per-session/per-event.
+// These are safe to reload via SIGHUP — they take effect per-session/per-event.
 let DISCONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
+let RECONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_RECONNECT_TIMEOUT) || 30; // seconds to hold session open for a page-refresh reconnect
 let DEBUG_KEEP_FILES = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true'; // Set to 'true' to disable cleanup
 let CARRIER_LOSS_TIMEOUT = parseInt(process.env.DOSDOOR_CARRIER_LOSS_TIMEOUT) || 5000; // ms to wait after carrier loss
 
@@ -194,12 +195,17 @@ function reloadEnv() {
     require('dotenv').config({ path: __dirname + '/../../.env', override: true });
 
     const newDisconnectTimeout = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
+    const newReconnectTimeout = parseInt(process.env.DOSDOOR_RECONNECT_TIMEOUT) || 30;
     const newDebugKeepFiles = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true';
     const newCarrierLossTimeout = parseInt(process.env.DOSDOOR_CARRIER_LOSS_TIMEOUT) || 5000;
 
     if (newDisconnectTimeout !== DISCONNECT_TIMEOUT) {
         console.log(`[Config] DOSDOOR_DISCONNECT_TIMEOUT: ${DISCONNECT_TIMEOUT} -> ${newDisconnectTimeout}`);
         DISCONNECT_TIMEOUT = newDisconnectTimeout;
+    }
+    if (newReconnectTimeout !== RECONNECT_TIMEOUT) {
+        console.log(`[Config] DOSDOOR_RECONNECT_TIMEOUT: ${RECONNECT_TIMEOUT} -> ${newReconnectTimeout}`);
+        RECONNECT_TIMEOUT = newReconnectTimeout;
     }
     if (newDebugKeepFiles !== DEBUG_KEEP_FILES) {
         console.log(`[Config] DOSDOOR_DEBUG_KEEP_FILES: ${DEBUG_KEEP_FILES} -> ${newDebugKeepFiles}`);
@@ -399,6 +405,11 @@ class SessionManager {
 
         if (session) {
             slog.log(`[WS] Reconnection to existing session`);
+            // Cancel any pending reconnect/disconnect timer from a prior WS close
+            if (session.disconnectTimer) {
+                clearTimeout(session.disconnectTimer);
+                session.disconnectTimer = null;
+            }
             // Close old WebSocket
             if (session.ws && session.ws.readyState === WebSocket.OPEN) {
                 session.ws.close(1000, 'Client reconnected');
@@ -1065,20 +1076,23 @@ class SessionManager {
             return;
         }
 
-        // User closed browser but DOSBox still running
-        if (DISCONNECT_TIMEOUT === 0) {
-            // Immediate disconnect mode - kill DOSBox and clean up
-            session.slog.log(`[WS] Immediate disconnect mode - removing session`);
-            this.removeSession(session);
-        } else {
-            // Grace period mode - keep DOSBox running, allow reconnect
-            session.slog.log(`[WS] Disconnect grace period: ${DISCONNECT_TIMEOUT} minutes`);
-
-            session.disconnectTimer = setTimeout(() => {
-                session.slog.log(`[WS] Grace period expired - removing session`);
+        // Always hold the session open for RECONNECT_TIMEOUT seconds to allow
+        // the browser to reconnect after a page refresh or tab switch before
+        // applying DISCONNECT_TIMEOUT logic.
+        session.slog.log(`[WS] Waiting ${RECONNECT_TIMEOUT}s for reconnect...`);
+        session.disconnectTimer = setTimeout(() => {
+            session.disconnectTimer = null;
+            if (DISCONNECT_TIMEOUT === 0) {
+                session.slog.log(`[WS] Reconnect window expired - removing session`);
                 this.removeSession(session);
-            }, DISCONNECT_TIMEOUT * 60 * 1000);
-        }
+            } else {
+                session.slog.log(`[WS] Reconnect window expired - grace period: ${DISCONNECT_TIMEOUT} minutes`);
+                session.disconnectTimer = setTimeout(() => {
+                    session.slog.log(`[WS] Grace period expired - removing session`);
+                    this.removeSession(session);
+                }, DISCONNECT_TIMEOUT * 60 * 1000);
+            }
+        }, RECONNECT_TIMEOUT * 1000);
     }
 
     removeSession(session) {
