@@ -500,6 +500,18 @@ function doRegistration($isUpdate = false) {
 
     $regData = $result['data'];
 
+    // Mode 2 on the hub (AUTOREGISTER_ENABLED=2) returns success=true with an
+    // application_id instead of a live node assignment.  Nothing to configure yet.
+    if (!isset($regData['ftn_address'])) {
+        $appId = $regData['application_id'] ?? 'unknown';
+        echo "Your registration has been submitted for manual review.\n\n";
+        echo "Application ID: {$appId}\n";
+        echo "The hub administrator will review your application and contact\n";
+        echo "you by email when it is approved. Re-run this script after\n";
+        echo "you receive confirmation to complete the setup.\n\n";
+        return;
+    }
+
     echo "Registration successful!\n";
     echo str_repeat("=", 40) . "\n";
     echo "FTN Address:      {$regData['ftn_address']}\n";
