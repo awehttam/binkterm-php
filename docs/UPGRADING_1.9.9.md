@@ -134,6 +134,8 @@ The manifest editor provides labelled form fields for every supported manifest f
 When an AI provider is configured, an **Auto fill with AI** button appears alongside the Save button. Clicking it instructs the admin daemon to read the door's text files (README, NFO, install docs, and similar) and send their content to the configured AI provider. The AI extracts game metadata — name, short name, description, author, version, release year, and genre — and pre-populates the matching form fields. The sysop reviews and adjusts the results before saving.
 
 The AI fill feature requires at least one AI provider to be configured via environment variables (`AI_DOOR_MANIFEST_AI_FILL_PROVIDER` / `AI_DOOR_MANIFEST_AI_FILL_MODEL`, or the system default provider). If no provider is available the button returns a service-unavailable error.
+
+> **Note:** The AI fill feature is experimental and its behavior may change in future versions based on feedback.
 ### Archive Preview Path Validation
 
 The archive entry preview endpoint (`/api/files/{id}/archive-preview`) now rejects entry paths that are absolute in addition to the existing `..` traversal check.
