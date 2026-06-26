@@ -25,7 +25,7 @@ except ImportError:
 
 DEFAULT_DB   = os.path.join(os.path.dirname(__file__), "binkterm_knowledge.db")
 MODEL_NAME   = "sentence-transformers/all-MiniLM-L6-v2"
-EMBED_SERVER = "http://127.0.0.1:5001"
+EMBED_SERVER = "http://127.0.0.1:4010"
 MIN_CONTENT_CHARS = 80
 MIN_CANDIDATES    = 100
 VERSION_RE        = re.compile(r"\b\d+\.\d+\.\d+\b")

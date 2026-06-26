@@ -6,7 +6,7 @@ prints the 384-dimensional embedding vector as a JSON array to stdout.
 Called by bot_query.php to embed the user's question without requiring a
 PHP machine-learning library.
 
-If embed_server.py is running on 127.0.0.1:5001 the embedding is fetched
+If embed_server.py is running on 127.0.0.1:4010 the embedding is fetched
 from the daemon (no model load time). Otherwise the model is loaded locally,
 which takes ~15 seconds on first run.
 
@@ -18,7 +18,7 @@ import sys
 import urllib.request
 import urllib.error
 
-EMBED_SERVER = "http://127.0.0.1:5001"
+EMBED_SERVER = "http://127.0.0.1:4010"
 
 
 def _embed_via_server(text: str) -> list | None:

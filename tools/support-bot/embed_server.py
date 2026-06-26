@@ -4,7 +4,7 @@ embed_server.py - Persistent embedding server that loads all-MiniLM-L6-v2 once
 and serves embeddings over HTTP, eliminating the ~15-second cold-load penalty
 that query_embed.py incurs on every PHP call.
 
-Listens on 127.0.0.1:5001 (loopback only).
+Listens on 127.0.0.1:4010 (loopback only).
 
 Endpoints:
   POST /embed   {"text": "..."}  -> [0.123, -0.456, ...]  (384-dim float array)
@@ -22,7 +22,7 @@ except ImportError:
     sys.exit(1)
 
 HOST = "127.0.0.1"
-PORT = 5001
+PORT = 4010
 
 print(f"Loading all-MiniLM-L6-v2...", flush=True)
 _model = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
