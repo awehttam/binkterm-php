@@ -76,7 +76,7 @@ When you open a registration record, the detail view now also shows review metad
 - reviewing admin
 - admin notes
 
-This change builds on the retained registration-history behavior introduced in the 1.9.x series. It does not add a schema change or require any extra upgrade step beyond the normal file update.
+This change builds on the retained registration-history behavior introduced in the 1.9.x series.
 
 ### Automatic Login After Auto-Approved Registration
 
@@ -84,8 +84,6 @@ If **Admin -> BBS Settings -> Features -> Require approval for new users** is di
 
 - On the web interface, the registration flow now creates the normal authenticated session and redirects the new user into the site.
 - On the terminal services, the Telnet/SSH registration flow now continues directly into the authenticated BBS session instead of disconnecting after registration.
-
-This is a behavior change only. It does not add a schema change or require any extra upgrade step beyond the normal file update.
 
 ### Auto Feed Check Now Uses the Admin Daemon
 
@@ -101,8 +99,6 @@ The manual check flow now:
 - runs through the admin daemon
 - captures and returns the CLI output to the browser
 - avoids the Windows-specific re-entry deadlock during feed posting
-
-This is a behavior fix only. It does not add a schema change or require any extra upgrade step beyond the normal file update.
 
 ### Auto Feed Poster Names and Multi-Area Posting
 
