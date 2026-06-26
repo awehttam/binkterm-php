@@ -138,6 +138,56 @@ When an AI provider is configured, an **Auto fill with AI** button appears along
 The AI fill feature requires at least one AI provider to be configured via environment variables (`AI_DOOR_MANIFEST_AI_FILL_PROVIDER` / `AI_DOOR_MANIFEST_AI_FILL_MODEL`, or the system default provider). If no provider is available the button returns a service-unavailable error.
 
 > **Note:** The AI fill feature is experimental and its behavior may change in future versions based on feedback.
+
+**Example manifest: Trade Wars 2002 V3 Gold Edition**
+
+The following is the complete manifest for Trade Wars 2002 V3 Gold Edition, located in `dosbox-bridge/dos/DOORS/TW2002/dosdoor.jsn`. It can be used as a reference for setting up other multi-node DOS doors.
+
+```json
+{
+    "version": "1.0",
+    "type": "dosdoor",
+    "managed": "web",
+    "game": {
+        "name": "Trade Wars 2002 Gold Edition",
+        "short_name": "TW2002 Gold",
+        "author": "Martech Software, Inc.",
+        "version": "3.09",
+        "release_year": null,
+        "description": "A multiplayer DOS/Windows BBS board game featuring real-time global messaging, interactive combat, cooperative play, and customizable ships, planets, and non-player aliens.",
+        "genre": ["BBS Game", "Space Trading", "Multiplayer", "Strategy", "Real-time"],
+        "icon": "",
+        "screenshot": ""
+    },
+    "door": {
+        "type": "dos",
+        "executable": "TW2002.EXE",
+        "launch_command": "TW2002.EXE TWNODE={node}",
+        "directory": "dosbox-bridge/dos/DOORS/TW2002",
+        "dropfile_format": "DOOR.SYS",
+        "node_support": true,
+        "max_nodes": 10,
+        "fossil_required": true,
+        "ansi_required": false,
+        "time_per_day": 30
+    },
+    "requirements": {
+        "dosbox": true,
+        "fossil_driver": true,
+        "admin_only": false
+    },
+    "config": {
+        "enabled": false,
+        "credit_cost": 0,
+        "max_time_minutes": 30,
+        "cpu_cycles": 10000,
+        "max_sessions": 10
+    }
+}
+```
+
+The TW2002 V3 installer is available from the [ClassicTW wiki](https://www.wiki.classictw.com/index.php?title=Application:TradeWars_2002_v3). The `{node}` placeholder in `launch_command` is replaced at runtime with the player's node number. Trade Wars 2002 requires a FOSSIL driver and a `DOOR.SYS` drop file; ANSI is handled by the game itself.
+
 ### Archive Preview Path Validation
 
 The archive entry preview endpoint (`/api/files/{id}/archive-preview`) now rejects entry paths that are absolute in addition to the existing `..` traversal check.
