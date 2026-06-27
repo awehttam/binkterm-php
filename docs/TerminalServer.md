@@ -364,7 +364,7 @@ Before authenticating, users are shown a pre-login menu:
 - **K** — QWK transfer (only shown when QWK is enabled)
 - **Q** — Quit / disconnect
 
-New users who register are disconnected after registration and must reconnect to log in. If **Require approval for new users** is enabled in **Admin → BBS Settings → Features** (the default), the new account remains pending until a sysop approves it. If that setting is disabled, the account is created immediately.
+New users who register while **Require approval for new users** is enabled in **Admin → BBS Settings → Features** (the default) are disconnected after registration and must wait for a sysop to approve the account. If that setting is disabled, the account is created immediately and the terminal session logs the new user in automatically without requiring a reconnect.
 
 ### Terminal Detection Wizard
 

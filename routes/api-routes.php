@@ -516,6 +516,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $requiresApproval = \BinktermPHP\BbsConfig::shouldRequireRegistrationApproval();
             $handler = new MessageHandler();
 
+            $newUserId = 0;
             if ($requiresApproval) {
                 // Send notification to sysop
                 try {
@@ -525,7 +526,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     getServerLogger()->error("Failed to send registration notification: " . $e->getMessage());
                 }
             } else {
-                $handler->approveUserRegistration($pendingUserId, 0, 'Auto-approved by registration setting');
+                $newUserId = (int)$handler->approveUserRegistration($pendingUserId, 0, 'Auto-approved by registration setting');
             }
 
             // Mark registration attempt as successful
@@ -546,13 +547,41 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 getServerLogger()->error("Failed to update registration attempt: " . $e->getMessage());
             }
 
-            echo json_encode([
+            $response = [
                 'success' => true,
                 'auto_approved' => !$requiresApproval,
                 'message_code' => $requiresApproval
                     ? 'ui.register.submitted_success'
                     : 'ui.register.auto_approved_success'
-            ]);
+            ];
+
+            if (!$requiresApproval && $newUserId > 0) {
+                $service = $isTerminalRegistration ? $registrationSource : 'web';
+                $auth = new Auth();
+                $session = $auth->createAuthenticatedSession($newUserId, $service);
+                $sessionId = $session['session_id'];
+
+                setcookie('binktermphp_session', $sessionId, [
+                    'expires'  => time() + 86400 * 30,
+                    'path'     => '/',
+                    'httponly' => true,
+                    'samesite' => 'Lax',
+                ]);
+
+                if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
+                    $_SESSION['show_login_bulletins_for_session'] = $sessionId;
+                }
+
+                try {
+                    ActivityTracker::track($newUserId, ActivityTracker::TYPE_LOGIN);
+                } catch (\Throwable $e) {
+                    // Tracking errors must not break registration
+                }
+
+                $response['csrf_token'] = $session['csrf_token'];
+            }
+
+            echo json_encode($response);
 
         } catch (Exception $e) {
             getServerLogger()->error("Registration error: " . $e->getMessage());
@@ -4221,7 +4250,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $entryPath = $_GET['path'] ?? '';
-        if ($entryPath === '' || str_contains($entryPath, '..')) {
+        $isAbsPath = str_starts_with($entryPath, '/') || str_starts_with($entryPath, '\\')
+            || (bool) preg_match('/^[A-Za-z]:[\/\\\\]/', $entryPath);
+        if ($entryPath === '' || str_contains($entryPath, '..') || $isAbsPath) {
             http_response_code(400);
             echo 'Invalid path';
             return;
@@ -7090,6 +7121,59 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     return;
                 }
             }
+        }
+
+        // oEmbed dispatch for platforms that block HTML scraping
+        $normalizedHost = strtolower(preg_replace('/^www\./i', '', $host));
+        $facebookToken = trim((string)(\BinktermPHP\AppearanceConfig::getMediaPlayerConfig()['api_keys']['facebook'] ?? ''));
+
+        $oembedEndpoint = null;
+        if ($normalizedHost === 'facebook.com' && $facebookToken !== '') {
+            $type = preg_match('#/videos?/#i', $url) ? 'video' : 'post';
+            $oembedEndpoint = 'https://www.facebook.com/plugins/' . $type . '/oembed.json/?url=' . rawurlencode($url) . '&access_token=' . rawurlencode($facebookToken);
+        } elseif ($normalizedHost === 'instagram.com' && $facebookToken !== '') {
+            $oembedEndpoint = 'https://graph.facebook.com/v18.0/instagram_oembed?url=' . rawurlencode($url) . '&access_token=' . rawurlencode($facebookToken);
+        }
+
+        if ($oembedEndpoint !== null) {
+            $oCh = curl_init();
+            curl_setopt_array($oCh, [
+                CURLOPT_URL            => $oembedEndpoint,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS      => 3,
+                CURLOPT_TIMEOUT        => 8,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; BinktermBot/1.0; +https://lovelybits.org/binktermphp)',
+                CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
+            $oembedRaw = curl_exec($oCh);
+            $oembedErrno = curl_errno($oCh);
+            curl_close($oCh);
+
+            if ($oembedErrno === CURLE_OK && $oembedRaw !== false) {
+                $oembed = json_decode($oembedRaw, true);
+                if (is_array($oembed)) {
+                    $oTitle = mb_substr(htmlspecialchars_decode(strip_tags((string)($oembed['title'] ?? '')), ENT_QUOTES), 0, 200);
+                    $oDesc  = mb_substr(htmlspecialchars_decode(strip_tags((string)($oembed['author_name'] ?? '')), ENT_QUOTES), 0, 400);
+                    $oImage = (string)($oembed['thumbnail_url'] ?? '');
+                    if (!preg_match('/^https?:\/\//i', $oImage)) {
+                        $oImage = '';
+                    }
+                    if ($oTitle !== '' || $oImage !== '') {
+                        echo json_encode([
+                            'success'     => true,
+                            'title'       => $oTitle,
+                            'description' => $oDesc,
+                            'image'       => $oImage,
+                            'url'         => $url,
+                        ]);
+                        return;
+                    }
+                }
+            }
+            // oEmbed failed or returned no useful data; fall through to HTML scraping
         }
 
         $ch = curl_init();
@@ -10460,6 +10544,34 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/admin/pending-users/history', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            apiError('errors.auth.forbidden', apiLocalizedText('errors.auth.forbidden', 'Forbidden'), 403);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $search = trim((string)($_GET['search'] ?? ''));
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 50;
+
+        try {
+            $handler = new MessageHandler();
+            $users = $handler->getApprovedRegistrationHistory($search, $limit);
+            echo json_encode(['success' => true, 'users' => $users]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            apiError(
+                'errors.admin.users.registration_history_load_failed',
+                apiLocalizedText('errors.admin.users.registration_history_load_failed', 'Failed to load registration history'),
+                500
+            );
+        }
+    });
+
     SimpleRouter::get('/admin/pending-users/{id}', function($id) {
         $user = RouteHelper::requireAuth();
 
@@ -10475,9 +10587,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
             $stmt = $db->prepare("
                 SELECT p.*, u.username as referrer_username, u.real_name as referrer_real_name,
+                       reviewer.username as reviewed_by_username,
                        cu.username as created_user_username, cu.real_name as created_user_real_name
                 FROM pending_users p
                 LEFT JOIN users u ON p.referrer_id = u.id
+                LEFT JOIN users reviewer ON p.reviewed_by = reviewer.id
                 LEFT JOIN users cu ON p.created_user_id = cu.id
                 WHERE p.id = ?
             ");
@@ -11277,6 +11391,153 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError(
                     'errors.address_book.stats_failed',
                     apiLocalizedText('errors.address_book.stats_failed', 'Failed to load address book statistics', $user, [], 'errors')
+                );
+                return;
+            }
+        });
+
+        /**
+         * POST /api/address-book/import-from-keyserver
+         * Import a local PGP key into the address book.
+         * If the user already has an entry matching the key owner's username with no PGP key set,
+         * the PGP key is linked automatically. Otherwise, returns the key data so the caller
+         * can present a creation form.
+         *
+         * Body: { fingerprint: string }
+         * Response (auto-updated): { success: true, action: "updated", entry_id: int, entry_name: string }
+         * Response (needs create): { success: true, action: "needs_create", key_data: { ... } }
+         */
+        SimpleRouter::post('/import-from-keyserver', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            header('Content-Type: application/json');
+
+            if (!\BinktermPHP\BbsConfig::isFeatureEnabled('pgp')) {
+                apiError('errors.pgp.disabled', apiLocalizedText('errors.pgp.disabled', 'PGP is disabled on this system.', $user, [], 'errors'), 404);
+                return;
+            }
+
+            try {
+                $data = json_decode(file_get_contents('php://input'), true);
+                $fingerprint = strtoupper(trim((string)($data['fingerprint'] ?? '')));
+                $sourceAddress = trim((string)($data['source_address'] ?? ''));
+                // Username supplied by the caller from the keyserver result row; used as a
+                // fallback when the key fetch (especially remote op=get) returns username=null.
+                $suppliedUsername = trim((string)($data['username'] ?? ''));
+
+                if ($fingerprint === '') {
+                    apiError(
+                        'errors.pgp.key_not_found',
+                        apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found.', $user, [], 'errors'),
+                        400
+                    );
+                    return;
+                }
+
+                // Try local key store first; fall back to remote fetch when source_address is provided.
+                $keyService = new PgpKeyService();
+                $key = $keyService->findPublicKey($fingerprint);
+
+                if (!$key && $sourceAddress !== '') {
+                    $lookupService = new \BinktermPHP\PgpLookupService();
+                    $key = $lookupService->findPublicKeyForDestination($fingerprint, $sourceAddress);
+                }
+
+                if (!$key) {
+                    apiError(
+                        'errors.pgp.key_not_found',
+                        apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found.', $user, [], 'errors'),
+                        404
+                    );
+                    return;
+                }
+
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $db = Database::getInstance()->getPdo();
+
+                // Remote op=get responses return username=null; fall back to the value
+                // the caller sent from the keyserver index result.
+                $keyUsername = trim((string)($key['username'] ?? ''));
+                if ($keyUsername === '') {
+                    $keyUsername = $suppliedUsername;
+                }
+
+                // Check for an existing address book entry matching the key owner's username.
+                $matchEntry = null;
+                if ($keyUsername !== '') {
+                    $stmt = $db->prepare("
+                        SELECT ab.id, ab.name, ab.messaging_user_id, ab.node_address, ab.pgp_contact_key_id
+                        FROM address_book ab
+                        WHERE ab.user_id = ? AND LOWER(ab.messaging_user_id) = LOWER(?)
+                        LIMIT 1
+                    ");
+                    $stmt->execute([$userId, $keyUsername]);
+                    $matchEntry = $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+                }
+
+                if ($matchEntry) {
+                    if (!empty($matchEntry['pgp_contact_key_id'])) {
+                        apiError(
+                            'errors.address_book.pgp_key_already_set',
+                            apiLocalizedText('errors.address_book.pgp_key_already_set', 'This address book entry already has a PGP key set', $user, [], 'errors'),
+                            409
+                        );
+                        return;
+                    }
+
+                    // Update the existing entry with the PGP key.
+                    $addressBook = new AddressBookController();
+                    $entryData = [
+                        'name' => $matchEntry['name'],
+                        'messaging_user_id' => $matchEntry['messaging_user_id'],
+                        'node_address' => $matchEntry['node_address'],
+                        'pgp_public_key' => $key['armored_public_key'] ?? '',
+                    ];
+                    $addressBook->updateEntry((int)$matchEntry['id'], $userId, $entryData);
+
+                    echo json_encode([
+                        'success' => true,
+                        'action' => 'updated',
+                        'entry_id' => (int)$matchEntry['id'],
+                        'entry_name' => (string)$matchEntry['name'],
+                    ]);
+                    return;
+                }
+
+                // Determine a suggested node address from source_address when it is in FTN format.
+                $suggestedNodeAddress = '';
+                if ($sourceAddress !== '' && preg_match('/^\d+:\d+\/\d+/', $sourceAddress)) {
+                    $suggestedNodeAddress = $sourceAddress;
+                }
+
+                // No matching entry — return key data so the caller can show a creation form.
+                echo json_encode([
+                    'success' => true,
+                    'action' => 'needs_create',
+                    'key_data' => [
+                        'fingerprint' => $key['fingerprint'] ?? '',
+                        'armored_public_key' => $key['armored_public_key'] ?? '',
+                        'username' => $key['username'] ?? '',
+                        'real_name' => $key['real_name'] ?? '',
+                        'user_id_string' => $key['user_id_string'] ?? '',
+                        'key_algorithm' => $key['key_algorithm'] ?? '',
+                        'suggested_node_address' => $suggestedNodeAddress,
+                    ],
+                ]);
+            } catch (\BinktermPHP\AddressBookException $e) {
+                $errorCode = $e->getErrorCode();
+                apiError(
+                    $errorCode,
+                    apiLocalizedText($errorCode, $e->getMessage(), $user, [], 'errors'),
+                    $e->getHttpStatus()
+                );
+                return;
+            } catch (Exception $e) {
+                apiError(
+                    'errors.address_book.update_failed',
+                    apiLocalizedText('errors.address_book.update_failed', 'Failed to update address book entry', $user, [], 'errors'),
+                    500
                 );
                 return;
             }

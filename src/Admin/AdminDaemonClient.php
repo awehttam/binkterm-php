@@ -188,6 +188,48 @@ class AdminDaemonClient
         return $this->sendCommand('save_native_doors_config', ['json' => $json]);
     }
 
+    public function listDoorManifestTargets(string $doorType): array
+    {
+        return $this->sendCommand('list_door_manifest_targets', ['door_type' => $doorType]);
+    }
+
+    public function getDoorManifest(string $doorType, string $doorId): array
+    {
+        return $this->sendCommand('get_door_manifest', ['door_type' => $doorType, 'door_id' => $doorId]);
+    }
+
+    public function saveDoorManifest(string $doorType, string $doorId, array $manifest): array
+    {
+        return $this->sendCommand('save_door_manifest', [
+            'door_type' => $doorType,
+            'door_id'   => $doorId,
+            'manifest'  => $manifest,
+        ]);
+    }
+
+    public function listDoorManifestFiles(string $doorType, string $doorId, string $subdir = '', string $profile = ''): array
+    {
+        return $this->sendCommand('list_door_manifest_files', [
+            'door_type' => $doorType,
+            'door_id'   => $doorId,
+            'subdir'    => $subdir,
+            'profile'   => $profile,
+        ]);
+    }
+
+    /**
+     * Read readable text files from a door directory for AI metadata extraction.
+     *
+     * @return array{files:list<array{name:string,content:string}>,total_bytes:int}
+     */
+    public function readDoorTextFiles(string $doorType, string $doorId): array
+    {
+        return $this->sendCommand('read_door_text_files', [
+            'door_type' => $doorType,
+            'door_id'   => $doorId,
+        ]);
+    }
+
     public function getFileAreaRulesConfig(): array
     {
         return $this->sendCommand('get_filearea_rules');
@@ -573,6 +615,23 @@ class AdminDaemonClient
         return $this->sendCommand('rehatch_file', ['file_id' => $fileId]);
     }
 
+    /**
+     * Run the auto feed checker for a single feed and return the CLI output.
+     *
+     * @param int  $feedId  Auto feed source ID
+     * @param bool $force   Bypass the recent-check rate limit
+     * @param bool $verbose Include per-item output
+     * @return array{exit_code:int,stdout:string,stderr:string}
+     */
+    public function checkAutoFeed(int $feedId, bool $force = true, bool $verbose = true): array
+    {
+        return $this->sendCommand('check_auto_feed', [
+            'feed_id' => $feedId,
+            'force' => $force,
+            'verbose' => $verbose,
+        ]);
+    }
+
     public function close(): void
     {
         if ($this->socket && is_resource($this->socket)) {
@@ -588,6 +647,10 @@ class AdminDaemonClient
 
     private function connect(): void
     {
+        if (in_array(strtolower((string)getenv('BINKTERM_SKIP_ADMIN_DAEMON_REENTRY')), ['1', 'true', 'yes', 'on'], true)) {
+            throw new \RuntimeException('Admin daemon re-entry is disabled for this process');
+        }
+
         if ($this->secret === '') {
             throw new \RuntimeException('ADMIN_DAEMON_SECRET must be set');
         }

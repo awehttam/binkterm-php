@@ -100,22 +100,19 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="feedEchoarea" class="form-label">{{ t('ui.admin.auto_feed.echo_area_required') }}</label>
-                        <select class="form-select" id="feedEchoarea" name="echoarea_id" required>
-                            <option value="">{{ t('ui.admin.auto_feed.loading_echo_areas') }}</option>
-                        </select>
-                        <div class="form-text">{{ t('ui.admin.auto_feed.echo_area_help') }}</div>
+                        <label class="form-label">{{ t('ui.admin.auto_feed.echo_areas_required') }}</label>
+                        <input type="text" class="form-control mb-2" id="feedEchoareaSearch" placeholder="{{ t('ui.admin.auto_feed.echoarea_search_placeholder') }}">
+                        <div id="feedEchoareaList" style="max-height:220px;overflow-y:auto;border:1px solid var(--bs-border-color);border-radius:0.375rem;padding:0.5rem;">
+                            <div class="text-muted small">{{ t('ui.admin.auto_feed.loading_echo_areas') }}</div>
+                        </div>
+                        <div class="form-text">{{ t('ui.admin.auto_feed.echo_areas_help') }}</div>
                     </div>
 
                     <div class="row mb-3">
                         <div class="col-md-8">
-                            <label for="feedUserSearch" class="form-label">{{ t('ui.admin.auto_feed.post_as_user_required') }}</label>
-                            <input type="hidden" id="feedUser" name="post_as_user_id" required>
-                            <div class="position-relative">
-                                <input type="text" class="form-control" id="feedUserSearch" autocomplete="off" placeholder="{{ t('ui.admin.auto_feed.user_search_placeholder') }}">
-                                <div id="feedUserResults" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 1060;"></div>
-                            </div>
-                            <div class="form-text">{{ t('ui.admin.auto_feed.post_as_user_help') }}</div>
+                            <label for="feedPosterName" class="form-label">{{ t('ui.admin.auto_feed.poster_name_required') }}</label>
+                            <input type="text" class="form-control" id="feedPosterName" name="poster_name" maxlength="100" required placeholder="{{ t('ui.admin.auto_feed.poster_name_placeholder') }}">
+                            <div class="form-text">{{ t('ui.admin.auto_feed.poster_name_help') }}</div>
                         </div>
                         <div class="col-md-4">
                             <label for="feedMaxArticles" class="form-label">{{ t('ui.admin.auto_feed.max_articles') }}</label>
@@ -190,14 +187,33 @@
         </div>
     </div>
 </div>
+
+<!-- Check Output Modal -->
+<div class="modal fade" id="checkOutputModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.auto_feed.check_output_title') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3" id="checkOutputSummary"></p>
+                <pre id="checkOutputText" class="bg-light border rounded p-3 mb-0" style="white-space: pre-wrap;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 let currentFeedId = null;
 let allFeeds = [];
-let selectedFeedUser = null;
-let userSearchTimer = null;
+let autoFeedEchoareas = [];
+let selectedFeedEchoareaIds = new Set();
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -222,22 +238,8 @@ $(document).ready(function() {
             $('#threadLookupLimitGroup').toggle($(this).is(':checked'));
         });
 
-        $('#feedUserSearch').on('input', function() {
-            selectedFeedUser = null;
-            $('#feedUser').val('');
-            updateFeedUserValidity();
-            queueUserSearch($(this).val());
-        });
-
-        $('#feedUserSearch').on('focus', function() {
-            queueUserSearch($(this).val());
-        });
-
-        $('#feedUserSearch').on('blur', function() {
-            setTimeout(function() {
-                $('#feedUserResults').addClass('d-none').empty();
-                updateFeedUserValidity();
-            }, 150);
+        $('#feedEchoareaSearch').on('input', function() {
+            renderFeedEchoareaPicker($(this).val().toLowerCase());
         });
     };
 
@@ -284,8 +286,8 @@ function displayFeeds(feeds) {
                             <th width="5%"></th>
                             <th width="18%">${uiT('ui.admin.auto_feed.name_url', 'Name/URL')}</th>
                             <th width="10%">${uiT('ui.admin.auto_feed.source_type', 'Source Type')}</th>
-                            <th width="18%">${uiT('ui.admin.auto_feed.echo_area', 'Echo Area')}</th>
-                            <th width="14%">${uiT('ui.admin.auto_feed.post_as', 'Post As')}</th>
+                            <th width="20%">${uiT('ui.admin.auto_feed.echo_areas', 'Echo Areas')}</th>
+                            <th width="14%">${uiT('ui.admin.auto_feed.poster_name', 'Poster Name')}</th>
                             <th width="10%">${uiT('ui.admin.auto_feed.articles', 'Articles')}</th>
                             <th width="15%">${uiT('ui.admin.auto_feed.last_check', 'Last Check')}</th>
                             <th width="10%">${uiT('ui.admin.auto_feed.actions', 'Actions')}</th>
@@ -308,6 +310,7 @@ function displayFeeds(feeds) {
             const feedName = escapeHtml(feed.feed_name || uiT('ui.admin.auto_feed.unnamed_feed', 'Unnamed Feed'));
             const feedUrl = escapeHtml(feed.feed_url);
             const truncatedUrl = feedUrl.length > 50 ? feedUrl.substring(0, 47) + '...' : feedUrl;
+            const echoareas = Array.isArray(feed.echoareas) ? feed.echoareas : [];
 
             html += `
                 <tr class="${rowClass}">
@@ -321,11 +324,10 @@ function displayFeeds(feeds) {
                         <span class="badge bg-secondary">${formatSourceType(feed.source_type || 'rss')}</span>
                     </td>
                     <td>
-                        <span class="font-monospace">${escapeHtml(feed.echoarea_tag || uiT('ui.admin.auto_feed.unknown', 'Unknown'))}</span><br>
-                        <small class="text-muted">@ ${escapeHtml(feed.echoarea_domain || uiT('ui.admin.auto_feed.unknown', 'Unknown'))}</small>
+                        ${renderFeedEchoareas(echoareas)}
                     </td>
                     <td>
-                        <small>${escapeHtml(feed.username || (uiT('ui.admin.auto_feed.user_prefix', 'User #') + feed.post_as_user_id))}</small>
+                        <small>${escapeHtml(feed.poster_name || uiT('ui.admin.auto_feed.unknown', 'Unknown'))}</small>
                     </td>
                     <td>
                         <span class="badge bg-secondary">${feed.articles_posted || 0}</span>
@@ -372,7 +374,9 @@ function showAddFeedModal() {
     $('#feedThreadLookupLimit').val(1000);
     $('#threadLookupLimitGroup').hide();
     $('#feedIncludeNameInSubject').prop('checked', false);
-    setSelectedFeedUser(null);
+    $('#feedPosterName').val('');
+    $('#feedEchoareaSearch').val('');
+    setSelectedEchoareas([]);
     $('#feedModal').modal('show');
 }
 
@@ -387,12 +391,9 @@ function editFeed(id) {
             $('#feedName').val(feed.feed_name || '');
             $('#feedUrl').val(feed.feed_url);
             $('#feedSourceType').val(feed.source_type || 'rss');
-            $('#feedEchoarea').val(feed.echoarea_id);
-            setSelectedFeedUser({
-                id: feed.post_as_user_id,
-                username: feed.username || '',
-                real_name: feed.real_name || ''
-            });
+            $('#feedPosterName').val(feed.poster_name || '');
+            $('#feedEchoareaSearch').val('');
+            setSelectedEchoareas(feed.echoarea_ids || []);
             $('#feedMaxArticles').val(feed.max_articles_per_check || 10);
             $('#feedActive').prop('checked', feed.active);
             const threadReplies = !!feed.thread_replies;
@@ -409,9 +410,14 @@ function editFeed(id) {
 
 function saveFeed() {
     const form = $('#feedForm');
-    updateFeedUserValidity();
     if (!form[0].checkValidity()) {
         form[0].reportValidity();
+        return;
+    }
+
+    const echoareaIds = getSelectedEchoareaIds();
+    if (!echoareaIds.length) {
+        showError(uiT('ui.admin.auto_feed.select_echoareas', 'Select at least one echo area'));
         return;
     }
 
@@ -419,8 +425,8 @@ function saveFeed() {
         feed_name: $('#feedName').val() || null,
         feed_url: $('#feedUrl').val(),
         source_type: $('#feedSourceType').val() || 'rss',
-        echoarea_id: parseInt($('#feedEchoarea').val()),
-        post_as_user_id: parseInt($('#feedUser').val(), 10),
+        echoarea_ids: echoareaIds,
+        poster_name: $('#feedPosterName').val().trim(),
         max_articles_per_check: parseInt($('#feedMaxArticles').val()),
         active: $('#feedActive').is(':checked'),
         thread_replies: $('#feedThreadReplies').is(':checked'),
@@ -486,7 +492,12 @@ function deleteFeed() {
 }
 
 function checkFeed(id) {
-    showInfo(uiT('ui.admin.auto_feed.checking_feed', 'Checking feed...'));
+    const checkingMessage = uiT('ui.admin.auto_feed.checking_feed', 'Checking feed...');
+    if (typeof showSuccess === 'function') {
+        showSuccess(checkingMessage);
+    } else {
+        console.info(checkingMessage);
+    }
 
     $.post(`/admin/api/auto-feed/check/${id}`)
         .done(function(data) {
@@ -494,13 +505,46 @@ function checkFeed(id) {
                 ? window.getApiMessage(data, uiT('ui.admin.auto_feed.checked_articles_posted', 'Feed checked: {count} new article(s) posted', { count: data.articles_posted }))
                 : uiT('ui.admin.auto_feed.checked_articles_posted', 'Feed checked: {count} new article(s) posted', { count: data.articles_posted });
             showSuccess(successMessage);
+            showCheckOutput(successMessage, combineCommandOutput(data));
             loadFeeds();
             loadStats();
         })
         .fail(function(xhr) {
             const error = apiError(xhr.responseJSON, uiT('ui.admin.auto_feed.check_failed', 'Check failed'));
             showError(error);
+            const output = combineCommandOutput(xhr.responseJSON || {});
+            if (output) {
+                showCheckOutput(error, output);
+            }
         });
+}
+
+function combineCommandOutput(payload) {
+    if (!payload || typeof payload !== 'object') {
+        return '';
+    }
+
+    const parts = [];
+    if (typeof payload.detail === 'string' && payload.detail.trim() !== '') {
+        parts.push(payload.detail.trim());
+    }
+    if (typeof payload.stdout === 'string' && payload.stdout.trim() !== '') {
+        parts.push(payload.stdout.trim());
+    }
+    if (typeof payload.stderr === 'string' && payload.stderr.trim() !== '') {
+        parts.push(payload.stderr.trim());
+    }
+    if (!parts.length && typeof payload.output === 'string' && payload.output.trim() !== '') {
+        parts.push(payload.output.trim());
+    }
+
+    return parts.join('\n\n');
+}
+
+function showCheckOutput(summary, output) {
+    $('#checkOutputSummary').text(summary || '');
+    $('#checkOutputText').text(output || uiT('ui.admin.auto_feed.no_check_output', 'No output was returned.'));
+    $('#checkOutputModal').modal('show');
 }
 
 function loadStats() {
@@ -515,14 +559,8 @@ function loadStats() {
 function loadEchoareas() {
     $.get('/api/echoareas')
         .done(function(data) {
-            const select = $('#feedEchoarea');
-            select.empty();
-            select.append(`<option value="">${uiT('ui.admin.auto_feed.select_echo_area', 'Select echo area...')}</option>`);
-
-            data.echoareas.forEach(function(area) {
-                const label = `${area.tag} @ ${area.domain}${area.description ? ' - ' + area.description : ''}`;
-                select.append(`<option value="${area.id}">${escapeHtml(label)}</option>`);
-            });
+            autoFeedEchoareas = Array.isArray(data.echoareas) ? data.echoareas : [];
+            renderFeedEchoareaPicker($('#feedEchoareaSearch').val().toLowerCase());
         });
 }
 
@@ -543,98 +581,102 @@ function formatSourceType(sourceType) {
     return uiT('ui.admin.auto_feed.source_type_rss', 'RSS/Atom');
 }
 
-function queueUserSearch(query) {
-    clearTimeout(userSearchTimer);
-    userSearchTimer = setTimeout(function() {
-        searchFeedUsers(query);
-    }, 200);
-}
-
-function searchFeedUsers(query) {
-    const search = (query || '').trim();
-    const results = $('#feedUserResults');
-
-    if (search.length < 2) {
-        results.addClass('d-none').empty();
-        return;
+function renderFeedEchoareas(echoareas) {
+    if (!echoareas.length) {
+        return `<small class="text-muted">${uiT('ui.admin.auto_feed.no_echoareas', 'No echo areas')}</small>`;
     }
 
-    results.removeClass('d-none').html(
-        `<div class="list-group-item text-muted">${uiT('ui.admin.auto_feed.searching_users', 'Searching users...')}</div>`
-    );
-
-    $.get('/admin/api/users', { search: search, limit: 10 })
-        .done(function(data) {
-            const users = data && data.users ? data.users : [];
-            displayUserResults(users);
-        })
-        .fail(function() {
-            results.removeClass('d-none').html(
-                `<div class="list-group-item text-danger">${uiT('ui.admin.auto_feed.user_search_failed', 'User search failed')}</div>`
-            );
-        });
+    return echoareas.map(function(area) {
+        const domainLabel = area.is_local
+            ? uiT('ui.admin.auto_feed.local_domain_label', 'Local')
+            : (area.domain || uiT('ui.admin.auto_feed.unknown', 'Unknown'));
+        return `<div><span class="font-monospace">${escapeHtml(area.tag || uiT('ui.admin.auto_feed.unknown', 'Unknown'))}</span><br><small class="text-muted">@ ${escapeHtml(domainLabel)}</small></div>`;
+    }).join('<div class="my-1"></div>');
 }
 
-function displayUserResults(users) {
-    const results = $('#feedUserResults');
-    results.empty();
+function getSelectedEchoareaIds() {
+    return Array.from(selectedFeedEchoareaIds);
+}
 
-    if (!users.length) {
-        results.removeClass('d-none').html(
-            `<div class="list-group-item text-muted">${uiT('ui.admin.auto_feed.no_users_found', 'No users found')}</div>`
-        );
-        return;
-    }
+function setSelectedEchoareas(echoareaIds) {
+    const normalized = Array.isArray(echoareaIds) ? echoareaIds.map(function(value) {
+        return parseInt(value, 10);
+    }).filter(function(value) {
+        return Number.isInteger(value) && value > 0;
+    }) : [];
+    selectedFeedEchoareaIds = new Set(normalized);
+    renderFeedEchoareaPicker($('#feedEchoareaSearch').val().toLowerCase());
+}
 
-    users.forEach(function(user) {
-        const label = formatUserLabel(user);
-        const item = $(`
-            <button type="button" class="list-group-item list-group-item-action">
-                <div class="fw-semibold">${escapeHtml(user.username || '')}</div>
-                <small class="text-muted">${escapeHtml(user.real_name || uiT('ui.admin.auto_feed.no_real_name', 'No real name'))}</small>
-            </button>
-        `);
-        item.on('mousedown', function(event) {
-            event.preventDefault();
-            setSelectedFeedUser(user);
-            results.addClass('d-none').empty();
-        });
-        item.attr('title', label);
-        results.append(item);
+function groupFeedEchoareasByNetwork(areas) {
+    const groups = new Map();
+    areas.forEach(function(area) {
+        const network = area.is_local
+            ? uiT('ui.admin.auto_feed.local_domain_label', 'Local')
+            : ((area.domain || '').trim() ? area.domain.trim().toUpperCase() : uiT('ui.admin.auto_feed.unknown', 'Unknown'));
+        if (!groups.has(network)) {
+            groups.set(network, []);
+        }
+        groups.get(network).push(area);
     });
 
-    results.removeClass('d-none');
+    return new Map(Array.from(groups.entries()).sort(function(a, b) {
+        const localLabel = uiT('ui.admin.auto_feed.local_domain_label', 'Local');
+        if (a[0] === localLabel) return 1;
+        if (b[0] === localLabel) return -1;
+        return a[0].localeCompare(b[0]);
+    }));
 }
 
-function setSelectedFeedUser(user) {
-    selectedFeedUser = user && user.id ? user : null;
-    if (!selectedFeedUser) {
-        $('#feedUser').val('');
-        $('#feedUserSearch').val('');
-        updateFeedUserValidity();
+function renderFeedEchoareaPicker(filter) {
+    const container = document.getElementById('feedEchoareaList');
+    if (!container) {
         return;
     }
 
-    $('#feedUser').val(selectedFeedUser.id);
-    $('#feedUserSearch').val(formatUserLabel(selectedFeedUser));
-    updateFeedUserValidity();
-}
+    const filtered = autoFeedEchoareas.filter(function(area) {
+        return !filter
+            || (area.tag || '').toLowerCase().includes(filter)
+            || (area.description || '').toLowerCase().includes(filter)
+            || (area.domain || '').toLowerCase().includes(filter);
+    });
 
-function updateFeedUserValidity() {
-    const input = document.getElementById('feedUserSearch');
-    if (!input) return;
-
-    if ($('#feedUser').val()) {
-        input.setCustomValidity('');
-    } else {
-        input.setCustomValidity(uiT('ui.admin.auto_feed.select_valid_user', 'Select a valid user from the search results'));
+    if (!filtered.length) {
+        container.innerHTML = `<div class="text-muted small">${uiT('ui.admin.auto_feed.no_matching_echoareas', 'No matching echo areas')}</div>`;
+        return;
     }
-}
 
-function formatUserLabel(user) {
-    const username = user.username || (uiT('ui.admin.auto_feed.user_prefix', 'User #') + user.id);
-    const realName = user.real_name || '';
-    return realName ? `${username} (${realName})` : username;
+    const groups = groupFeedEchoareasByNetwork(filtered);
+    let html = '';
+    groups.forEach(function(networkAreas, network) {
+        html += `<p class="mb-1 mt-2 fw-semibold small text-uppercase text-muted" style="letter-spacing:.05em">${escapeHtml(network)}</p>`;
+        html += networkAreas.map(function(area) {
+            const checked = selectedFeedEchoareaIds.has(parseInt(area.id, 10)) ? 'checked' : '';
+            const description = area.description ? ' - ' + escapeHtml(area.description) : '';
+            return `<div class="form-check">
+                <input class="form-check-input feed-echoarea-check" type="checkbox" value="${area.id}" id="feed_ea_${area.id}" ${checked}>
+                <label class="form-check-label small" for="feed_ea_${area.id}">
+                    <strong>${escapeHtml(area.tag || uiT('ui.admin.auto_feed.unknown', 'Unknown'))}</strong>${description}
+                </label>
+            </div>`;
+        }).join('');
+    });
+
+    container.innerHTML = html;
+    container.querySelectorAll('.feed-echoarea-check').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            const id = parseInt(checkbox.value, 10);
+            if (!Number.isInteger(id) || id <= 0) {
+                return;
+            }
+
+            if (checkbox.checked) {
+                selectedFeedEchoareaIds.add(id);
+            } else {
+                selectedFeedEchoareaIds.delete(id);
+            }
+        });
+    });
 }
 </script>
 {% endblock %}

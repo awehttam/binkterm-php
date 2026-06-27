@@ -185,19 +185,18 @@ The system automatically discovers WebDoors by:
 2. Looking for `webdoor.json` in each subdirectory
 3. Parsing valid manifests and registering the WebDoor
 
-### Activation
-
-WebDoors are activated by:
-1. Creating or editing `config/webdoors.json`
-2. Adding an entry for the game with `"enabled": true`
-3. The game immediately becomes available at `/games`
-
 ### Admin Interface
 
-Sysops can manage WebDoors through the admin interface at `/admin/webdoors-config`, which provides:
-- List of discovered WebDoors
-- JSON editor for `config/webdoors.json`
-- Enable/disable controls
+Sysops manage WebDoors through **Admin → WebDoors** (`/admin/webdoors-config`), which provides:
+- List of discovered WebDoors with enable/disable controls
+- **Add New Door** panel listing directories that don't yet have a manifest — click **Create Manifest** to open the manifest editor for that directory
+- Manifest editor for creating and editing `webdoor.json` files through a form UI
+
+To activate a new WebDoor:
+1. Place the door files under `public_html/webdoors/YOURDOOR/`.
+2. Go to **Admin → WebDoors** and find the directory in the **Add New Door** panel.
+3. Click **Create Manifest**, fill in the form, and save.
+4. Toggle the door on and click **Save Configuration**.
 
 ## Requirements System
 

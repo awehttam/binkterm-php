@@ -293,8 +293,12 @@ class BbsSession
                 }
 
                 if ($normalizedChoice === 'n') {
-                    $registered = $this->attemptRegistration($conn, $state);
-                    if ($registered) {
+                    $registrationResult = $this->attemptRegistration($conn, $state);
+                    if ($registrationResult !== null) {
+                        if (!empty($registrationResult['session'])) {
+                            $loginResult = $registrationResult;
+                            break;
+                        }
                         $this->writeLine($conn, $this->t('ui.terminalserver.server.press_enter_disconnect', 'Press Enter to disconnect.', [], $state['locale']));
                         $this->readLineWithIdleCheck($conn, $state);
                         fclose($conn);
@@ -2393,9 +2397,11 @@ class BbsSession
     /**
      * Interactive registration flow.
      *
-     * @return bool True if registration was submitted successfully
+     * @return array|null Login payload when auto-login succeeds, a non-empty
+     *                    array without session keys when registration succeeded
+     *                    but remains pending, or null on failure/cancel.
      */
-    private function attemptRegistration($conn, array &$state): bool
+    private function attemptRegistration($conn, array &$state): ?array
     {
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize(
@@ -2416,7 +2422,7 @@ class BbsSession
         foreach ($fields as $f) {
             $val = $this->prompt($conn, $state, $this->t($f['key'], $f['fallback'], [], $state['locale']), $f['echo']);
             if (!$f['echo']) { $this->writeLine($conn, ''); }
-            if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
+            if ($val === null || strtolower(trim($val)) === 'cancel') { return null; }
             $data[$f['var']] = trim($val);
         }
 
@@ -2426,18 +2432,18 @@ class BbsSession
                 self::ANSI_RED
             ));
             $this->writeLine($conn, '');
-            return false;
+            return null;
         }
 
         // Real name (required)
         $val = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.registration.realname', 'Real Name: ', [], $state['locale']), true);
-        if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
+        if ($val === null || strtolower(trim($val)) === 'cancel') { return null; }
         $data['realname'] = trim($val);
 
         // Email (required)
         do {
             $val = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.registration.email', 'Email: ', [], $state['locale']), true);
-            if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
+            if ($val === null || strtolower(trim($val)) === 'cancel') { return null; }
             $val = trim($val);
             if (empty($val) || !filter_var($val, FILTER_VALIDATE_EMAIL)) {
                 $this->writeLine($conn, $this->colorize(
@@ -2450,13 +2456,13 @@ class BbsSession
 
         // Location (optional)
         $val = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.registration.location', 'Location (optional): ', [], $state['locale']), true);
-        if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
+        if ($val === null || strtolower(trim($val)) === 'cancel') { return null; }
         $data['location'] = trim($val);
 
         // Reason for joining (required)
         do {
             $val = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.registration.reason', 'Reason for joining: ', [], $state['locale']), true);
-            if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
+            if ($val === null || strtolower(trim($val)) === 'cancel') { return null; }
             $val = trim($val);
             if (empty($val)) {
                 $this->writeLine($conn, $this->colorize(
@@ -2488,21 +2494,33 @@ class BbsSession
                 if (!$autoApproved) {
                     $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.pending',        'Your account has been created and is pending approval.', [], $state['locale']));
                     $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.pending_review', 'You will be notified once an administrator has reviewed your registration.', [], $state['locale']));
+                    $this->writeLine($conn, '');
+                    return ['registered' => true];
                 }
+
+                if (!empty($result['cookie'])) {
+                    return [
+                        'session'    => $result['cookie'],
+                        'username'   => $data['username'],
+                        'csrf_token' => $result['data']['csrf_token'] ?? null,
+                    ];
+                }
+
+                $this->writeLine($conn, $this->colorize('Error: Registration succeeded but automatic login did not start.', self::ANSI_RED));
                 $this->writeLine($conn, '');
-                return true;
+                return null;
             }
 
             $errorMsg = $result['data']['error'] ?? 'Registration failed';
             $this->writeLine($conn, '');
             $this->writeLine($conn, $this->colorize('Error: ' . $errorMsg, self::ANSI_RED));
             $this->writeLine($conn, '');
-            return false;
+            return null;
         } catch (\Throwable $e) {
             $this->writeLine($conn, '');
             $this->writeLine($conn, $this->colorize('Error: ' . $e->getMessage(), self::ANSI_RED));
             $this->writeLine($conn, '');
-            return false;
+            return null;
         }
     }
 

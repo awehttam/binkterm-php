@@ -199,6 +199,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'Пользователь не найден',
+    'errors.admin.users.registration_history_load_failed' => 'Не удалось загрузить историю регистраций',
     'errors.admin.users.create_failed' => 'Не удалось создать пользователя',
     'errors.admin.users.update_failed' => 'Не удалось обновить пользователя',
     'errors.admin.users.delete_failed' => 'Не удалось удалить пользователя',
@@ -409,6 +410,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'Не удалось сохранить конфигурацию JS‑DOS дверей',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Не удалось активировать конфигурацию JS‑DOS дверей',
 
+    // Ошибки редактора манифеста дверей
+    'errors.admin.door_manifest.list_failed' => 'Не удалось получить список целей манифеста двери',
+    'errors.admin.door_manifest.get_failed' => 'Не удалось получить манифест двери',
+    'errors.admin.door_manifest.save_failed' => 'Не удалось сохранить манифест двери',
+    'errors.admin.door_manifest.files_failed' => 'Не удалось получить список файлов двери',
+    'errors.admin.door_manifest.missing_manifest' => 'Данные манифеста отсутствуют или недействительны',
+    'errors.admin.door_manifest.ai_fill_failed' => 'Автозаполнение с помощью ИИ не удалось',
+    'errors.admin.door_manifest.ai_no_provider' => 'Провайдер ИИ не настроен',
+    'errors.admin.door_manifest.ai_no_files' => 'Читаемые файлы в директории двери не найдены',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Игра не найдена',
     'errors.jsdosdoor.session_create_failed' => 'Не удалось создать игровую сессию',
@@ -471,7 +482,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'Не удалось удалить пользовательский шаблон',
     'errors.admin.custom_templates.install_failed' => 'Не удалось установить пользовательский шаблон',
     'errors.admin.auto_feed.not_found' => 'Источник ленты не найден',
-    'errors.admin.auto_feed.required_fields' => 'URL ленты, эха и пользователь для публикаций обязательны',
+    'errors.admin.auto_feed.required_fields' => 'URL ленты, имя автора и как минимум одна эха обязательны',
     'errors.admin.auto_feed.invalid_url' => 'Недопустимый URL ленты',
     'errors.admin.auto_feed.echoarea_not_found' => 'Эха не найдена',
     'errors.admin.auto_feed.user_not_found' => 'Пользователь для публикаций не найден',
@@ -494,6 +505,7 @@ return [
     'errors.address_book.delete_failed' => 'Не удалось удалить запись адресной книги',
     'errors.address_book.search_failed' => 'Не удалось выполнить поиск записей адресной книги',
     'errors.address_book.stats_failed' => 'Не удалось загрузить статистику адресной книги',
+    'errors.address_book.pgp_key_already_set' => 'В этой записи адресной книги уже установлен ключ PGP',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'Не удалось загрузить общее сообщение',

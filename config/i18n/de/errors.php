@@ -203,6 +203,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'Benutzer nicht gefunden',
+    'errors.admin.users.registration_history_load_failed' => 'Registrierungshistorie konnte nicht geladen werden',
     'errors.admin.users.create_failed' => 'Benutzer konnte nicht erstellt werden',
     'errors.admin.users.update_failed' => 'Benutzer konnte nicht aktualisiert werden',
     'errors.admin.users.delete_failed' => 'Benutzer konnte nicht gelöscht werden',
@@ -408,6 +409,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'JS-DOS doors configuration konnte nicht gespeichert werden',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Failed to activate JS-DOS doors configuration',
 
+    // Door-Manifest-Editor-Fehler
+    'errors.admin.door_manifest.list_failed' => 'Door-Manifest-Ziele konnten nicht aufgelistet werden',
+    'errors.admin.door_manifest.get_failed' => 'Door-Manifest konnte nicht abgerufen werden',
+    'errors.admin.door_manifest.save_failed' => 'Door-Manifest konnte nicht gespeichert werden',
+    'errors.admin.door_manifest.files_failed' => 'Door-Dateien konnten nicht aufgelistet werden',
+    'errors.admin.door_manifest.missing_manifest' => 'Manifest-Daten fehlen oder sind ungültig',
+    'errors.admin.door_manifest.ai_fill_failed' => 'KI-Ausfüllung fehlgeschlagen',
+    'errors.admin.door_manifest.ai_no_provider' => 'Kein KI-Anbieter konfiguriert',
+    'errors.admin.door_manifest.ai_no_files' => 'Keine lesbaren Dateien im Door-Verzeichnis gefunden',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Spiel nicht gefunden',
     'errors.jsdosdoor.session_create_failed' => 'game session konnte nicht erstellt werden',
@@ -470,7 +481,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'custom template konnte nicht gelöscht werden',
     'errors.admin.custom_templates.install_failed' => 'Failed to install custom template',
     'errors.admin.auto_feed.not_found' => 'Feed source nicht gefunden',
-    'errors.admin.auto_feed.required_fields' => 'Feed URL, echo area, and posting user sind erforderlich',
+    'errors.admin.auto_feed.required_fields' => 'Feed-URL, Postername und mindestens ein Echobereich sind erforderlich',
     'errors.admin.auto_feed.invalid_url' => 'Feed URL is invalid',
     'errors.admin.auto_feed.echoarea_not_found' => 'Echo-Bereich nicht gefunden',
     'errors.admin.auto_feed.user_not_found' => 'Posting user nicht gefunden',
@@ -493,6 +504,7 @@ return [
     'errors.address_book.delete_failed' => 'address book entry konnte nicht gelöscht werden',
     'errors.address_book.search_failed' => 'Failed to search address book entries',
     'errors.address_book.stats_failed' => 'address book statistics konnten nicht geladen werden',
+    'errors.address_book.pgp_key_already_set' => 'Dieser Adressbucheintrag hat bereits einen PGP-Schluessel',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'shared message konnten nicht geladen werden',

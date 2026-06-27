@@ -80,9 +80,18 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a class="btn btn-sm btn-outline-primary" href="/pks/download/{{ key.fingerprint }}">
-                                        <i class="fas fa-download me-1"></i>{{ t('ui.keyserver.download_button', {}, locale, ['common']) }}
-                                    </a>
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        <a class="btn btn-sm btn-outline-primary" href="/pks/download/{{ key.fingerprint }}">
+                                            <i class="fas fa-download me-1"></i>{{ t('ui.keyserver.download_button', {}, locale, ['common']) }}
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-secondary js-add-to-address-book"
+                                                data-fingerprint="{{ key.fingerprint }}"
+                                                data-username="{{ key.username|e }}"
+                                                data-realname="{{ (key.real_name ?: key.user_id_string ?: key.username)|e }}"
+                                                data-source-address="{{ key.source_address|e }}">
+                                            <i class="fas fa-address-book me-1"></i>{{ t('ui.keyserver.add_to_address_book', {}, locale, ['common']) }}
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -96,4 +105,174 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Add to Address Book modal -->
+<div class="modal fade" id="addToAddressBookModal" tabindex="-1" aria-labelledby="addToAddressBookModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addToAddressBookModalLabel">
+                    <i class="fas fa-address-book me-2"></i>{{ t('ui.keyserver.add_to_address_book_title', {}, locale, ['common']) }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addToAddressBookForm">
+                    <input type="hidden" id="abArmoredKey" name="pgp_public_key">
+                    <div class="mb-3">
+                        <label for="abName" class="form-label">{{ t('ui.keyserver.add_modal_name_label', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="abName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="abUserId" class="form-label">{{ t('ui.keyserver.add_modal_user_id_label', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="abUserId" name="messaging_user_id" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="abNodeAddress" class="form-label">{{ t('ui.keyserver.add_modal_node_address_label', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control" id="abNodeAddress" name="node_address" required
+                               placeholder="1:234/567">
+                        <div class="form-text">{{ t('ui.keyserver.add_modal_node_address_help', {}, locale, ['common']) }}</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" id="addToAddressBookSubmit">
+                    <i class="fas fa-address-book me-1"></i>{{ t('ui.keyserver.add_modal_submit', {}, locale, ['common']) }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Keyserver toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="keyserverToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="keyserverToastBody"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    function uiT(key, fallback) {
+        return window.t ? window.t(key, {}, fallback) : fallback;
+    }
+
+    function showToast(message, isError) {
+        var el = document.getElementById('keyserverToast');
+        var body = document.getElementById('keyserverToastBody');
+        if (!el || !body) return;
+        body.textContent = message;
+        el.classList.remove('bg-success', 'bg-danger', 'text-white');
+        el.classList.add(isError ? 'bg-danger' : 'bg-success', 'text-white');
+        bootstrap.Toast.getOrCreateInstance(el, { delay: 4000 }).show();
+    }
+
+    var modal = null;
+    function getModal() {
+        if (!modal) {
+            modal = new bootstrap.Modal(document.getElementById('addToAddressBookModal'));
+        }
+        return modal;
+    }
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.js-add-to-address-book');
+        if (!btn) return;
+
+        var fingerprint   = btn.dataset.fingerprint   || '';
+        var username      = btn.dataset.username      || '';
+        var realname      = btn.dataset.realname      || '';
+        var sourceAddress = btn.dataset.sourceAddress || '';
+
+        var origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+
+        fetch('/api/address-book/import-from-keyserver', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ fingerprint: fingerprint, source_address: sourceAddress, username: username })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+
+            if (!data.success) {
+                var msg = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(data, data.error || uiT('errors.address_book.update_failed', 'Failed to update address book entry'))
+                    : (data.error || uiT('errors.address_book.update_failed', 'Failed to update address book entry'));
+                showToast(msg, true);
+                return;
+            }
+
+            if (data.action === 'updated') {
+                showToast(uiT('ui.keyserver.pgp_key_updated', 'PGP key linked to existing address book entry.'), false);
+                return;
+            }
+
+            if (data.action === 'needs_create') {
+                var kd = data.key_data || {};
+                document.getElementById('abArmoredKey').value  = kd.armored_public_key        || '';
+                document.getElementById('abName').value        = kd.real_name                 || realname || kd.username || username;
+                document.getElementById('abUserId').value      = kd.username                  || username;
+                document.getElementById('abNodeAddress').value = kd.suggested_node_address    || '';
+                getModal().show();
+            }
+        })
+        .catch(function () {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+            showToast(uiT('errors.address_book.update_failed', 'Failed to update address book entry'), true);
+        });
+    });
+
+    document.getElementById('addToAddressBookSubmit').addEventListener('click', function () {
+        var form = document.getElementById('addToAddressBookForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        var payload = {
+            name:              document.getElementById('abName').value.trim(),
+            messaging_user_id: document.getElementById('abUserId').value.trim(),
+            node_address:      document.getElementById('abNodeAddress').value.trim(),
+            pgp_public_key:    document.getElementById('abArmoredKey').value || undefined,
+        };
+
+        var submitBtn = this;
+        submitBtn.disabled = true;
+
+        fetch('/api/address-book', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(payload)
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            submitBtn.disabled = false;
+            if (data.success) {
+                getModal().hide();
+                showToast(uiT('ui.keyserver.pgp_key_added', 'Contact added to address book with PGP key.'), false);
+            } else {
+                var msg = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(data, data.error || uiT('errors.address_book.create_failed', 'Failed to create address book entry'))
+                    : (data.error || uiT('errors.address_book.create_failed', 'Failed to create address book entry'));
+                showToast(msg, true);
+            }
+        })
+        .catch(function () {
+            submitBtn.disabled = false;
+            showToast(uiT('errors.address_book.create_failed', 'Failed to create address book entry'), true);
+        });
+    });
+}());
+</script>
 {% endblock %}

@@ -1,0 +1,46 @@
+{
+    "version": "1.0",
+    "type": "dosdoor",
+    "managed": "web",
+    "game": {
+        "name": "Trade Wars 2002 Gold Edition",
+        "short_name": "TW2002 Gold",
+        "author": "Martech Software, Inc.",
+        "version": "3.09",
+        "release_year": null,
+        "description": "A multiplayer DOS/Windows BBS board game featuring real-time global messaging, interactive combat, cooperative play, and customizable ships, planets, and non-player aliens. Version 3.09 introduces a new file access system to prevent cheating and increase speed.",
+        "genre": [
+            "BBS Game",
+            "Space Trading",
+            "Multiplayer",
+            "Strategy",
+            "Real-time"
+        ],
+        "icon": "",
+        "screenshot": ""
+    },
+    "door": {
+        "type": "dos",
+        "executable": "TW2002.EXE",
+        "launch_command": "TW2002.EXE TWNODE={node}",
+        "directory": "dosbox-bridge/dos/DOORS/TW2002",
+        "dropfile_format": "DOOR.SYS",
+        "node_support": true,
+        "max_nodes": 10,
+        "fossil_required": true,
+        "ansi_required": false,
+        "time_per_day": 30
+    },
+    "requirements": {
+        "dosbox": true,
+        "fossil_driver": true,
+        "admin_only": false
+    },
+    "config": {
+        "enabled": false,
+        "credit_cost": 0,
+        "max_time_minutes": 30,
+        "cpu_cycles": 10000,
+        "max_sessions": 10
+    }
+}

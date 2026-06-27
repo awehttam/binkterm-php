@@ -204,6 +204,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'Utente non trovato',
+    'errors.admin.users.registration_history_load_failed' => 'Impossibile caricare la cronologia registrazioni',
     'errors.admin.users.create_failed' => 'Impossibile creare l’utente',
     'errors.admin.users.update_failed' => 'Impossibile aggiornare l’utente',
     'errors.admin.users.delete_failed' => 'Impossibile eliminare l’utente',
@@ -409,6 +410,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'Impossibile salvare la configurazione doors JS-DOS',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Impossibile attivare la configurazione doors JS-DOS',
 
+    // Errori editor di manifesto per porte
+    'errors.admin.door_manifest.list_failed' => 'Impossibile elencare i target del manifesto porta',
+    'errors.admin.door_manifest.get_failed' => 'Impossibile recuperare il manifesto porta',
+    'errors.admin.door_manifest.save_failed' => 'Impossibile salvare il manifesto porta',
+    'errors.admin.door_manifest.files_failed' => 'Impossibile elencare i file della porta',
+    'errors.admin.door_manifest.missing_manifest' => 'I dati del manifesto sono assenti o non validi',
+    'errors.admin.door_manifest.ai_fill_failed' => 'Compilazione automatica con AI non riuscita',
+    'errors.admin.door_manifest.ai_no_provider' => 'Nessun provider AI configurato',
+    'errors.admin.door_manifest.ai_no_files' => 'Nessun file leggibile trovato nella directory della porta',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Gioco non trovato',
     'errors.jsdosdoor.session_create_failed' => 'Impossibile creare la sessione di gioco',
@@ -471,7 +482,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'Impossibile eliminare il template personalizzato',
     'errors.admin.custom_templates.install_failed' => 'Impossibile installare il template personalizzato',
     'errors.admin.auto_feed.not_found' => 'Origine feed non trovata',
-    'errors.admin.auto_feed.required_fields' => 'URL feed, area echo e utente autore sono obbligatori',
+    'errors.admin.auto_feed.required_fields' => 'Sono obbligatori URL del feed, nome autore e almeno un\'area echo',
     'errors.admin.auto_feed.invalid_url' => 'URL feed non valido',
     'errors.admin.auto_feed.echoarea_not_found' => 'Area echo non trovata',
     'errors.admin.auto_feed.user_not_found' => 'Utente autore non trovato',
@@ -494,6 +505,7 @@ return [
     'errors.address_book.delete_failed' => 'Impossibile eliminare la voce della rubrica',
     'errors.address_book.search_failed' => 'Impossibile cercare le voci della rubrica',
     'errors.address_book.stats_failed' => 'Impossibile caricare le statistiche della rubrica',
+    'errors.address_book.pgp_key_already_set' => 'Questa voce della rubrica ha già una chiave PGP impostata',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'Impossibile caricare il messaggio condiviso',

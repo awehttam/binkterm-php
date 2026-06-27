@@ -73,7 +73,7 @@ Fill in the fields under the **General** tab:
 | Location | Your city and country |
 | Origin Line | Tagline appended to your outgoing echomail messages |
 
-By default, new self-registrations require admin approval before the account is activated. Users fill in the registration form at `/register` and the submission lands in **Admin → Users → Pending** for you to approve or reject. You will receive a notification when someone registers. If you want accounts activated immediately, disable **Require approval for new users** in **Admin → BBS Settings → Features**.
+By default, new self-registrations require admin approval before the account is activated. Users fill in the registration form at `/register` and the submission lands in **Admin → Users → Pending** for you to approve or reject. You will receive a notification when someone registers. If you want accounts activated immediately, disable **Require approval for new users** in **Admin → BBS Settings → Features**. When approval is disabled, successful registrations are activated and logged in immediately in both the web UI and the terminal services.
 
 To create an account directly without waiting for a registration, use **Admin → Users → Add User**.
 

@@ -105,7 +105,7 @@ Retrieval details:
 Without the daemon, `query_embed.py` and `query_retrieve.py` may need to load
 the embedding model in-process, which can add roughly 15 seconds on a cold start.
 
-`embed_server.py` keeps the model resident and listens on `http://127.0.0.1:5001`.
+`embed_server.py` keeps the model resident and listens on `http://127.0.0.1:4010`.
 Both query scripts automatically try the daemon first and fall back to local
 embedding if it is unavailable.
 
@@ -143,7 +143,7 @@ Verify:
 
 ```bash
 systemctl --user status embed_server
-curl http://127.0.0.1:5001/health
+curl http://127.0.0.1:4010/health
 ```
 
 ## Legacy script

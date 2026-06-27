@@ -58,7 +58,7 @@ Content-Type: application/json
 
 - [Public API](#public-api)
   - [Account](#account) (1)
-  - [Address Book](#address-book) (7)
+  - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
@@ -153,6 +153,7 @@ Reminder send result
 | `DELETE` | [`/api/address-book/{id}`](#delete-apiaddress-bookid) | Yes | Delete an address book entry. |
 | `GET` | [`/api/address-book/search/{query}`](#get-apiaddress-booksearchquery) | Yes | Search address book entries plus matching local users for autocomplete. |
 | `GET` | [`/api/address-book/stats`](#get-apiaddress-bookstats) | Yes | Get address book statistics for the user. |
+| `POST` | [`/api/address-book/import-from-keyserver`](#post-apiaddress-bookimport-from-keyserver) | Yes | Import a local PGP keyserver key into the address book (update or create). |
 
 #### `GET /api/address-book/`
 
@@ -425,6 +426,61 @@ Address book statistics object
 | Status | Description |
 |--------|-------------|
 | 500 | Failed to load address book statistics |
+
+---
+
+#### `POST /api/address-book/import-from-keyserver`
+
+**Requires authentication**
+
+Imports a PGP key into the address book by fingerprint. If the authenticated user has an existing address book entry whose `messaging_user_id` matches the key owner's username and that entry has no PGP key set, the key is linked automatically. Otherwise, the key data is returned so the caller can present a creation form.
+
+Local keys are fetched from the BBS's own PGP key table. When `source_address` is provided and the key is not found locally, the endpoint attempts to retrieve the armored public key from the remote BBS at that FTN address.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `fingerprint` | string | 40-character PGP key fingerprint to import |
+| `source_address` | string | Optional FTN address (`zone:net/node`) or hostname of the BBS that published this key; used to fetch the armored key for remote results and pre-fill the node address in the creation form |
+| `username` | string | Optional BBS username shown in the keyserver index result; used as a fallback when the armored-key fetch (remote `op=get`) does not carry a username |
+
+**Response** _(JSON)_ — action `updated`
+
+Returned when an existing address book entry was found and the PGP key was linked automatically.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True |
+| `action` | string | `"updated"` |
+| `entry_id` | integer | ID of the updated address book entry |
+| `entry_name` | string | Display name of the updated address book entry |
+
+**Response** _(JSON)_ — action `needs_create`
+
+Returned when no matching address book entry was found; the caller should present a creation form using the returned key data.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True |
+| `action` | string | `"needs_create"` |
+| `key_data` | object | Details of the PGP key |
+| `key_data.fingerprint` | string | Key fingerprint |
+| `key_data.armored_public_key` | string | ASCII-armored public key block |
+| `key_data.username` | string | BBS username of the key owner |
+| `key_data.real_name` | string | Real name of the key owner |
+| `key_data.user_id_string` | string | PGP user ID string |
+| `key_data.key_algorithm` | string | Key algorithm (e.g. `RSA4096`) |
+| `key_data.suggested_node_address` | string | Pre-filled FTN node address when `source_address` was an FTN address; empty string otherwise |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Fingerprint missing or invalid |
+| 404 | PGP key not found locally or remotely, or PGP is disabled |
+| 409 | Matching address book entry already has a PGP key set |
+| 500 | Failed to update address book entry |
 
 ---
 
@@ -6331,6 +6387,7 @@ Confirmation of seen marker update
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/admin/pending-users`](#get-apiadminpending-users) | Yes | List all pending user registrations (admin only). |
+| `GET` | [`/api/admin/pending-users/history`](#get-apiadminpending-usershistory) | Yes | Search approved registration history (admin only). |
 | `GET` | [`/api/admin/pending-users/{id}`](#get-apiadminpending-usersid) | Yes | Retrieve single pending user registration details. |
 | `POST` | [`/api/admin/pending-users/{id}/approve`](#post-apiadminpending-usersidapprove) | Yes | Approve pending user registration and create active account. |
 | `POST` | [`/api/admin/pending-users/{id}/reject`](#post-apiadminpending-usersidreject) | Yes | Reject pending user registration. |
@@ -6373,6 +6430,51 @@ List of pending user registrations
 
 ---
 
+#### `GET /api/admin/pending-users/history`
+
+**Requires authentication**
+
+Searches retained approved registration records for admin lookup. Returns the most recent approved registrations by default and can filter by a free-text search over requested username, real name, email, or the created account username.
+
+**Query Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `search` | string | No | Free-text filter applied to username, real name, email, and created account username |
+| `limit` | integer | No | Maximum records to return. Defaults to `50`, capped at `100` |
+
+**Response** _(JSON)_
+
+Approved registration history results
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `users` | array | Array of approved registration records |
+| `users[].id` | integer | Pending user record ID |
+| `users[].username` | string | Requested username |
+| `users[].email` | string\|null | Email address provided during registration |
+| `users[].real_name` | string\|null | Real name provided during registration |
+| `users[].requested_at` | string | Registration request timestamp (ISO 8601) |
+| `users[].reviewed_at` | string\|null | Approval timestamp (ISO 8601) |
+| `users[].reviewed_by` | integer\|null | User ID of admin who approved |
+| `users[].reviewed_by_username` | string\|null | Username of approving admin |
+| `users[].created_user_id` | integer\|null | User ID created from this registration |
+| `users[].created_user_username` | string\|null | Username of the created account |
+| `users[].created_user_real_name` | string\|null | Real name of the created account |
+| `users[].registration_source` | string | Registration source (web, terminal, etc.) |
+| `users[].admin_notes` | string\|null | Admin notes stored with the approval |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 403 | User is not an admin |
+| 401 | Authentication required |
+| 500 | Database error |
+
+---
+
 #### `GET /api/admin/pending-users/{id}`
 
 **Requires authentication**
@@ -6402,12 +6504,16 @@ Pending user registration details
 | `user.ip_address` | string\|null | IP address at registration |
 | `user.status` | string | Current status (pending, approved, rejected) |
 | `user.admin_notes` | string\|null | Admin notes |
+| `user.reviewed_by` | integer\|null | User ID of reviewing admin |
+| `user.reviewed_by_username` | string\|null | Username of reviewing admin |
+| `user.reviewed_at` | string\|null | Review timestamp (ISO 8601) |
 | `user.referrer_id` | integer\|null | User ID of the referrer |
 | `user.referrer_username` | string\|null | Username of the referrer |
 | `user.referrer_real_name` | string\|null | Real name of the referrer |
 | `user.created_user_id` | integer\|null | User ID created from this registration after approval |
 | `user.created_user_username` | string\|null | Username of the created account |
 | `user.created_user_real_name` | string\|null | Real name of the created account |
+| `user.registration_source` | string | Registration source (web, terminal, etc.) |
 
 **Error Responses**
 
@@ -6915,7 +7021,7 @@ System-wide referral statistics
 
 Public
 
-Creates a new user account with built-in anti-spam validation (honeypot, timing checks). Supports both JSON and form-encoded requests. Terminal clients (telnet/SSH) can bypass browser-only anti-spam checks by providing a valid X-Binkterm-Registration-Token header. Accepts optional X-Binkterm-Registration-Source and X-Binkterm-Client-IP headers for terminal registrations.
+Creates a new user account with built-in anti-spam validation (honeypot, timing checks). Supports both JSON and form-encoded requests. Terminal clients (telnet/SSH) can bypass browser-only anti-spam checks by providing a valid `X-Binkterm-Registration-Token` header. Accepts optional `X-Binkterm-Registration-Source` and `X-Binkterm-Client-IP` headers for terminal registrations. When registration approval is disabled and the account is auto-approved immediately, this endpoint also creates an authenticated session, returns a CSRF token, and sets the `binktermphp_session` cookie just like a normal login.
 
 **Request Body** _(JSON)_
 
@@ -6930,12 +7036,14 @@ User registration data (JSON or form-encoded)
 
 **Response** _(JSON)_
 
-Registration result with success status and optional email confirmation details
+Registration result with success status and optional auto-login details
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Whether registration succeeded |
+| `auto_approved` | boolean | Whether the account was activated immediately |
 | `message_code` | string | Localization key for success message |
+| `csrf_token` | string|null | Present when `auto_approved` is `true`; CSRF token for the new authenticated session |
 
 **Error Responses**
 

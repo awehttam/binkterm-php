@@ -82,16 +82,22 @@ Each door lives in its own subdirectory under `native-doors/doors/`. The directo
 mkdir -p native-doors/doors/mydoor
 ```
 
-### 2. Write the manifest
+### 2. Create the manifest
 
-Create `native-doors/doors/mydoor/nativedoor.json`. See the [manifest format](#nativedoorjson-format) section below for full details.
+The easiest way is through the admin interface:
 
-Minimal example:
+1. Go to **Admin → Native Doors**.
+2. In the **Add New Door** panel, find your door directory and click **Create Manifest**.
+3. Fill in the form. Set **Executable** to the script or binary that launches the door (e.g. `mydoor.sh`).
+4. Click **Create Manifest** to save.
+
+The manifest is saved as `native-doors/doors/mydoor/nativedoor.json`. See the [manifest format](#nativedoorjson-format) section for the full field reference. A minimal example:
 
 ```json
 {
   "type": "nativedoor",
   "version": "1.0",
+  "managed": "web",
   "game": {
     "name": "My Door",
     "short_name": "MYDOOR",

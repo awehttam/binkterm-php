@@ -204,6 +204,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'Usuario no encontrado',
+    'errors.admin.users.registration_history_load_failed' => 'No se pudo cargar el historial de registros',
     'errors.admin.users.create_failed' => 'No se pudo crear el usuario',
     'errors.admin.users.update_failed' => 'No se pudo actualizar el usuario',
     'errors.admin.users.delete_failed' => 'No se pudo eliminar el usuario',
@@ -409,6 +410,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'No se pudo guardar la configuracion de puertas JS-DOS',
     'errors.admin.jsdosdoors_config.activate_failed' => 'No se pudo activar la configuracion de puertas JS-DOS',
 
+    // Door Manifest Editor errors
+    'errors.admin.door_manifest.list_failed' => 'Error al listar los destinos del manifiesto de puerta',
+    'errors.admin.door_manifest.get_failed' => 'Error al recuperar el manifiesto de puerta',
+    'errors.admin.door_manifest.save_failed' => 'Error al guardar el manifiesto de puerta',
+    'errors.admin.door_manifest.files_failed' => 'Error al listar los archivos de la puerta',
+    'errors.admin.door_manifest.missing_manifest' => 'Los datos del manifiesto faltan o son invalidos',
+    'errors.admin.door_manifest.ai_fill_failed' => 'Error al autocompletar con IA',
+    'errors.admin.door_manifest.ai_no_provider' => 'No hay ningun proveedor de IA configurado',
+    'errors.admin.door_manifest.ai_no_files' => 'No se encontraron archivos legibles en el directorio de la puerta',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Juego no encontrado',
     'errors.jsdosdoor.session_create_failed' => 'No se pudo crear la sesion de juego',
@@ -471,7 +482,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'No se pudo eliminar la plantilla personalizada',
     'errors.admin.custom_templates.install_failed' => 'No se pudo instalar la plantilla personalizada',
     'errors.admin.auto_feed.not_found' => 'Fuente de feed no encontrada',
-    'errors.admin.auto_feed.required_fields' => 'Se requieren URL del feed, area de eco y usuario de publicacion',
+    'errors.admin.auto_feed.required_fields' => 'Se requieren la URL del feed, el nombre del autor y al menos un area de eco',
     'errors.admin.auto_feed.invalid_url' => 'La URL del feed es invalida',
     'errors.admin.auto_feed.echoarea_not_found' => 'Area de eco no encontrada',
     'errors.admin.auto_feed.user_not_found' => 'Usuario de publicacion no encontrado',
@@ -494,6 +505,7 @@ return [
     'errors.address_book.delete_failed' => 'No se pudo eliminar la entrada de la libreta de direcciones',
     'errors.address_book.search_failed' => 'No se pudieron buscar las entradas de la libreta de direcciones',
     'errors.address_book.stats_failed' => 'No se pudieron cargar las estadisticas de la libreta de direcciones',
+    'errors.address_book.pgp_key_already_set' => 'Esta entrada de la libreta de direcciones ya tiene una clave PGP',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'No se pudo cargar el mensaje compartido',

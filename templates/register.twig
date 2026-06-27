@@ -259,12 +259,20 @@ $(document).ready(function() {
                         ? 'ui.register.auto_approved_success'
                         : 'ui.register.submitted_success';
                     const fallbackText = response && response.auto_approved
-                        ? 'Registration completed successfully! You can now log in.'
+                        ? 'Registration completed successfully! You are now logged in.'
                         : 'Registration submitted successfully! You will be notified when your account is approved.';
                     const successMessage = window.getApiMessage
                         ? window.getApiMessage(response, uiT(fallbackKey, fallbackText))
                         : uiT(fallbackKey, fallbackText);
                     showAlert(successMessage, 'success');
+
+                    if (response.auto_approved) {
+                        window.setTimeout(function() {
+                            window.location.href = '/';
+                        }, 800);
+                        return;
+                    }
+
                     // Hide the form after successful registration
                     $('#registerForm').hide();
                     $('.card-body .alert-info').hide();

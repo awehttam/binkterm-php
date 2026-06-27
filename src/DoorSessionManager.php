@@ -128,7 +128,7 @@ class DoorSessionManager
         $wsPort = (int)Config::env('DOSDOOR_WS_PORT', '6001');
 
         // Calculate expiration time (default 2 hours)
-        $expiresAt = date('Y-m-d H:i:s', time() + 7200);
+        $expiresAt = gmdate('Y-m-d H:i:s', time() + 7200);
 
         // Save session to database (bridge will create session_path, tcp_port, dosbox_pid, DOOR.SYS)
         // Transaction was started in findAvailableNode() to lock node allocation
@@ -683,7 +683,7 @@ class DoorSessionManager
             // FOR UPDATE locks the rows, preventing other transactions from modifying them
             $stmt = $this->db->query("
                 SELECT node_number FROM door_sessions
-                WHERE ended_at IS NULL AND expires_at > NOW()
+                WHERE ended_at IS NULL
                 ORDER BY node_number
                 FOR UPDATE
             ");

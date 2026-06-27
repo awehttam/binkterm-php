@@ -167,6 +167,7 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 | `interests` / `interest_echoareas` / `user_interest_subscriptions` | Topic-based area groupings |
 | `ai_requests` | Per-request AI usage accounting |
 | `ai_bots` / `ai_bot_activities` | AI bot definitions and activity log |
+| `auto_feed_sources` / `auto_feed_source_echoareas` | Auto Feed source definitions, posting metadata, and target echo area fan-out |
 | `packet_bbs_nodes` / `packet_bbs_sessions` | PacketBBS node registrations and radio sessions; `packet_bbs_sessions.session_state` stores flexible JSON command context such as current area, current message, and guided-flow state |
 | `meshcore_contacts` | MeshCore companion contact list; rows are created by the bridge or pre-registered by users; `pub_key_full` is unique when known (partial unique index); `user_id` links to the owning BBS user |
 | `meshcore_device_commands` | Queue of pending commands to be executed on a MeshCore radio by the bridge (e.g. `remove_contact`); populated on contact deletion; bridge polls and ACKs each row |
@@ -196,6 +197,12 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 | `access_count` | `INTEGER` | Running count of page views |
 
 The `og_image_slug` is stored as the basename of `og_image_path` and is the canonical URL parameter for `/shared-image/`. Because it includes the file extension, social media crawlers can infer the image format from the URL.
+
+### `auto_feed_sources` / `auto_feed_source_echoareas`
+
+`auto_feed_sources` stores the source-level Auto Feed configuration: feed URL, optional display name, source type, poster name, polling state, deduplication marker, and posting counters.
+
+`auto_feed_source_echoareas` is the many-to-many join table that maps one source row to one or more target `echoareas` rows. Auto Feed polls one source row, then fans each newly discovered article out to every linked target area.
 
 ## Entity Relationship Overview
 

@@ -30,19 +30,34 @@ class Auth
         $user = $this->authenticateCredentials($username, $password);
 
         if ($user) {
-            $sessionId = $this->createSession($user['id'], $service);
-
-            // Generate a fresh CSRF token and store it per-user in UserMeta so it
-            // is accessible to both web sessions and the telnet daemon (which has
-            // no PHP session).
-            $csrfToken = bin2hex(random_bytes(32));
-            $meta = new UserMeta();
-            $meta->setValue((int)$user['id'], 'csrf_token', $csrfToken);
-
-            return $sessionId;
+            $session = $this->createAuthenticatedSession((int)$user['id'], $service);
+            return $session['session_id'];
         }
 
         return false;
+    }
+
+    /**
+     * Create a login session and fresh CSRF token for an already-authenticated user.
+     *
+     * @return array{session_id: string, csrf_token: string}
+     */
+    public function createAuthenticatedSession(int $userId, string $service = 'web'): array
+    {
+        $this->updateLastLogin($userId);
+        $sessionId = $this->createSession($userId, $service);
+
+        // Generate a fresh CSRF token and store it per-user in UserMeta so it
+        // is accessible to both web sessions and the telnet daemon (which has
+        // no PHP session).
+        $csrfToken = bin2hex(random_bytes(32));
+        $meta = new UserMeta();
+        $meta->setValue($userId, 'csrf_token', $csrfToken);
+
+        return [
+            'session_id' => $sessionId,
+            'csrf_token' => $csrfToken,
+        ];
     }
 
     /**

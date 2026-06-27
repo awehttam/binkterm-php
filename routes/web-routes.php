@@ -574,13 +574,11 @@ SimpleRouter::get('/echomail', function() {
 
     $echoarea = null;
     if ($echoareaParam) {
-        // Combine echoarea with domain if both provided
-        if ($domainParam) {
-            $echoarea = $echoareaParam . '@' . $domainParam;
-        } else {
-            $echoarea = $echoareaParam;
-            if (strpos($echoarea, '@') !== false) {
-                [$echoareaParam, $domainParam] = explode('@', $echoarea, 2);
+        $echoarea = $echoareaParam;
+        if (strpos($echoarea, '@') !== false) {
+            [$echoarea, $embeddedDomain] = explode('@', $echoarea, 2);
+            if (!$domainParam) {
+                $domainParam = $embeddedDomain;
             }
         }
     }
@@ -1854,7 +1852,32 @@ SimpleRouter::get('/compose/{type}', function($type) {
             } else {
                 $subject = trim((string)($originalMessage['subject'] ?? ''));
                 $templateVars['reply_subject'] = 'FWD: ' . $subject;
-                $templateVars['reply_text'] = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
+
+                // Build re-post attribution header
+                $fromName    = trim((string)($originalMessage['from_name'] ?? ''));
+                $fromAddress = trim((string)($originalMessage['from_address'] ?? ''));
+                $origDate    = '';
+                if (!empty($originalMessage['date_written'])) {
+                    $origDate = date('F j, Y', strtotime($originalMessage['date_written']));
+                }
+
+                if ($sourceType === 'echomail') {
+                    $areaTag    = strtoupper(trim((string)($originalMessage['echoarea'] ?? '')));
+                    $areaDomain = trim((string)($originalMessage['domain'] ?? ''));
+                    $areaLabel  = $areaDomain !== '' ? $areaTag . '@' . $areaDomain : $areaTag;
+                } else {
+                    $areaLabel = 'Netmail';
+                }
+
+                $fromLine = $fromAddress !== '' ? $fromName . '@' . $fromAddress : $fromName;
+
+                $repostHeader = "--- Re-posted from: {$areaLabel}\n"
+                    . "From: {$fromLine}\n"
+                    . "Subject: {$subject}\n"
+                    . "Date: {$origDate}\n"
+                    . "---\n";
+
+                $templateVars['reply_text'] = $repostHeader . "\n" . filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
             }
         }
     }

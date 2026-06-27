@@ -25,21 +25,61 @@
                 </div>
             </div>
 
-            <!-- Pending Registrations -->
+            <!-- Registrations -->
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">
                         <i class="fas fa-user-clock me-2"></i>{{ t('ui.admin_users.pending_registrations', {}, locale, ['common']) }}
-                        <span id="pending-count" class="badge bg-warning ms-2">0</span>
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div id="pending-users-container">
-                        <div class="text-center py-4">
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
+                    <ul class="nav nav-tabs mb-3" id="registrationTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="pending-registrations-tab" data-bs-toggle="tab" data-bs-target="#pending-registrations-pane" type="button" role="tab">
+                                {{ t('ui.admin_users.pending_registrations', {}, locale, ['common']) }}
+                                <span id="pending-count" class="badge bg-warning ms-2">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="approved-registrations-tab" data-bs-toggle="tab" data-bs-target="#approved-registrations-pane" type="button" role="tab">
+                                {{ t('ui.admin_users.approved_registration_history', {}, locale, ['common']) }}
+                                <span id="registration-history-count" class="badge bg-success ms-2">0</span>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="pending-registrations-pane" role="tabpanel" aria-labelledby="pending-registrations-tab">
+                            <div id="pending-users-container">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
+                                    </div>
+                                    <p class="mt-2">{{ t('ui.admin_users.loading_pending_registrations', {}, locale, ['common']) }}</p>
+                                </div>
                             </div>
-                            <p class="mt-2">{{ t('ui.admin_users.loading_pending_registrations', {}, locale, ['common']) }}</p>
+                        </div>
+
+                        <div class="tab-pane fade" id="approved-registrations-pane" role="tabpanel" aria-labelledby="approved-registrations-tab">
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="registration-history-search" placeholder="{{ t('ui.admin_users.search_registration_history_placeholder', {}, locale, ['common']) }}">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="searchRegistrationHistory()">
+                                            <i class="fas fa-search"></i> {{ t('ui.common.search', {}, locale, ['common']) }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="registration-history-container">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
+                                    </div>
+                                    <p class="mt-2">{{ t('ui.admin_users.loading_registration_history', {}, locale, ['common']) }}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -348,6 +388,7 @@ let currentPendingUserId = null;
 let currentPage = 1;
 let currentLimit = 25;
 let currentSearch = '';
+let currentHistorySearch = '';
 let totalUsers = 0;
 
 function apiError(payload, fallback) {
@@ -367,6 +408,7 @@ function uiT(key, fallback, params = {}) {
 $(document).ready(function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
         loadPendingUsers();
+        loadRegistrationHistory();
         loadAllUsers();
         loadUsersNeedingReminders();
     });
@@ -377,10 +419,17 @@ $(document).ready(function() {
             searchUsers();
         }
     });
+
+    $('#registration-history-search').on('keypress', function(e) {
+        if (e.which === 13) {
+            searchRegistrationHistory();
+        }
+    });
 });
 
 function refreshData() {
     loadPendingUsers();
+    loadRegistrationHistory();
     loadAllUsers();
     loadUsersNeedingReminders();
 }
@@ -437,6 +486,34 @@ function loadAllUsers(page = 1) {
         error: function(xhr) {
             console.error('AJAX error for all users:', xhr.status, xhr.statusText, xhr.responseText);
             showError(uiT('ui.admin_users.users_load_failed_prefix', 'Failed to load users: ') + xhr.status + ' ' + xhr.statusText);
+        }
+    });
+}
+
+function searchRegistrationHistory() {
+    currentHistorySearch = $('#registration-history-search').val().trim();
+    loadRegistrationHistory();
+}
+
+function loadRegistrationHistory() {
+    const params = new URLSearchParams({
+        search: currentHistorySearch,
+        limit: 50
+    });
+
+    $.ajax({
+        url: '/api/admin/pending-users/history?' + params.toString(),
+        method: 'GET',
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                renderRegistrationHistory(response.users);
+            } else {
+                showError(uiT('ui.admin_users.registration_history_load_failed_prefix', 'Failed to load registration history: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
+            }
+        },
+        error: function(xhr) {
+            showError(uiT('ui.admin_users.registration_history_load_failed_prefix', 'Failed to load registration history: ') + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
@@ -503,6 +580,66 @@ function renderPendingUsers(users) {
         `;
     });
     
+    html += '</tbody></table></div>';
+    container.html(html);
+}
+
+function renderRegistrationHistory(users) {
+    const container = $('#registration-history-container');
+    $('#registration-history-count').text(users.length);
+
+    if (users.length === 0) {
+        container.html(`
+            <div class="text-center py-4 text-muted">
+                <i class="fas fa-history fa-3x mb-3"></i>
+                <p>${uiT('ui.admin_users.no_approved_registrations', 'No approved registrations found')}</p>
+            </div>
+        `);
+        return;
+    }
+
+    let html = '<div class="table-responsive"><table class="table table-hover">';
+    html += `
+        <thead>
+            <tr>
+                <th>${uiT('ui.common.username', 'Username')}</th>
+                <th>${uiT('ui.common.real_name', 'Real Name')}</th>
+                <th>${uiT('ui.common.email', 'Email')}</th>
+                <th>${uiT('ui.admin_users.requested', 'Requested')}</th>
+                <th>${uiT('ui.admin_users.reviewed', 'Reviewed')}</th>
+                <th>${uiT('ui.admin_users.reviewed_by', 'Reviewed By')}</th>
+                <th>${uiT('ui.admin_users.created_account', 'Created Account:')}</th>
+                <th>${uiT('ui.common.actions', 'Actions')}</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+
+    users.forEach(user => {
+        const requestedDate = user.requested_at ? new Date(user.requested_at).toLocaleString() : uiT('ui.admin_users.not_available', 'Not available');
+        const reviewedDate = user.reviewed_at ? new Date(user.reviewed_at).toLocaleString() : uiT('ui.admin_users.not_available', 'Not available');
+        const createdAccount = user.created_user_id
+            ? `<strong>${escapeHtml(user.created_user_username || '')}</strong> (#${user.created_user_id})`
+            : escapeHtml(uiT('ui.admin_users.not_available', 'Not available'));
+
+        html += `
+            <tr>
+                <td><strong>${escapeHtml(user.username)}</strong></td>
+                <td>${escapeHtml(user.real_name || '')}</td>
+                <td>${escapeHtml(user.email || uiT('ui.admin_users.not_provided', 'Not provided'))}</td>
+                <td>${requestedDate}</td>
+                <td>${reviewedDate}</td>
+                <td>${escapeHtml(user.reviewed_by_username || uiT('ui.admin_users.not_available', 'Not available'))}</td>
+                <td>${createdAccount}</td>
+                <td>
+                    <button class="btn btn-sm btn-info" onclick="viewUser(${user.id})">
+                        <i class="fas fa-eye"></i> ${uiT('ui.common.view', 'View')}
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
     html += '</tbody></table></div>';
     container.html(html);
 }
@@ -615,6 +752,15 @@ function viewUser(userId) {
                     createdUserInfo = `<tr><th>${uiT('ui.admin_users.created_account', 'Created Account:')}</th><td><strong>${escapeHtml(user.created_user_username || '')}</strong> (#${user.created_user_id})${user.created_user_real_name ? ' (' + escapeHtml(user.created_user_real_name) + ')' : ''}</td></tr>`;
                 }
 
+                let reviewInfo = '';
+                if (user.reviewed_at || user.reviewed_by_username || user.admin_notes) {
+                    reviewInfo = `
+                        <tr><th>${uiT('ui.admin_users.reviewed', 'Reviewed')}:</th><td>${user.reviewed_at ? new Date(user.reviewed_at).toLocaleString() : escapeHtml(uiT('ui.admin_users.not_available', 'Not available'))}</td></tr>
+                        <tr><th>${uiT('ui.admin_users.reviewed_by', 'Reviewed By')}:</th><td>${escapeHtml(user.reviewed_by_username || uiT('ui.admin_users.not_available', 'Not available'))}</td></tr>
+                        <tr><th>${uiT('ui.admin_users.admin_notes', 'Admin Notes')}:</th><td>${escapeHtml(user.admin_notes || uiT('ui.admin_users.not_available', 'Not available')).replace(/\n/g, '<br>')}</td></tr>
+                    `;
+                }
+
                 let details = `
                     <div class="row">
                         <div class="col-md-6">
@@ -630,6 +776,7 @@ function viewUser(userId) {
                                 <tr><th>${uiT('ui.admin_users.source', 'Source')}:</th><td>${renderSourceBadge(user.registration_source)}</td></tr>
                                 ${referrerInfo}
                                 ${createdUserInfo}
+                                ${reviewInfo}
                             </table>
                         </div>
                         <div class="col-md-6">

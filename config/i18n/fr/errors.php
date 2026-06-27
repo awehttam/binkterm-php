@@ -147,6 +147,7 @@ return [
     'errors.admin.file_approvals.reject_failed' => 'Échec du rejet du téléversement',
     'errors.files.download.insufficient_credits' => 'Crédits insuffisants pour télécharger ce fichier',
     'errors.admin.users.not_found' => 'Utilisateur introuvable',
+    'errors.admin.users.registration_history_load_failed' => 'Échec du chargement de l\'historique des inscriptions',
     'errors.admin.users.create_failed' => 'Échec de la création de l\'utilisateur',
     'errors.admin.users.update_failed' => 'Échec de la mise à jour de l\'utilisateur',
     'errors.admin.users.delete_failed' => 'Échec de la suppression de l\'utilisateur',
@@ -300,6 +301,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'Échec de l\'enregistrement de la configuration des portes JS-DOS',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Échec de l\'activation de la configuration des portes JS-DOS',
 
+    // Door Manifest Editor errors
+    'errors.admin.door_manifest.list_failed' => 'Échec de la liste des cibles de manifeste de porte',
+    'errors.admin.door_manifest.get_failed' => 'Échec de la récupération du manifeste de porte',
+    'errors.admin.door_manifest.save_failed' => 'Échec de l\'enregistrement du manifeste de porte',
+    'errors.admin.door_manifest.files_failed' => 'Échec du listing des fichiers de porte',
+    'errors.admin.door_manifest.missing_manifest' => 'Les données du manifeste sont absentes ou invalides',
+    'errors.admin.door_manifest.ai_fill_failed' => 'Échec du remplissage automatique par IA',
+    'errors.admin.door_manifest.ai_no_provider' => 'Aucun fournisseur IA n\'est configuré',
+    'errors.admin.door_manifest.ai_no_files' => 'Aucun fichier lisible trouvé dans le répertoire de la porte',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Jeu introuvable',
     'errors.jsdosdoor.session_create_failed' => 'Impossible de créer la session de jeu',
@@ -348,7 +359,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'Échec de la suppression du modèle personnalisé',
     'errors.admin.custom_templates.install_failed' => 'Échec de l\'installation du modèle personnalisé',
     'errors.admin.auto_feed.not_found' => 'Source de flux introuvable',
-    'errors.admin.auto_feed.required_fields' => 'L\'URL du flux, la zone d\'écho et l\'utilisateur publiant sont requis',
+    'errors.admin.auto_feed.required_fields' => 'L\'URL du flux, le nom de l\'auteur et au moins une zone d\'écho sont requis',
     'errors.admin.auto_feed.invalid_url' => 'L\'URL du flux est invalide',
     'errors.admin.auto_feed.echoarea_not_found' => 'Zone d\'écho introuvable',
     'errors.admin.auto_feed.user_not_found' => 'Utilisateur publiant introuvable',
@@ -369,6 +380,7 @@ return [
     'errors.address_book.delete_failed' => 'Échec de la suppression de l\'entrée du carnet d\'adresses',
     'errors.address_book.search_failed' => 'Échec de la recherche dans le carnet d\'adresses',
     'errors.address_book.stats_failed' => 'Échec du chargement des statistiques du carnet d\'adresses',
+    'errors.address_book.pgp_key_already_set' => 'Cette entrée du carnet d\'adresses a déjà une clé PGP',
     'errors.messages.shared.lookup_failed' => 'Échec du chargement du message partagé',
     'errors.messages.shared.user_shares_failed' => 'Échec du chargement des partages de l\'utilisateur',
     'errors.messages.shared.access_denied' => 'Message introuvable ou accès refusé',

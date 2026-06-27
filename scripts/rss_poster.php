@@ -42,9 +42,8 @@ $messageHandler = new MessageHandler();
 // Get feeds to check
 if ($feedId) {
     $stmt = $db->prepare("
-        SELECT f.*, e.tag as echoarea_tag, e.domain as echoarea_domain
+        SELECT f.*
         FROM auto_feed_sources f
-        JOIN echoareas e ON e.id = f.echoarea_id
         WHERE f.id = ? AND f.active = TRUE
     ");
     $stmt->execute([$feedId]);
@@ -56,9 +55,8 @@ if ($feedId) {
     }
 } else {
     $stmt = $db->query("
-        SELECT f.*, e.tag as echoarea_tag, e.domain as echoarea_domain
+        SELECT f.*
         FROM auto_feed_sources f
-        JOIN echoareas e ON e.id = f.echoarea_id
         WHERE f.active = TRUE
         ORDER BY f.id
     ");
@@ -78,12 +76,18 @@ $totalErrors = 0;
 
 foreach ($feeds as $feed) {
     try {
+        $feedEchoareas = loadFeedEchoareas($db, (int)$feed['id']);
+        if (empty($feedEchoareas)) {
+            throw new Exception('No target echo areas configured for this feed');
+        }
+
         echo sprintf("[Feed #%d] Checking %s (%s)...\n",
             $feed['id'],
             $feed['feed_name'] ?: 'Unnamed Feed',
-            $feed['echoarea_tag']
+            formatFeedEchoareaList($feedEchoareas)
         );
 
+        $feed['target_echoareas'] = $feedEchoareas;
         $posted = processFeed($db, $messageHandler, $feed, $force, $verbose);
         $totalPosted += $posted;
 
@@ -174,7 +178,7 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
     $posted = 0;
     foreach (array_reverse($newArticles) as $article) {
         try {
-            postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose);
+            postArticleToEchoareas($db, $messageHandler, $feed, $article, $verbose);
             $posted++;
         } catch (Exception $e) {
             echo sprintf("[Feed #%d] Failed to post item '%s': %s\n",
@@ -511,16 +515,32 @@ function fetchRssFeed($url) {
 function parseRssFeed($xml) {
     $articles = [];
 
+    $contentNs = 'http://purl.org/rss/1.0/modules/content/';
+    $dcNs      = 'http://purl.org/dc/elements/1.1/';
+
     // Detect feed type (RSS 2.0, RSS 1.0/RDF, Atom, etc.)
     if (isset($xml->channel->item)) {
         // RSS 2.0
         getServerLogger()->info("Auto Feed: Parsing RSS 2.0 feed with " . count($xml->channel->item) . " items");
         foreach ($xml->channel->item as $item) {
+            $contentEncoded = (string)($item->children($contentNs)->encoded ?? '');
+            $dcDescription  = (string)($item->children($dcNs)->description ?? '');
+            if ($contentEncoded !== '') {
+                $body = $contentEncoded;
+                $bodyField = 'content:encoded';
+            } elseif ((string)($item->description ?? '') !== '') {
+                $body = (string)$item->description;
+                $bodyField = 'description';
+            } else {
+                $body = $dcDescription;
+                $bodyField = 'dc:description';
+            }
+            getServerLogger()->info("Auto Feed: RSS 2.0 item body source: {$bodyField}");
             $articles[] = [
                 'guid' => (string)($item->guid ?? $item->link),
                 'title' => (string)$item->title,
                 'link' => (string)$item->link,
-                'description' => (string)($item->description ?? ''),
+                'description' => $body,
                 'pubDate' => (string)($item->pubDate ?? '')
             ];
         }
@@ -528,16 +548,29 @@ function parseRssFeed($xml) {
         // RSS 1.0 (RDF) - items are direct children of root
         getServerLogger()->info("Auto Feed: Parsing RSS 1.0 (RDF) feed with " . count($xml->item) . " items");
         foreach ($xml->item as $item) {
+            $contentEncoded = (string)($item->children($contentNs)->encoded ?? '');
+            $dcDescription  = (string)($item->children($dcNs)->description ?? '');
+            if ($contentEncoded !== '') {
+                $body = $contentEncoded;
+                $bodyField = 'content:encoded';
+            } elseif ((string)($item->description ?? '') !== '') {
+                $body = (string)$item->description;
+                $bodyField = 'description';
+            } else {
+                $body = $dcDescription;
+                $bodyField = 'dc:description';
+            }
+            getServerLogger()->info("Auto Feed: RSS 1.0 item body source: {$bodyField}");
             $articles[] = [
                 'guid' => (string)($item->guid ?? $item->link),
                 'title' => (string)$item->title,
                 'link' => (string)$item->link,
-                'description' => (string)($item->description ?? ''),
+                'description' => $body,
                 'pubDate' => (string)($item->pubDate ?? $item->date ?? '')
             ];
         }
     } elseif (isset($xml->entry)) {
-        // Atom
+        // Atom — <content> is the full body; <summary> is the excerpt fallback
         getServerLogger()->info("Auto Feed: Parsing Atom feed with " . count($xml->entry) . " entries");
         foreach ($xml->entry as $entry) {
             $link = '';
@@ -545,11 +578,19 @@ function parseRssFeed($xml) {
                 $link = (string)$entry->link['href'];
             }
 
+            if ((string)($entry->content ?? '') !== '') {
+                $body = (string)$entry->content;
+                $bodyField = 'content';
+            } else {
+                $body = (string)($entry->summary ?? '');
+                $bodyField = 'summary';
+            }
+            getServerLogger()->info("Auto Feed: Atom entry body source: {$bodyField}");
             $articles[] = [
                 'guid' => (string)($entry->id ?? $link),
                 'title' => (string)$entry->title,
                 'link' => $link,
-                'description' => (string)($entry->summary ?? $entry->content ?? ''),
+                'description' => $body,
                 'pubDate' => (string)($entry->published ?? $entry->updated ?? '')
             ];
         }
@@ -668,7 +709,46 @@ function findParentMessageId(PDO $db, int $echoareaId, string $subject, int $lim
 }
 
 /**
- * Post an article to echoarea
+ * Load all target echo areas for a feed.
+ *
+ * @param PDO $db Database connection
+ * @param int $feedId Feed ID
+ * @return array<int, array<string, mixed>>
+ */
+function loadFeedEchoareas(PDO $db, int $feedId): array
+{
+    $stmt = $db->prepare("
+        SELECT e.id, e.tag, e.domain, e.is_local
+        FROM auto_feed_source_echoareas afe
+        JOIN echoareas e ON e.id = afe.echoarea_id
+        WHERE afe.auto_feed_source_id = ?
+        ORDER BY LOWER(e.tag), LOWER(COALESCE(e.domain, ''))
+    ");
+    $stmt->execute([$feedId]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Format a feed's target echo areas for CLI output.
+ *
+ * @param array<int, array<string, mixed>> $echoareas
+ * @return string
+ */
+function formatFeedEchoareaList(array $echoareas): string
+{
+    $labels = [];
+    foreach ($echoareas as $echoarea) {
+        $domain = !empty($echoarea['is_local'])
+            ? 'Local'
+            : ((string)($echoarea['domain'] ?? '') !== '' ? (string)$echoarea['domain'] : 'Unknown');
+        $labels[] = (string)$echoarea['tag'] . '@' . $domain;
+    }
+
+    return implode(', ', $labels);
+}
+
+/**
+ * Post an article to all configured echo areas.
  *
  * @param PDO $db Database connection
  * @param MessageHandler $messageHandler Message handler
@@ -676,47 +756,61 @@ function findParentMessageId(PDO $db, int $echoareaId, string $subject, int $lim
  * @param array $article Article data
  * @param bool $verbose Show verbose output
  */
-function postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose) {
+function postArticleToEchoareas($db, $messageHandler, $feed, $article, $verbose) {
     // Format message body
     $body = formatArticleMessage($article);
 
-    // Determine user ID to post as (default to system user 1)
-    $userId = $feed['post_as_user_id'] ?? 1;
+    // Use the first user account as the internal owner for generated messages.
+    // poster_name controls the visible author seen in the message itself.
+    $userId = resolveAutoFeedInternalUserId($db);
 
-    // Post to echoarea
     $subject = buildArticleSubject($feed, $article);
-
-    // Attempt subject-based threading when enabled for this feed
-    $replyToId = null;
-    if (!empty($feed['thread_replies'])) {
-        $lookupLimit = max(100, (int)($feed['thread_lookup_limit'] ?? 1000));
-        $replyToId = findParentMessageId($db, (int)$feed['echoarea_id'], $article['title'], $lookupLimit);
+    $targetEchoareas = $feed['target_echoareas'] ?? [];
+    if (empty($targetEchoareas)) {
+        throw new Exception('No target echo areas configured for this feed');
     }
 
     if ($verbose) {
         echo sprintf("  Posting: %s\n", $subject);
-        echo sprintf("    Echo: %s @ %s\n", $feed['echoarea_tag'], $feed['echoarea_domain'] ?: '(blank)');
-        if ($replyToId !== null) {
-            echo sprintf("    Threading as reply to message ID: %d\n", $replyToId);
-        }
     }
 
-    $messageId = $messageHandler->postEchomail(
-        $userId,
-        $feed['echoarea_tag'],
-        $feed['echoarea_domain'] ?: '',
-        'All',
-        $subject,
-        $body,
-        $replyToId, // null unless threading detected a parent
-        'BinktermPHP Auto Feed', // tagline
-        false,      // skipCredits
-        null,       // markupType
-        '',         // prependKludges
-        'BinktermPHP Auto Feed' // tearlineComponent
-    );
+    foreach ($targetEchoareas as $echoarea) {
+        $replyToId = null;
+        if (!empty($feed['thread_replies'])) {
+            $lookupLimit = max(100, (int)($feed['thread_lookup_limit'] ?? 1000));
+            $replyToId = findParentMessageId($db, (int)$echoarea['id'], $article['title'], $lookupLimit);
+        }
 
-    // Increment posted article counter
+        if ($verbose) {
+            $domainLabel = !empty($echoarea['is_local'])
+                ? 'Local'
+                : ((string)($echoarea['domain'] ?? '') !== '' ? (string)$echoarea['domain'] : '(blank)');
+            echo sprintf("    Echo: %s @ %s\n", $echoarea['tag'], $domainLabel);
+            if ($replyToId !== null) {
+                echo sprintf("    Threading as reply to message ID: %d\n", $replyToId);
+            }
+        }
+
+        $messageHandler->postEchomail(
+            $userId,
+            $echoarea['tag'],
+            (string)($echoarea['domain'] ?? ''),
+            'All',
+            $subject,
+            $body,
+            $replyToId,
+            'BinktermPHP Auto Feed',
+            false,
+            null,
+            '',
+            'BinktermPHP Auto Feed',
+            null,
+            null,
+            (string)($feed['poster_name'] ?? 'Auto Feed')
+        );
+    }
+
+    // Increment once per source article, even when the article is fanned out to multiple areas.
     $stmt = $db->prepare("
         UPDATE auto_feed_sources
         SET articles_posted = articles_posted + 1,
@@ -724,6 +818,24 @@ function postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose) 
         WHERE id = ?
     ");
     $stmt->execute([$feed['id']]);
+}
+
+/**
+ * Resolve the internal user ID used to own generated Auto Feed messages.
+ *
+ * @param PDO $db Database connection
+ * @return int
+ * @throws Exception when no users exist
+ */
+function resolveAutoFeedInternalUserId(PDO $db): int
+{
+    $stmt = $db->query("SELECT id FROM users ORDER BY is_admin DESC, id ASC LIMIT 1");
+    $userId = (int)$stmt->fetchColumn();
+    if ($userId <= 0) {
+        throw new Exception('No local user account is available for auto-feed posting');
+    }
+
+    return $userId;
 }
 
 /**
@@ -777,6 +889,13 @@ function formatArticleMessage($article) {
 
         // Wrap text to 79 characters
         $description = wordwrap(trim($description), 79);
+
+        // Guard against extremely long full-content bodies exceeding practical
+        // FTN message size limits (~16 KB body). Truncate with a marker so the
+        // recipient knows the post was cut short.
+        if (strlen($description) > 16000) {
+            $description = substr($description, 0, 16000) . "\n[... truncated ...]";
+        }
 
         $body .= $description . "\n\n";
     }

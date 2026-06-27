@@ -204,6 +204,7 @@ return [
 
     // Admin Users
     'errors.admin.users.not_found' => 'User not found',
+    'errors.admin.users.registration_history_load_failed' => 'Failed to load registration history',
     'errors.admin.users.create_failed' => 'Failed to create user',
     'errors.admin.users.update_failed' => 'Failed to update user',
     'errors.admin.users.delete_failed' => 'Failed to delete user',
@@ -413,6 +414,16 @@ return [
     'errors.admin.jsdosdoors_config.save_failed' => 'Failed to save JS-DOS doors configuration',
     'errors.admin.jsdosdoors_config.activate_failed' => 'Failed to activate JS-DOS doors configuration',
 
+    // Door Manifest Editor errors
+    'errors.admin.door_manifest.list_failed' => 'Failed to list door manifest targets',
+    'errors.admin.door_manifest.get_failed' => 'Failed to retrieve door manifest',
+    'errors.admin.door_manifest.save_failed' => 'Failed to save door manifest',
+    'errors.admin.door_manifest.files_failed' => 'Failed to list door files',
+    'errors.admin.door_manifest.missing_manifest' => 'Manifest data is missing or invalid',
+    'errors.admin.door_manifest.ai_fill_failed' => 'AI fill failed',
+    'errors.admin.door_manifest.ai_no_provider' => 'No AI provider is configured',
+    'errors.admin.door_manifest.ai_no_files' => 'No readable files found in door directory',
+
     // JS-DOS door session errors
     'errors.jsdosdoor.game_not_found' => 'Game not found',
     'errors.jsdosdoor.session_create_failed' => 'Failed to create game session',
@@ -475,7 +486,7 @@ return [
     'errors.admin.custom_templates.delete_failed' => 'Failed to delete custom template',
     'errors.admin.custom_templates.install_failed' => 'Failed to install custom template',
     'errors.admin.auto_feed.not_found' => 'Feed source not found',
-    'errors.admin.auto_feed.required_fields' => 'Feed URL, echo area, and posting user are required',
+    'errors.admin.auto_feed.required_fields' => 'Feed URL, poster name, and at least one echo area are required',
     'errors.admin.auto_feed.invalid_url' => 'Feed URL is invalid',
     'errors.admin.auto_feed.echoarea_not_found' => 'Echo area not found',
     'errors.admin.auto_feed.user_not_found' => 'Posting user not found',
@@ -498,6 +509,7 @@ return [
     'errors.address_book.delete_failed' => 'Failed to delete address book entry',
     'errors.address_book.search_failed' => 'Failed to search address book entries',
     'errors.address_book.stats_failed' => 'Failed to load address book statistics',
+    'errors.address_book.pgp_key_already_set' => 'This address book entry already has a PGP key set',
 
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'Failed to load shared message',

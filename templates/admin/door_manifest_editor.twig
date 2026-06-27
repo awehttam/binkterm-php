@@ -1,0 +1,764 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.door_manifest_editor.page_title', {'door_id': door_id, 'type': door_type}, locale, ['common']) }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+    {# Breadcrumb #}
+    <nav aria-label="breadcrumb" class="pt-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/admin">{{ t('ui.base.admin.dashboard', {}, locale, ['common']) }}</a></li>
+            <li class="breadcrumb-item"><a href="{{ admin_page_url }}">{{ t(admin_page_title_key, {}, locale, ['common']) }}</a></li>
+            <li class="breadcrumb-item active">{{ door_id }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            {{ t('ui.admin.door_manifest_editor.heading', {}, locale, ['common']) }}
+            <span class="badge bg-secondary fs-6 fw-normal">{{ door_id }}</span>
+        </h1>
+        {% if editable %}
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" id="aiFillBtn" onclick="aiAutoFill()">
+                <i class="fas fa-magic"></i>
+                {{ t('ui.admin.door_manifest_editor.ai_fill_btn', {}, locale, ['common']) }}
+            </button>
+            <button class="btn btn-primary" id="saveBtn" onclick="saveManifest()">
+                <i class="fas fa-save"></i>
+                {% if exists %}
+                    {{ t('ui.admin.door_manifest_editor.save_btn', {}, locale, ['common']) }}
+                {% else %}
+                    {{ t('ui.admin.door_manifest_editor.create_btn', {}, locale, ['common']) }}
+                {% endif %}
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="statusAlert"></div>
+
+    {# Overview card #}
+    <div class="card shadow mb-4">
+        <div class="card-header"><h6 class="mb-0">{{ t('ui.admin.door_manifest_editor.section.overview', {}, locale, ['common']) }}</h6></div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <small class="text-muted d-block">{{ t('ui.admin.door_manifest_editor.overview.type', {}, locale, ['common']) }}</small>
+                    <span class="fw-semibold">{{ door_type | upper }}</span>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted d-block">{{ t('ui.admin.door_manifest_editor.overview.door_id', {}, locale, ['common']) }}</small>
+                    <code>{{ door_id }}</code>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted d-block">{{ t('ui.admin.door_manifest_editor.overview.root_path', {}, locale, ['common']) }}</small>
+                    <code>{{ root_directory }}/{{ door_id }}</code>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted d-block">{{ t('ui.admin.door_manifest_editor.overview.manifest_file', {}, locale, ['common']) }}</small>
+                    <code>{{ manifest_filename }}</code>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted d-block">{{ t('ui.admin.door_manifest_editor.overview.status', {}, locale, ['common']) }}</small>
+                    {% if not exists %}
+                        <span class="badge bg-secondary">{{ t('ui.admin.door_manifest_editor.status.no_manifest', {}, locale, ['common']) }}</span>
+                    {% elseif editable %}
+                        <span class="badge bg-success">{{ t('ui.admin.door_manifest_editor.status.web_managed', {}, locale, ['common']) }}</span>
+                    {% else %}
+                        <span class="badge bg-warning text-dark">{{ t('ui.admin.door_manifest_editor.status.unmanaged', {}, locale, ['common']) }}</span>
+                    {% endif %}
+                </div>
+                {% if runtime_config_path %}
+                <div class="col-md-4">
+                    <small class="text-muted d-block">{{ t('ui.admin.door_manifest_editor.overview.runtime_config', {}, locale, ['common']) }}</small>
+                    <code>{{ runtime_config_path }}</code>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if not editable and exists %}
+    <div class="alert alert-warning">
+        <i class="fas fa-lock"></i>
+        {{ t('ui.admin.door_manifest_editor.unmanaged_notice', {}, locale, ['common']) }}
+    </div>
+    {% endif %}
+
+    {% if door_type == 'native' %}
+    <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle"></i>
+        {{ t('ui.admin.door_manifest_editor.native_security_notice', {}, locale, ['common']) }}
+    </div>
+    {% endif %}
+
+    {% if door_type == 'jsdos' or door_type == 'web' %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        {{ t('ui.admin.door_manifest_editor.public_html_notice', {}, locale, ['common']) }}
+    </div>
+    {% endif %}
+
+    {# Form sections #}
+    <form id="manifestForm" novalidate>
+    {% for section in field_sections %}
+    <div class="card shadow mb-4">
+        <div class="card-header">
+            <h6 class="mb-0">{{ t(section.label_key, {}, locale, ['common']) }}</h6>
+        </div>
+        <div class="card-body">
+            {% for field in section.fields %}
+            <div class="mb-3">
+                <label class="form-label fw-semibold" for="field_{{ field.path | replace({'.': '_'}) }}">
+                    {{ t(field.label_key, {}, locale, ['common']) }}
+                    {% if field.required %}<span class="text-danger">*</span>{% endif %}
+                </label>
+
+                {% if field.type == 'text' %}
+                    <input type="text"
+                           class="form-control"
+                           id="field_{{ field.path | replace({'.': '_'}) }}"
+                           data-field-path="{{ field.path }}"
+                           value="{{ field.value is not null ? field.value : (field.default is not null ? field.default : '') }}"
+                           {% if not editable %}readonly{% endif %}>
+
+                {% elseif field.type == 'textarea' %}
+                    <textarea class="form-control"
+                              id="field_{{ field.path | replace({'.': '_'}) }}"
+                              data-field-path="{{ field.path }}"
+                              rows="4"
+                              {% if not editable %}readonly{% endif %}>{{ field.value is not null ? field.value : (field.default is not null ? field.default : '') }}</textarea>
+
+                {% elseif field.type == 'number' %}
+                    <input type="number"
+                           class="form-control"
+                           id="field_{{ field.path | replace({'.': '_'}) }}"
+                           data-field-path="{{ field.path }}"
+                           value="{{ field.value is not null ? field.value : (field.default is not null ? field.default : '') }}"
+                           {% if not editable %}readonly{% endif %}>
+
+                {% elseif field.type == 'checkbox' %}
+                    <div class="form-check">
+                        <input type="checkbox"
+                               class="form-check-input"
+                               id="field_{{ field.path | replace({'.': '_'}) }}"
+                               data-field-path="{{ field.path }}"
+                               {% if (field.value is not null and field.value) or (field.value is null and field.default) %}checked{% endif %}
+                               {% if not editable %}disabled{% endif %}>
+                        <label class="form-check-label" for="field_{{ field.path | replace({'.': '_'}) }}">
+                            {{ t('ui.admin.door_manifest_editor.enabled_label', {}, locale, ['common']) }}
+                        </label>
+                    </div>
+
+                {% elseif field.type == 'select' %}
+                    <select class="form-select"
+                            id="field_{{ field.path | replace({'.': '_'}) }}"
+                            data-field-path="{{ field.path }}"
+                            {% if not editable %}disabled{% endif %}>
+                        {% for opt in field.options %}
+                        <option value="{{ opt.value }}"
+                            {% if (field.value is not null and field.value == opt.value) or (field.value is null and field.default == opt.value) %}selected{% endif %}>
+                            {{ t(opt.label_key, {}, locale, ['common']) }}
+                        </option>
+                        {% endfor %}
+                    </select>
+
+                {% elseif field.type == 'file-picker' %}
+                    <div class="input-group">
+                        <input type="text"
+                               class="form-control"
+                               id="field_{{ field.path | replace({'.': '_'}) }}"
+                               data-field-path="{{ field.path }}"
+                               value="{{ field.value is not null ? field.value : '' }}"
+                               {% if not editable %}readonly{% else %}readonly{% endif %}>
+                        {% if editable %}
+                        <button type="button" class="btn btn-outline-secondary"
+                                onclick="openFilePicker('{{ field.path }}', '{{ field.picker_profile ?? '' }}')">
+                            <i class="fas fa-folder-open"></i> {{ t('ui.admin.door_manifest_editor.browse_btn', {}, locale, ['common']) }}
+                        </button>
+                        <button type="button" class="btn btn-outline-danger"
+                                onclick="clearFilePicker('{{ field.path }}')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+
+                {% elseif field.type == 'tags' %}
+                    <input type="text"
+                           class="form-control"
+                           id="field_{{ field.path | replace({'.': '_'}) }}"
+                           data-field-path="{{ field.path }}"
+                           data-field-type="tags"
+                           value="{{ field.value is not null and field.value is iterable ? field.value | join(', ') : '' }}"
+                           {% if not editable %}readonly{% endif %}>
+
+                {% elseif field.type == 'array-text' %}
+                    <textarea class="form-control font-monospace"
+                              id="field_{{ field.path | replace({'.': '_'}) }}"
+                              data-field-path="{{ field.path }}"
+                              data-field-type="array-text"
+                              rows="5"
+                              {% if not editable %}readonly{% endif %}>{{ field.value is not null and field.value is iterable ? field.value | join('\n') : '' }}</textarea>
+
+                {% elseif field.type == 'key-value' %}
+                    <div id="field_{{ field.path | replace({'.': '_'}) }}"
+                         data-field-path="{{ field.path }}"
+                         data-field-type="key-value">
+                        <table class="table table-sm" id="kv_{{ field.path | replace({'.': '_'}) }}">
+                            <thead><tr>
+                                <th>{{ t('ui.admin.door_manifest_editor.kv_key', {}, locale, ['common']) }}</th>
+                                <th>{{ t('ui.admin.door_manifest_editor.kv_value', {}, locale, ['common']) }}</th>
+                                {% if editable %}<th></th>{% endif %}
+                            </tr></thead>
+                            <tbody>
+                            {% if field.value is not null and field.value is iterable %}
+                                {% for k, v in field.value %}
+                                <tr>
+                                    <td><input type="text" class="form-control form-control-sm kv-key" value="{{ k }}" {% if not editable %}readonly{% endif %}></td>
+                                    <td><input type="text" class="form-control form-control-sm kv-val" value="{{ v is iterable ? v | json_encode : v }}" {% if not editable %}readonly{% endif %}></td>
+                                    {% if editable %}<td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeKvRow(this)"><i class="fas fa-times"></i></button></td>{% endif %}
+                                </tr>
+                                {% endfor %}
+                            {% endif %}
+                            </tbody>
+                        </table>
+                        {% if editable %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                onclick="addKvRow('kv_{{ field.path | replace({'.': '_'}) }}')">
+                            <i class="fas fa-plus"></i> {{ t('ui.admin.door_manifest_editor.kv_add_row', {}, locale, ['common']) }}
+                        </button>
+                        {% endif %}
+                    </div>
+
+                {% elseif field.type == 'repeater' %}
+                    <div id="field_{{ field.path | replace({'.': '_'}) }}"
+                         data-field-path="{{ field.path }}"
+                         data-field-type="repeater"
+                         data-sub-fields="{{ field.sub_fields | json_encode | e }}">
+                        <div class="repeater-rows" id="repeater_{{ field.path | replace({'.': '_'}) }}">
+                        {% if field.value is not null and field.value is iterable %}
+                            {% for row in field.value %}
+                            <div class="card mb-2 repeater-row">
+                                <div class="card-body py-2">
+                                    <div class="row g-2 align-items-end">
+                                    {% for sf in field.sub_fields %}
+                                    <div class="col">
+                                        <label class="form-label form-label-sm">{{ t(sf.label_key, {}, locale, ['common']) }}</label>
+                                        {% if sf.type == 'file-picker' %}
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" class="form-control form-control-sm"
+                                                   data-sub-field="{{ sf.path }}"
+                                                   data-picker-profile="{{ sf.picker_profile ?? '' }}"
+                                                   value="{{ attribute(row, sf.path) ?? '' }}"
+                                                   readonly>
+                                            {% if editable %}
+                                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                                    onclick="openRepeaterFilePicker(this, '{{ field.path }}', '{{ sf.picker_profile ?? '' }}')">
+                                                <i class="fas fa-folder-open"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                        {% else %}
+                                        <input type="text" class="form-control form-control-sm"
+                                               data-sub-field="{{ sf.path }}"
+                                               value="{{ attribute(row, sf.path) ?? '' }}"
+                                               {% if not editable %}readonly{% endif %}>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                    {% if editable %}
+                                    <div class="col-auto">
+                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRepeaterRow(this)">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                        </div>
+                        {% if editable %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-1"
+                                onclick="addRepeaterRow('{{ field.path | replace({'.': '_'}) }}')">
+                            <i class="fas fa-plus"></i> {{ t('ui.admin.door_manifest_editor.repeater_add_row', {}, locale, ['common']) }}
+                        </button>
+                        {% endif %}
+                    </div>
+
+                {% elseif field.type == 'readonly' %}
+                    <div class="form-control bg-light" data-field-path="{{ field.path }}" data-field-type="readonly">
+                        <code>{{ field.value ?? (field.default ?? '') }}</code>
+                    </div>
+
+                {% endif %}
+
+                {% if field.help_key is defined and field.help_key %}
+                <div class="form-text">{{ t(field.help_key, {}, locale, ['common']) }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+    </form>
+
+    {# Advanced JSON Preview #}
+    <div class="card shadow mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">{{ t('ui.admin.door_manifest_editor.section.json_preview', {}, locale, ['common']) }}</h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#jsonPreviewBody">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse" id="jsonPreviewBody">
+            <div class="card-body p-0">
+                <pre class="mb-0 p-3 bg-light" style="max-height:400px;overflow:auto;" id="jsonPreview"></pre>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{# File Picker Modal #}
+<div class="modal fade" id="filePickerModal" tabindex="-1" aria-labelledby="filePickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="filePickerModalLabel">{{ t('ui.admin.door_manifest_editor.picker.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <nav aria-label="breadcrumb" id="pickerBreadcrumb" class="mb-2"></nav>
+                <div id="pickerContents">
+                    <div class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm me-2"></div>
+                        {{ t('ui.common.loading', {}, locale, ['common']) }}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const DOOR_TYPE = {{ door_type | json_encode | raw }};
+    const DOOR_ID   = {{ door_id | json_encode | raw }};
+    const EDITABLE  = {{ editable ? 'true' : 'false' }};
+
+    // Original manifest — used as the base when building the save payload so
+    // that fields not represented in the form are preserved unchanged.
+    let originalManifest = {{ manifest_json | raw }};
+    const fieldSections  = {{ field_sections_json | raw }};
+
+    // -------------------------------------------------------------------------
+    // Manifest collection
+    // -------------------------------------------------------------------------
+
+    function getNestedValue(obj, path) {
+        const parts = path.split('.');
+        let cur = obj;
+        for (const p of parts) {
+            if (cur === null || cur === undefined || typeof cur !== 'object') return undefined;
+            cur = cur[p];
+        }
+        return cur;
+    }
+
+    function setNestedValue(obj, path, value) {
+        const parts = path.split('.');
+        let cur = obj;
+        for (let i = 0; i < parts.length - 1; i++) {
+            if (cur[parts[i]] === undefined || cur[parts[i]] === null || typeof cur[parts[i]] !== 'object') {
+                cur[parts[i]] = {};
+            }
+            cur = cur[parts[i]];
+        }
+        cur[parts[parts.length - 1]] = value;
+    }
+
+    function getFieldElement(path) {
+        return document.querySelector(`[data-field-path="${CSS.escape(path)}"]`);
+    }
+
+    function readFieldValue(el, fieldType) {
+        if (!el) return undefined;
+        const type = fieldType || el.dataset.fieldType || 'text';
+
+        if (type === 'checkbox') {
+            return el.checked;
+        }
+        if (type === 'number') {
+            const v = el.value.trim();
+            return v === '' ? null : Number(v);
+        }
+        if (type === 'tags') {
+            const raw = el.value.trim();
+            if (!raw) return [];
+            return raw.split(',').map(s => s.trim()).filter(s => s !== '');
+        }
+        if (type === 'array-text') {
+            const raw = el.value.trim();
+            if (!raw) return [];
+            return raw.split('\n').map(s => s.trim()).filter(s => s !== '');
+        }
+        if (type === 'key-value') {
+            const result = {};
+            el.querySelectorAll('tbody tr').forEach(row => {
+                const keyEl = row.querySelector('.kv-key');
+                const valEl = row.querySelector('.kv-val');
+                if (!keyEl || !valEl) return;
+                const k = keyEl.value.trim();
+                if (k === '') return;
+                let v = valEl.value.trim();
+                // Try to parse JSON values (arrays/objects)
+                try { v = JSON.parse(v); } catch (_) { /* keep as string */ }
+                result[k] = v;
+            });
+            return result;
+        }
+        if (type === 'repeater') {
+            const rows = el.querySelectorAll('.repeater-row');
+            const result = [];
+            rows.forEach(row => {
+                const entry = {};
+                row.querySelectorAll('[data-sub-field]').forEach(subEl => {
+                    entry[subEl.dataset.subField] = subEl.value.trim() || null;
+                });
+                result.push(entry);
+            });
+            return result;
+        }
+        if (type === 'readonly') {
+            return undefined; // not collected — preserved from originalManifest
+        }
+        // text / textarea / select / file-picker
+        return el.value;
+    }
+
+    function collectManifest() {
+        // Deep-clone the original so unknown fields survive.
+        const manifest = JSON.parse(JSON.stringify(originalManifest));
+
+        for (const section of fieldSections) {
+            for (const field of section.fields) {
+                if (field.type === 'readonly') continue;
+                const el = getFieldElement(field.path);
+                if (!el) continue;
+                const value = readFieldValue(el, field.type);
+                if (value === undefined) continue;
+                setNestedValue(manifest, field.path, value);
+            }
+        }
+
+        // Always ensure the ownership flag is present.
+        manifest.managed = 'web';
+
+        return manifest;
+    }
+
+    // -------------------------------------------------------------------------
+    // JSON Preview
+    // -------------------------------------------------------------------------
+
+    function updateJsonPreview() {
+        const el = document.getElementById('jsonPreview');
+        if (!el) return;
+        try {
+            el.textContent = JSON.stringify(collectManifest(), null, 4);
+        } catch (_) {}
+    }
+
+    document.querySelectorAll('#manifestForm input, #manifestForm textarea, #manifestForm select').forEach(el => {
+        el.addEventListener('change', updateJsonPreview);
+        el.addEventListener('input', updateJsonPreview);
+    });
+
+    document.getElementById('jsonPreviewBody').addEventListener('show.bs.collapse', updateJsonPreview);
+
+    // -------------------------------------------------------------------------
+    // Save
+    // -------------------------------------------------------------------------
+
+    window.saveManifest = function() {
+        const btn = document.getElementById('saveBtn');
+        const statusEl = document.getElementById('statusAlert');
+        statusEl.innerHTML = '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+
+        const manifest = collectManifest();
+
+        fetch(`/admin/api/door-manifest/${encodeURIComponent(DOOR_TYPE)}/${encodeURIComponent(DOOR_ID)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ manifest }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                originalManifest = manifest;
+                statusEl.innerHTML = `<div class="alert alert-success"><i class="fas fa-check"></i> ${window.t(data.message_code, {}, '{{ t('ui.admin.door_manifest_editor.saved_success', {}, locale, ['common']) }}')}`;
+            } else {
+                const msg = data.error || window.t('errors.admin.door_manifest.save_failed', {}, 'Save failed');
+                statusEl.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${msg}</div>`;
+            }
+        })
+        .catch(() => {
+            statusEl.innerHTML = `<div class="alert alert-danger">{{ t('errors.admin.door_manifest.save_failed', {}, locale, ['errors']) }}</div>`;
+        })
+        .finally(() => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-save"></i> {{ t('ui.admin.door_manifest_editor.save_btn', {}, locale, ['common']) }}';
+            }
+        });
+    };
+
+    // -------------------------------------------------------------------------
+    // File Picker
+    // -------------------------------------------------------------------------
+
+    let pickerTargetPath = null;
+    let pickerTargetRepeaterEl = null;
+    let pickerCurrentProfile = '';
+
+    window.openFilePicker = function(fieldPath, profile) {
+        pickerTargetPath = fieldPath;
+        pickerTargetRepeaterEl = null;
+        pickerCurrentProfile = profile || '';
+        loadPickerDir('');
+        new bootstrap.Modal(document.getElementById('filePickerModal')).show();
+    };
+
+    window.openRepeaterFilePicker = function(btn, fieldPath, profile) {
+        pickerTargetPath = null;
+        pickerTargetRepeaterEl = btn.closest('.repeater-row').querySelector('[data-sub-field]');
+        pickerCurrentProfile = profile || '';
+        loadPickerDir('');
+        new bootstrap.Modal(document.getElementById('filePickerModal')).show();
+    };
+
+    window.clearFilePicker = function(fieldPath) {
+        const el = document.querySelector(`[data-field-path="${CSS.escape(fieldPath)}"]`);
+        if (el) { el.value = ''; updateJsonPreview(); }
+    };
+
+    function loadPickerDir(subdir) {
+        const contentsEl = document.getElementById('pickerContents');
+        const breadcrumbEl = document.getElementById('pickerBreadcrumb');
+        contentsEl.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm"></span></div>';
+        breadcrumbEl.innerHTML = '';
+
+        const qs = new URLSearchParams({ dir: subdir, profile: pickerCurrentProfile }).toString();
+        fetch(`/admin/api/door-manifest-files/${encodeURIComponent(DOOR_TYPE)}/${encodeURIComponent(DOOR_ID)}?${qs}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) throw new Error(data.error || 'Failed');
+
+            // Breadcrumb
+            const parts = data.current_dir ? data.current_dir.split('/') : [];
+            let breadcrumb = `<ol class="breadcrumb mb-0 small">
+                <li class="breadcrumb-item"><a href="#" onclick='loadPickerDir("");return false'>{{ t('ui.admin.door_manifest_editor.picker.root', {}, locale, ['common']) }}</a></li>`;
+            let cumPath = '';
+            for (const p of parts) {
+                cumPath = cumPath ? cumPath + '/' + p : p;
+                const cp = cumPath;
+                breadcrumb += `<li class="breadcrumb-item"><a href="#" onclick='loadPickerDir(${JSON.stringify(cp)});return false'>${escHtml(p)}</a></li>`;
+            }
+            breadcrumb += '</ol>';
+            breadcrumbEl.innerHTML = breadcrumb;
+
+            // Back link
+            let html = '';
+            if (data.parent_dir !== null) {
+                const parentDir = data.parent_dir;
+                html += `<a href="#" class="d-block py-1 text-decoration-none text-muted" onclick='loadPickerDir(${JSON.stringify(parentDir)});return false'>
+                    <i class="fas fa-arrow-up"></i> ..
+                </a><hr class="my-1">`;
+            }
+
+            for (const entry of data.entries) {
+                if (entry.type === 'dir') {
+                    html += `<a href="#" class="d-block py-1 text-decoration-none" onclick='loadPickerDir(${JSON.stringify(entry.path)});return false'>
+                        <i class="fas fa-folder text-warning"></i> ${escHtml(entry.name)}/
+                    </a>`;
+                } else {
+                    html += `<a href="#" class="d-block py-1 text-decoration-none" onclick='selectPickerFile(${JSON.stringify(entry.path)});return false'>
+                        <i class="fas fa-file text-muted"></i> ${escHtml(entry.name)}
+                    </a>`;
+                }
+            }
+
+            if (!html) {
+                html = `<p class="text-muted small">{{ t('ui.admin.door_manifest_editor.picker.empty', {}, locale, ['common']) }}</p>`;
+            }
+
+            contentsEl.innerHTML = html;
+        })
+        .catch(err => {
+            contentsEl.innerHTML = `<div class="alert alert-danger small">{{ t('errors.admin.door_manifest.files_failed', {}, locale, ['errors']) }}</div>`;
+        });
+    }
+
+    window.loadPickerDir = loadPickerDir;
+
+    function selectPickerFile(path) {
+        if (pickerTargetPath) {
+            const el = document.querySelector(`[data-field-path="${CSS.escape(pickerTargetPath)}"]`);
+            if (el) { el.value = path; updateJsonPreview(); }
+        } else if (pickerTargetRepeaterEl) {
+            pickerTargetRepeaterEl.value = path;
+            updateJsonPreview();
+        }
+        bootstrap.Modal.getInstance(document.getElementById('filePickerModal')).hide();
+    }
+    window.selectPickerFile = selectPickerFile;
+
+    function escHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // -------------------------------------------------------------------------
+    // Key-value helpers
+    // -------------------------------------------------------------------------
+
+    window.addKvRow = function(tableId) {
+        const tbody = document.querySelector(`#${tableId} tbody`);
+        if (!tbody) return;
+        const row = document.createElement('tr');
+        row.innerHTML = `<td><input type="text" class="form-control form-control-sm kv-key"></td>
+            <td><input type="text" class="form-control form-control-sm kv-val"></td>
+            <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeKvRow(this)"><i class="fas fa-times"></i></button></td>`;
+        tbody.appendChild(row);
+    };
+
+    window.removeKvRow = function(btn) {
+        btn.closest('tr').remove();
+        updateJsonPreview();
+    };
+
+    // -------------------------------------------------------------------------
+    // Repeater helpers
+    // -------------------------------------------------------------------------
+
+    window.addRepeaterRow = function(fieldId) {
+        const container = document.getElementById('repeater_' + fieldId);
+        const defEl = document.getElementById('field_' + fieldId);
+        if (!container || !defEl) return;
+        const subFields = JSON.parse(defEl.dataset.subFields || '[]');
+
+        let colsHtml = '';
+        for (const sf of subFields) {
+            colsHtml += `<div class="col">
+                <label class="form-label form-label-sm">${escHtml(sf.label_key)}</label>`;
+            if (sf.type === 'file-picker') {
+                const fieldPath = defEl.dataset.fieldPath;
+                const profile = sf.picker_profile || '';
+                colsHtml += `<div class="input-group input-group-sm">
+                    <input type="text" class="form-control form-control-sm" data-sub-field="${escHtml(sf.path)}" data-picker-profile="${escHtml(profile)}" readonly>
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                        onclick="openRepeaterFilePicker(this, '${escHtml(fieldPath)}', '${escHtml(profile)}')">
+                        <i class="fas fa-folder-open"></i>
+                    </button>
+                </div>`;
+            } else {
+                colsHtml += `<input type="text" class="form-control form-control-sm" data-sub-field="${escHtml(sf.path)}">`;
+            }
+            colsHtml += '</div>';
+        }
+
+        const row = document.createElement('div');
+        row.className = 'card mb-2 repeater-row';
+        row.innerHTML = `<div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                ${colsHtml}
+                <div class="col-auto">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRepeaterRow(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>`;
+        container.appendChild(row);
+    };
+
+    window.removeRepeaterRow = function(btn) {
+        btn.closest('.repeater-row').remove();
+        updateJsonPreview();
+    };
+
+    // -------------------------------------------------------------------------
+    // AI Auto Fill
+    // -------------------------------------------------------------------------
+
+    window.aiAutoFill = function() {
+        const btn = document.getElementById('aiFillBtn');
+        const statusEl = document.getElementById('statusAlert');
+        statusEl.innerHTML = '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${window.t('ui.admin.door_manifest_editor.ai_fill_loading', {}, '{{ t('ui.admin.door_manifest_editor.ai_fill_loading', {}, locale, ['common']) }}')}`;
+        }
+
+        fetch(`/admin/api/door-manifest/${encodeURIComponent(DOOR_TYPE)}/${encodeURIComponent(DOOR_ID)}/ai-fill`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                const msg = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(data, window.t('ui.admin.door_manifest_editor.ai_fill_failed', {}, '{{ t('ui.admin.door_manifest_editor.ai_fill_failed', {}, locale, ['common']) }}'))
+                    : (data.error || '{{ t('ui.admin.door_manifest_editor.ai_fill_failed', {}, locale, ['common']) }}');
+                statusEl.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${msg}</div>`;
+                return;
+            }
+
+            const fields = data.fields || {};
+            let filled = 0;
+
+            for (const [path, value] of Object.entries(fields)) {
+                const el = getFieldElement(path);
+                if (!el) continue;
+                const type = el.dataset.fieldType || 'text';
+                if (type === 'tags' && Array.isArray(value)) {
+                    el.value = value.join(', ');
+                    filled++;
+                } else if (type === 'number' && value !== null && value !== undefined) {
+                    el.value = value;
+                    filled++;
+                } else if (typeof value === 'string') {
+                    el.value = value;
+                    filled++;
+                }
+            }
+
+            updateJsonPreview();
+
+            const successMsg = window.t(
+                'ui.admin.door_manifest_editor.ai_fill_success',
+                { count: filled },
+                '{{ t('ui.admin.door_manifest_editor.ai_fill_success', {}, locale, ['common']) }}'
+            ).replace('{count}', filled);
+            statusEl.innerHTML = `<div class="alert alert-success"><i class="fas fa-check"></i> ${successMsg}</div>`;
+        })
+        .catch(() => {
+            statusEl.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> {{ t('ui.admin.door_manifest_editor.ai_fill_failed', {}, locale, ['common']) }}</div>`;
+        })
+        .finally(() => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fas fa-magic"></i> {{ t('ui.admin.door_manifest_editor.ai_fill_btn', {}, locale, ['common']) }}`;
+            }
+        });
+    };
+})();
+</script>
+{% endblock %}
