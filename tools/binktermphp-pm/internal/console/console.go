@@ -24,7 +24,17 @@ type Controller interface {
 	Stop(name string) error
 	Restart(name string) error
 	SetEnabled(name string, enabled bool) error
+	// Shutdown is called when the user presses q. In local mode it stops the
+	// process manager and all services. In attach/IPC mode it is a no-op — the
+	// console simply closes and the daemon keeps running.
 	Shutdown()
+	// StopDaemon stops all services and shuts the daemon down. In local mode
+	// this is identical to Shutdown. In attach/IPC mode it sends stop_all to
+	// the running daemon then closes the console.
+	StopDaemon()
+	// IsAttached reports whether this console is connected to a remote daemon
+	// via IPC. The header uses this to show the correct quit label.
+	IsAttached() bool
 }
 
 const (
@@ -90,6 +100,9 @@ func Run(ctrl Controller) error {
 			switch k {
 			case 'q', keyCtrlC:
 				c.ctrl.Shutdown()
+				return nil
+			case 'Q':
+				c.ctrl.StopDaemon()
 				return nil
 			case keyUp:
 				if c.selected > 0 {
@@ -208,7 +221,11 @@ func (c *console) refresh() {
 	b.WriteString("\033[H") // cursor home (no full clear — avoids flicker)
 
 	// ── Header ──────────────────────────────────────────────────────────────
-	hdr := padRight(truncVis(" BinktermPHP Process Manager  [q]uit  [↑↓]select  [s]tart  [S]top  [r]estart  [e]nable", w), w)
+	qLabel := "[q]uit"
+	if c.ctrl.IsAttached() {
+		qLabel = "[q]detach  [Q]stop daemon"
+	}
+	hdr := padRight(truncVis(" BinktermPHP Process Manager  "+qLabel+"  [↑↓]select  [s]tart  [S]top  [r]estart  [e]nable", w), w)
 	b.WriteString("\033[7m" + hdr + "\033[0m\r\n")
 
 	// ── Column header ────────────────────────────────────────────────────────

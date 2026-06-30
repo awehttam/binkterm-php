@@ -82,13 +82,13 @@
     {
       "name": "postgres",
       "check": {
-        "tcp": "127.0.0.1:5432"
+        "postgres_env": true
       }
     },
     {
       "name": "caddy",
       "check": {
-        "http": "http://127.0.0.1:2019/healthz"
+        "site_verify": true
       }
     }
   ]

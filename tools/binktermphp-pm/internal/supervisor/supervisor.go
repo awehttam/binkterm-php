@@ -153,7 +153,9 @@ func (s *Supervisor) StartAll() {
 }
 
 // StopAll gracefully stops all running services, waiting up to timeout.
-func (s *Supervisor) StopAll(timeout time.Duration) {
+// onStopped is called for each service once it has stopped; killed is true if
+// the process had to be force-killed. Pass nil to suppress progress callbacks.
+func (s *Supervisor) StopAll(timeout time.Duration, onStopped func(name string, killed bool)) {
 	var wg sync.WaitGroup
 	for _, svc := range s.services {
 		svc.mu.RLock()
@@ -163,7 +165,10 @@ func (s *Supervisor) StopAll(timeout time.Duration) {
 			wg.Add(1)
 			go func(svc *managedService) {
 				defer wg.Done()
-				s.stopService(svc, timeout)
+				killed := s.stopService(svc, timeout)
+				if onStopped != nil {
+					onStopped(svc.cfg.Name, killed)
+				}
 			}(svc)
 		}
 	}
@@ -201,7 +206,7 @@ func (s *Supervisor) Stop(name string) error {
 	if st == StateStopped || st == StateDisabled {
 		return fmt.Errorf("service %s is not running", name)
 	}
-	s.stopService(svc, 10*time.Second)
+	_ = s.stopService(svc, 10*time.Second)
 	return nil
 }
 
@@ -215,7 +220,7 @@ func (s *Supervisor) Restart(name string) error {
 	st := svc.state
 	svc.mu.RUnlock()
 	if st == StateRunning || st == StateStarting || st == StateBackoff {
-		s.stopService(svc, 10*time.Second)
+		_ = s.stopService(svc, 10*time.Second)
 	}
 	svc.mu.Lock()
 	svc.state = StateStopped
@@ -263,7 +268,7 @@ func (s *Supervisor) Reload(newCfg *config.Config) {
 		svc.mu.RUnlock()
 		if !exists || (!sc.AlwaysOn && !sc.Enabled) {
 			if st != StateStopped && st != StateDisabled {
-				go s.stopService(svc, 10*time.Second)
+				go func(svc *managedService) { _ = s.stopService(svc, 10*time.Second) }(svc)
 			}
 		}
 	}
@@ -309,7 +314,7 @@ func (s *Supervisor) SetEnabled(name string, enabled bool) error {
 		switch st {
 		case StateRunning, StateStarting, StateBackoff:
 			go func() {
-				s.stopService(svc, 10*time.Second)
+				_ = s.stopService(svc, 10*time.Second)
 				svc.mu.Lock()
 				svc.state = StateDisabled
 				svc.mu.Unlock()
@@ -324,11 +329,12 @@ func (s *Supervisor) SetEnabled(name string, enabled bool) error {
 }
 
 // stopService sends SIGTERM to the process, waits up to timeout, then SIGKILLs.
-func (s *Supervisor) stopService(svc *managedService, timeout time.Duration) {
+// Returns true if the process had to be force-killed.
+func (s *Supervisor) stopService(svc *managedService, timeout time.Duration) bool {
 	svc.mu.Lock()
 	if svc.state == StateStopped || svc.state == StateDisabled {
 		svc.mu.Unlock()
-		return
+		return false
 	}
 	svc.state = StateStopping
 	// Signal the run loop not to restart.
@@ -340,6 +346,7 @@ func (s *Supervisor) stopService(svc *managedService, timeout time.Duration) {
 	cmd := svc.cmd
 	svc.mu.Unlock()
 
+	killed := false
 	if cmd != nil && cmd.Process != nil {
 		s.logger.Info("stopping service", "name", svc.cfg.Name, "pid", cmd.Process.Pid)
 		cmd.Process.Signal(os.Interrupt)
@@ -352,6 +359,7 @@ func (s *Supervisor) stopService(svc *managedService, timeout time.Duration) {
 			s.logger.Warn("force killing service", "name", svc.cfg.Name)
 			cmd.Process.Kill()
 			<-done
+			killed = true
 		}
 	}
 
@@ -360,7 +368,8 @@ func (s *Supervisor) stopService(svc *managedService, timeout time.Duration) {
 	svc.pid = 0
 	svc.cmd = nil
 	svc.mu.Unlock()
-	svc.Log.Append(fmt.Sprintf("[pm] stopped"))
+	svc.Log.Append("[pm] stopped")
+	return killed
 }
 
 // runService is the goroutine that runs a service and handles restart policy.

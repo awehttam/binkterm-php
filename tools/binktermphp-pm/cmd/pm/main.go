@@ -108,7 +108,7 @@ func main() {
 	defer os.Remove(pidPath)
 
 	sup := supervisor.New(rootDir, cfg, logger)
-	hc := healthcheck.New(cfg, logger)
+	hc := healthcheck.New(cfg, logger, rootDir)
 
 	hcCtx, hcCancel := context.WithCancel(context.Background())
 	defer hcCancel()
@@ -181,12 +181,15 @@ func main() {
 	}()
 
 	// Console mode (foreground, not daemon child).
+	interactive := false
 	if os.Getenv("BINKPM_DAEMON") == "" {
 		ctrl := &localController{sup: sup, hc: hc, shutdownCh: shutdownCh, setEnabledFn: setEnabledFn}
 		if err := console.Run(ctrl); err != nil {
 			// Non-terminal fallback: just wait for shutdown signal.
 			logger.Info("console unavailable, running headless", "reason", err)
 			<-shutdownCh
+		} else {
+			interactive = true
 		}
 	} else {
 		// Daemon child: block until shutdown is signalled.
@@ -194,7 +197,25 @@ func main() {
 	}
 
 	logger.Info("shutting down")
-	sup.StopAll(10 * time.Second)
+
+	var onStopped func(name string, killed bool)
+	if interactive {
+		fmt.Println("Stopping services...")
+		onStopped = func(name string, killed bool) {
+			if killed {
+				fmt.Printf("  [killed] %s\n", name)
+			} else {
+				fmt.Printf("  [ok]     %s\n", name)
+			}
+		}
+	}
+
+	sup.StopAll(10*time.Second, onStopped)
+
+	if interactive {
+		fmt.Println("Shutdown complete.")
+	}
+
 	signal.Stop(sigCh)
 }
 
@@ -207,6 +228,7 @@ type localController struct {
 	setEnabledFn func(string, bool) error
 }
 
+func (c *localController) IsAttached() bool                        { return false }
 func (c *localController) Snapshots() []supervisor.ServiceSnapshot { return c.sup.Snapshots() }
 func (c *localController) HealthSnapshots() []healthcheck.Snapshot  { return c.hc.Snapshots() }
 func (c *localController) GetLog(name string, n int) ([]string, error) {
@@ -229,6 +251,7 @@ func (c *localController) Shutdown() {
 		close(c.shutdownCh)
 	}
 }
+func (c *localController) StopDaemon() { c.Shutdown() }
 
 // ── ipcController wires the console to a remote manager via IPC ──────────────
 
@@ -241,6 +264,7 @@ func newIPCController(client *ipc.Client) *ipcController {
 	return &ipcController{client: client}
 }
 
+func (c *ipcController) IsAttached() bool { return true }
 func (c *ipcController) Snapshots() []supervisor.ServiceSnapshot {
 	data, err := c.client.Status()
 	if err == nil {
@@ -289,7 +313,11 @@ func (c *ipcController) Restart(name string) error {
 func (c *ipcController) SetEnabled(name string, enabled bool) error {
 	return c.client.SetEnabled(name, enabled)
 }
-func (c *ipcController) Shutdown() { c.client.StopAll() }
+// Shutdown in IPC/attach mode is intentionally a no-op: pressing q just closes
+// the console view; the daemon keeps running. Use Q or binktermphp-ctl stop-all
+// to shut down the daemon.
+func (c *ipcController) Shutdown() {}
+func (c *ipcController) StopDaemon() { _ = c.client.StopAll() }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 

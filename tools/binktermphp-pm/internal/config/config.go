@@ -30,8 +30,12 @@ type HealthCheck struct {
 }
 
 type HealthCheckSpec struct {
-	TCP  string `json:"tcp,omitempty"`
-	HTTP string `json:"http,omitempty"`
+	TCP         string `json:"tcp,omitempty"`
+	HTTP        string `json:"http,omitempty"`
+	// PostgresEnv connects to the PostgreSQL database configured in the root .env file.
+	PostgresEnv bool `json:"postgres_env,omitempty"`
+	// SiteVerify performs an HTTP GET against SITE_URL/api/verify from the root .env file.
+	SiteVerify bool `json:"site_verify,omitempty"`
 }
 
 func Defaults() *Config {
