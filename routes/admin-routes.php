@@ -3072,6 +3072,120 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/pm/status', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $status = $client->pmStatus();
+                echo json_encode(['success' => true, 'running' => true, 'status' => $status]);
+            } catch (\Exception $e) {
+                getServerLogger()->warning('pm status unavailable', ['error' => $e->getMessage()]);
+                echo json_encode(['success' => true, 'running' => false, 'reason' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/pm/service/{name}/start', function($name) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->pmStart($name);
+
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'pm_service_start', ['service' => $name]);
+                }
+
+                echo json_encode(['success' => true]);
+            } catch (\Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.services.pm_action_failed', apiLocalizedText('errors.admin.services.pm_action_failed', 'Failed to perform service action'));
+            }
+        });
+
+        SimpleRouter::post('/pm/service/{name}/stop', function($name) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->pmStop($name);
+
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'pm_service_stop', ['service' => $name]);
+                }
+
+                echo json_encode(['success' => true]);
+            } catch (\Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.services.pm_action_failed', apiLocalizedText('errors.admin.services.pm_action_failed', 'Failed to perform service action'));
+            }
+        });
+
+        SimpleRouter::post('/pm/service/{name}/restart', function($name) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->pmRestart($name);
+
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'pm_service_restart', ['service' => $name]);
+                }
+
+                echo json_encode(['success' => true]);
+            } catch (\Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.services.pm_action_failed', apiLocalizedText('errors.admin.services.pm_action_failed', 'Failed to perform service action'));
+            }
+        });
+
+        SimpleRouter::get('/pm/service/{name}/logs', function($name) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $n = max(1, min(500, (int)($_GET['n'] ?? 50)));
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $logs = $client->pmLogs($name, $n);
+                echo json_encode(['success' => true, 'lines' => $logs['lines'] ?? []]);
+            } catch (\Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.services.pm_logs_failed', apiLocalizedText('errors.admin.services.pm_logs_failed', 'Failed to get service logs'));
+            }
+        });
+
         SimpleRouter::post('/mrc-restart', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();

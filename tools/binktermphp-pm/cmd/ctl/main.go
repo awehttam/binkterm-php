@@ -37,8 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	socketPath := resolveSocket(*cfgPath)
-	client := ipc.NewClient(socketPath)
+	client := resolveClient(*cfgPath)
 	command := args[0]
 
 	switch command {
@@ -148,15 +147,18 @@ func runStatusOne(client *ipc.Client, name string) {
 	fatalf("service not found: %s", name)
 }
 
-func resolveSocket(cfgPath string) string {
+func resolveClient(cfgPath string) *ipc.Client {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		// Fall back to the default path relative to cwd.
-		return "data/run/binktermphp-pm.sock"
+		// Fall back to the default Unix socket with no secret.
+		return ipc.NewClient("data/run/binktermphp-pm.sock", "")
 	}
 	abs, _ := filepath.Abs(cfgPath)
 	rootDir := filepath.Dir(filepath.Dir(abs))
-	return cfg.AbsPath(rootDir, cfg.Socket)
+	if cfg.IpcAddr != "" {
+		return ipc.NewTCPClient(cfg.IpcAddr, cfg.IpcSecret)
+	}
+	return ipc.NewClient(cfg.AbsPath(rootDir, cfg.Socket), cfg.IpcSecret)
 }
 
 func dieOnErr(err error) {

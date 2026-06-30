@@ -2,32 +2,40 @@ package ipc
 
 import (
 	"bufio"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/awehttam/binkterm-php/tools/binktermphp-pm/internal/healthcheck"
 	"github.com/awehttam/binkterm-php/tools/binktermphp-pm/internal/supervisor"
 )
 
-// Server listens on a Unix socket and dispatches JSON-RPC commands.
+// Server listens on a Unix socket (and optionally a TCP address) and dispatches JSON-RPC commands.
 type Server struct {
-	socketPath    string
-	listener      net.Listener
-	sup           *supervisor.Supervisor
-	hc            *healthcheck.Monitor
-	logger        *slog.Logger
-	reloadFn      func() error
-	stopAllFn     func()
-	setEnabledFn  func(string, bool) error
+	socketPath   string
+	socketGroup  string
+	secret       string
+	listener     net.Listener
+	tcpListener  net.Listener
+	sup          *supervisor.Supervisor
+	hc           *healthcheck.Monitor
+	logger       *slog.Logger
+	reloadFn     func() error
+	stopAllFn    func()
+	setEnabledFn func(string, bool) error
 }
 
 func NewServer(
 	socketPath string,
+	socketGroup string,
+	secret string,
 	sup *supervisor.Supervisor,
 	hc *healthcheck.Monitor,
 	logger *slog.Logger,
@@ -37,6 +45,8 @@ func NewServer(
 ) *Server {
 	return &Server{
 		socketPath:   socketPath,
+		socketGroup:  socketGroup,
+		secret:       secret,
 		sup:          sup,
 		hc:           hc,
 		logger:       logger,
@@ -56,9 +66,38 @@ func (s *Server) Listen() error {
 	if err != nil {
 		return fmt.Errorf("ipc listen %s: %w", s.socketPath, err)
 	}
-	os.Chmod(s.socketPath, 0600)
+	if s.socketGroup != "" {
+		if gid, err := lookupGroupID(s.socketGroup); err != nil {
+			s.logger.Warn("socket_group lookup failed", "group", s.socketGroup, "error", err)
+			os.Chmod(s.socketPath, 0600)
+		} else {
+			os.Lchown(s.socketPath, -1, gid)
+			os.Chmod(s.socketPath, 0660)
+		}
+	} else {
+		os.Chmod(s.socketPath, 0600)
+	}
 	s.listener = ln
 	s.logger.Info("ipc listening", "socket", s.socketPath)
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return nil // listener closed
+		}
+		go s.handle(conn)
+	}
+}
+
+// ListenTCP starts an additional TCP listener on addr (e.g. "127.0.0.1:17891").
+// Useful on platforms where Unix socket support is unavailable (e.g. PHP on Windows).
+// The TCP port has no authentication — restrict to loopback only.
+func (s *Server) ListenTCP(addr string) error {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("ipc tcp listen %s: %w", addr, err)
+	}
+	s.tcpListener = ln
+	s.logger.Info("ipc tcp listening", "addr", addr)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -73,14 +112,43 @@ func (s *Server) Close() {
 		s.listener.Close()
 		os.Remove(s.socketPath)
 	}
+	if s.tcpListener != nil {
+		s.tcpListener.Close()
+	}
 }
 
 func dirOf(p string) string { return filepath.Dir(p) }
+
+func lookupGroupID(name string) (int, error) {
+	g, err := user.LookupGroup(name)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(g.Gid)
+}
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(30 * time.Second))
 	scanner := bufio.NewScanner(conn)
+
+	if s.secret != "" {
+		if !scanner.Scan() {
+			writeResp(conn, Response{ID: "?", OK: false, Error: "auth required"})
+			return
+		}
+		var authMsg struct {
+			Auth string `json:"auth"`
+		}
+		if err := json.Unmarshal(scanner.Bytes(), &authMsg); err != nil ||
+			subtle.ConstantTimeCompare([]byte(authMsg.Auth), []byte(s.secret)) != 1 {
+			writeResp(conn, Response{ID: "?", OK: false, Error: "unauthorized"})
+			s.logger.Warn("ipc auth failed", "remote", conn.RemoteAddr())
+			return
+		}
+		writeResp(conn, Response{ID: "?", OK: true, Message: "ok"})
+	}
+
 	for scanner.Scan() {
 		var req Request
 		if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {

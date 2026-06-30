@@ -33,8 +33,7 @@ func main() {
 			fatalf("load config: %v", err)
 		}
 		rootDir := rootDirOf(*cfgPath)
-		socketPath := cfg.AbsPath(rootDir, cfg.Socket)
-		ctrl := newIPCController(ipc.NewClient(socketPath))
+		ctrl := newIPCController(clientFromCfg(cfg, rootDir))
 		if err := console.Run(ctrl); err != nil {
 			fatalf("%v", err)
 		}
@@ -91,9 +90,9 @@ func main() {
 
 	// If the socket already exists and a manager is already running,
 	// automatically switch to attach mode for console users.
-	if os.Getenv("BINKPM_DAEMON") == "" && socketFileAlive(socketPath) {
+	if os.Getenv("BINKPM_DAEMON") == "" && socketFileAlive(cfg, rootDir) {
 		fmt.Println("binktermphp-pm is already running — attaching to running instance.")
-		ctrl := newIPCController(ipc.NewClient(socketPath))
+		ctrl := newIPCController(clientFromCfg(cfg, rootDir))
 		if err := console.Run(ctrl); err != nil {
 			fatalf("%v", err)
 		}
@@ -155,12 +154,19 @@ func main() {
 		return nil
 	}
 
-	ipcSrv := ipc.NewServer(socketPath, sup, hc, logger, reloadFn, stopAllFn, setEnabledFn)
+	ipcSrv := ipc.NewServer(socketPath, cfg.SocketGroup, cfg.IpcSecret, sup, hc, logger, reloadFn, stopAllFn, setEnabledFn)
 	go func() {
 		if err := ipcSrv.Listen(); err != nil {
 			logger.Error("ipc server error", "error", err)
 		}
 	}()
+	if cfg.IpcAddr != "" {
+		go func() {
+			if err := ipcSrv.ListenTCP(cfg.IpcAddr); err != nil {
+				logger.Error("ipc tcp server error", "error", err)
+			}
+		}()
+	}
 	defer ipcSrv.Close()
 
 	sup.StartAll()
@@ -379,8 +385,15 @@ func writePid(path string) {
 	os.WriteFile(path, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
 }
 
-func socketFileAlive(path string) bool {
-	_, err := ipc.NewClient(path).Status()
+func clientFromCfg(cfg *config.Config, rootDir string) *ipc.Client {
+	if cfg.IpcAddr != "" {
+		return ipc.NewTCPClient(cfg.IpcAddr, cfg.IpcSecret)
+	}
+	return ipc.NewClient(cfg.AbsPath(rootDir, cfg.Socket), cfg.IpcSecret)
+}
+
+func socketFileAlive(cfg *config.Config, rootDir string) bool {
+	_, err := clientFromCfg(cfg, rootDir).Status()
 	return err == nil
 }
 

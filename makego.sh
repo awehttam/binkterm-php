@@ -16,6 +16,7 @@ build() {
 
 build windows amd64 .exe
 build linux   amd64
+build linux   arm64
 build darwin  amd64
 build darwin  arm64
 
@@ -23,5 +24,6 @@ echo
 echo "Done. Binaries written to dist/:"
 echo "  dist/windows-amd64/  binktermphp-pm.exe  binktermphp-ctl.exe"
 echo "  dist/linux-amd64/    binktermphp-pm      binktermphp-ctl"
+echo "  dist/linux-arm64/    binktermphp-pm      binktermphp-ctl"
 echo "  dist/darwin-amd64/   binktermphp-pm      binktermphp-ctl"
 echo "  dist/darwin-arm64/   binktermphp-pm      binktermphp-ctl"

@@ -8,22 +8,48 @@ import (
 	"time"
 )
 
-// Client connects to a running binktermphp-pm over its Unix socket.
+// Client connects to a running binktermphp-pm over its Unix socket or TCP address.
 type Client struct {
-	socketPath string
+	network string // "unix" or "tcp"
+	addr    string
+	secret  string
 }
 
-func NewClient(socketPath string) *Client {
-	return &Client{socketPath: socketPath}
+// NewClient creates a client that connects via Unix domain socket.
+func NewClient(socketPath, secret string) *Client {
+	return &Client{network: "unix", addr: socketPath, secret: secret}
+}
+
+// NewTCPClient creates a client that connects via TCP (for platforms without Unix socket support).
+func NewTCPClient(addr, secret string) *Client {
+	return &Client{network: "tcp", addr: addr, secret: secret}
 }
 
 func (c *Client) send(method string, params any) (Response, error) {
-	conn, err := net.DialTimeout("unix", c.socketPath, 5*time.Second)
+	conn, err := net.DialTimeout(c.network, c.addr, 5*time.Second)
 	if err != nil {
-		return Response{}, fmt.Errorf("cannot connect to %s — is binktermphp-pm running?", c.socketPath)
+		return Response{}, fmt.Errorf("cannot connect to %s — is binktermphp-pm running?", c.addr)
 	}
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(15 * time.Second))
+
+	scanner := bufio.NewScanner(conn)
+
+	if c.secret != "" {
+		authMsg, _ := json.Marshal(struct {
+			Auth string `json:"auth"`
+		}{Auth: c.secret})
+		if _, err := conn.Write(append(authMsg, '\n')); err != nil {
+			return Response{}, fmt.Errorf("auth write: %w", err)
+		}
+		if !scanner.Scan() {
+			return Response{}, fmt.Errorf("no auth response from server")
+		}
+		var authResp Response
+		if err := json.Unmarshal(scanner.Bytes(), &authResp); err != nil || !authResp.OK {
+			return Response{}, fmt.Errorf("ipc authentication failed")
+		}
+	}
 
 	var rawParams json.RawMessage
 	if params != nil {
@@ -34,7 +60,6 @@ func (c *Client) send(method string, params any) (Response, error) {
 		return Response{}, err
 	}
 
-	scanner := bufio.NewScanner(conn)
 	if !scanner.Scan() {
 		return Response{}, fmt.Errorf("no response from server")
 	}

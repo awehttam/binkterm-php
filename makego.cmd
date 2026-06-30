@@ -37,10 +37,19 @@ if errorlevel 1 exit /b 1
 go build -o ..\..\dist\darwin-arm64\binktermphp-ctl .\cmd\ctl
 if errorlevel 1 exit /b 1
 
+echo Building Linux (arm64)...
+set GOOS=linux
+set GOARCH=arm64
+go build -o ..\..\dist\linux-arm64\binktermphp-pm .\cmd\pm
+if errorlevel 1 exit /b 1
+go build -o ..\..\dist\linux-arm64\binktermphp-ctl .\cmd\ctl
+if errorlevel 1 exit /b 1
+
 echo.
 echo Done. Binaries written to dist\:
 echo   dist\windows-amd64\  binktermphp-pm.exe  binktermphp-ctl.exe
 echo   dist\linux-amd64\    binktermphp-pm      binktermphp-ctl
+echo   dist\linux-arm64\    binktermphp-pm      binktermphp-ctl
 echo   dist\darwin-amd64\   binktermphp-pm      binktermphp-ctl
 echo   dist\darwin-arm64\   binktermphp-pm      binktermphp-ctl
 endlocal

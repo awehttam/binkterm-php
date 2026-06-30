@@ -375,15 +375,32 @@ Success criteria:
 
 ### Phase 2 — FrankenPHP Integration
 
-[FrankenPHP](https://frankenphp.dev) is a Go binary that embeds PHP and Caddy together. Integrating it would:
+[FrankenPHP](https://frankenphp.dev) is a Go binary that embeds PHP and Caddy together. It replaces the separate web server (Caddy or Nginx) and PHP runtime (PHP-FPM or the built-in server) with a single process supervised by `binktermphp-pm`.
 
-- **Replace the web server and PHP runtime** with a single binary. FrankenPHP serves HTTP/HTTPS, handles PHP execution, and serves static assets — eliminating the separate Caddy and PHP-FPM/built-in server requirements.
-- **Run CLI daemons through the same binary** via `frankenphp php-cli scripts/admin_daemon.php`, making FrankenPHP the sole PHP runtime on the system.
-- **Enable worker mode** — PHP processes stay alive between requests rather than bootstrapping fresh each time, improving response latency for the web interface.
-- **Enable full embedding** — FrankenPHP's Go embed mode can bake all PHP source, templates, and static assets into the binary at build time, leaving only `config/` and `data/` as external directories.
+#### What Phase 2 delivers
 
-In Phase 2, `aio.json` would gain a `frankenphp` block pointing at the binary and Caddyfile, and `binktermphp-pm` would invoke `frankenphp php-cli` instead of bare `php` for all daemon commands. The health check entry for Caddy would be replaced by a supervised `frankenphp` service entry.
+- **Supervised FrankenPHP web server** — `frankenphp run --config config/Caddyfile` runs as a managed service with automatic restart on crash, identical to any other BinktermPHP daemon.
+- **`config/Caddyfile.example`** — a ready-to-use template covering static assets, PHP routing via SimpleRouter (`php_server`), the BinkStream WebSocket reverse-proxy (`/ws → 127.0.0.1:6010`), compression, and security headers.
+- **Automatic HTTPS** — FrankenPHP uses Caddy's built-in ACME client; no separate Certbot setup required.
 
-What Phase 2 does not solve: PostgreSQL remains external.
+#### What Phase 2 does not change
 
-Phase 2 is deferred until Phase 1 is stable in production.
+- Background PHP daemons (`admin_daemon`, `binkp_server`, etc.) continue to use the system `php` binary — FrankenPHP replaces the web server, not the CLI runtime.
+- PostgreSQL remains external.
+- The BinkStream WebSocket daemon (`realtime_daemon`) still runs as a separate supervised service.
+
+#### Worker mode (future)
+
+FrankenPHP can keep PHP warm between requests via a persistent worker process, eliminating per-request bootstrap overhead. This requires a dedicated `worker.php` entry point that calls `frankenphp_handle_request()` in a loop. Once BinktermPHP ships that entry point, worker mode can be enabled by uncommenting the `worker` block in `config/Caddyfile`.
+
+#### Sysop migration from standalone Caddy
+
+1. Install FrankenPHP: `curl -fsSL https://frankenphp.dev/install.sh | bash`
+2. Copy `config/Caddyfile.example` to `config/Caddyfile` and adjust the domain and `root` path.
+3. In `config/aio.json`, set `"enabled": true` on the `frankenphp` service.
+4. Remove the `"caddy"` entry from `health_checks` (FrankenPHP is now the web server).
+5. Stop your existing Caddy/Nginx/PHP server. Run `binktermphp-pm` — FrankenPHP starts automatically.
+
+#### Phase 3 — Full embedding (future)
+
+FrankenPHP's Go embed mode can bake all PHP source files, Twig templates, and static assets into a single self-contained binary at build time, leaving only `config/` and `data/` as external directories. This is tracked separately and deferred until Phase 2 is stable in production.

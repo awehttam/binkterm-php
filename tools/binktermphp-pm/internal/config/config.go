@@ -8,6 +8,9 @@ import (
 
 type Config struct {
 	Socket               string        `json:"socket"`
+	SocketGroup          string        `json:"socket_group,omitempty"`
+	IpcAddr              string        `json:"ipc_addr,omitempty"`   // optional TCP listener, e.g. "127.0.0.1:17891"
+	IpcSecret            string        `json:"ipc_secret,omitempty"` // shared secret required on every connection
 	PidFile              string        `json:"pid_file"`
 	LogFile              string        `json:"log_file"`
 	RestartMaxDelayS     int           `json:"restart_max_delay_s"`
