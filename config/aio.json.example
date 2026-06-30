@@ -76,12 +76,6 @@
       "command": ["php", "scripts/matterbridge_daemon.php"],
       "enabled": false,
       "restart_policy": "on-failure"
-    },
-    {
-      "name": "frankenphp",
-      "command": ["frankenphp", "run", "--config", "config/Caddyfile"],
-      "enabled": false,
-      "restart_policy": "always"
     }
   ],
   "health_checks": [
