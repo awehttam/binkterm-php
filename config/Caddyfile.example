@@ -1,0 +1,65 @@
+# BinktermPHP — FrankenPHP Caddyfile
+#
+# Copy to config/Caddyfile and adjust the domain and paths before running.
+# Start with: frankenphp run --config config/Caddyfile
+#
+# FrankenPHP replaces both your web server (Caddy) and PHP runtime in one
+# binary. It serves BinktermPHP's web interface directly without a separate
+# PHP-FPM or built-in server process. The BinkStream WebSocket daemon
+# (realtime_daemon) still runs as a supervised service alongside FrankenPHP
+# and is reverse-proxied on the /ws path.
+#
+# Once you switch to FrankenPHP, update config/aio.json:
+#   - Enable the "frankenphp" service entry
+#   - Remove the "caddy" entry from health_checks (FrankenPHP IS the web server)
+
+{
+    # Enable FrankenPHP's embedded PHP runtime.
+    frankenphp
+
+    # Worker mode keeps PHP warm between requests for lower latency.
+    # Requires a dedicated worker entry point that calls frankenphp_handle_request().
+    # Uncomment once BinktermPHP ships a worker.php.
+    #
+    # worker {
+    #     file /var/www/binktest/public_html/worker.php
+    #     num  4
+    # }
+
+    # Let's Encrypt contact address — required for automatic HTTPS.
+    # email sysop@yourbbs.example.com
+
+    # Uncomment for local development to disable automatic HTTPS.
+    # auto_https off
+}
+
+# Replace with your BBS hostname. For local testing use ":8080".
+yourbbs.example.com {
+
+    # Absolute path to the public_html/ directory.
+    root * /var/www/binktest/public_html
+
+    # ── BinkStream WebSocket ─────────────────────────────────────────────────
+    # The realtime_daemon listens on 127.0.0.1:6010 by default.
+    # Override the port with BINKSTREAM_WS_PORT in .env if needed.
+    handle /ws {
+        reverse_proxy 127.0.0.1:6010
+    }
+
+    # ── PHP + static assets ──────────────────────────────────────────────────
+    # php_server serves static files directly and routes everything else
+    # through FrankenPHP's embedded PHP runtime. SimpleRouter's index.php
+    # handles all non-static requests automatically.
+    php_server
+
+    # ── Response compression ─────────────────────────────────────────────────
+    encode gzip zstd
+
+    # ── Security headers ─────────────────────────────────────────────────────
+    header {
+        X-Content-Type-Options  nosniff
+        X-Frame-Options         SAMEORIGIN
+        Referrer-Policy         strict-origin-when-cross-origin
+        -Server
+    }
+}
