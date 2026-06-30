@@ -717,6 +717,48 @@ class AdminDaemonServer
                     $mrcConfig->setFullConfig($payload);
                     $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
                     break;
+                case 'get_aio_config':
+                    $aioPath = __DIR__ . '/../../config/aio.json';
+                    if (!file_exists($aioPath)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'aio_config_not_found']);
+                        break;
+                    }
+                    $aioData = json_decode(file_get_contents($aioPath), true);
+                    if (!is_array($aioData)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'aio_config_invalid']);
+                        break;
+                    }
+                    $this->writeResponse($client, ['ok' => true, 'result' => $aioData]);
+                    break;
+
+                case 'save_aio_config':
+                    $aioPath = __DIR__ . '/../../config/aio.json';
+                    if (!file_exists($aioPath)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'aio_config_not_found']);
+                        break;
+                    }
+                    $aioData = json_decode(file_get_contents($aioPath), true);
+                    if (!is_array($aioData) || !isset($aioData['services'])) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'aio_config_invalid']);
+                        break;
+                    }
+                    // Build a name→enabled map from the request; always_on services are not touched.
+                    $enabledMap = [];
+                    foreach (($data['services'] ?? []) as $svc) {
+                        if (is_string($svc['name'] ?? null)) {
+                            $enabledMap[$svc['name']] = (bool)($svc['enabled'] ?? false);
+                        }
+                    }
+                    foreach ($aioData['services'] as &$svc) {
+                        if (!($svc['always_on'] ?? false) && array_key_exists($svc['name'], $enabledMap)) {
+                            $svc['enabled'] = $enabledMap[$svc['name']];
+                        }
+                    }
+                    unset($svc);
+                    file_put_contents($aioPath, json_encode($aioData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+                    $this->writeResponse($client, ['ok' => true, 'result' => $aioData]);
+                    break;
+
                 case 'restart_mrc_daemon':
                     $defaultPidFile = __DIR__ . '/../../data/run/mrc_daemon.pid';
                     $pidFile = \BinktermPHP\Config::env('MRC_DAEMON_PID_FILE') ?: $defaultPidFile;

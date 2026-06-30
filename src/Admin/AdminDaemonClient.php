@@ -556,6 +556,24 @@ class AdminDaemonClient
         }
     }
 
+    /**
+     * Get the AIO process manager configuration (config/aio.json).
+     */
+    public function getAioConfig(): array
+    {
+        return $this->sendCommand('get_aio_config');
+    }
+
+    /**
+     * Persist service enabled states to config/aio.json.
+     *
+     * @param array $services Array of ['name' => string, 'enabled' => bool]
+     */
+    public function saveAioConfig(array $services): array
+    {
+        return $this->sendCommand('save_aio_config', ['services' => $services]);
+    }
+
     public function getMrcConfig(): array
     {
         return $this->sendCommand('get_mrc_config');

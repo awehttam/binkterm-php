@@ -392,6 +392,8 @@ return [
     'errors.admin.mrc_settings.load_failed' => 'MRC Einstellungen konnten nicht geladen werden',
     'errors.admin.mrc_settings.save_failed' => 'MRC Einstellungen konnte nicht gespeichert werden',
     'errors.admin.mrc_settings.restart_failed' => 'Failed to restart MRC daemon',
+    'errors.admin.services.load_failed' => 'Dienstekonfiguration konnte nicht geladen werden',
+    'errors.admin.services.save_failed' => 'Dienstekonfiguration konnte nicht gespeichert werden',
     'errors.admin.bbs_system.load_failed' => 'system Einstellungen konnten nicht geladen werden',
     'errors.admin.bbs_system.save_failed' => 'system Einstellungen konnte nicht gespeichert werden',
     'errors.admin.binkp_config.load_failed' => 'BinkP configuration konnten nicht geladen werden',

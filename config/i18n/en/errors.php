@@ -397,6 +397,8 @@ return [
     'errors.admin.mrc_settings.load_failed' => 'Failed to load MRC settings',
     'errors.admin.mrc_settings.save_failed' => 'Failed to save MRC settings',
     'errors.admin.mrc_settings.restart_failed' => 'Failed to restart MRC daemon',
+    'errors.admin.services.load_failed' => 'Failed to load services configuration',
+    'errors.admin.services.save_failed' => 'Failed to save services configuration',
     'errors.admin.bbs_system.load_failed' => 'Failed to load system settings',
     'errors.admin.bbs_system.save_failed' => 'Failed to save system settings',
     'errors.admin.binkp_config.load_failed' => 'Failed to load BinkP configuration',

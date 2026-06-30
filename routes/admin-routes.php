@@ -603,6 +603,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/mrc_settings.twig');
     });
 
+    // Services (Process Manager) page
+    SimpleRouter::get('/services', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/services.twig');
+    });
+
     // Custom template editor page
     SimpleRouter::get('/template-editor', function() {
         $user = RouteHelper::requireAdmin();
@@ -3004,6 +3012,63 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.mrc_settings.save_failed', apiLocalizedText('errors.admin.mrc_settings.save_failed', 'Failed to save MRC settings'));
+            }
+        });
+
+        SimpleRouter::get('/aio-config', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getAioConfig();
+                echo json_encode(['success' => true, 'config' => $config['result'] ?? $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.services.load_failed', apiLocalizedText('errors.admin.services.load_failed', 'Failed to load services configuration'));
+            }
+        });
+
+        SimpleRouter::post('/aio-config', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $services = $payload['services'] ?? [];
+
+                if (!is_array($services)) {
+                    throw new Exception('Invalid services payload');
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->saveAioConfig($services);
+
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'aio_services_updated', [
+                        'services_count' => count($services),
+                    ]);
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.services.saved_success',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.services.save_failed', apiLocalizedText('errors.admin.services.save_failed', 'Failed to save services configuration'));
             }
         });
 

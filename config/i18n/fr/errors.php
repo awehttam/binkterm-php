@@ -284,6 +284,8 @@ return [
     'errors.admin.mrc_settings.load_failed' => 'Échec du chargement des paramètres MRC',
     'errors.admin.mrc_settings.save_failed' => 'Échec de l\'enregistrement des paramètres MRC',
     'errors.admin.mrc_settings.restart_failed' => 'Échec du redémarrage du démon MRC',
+    'errors.admin.services.load_failed' => 'Impossible de charger la configuration des services',
+    'errors.admin.services.save_failed' => 'Impossible d\'enregistrer la configuration des services',
     'errors.admin.bbs_system.load_failed' => 'Échec du chargement des paramètres système',
     'errors.admin.bbs_system.save_failed' => 'Échec de l\'enregistrement des paramètres système',
     'errors.admin.binkp_config.load_failed' => 'Échec du chargement de la configuration BinkP',

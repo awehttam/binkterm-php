@@ -301,6 +301,7 @@ return [
     'ui.base.admin.chat' => 'Chat',
     'ui.base.admin.chat_rooms' => 'Salas de chat',
     'ui.base.admin.mrc_settings' => 'Configuracion de MRC',
+    'ui.base.admin.services' => 'Servicios',
     'ui.base.admin.packet_bbs' => 'Nodos Packet BBS',
     'ui.base.admin.polls' => 'Encuestas',
     'ui.base.admin.shoutbox' => 'Shoutbox',
@@ -2235,6 +2236,22 @@ return [
     'ui.admin.mrc_settings.prune_after_days' => 'Eliminar despues de (dias)',
     'ui.admin.mrc_settings.prune_after_days_help' => 'Eliminar mensajes mas antiguos que este valor (1-365 dias)',
     'ui.admin.mrc_settings.save_room_settings' => 'Guardar configuracion de salas',
+
+    // Admin Services
+    'ui.admin.services.page_title' => 'Servicios',
+    'ui.admin.services.heading' => 'Servicios',
+    'ui.admin.services.managed_services' => 'Servicios gestionados',
+    'ui.admin.services.save' => 'Guardar',
+    'ui.admin.services.col_name' => 'Servicio',
+    'ui.admin.services.col_command' => 'Comando',
+    'ui.admin.services.col_restart' => 'Politica de reinicio',
+    'ui.admin.services.col_enabled' => 'Habilitado',
+    'ui.admin.services.loading' => 'Cargando...',
+    'ui.admin.services.no_services' => 'No hay servicios configurados.',
+    'ui.admin.services.saved_success' => 'Configuracion de servicios guardada.',
+    'ui.admin.services.badge_required' => 'requerido',
+    'ui.admin.services.always_on_tooltip' => 'Los servicios siempre activos no pueden desactivarse',
+    'ui.admin.services.footer_note' => 'Los cambios entran en vigor la proxima vez que se inicia o recarga binktermphp-pm (binktermphp-ctl reload).',
 
     // Admin Activity Stats
     'ui.admin.activity_stats.page_title' => 'Estadisticas de actividad',

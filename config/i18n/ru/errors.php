@@ -393,6 +393,8 @@ return [
     'errors.admin.mrc_settings.load_failed' => 'Не удалось загрузить настройки MRC',
     'errors.admin.mrc_settings.save_failed' => 'Не удалось сохранить настройки MRC',
     'errors.admin.mrc_settings.restart_failed' => 'Не удалось перезапустить демон MRC',
+    'errors.admin.services.load_failed' => 'Не удалось загрузить конфигурацию сервисов',
+    'errors.admin.services.save_failed' => 'Не удалось сохранить конфигурацию сервисов',
     'errors.admin.bbs_system.load_failed' => 'Не удалось загрузить системные настройки',
     'errors.admin.bbs_system.save_failed' => 'Не удалось сохранить системные настройки',
     'errors.admin.binkp_config.load_failed' => 'Не удалось загрузить конфигурацию BinkP',

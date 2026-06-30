@@ -301,6 +301,7 @@ return [
     'ui.base.admin.chat' => 'Чат',
     'ui.base.admin.chat_rooms' => 'Комнаты чата',
     'ui.base.admin.mrc_settings' => 'Настройки MRC',
+    'ui.base.admin.services' => 'Сервисы',
     'ui.base.admin.packet_bbs' => 'Ноды Packet BBS',
     'ui.base.admin.polls' => 'Опросы',
     'ui.base.admin.shoutbox' => 'Кричалка',
@@ -2215,6 +2216,22 @@ return [
     'ui.admin.mrc_settings.prune_after_days' => 'Удалять после (дней)',
     'ui.admin.mrc_settings.prune_after_days_help' => 'Удалять сообщения старше указанного срока (1–365 дней)',
     'ui.admin.mrc_settings.save_room_settings' => 'Сохранить настройки комнат',
+
+    // Admin Services
+    'ui.admin.services.page_title' => 'Сервисы',
+    'ui.admin.services.heading' => 'Сервисы',
+    'ui.admin.services.managed_services' => 'Управляемые сервисы',
+    'ui.admin.services.save' => 'Сохранить',
+    'ui.admin.services.col_name' => 'Сервис',
+    'ui.admin.services.col_command' => 'Команда',
+    'ui.admin.services.col_restart' => 'Политика перезапуска',
+    'ui.admin.services.col_enabled' => 'Включён',
+    'ui.admin.services.loading' => 'Загрузка...',
+    'ui.admin.services.no_services' => 'Сервисы не настроены.',
+    'ui.admin.services.saved_success' => 'Конфигурация сервисов сохранена.',
+    'ui.admin.services.badge_required' => 'обязательный',
+    'ui.admin.services.always_on_tooltip' => 'Постоянно активные сервисы нельзя отключить',
+    'ui.admin.services.footer_note' => 'Изменения вступят в силу при следующем запуске или перезагрузке binktermphp-pm (binktermphp-ctl reload).',
 
     // Admin Activity Stats
     'ui.admin.activity_stats.page_title' => 'Статистика активности',
