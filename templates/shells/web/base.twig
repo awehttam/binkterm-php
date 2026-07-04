@@ -76,8 +76,20 @@
             margin-left: -1px;
         }
 
-        .dropdown-submenu:hover > .dropdown-menu {
-            display: block;
+        /* Only auto-open on real mouse hover; touch devices have no hover capability, so this never
+           applies there and taps rely solely on the .submenu-open class below. */
+        @media (hover: hover) and (pointer: fine) {
+            .dropdown-submenu:hover > .dropdown-menu {
+                display: block;
+            }
+        }
+
+        /* Explicit click/tap-driven open state, set by the JS below. Kept independent of the
+           :hover rule above (and marked !important to win over it) so that clicking/tapping always
+           reflects real, deliberate state instead of whatever the CSS :hover rule happens to be
+           matching at that instant. */
+        .dropdown-submenu.submenu-open > .dropdown-menu {
+            display: block !important;
         }
 
         .dropdown-submenu > .dropdown-toggle::after {
@@ -94,6 +106,23 @@
                 position: static !important;
                 margin-left: 1rem;
                 border-left: 2px solid rgba(0,0,0,0.1);
+            }
+        }
+
+        /* Below the navbar-expand-xl breakpoint, .navbar-collapse renders in-flow (not as a
+           floating overlay), inside a `sticky-top` <nav>. With a long Admin menu plus nested
+           submenus expanded, that in-flow content can grow far taller than the viewport — and
+           because the whole <nav> is sticky-pinned at the very top of the document, the overflow
+           portion is not reachable by scrolling the page: the nav stays glued in place while the
+           rest of the page scrolls behind/away from it, and once the "Admin" trigger itself
+           scrolls out of view Bootstrap's Popper auto-closes the dropdown (clipped-reference
+           detection), wiping out the open submenu. Bounding the collapse's own height and letting
+           it scroll internally keeps every item reachable regardless of page length. */
+        @media (max-width: 1199.98px) {
+            .navbar-collapse {
+                max-height: calc(100vh - 70px);
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
             }
         }
 
@@ -164,6 +193,11 @@
         </div>
     </div>
 
+    {# The Admin toggle below carries data-bs-auto-close="outside": without it, Bootstrap treats
+       clicking any .dropdown-item inside the open menu (including our nested submenu toggles, e.g.
+       "Area Management") as "an item was selected" and closes the whole dropdown right after our
+       own click handler opens the submenu — clicking a submenu toggle never appeared to do
+       anything. "outside" keeps the dropdown open for any click that lands inside it. #}
     <nav class="navbar navbar-expand-xl navbar-dark bg-primary sticky-top">
         <div class="container">
             <a class="navbar-brand" href="/">
@@ -323,7 +357,7 @@
 
                         {% if current_user.is_admin %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle admin-menu-link" href="#" role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle admin-menu-link" href="#" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
                                 <i class="fas fa-cog"></i> {{ t('ui.base.admin', {}, 'common') }}
                             </a>
                             <ul class="dropdown-menu">
@@ -605,46 +639,34 @@
 
         // Handle nested dropdown submenus
         $(document).ready(function() {
-            // Show submenu on hover (desktop)
-            $('.dropdown-submenu').hover(
-                function() {
-                    $(this).find('> .dropdown-menu').show();
-                },
-                function() {
-                    $(this).find('> .dropdown-menu').hide();
-                }
-            );
-
-            // Handle click on submenu toggle
+            // Desktop mouse hover is handled purely by the `.dropdown-submenu:hover > .dropdown-menu`
+            // CSS rule above. Click state is tracked separately via the `.submenu-open` class rather
+            // than by reading the submenu's current computed visibility: a real mouse (or, on touch
+            // devices, the synthetic mouseenter Chrome fires just before a tap) already makes the CSS
+            // :hover rule match by the time the click fires, so a naive `.toggle()` based on "is it
+            // currently visible" would see it as already open (via hover) and immediately close it
+            // again on click — silently swallowing every attempt to open the submenu by tapping/clicking.
             $('.dropdown-submenu > .dropdown-toggle').on('click', function(e) {
+                const $li = $(this).closest('.dropdown-submenu');
+                const isOpen = $li.hasClass('submenu-open');
                 const href = $(this).attr('href');
+                const isMobile = $(window).width() <= 768;
 
-                // If it's a real link (not #), allow normal navigation on direct click
-                if (href && href !== '#') {
-                    // On mobile or if submenu is not visible, toggle submenu instead
-                    if ($(window).width() <= 768 || !$(this).next('.dropdown-menu').is(':visible')) {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        const $submenu = $(this).next('.dropdown-menu');
-                        $('.dropdown-submenu .dropdown-menu').not($submenu).hide();
-                        $submenu.toggle();
-                    }
-                    // Otherwise let the link work normally
-                } else {
-                    // For # links, just toggle submenu
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    const $submenu = $(this).next('.dropdown-menu');
-                    $('.dropdown-submenu .dropdown-menu').not($submenu).hide();
-                    $submenu.toggle();
+                // A real (non-#) link that's already explicitly opened: let a second click on
+                // desktop-sized viewports navigate through instead of just re-toggling.
+                if (href && href !== '#' && !isMobile && isOpen) {
+                    return;
                 }
+
+                e.preventDefault();
+                e.stopPropagation();
+                $('.dropdown-submenu').not($li).removeClass('submenu-open');
+                $li.toggleClass('submenu-open', !isOpen);
             });
 
             // Hide submenu when parent dropdown closes
             $('.dropdown').on('hide.bs.dropdown', function() {
-                $(this).find('.dropdown-submenu .dropdown-menu').hide();
+                $(this).find('.dropdown-submenu').removeClass('submenu-open');
             });
         });
     </script>

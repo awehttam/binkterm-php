@@ -85,7 +85,16 @@
         .bbs-shell-header .dropdown-submenu > .dropdown-menu {
             top: 0; left: auto; right: 100%; margin-top: -1px; margin-right: -1px;
         }
-        .bbs-shell-header .dropdown-submenu:hover > .dropdown-menu { display: block; }
+        /* Only auto-open on real mouse hover; touch devices have no hover capability, so this never
+           applies there and taps rely solely on the .submenu-open class below. */
+        @media (hover: hover) and (pointer: fine) {
+            .bbs-shell-header .dropdown-submenu:hover > .dropdown-menu { display: block; }
+        }
+        /* Explicit click/tap-driven open state, set by the JS below. Kept independent of the
+           :hover rule above (and marked !important to win over it) so that clicking/tapping always
+           reflects real, deliberate state instead of whatever the CSS :hover rule happens to be
+           matching at that instant. */
+        .bbs-shell-header .dropdown-submenu.submenu-open > .dropdown-menu { display: block !important; }
         /* Caret points left (rotate -90°) to indicate the left-opening submenu */
         .bbs-shell-header .dropdown-submenu > .dropdown-toggle::after {
             transform: rotate(-90deg); position: absolute;
@@ -167,7 +176,7 @@
             </div>
             {% if current_user.is_admin %}
             <div class="dropdown">
-                <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                     <i class="fas fa-cog"></i> {{ t('ui.base.admin', {}, 'common') }}
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
@@ -317,18 +326,22 @@
 
         // Nested admin dropdown submenus
         $(document).ready(function() {
-            $('.bbs-shell-header .dropdown-submenu').hover(
-                function() { $(this).find('> .dropdown-menu').show(); },
-                function() { $(this).find('> .dropdown-menu').hide(); }
-            );
+            // Desktop mouse hover is handled purely by the `.dropdown-submenu:hover > .dropdown-menu`
+            // CSS rule above. Click state is tracked separately via the `.submenu-open` class rather
+            // than by reading the submenu's current computed visibility: a real mouse (or, on touch
+            // devices, the synthetic mouseenter Chrome fires just before a tap) already makes the CSS
+            // :hover rule match by the time the click fires, so a naive `.toggle()` based on "is it
+            // currently visible" would see it as already open (via hover) and immediately close it
+            // again on click — silently swallowing every attempt to open the submenu by tapping/clicking.
             $('.bbs-shell-header .dropdown-submenu > .dropdown-toggle').on('click', function(e) {
                 e.preventDefault(); e.stopPropagation();
-                const $sub = $(this).next('.dropdown-menu');
-                $('.bbs-shell-header .dropdown-submenu .dropdown-menu').not($sub).hide();
-                $sub.toggle();
+                const $li = $(this).closest('.dropdown-submenu');
+                const isOpen = $li.hasClass('submenu-open');
+                $('.bbs-shell-header .dropdown-submenu').not($li).removeClass('submenu-open');
+                $li.toggleClass('submenu-open', !isOpen);
             });
             $('.bbs-shell-header .dropdown').on('hide.bs.dropdown', function() {
-                $(this).find('.dropdown-submenu .dropdown-menu').hide();
+                $(this).find('.dropdown-submenu').removeClass('submenu-open');
             });
         });
 
