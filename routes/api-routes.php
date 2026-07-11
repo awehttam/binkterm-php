@@ -5569,6 +5569,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $myAddresses = [];
         }
 
+        // A message is "mine to read" if it was routed to me by recipient user_id
+        // (findTargetUser() can match by fidonet_address even when to_name is a nickname
+        // that doesn't equal my username/real_name) OR by the legacy name+address match.
+        // is_sent=FALSE excludes a user's own already-spooled outbound copies.
         if (!empty($myAddresses)) {
             $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
             $unreadStmt = $db->prepare("
@@ -5576,12 +5580,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
                 WHERE mrs.read_at IS NULL
-                  AND (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
-                  AND n.to_address IN ($addressPlaceholders)
+                  AND n.is_sent = FALSE
+                  AND (n.user_id = ? OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders)))
                   AND NOT (n.user_id = ? AND n.deleted_by_sender = TRUE)
                   AND NOT ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE)
             ");
-            $params = [$userId, $user['username'], $user['real_name']];
+            $params = [$userId, $userId, $user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses);
             $params[] = $userId;
             $params[] = $user['username'];
@@ -5592,12 +5596,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                WHERE (n.user_id = ? OR (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)))
                   AND mrs.read_at IS NULL
+                  AND n.is_sent = FALSE
                   AND NOT (n.user_id = ? AND n.deleted_by_sender = TRUE)
                   AND NOT ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE)
             ");
-            $unreadStmt->execute([$userId, $user['username'], $user['real_name'], $userId, $user['username'], $user['real_name']]);
+            $unreadStmt->execute([$userId, $userId, $user['username'], $user['real_name'], $userId, $user['username'], $user['real_name']]);
         }
         $unread = $unreadStmt->fetch()['count'];
 
