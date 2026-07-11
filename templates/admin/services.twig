@@ -1,0 +1,347 @@
+{% extends "base.twig" %}
+{% block title %}{{ t('ui.admin.services.page_title', {}, 'common') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.services.heading', {}, 'common') }}</h1>
+    </div>
+
+    <div id="servicesAlert"></div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">{{ t('ui.admin.services.runtime_status', {}, 'common') }}</h6>
+            <button class="btn btn-sm btn-outline-secondary" id="refreshBtn" onclick="loadStatus()">
+                <i class="fas fa-sync-alt me-1"></i>{{ t('ui.admin.services.btn_refresh', {}, 'common') }}
+            </button>
+        </div>
+        <div class="card-body p-0" id="statusBody">
+            <div class="text-center text-muted py-4">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                {{ t('ui.admin.services.loading', {}, 'common') }}
+            </div>
+        </div>
+    </div>
+
+    <div id="logsModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="logsModalTitle">Logs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <pre id="logsModalBody" class="m-0 p-3 small" style="max-height:60vh;overflow-y:auto;background:#111;color:#eee;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="servicesCard">
+        <div class="card shadow mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">{{ t('ui.admin.services.managed_services', {}, 'common') }}</h6>
+                <button class="btn btn-sm btn-primary" id="saveBtn" onclick="saveServices()" disabled>
+                    <i class="fas fa-save me-1"></i>{{ t('ui.admin.services.save', {}, 'common') }}
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{{ t('ui.admin.services.col_name', {}, 'common') }}</th>
+                                <th>{{ t('ui.admin.services.col_command', {}, 'common') }}</th>
+                                <th>{{ t('ui.admin.services.col_restart', {}, 'common') }}</th>
+                                <th class="text-center">{{ t('ui.admin.services.col_enabled', {}, 'common') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="servicesList">
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">
+                                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                    {{ t('ui.admin.services.loading', {}, 'common') }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer text-muted small">
+                <i class="fas fa-info-circle me-1"></i>
+                {{ t('ui.admin.services.footer_note', {}, 'common') }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentConfig = null;
+let statusRefreshTimer = null;
+
+document.addEventListener('DOMContentLoaded', function () {
+    loadI18nNamespaces(['common', 'errors']).then(function () {
+        loadStatus();
+        loadServices();
+        statusRefreshTimer = setInterval(loadStatus, 30000);
+    });
+});
+
+// ── Runtime status ────────────────────────────────────────────────────────────
+
+function loadStatus() {
+    fetch('/admin/api/pm/status')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data.running) {
+                renderStatusUnavailable(data.reason);
+                return;
+            }
+            renderStatus(data.status);
+        })
+        .catch(function () { renderStatusUnavailable(); });
+}
+
+function renderStatusUnavailable(reason) {
+    var detail = reason ? '<div class="small text-danger mt-1"><code>' + escHtml(reason) + '</code></div>' : '';
+    document.getElementById('statusBody').innerHTML =
+        '<div class="text-center text-muted py-4">' +
+        '<i class="fas fa-circle-xmark me-2"></i>' +
+        escHtml(uiT('ui.admin.services.pm_not_running', 'The process manager is not running.')) +
+        detail +
+        '</div>';
+}
+
+function renderStatus(status) {
+    var services = status.services || [];
+    var healthChecks = status.health_checks || [];
+
+    if (!services.length && !healthChecks.length) {
+        renderStatusUnavailable();
+        return;
+    }
+
+    var rows = '';
+
+    healthChecks.forEach(function (hc) {
+        var statusBadge = hcBadge(hc.status);
+        rows += '<tr>' +
+            '<td><strong>' + escHtml(hc.name) + '</strong>' +
+            ' <span class="badge bg-secondary ms-1">' + escHtml(uiT('ui.admin.services.badge_type_health', 'health')) + '</span></td>' +
+            '<td colspan="4">' + statusBadge + (hc.last_check ? ' <span class="text-muted small ms-2">' + escHtml(hc.last_check) + '</span>' : '') + '</td>' +
+            '<td></td>' +
+            '</tr>';
+    });
+
+    services.forEach(function (svc) {
+        var state = svc.state || 'stopped';
+        var pid = svc.pid ? String(svc.pid) : '-';
+        var uptime = svc.uptime_s ? formatUptime(svc.uptime_s) : '-';
+        var restarts = String(svc.restarts || 0);
+        var canStart   = state === 'stopped' || state === 'backoff';
+        var canStop    = state === 'running' || state === 'starting' || state === 'backoff';
+        var canRestart = state === 'running';
+
+        rows += '<tr>' +
+            '<td><strong>' + escHtml(svc.name) + '</strong>' +
+            (svc.always_on ? ' <span class="badge bg-primary ms-1">' + escHtml(uiT('ui.admin.services.badge_required', 'required')) + '</span>' : '') +
+            '</td>' +
+            '<td>' + stateBadge(state) + '</td>' +
+            '<td class="text-muted small">' + escHtml(pid) + '</td>' +
+            '<td class="text-muted small">' + escHtml(uptime) + '</td>' +
+            '<td class="text-muted small">' + escHtml(restarts) + '</td>' +
+            '<td>' +
+            '<button class="btn btn-xs btn-outline-success me-1" onclick="pmAction(\'' + escHtml(svc.name) + '\',\'start\')" ' + (canStart ? '' : 'disabled') + '>' +
+            uiT('ui.admin.services.btn_start', 'Start') + '</button>' +
+            '<button class="btn btn-xs btn-outline-danger me-1" onclick="pmAction(\'' + escHtml(svc.name) + '\',\'stop\')" ' + (canStop ? '' : 'disabled') + '>' +
+            uiT('ui.admin.services.btn_stop', 'Stop') + '</button>' +
+            '<button class="btn btn-xs btn-outline-secondary me-1" onclick="pmAction(\'' + escHtml(svc.name) + '\',\'restart\')" ' + (canRestart ? '' : 'disabled') + '>' +
+            uiT('ui.admin.services.btn_restart', 'Restart') + '</button>' +
+            '<button class="btn btn-xs btn-outline-dark" onclick="showLogs(\'' + escHtml(svc.name) + '\')">' +
+            uiT('ui.admin.services.btn_logs', 'Logs') + '</button>' +
+            '</td>' +
+            '</tr>';
+    });
+
+    document.getElementById('statusBody').innerHTML =
+        '<div class="table-responsive">' +
+        '<table class="table table-hover mb-0">' +
+        '<thead class="table-light"><tr>' +
+        '<th>' + escHtml(uiT('ui.admin.services.col_name', 'Service')) + '</th>' +
+        '<th>' + escHtml(uiT('ui.admin.services.col_state', 'State')) + '</th>' +
+        '<th>' + escHtml(uiT('ui.admin.services.col_pid', 'PID')) + '</th>' +
+        '<th>' + escHtml(uiT('ui.admin.services.col_uptime', 'Uptime')) + '</th>' +
+        '<th>' + escHtml(uiT('ui.admin.services.col_restarts', 'Restarts')) + '</th>' +
+        '<th>' + escHtml(uiT('ui.admin.services.col_actions', 'Actions')) + '</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+        '</table></div>';
+}
+
+function stateBadge(state) {
+    var map = {
+        'running':  'bg-success',
+        'starting': 'bg-info text-dark',
+        'stopping': 'bg-warning text-dark',
+        'backoff':  'bg-warning text-dark',
+        'stopped':  'bg-secondary',
+        'disabled': 'bg-secondary',
+    };
+    var cls = map[state] || 'bg-secondary';
+    return '<span class="badge ' + cls + '">' + escHtml(state) + '</span>';
+}
+
+function hcBadge(status) {
+    var map = {
+        'reachable':   'bg-success',
+        'unreachable': 'bg-danger',
+    };
+    var cls = map[status] || 'bg-secondary';
+    return '<span class="badge ' + cls + '">' + escHtml(status || 'unknown') + '</span>';
+}
+
+function formatUptime(seconds) {
+    var h = Math.floor(seconds / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    var s = seconds % 60;
+    if (h > 0) return h + 'h ' + String(m).padStart(2, '0') + 'm';
+    if (m > 0) return m + 'm ' + String(s).padStart(2, '0') + 's';
+    return s + 's';
+}
+
+function pmAction(service, action) {
+    fetch('/admin/api/pm/service/' + encodeURIComponent(service) + '/' + action, { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data.success) {
+                showAlert(window.getApiErrorMessage ? window.getApiErrorMessage(data, uiT('errors.admin.services.pm_action_failed', 'Failed to perform service action')) : uiT('errors.admin.services.pm_action_failed', 'Failed to perform service action'), 'danger');
+            }
+            loadStatus();
+        })
+        .catch(function () {
+            showAlert(uiT('errors.admin.services.pm_action_failed', 'Failed to perform service action'), 'danger');
+        });
+}
+
+function showLogs(service) {
+    document.getElementById('logsModalTitle').textContent = service;
+    document.getElementById('logsModalBody').textContent = uiT('ui.admin.services.loading', 'Loading...');
+    var modal = new bootstrap.Modal(document.getElementById('logsModal'));
+    modal.show();
+
+    fetch('/admin/api/pm/service/' + encodeURIComponent(service) + '/logs?n=100')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            var lines = (data.lines || []);
+            document.getElementById('logsModalBody').textContent = lines.length ? lines.join('\n') : '(no log output)';
+        })
+        .catch(function () {
+            document.getElementById('logsModalBody').textContent = uiT('errors.admin.services.pm_logs_failed', 'Failed to get service logs');
+        });
+}
+
+// ── Service configuration ─────────────────────────────────────────────────────
+
+function loadServices() {
+    fetch('/admin/api/aio-config')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data.success) {
+                throw new Error(window.getApiErrorMessage ? window.getApiErrorMessage(data, uiT('errors.admin.services.load_failed', 'Failed to load services configuration')) : uiT('errors.admin.services.load_failed', 'Failed to load services configuration'));
+            }
+            currentConfig = data.config;
+            renderServices(data.config.services || []);
+            document.getElementById('saveBtn').disabled = false;
+        })
+        .catch(function (err) { showAlert(err.message, 'danger'); });
+}
+
+function renderServices(services) {
+    var tbody = document.getElementById('servicesList');
+    if (!services.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">' +
+            escHtml(uiT('ui.admin.services.no_services', 'No services configured.')) + '</td></tr>';
+        return;
+    }
+    tbody.innerHTML = services.map(function (svc) {
+        var alwaysOn = !!svc.always_on;
+        var enabled  = alwaysOn || !!svc.enabled;
+        var cmd      = (svc.command || []).join(' ');
+        var badge    = alwaysOn
+            ? ' <span class="badge bg-primary ms-1">' + escHtml(uiT('ui.admin.services.badge_required', 'required')) + '</span>'
+            : '';
+        var toggle   = alwaysOn
+            ? '<div class="form-check form-switch d-flex justify-content-center mb-0">' +
+              '<input class="form-check-input" type="checkbox" checked disabled' +
+              ' title="' + escHtml(uiT('ui.admin.services.always_on_tooltip', 'Always-on services cannot be disabled')) + '">' +
+              '</div>'
+            : '<div class="form-check form-switch d-flex justify-content-center mb-0">' +
+              '<input class="form-check-input service-toggle" type="checkbox"' +
+              ' data-name="' + escHtml(svc.name) + '"' +
+              (enabled ? ' checked' : '') + '>' +
+              '</div>';
+        return '<tr>' +
+            '<td><strong>' + escHtml(svc.name) + '</strong>' + badge + '</td>' +
+            '<td><code class="small text-muted">' + escHtml(cmd) + '</code></td>' +
+            '<td><span class="badge bg-secondary">' + escHtml(svc.restart_policy || 'on-failure') + '</span></td>' +
+            '<td class="text-center">' + toggle + '</td>' +
+            '</tr>';
+    }).join('');
+}
+
+function saveServices() {
+    if (!currentConfig) { return; }
+    var updates = [];
+    document.querySelectorAll('.service-toggle').forEach(function (el) {
+        updates.push({ name: el.dataset.name, enabled: el.checked });
+    });
+    var btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    fetch('/admin/api/aio-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ services: updates })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+        btn.disabled = false;
+        if (!data.success) {
+            throw new Error(window.getApiErrorMessage ? window.getApiErrorMessage(data, uiT('errors.admin.services.save_failed', 'Failed to save services configuration')) : uiT('errors.admin.services.save_failed', 'Failed to save services configuration'));
+        }
+        showAlert(uiT('ui.admin.services.saved_success', 'Services configuration saved.'), 'success');
+    })
+    .catch(function (err) {
+        btn.disabled = false;
+        showAlert(err.message, 'danger');
+    });
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function showAlert(msg, type) {
+    var el = document.getElementById('servicesAlert');
+    el.innerHTML = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+        escHtml(msg) +
+        '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+        '</div>';
+}
+
+function uiT(key, fallback) {
+    return (window.t ? window.t(key, {}, fallback) : fallback) || fallback;
+}
+
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+</script>
+<style>
+.btn-xs { padding: .15rem .4rem; font-size: .75rem; }
+</style>
+{% endblock %}

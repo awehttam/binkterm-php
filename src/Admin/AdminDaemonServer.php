@@ -717,6 +717,48 @@ class AdminDaemonServer
                     $mrcConfig->setFullConfig($payload);
                     $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
                     break;
+                case 'get_aio_config':
+                    $aioPath = __DIR__ . '/../../config/aio.json';
+                    if (!file_exists($aioPath)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'aio_config_not_found']);
+                        break;
+                    }
+                    $aioData = json_decode(file_get_contents($aioPath), true);
+                    if (!is_array($aioData)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'aio_config_invalid']);
+                        break;
+                    }
+                    $this->writeResponse($client, ['ok' => true, 'result' => $aioData]);
+                    break;
+
+                case 'save_aio_config':
+                    $aioPath = __DIR__ . '/../../config/aio.json';
+                    if (!file_exists($aioPath)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'aio_config_not_found']);
+                        break;
+                    }
+                    $aioData = json_decode(file_get_contents($aioPath), true);
+                    if (!is_array($aioData) || !isset($aioData['services'])) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'aio_config_invalid']);
+                        break;
+                    }
+                    // Build a name→enabled map from the request; always_on services are not touched.
+                    $enabledMap = [];
+                    foreach (($data['services'] ?? []) as $svc) {
+                        if (is_string($svc['name'] ?? null)) {
+                            $enabledMap[$svc['name']] = (bool)($svc['enabled'] ?? false);
+                        }
+                    }
+                    foreach ($aioData['services'] as &$svc) {
+                        if (!($svc['always_on'] ?? false) && array_key_exists($svc['name'], $enabledMap)) {
+                            $svc['enabled'] = $enabledMap[$svc['name']];
+                        }
+                    }
+                    unset($svc);
+                    file_put_contents($aioPath, json_encode($aioData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+                    $this->writeResponse($client, ['ok' => true, 'result' => $aioData]);
+                    break;
+
                 case 'restart_mrc_daemon':
                     $defaultPidFile = __DIR__ . '/../../data/run/mrc_daemon.pid';
                     $pidFile = \BinktermPHP\Config::env('MRC_DAEMON_PID_FILE') ?: $defaultPidFile;
@@ -1016,6 +1058,47 @@ class AdminDaemonServer
                     $doorId   = (string)($data['door_id'] ?? '');
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->readDoorTextFiles($doorType, $doorId)]);
                     break;
+                case 'pm_status':
+                    $pmResp = $this->forwardToPm('status');
+                    if (!($pmResp['ok'] ?? false)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => $pmResp['error'] ?? 'pm_error']);
+                        break;
+                    }
+                    $this->writeResponse($client, ['ok' => true, 'result' => $pmResp['data'] ?? []]);
+                    break;
+
+                case 'pm_start':
+                case 'pm_stop':
+                case 'pm_restart':
+                    $service = (string)($data['service'] ?? '');
+                    if ($service === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_service']);
+                        break;
+                    }
+                    $pmMethod = substr($cmd, 3); // strip 'pm_' prefix
+                    $pmResp = $this->forwardToPm($pmMethod, ['service' => $service]);
+                    if (!($pmResp['ok'] ?? false)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => $pmResp['error'] ?? 'pm_error']);
+                        break;
+                    }
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['message' => $pmResp['message'] ?? 'ok']]);
+                    break;
+
+                case 'pm_logs':
+                    $service = (string)($data['service'] ?? '');
+                    $n = max(1, (int)($data['n'] ?? 50));
+                    if ($service === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_service']);
+                        break;
+                    }
+                    $pmResp = $this->forwardToPm('logs', ['service' => $service, 'n' => $n]);
+                    if (!($pmResp['ok'] ?? false)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => $pmResp['error'] ?? 'pm_error']);
+                        break;
+                    }
+                    $this->writeResponse($client, ['ok' => true, 'result' => $pmResp['data'] ?? ['lines' => []]]);
+                    break;
+
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;
@@ -1406,6 +1489,92 @@ class AdminDaemonServer
         }
 
         return "udp://{$host}:{$port}";
+    }
+
+    /**
+     * Return the stream_socket_client URL and shared secret for the pm IPC endpoint.
+     * Prefers ipc_addr (TCP) when configured — required on Windows where PHP
+     * lacks Unix socket transport. Falls back to the Unix socket path.
+     *
+     * @return array{url: string, secret: string}|null
+     */
+    private function getPmConnectionConfig(): ?array
+    {
+        $aioPath = __DIR__ . '/../../config/aio.json';
+        if (!file_exists($aioPath)) {
+            return null;
+        }
+        $aio = json_decode(file_get_contents($aioPath), true);
+        if (!is_array($aio)) {
+            return null;
+        }
+
+        $secret = (string)($aio['ipc_secret'] ?? '');
+
+        if (!empty($aio['ipc_addr'])) {
+            return ['url' => 'tcp://' . $aio['ipc_addr'], 'secret' => $secret];
+        }
+
+        if (empty($aio['socket'])) {
+            return null;
+        }
+        $socket = $aio['socket'];
+        if (!str_starts_with($socket, '/')) {
+            $socket = realpath(__DIR__ . '/../../') . '/' . ltrim($socket, '/');
+        }
+        return ['url' => 'unix://' . $socket, 'secret' => $secret];
+    }
+
+    /**
+     * Send a single JSON-RPC request to the pm IPC endpoint and return the decoded response.
+     *
+     * @param string $method  IPC method name (status, start, stop, restart, logs)
+     * @param array  $params  Optional params payload
+     * @return array Decoded response array, always has 'ok' key
+     */
+    private function forwardToPm(string $method, array $params = []): array
+    {
+        $pmCfg = $this->getPmConnectionConfig();
+        if (!$pmCfg) {
+            return ['ok' => false, 'error' => 'pm_not_configured'];
+        }
+
+        $sock = @stream_socket_client($pmCfg['url'], $errno, $errstr, 5);
+        if (!$sock) {
+            return ['ok' => false, 'error' => 'pm_not_running'];
+        }
+
+        stream_set_timeout($sock, 15);
+
+        if ($pmCfg['secret'] !== '') {
+            @fwrite($sock, json_encode(['auth' => $pmCfg['secret']]) . "\n");
+            $authLine = fgets($sock);
+            if ($authLine === false || trim($authLine) === '') {
+                fclose($sock);
+                return ['ok' => false, 'error' => 'pm_no_auth_response'];
+            }
+            $authResp = json_decode(trim($authLine), true);
+            if (!is_array($authResp) || !($authResp['ok'] ?? false)) {
+                fclose($sock);
+                return ['ok' => false, 'error' => 'pm_auth_failed'];
+            }
+        }
+
+        $request = ['id' => '1', 'method' => $method];
+        if (!empty($params)) {
+            $request['params'] = $params;
+        }
+        @fwrite($sock, json_encode($request) . "\n");
+
+        $line = fgets($sock);
+        fclose($sock);
+
+        if ($line === false || trim($line) === '') {
+            return ['ok' => false, 'error' => 'pm_no_response'];
+        }
+
+        $resp = json_decode(trim($line), true);
+        return is_array($resp) ? $resp : ['ok' => false, 'error' => 'pm_invalid_response'];
     }
 
     private function sanitizeLogData(array $data): array
