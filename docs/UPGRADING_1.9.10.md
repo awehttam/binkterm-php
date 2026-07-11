@@ -5,45 +5,50 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
-  - [AIO Process Manager](#aio-process-manager)
-- [AIO Process Manager](#aio-process-manager-1)
+  - [AIO Process Manager (experimental)](#aio-process-manager-experimental)
+  - [Netmail Unread Counts](#netmail-unread-counts)
+- [AIO Process Manager (experimental)](#aio-process-manager-experimental-1)
+- [Netmail Unread Counts](#netmail-unread-counts-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
-### AIO Process Manager
+### AIO Process Manager (experimental)
 
-- `binktermphp-pm` is a new optional Go-based process manager that supervises all BinktermPHP daemons and restarts them automatically on failure.
-- `binktermphp-ctl` is a companion CLI for checking service status, tailing logs, and starting, stopping, or restarting individual services without attaching to the console.
-- A new **Admin → BBS Settings → Services** page lets sysops enable or disable supervised services through the web UI without editing config files directly.
-- Pre-built binaries for Windows (amd64), Linux (amd64), macOS Intel (amd64), and macOS Apple Silicon (arm64) are included in `dist/`. Wrapper scripts `binktermphp-pm.sh` / `binktermphp-pm.cmd` and `binktermphp-ctl.sh` / `binktermphp-ctl.cmd` in the project root select the correct binary for the current platform automatically.
-- The existing `scripts/restart_daemons.sh` workflow is unchanged for sysops who prefer it.
+- `binktermphp-pm` and `binktermphp-ctl` — the optional Go-based process manager and its companion CLI — are no longer built or bundled inside this repository. They now live in their own repository at [github.com/awehttam/binktermphp-pm](https://github.com/awehttam/binktermphp-pm).
+- This release adds support in the web interface and the admin daemon for driving that external process manager, but only when `config/aio.json` is present. Without that file, the **Admin → BBS Settings → Services** menu item does not appear at all, and nothing about a normal install changes.
+- There is currently no migration path or installer integration for `binktermphp-pm` — it is offered purely for sysops who want to experiment with it ahead of a future, fully supported release.
+
+### Netmail Unread Counts
+
+- Fixed a bug where the netmail unread count and the **Unread** tab could undercount messages that were correctly delivered to your account but addressed to a nickname or alias rather than your exact username or real name. If your unread netmail count jumps after upgrading, this is why — those messages were already in your inbox, they just weren't being flagged as unread.
 
 ---
 
-## AIO Process Manager
+## AIO Process Manager (experimental)
 
-`binktermphp-pm` is an optional Go-based process supervisor for all BinktermPHP daemons. It starts `admin_daemon`, `binkp_server`, `binkp_scheduler`, `realtime_daemon`, and any optional services (Telnet, SSH, MRC, Gemini, FTP, and others) as supervised child processes, restarting them automatically if they exit unexpectedly.
+`binktermphp-pm` is an experimental, optional Go-based process supervisor for BinktermPHP's daemons (`admin_daemon`, `binkp_server`, `binkp_scheduler`, `realtime_daemon`, and optional services such as Telnet, SSH, MRC, Gemini, and FTP), restarting them automatically if they exit unexpectedly. `binktermphp-ctl` is its command-line companion for checking status, tailing logs, and starting, stopping, or restarting individual services.
 
-`binktermphp-ctl` is a command-line companion that communicates with a running `binktermphp-pm` instance over a Unix socket. It supports `status`, `start`, `stop`, `restart`, `logs`, and `stop-all` commands. Running `binktermphp-pm` without arguments in a terminal opens an interactive dashboard showing live service state, health check results, and log output.
+Both binaries are built and distributed from a separate repository, [github.com/awehttam/binktermphp-pm](https://github.com/awehttam/binktermphp-pm) — they are not part of this repository and are not included in the installer or any release archive of BinktermPHP itself.
 
-Health checks are built in. The `postgres` check opens a real authenticated database connection using the credentials in your `.env` file. The `caddy` check performs an HTTP GET against your configured `SITE_URL/api/verify` and expects a 2xx response.
+This release teaches BinktermPHP's web interface and admin daemon how to talk to `binktermphp-pm` when it is present, but the integration only activates if `config/aio.json` exists:
 
-A new **Admin → BBS Settings → Services** page lets sysops toggle individual services on or off. Changes write back to `config/aio.json` through the admin daemon, so the web process never writes config files directly.
+- If `config/aio.json` is absent (the default for every existing and new install), the **Admin → BBS Settings → Services** menu item is hidden and nothing else changes.
+- If you create `config/aio.json` (following the instructions in the `binktermphp-pm` repository), the Services page appears and lets you toggle individual supervised services on or off. Changes are written back to `config/aio.json` through the admin daemon, so the web process never writes config files directly.
 
-Pre-built binaries for Windows (amd64), Linux (amd64), macOS Intel (amd64), and macOS Apple Silicon (arm64) live in `dist/<os>-<arch>/`. The wrapper scripts `binktermphp-pm.sh` and `binktermphp-pm.cmd` (and equivalents for `ctl`) in the project root pick the correct binary for the current platform at runtime.
+**This is an experimental preview, not a supported deployment path yet.** There is no migration tooling, no installer support, and no guidance yet for moving an existing cron- or systemd-based install onto `binktermphp-pm`. Sysops are welcome to build and run it from the external repository to try it out, but should expect rough edges and be prepared to fall back to `scripts/restart_daemons.sh`, which is completely unaffected by this change and remains the supported way to keep daemons running.
 
-**To use binktermphp-pm:**
+---
 
-1. Copy `config/aio.json.example` to `config/aio.json`.
-2. Review the services list and set `"enabled": true` for the daemons you run.
-3. Run `./binktermphp-pm.sh` (Linux/macOS) or `binktermphp-pm.cmd` (Windows) from the project root.
+## Netmail Unread Counts
 
-To run as a background daemon: `./binktermphp-pm.sh --daemon`. Use `./binktermphp-ctl.sh stop-all` (or press `Q` in the interactive console) to shut it down.
+Netmail is delivered to your account based on your FidoNet address, but the unread count and the **Unread** tab were only counting a message as unread if the sender's `To:` field exactly matched your username or real name. In practice, senders often address netmail to a nickname, alias, or misspelled variant of your name — the message still lands in your inbox correctly because delivery is resolved by address, but it was silently excluded from the unread count and the Unread tab because the name comparison failed.
 
-The existing `scripts/restart_daemons.sh` workflow continues to work for sysops who do not adopt the process manager.
+This release fixes the unread and received-message filters (in the web UI, the netmail stats used for notification badges, and the dashboard widget) to also count a message as yours whenever it was actually delivered to your account, regardless of whether the `To:` name matches exactly. If you have a backlog of netmail that was addressed to a nickname, expect your unread count to increase after upgrading to reflect messages that were already sitting in your inbox unread.
+
+This delivery-based check only applies to netmail that genuinely arrived from elsewhere. Netmail you send to another local user or to the sysop is excluded from your own unread count, since that mail was never something you needed to "read" in the first place — only the recipient's unread count reflects it.
 
 ---
 

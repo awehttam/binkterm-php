@@ -217,14 +217,31 @@ class MessageHandler
             // A message is "mine to read" if it was routed to me by recipient user_id
             // (findTargetUser() can match by fidonet_address even when to_name is a nickname
             // that doesn't equal my username/real_name) OR by the legacy name+address match.
-            // Exclude is_sent=TRUE so a user's own already-spooled outbound copies never count.
+            //
+            // user_id does NOT always mean "recipient": sendNetmail()/sendLocalSysopMessage()
+            // set user_id to the SENDER for locally-delivered mail (same-system user-to-user,
+            // or a message to the sysop), and that row's is_sent stays FALSE forever since
+            // there's nothing to spool. So a plain "n.user_id = ?" match would wrongly count a
+            // user's own locally-sent netmail as unread in their own account. Exclude rows
+            // where the querying user is identifiable as the SENDER (from_name matches them AND
+            // from_address is one of our own addresses, i.e. the row originated on this system)
+            // to rule that out, while still matching genuine inbound mail from remote systems.
             if (!empty($myAddresses)) {
-                $whereClause = "WHERE (n.user_id = ? OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))) AND n.is_sent = FALSE AND mrs.read_at IS NULL";
+                $whereClause = "WHERE (
+                        (n.user_id = ? AND NOT ((LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)))
+                        OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                    ) AND mrs.read_at IS NULL";
                 $params = [$userId, $user['username'], $user['real_name']];
                 $params = array_merge($params, $myAddresses);
+                $params[] = $user['username'];
+                $params[] = $user['real_name'];
+                $params = array_merge($params, $myAddresses);
             } else {
-                $whereClause = "WHERE (n.user_id = ? OR (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))) AND n.is_sent = FALSE AND mrs.read_at IS NULL";
-                $params = [$userId, $user['username'], $user['real_name']];
+                $whereClause = "WHERE (
+                        (n.user_id = ? AND NOT (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)))
+                        OR (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                    ) AND mrs.read_at IS NULL";
+                $params = [$userId, $user['username'], $user['real_name'], $user['username'], $user['real_name']];
             }
         } elseif ($filter === 'sent') {
             // Show only messages sent by this user from this system (check from_name AND from_address)
@@ -243,8 +260,15 @@ class MessageHandler
             // findTargetUser() may have resolved via fidonet_address even when to_name is a
             // nickname, OR by the legacy name+address match).
             // Note: for inbound messages user_id IS the recipient, so n.user_id != ? would wrongly exclude them.
-            $whereClause = "WHERE (n.user_id = ? OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))) AND n.is_sent = FALSE";
+            // See the 'unread' branch above for why the sender-exclusion check is needed on user_id.
+            $whereClause = "WHERE (
+                    (n.user_id = ? AND NOT ((LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)))
+                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                )";
             $params = [$userId, $user['username'], $user['real_name']];
+            $params = array_merge($params, $myAddresses);
+            $params[] = $user['username'];
+            $params[] = $user['real_name'];
             $params = array_merge($params, $myAddresses);
         } elseif ($filter === 'saved') {
             // Show only messages saved by this user
@@ -6381,14 +6405,25 @@ class MessageHandler
         }
 
         if ($filter === 'unread') {
-            // See getNetmail() for why user_id is included alongside the name+address match.
+            // See getNetmail() for why user_id needs a sender-exclusion check alongside the
+            // name+address match: user_id is the SENDER, not the recipient, for locally
+            // delivered mail, and that row's is_sent stays FALSE forever.
             if (!empty($myAddresses)) {
-                $whereClause = "WHERE (n.user_id = ? OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))) AND n.is_sent = FALSE AND mrs.read_at IS NULL";
+                $whereClause = "WHERE (
+                        (n.user_id = ? AND NOT ((LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)))
+                        OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                    ) AND mrs.read_at IS NULL";
                 $params = [$userId, $user['username'], $user['real_name']];
                 $params = array_merge($params, $myAddresses);
+                $params[] = $user['username'];
+                $params[] = $user['real_name'];
+                $params = array_merge($params, $myAddresses);
             } else {
-                $whereClause = "WHERE (n.user_id = ? OR (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))) AND n.is_sent = FALSE AND mrs.read_at IS NULL";
-                $params = [$userId, $user['username'], $user['real_name']];
+                $whereClause = "WHERE (
+                        (n.user_id = ? AND NOT (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)))
+                        OR (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                    ) AND mrs.read_at IS NULL";
+                $params = [$userId, $user['username'], $user['real_name'], $user['username'], $user['real_name']];
             }
         } elseif ($filter === 'sent') {
             // Show only messages sent by this user from this system (check from_name AND from_address)
@@ -6407,8 +6442,15 @@ class MessageHandler
             // findTargetUser() may have resolved it via fidonet_address even when to_name is a
             // nickname, OR by the legacy name+address match).
             // Note: for inbound messages user_id IS the recipient, so n.user_id != ? would wrongly exclude them.
-            $whereClause = "WHERE (n.user_id = ? OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))) AND n.is_sent = FALSE";
+            // See the 'unread' branch above for why the sender-exclusion check is needed on user_id.
+            $whereClause = "WHERE (
+                    (n.user_id = ? AND NOT ((LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)))
+                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                )";
             $params = [$userId, $user['username'], $user['real_name']];
+            $params = array_merge($params, $myAddresses);
+            $params[] = $user['username'];
+            $params[] = $user['real_name'];
             $params = array_merge($params, $myAddresses);
         } elseif ($filter === 'saved') {
             // Show only messages saved by this user

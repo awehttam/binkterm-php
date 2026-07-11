@@ -363,7 +363,7 @@
                                         <li><a class="dropdown-item" href="/admin/i18n-overrides"><i class="fas fa-language"></i> {{ t('ui.base.admin.i18n_overrides', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/licensing"><i class="fas fa-id-card"></i> {{ t('ui.base.admin.licensing', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> {{ t('ui.base.admin.template_editor', {}, 'common') }}</a></li>
-                                        <li><a class="dropdown-item" href="/admin/services"><i class="fas fa-server"></i> {{ t('ui.base.admin.services', {}, 'common') }}</a></li>
+                                        {% if has_aio_config %}<li><a class="dropdown-item" href="/admin/services"><i class="fas fa-server"></i> {{ t('ui.base.admin.services', {}, 'common') }}</a></li>{% endif %}
                                     </ul>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
