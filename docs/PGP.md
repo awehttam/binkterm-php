@@ -2,6 +2,29 @@
 
 This guide covers BinktermPHP's PGP support from a sysop's point of view: how to enable it, what it exposes to users, and how the managed-private-key option changes behavior.
 
+## What Is PGP?
+
+PGP (Pretty Good Privacy) is a public-key cryptography standard, formalized today as OpenPGP (RFC 4880). Each person or system generates a key pair: a **public key** that can be shared freely and published for anyone to find, and a **private key** that must be kept secret. Anything encrypted with someone's public key can only be decrypted with the matching private key, and anything signed with a private key can be verified by anyone holding the corresponding public key.
+
+That gives two independent uses that matter for FTN-style networking:
+
+- **Encryption** - a sender can encrypt a netmail so that only the intended recipient can read it, even though the message passes through intermediate hubs, relays, or uplinks along the way.
+- **Signing** - a sender can sign a message so that readers can verify it actually came from the claimed key holder and was not altered in transit, without needing to trust every hop the message passed through.
+
+A **keyserver** (BinktermPHP's public keyserver at `/keyserver`) is a directory that lets other people look up someone's public key. Publishing a key does not expose or weaken the private key - it is meant to be shared.
+
+### Why This Might Matter To A Sysop
+
+FTN networks route mail through chains of uplinks and hubs that a sender does not control and often cannot see. PGP support gives users, and the BBS as a whole, ways to add trust and confidentiality on top of that store-and-forward path:
+
+- **Confidential netmail across untrusted hops.** A user exchanging sensitive netmail with a correspondent on another system does not have to trust every intermediate hub not to read it - only the two endpoints need keys.
+- **Verifying echomail authorship.** In an echoarea where message tossing or gatewaying could plausibly alter or misattribute a post, a signed message lets readers confirm it really came from the person it claims to be from.
+- **Sysop-to-sysop coordination.** Network coordinators, hub operators, and sysops sometimes exchange administrative netmail (policy changes, credentials, escalations) where authenticity or confidentiality is worth more than convenience.
+- **A public identity directory for the network.** Even a sysop who is not personally interested in encryption may want to enable just the keyserver and public-key publishing, so users who already have PGP keys from other contexts (email, other BBSes, personal use) have a place to publish and discover them, without the BBS hosting any private key material at all.
+- **Users who already use PGP elsewhere.** Some users already maintain a PGP identity for email or other services. Enabling `Enable PGP` alone lets them attach that existing public key to their BBS account and use it for netmail, without requiring the BBS to manage private keys.
+
+None of this is required to run a BinktermPHP BBS. PGP is off by default, and a sysop who doesn't want to take on the policy and liability questions around hosting encrypted private-key material can leave `Allow BBS-managed private keys` disabled indefinitely while still offering public-key publishing, or leave the whole feature off entirely.
+
 ## What The Feature Does
 
 PGP support lets each user maintain more than one public key and choose a preferred key for their account. When enabled, users get a **PGP** tab in their settings page where they can:
