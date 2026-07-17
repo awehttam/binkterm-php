@@ -9,6 +9,7 @@ return [
     'errors.auth.invalid_csrf_token' => 'Invalid CSRF token',
     'errors.auth.missing_credentials' => 'Username and password required',
     'errors.auth.invalid_credentials' => 'Invalid credentials',
+    'errors.auth.invalid_service' => 'Invalid service name',
     'errors.auth.invalid_api_key' => 'Invalid API key',
     'errors.auth.gateway_token_missing_fields' => 'userid and token are required',
     'errors.auth.invalid_or_expired_gateway_token' => 'Invalid or expired token',

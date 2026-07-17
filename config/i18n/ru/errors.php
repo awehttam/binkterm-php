@@ -9,6 +9,7 @@ return [
     'errors.auth.invalid_csrf_token' => 'Некорректный CSRF‑токен',
     'errors.auth.missing_credentials' => 'Необходимо указать имя пользователя и пароль',
     'errors.auth.invalid_credentials' => 'Неверные учётные данные',
+    'errors.auth.invalid_service' => 'Недопустимое имя сервиса',
     'errors.auth.invalid_api_key' => 'Неверный API‑ключ',
     'errors.auth.gateway_token_missing_fields' => 'Обязательны поля userid и token',
     'errors.auth.invalid_or_expired_gateway_token' => 'Токен недействителен или просрочен',

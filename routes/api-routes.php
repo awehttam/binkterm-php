@@ -128,6 +128,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if (!preg_match('/^[A-Za-z0-9_-]{1,20}$/', trim((string)$service))) {
+            apiError('errors.auth.invalid_service', apiLocalizedText('errors.auth.invalid_service', 'Invalid service name'), 400);
+            return;
+        }
+
         $auth = new Auth();
         $sessionId = $auth->login($username, $password, $service);
 

@@ -143,6 +143,7 @@ class Auth
     public function createSessionForConnection(int $userId, string $service, string $ipAddress = '', string $userAgent = ''): string
     {
         $sessionId = bin2hex(random_bytes(32));
+        self::assertValidServiceName($service);
 
         $stmt = $this->db->prepare('
             INSERT INTO user_sessions (session_id, user_id, expires_at, ip_address, user_agent, last_activity, service)
@@ -157,6 +158,20 @@ class Auth
         ]);
 
         return $sessionId;
+    }
+
+    /**
+     * Reject a service label that doesn't match the safe, display-friendly format.
+     * Only letters, digits, underscore, and hyphen are allowed (matches the
+     * user_sessions.service VARCHAR(20) column).
+     *
+     * @throws \InvalidArgumentException if $service is empty or contains disallowed characters
+     */
+    private static function assertValidServiceName(string $service): void
+    {
+        if (!preg_match('/^[A-Za-z0-9_-]{1,20}$/', trim($service))) {
+            throw new \InvalidArgumentException('Invalid service name: ' . $service);
+        }
     }
 
     private function updateLastLogin($userId)

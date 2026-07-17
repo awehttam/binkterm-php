@@ -9,6 +9,7 @@ return [
     'errors.auth.invalid_csrf_token' => 'Token CSRF invalido',
     'errors.auth.missing_credentials' => 'Se requieren nombre de usuario y contrasena',
     'errors.auth.invalid_credentials' => 'Credenciales invalidas',
+    'errors.auth.invalid_service' => 'Nombre de servicio invalido',
     'errors.auth.invalid_api_key' => 'Clave API invalida',
     'errors.auth.gateway_token_missing_fields' => 'userid y token son obligatorios',
     'errors.auth.invalid_or_expired_gateway_token' => 'Token invalido o expirado',

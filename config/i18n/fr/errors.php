@@ -6,6 +6,7 @@ return [
     'errors.auth.invalid_csrf_token' => 'Jeton CSRF invalide',
     'errors.auth.missing_credentials' => 'Nom d\'utilisateur et mot de passe requis',
     'errors.auth.invalid_credentials' => 'Identifiants invalides',
+    'errors.auth.invalid_service' => 'Nom de service invalide',
     'errors.auth.invalid_api_key' => 'Clé API invalide',
     'errors.auth.gateway_token_missing_fields' => 'L\'identifiant utilisateur et le jeton sont requis',
     'errors.auth.invalid_or_expired_gateway_token' => 'Jeton invalide ou expiré',

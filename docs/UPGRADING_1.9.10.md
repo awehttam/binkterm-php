@@ -8,9 +8,11 @@ Make sure you have a current backup of your database and files before upgrading.
   - [AIO Process Manager (experimental)](#aio-process-manager-experimental)
   - [Netmail Unread Counts](#netmail-unread-counts)
   - [Admin Menu Navigation](#admin-menu-navigation)
+  - [Login Service Field Validation](#login-service-field-validation)
 - [AIO Process Manager (experimental)](#aio-process-manager-experimental-1)
 - [Netmail Unread Counts](#netmail-unread-counts-1)
 - [Admin Menu Navigation](#admin-menu-navigation-1)
+- [Login Service Field Validation](#login-service-field-validation-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -30,6 +32,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Admin Menu Navigation
 
 - Nested items under **Admin** in the top navigation (for example **Area Management → AreaFix**) could become unreachable on narrow browser windows and touch devices. Clicking or tapping a nested submenu heading could silently fail to open it, and once open, the menu could get stuck without letting you scroll down to reach items further down the list. This has been fixed; nested Admin submenus now open reliably and scroll independently of the page.
+
+### Login Service Field Validation
+
+- The `POST /api/auth/login` endpoint accepts an optional `service` field used to label how a session was created (for example `web` or `telnet`) when displaying it in the **Who's Online** list. This field is now validated to only contain letters, digits, underscores, and hyphens, up to 20 characters. Requests with a `service` value outside this format are rejected with a `400` error instead of being accepted.
 
 ---
 
@@ -67,6 +73,16 @@ On viewports narrower than the desktop breakpoint (roughly tablet width and belo
 - On narrow viewports, the expanded **Admin** menu could grow taller than the visible page area. Because the menu bar stays pinned to the top of the screen while you scroll, any items below the visible area were unreachable — scrolling moved the rest of the page instead of the menu.
 
 All three issues are fixed. Submenus under **Admin** now open reliably on the first click or tap, stay open until you close them, and the menu now scrolls within itself so every nested item can be reached regardless of window size or device.
+
+---
+
+## Login Service Field Validation
+
+Every logged-in session is tagged with a `service` label (`web`, `telnet`, `ssh`, `ftp`, `packetbbs`, and so on) that shows up in the **Who's Online** list to indicate how that user connected. For sessions created through the API, this label was previously accepted from the client with no restriction on its contents.
+
+The `service` field is now validated on `POST /api/auth/login`: it must consist only of letters, digits, underscores, and hyphens, and be no longer than 20 characters. A request with a `service` value outside this format now receives a `400` response with the error code `errors.auth.invalid_service`, and no session is created.
+
+If you have custom scripts, bots, or third-party clients that call `/api/auth/login` directly with a custom `service` value, confirm that value only uses letters, digits, underscores, and hyphens (20 characters or fewer) before upgrading, or the login call will start failing.
 
 ---
 
