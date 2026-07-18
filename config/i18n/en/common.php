@@ -3503,6 +3503,13 @@ return [
     'ui.echolist.time.minutes_ago' => '{count}m ago',
     'ui.echolist.time.hours_ago' => '{count}h ago',
     'ui.echolist.time.days_ago' => '{count}d ago',
+    'ui.echolist.selected_count' => 'Selected: {count}',
+    'ui.echolist.mark_selected_read' => 'Mark as Read',
+    'ui.echolist.mark_area_read_title' => 'Mark this echo area as read',
+    'ui.echolist.none_selected' => 'No echo areas selected',
+    'ui.echolist.bulk_mark_read_success' => 'Marked {count} echo area(s) as read',
+    'ui.echolist.bulk_mark_read_failed' => 'Failed to mark echo areas as read',
+    'ui.echolist.select_all' => 'Select all',
 
     // Nodelist Page
     'ui.nodelist.node_details' => 'Node Details',

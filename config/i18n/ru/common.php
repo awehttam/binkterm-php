@@ -3508,6 +3508,13 @@ return [
     'ui.echolist.time.minutes_ago' => '{count} мин. назад',
     'ui.echolist.time.hours_ago' => '{count} ч. назад',
     'ui.echolist.time.days_ago' => '{count} дн. назад',
+    'ui.echolist.selected_count' => 'Выбрано: {count}',
+    'ui.echolist.mark_selected_read' => 'Отметить как прочитанное',
+    'ui.echolist.mark_area_read_title' => 'Отметить эту эхоконференцию как прочитанную',
+    'ui.echolist.none_selected' => 'Эхоконференции не выбраны',
+    'ui.echolist.bulk_mark_read_success' => 'Отмечено {count} эхоконференций как прочитанные',
+    'ui.echolist.bulk_mark_read_failed' => 'Не удалось отметить эхоконференции как прочитанные',
+    'ui.echolist.select_all' => 'Выбрать все',
 
     // Nodelist Page
     'ui.nodelist.node_details' => 'Сведения о ноде',

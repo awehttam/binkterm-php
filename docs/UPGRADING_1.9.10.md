@@ -10,11 +10,13 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Admin Menu Navigation](#admin-menu-navigation)
   - [Login Service Field Validation](#login-service-field-validation)
   - [Echo Area List Mobile Layout](#echo-area-list-mobile-layout)
+  - [Bulk Mark Echo Areas as Read](#bulk-mark-echo-areas-as-read)
 - [AIO Process Manager (experimental)](#aio-process-manager-experimental-1)
 - [Netmail Unread Counts](#netmail-unread-counts-1)
 - [Admin Menu Navigation](#admin-menu-navigation-1)
 - [Login Service Field Validation](#login-service-field-validation-1)
 - [Echo Area List Mobile Layout](#echo-area-list-mobile-layout-1)
+- [Bulk Mark Echo Areas as Read](#bulk-mark-echo-areas-as-read-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -42,6 +44,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Echo Area List Mobile Layout
 
 - Fixed a layout bug on the Echo Areas page where an echo area's tag and description could render as a single word per line, stretching the full height of the screen and making the list unreadable. This was most noticeable on narrow viewports and with longer translated unread-count labels (for example Russian).
+
+### Bulk Mark Echo Areas as Read
+
+- The Echo Areas page (`/echolist`) now lets you mark an entire echo area as read directly from the list, without opening it first, and lets you select multiple echo areas at once (via a **Select** toggle and per-row checkboxes) and mark them all as read in one action.
 
 ---
 
@@ -97,6 +103,19 @@ If you have custom scripts, bots, or third-party clients that call `/api/auth/lo
 On the Echo Areas page, each area's row lays out its tag and description in a flexible column next to a badge showing its unread and total post counts. That badge column was set to never shrink or wrap, so on narrow screens a long unread-count label — especially longer translated strings such as the Russian "непрочитанных из ... постов" — could claim most of the row's width. The remaining space left for the area's tag and description could collapse to almost nothing, causing the text to wrap one word (or even one character) per line and stretch the row across the entire screen height.
 
 The badge column now wraps onto multiple lines instead of forcing the row wider, and the tag/description column breaks long words safely instead of collapsing. Echo area rows now stay readable on narrow screens regardless of translated string length.
+
+---
+
+## Bulk Mark Echo Areas as Read
+
+Previously, the only way to clear an echo area's unread count was to open it and either read a message or use the message list's own selection tools. For echo areas that receive only occasional traffic (for example a rules-only echo posted a couple of times a month), this meant opening the area just to dismiss a badge.
+
+The Echo Areas page (`/echolist`) now offers two ways to mark an area read without opening it:
+
+- Each echo area row with unread messages shows a small mark-read icon next to its unread count. Clicking it marks every currently unread, visible message in that area as read for you.
+- A **Select** button (next to **New Post** / **New Messages**) turns on selection mode, adding a checkbox to each row. With one or more areas checked, a floating action bar appears at the bottom of the screen — it stays visible while you scroll through the list — with **Select all**, **Mark as Read**, and a button to cancel selection mode.
+
+Marking an area read this way respects the same visibility rules as the unread counts shown on the page: ignored senders and pending/rejected moderated messages are not marked read, and sysop-only areas are only affected for admin accounts.
 
 ---
 

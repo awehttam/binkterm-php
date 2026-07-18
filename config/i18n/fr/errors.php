@@ -112,6 +112,8 @@ return [
     'errors.echoareas.update_failed' => 'Échec de la mise à jour de la zone echo',
     'errors.echoareas.delete_blocked_has_messages' => 'Impossible de supprimer une zone echo contenant des messages',
     'errors.echoareas.delete_failed' => 'Échec de la suppression de la zone echo',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'Une liste non vide d\'ID de zones echo est requise',
+    'errors.echoareas.bulk_mark_read.failed' => 'Échec du marquage des zones echo comme lues',
     'errors.fileareas.not_found' => 'Zone de fichiers introuvable',
     'errors.fileareas.create_failed' => 'Échec de la création de la zone de fichiers',
     'errors.fileareas.update_failed' => 'Échec de la mise à jour de la zone de fichiers',

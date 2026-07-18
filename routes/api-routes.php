@@ -2254,6 +2254,111 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['echoareas' => $echoareas]);
     });
 
+    // Echoarea bulk mark-as-read endpoint - must come before parameterized routes
+    SimpleRouter::post('/echoareas/mark-read', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $echoareaIds = $input['echoareaIds'] ?? [];
+
+        if (empty($echoareaIds) || !is_array($echoareaIds)) {
+            http_response_code(400);
+            apiError('errors.echoareas.bulk_mark_read.invalid_input', apiLocalizedText('errors.echoareas.bulk_mark_read.invalid_input', 'A non-empty echo area ID list is required', $user));
+            return;
+        }
+
+        $isAdmin = !empty($user['is_admin']);
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        $intIds = array_values(array_unique(array_filter(array_map('intval', $echoareaIds), fn($id) => $id > 0)));
+
+        if (empty($intIds)) {
+            http_response_code(400);
+            apiError('errors.echoareas.bulk_mark_read.invalid_input', apiLocalizedText('errors.echoareas.bulk_mark_read.invalid_input', 'A non-empty echo area ID list is required', $user));
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $messageHandler = new MessageHandler();
+        $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
+        $moderationFilter = $messageHandler->buildModerationVisibilityFilter($userId, 'em');
+        $placeholders = implode(',', array_fill(0, count($intIds), '?'));
+        $marked = 0;
+
+        try {
+            $db->beginTransaction();
+
+            $stmt = $db->prepare("
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
+                SELECT ?, em.id, 'echomail', NOW()
+                FROM echomail em
+                JOIN echoareas ea ON ea.id = em.echoarea_id AND ea.is_active = TRUE
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE em.echoarea_id IN ($placeholders)
+                  AND mrs.id IS NULL
+                  AND (? = 'true' OR COALESCE(ea.is_sysop_only, FALSE) = FALSE)
+                  AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}{$moderationFilter['sql']}
+            ");
+            $params = array_merge(
+                [$userId, $userId],
+                $intIds,
+                [$isAdmin ? 'true' : 'false'],
+                $ignoreFilter['params'],
+                $moderationFilter['params']
+            );
+            $stmt->execute($params);
+            $marked = $stmt->rowCount();
+
+            // Advance the dashboard badge watermark for each affected echoarea.
+            $wmStmt = $db->prepare("
+                WITH area_maxes AS (
+                    SELECT echoarea_id, MAX(id) AS max_id
+                    FROM echomail
+                    WHERE echoarea_id IN ($placeholders)
+                    GROUP BY echoarea_id
+                )
+                UPDATE user_echoarea_subscriptions ues
+                SET last_read_id = am.max_id
+                FROM area_maxes am
+                WHERE ues.user_id = ?
+                  AND ues.echoarea_id = am.echoarea_id
+                  AND ues.is_active = TRUE
+                  AND (ues.last_read_id IS NULL OR ues.last_read_id < am.max_id)
+            ");
+            $wmStmt->execute(array_merge($intIds, [$userId]));
+
+            $db->commit();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            getServerLogger()->error('[echoarea bulk read] Failed to persist read status: ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.echoareas.bulk_mark_read.failed', apiLocalizedText('errors.echoareas.bulk_mark_read.failed', 'Failed to mark echo areas as read', $user));
+            return;
+        }
+
+        try {
+            // Notify other tabs of the same user via BinkStream.
+            // Notification delivery is best-effort and should not fail the read action.
+            \BinktermPHP\Realtime\BinkStream::emit($db, 'message_read', [
+                'echoarea_ids' => $intIds,
+                'message_type' => 'echomail',
+            ], $userId);
+        } catch (\Throwable $e) {
+            getServerLogger()->warning('[echoarea bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.echolist.bulk_mark_read_success',
+            'message_params' => ['count' => count($intIds)],
+            'marked' => $marked,
+            'areas' => count($intIds)
+        ]);
+    });
+
     SimpleRouter::get('/echoareas/{id}', function($id) {
         $user = RouteHelper::requireAuth();
 

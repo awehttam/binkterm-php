@@ -141,6 +141,8 @@ return [
     'errors.echoareas.update_failed' => 'Не удалось обновить эху',
     'errors.echoareas.delete_blocked_has_messages' => 'Нельзя удалить эху с существующими сообщениями',
     'errors.echoareas.delete_failed' => 'Не удалось удалить эху',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'Требуется непустой список ID эхоконференций',
+    'errors.echoareas.bulk_mark_read.failed' => 'Не удалось отметить эхоконференции как прочитанные',
 
     // File Areas
     'errors.fileareas.not_found' => 'Файлэха не найдена',

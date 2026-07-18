@@ -147,6 +147,8 @@ return [
     'errors.echoareas.update_failed' => 'No se pudo actualizar el area de eco',
     'errors.echoareas.delete_blocked_has_messages' => 'No se puede eliminar un area de eco con mensajes existentes',
     'errors.echoareas.delete_failed' => 'No se pudo eliminar el area de eco',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'Se requiere una lista no vacia de ID de areas de eco',
+    'errors.echoareas.bulk_mark_read.failed' => 'No se pudieron marcar las areas de eco como leidas',
 
     // File Areas
     'errors.fileareas.not_found' => 'Area de archivos no encontrada',

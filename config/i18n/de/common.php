@@ -3483,6 +3483,13 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.echolist.time.minutes_ago' => '{count}m ago',
     'ui.echolist.time.hours_ago' => '{count}h ago',
     'ui.echolist.time.days_ago' => '{count}d ago',
+    'ui.echolist.selected_count' => 'Ausgewählt: {count}',
+    'ui.echolist.mark_selected_read' => 'Als gelesen markieren',
+    'ui.echolist.mark_area_read_title' => 'Diesen Echo-Bereich als gelesen markieren',
+    'ui.echolist.none_selected' => 'Keine Echo-Bereiche ausgewählt',
+    'ui.echolist.bulk_mark_read_success' => '{count} Echo-Bereich(e) als gelesen markiert',
+    'ui.echolist.bulk_mark_read_failed' => 'Echo-Bereiche konnten nicht als gelesen markiert werden',
+    'ui.echolist.select_all' => 'Alle auswählen',
 
     // Nodelist Page
     'ui.nodelist.node_details' => 'Node-Details',

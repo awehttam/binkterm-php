@@ -147,6 +147,8 @@ return [
     'errors.echoareas.update_failed' => 'Failed to update echo area',
     'errors.echoareas.delete_blocked_has_messages' => 'Cannot delete echo area with existing messages',
     'errors.echoareas.delete_failed' => 'Failed to delete echo area',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'A non-empty echo area ID list is required',
+    'errors.echoareas.bulk_mark_read.failed' => 'Failed to mark echo areas as read',
 
     // File Areas
     'errors.fileareas.not_found' => 'File area not found',

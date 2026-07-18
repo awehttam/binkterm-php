@@ -3485,6 +3485,13 @@ return [
     'ui.echolist.time.minutes_ago' => '{count}m fa',
     'ui.echolist.time.hours_ago' => '{count}h fa',
     'ui.echolist.time.days_ago' => '{count}g fa',
+    'ui.echolist.selected_count' => 'Selezionati: {count}',
+    'ui.echolist.mark_selected_read' => 'Segna come letto',
+    'ui.echolist.mark_area_read_title' => 'Contrassegna questa area echo come letta',
+    'ui.echolist.none_selected' => 'Nessuna area echo selezionata',
+    'ui.echolist.bulk_mark_read_success' => '{count} area/e echo contrassegnate come lette',
+    'ui.echolist.bulk_mark_read_failed' => 'Impossibile contrassegnare le aree echo come lette',
+    'ui.echolist.select_all' => 'Seleziona tutto',
 
     // Nodelist Page
     'ui.nodelist.node_details' => 'Dettagli nodo',

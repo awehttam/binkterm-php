@@ -3486,6 +3486,13 @@ return [
     'ui.echolist.time.minutes_ago' => 'hace {count}m',
     'ui.echolist.time.hours_ago' => 'hace {count}h',
     'ui.echolist.time.days_ago' => 'hace {count}d',
+    'ui.echolist.selected_count' => 'Seleccionados: {count}',
+    'ui.echolist.mark_selected_read' => 'Marcar como leido',
+    'ui.echolist.mark_area_read_title' => 'Marcar esta area de eco como leida',
+    'ui.echolist.none_selected' => 'No hay areas de eco seleccionadas',
+    'ui.echolist.bulk_mark_read_success' => 'Se marcaron {count} area(s) de eco como leidas',
+    'ui.echolist.bulk_mark_read_failed' => 'No se pudieron marcar las areas de eco como leidas',
+    'ui.echolist.select_all' => 'Seleccionar todo',
 
     // Nodelist Page
     'ui.nodelist.node_details' => 'Detalles del nodo',

@@ -147,6 +147,8 @@ return [
     'errors.echoareas.update_failed' => 'Impossibile aggiornare l’area echo',
     'errors.echoareas.delete_blocked_has_messages' => 'Impossibile eliminare un’area echo con messaggi esistenti',
     'errors.echoareas.delete_failed' => 'Impossibile eliminare l’area echo',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'È richiesto un elenco non vuoto di ID di aree echo',
+    'errors.echoareas.bulk_mark_read.failed' => 'Impossibile contrassegnare le aree echo come lette',
 
     // File Areas
     'errors.fileareas.not_found' => 'Area file non trovata',
