@@ -9,10 +9,12 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Netmail Unread Counts](#netmail-unread-counts)
   - [Admin Menu Navigation](#admin-menu-navigation)
   - [Login Service Field Validation](#login-service-field-validation)
+  - [Echo Area List Mobile Layout](#echo-area-list-mobile-layout)
 - [AIO Process Manager (experimental)](#aio-process-manager-experimental-1)
 - [Netmail Unread Counts](#netmail-unread-counts-1)
 - [Admin Menu Navigation](#admin-menu-navigation-1)
 - [Login Service Field Validation](#login-service-field-validation-1)
+- [Echo Area List Mobile Layout](#echo-area-list-mobile-layout-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -36,6 +38,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Login Service Field Validation
 
 - The `POST /api/auth/login` endpoint accepts an optional `service` field used to label how a session was created (for example `web` or `telnet`) when displaying it in the **Who's Online** list. This field is now validated to only contain letters, digits, underscores, and hyphens, up to 20 characters. Requests with a `service` value outside this format are rejected with a `400` error instead of being accepted.
+
+### Echo Area List Mobile Layout
+
+- Fixed a layout bug on the Echo Areas page where an echo area's tag and description could render as a single word per line, stretching the full height of the screen and making the list unreadable. This was most noticeable on narrow viewports and with longer translated unread-count labels (for example Russian).
 
 ---
 
@@ -83,6 +89,14 @@ Every logged-in session is tagged with a `service` label (`web`, `telnet`, `ssh`
 The `service` field is now validated on `POST /api/auth/login`: it must consist only of letters, digits, underscores, and hyphens, and be no longer than 20 characters. A request with a `service` value outside this format now receives a `400` response with the error code `errors.auth.invalid_service`, and no session is created.
 
 If you have custom scripts, bots, or third-party clients that call `/api/auth/login` directly with a custom `service` value, confirm that value only uses letters, digits, underscores, and hyphens (20 characters or fewer) before upgrading, or the login call will start failing.
+
+---
+
+## Echo Area List Mobile Layout
+
+On the Echo Areas page, each area's row lays out its tag and description in a flexible column next to a badge showing its unread and total post counts. That badge column was set to never shrink or wrap, so on narrow screens a long unread-count label — especially longer translated strings such as the Russian "непрочитанных из ... постов" — could claim most of the row's width. The remaining space left for the area's tag and description could collapse to almost nothing, causing the text to wrap one word (or even one character) per line and stretch the row across the entire screen height.
+
+The badge column now wraps onto multiple lines instead of forcing the row wider, and the tag/description column breaks long words safely instead of collapsing. Echo area rows now stay readable on narrow screens regardless of translated string length.
 
 ---
 
