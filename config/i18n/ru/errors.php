@@ -9,6 +9,7 @@ return [
     'errors.auth.invalid_csrf_token' => 'Некорректный CSRF‑токен',
     'errors.auth.missing_credentials' => 'Необходимо указать имя пользователя и пароль',
     'errors.auth.invalid_credentials' => 'Неверные учётные данные',
+    'errors.auth.invalid_service' => 'Недопустимое имя сервиса',
     'errors.auth.invalid_api_key' => 'Неверный API‑ключ',
     'errors.auth.gateway_token_missing_fields' => 'Обязательны поля userid и token',
     'errors.auth.invalid_or_expired_gateway_token' => 'Токен недействителен или просрочен',
@@ -140,6 +141,8 @@ return [
     'errors.echoareas.update_failed' => 'Не удалось обновить эху',
     'errors.echoareas.delete_blocked_has_messages' => 'Нельзя удалить эху с существующими сообщениями',
     'errors.echoareas.delete_failed' => 'Не удалось удалить эху',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'Требуется непустой список ID эхоконференций',
+    'errors.echoareas.bulk_mark_read.failed' => 'Не удалось отметить эхоконференции как прочитанные',
 
     // File Areas
     'errors.fileareas.not_found' => 'Файлэха не найдена',
@@ -393,6 +396,11 @@ return [
     'errors.admin.mrc_settings.load_failed' => 'Не удалось загрузить настройки MRC',
     'errors.admin.mrc_settings.save_failed' => 'Не удалось сохранить настройки MRC',
     'errors.admin.mrc_settings.restart_failed' => 'Не удалось перезапустить демон MRC',
+    'errors.admin.services.load_failed' => 'Не удалось загрузить конфигурацию сервисов',
+    'errors.admin.services.save_failed' => 'Не удалось сохранить конфигурацию сервисов',
+    'errors.admin.services.pm_status_failed' => 'Failed to get process manager status',
+    'errors.admin.services.pm_action_failed' => 'Failed to perform service action',
+    'errors.admin.services.pm_logs_failed' => 'Failed to get service logs',
     'errors.admin.bbs_system.load_failed' => 'Не удалось загрузить системные настройки',
     'errors.admin.bbs_system.save_failed' => 'Не удалось сохранить системные настройки',
     'errors.admin.binkp_config.load_failed' => 'Не удалось загрузить конфигурацию BinkP',

@@ -556,6 +556,70 @@ class AdminDaemonClient
         }
     }
 
+    /**
+     * Get the live runtime status from binktermphp-pm.
+     *
+     * @return array{services: array, health_checks: array}
+     */
+    public function pmStatus(): array
+    {
+        return $this->sendCommand('pm_status');
+    }
+
+    /**
+     * Start a service managed by binktermphp-pm.
+     */
+    public function pmStart(string $service): array
+    {
+        return $this->sendCommand('pm_start', ['service' => $service]);
+    }
+
+    /**
+     * Stop a service managed by binktermphp-pm.
+     */
+    public function pmStop(string $service): array
+    {
+        return $this->sendCommand('pm_stop', ['service' => $service]);
+    }
+
+    /**
+     * Restart a service managed by binktermphp-pm.
+     */
+    public function pmRestart(string $service): array
+    {
+        return $this->sendCommand('pm_restart', ['service' => $service]);
+    }
+
+    /**
+     * Retrieve recent log lines for a service from binktermphp-pm.
+     *
+     * @param string $service Service name
+     * @param int    $n       Number of lines to return (default 50)
+     * @return array{lines: string[]}
+     */
+    public function pmLogs(string $service, int $n = 50): array
+    {
+        return $this->sendCommand('pm_logs', ['service' => $service, 'n' => $n]);
+    }
+
+    /**
+     * Get the AIO process manager configuration (config/aio.json).
+     */
+    public function getAioConfig(): array
+    {
+        return $this->sendCommand('get_aio_config');
+    }
+
+    /**
+     * Persist service enabled states to config/aio.json.
+     *
+     * @param array $services Array of ['name' => string, 'enabled' => bool]
+     */
+    public function saveAioConfig(array $services): array
+    {
+        return $this->sendCommand('save_aio_config', ['services' => $services]);
+    }
+
     public function getMrcConfig(): array
     {
         return $this->sendCommand('get_mrc_config');

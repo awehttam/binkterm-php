@@ -9,6 +9,7 @@ return [
     'errors.auth.invalid_csrf_token' => 'Token CSRF invalido',
     'errors.auth.missing_credentials' => 'Se requieren nombre de usuario y contrasena',
     'errors.auth.invalid_credentials' => 'Credenciales invalidas',
+    'errors.auth.invalid_service' => 'Nombre de servicio invalido',
     'errors.auth.invalid_api_key' => 'Clave API invalida',
     'errors.auth.gateway_token_missing_fields' => 'userid y token son obligatorios',
     'errors.auth.invalid_or_expired_gateway_token' => 'Token invalido o expirado',
@@ -146,6 +147,8 @@ return [
     'errors.echoareas.update_failed' => 'No se pudo actualizar el area de eco',
     'errors.echoareas.delete_blocked_has_messages' => 'No se puede eliminar un area de eco con mensajes existentes',
     'errors.echoareas.delete_failed' => 'No se pudo eliminar el area de eco',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'Se requiere una lista no vacia de ID de areas de eco',
+    'errors.echoareas.bulk_mark_read.failed' => 'No se pudieron marcar las areas de eco como leidas',
 
     // File Areas
     'errors.fileareas.not_found' => 'Area de archivos no encontrada',
@@ -393,6 +396,11 @@ return [
     'errors.admin.mrc_settings.load_failed' => 'No se pudo cargar la configuracion de MRC',
     'errors.admin.mrc_settings.save_failed' => 'No se pudo guardar la configuracion de MRC',
     'errors.admin.mrc_settings.restart_failed' => 'No se pudo reiniciar el daemon de MRC',
+    'errors.admin.services.load_failed' => 'Error al cargar la configuracion de servicios',
+    'errors.admin.services.save_failed' => 'Error al guardar la configuracion de servicios',
+    'errors.admin.services.pm_status_failed' => 'Failed to get process manager status',
+    'errors.admin.services.pm_action_failed' => 'Failed to perform service action',
+    'errors.admin.services.pm_logs_failed' => 'Failed to get service logs',
     'errors.admin.bbs_system.load_failed' => 'No se pudo cargar la configuracion del sistema',
     'errors.admin.bbs_system.save_failed' => 'No se pudo guardar la configuracion del sistema',
     'errors.admin.binkp_config.load_failed' => 'No se pudo cargar la configuracion de BinkP',

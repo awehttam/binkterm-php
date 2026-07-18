@@ -207,6 +207,10 @@ class Template
         $upgradingFile = __DIR__ . '/../docs/UPGRADING_' . Version::getVersion() . '.md';
         $this->twig->addGlobal('has_upgrading_doc', file_exists($upgradingFile));
 
+        // The Services admin page only applies to AIO process manager installs
+        $aioConfigFile = __DIR__ . '/../config/aio.json';
+        $this->twig->addGlobal('has_aio_config', file_exists($aioConfigFile));
+
         // Add terminal configuration
         $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');
         $this->twig->addGlobal('admin_terminal_enabled', Config::env('ADMIN_TERMINAL', 'false') === 'true');

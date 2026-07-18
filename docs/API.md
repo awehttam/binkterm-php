@@ -68,7 +68,7 @@ Content-Type: application/json
   - [Dashboard](#dashboard) (2)
   - [Debug](#debug) (1)
   - [Docs](#docs) (1)
-  - [Echoareas](#echoareas) (7)
+  - [Echoareas](#echoareas) (8)
   - [Fileareas](#fileareas) (10)
   - [Files](#files) (26)
   - [Freq Log](#freq-log) (1)
@@ -2117,6 +2117,7 @@ Rendered help documentation in HTML format.
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `GET` | [`/api/echoareas`](#get-apiechoareas) | Yes | List echo areas with filtering, subscription, and message counts. |
+| `POST` | [`/api/echoareas/mark-read`](#post-apiechoareasmark-read) | Yes | Mark all unread messages in one or more echo areas as read in bulk. |
 | `GET` | [`/api/echoareas/{id}`](#get-apiechoareasid) | Yes | Get detailed echo area configuration with LovlyNet metadata. |
 | `POST` | [`/api/echoareas`](#post-apiechoareas) | Yes | Create a new echo area with configuration. |
 | `PUT` | [`/api/echoareas/{id}`](#put-apiechoareasid) | Yes | Update echo area configuration. |
@@ -2163,6 +2164,38 @@ Array of echo area objects with message and subscription metadata
 | Status | Description |
 |--------|-------------|
 | 401 | Authentication required |
+
+---
+
+#### `POST /api/echoareas/mark-read`
+
+**Requires authentication**
+
+Marks all currently unread, visible messages in one or more echo areas as read for the authenticated user and advances the last_read_id watermark per echoarea. Applies the same ignore-rule and moderation visibility filters used by `GET /api/echoareas`, and skips sysop-only areas for non-admin users. Uses a database transaction for consistency.
+
+**Request Body** _(JSON)_
+
+List of echo area IDs to mark as read
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `echoareaIds` | array<integer> | Yes | Non-empty array of echo area IDs |
+
+**Response** _(JSON)_
+
+Read status update summary
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation succeeded |
+| `marked` | integer | Number of messages marked as read |
+| `areas` | integer | Number of distinct echo area IDs processed |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | echoareaIds missing, empty, or not an array |
 
 ---
 

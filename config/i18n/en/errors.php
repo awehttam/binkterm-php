@@ -9,6 +9,7 @@ return [
     'errors.auth.invalid_csrf_token' => 'Invalid CSRF token',
     'errors.auth.missing_credentials' => 'Username and password required',
     'errors.auth.invalid_credentials' => 'Invalid credentials',
+    'errors.auth.invalid_service' => 'Invalid service name',
     'errors.auth.invalid_api_key' => 'Invalid API key',
     'errors.auth.gateway_token_missing_fields' => 'userid and token are required',
     'errors.auth.invalid_or_expired_gateway_token' => 'Invalid or expired token',
@@ -146,6 +147,8 @@ return [
     'errors.echoareas.update_failed' => 'Failed to update echo area',
     'errors.echoareas.delete_blocked_has_messages' => 'Cannot delete echo area with existing messages',
     'errors.echoareas.delete_failed' => 'Failed to delete echo area',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'A non-empty echo area ID list is required',
+    'errors.echoareas.bulk_mark_read.failed' => 'Failed to mark echo areas as read',
 
     // File Areas
     'errors.fileareas.not_found' => 'File area not found',
@@ -397,6 +400,11 @@ return [
     'errors.admin.mrc_settings.load_failed' => 'Failed to load MRC settings',
     'errors.admin.mrc_settings.save_failed' => 'Failed to save MRC settings',
     'errors.admin.mrc_settings.restart_failed' => 'Failed to restart MRC daemon',
+    'errors.admin.services.load_failed' => 'Failed to load services configuration',
+    'errors.admin.services.save_failed' => 'Failed to save services configuration',
+    'errors.admin.services.pm_status_failed' => 'Failed to get process manager status',
+    'errors.admin.services.pm_action_failed' => 'Failed to perform service action',
+    'errors.admin.services.pm_logs_failed' => 'Failed to get service logs',
     'errors.admin.bbs_system.load_failed' => 'Failed to load system settings',
     'errors.admin.bbs_system.save_failed' => 'Failed to save system settings',
     'errors.admin.binkp_config.load_failed' => 'Failed to load BinkP configuration',

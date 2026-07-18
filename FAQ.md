@@ -742,6 +742,12 @@ In those cases, review the actual queries and consider adding a targeted index. 
 
 ## General
 
+### Q: Is BinktermPHP a web forum or a BBS?
+
+**A:** BinktermPHP is a full-featured BBS. The presence of a browser-based interface doesn't make it "just a web forum" — it's one of several front ends into the same underlying system, alongside Telnet/SSH, Gemini, MeshCore, and QWK offline mail readers. Under the hood it has the things that define a BBS: echo areas, file areas, netmail, and a native BinkP mailer that speaks FidoNet Technology Network (FTN) protocols directly, with no third-party mailer required.
+
+The fact that BinktermPHP happens to be written in PHP, a language commonly associated with web development, doesn't change that either. Plenty of languages associated with one domain get used well outside it — PHP itself also runs CLI scripts and long-running daemons here, including the binkp server and the terminal daemons. The implementation language says nothing about what a program is; what matters is what it does, and what BinktermPHP does is run a real, multi-protocol FTN BBS.
+
 ### Q: What is the automated AI echomail posting feature in BinktermPHP 2.0?
 
 **A:** It was an April Fools Day prank that raised awareness about the concerns of having an AI post to echomail areas in an unattended, automated fashion. We have no plans to add such functionality. Also, BinktermPHP 2.0 does not exist — at the time of this writing, we were only at version 1.9! And neither does ftp.mustang.com — from like, 2003. 😏

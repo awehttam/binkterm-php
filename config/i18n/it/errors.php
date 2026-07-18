@@ -9,6 +9,7 @@ return [
     'errors.auth.invalid_csrf_token' => 'Token CSRF non valido',
     'errors.auth.missing_credentials' => 'Nome utente e password richiesti',
     'errors.auth.invalid_credentials' => 'Credenziali non valide',
+    'errors.auth.invalid_service' => 'Nome del servizio non valido',
     'errors.auth.invalid_api_key' => 'Chiave API non valida',
     'errors.auth.gateway_token_missing_fields' => 'userid e token sono obbligatori',
     'errors.auth.invalid_or_expired_gateway_token' => 'Token non valido o scaduto',
@@ -146,6 +147,8 @@ return [
     'errors.echoareas.update_failed' => 'Impossibile aggiornare l’area echo',
     'errors.echoareas.delete_blocked_has_messages' => 'Impossibile eliminare un’area echo con messaggi esistenti',
     'errors.echoareas.delete_failed' => 'Impossibile eliminare l’area echo',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'È richiesto un elenco non vuoto di ID di aree echo',
+    'errors.echoareas.bulk_mark_read.failed' => 'Impossibile contrassegnare le aree echo come lette',
 
     // File Areas
     'errors.fileareas.not_found' => 'Area file non trovata',
@@ -393,6 +396,11 @@ return [
     'errors.admin.mrc_settings.load_failed' => 'Impossibile caricare le impostazioni MRC',
     'errors.admin.mrc_settings.save_failed' => 'Impossibile salvare le impostazioni MRC',
     'errors.admin.mrc_settings.restart_failed' => 'Impossibile riavviare il demone MRC',
+    'errors.admin.services.load_failed' => 'Impossibile caricare la configurazione dei servizi',
+    'errors.admin.services.save_failed' => 'Impossibile salvare la configurazione dei servizi',
+    'errors.admin.services.pm_status_failed' => 'Failed to get process manager status',
+    'errors.admin.services.pm_action_failed' => 'Failed to perform service action',
+    'errors.admin.services.pm_logs_failed' => 'Failed to get service logs',
     'errors.admin.bbs_system.load_failed' => 'Impossibile caricare le impostazioni di sistema',
     'errors.admin.bbs_system.save_failed' => 'Impossibile salvare le impostazioni di sistema',
     'errors.admin.binkp_config.load_failed' => 'Impossibile caricare la configurazione BinkP',

@@ -128,6 +128,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if (!preg_match('/^[A-Za-z0-9_-]{1,20}$/', trim((string)$service))) {
+            apiError('errors.auth.invalid_service', apiLocalizedText('errors.auth.invalid_service', 'Invalid service name'), 400);
+            return;
+        }
+
         $auth = new Auth();
         $sessionId = $auth->login($username, $password, $service);
 
@@ -2247,6 +2252,111 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         echo json_encode(['echoareas' => $echoareas]);
+    });
+
+    // Echoarea bulk mark-as-read endpoint - must come before parameterized routes
+    SimpleRouter::post('/echoareas/mark-read', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $echoareaIds = $input['echoareaIds'] ?? [];
+
+        if (empty($echoareaIds) || !is_array($echoareaIds)) {
+            http_response_code(400);
+            apiError('errors.echoareas.bulk_mark_read.invalid_input', apiLocalizedText('errors.echoareas.bulk_mark_read.invalid_input', 'A non-empty echo area ID list is required', $user));
+            return;
+        }
+
+        $isAdmin = !empty($user['is_admin']);
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        $intIds = array_values(array_unique(array_filter(array_map('intval', $echoareaIds), fn($id) => $id > 0)));
+
+        if (empty($intIds)) {
+            http_response_code(400);
+            apiError('errors.echoareas.bulk_mark_read.invalid_input', apiLocalizedText('errors.echoareas.bulk_mark_read.invalid_input', 'A non-empty echo area ID list is required', $user));
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $messageHandler = new MessageHandler();
+        $ignoreFilter = $messageHandler->buildEchomailIgnoreFilter($userId, 'em');
+        $moderationFilter = $messageHandler->buildModerationVisibilityFilter($userId, 'em');
+        $placeholders = implode(',', array_fill(0, count($intIds), '?'));
+        $marked = 0;
+
+        try {
+            $db->beginTransaction();
+
+            $stmt = $db->prepare("
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
+                SELECT ?, em.id, 'echomail', NOW()
+                FROM echomail em
+                JOIN echoareas ea ON ea.id = em.echoarea_id AND ea.is_active = TRUE
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE em.echoarea_id IN ($placeholders)
+                  AND mrs.id IS NULL
+                  AND (? = 'true' OR COALESCE(ea.is_sysop_only, FALSE) = FALSE)
+                  AND (em.date_written IS NULL OR em.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilter['sql']}{$moderationFilter['sql']}
+            ");
+            $params = array_merge(
+                [$userId, $userId],
+                $intIds,
+                [$isAdmin ? 'true' : 'false'],
+                $ignoreFilter['params'],
+                $moderationFilter['params']
+            );
+            $stmt->execute($params);
+            $marked = $stmt->rowCount();
+
+            // Advance the dashboard badge watermark for each affected echoarea.
+            $wmStmt = $db->prepare("
+                WITH area_maxes AS (
+                    SELECT echoarea_id, MAX(id) AS max_id
+                    FROM echomail
+                    WHERE echoarea_id IN ($placeholders)
+                    GROUP BY echoarea_id
+                )
+                UPDATE user_echoarea_subscriptions ues
+                SET last_read_id = am.max_id
+                FROM area_maxes am
+                WHERE ues.user_id = ?
+                  AND ues.echoarea_id = am.echoarea_id
+                  AND ues.is_active = TRUE
+                  AND (ues.last_read_id IS NULL OR ues.last_read_id < am.max_id)
+            ");
+            $wmStmt->execute(array_merge($intIds, [$userId]));
+
+            $db->commit();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            getServerLogger()->error('[echoarea bulk read] Failed to persist read status: ' . $e->getMessage());
+            http_response_code(500);
+            apiError('errors.echoareas.bulk_mark_read.failed', apiLocalizedText('errors.echoareas.bulk_mark_read.failed', 'Failed to mark echo areas as read', $user));
+            return;
+        }
+
+        try {
+            // Notify other tabs of the same user via BinkStream.
+            // Notification delivery is best-effort and should not fail the read action.
+            \BinktermPHP\Realtime\BinkStream::emit($db, 'message_read', [
+                'echoarea_ids' => $intIds,
+                'message_type' => 'echomail',
+            ], $userId);
+        } catch (\Throwable $e) {
+            getServerLogger()->warning('[echoarea bulk read] SSE notification failed after read status persisted: ' . $e->getMessage());
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.echolist.bulk_mark_read_success',
+            'message_params' => ['count' => count($intIds)],
+            'marked' => $marked,
+            'areas' => count($intIds)
+        ]);
     });
 
     SimpleRouter::get('/echoareas/{id}', function($id) {
@@ -5569,6 +5679,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $myAddresses = [];
         }
 
+        // A message is "mine to read" if it was routed to me by recipient user_id
+        // (findTargetUser() can match by fidonet_address even when to_name is a nickname
+        // that doesn't equal my username/real_name) OR by the legacy name+address match.
+        //
+        // user_id does NOT always mean "recipient": sendNetmail()/sendLocalSysopMessage() set
+        // user_id to the SENDER for locally-delivered mail (same-system user-to-user, or a
+        // message to the sysop), and that row's is_sent stays FALSE forever since there's
+        // nothing to spool. So exclude rows where the querying user is identifiable as the
+        // SENDER (from_name matches them AND from_address is one of our own addresses, i.e.
+        // the row originated on this system) to avoid counting a user's own locally-sent
+        // netmail as unread in their own account.
         if (!empty($myAddresses)) {
             $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
             $unreadStmt = $db->prepare("
@@ -5576,12 +5697,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
                 WHERE mrs.read_at IS NULL
-                  AND (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
-                  AND n.to_address IN ($addressPlaceholders)
+                  AND (
+                        (n.user_id = ? AND NOT ((LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)))
+                        OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                      )
                   AND NOT (n.user_id = ? AND n.deleted_by_sender = TRUE)
                   AND NOT ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE)
             ");
-            $params = [$userId, $user['username'], $user['real_name']];
+            $params = [$userId, $userId, $user['username'], $user['real_name']];
+            $params = array_merge($params, $myAddresses);
+            $params[] = $user['username'];
+            $params[] = $user['real_name'];
             $params = array_merge($params, $myAddresses);
             $params[] = $userId;
             $params[] = $user['username'];
@@ -5592,12 +5718,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                WHERE (
+                        (n.user_id = ? AND NOT (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)))
+                        OR (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
+                      )
                   AND mrs.read_at IS NULL
                   AND NOT (n.user_id = ? AND n.deleted_by_sender = TRUE)
                   AND NOT ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE)
             ");
-            $unreadStmt->execute([$userId, $user['username'], $user['real_name'], $userId, $user['username'], $user['real_name']]);
+            $unreadStmt->execute([$userId, $userId, $user['username'], $user['real_name'], $user['username'], $user['real_name'], $userId, $user['username'], $user['real_name']]);
         }
         $unread = $unreadStmt->fetch()['count'];
 

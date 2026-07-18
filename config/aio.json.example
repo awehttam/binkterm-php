@@ -1,0 +1,95 @@
+{
+  "socket": "data/run/binktermphp-pm.sock",
+  "pid_file": "data/run/binktermphp-pm.pid",
+  "log_file": "data/logs/binktermphp-pm.log",
+  "restart_max_delay_s": 30,
+  "health_check_interval_s": 15,
+  "services": [
+    {
+      "name": "admin_daemon",
+      "command": ["php", "scripts/admin_daemon.php"],
+      "always_on": true,
+      "restart_policy": "always"
+    },
+    {
+      "name": "binkp_server",
+      "command": ["php", "scripts/binkp_server.php"],
+      "always_on": true,
+      "restart_policy": "always"
+    },
+    {
+      "name": "binkp_scheduler",
+      "command": ["php", "scripts/binkp_scheduler.php"],
+      "always_on": true,
+      "restart_policy": "always"
+    },
+    {
+      "name": "realtime_daemon",
+      "command": ["php", "scripts/realtime_server.php"],
+      "always_on": true,
+      "restart_policy": "always"
+    },
+    {
+      "name": "telnetd",
+      "command": ["php", "telnet/telnet_daemon.php"],
+      "enabled": true,
+      "restart_policy": "on-failure"
+    },
+    {
+      "name": "ssh_daemon",
+      "command": ["php", "ssh/ssh_daemon.php"],
+      "enabled": true,
+      "restart_policy": "on-failure"
+    },
+    {
+      "name": "mrc_daemon",
+      "command": ["php", "scripts/mrc_daemon.php"],
+      "enabled": false,
+      "restart_policy": "on-failure"
+    },
+    {
+      "name": "gemini_daemon",
+      "command": ["php", "scripts/gemini_daemon.php"],
+      "enabled": false,
+      "restart_policy": "on-failure"
+    },
+    {
+      "name": "ftp_daemon",
+      "command": ["php", "scripts/ftp_daemon.php"],
+      "enabled": false,
+      "restart_policy": "on-failure"
+    },
+    {
+      "name": "mcp_server",
+      "command": ["node", "mcp-server/server.js"],
+      "enabled": false,
+      "restart_policy": "on-failure"
+    },
+    {
+      "name": "multiplexing_server",
+      "command": ["node", "scripts/dosbox-bridge/multiplexing-server.js"],
+      "enabled": false,
+      "restart_policy": "on-failure"
+    },
+    {
+      "name": "matterbridge_daemon",
+      "command": ["php", "scripts/matterbridge_daemon.php"],
+      "enabled": false,
+      "restart_policy": "on-failure"
+    }
+  ],
+  "health_checks": [
+    {
+      "name": "postgres",
+      "check": {
+        "postgres_env": true
+      }
+    },
+    {
+      "name": "caddy",
+      "check": {
+        "site_verify": true
+      }
+    }
+  ]
+}

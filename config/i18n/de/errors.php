@@ -9,6 +9,7 @@ return [
     'errors.auth.invalid_csrf_token' => 'Ungültiges CSRF-Token',
     'errors.auth.missing_credentials' => 'Benutzername und Passwort sind erforderlich',
     'errors.auth.invalid_credentials' => 'Ungültige Zugangsdaten',
+    'errors.auth.invalid_service' => 'Ungültiger Dienstname',
     'errors.auth.invalid_api_key' => 'Ungültiger API-Schlüssel',
     'errors.auth.gateway_token_missing_fields' => 'userid and token sind erforderlich',
     'errors.auth.invalid_or_expired_gateway_token' => 'Ungültig: or expired token',
@@ -146,6 +147,8 @@ return [
     'errors.echoareas.update_failed' => 'Echo-Bereich konnte nicht aktualisiert werden',
     'errors.echoareas.delete_blocked_has_messages' => 'Cannot delete echo area with existing messages',
     'errors.echoareas.delete_failed' => 'Echo-Bereich konnte nicht gelöscht werden',
+    'errors.echoareas.bulk_mark_read.invalid_input' => 'Eine nicht leere Liste von Echo-Bereich-IDs ist erforderlich',
+    'errors.echoareas.bulk_mark_read.failed' => 'Echo-Bereiche konnten nicht als gelesen markiert werden',
 
     // File Areas
     'errors.fileareas.not_found' => 'Dateibereich nicht gefunden',
@@ -392,6 +395,11 @@ return [
     'errors.admin.mrc_settings.load_failed' => 'MRC Einstellungen konnten nicht geladen werden',
     'errors.admin.mrc_settings.save_failed' => 'MRC Einstellungen konnte nicht gespeichert werden',
     'errors.admin.mrc_settings.restart_failed' => 'Failed to restart MRC daemon',
+    'errors.admin.services.load_failed' => 'Dienstekonfiguration konnte nicht geladen werden',
+    'errors.admin.services.save_failed' => 'Dienstekonfiguration konnte nicht gespeichert werden',
+    'errors.admin.services.pm_status_failed' => 'Failed to get process manager status',
+    'errors.admin.services.pm_action_failed' => 'Failed to perform service action',
+    'errors.admin.services.pm_logs_failed' => 'Failed to get service logs',
     'errors.admin.bbs_system.load_failed' => 'system Einstellungen konnten nicht geladen werden',
     'errors.admin.bbs_system.save_failed' => 'system Einstellungen konnte nicht gespeichert werden',
     'errors.admin.binkp_config.load_failed' => 'BinkP configuration konnten nicht geladen werden',

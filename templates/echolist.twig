@@ -21,6 +21,8 @@
     font-weight: 600;
     font-size: 1.05rem;
     margin-bottom: 0.25rem;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
 }
 
 #echolist-page .echoarea-desc {
@@ -47,6 +49,46 @@
 
 #echolist-page .network-badge {
     font-size: 0.85rem;
+}
+
+#echolist-page .echoarea-stats {
+    max-width: 45%;
+    flex: 0 1 auto;
+}
+
+#echolist-page .echoarea-stats .badge {
+    white-space: normal !important;
+    text-align: right;
+}
+
+#echolist-page .echoarea-row-link {
+    color: inherit;
+    text-decoration: none;
+    min-width: 0;
+}
+
+#echolist-page .echoarea-row-link:hover {
+    color: inherit;
+}
+
+#echolist-page .area-select-checkbox {
+    margin-top: 0.2rem;
+}
+
+#areaBulkActionsBar {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    z-index: 1030;
+    width: calc(100% - 2rem);
+    max-width: 560px;
+}
+
+@media (max-width: 575.98px) {
+    #areaBulkActionsBar .btn-text {
+        display: none;
+    }
 }
 
 @media (max-width: 767.98px) {
@@ -142,6 +184,23 @@
         </div>
     </div>
 
+    <div id="areaBulkActionsBar" class="d-none card shadow-lg bg-dark text-white border-0">
+        <div class="card-body d-flex align-items-center justify-content-between gap-2 py-2 px-3">
+            <span class="fw-semibold small" id="areaBulkSelectedCount">{{ t('ui.echolist.selected_count', {count: 0}) }}</span>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllAreas()">
+                    <i class="fas fa-check-double"></i> <span class="btn-text">{{ t('ui.echolist.select_all') }}</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" id="areaBulkMarkReadBtn" onclick="markSelectedAreasAsRead()" disabled>
+                    <i class="fas fa-envelope-open"></i> <span class="btn-text">{{ t('ui.echolist.mark_selected_read') }}</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleAreaSelectMode()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="stats-bar">
         <div class="card">
             <div class="card-body">
@@ -173,6 +232,8 @@
 <script>
 let allEchoAreas = [];
 let searchQuery = '';
+let areaSelectMode = false;
+let selectedAreas = new Set();
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -375,13 +436,28 @@ function displayEchoAreas(areas) {
     });
 
     let html = '';
-    html += '<div class="d-flex justify-content-end mb-2 gap-2">';
+    html += '<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">';
+
+    // Bulk selection mode toggle (left side) - actions themselves live in the
+    // floating #areaBulkActionsBar so they stay reachable without scrolling back up.
+    html += '<div class="d-flex align-items-center gap-2 flex-wrap">';
+    html += `<button type="button" class="btn btn-sm ${areaSelectMode ? 'btn-outline-warning' : 'btn-outline-secondary'}" id="areaSelectModeBtn" onclick="toggleAreaSelectMode()">`;
+    html += areaSelectMode
+        ? `<i class="fas fa-times"></i> ${uiT('ui.common.cancel', 'Cancel')}`
+        : `<i class="fas fa-check-square"></i> ${uiT('ui.common.select', 'Select')}`;
+    html += '</button>';
+    html += '</div>';
+
+    // Page actions (right side)
+    html += '<div class="d-flex gap-2">';
     html += '<button class="btn btn-fidonet" onclick="composeMessage(\'echomail\')">';
     html += `<i class="fas fa-plus"></i> ${uiT('ui.echolist.new_post', 'New Post')}`;
     html += '</button>';
     html += '<a class="btn btn-fidonet" href="/echomail">';
     html += `<i class="fas fa-envelope-open-text"></i> ${uiT('ui.echolist.new_messages', 'New Messages')}`;
     html += '</a>';
+    html += '</div>';
+
     html += '</div>';
     // Local first
     if (groups[localLabel] && groups[localLabel].length > 0) {
@@ -430,8 +506,20 @@ function buildEchoAreaRow(area) {
     if (area.domain) {
         url += '&domain=' + encodeURIComponent(area.domain);
     }
-    let html = `<a href="${url}" class="list-group-item list-group-item-action">`;
+
+    const unreadCount = area.unread_count || 0;
+    const totalCount = area.message_count || 0;
+    const isChecked = selectedAreas.has(area.id);
+
+    let html = '<div class="list-group-item">';
     html += '<div class="d-flex align-items-start gap-3">';
+
+    // Bulk-select checkbox
+    html += `<div class="form-check area-select-checkbox ${areaSelectMode ? '' : 'd-none'}">`;
+    html += `<input type="checkbox" class="form-check-input area-select" value="${area.id}" ${isChecked ? 'checked' : ''} onchange="updateAreaSelection()">`;
+    html += '</div>';
+
+    html += `<a href="${url}" class="echoarea-row-link d-flex align-items-start gap-3 flex-grow-1">`;
 
     // Icon
     html += `<div class="echoarea-icon" style="background-color: ${color};">`;
@@ -440,8 +528,6 @@ function buildEchoAreaRow(area) {
 
     // Info
     html += '<div class="flex-grow-1" style="min-width: 0; overflow: hidden;">';
-    html += '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">';
-    html += '<div class="flex-grow-1" style="min-width: 0; width: 0;">';
     html += '<div class="echoarea-title">';
     html += escapeHtml(area.tag);
     if (area.is_sysop_only) {
@@ -453,13 +539,17 @@ function buildEchoAreaRow(area) {
         html += `<div class="echoarea-mod"><i class="fas fa-user-shield"></i> ${uiT('ui.echolist.moderator_prefix', 'Moderator:')} ${escapeHtml(area.moderator)}</div>`;
     }
     html += '</div>';
+    html += '</a>';
 
     // Stats and last post on the right
-    html += '<div class="text-end flex-shrink-0">';
-    const unreadCount = area.unread_count || 0;
-    const totalCount = area.message_count || 0;
+    html += '<div class="text-end echoarea-stats">';
     if (unreadCount > 0) {
-        html += `<div><span class="badge bg-secondary">${uiT('ui.echolist.unread_of_posts', '{unread} unread of {total} posts', { unread: unreadCount, total: totalCount })}</span></div>`;
+        html += '<div>';
+        html += `<span class="badge bg-secondary">${uiT('ui.echolist.unread_of_posts', '{unread} unread of {total} posts', { unread: unreadCount, total: totalCount })}</span>`;
+        html += ` <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" title="${uiT('ui.echolist.mark_area_read_title', 'Mark this echo area as read')}" onclick="markSingleAreaRead(${area.id}, this)">`;
+        html += '<i class="fas fa-envelope-open"></i>';
+        html += '</button>';
+        html += '</div>';
     } else {
         html += `<div><span class="badge bg-secondary">${uiT('ui.echolist.post_count', '{total} posts', { total: totalCount })}</span></div>`;
     }
@@ -472,9 +562,103 @@ function buildEchoAreaRow(area) {
     }
     html += '</div>';
 
-    html += '</div></div>'; // Close flex container and info div
-    html += '</div></a>';
+    html += '</div>'; // Close flex container
+    html += '</div>'; // Close list-group-item
     return html;
+}
+
+function toggleAreaSelectMode() {
+    areaSelectMode = !areaSelectMode;
+    if (!areaSelectMode) {
+        selectedAreas.clear();
+    }
+    searchEchoAreas(searchQuery);
+    $('#areaBulkActionsBar').toggleClass('d-none', !areaSelectMode);
+    updateAreaBulkBar();
+}
+
+function toggleSelectAllAreas() {
+    const checkboxes = $('.area-select');
+    const allChecked = checkboxes.length > 0 && checkboxes.filter(':checked').length === checkboxes.length;
+    checkboxes.prop('checked', !allChecked);
+    updateAreaSelection();
+}
+
+function updateAreaSelection() {
+    selectedAreas.clear();
+    $('.area-select:checked').each(function() {
+        selectedAreas.add(parseInt($(this).val()));
+    });
+    updateAreaBulkBar();
+}
+
+function updateAreaBulkBar() {
+    $('#areaBulkSelectedCount').text(uiT('ui.echolist.selected_count', 'Selected: {count}', { count: selectedAreas.size }));
+    $('#areaBulkMarkReadBtn').prop('disabled', selectedAreas.size === 0);
+}
+
+function clearAreaSelection() {
+    selectedAreas.clear();
+    if (areaSelectMode) {
+        toggleAreaSelectMode();
+    }
+}
+
+function markSelectedAreasAsRead() {
+    if (selectedAreas.size === 0) {
+        showError(uiT('ui.echolist.none_selected', 'No echo areas selected'));
+        return;
+    }
+
+    const echoareaIds = Array.from(selectedAreas);
+    markEchoAreasAsRead(echoareaIds, $('#areaBulkMarkReadBtn'), function() {
+        clearAreaSelection();
+    });
+}
+
+function markSingleAreaRead(areaId, btnEl) {
+    markEchoAreasAsRead([areaId], $(btnEl), null);
+}
+
+function markEchoAreasAsRead(echoareaIds, $btn, onSuccess) {
+    const originalHtml = $btn.length ? $btn.html() : null;
+    if ($btn.length) {
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+    }
+
+    $.ajax({
+        url: '/api/echoareas/mark-read',
+        type: 'POST',
+        data: JSON.stringify({ echoareaIds: echoareaIds }),
+        contentType: 'application/json',
+        success: function(response) {
+            if (response.success) {
+                showSuccess(window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.echolist.bulk_mark_read_success', 'Marked {count} echo area(s) as read', { count: echoareaIds.length }))
+                    : uiT('ui.echolist.bulk_mark_read_success', 'Marked {count} echo area(s) as read', { count: echoareaIds.length }));
+                if (onSuccess) onSuccess();
+                loadEchoAreas();
+                loadStatistics();
+            } else {
+                showError(apiError(response, uiT('errors.echoareas.bulk_mark_read.failed', 'Failed to mark echo areas as read')));
+            }
+        },
+        error: function(xhr) {
+            let errorMessage = uiT('ui.echolist.bulk_mark_read_failed', 'Failed to mark echo areas as read');
+            try {
+                const response = JSON.parse(xhr.responseText);
+                errorMessage = apiError(response, errorMessage);
+            } catch (e) {
+                // Use default error message
+            }
+            showError(errorMessage);
+        },
+        complete: function() {
+            if ($btn.length && originalHtml !== null) {
+                $btn.prop('disabled', false).html(originalHtml);
+            }
+        }
+    });
 }
 
 
