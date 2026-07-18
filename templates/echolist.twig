@@ -21,6 +21,8 @@
     font-weight: 600;
     font-size: 1.05rem;
     margin-bottom: 0.25rem;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
 }
 
 #echolist-page .echoarea-desc {
@@ -47,6 +49,16 @@
 
 #echolist-page .network-badge {
     font-size: 0.85rem;
+}
+
+#echolist-page .echoarea-stats {
+    max-width: 45%;
+    flex: 0 1 auto;
+}
+
+#echolist-page .echoarea-stats .badge {
+    white-space: normal !important;
+    text-align: right;
 }
 
 @media (max-width: 767.98px) {
@@ -455,7 +467,7 @@ function buildEchoAreaRow(area) {
     html += '</div>';
 
     // Stats and last post on the right
-    html += '<div class="text-end flex-shrink-0">';
+    html += '<div class="text-end echoarea-stats">';
     const unreadCount = area.unread_count || 0;
     const totalCount = area.message_count || 0;
     if (unreadCount > 0) {
