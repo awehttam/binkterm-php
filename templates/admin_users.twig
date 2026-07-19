@@ -14,7 +14,7 @@
                     </button>
                     <button class="btn btn-info me-2" onclick="showUsersNeedingReminders()">
                         <i class="fas fa-bell me-2"></i>{{ t('ui.admin_users.need_reminders', {}, locale, ['common']) }}
-                        <span id="reminders-count" class="badge bg-light text-dark ms-1" style="display: none;">0</span>
+                        <span id="reminders-count" class="badge bg-danger ms-1" style="display: none;">0</span>
                     </button>
                     <button class="btn btn-warning me-2" onclick="cleanupRegistrations()">
                         <i class="fas fa-broom me-2"></i>{{ t('ui.admin_users.cleanup', {}, locale, ['common']) }}

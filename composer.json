@@ -1,7 +1,7 @@
 {
     "name": "awehttam/binkterm-php",
-    "version": "1.9.10",
-    "description": "Modern web based public home point and BBS with FTN and bink integration",
+    "version": "1.10.0",
+    "description": "Multi-protocol BBS platform built around native FTN messaging, with a browser-based community interface, real-time event bus, and door game framework, accessible from browsers, Telnet/SSH, Gemini, QWK, AI assistants, and mesh radio nodes",
     "type": "project",
     "require": {
         "php": ">=8.2",
