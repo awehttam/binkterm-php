@@ -5789,7 +5789,17 @@ class MessageHandler
             $limit = 25; // Default fallback if no user ID
         }
 
-        if ($echoareaTag && $filter === 'tome' && $userId) {
+        if ($filter === 'tome' && $echoareaTag && $userId) {
+            return $this->getEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter, false, false, $sort);
+        }
+
+        // Threaded pagination groups messages by thread (root + replies). That's a poor
+        // fit for "unread"/"read": a thread can mix read and unread messages, and readers
+        // expect the Unread tab to show just the unread messages, not whole conversations
+        // with already-read messages mixed in. Delegate to the flat (non-threaded) query,
+        // which filters per-message and is also far cheaper than reasoning about read
+        // state across an entire thread tree.
+        if (($filter === 'unread' || $filter === 'read') && $userId) {
             return $this->getEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter, false, false, $sort);
         }
 
@@ -5797,43 +5807,7 @@ class MessageHandler
         $filterClause = "";
         $filterParams = [];
 
-        // Threaded pagination is done by root message (reply_to_id IS NULL). A naive
-        // "unread"/"read" filter on the root row alone would hide a thread whose root
-        // was already read but that still has an unread reply underneath it (or vice
-        // versa), even though the flat/non-threaded view and the unread badge both
-        // consider that thread relevant. Use a recursive CTE (thread_root, prepended
-        // to each query below) to match a thread if ANY message in it (root or any
-        // descendant reply) has the requested read state.
-        $cteSql = "";
-        if (($filter === 'unread' || $filter === 'read') && $userId) {
-            $readCondition = $filter === 'unread' ? 'mrs2.read_at IS NULL' : 'mrs2.read_at IS NOT NULL';
-            $ignoreFilterEm2 = $this->buildEchomailIgnoreFilter($userId, 'em2');
-            $moderationFilterEm2 = $this->buildModerationVisibilityFilter($userId, 'em2');
-
-            $cteSql = "WITH RECURSIVE thread_root AS (
-                SELECT id, id AS root_id FROM echomail WHERE reply_to_id IS NULL
-                UNION ALL
-                SELECT e2.id, tr.root_id
-                FROM echomail e2
-                JOIN thread_root tr ON e2.reply_to_id = tr.id
-            ) ";
-
-            $filterClause = " AND em.id IN (
-                SELECT tr.root_id
-                FROM thread_root tr
-                JOIN echomail em2 ON em2.id = tr.id
-                LEFT JOIN message_read_status mrs2 ON (mrs2.message_id = em2.id AND mrs2.message_type = 'echomail' AND mrs2.user_id = ?)
-                WHERE {$readCondition}
-                  AND (em2.date_written IS NULL OR em2.date_written <= (NOW() AT TIME ZONE 'UTC')){$ignoreFilterEm2['sql']}{$moderationFilterEm2['sql']}
-            )";
-            $filterParams[] = $userId;
-            foreach ($ignoreFilterEm2['params'] as $p) {
-                $filterParams[] = $p;
-            }
-            foreach ($moderationFilterEm2['params'] as $p) {
-                $filterParams[] = $p;
-            }
-        } elseif ($filter === 'tome' && $userId) {
+        if ($filter === 'tome' && $userId) {
             $user = $this->getUserById($userId);
             if ($user) {
                 $filterClause = " AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))";
@@ -5849,9 +5823,6 @@ class MessageHandler
         $filterClause .= $ignoreFilter['sql'];
         $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
         $filterClause .= $moderationFilter['sql'];
-        foreach ($ignoreFilter['params'] as $p) {
-            $filterParams[] = $p;
-        }
         foreach ($moderationFilter['params'] as $p) {
             $filterParams[] = $p;
         }
@@ -5860,7 +5831,7 @@ class MessageHandler
         $totalThreads = 0;
         if ($echoareaTag) {
             $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
-            $countStmt = $this->db->prepare("{$cteSql}
+            $countStmt = $this->db->prepare("
                 SELECT COUNT(*) as total
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
@@ -5872,13 +5843,16 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $countParams[] = $param;
+            }
             if (!empty($domain)) {
                 $countParams[] = $domain;
             }
             $countStmt->execute($countParams);
             $totalThreads = $countStmt->fetch()['total'];
         } else {
-            $countStmt = $this->db->prepare("{$cteSql}
+            $countStmt = $this->db->prepare("
                 SELECT COUNT(*) as total
                 FROM echomail em
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
@@ -5887,6 +5861,9 @@ class MessageHandler
             ");
             $countParams = [$userId, $userId];
             foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $countParams[] = $param;
             }
             $countStmt->execute($countParams);
@@ -5907,7 +5884,7 @@ class MessageHandler
 
         if ($echoareaTag) {
             // Get root messages (threads) for the current page
-            $stmt = $this->db->prepare("{$cteSql}
+            $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
@@ -5928,6 +5905,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            foreach ($ignoreFilter['params'] as $param) {
+                $params[] = $param;
+            }
             if (!empty($domain)) {
                 $params[] = $domain;
             }
@@ -5936,7 +5916,7 @@ class MessageHandler
             $stmt->execute($params);
         } else {
             // For "all messages" view, get root messages for the current page
-            $stmt = $this->db->prepare("{$cteSql}
+            $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
                        em.message_id, em.reply_to_id,
@@ -5955,6 +5935,9 @@ class MessageHandler
             ");
             $params = [$userId, $userId];
             foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
+            foreach ($ignoreFilter['params'] as $param) {
                 $params[] = $param;
             }
             $params[] = $limit;
