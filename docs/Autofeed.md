@@ -18,9 +18,9 @@ Bluesky source URLs are detected automatically in the admin UI — entering a `b
 1. `scripts/rss_poster.php` is run periodically via cron.
 2. All active feed sources are fetched from the `auto_feed_sources` database table.
 3. For each feed, the script fetches recent items from the source URL.
-4. Items are deduplicated against the `last_article_guid` stored for that feed.
+4. Items are deduplicated against the `last_article_guid` stored for that feed. If that GUID is no longer present in the feed, `last_article_pubdate` is used as a fallback watermark so only items newer than the last posted item are treated as new.
 5. New items (up to `max_articles_per_check`) are posted to every configured target echo area.
-6. The `last_article_guid`, `last_check`, `articles_posted`, and `last_error` fields are updated for each feed.
+6. The `last_article_guid`, `last_article_pubdate`, `last_check`, `articles_posted`, and `last_error` fields are updated for each feed.
 
 To prevent overloading a source, feeds checked within the last 5 minutes are skipped unless `--force` is passed.
 
@@ -117,6 +117,7 @@ Feed sources are stored in the `auto_feed_sources` table.
 | `max_articles_per_check` | `INTEGER` | Article cap per run. Default 10. |
 | `include_feed_name_in_subject` | `BOOLEAN` | Whether subjects should be prefixed with `[feed_name]` before posting. |
 | `last_article_guid` | `TEXT` | GUID/URI of the most recently posted item; used for deduplication. |
+| `last_article_pubdate` | `TIMESTAMP` | Publish date of the most recently posted item; used as a fallback watermark when `last_article_guid` is no longer found in the feed. |
 | `last_check` | `TIMESTAMP` | When the feed was last successfully checked. |
 | `articles_posted` | `INTEGER` | Running total of articles posted via this feed. |
 | `last_error` | `TEXT` | Most recent error message, if any. |
@@ -139,7 +140,7 @@ Added by migrations `v1.9.2.2_auto_feed.sql`, `v20260508180000_add_auto_feed_sou
 The `last_error` column is displayed in the feed table when non-empty. Common causes: unreachable URL, malformed XML, Bluesky API error, or a configured echo area being deleted. Fix the underlying issue and use **Check Now** to confirm.
 
 **No new articles appear after a manual check**
-All items may already have been seen. The deduplication is based on `last_article_guid` — if that GUID no longer appears in the feed (e.g., the feed was reset), all current items will be treated as new on the next check. Use `--force` to bypass the rate-limit window and re-run immediately.
+All items may already have been seen. The deduplication is based on `last_article_guid`. If that GUID no longer appears in the feed (e.g., the feed was reset, or the previously newest item was unpublished upstream), the script falls back to comparing publish dates against `last_article_pubdate` and only treats strictly newer items as new — it no longer reposts the whole feed in this situation. Use `--force` to bypass the rate-limit window and re-run immediately.
 
 **Bluesky feed posts nothing**
 Confirm the handle or URL resolves to a public account with recent posts that are not replies. The script fetches `posts_no_replies` — accounts whose only recent activity is replies to others will appear empty.
