@@ -3442,10 +3442,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         $uplink['default_charset'],
                         $uplink['posting_name_policy']
                     );
-                    $domain = trim((string)($uplink['domain'] ?? ''));
+                    $domain = \BinktermPHP\NetworkManager::normalizeDomain((string)($uplink['domain'] ?? ''));
                     if ($domain !== '' && !$networkManager->exists($domain)) {
                         throw new InvalidArgumentException("Unknown network domain: {$domain}");
                     }
+                    $uplink['domain'] = $domain;
                 }
                 unset($uplink);
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();

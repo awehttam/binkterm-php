@@ -1539,23 +1539,40 @@ class BinkdProcessor
     private function getOrCreateEchoarea($tag,$domain)
     {
         $tag = strtoupper($tag);
-        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain=?");
-        $stmt->execute([$tag, $domain]);
-        $echoarea = $stmt->fetch();
-        
+        // Normalize domain the same way EchoareaImporter/NetworkManager do, so a
+        // mixed-case value in binkp.json's uplink config still matches the
+        // lowercased domain that was stored when the area was created/imported.
+        $domain = ($domain !== null && $domain !== false) ? strtolower(trim((string)$domain)) : null;
+        if ($domain === '') {
+            $domain = null;
+        }
+
+        $echoarea = $this->findEchoareaByTagAndDomain($tag, $domain);
+
         if (!$echoarea) {
             $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active, domain) VALUES (?, ?, TRUE,?)");
-            $stmt->execute([$tag, 'Auto-created: ' . $tag.'@'.$domain, $domain]);
-            
-            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain=?");
-            $stmt->execute([$tag,$domain]);
-            $echoarea = $stmt->fetch();
-            $this->log("Auto-Creating new echomail area '$tag'@'$domain'");
+            $stmt->execute([$tag, 'Auto-created: ' . $tag . '@' . ($domain ?? ''), $domain]);
+
+            $echoarea = $this->findEchoareaByTagAndDomain($tag, $domain);
+            $this->log("Auto-Creating new echomail area '$tag'@'" . ($domain ?? '') . "'");
         } else {
             //$this->log("getOrCreateEchoarea: Found echomail area tag $tag@$domain");
         }
-        
+
         return $echoarea;
+    }
+
+    private function findEchoareaByTagAndDomain(string $tag, ?string $domain)
+    {
+        if ($domain === null) {
+            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND (domain IS NULL OR domain = '')");
+            $stmt->execute([$tag]);
+        } else {
+            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND LOWER(domain) = LOWER(?)");
+            $stmt->execute([$tag, $domain]);
+        }
+
+        return $stmt->fetch();
     }
 
     private function parseFidonetDate($dateStr, $packetInfo = null, $tzutcOffsetMinutes = null)
