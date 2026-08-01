@@ -8,9 +8,11 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view)
   - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix)
   - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch)
+  - [Echo Area Deletion: Move or Delete Remaining Messages](#echo-area-deletion-move-or-delete-remaining-messages)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
 - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch-1)
+- [Echo Area Deletion: Move or Delete Remaining Messages](#echo-area-deletion-move-or-delete-remaining-messages-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -28,6 +30,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Duplicate Auto-Created Echo Areas from Domain Case Mismatch
 
 - Incoming echomail packets could create a second, duplicate echo area for a tag that already existed, if the network's domain was saved with different letter casing than the domain stored on the existing area (for example `FsxNet` vs `fsxnet`). This has been fixed, and network domains saved through **Admin → Networks** are now always normalized to lowercase to prevent the mismatch from being reintroduced.
+
+### Echo Area Deletion: Move or Delete Remaining Messages
+
+- Deleting an echo area that still has messages in it no longer just fails with an error. The confirmation dialog on **Admin → Echo Areas** now asks whether to delete those messages along with the area, or move them into another echo area first.
 
 ---
 
@@ -54,6 +60,17 @@ Echo areas are looked up by echo tag together with network domain. When a packet
 This most commonly happened when an echo area was created through a `.NA` file import (which always stores the domain in lowercase) for a network whose domain had been saved with mixed case in **Admin → Networks**. The lookup used by incoming packet processing now compares domains case-insensitively, matching the behavior already used elsewhere in the application (area import, network lookups). Network domains saved through **Admin → Networks** are also now normalized to lowercase automatically, so a mismatch can't be reintroduced by re-saving network settings.
 
 This fix does not merge any duplicate echo areas that were already created by this bug before upgrading. If you have duplicate areas with the same tag, check **Admin → Echo Areas**, move any wanted messages from the unwanted duplicate, and deactivate or delete it manually.
+
+## Echo Area Deletion: Move or Delete Remaining Messages
+
+Previously, deleting an echo area from **Admin → Echo Areas** would simply fail with an error if the area still contained any messages, and the only way to remove such an area was to deactivate it instead.
+
+The delete confirmation dialog now checks whether the selected area has messages. If it does, you're asked to choose one of two options before the area can be removed:
+
+- **Delete them** — the messages are permanently deleted along with the area.
+- **Move them to another area** — the messages are reassigned to a different local echo area, which is then deleted in their place. This is a local reassignment only; it does not re-gate, re-spool, or republish the moved messages to any uplink.
+
+If you'd rather keep an area's message history intact, uncheck **Active** on the area instead of deleting it.
 
 ## Upgrade Instructions
 
