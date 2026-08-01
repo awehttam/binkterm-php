@@ -9,10 +9,12 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix)
   - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch)
   - [Echo Area Deletion: Move or Delete Remaining Messages](#echo-area-deletion-move-or-delete-remaining-messages)
+  - [Echo Area Creation ID Fix and FTN Address Parsing Hardening](#echo-area-creation-id-fix-and-ftn-address-parsing-hardening)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
 - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch-1)
 - [Echo Area Deletion: Move or Delete Remaining Messages](#echo-area-deletion-move-or-delete-remaining-messages-1)
+- [Echo Area Creation ID Fix and FTN Address Parsing Hardening](#echo-area-creation-id-fix-and-ftn-address-parsing-hardening-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -34,6 +36,11 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Echo Area Deletion: Move or Delete Remaining Messages
 
 - Deleting an echo area that still has messages in it no longer just fails with an error. The confirmation dialog on **Admin → Echo Areas** now asks whether to delete those messages along with the area, or move them into another echo area first.
+
+### Echo Area Creation ID Fix and FTN Address Parsing Hardening
+
+- Creating an echo area could occasionally return the wrong ID for the newly created area, because the lookup relied on Postgres's session-wide last-used-sequence value instead of reading the inserted row directly. This has been fixed.
+- Outbound BinkP packet writing now parses FTN addresses more defensively, avoiding warnings on malformed addresses instead of failing outright.
 
 ---
 
@@ -71,6 +78,12 @@ The delete confirmation dialog now checks whether the selected area has messages
 - **Move them to another area** — the messages are reassigned to a different local echo area, which is then deleted in their place. This is a local reassignment only; it does not re-gate, re-spool, or republish the moved messages to any uplink.
 
 If you'd rather keep an area's message history intact, uncheck **Active** on the area instead of deleting it.
+
+## Echo Area Creation ID Fix and FTN Address Parsing Hardening
+
+`EchoareaManager::createIfMissing()` previously determined the ID of a newly created echo area with `PDO::lastInsertId()`. On Postgres, this reads the last value returned by *any* sequence used in the current database session, not necessarily the sequence for the row just inserted. In rare cases — for example when other inserts had run earlier in the same request — this could hand back the wrong echo area ID to the caller. The insert now uses `INSERT ... RETURNING id` and reads the ID directly from the inserted row, which is always correct.
+
+Outbound BinkP packet generation (`BinkdProcessor::writeMessage()`) also parses FTN addresses (origin, destination, and system address for SEEN-BY/PATH lines) through a new `parseFtnAddressParts()` helper instead of raw `explode()`/`list()` calls. The old code could throw a PHP warning or fail outright when handed a malformed or incomplete address; the new parser fills in `0` for any missing zone/net/node/point component instead.
 
 ## Upgrade Instructions
 
