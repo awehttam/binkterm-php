@@ -10,11 +10,13 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch)
   - [Echo Area Deletion: Move or Delete Remaining Messages](#echo-area-deletion-move-or-delete-remaining-messages)
   - [Echo Area Creation ID Fix and FTN Address Parsing Hardening](#echo-area-creation-id-fix-and-ftn-address-parsing-hardening)
+  - [BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers](#binkp-session-close-could-be-reported-as-a-failed-session-by-remote-mailers)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
 - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch-1)
 - [Echo Area Deletion: Move or Delete Remaining Messages](#echo-area-deletion-move-or-delete-remaining-messages-1)
 - [Echo Area Creation ID Fix and FTN Address Parsing Hardening](#echo-area-creation-id-fix-and-ftn-address-parsing-hardening-1)
+- [BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers](#binkp-session-close-could-be-reported-as-a-failed-session-by-remote-mailers-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -41,6 +43,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Creating an echo area could occasionally return the wrong ID for the newly created area, because the lookup relied on Postgres's session-wide last-used-sequence value instead of reading the inserted row directly. This has been fixed.
 - Outbound BinkP packet writing now parses FTN addresses more defensively, avoiding warnings on malformed addresses instead of failing outright.
+
+### BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers
+
+- BinkP sessions that transferred every file successfully could still be logged as a failed session by the remote mailer (for example binkd logging `connection closed by foreign host` and marking the session `failed`), because we closed the TCP socket immediately after the protocol finished instead of shutting it down gracefully. This has been fixed.
 
 ---
 
@@ -84,6 +90,14 @@ If you'd rather keep an area's message history intact, uncheck **Active** on the
 `EchoareaManager::createIfMissing()` previously determined the ID of a newly created echo area with `PDO::lastInsertId()`. On Postgres, this reads the last value returned by *any* sequence used in the current database session, not necessarily the sequence for the row just inserted. In rare cases — for example when other inserts had run earlier in the same request — this could hand back the wrong echo area ID to the caller. The insert now uses `INSERT ... RETURNING id` and reads the ID directly from the inserted row, which is always correct.
 
 Outbound BinkP packet generation (`BinkdProcessor::writeMessage()`) also parses FTN addresses (origin, destination, and system address for SEEN-BY/PATH lines) through a new `parseFtnAddressParts()` helper instead of raw `explode()`/`list()` calls. The old code could throw a PHP warning or fail outright when handed a malformed or incomplete address; the new parser fills in `0` for any missing zone/net/node/point component instead.
+
+## BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers
+
+Some BinkP sessions with remote systems — most visibly ones running binkd — would show the entire session as failed in the remote's log even though every file was transferred and confirmed. A typical remote-side log would show all files sent, all `GOT` confirmations received, and then an unexpected `connection closed by foreign host` followed by the session being marked `failed`.
+
+The cause was in how our BinkP session closed the connection once the protocol finished. As soon as both sides had exchanged their end-of-batch signal, we closed the TCP socket immediately, without giving the connection a graceful shutdown. If the remote had already written additional bytes to the connection at that point (for example, some binkd builds send a second, redundant end-of-batch frame right after the first), those bytes could still be sitting unread in our machine's network buffer at the moment we closed the socket. Closing a socket with unread data still pending causes the operating system to tear down the connection abruptly instead of with a normal close — and that abrupt teardown is what the remote mailer was logging as a failure.
+
+The connection close now shuts down the outbound side of the socket first, briefly drains any bytes the remote already sent, and only then closes the socket. This does not change file transfer behavior in any way; it only affects how the connection is torn down at the very end of an already-completed session, and applies to both inbound and outbound BinkP sessions.
 
 ## Upgrade Instructions
 

@@ -2134,8 +2134,58 @@ class BinkpSession
     {
         $this->cleanup();
         if ($this->socket && is_resource($this->socket)) {
+            $this->drainAndShutdownSocket($this->socket);
             fclose($this->socket);
             $this->socket = null;
+        }
+    }
+
+    /**
+     * Half-close the write side and drain any bytes the peer already sent
+     * before hard-closing the socket.
+     *
+     * If we stop reading as soon as the protocol logically ends (e.g. right
+     * after parsing the peer's M_EOB frame), bytes the peer wrote in the same
+     * TCP segment — such as binkd sending a trailing duplicate M_EOB — can be
+     * left unread in the kernel receive buffer. Closing a socket with unread
+     * data still pending causes the OS to send an abortive close (RST)
+     * instead of a graceful FIN, which some binkd builds log/report as a
+     * failed session even though every file transferred successfully.
+     */
+    private function drainAndShutdownSocket($socket): void
+    {
+        if (!@stream_socket_shutdown($socket, STREAM_SHUT_WR)) {
+            return;
+        }
+
+        $deadline = microtime(true) + 1.0;
+        $idleSince = null;
+
+        while (microtime(true) < $deadline) {
+            $read = [$socket];
+            $write = null;
+            $except = null;
+            $result = @stream_select($read, $write, $except, 0, 100000);
+            if ($result === false) {
+                break;
+            }
+
+            if ($result === 0) {
+                // No data pending; give the peer a brief moment to react to
+                // our FIN before we stop waiting.
+                if ($idleSince === null) {
+                    $idleSince = microtime(true);
+                } elseif (microtime(true) - $idleSince > 0.2) {
+                    break;
+                }
+                continue;
+            }
+
+            $idleSince = null;
+            $chunk = @fread($socket, 8192);
+            if ($chunk === false || $chunk === '') {
+                break; // Peer closed its side too.
+            }
         }
     }
 }
