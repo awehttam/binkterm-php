@@ -2155,11 +2155,16 @@ class BinkpSession
     private function drainAndShutdownSocket($socket): void
     {
         if (!@stream_socket_shutdown($socket, STREAM_SHUT_WR)) {
+            $this->log("Socket drain: shutdown(SHUT_WR) failed, closing without draining", 'DEBUG');
             return;
         }
 
+        $this->log("Socket drain: write side shut down, draining before close", 'DEBUG');
+
         $deadline = microtime(true) + 1.0;
         $idleSince = null;
+        $drainedBytes = 0;
+        $drainedChunks = 0;
 
         while (microtime(true) < $deadline) {
             $read = [$socket];
@@ -2167,6 +2172,7 @@ class BinkpSession
             $except = null;
             $result = @stream_select($read, $write, $except, 0, 100000);
             if ($result === false) {
+                $this->log("Socket drain: stream_select() error, aborting drain", 'DEBUG');
                 break;
             }
 
@@ -2176,6 +2182,7 @@ class BinkpSession
                 if ($idleSince === null) {
                     $idleSince = microtime(true);
                 } elseif (microtime(true) - $idleSince > 0.2) {
+                    $this->log("Socket drain: idle timeout reached, {$drainedChunks} chunk(s)/{$drainedBytes} byte(s) drained", 'DEBUG');
                     break;
                 }
                 continue;
@@ -2184,8 +2191,17 @@ class BinkpSession
             $idleSince = null;
             $chunk = @fread($socket, 8192);
             if ($chunk === false || $chunk === '') {
+                $this->log("Socket drain: peer closed its side, {$drainedChunks} chunk(s)/{$drainedBytes} byte(s) drained", 'DEBUG');
                 break; // Peer closed its side too.
             }
+
+            $drainedChunks++;
+            $drainedBytes += strlen($chunk);
+            $this->log("Socket drain: read " . strlen($chunk) . " trailing byte(s) from peer after close", 'DEBUG');
+        }
+
+        if (microtime(true) >= $deadline) {
+            $this->log("Socket drain: 1s deadline reached, {$drainedChunks} chunk(s)/{$drainedBytes} byte(s) drained", 'DEBUG');
         }
     }
 }
