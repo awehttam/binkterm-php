@@ -38,7 +38,7 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
 
 ## Project Structure
 
- - src/ - main source code
+ - src/ - main source code. See `src/Binkp/CLAUDE.md` for BinkP protocol implementation notes.
  - routes/ - HTTP route definitions (api-routes.php, web-routes.php, admin-routes.php, etc.)
  - config/ - runtime configuration files (binkp.json, bbs.json, webdoors.json, etc.) and i18n catalogs
  - scripts/ - CLI tools (binkp_server, binkp_poll, maintenance scripts, etc.). See `scripts/CLAUDE.md` for CLI script rules.
