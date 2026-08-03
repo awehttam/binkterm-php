@@ -3366,6 +3366,8 @@ return [
     'ui.binkp.loading_system_information' => 'Cargando informacion del sistema...',
     'ui.binkp.uplink_status' => 'Estado de uplinks',
     'ui.binkp.loading_uplink_status' => 'Cargando estado de uplinks...',
+    'ui.binkp.network' => 'Red',
+    'ui.binkp.node_number' => 'Número de nodo',
     'ui.binkp.poll_all' => 'Consultar todos',
     'ui.binkp.configured_uplinks' => 'Uplinks configurados',
     'ui.binkp.uplink' => 'Uplink',

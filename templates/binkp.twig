@@ -96,8 +96,27 @@
                                  <i class="fas fa-sync"></i> {{ t('ui.binkp.poll_all') }}
                             </button>
                         </div>
-                        <div class="card-body" id="uplink-status">
-                            {{ t('ui.binkp.loading_uplink_status') }}
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped mb-0" id="uplink-status-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="sortable" data-sort-key="network_name" style="cursor: pointer;">
+                                                {{ t('ui.binkp.network') }} <i class="fas fa-sort ms-1"></i>
+                                            </th>
+                                            <th class="sortable" data-sort-key="address" style="cursor: pointer;">
+                                                {{ t('ui.binkp.node_number') }} <i class="fas fa-sort ms-1"></i>
+                                            </th>
+                                            <th class="sortable" data-sort-key="status" style="cursor: pointer;">
+                                                {{ t('ui.binkp.status') }} <i class="fas fa-sort ms-1"></i>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="uplink-status">
+                                        <tr><td colspan="3">{{ t('ui.binkp.loading_uplink_status') }}</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -450,6 +469,19 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('addUplinkModal').addEventListener('shown.bs.modal', function () {
         CronBuilder.refresh('pollScheduleInput');
     });
+    document.querySelectorAll('#uplink-status-table th[data-sort-key]').forEach(function(th) {
+        th.addEventListener('click', function() {
+            const key = th.getAttribute('data-sort-key');
+            if (uplinkStatusSort.key === key) {
+                uplinkStatusSort.dir = uplinkStatusSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                uplinkStatusSort.key = key;
+                uplinkStatusSort.dir = 'asc';
+            }
+            updateUplinkStatusSortIcons();
+            renderUplinkStatusList(binkpUplinks);
+        });
+    });
 });
 
 function refreshBinkpOverview() {
@@ -523,7 +555,7 @@ function refreshUplinks() {
         })
         .catch(error => {
             console.error('Error fetching uplinks:', error);
-            document.getElementById('uplink-status').innerHTML = `<div class="alert alert-danger">${uiT('ui.binkp.error_loading_uplinks_prefix', 'Error loading uplinks:')} ${escapeHtml(error.message)}</div>`;
+            document.getElementById('uplink-status').innerHTML = `<tr><td colspan="3" class="text-danger">${uiT('ui.binkp.error_loading_uplinks_prefix', 'Error loading uplinks:')} ${escapeHtml(error.message)}</td></tr>`;
             const tbody = document.querySelector('#uplinksTable tbody');
             if (tbody) {
                 tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${uiT('ui.binkp.error_loading_uplinks_prefix', 'Error loading uplinks:')} ${escapeHtml(error.message)}</td></tr>`;
@@ -531,34 +563,73 @@ function refreshUplinks() {
         });
 }
 
+let uplinkStatusSort = { key: 'network_name', dir: 'asc' };
+
+function getUplinkStatusSortValue(uplink, key) {
+    if (key === 'address') {
+        return String(uplink.address || '');
+    }
+    if (key === 'status') {
+        return uplink.enabled ? '1' : '0';
+    }
+    return String(uplink.network_name || uplink.domain || '');
+}
+
+function sortUplinksForStatusList(uplinks) {
+    const { key, dir } = uplinkStatusSort;
+    const factor = dir === 'desc' ? -1 : 1;
+    return uplinks.slice().sort((a, b) => {
+        const va = getUplinkStatusSortValue(a, key);
+        const vb = getUplinkStatusSortValue(b, key);
+        return factor * va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
+    });
+}
+
+function updateUplinkStatusSortIcons() {
+    document.querySelectorAll('#uplink-status-table th[data-sort-key]').forEach(function(th) {
+        const icon = th.querySelector('i.fas');
+        if (!icon) {
+            return;
+        }
+        if (th.getAttribute('data-sort-key') !== uplinkStatusSort.key) {
+            icon.className = 'fas fa-sort ms-1';
+            return;
+        }
+        icon.className = uplinkStatusSort.dir === 'asc' ? 'fas fa-sort-up ms-1' : 'fas fa-sort-down ms-1';
+    });
+}
+
 function renderUplinkStatusList(uplinks) {
     const uplinkStatus = document.getElementById('uplink-status');
     if (!Array.isArray(uplinks) || uplinks.length === 0) {
-        uplinkStatus.innerHTML = `<p class="text-muted">${uiT('ui.binkp.no_uplinks_configured', 'No uplinks configured')}</p>`;
+        uplinkStatus.innerHTML = `<tr><td colspan="3" class="text-muted">${uiT('ui.binkp.no_uplinks_configured', 'No uplinks configured')}</td></tr>`;
         return;
     }
 
+    const sortedUplinks = sortUplinksForStatusList(uplinks);
+
     let html = '';
-    uplinks.forEach(uplink => {
+    sortedUplinks.forEach(uplink => {
         const address = String(uplink.address || '');
         const escapedAddress = escapeHtml(address);
+        const networkName = String(uplink.network_name || uplink.domain || '');
         const enabledBadge = uplink.enabled
-            ? `<span class="badge bg-success ms-2">${uiT('ui.binkp.enabled', 'Enabled')}</span>`
-            : `<span class="badge bg-secondary ms-2">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
+            ? `<span class="badge bg-success">${uiT('ui.binkp.enabled', 'Enabled')}</span>`
+            : `<span class="badge bg-secondary">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
         const initialStatus = getInitialUplinkConnectivityResult(uplink);
         const statusHtml = initialStatus !== null
             ? renderUplinkConnectivityHtml(initialStatus)
             : renderCheckStatusIcon(address);
 
         html += `
-            <div class="d-flex justify-content-between align-items-center mb-2" data-uplink-list-row="${escapeHtmlAttr(address)}">
-                <div>
-                    <span>${escapedAddress}</span>${enabledBadge}
-                </div>
-                <div data-uplink-list-status="${escapeHtmlAttr(address)}">
-                    ${statusHtml}
-                </div>
-            </div>
+            <tr data-uplink-list-row="${escapeHtmlAttr(address)}">
+                <td>${escapeHtml(networkName)}</td>
+                <td>${escapedAddress}</td>
+                <td>
+                    <div>${enabledBadge}</div>
+                    <div class="mt-1" data-uplink-list-status="${escapeHtmlAttr(address)}">${statusHtml}</div>
+                </td>
+            </tr>
         `;
     });
 

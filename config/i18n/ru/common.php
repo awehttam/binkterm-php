@@ -3390,6 +3390,8 @@ return [
     'ui.binkp.loading_system_information' => 'Загрузка системной информации…',
     'ui.binkp.uplink_status' => 'Статус аплинка',
     'ui.binkp.loading_uplink_status' => 'Загрузка статуса аплинка…',
+    'ui.binkp.network' => 'Сеть',
+    'ui.binkp.node_number' => 'Номер узла',
     'ui.binkp.poll_all' => 'Опросить все',
     'ui.binkp.configured_uplinks' => 'Настроенные аплинки',
     'ui.binkp.uplink' => 'Аплинк',

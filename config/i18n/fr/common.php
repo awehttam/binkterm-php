@@ -2782,6 +2782,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.binkp.loading_system_information' => 'Chargement des informations système...',
     'ui.binkp.uplink_status' => 'État des uplinks',
     'ui.binkp.loading_uplink_status' => 'Chargement de l\'état des uplinks...',
+    'ui.binkp.network' => 'Réseau',
+    'ui.binkp.node_number' => 'Numéro de nœud',
     'ui.binkp.poll_all' => 'Interroger tout',
     'ui.binkp.configured_uplinks' => 'Uplinks configurés',
     'ui.binkp.uplink' => 'Uplink',

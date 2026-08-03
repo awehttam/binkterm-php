@@ -3383,6 +3383,8 @@ return [
     'ui.binkp.loading_system_information' => 'Loading system information...',
     'ui.binkp.uplink_status' => 'Uplink Status',
     'ui.binkp.loading_uplink_status' => 'Loading uplink status...',
+    'ui.binkp.network' => 'Network',
+    'ui.binkp.node_number' => 'Node Number',
     'ui.binkp.poll_all' => 'Poll All',
     'ui.binkp.configured_uplinks' => 'Configured Uplinks',
     'ui.binkp.uplink' => 'Uplink',

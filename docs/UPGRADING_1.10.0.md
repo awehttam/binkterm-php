@@ -11,12 +11,14 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Echo Area Deletion: Move or Delete Remaining Messages](#echo-area-deletion-move-or-delete-remaining-messages)
   - [Echo Area Creation ID Fix and FTN Address Parsing Hardening](#echo-area-creation-id-fix-and-ftn-address-parsing-hardening)
   - [BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers](#binkp-session-close-could-be-reported-as-a-failed-session-by-remote-mailers)
+  - [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
 - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch-1)
 - [Echo Area Deletion: Move or Delete Remaining Messages](#echo-area-deletion-move-or-delete-remaining-messages-1)
 - [Echo Area Creation ID Fix and FTN Address Parsing Hardening](#echo-area-creation-id-fix-and-ftn-address-parsing-hardening-1)
 - [BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers](#binkp-session-close-could-be-reported-as-a-failed-session-by-remote-mailers-1)
+- [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -48,6 +50,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - BinkP sessions that transferred every file successfully could still be logged as a failed session by the remote mailer (for example binkd logging `connection closed by foreign host` and marking the session `failed`), because our side closed the connection as soon as it had exchanged end-of-batch signals once, instead of waiting for a second round-trip that some mailers (including binkd) require before they'll close cleanly on their own. This has been fixed.
 - A new `BINKP_LOG_LEVEL` `.env` setting lets you turn on DEBUG logging for `binkp_server.php`, `binkp_poll.php`, and `binkp_scheduler.php` without changing how those processes are launched — useful for supervised daemons where you can't easily add a `--log-level=DEBUG` flag.
+
+### Uplink Status Card Now Shows Network Name and Is Sortable
+
+- The Uplink Status card on the **Binkp Status** admin page (Overview tab) is now a table with **Network**, **Node Number**, and **Status** columns instead of a plain list, and each column header can be clicked to sort.
 
 ---
 
@@ -101,6 +107,12 @@ The cause was a mismatch in how the two sides decided the session was over. bink
 Our BinkP session now always replies to an incoming end-of-batch signal, no matter how many times the remote sends one, and no longer closes the connection the instant one exchange completes. Termination is now driven primarily by the remote closing the connection on its own once *it* considers the session finished — which is now treated as the normal, successful end of a session rather than an error — with a short grace period as a fallback for mailers that instead expect us to close first. This does not change file transfer behavior in any way; it only affects how and when the session is torn down at the very end, and applies to both inbound and outbound BinkP sessions.
 
 If you're troubleshooting a similar report, `binkp_server.php`, `binkp_poll.php`, and `binkp_scheduler.php` can now be switched to `DEBUG` logging via a `BINKP_LOG_LEVEL` `.env` setting, without changing how those processes are launched — useful for a process managed by systemd or cron where adding a `--log-level=DEBUG` flag isn't practical. See `docs/CONFIGURATION.md` for details.
+
+## Uplink Status Card Now Shows Network Name and Is Sortable
+
+The Uplink Status card on the **Binkp Status** admin page previously listed each uplink as a plain row showing only its node address and connectivity state, with no indication of which network it belonged to.
+
+That card is now a table with three columns — **Network**, **Node Number**, and **Status** — so the two pieces of identifying information line up in their own columns instead of being crammed together. The network name is resolved from the uplink's configured domain via **Admin → Networks**; if a domain has no matching network record, the raw domain string is shown instead. Clicking any column header sorts the table by that column, toggling between ascending and descending order.
 
 ## Upgrade Instructions
 

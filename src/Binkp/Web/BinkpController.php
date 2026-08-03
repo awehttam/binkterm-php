@@ -23,6 +23,7 @@ use BinktermPHP\Binkp\Queue\InboundQueue;
 use BinktermPHP\Binkp\Queue\OutboundQueue;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Auth;
+use BinktermPHP\NetworkManager;
 
 class BinkpController
 {
@@ -158,9 +159,17 @@ class BinkpController
     
     public function getUplinks()
     {
+        $networkManager = new NetworkManager();
+        $uplinks = array_map(function ($uplink) use ($networkManager) {
+            $domain = $uplink['domain'] ?? '';
+            $network = $domain !== '' ? $networkManager->getByDomain($domain) : null;
+            $uplink['network_name'] = $network['name'] ?? $domain;
+            return $uplink;
+        }, $this->config->getUplinks());
+
         return [
             'success' => true,
-            'uplinks' => $this->config->getUplinks()
+            'uplinks' => $uplinks
         ];
     }
     
