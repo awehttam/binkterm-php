@@ -19,6 +19,7 @@ function showUsage()
     echo "  --port=PORT       Override port for connection\n";
     echo "  --password=PASS   Override password for connection\n";
     echo "  --log-level=LEVEL Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL\n";
+    echo "                    (falls back to the BINKP_LOG_LEVEL .env variable, then INFO)\n";
     echo "  --log-file=FILE   Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_poll.log') . ")\n";
     echo "  --no-console      Disable console logging\n";
     echo "  --quiet           Minimal output\n";
@@ -99,7 +100,7 @@ if (isset($args['help'])) {
 try {
     $config = BinkpConfig::getInstance();
     $queued_only=false;
-    $logLevel = isset($args['log-level']) ? $args['log-level'] : 'INFO';
+    $logLevel = isset($args['log-level']) ? $args['log-level'] : \BinktermPHP\Config::env('BINKP_LOG_LEVEL', 'INFO');
     $logFile = isset($args['log-file']) ? $args['log-file'] : \BinktermPHP\Config::getLogPath('binkp_poll.log');
     if(isset($args['queued-only'])){
         $queued_only=true;
