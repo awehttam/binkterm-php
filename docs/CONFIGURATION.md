@@ -250,6 +250,13 @@ PERF_LOG_SLOW_MS=500
 # Set this to true to delete stale unprocessed files instead of quarantining them
 # BINKP_DELETE_UNPROCESSED_FILES=false
 
+# Log level for binkp_server.php, binkp_poll.php, and binkp_scheduler.php
+# when no --log-level CLI flag is passed. Useful for turning on DEBUG
+# logging for a supervised daemon (systemd, cron) without editing how
+# it's launched — set this, restart the daemon, then set it back.
+# DEBUG, INFO, WARNING, ERROR, CRITICAL
+# BINKP_LOG_LEVEL=INFO
+
 # Archive extractors for Fidonet bundles (JSON array)
 # ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]
 

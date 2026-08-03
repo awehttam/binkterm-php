@@ -47,6 +47,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers
 
 - BinkP sessions that transferred every file successfully could still be logged as a failed session by the remote mailer (for example binkd logging `connection closed by foreign host` and marking the session `failed`), because we closed the TCP socket immediately after the protocol finished instead of shutting it down gracefully. This has been fixed.
+- A new `BINKP_LOG_LEVEL` `.env` setting lets you turn on DEBUG logging for `binkp_server.php`, `binkp_poll.php`, and `binkp_scheduler.php` without changing how those processes are launched — useful for supervised daemons where you can't easily add a `--log-level=DEBUG` flag.
 
 ---
 
@@ -98,6 +99,8 @@ Some BinkP sessions with remote systems — most visibly ones running binkd — 
 The cause was in how our BinkP session closed the connection once the protocol finished. As soon as both sides had exchanged their end-of-batch signal, we closed the TCP socket immediately, without giving the connection a graceful shutdown. If the remote had already written additional bytes to the connection at that point (for example, some binkd builds send a second, redundant end-of-batch frame right after the first), those bytes could still be sitting unread in our machine's network buffer at the moment we closed the socket. Closing a socket with unread data still pending causes the operating system to tear down the connection abruptly instead of with a normal close — and that abrupt teardown is what the remote mailer was logging as a failure.
 
 The connection close now shuts down the outbound side of the socket first, briefly drains any bytes the remote already sent, and only then closes the socket. This does not change file transfer behavior in any way; it only affects how the connection is torn down at the very end of an already-completed session, and applies to both inbound and outbound BinkP sessions.
+
+To make it easier to confirm the drain is happening (or diagnose further if a similar report ever comes in again), the socket drain logs its steps at `DEBUG` level. `binkp_server.php`, `binkp_poll.php`, and `binkp_scheduler.php` previously only switched to `DEBUG` logging via a `--log-level=DEBUG` command-line flag, which isn't practical for a process managed by systemd or cron without editing the service definition. All three now also accept a `BINKP_LOG_LEVEL` value from `.env` as a fallback when no `--log-level` flag is given, so you can set `BINKP_LOG_LEVEL=DEBUG`, restart the daemon, and set it back once you have what you need. See `docs/CONFIGURATION.md` for details.
 
 ## Upgrade Instructions
 
