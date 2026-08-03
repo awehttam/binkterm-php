@@ -74,6 +74,18 @@ class BinkpSession
     private $useCramAuth = false;         // Using CRAM for this session?
     private $authMethod = 'plaintext';    // Authentication method used
 
+    // EOB handshake tracking. binkd treats each M_EOB as ending a "batch";
+    // for any batch with more than a couple of protocol messages in it
+    // (i.e. almost every real transfer), binkd does not close the session on
+    // the first EOB round-trip -- it silently starts a second, normally
+    // empty batch and expects a fresh M_EOB reply before it will close the
+    // connection itself. haveSentEob/haveReceivedEob track whether we've
+    // been through at least one full round, which gates when it's safe to
+    // treat the peer closing the connection as a clean, successful end of
+    // session rather than an error.
+    private bool $haveSentEob = false;
+    private bool $haveReceivedEob = false;
+
     public function __construct($socket, $isOriginator = false, $config = null)
     {
         $this->socket = $socket;
@@ -489,6 +501,20 @@ class BinkpSession
 
             $this->log("Waiting for session termination (state: {$this->state})", 'DEBUG');
 
+            // Grace period after we've decided we're ready to close, before we actually
+            // do so ourselves. binkd does not close a session on the first EOB round-trip
+            // when the batch it just finished carried more than a couple of protocol
+            // messages (true for almost any real transfer) -- it silently starts a second,
+            // normally-empty batch and only closes once it gets a fresh M_EOB reply for
+            // that batch too. We already answer every M_EOB we receive (see
+            // processTransferFrame), so in practice binkd closes its side within
+            // milliseconds of our reply. This grace period exists so we don't race to
+            // close first (which some binkd builds log as a failed session even though
+            // the transfer completed) while still self-closing for peers that expect us
+            // to hang up first.
+            $idleCloseGraceSeconds = 3;
+            $readyToCloseSince = null;
+
             while ($this->state < self::STATE_TERMINATED) {
                 $elapsed = time() - $eobWaitStart;
                 $inactivity = time() - $lastActivity;
@@ -522,19 +548,26 @@ class BinkpSession
                     // Sent M_GET but no files yet and still within the wait window.
                     $mgetPending = $this->freqRequestsSent && empty($this->filesReceived)
                         && $inactivity < 10;
-                    // Safe to terminate only when no FREQ response is still pending.
+                    // Ready to close only when no FREQ response is still pending.
                     $bothEobDone = !$reqFilePending && !$mgetPending;
                     if ($sentNothing || $freqOnlyDone || $gotFreqResponse || $bothEobDone) {
-                        $reason = $sentNothing    ? 'nothing sent'
-                            : ($freqOnlyDone      ? 'FREQ-only (M_GET) session complete'
-                            : ($gotFreqResponse   ? 'FREQ .req response received, both EOBs done'
-                            : ($reqFilePending    ? 'still waiting for .req response'
-                            : ($mgetPending       ? 'still waiting for M_GET response'
-                            : 'both EOBs exchanged, no active transfer'))));
-                        $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
-                        $this->state = self::STATE_TERMINATED;
-                        break;
+                        if ($readyToCloseSince === null) {
+                            $reason = $sentNothing    ? 'nothing sent'
+                                : ($freqOnlyDone      ? 'FREQ-only (M_GET) session complete'
+                                : ($gotFreqResponse   ? 'FREQ .req response received, both EOBs done'
+                                : 'both EOBs exchanged, no active transfer'));
+                            $this->log("EOB exchange complete ({$reason}); waiting up to {$idleCloseGraceSeconds}s for peer to close first", 'DEBUG');
+                            $readyToCloseSince = time();
+                        } elseif (time() - $readyToCloseSince >= $idleCloseGraceSeconds) {
+                            $this->log("Peer did not close within {$idleCloseGraceSeconds}s of EOB exchange completing, closing ourselves", 'DEBUG');
+                            $this->state = self::STATE_TERMINATED;
+                            break;
+                        }
+                    } else {
+                        $readyToCloseSince = null; // still legitimately waiting (e.g. FREQ response window)
                     }
+                } else {
+                    $readyToCloseSince = null;
                 }
 
                 // Only enforce the hard EOB timeout when we are not actively receiving a file.
@@ -559,17 +592,47 @@ class BinkpSession
                 // Use non-blocking mode with short timeout to prevent indefinite blocking
                 $frame = BinkpFrame::parseFromSocket($this->socket, true);
                 if (!$frame) {
+                    $diag = BinkpFrame::getLastReadDiagnostics();
+                    if (($diag['reason'] ?? null) === 'eof') {
+                        if ($this->haveSentEob && $this->haveReceivedEob) {
+                            $this->log("Peer closed the connection after EOB exchange - session complete", 'DEBUG');
+                            $this->state = self::STATE_TERMINATED;
+                        } else {
+                            $this->log("Peer closed the connection before EOB exchange completed (state: {$this->state})", 'WARNING');
+                        }
+                        break;
+                    }
                     usleep(100000); // 100ms delay
                     continue;
                 }
 
                 $lastActivity = time();
+                $readyToCloseSince = null; // fresh activity - restart the close grace period
                 if ($hasActiveTransfer) {
                     // Keep the EOB timeout anchored to idle/EOB time, not active transfer time.
                     $eobWaitStart = $lastActivity;
                 }
                 $this->log("Received: " . $this->formatReceivedFrameForLog($frame), 'DEBUG');
                 $this->processTransferFrame($frame);
+
+                // A real M_GOT can arrive here for a file the earlier wait loop gave up on
+                // (e.g. the remote's M_EOB overtook its M_GOT on the wire). Clear it from
+                // $pendingFiles so the deferred implicit-confirm cleanup below doesn't try
+                // to "confirm" an already-deleted file and log a spurious warning.
+                if (!empty($pendingFiles) && $frame->isCommand() && $frame->getCommand() === BinkpFrame::M_GOT) {
+                    $confirmedFile = explode(' ', $frame->getData())[0] ?? '';
+                    if (isset($pendingFiles[$confirmedFile])) {
+                        unset($pendingFiles[$confirmedFile]);
+                    } else {
+                        $baseName = basename($confirmedFile);
+                        foreach (array_keys($pendingFiles) as $pendingFile) {
+                            if (basename($pendingFile) === $baseName) {
+                                unset($pendingFiles[$pendingFile]);
+                                break;
+                            }
+                        }
+                    }
+                }
             }
 
             // Deferred implicit-confirm cleanup: delete any sent files that the remote
@@ -774,21 +837,19 @@ class BinkpSession
 
                 case BinkpFrame::M_EOB:
                     $this->log("Received M_EOB (current state: {$this->state})", 'DEBUG');
-                    if ($this->state === self::STATE_EOB_SENT) {
-                        $this->log("Both sides sent EOB - terminating session", 'DEBUG');
-                        $this->state = self::STATE_TERMINATED;
-                    } elseif ($this->state === self::STATE_EOB_RECEIVED) {
-                        $this->log("EOB already received - terminating session", 'DEBUG');
-                        $this->state = self::STATE_TERMINATED;
-                    } else {
-                        $this->log("Received EOB first - sending our EOB", 'DEBUG');
-                        $this->sendEOB();
-                        // Always move to EOB_RECEIVED so the EOB wait loop keeps running.
-                        // Some remotes (e.g. areafix systems) process our inbound packet and
-                        // then send M_FILE in the same session after already having sent M_EOB.
-                        // The EOB wait loop will terminate cleanly via the inactivity check.
-                        $this->state = self::STATE_EOB_RECEIVED;
-                    }
+                    $this->haveReceivedEob = true;
+                    // Always answer an incoming EOB with our own, even if we've already
+                    // exchanged EOB earlier in this session. We do not terminate here:
+                    // binkd only closes once ITS OWN batch bookkeeping is satisfied for
+                    // an EOB round, which for any batch with real traffic in it means a
+                    // second, normally-empty round-trip after the first. Replying every
+                    // time (instead of once) satisfies that without us needing to
+                    // replicate binkd's internal batch/message counting. Termination is
+                    // driven by the EOB wait loop noticing the peer close the connection
+                    // (the normal, expected end of session) or, as a fallback for peers
+                    // that expect us to hang up first, an idle timeout.
+                    $this->sendEOB();
+                    $this->state = self::STATE_EOB_RECEIVED;
                     break;
 
                 case BinkpFrame::M_GOT:
@@ -904,6 +965,7 @@ class BinkpSession
     {
         $frame = BinkpFrame::createCommand(BinkpFrame::M_EOB, '');
         $frame->writeToSocket($this->socket);
+        $this->haveSentEob = true;
         $this->log("Sent EOB", 'DEBUG');
     }
 
