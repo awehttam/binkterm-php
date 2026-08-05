@@ -12,6 +12,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Echo Area Creation ID Fix and FTN Address Parsing Hardening](#echo-area-creation-id-fix-and-ftn-address-parsing-hardening)
   - [BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers](#binkp-session-close-could-be-reported-as-a-failed-session-by-remote-mailers)
   - [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable)
+  - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
 - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch-1)
@@ -19,6 +20,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Echo Area Creation ID Fix and FTN Address Parsing Hardening](#echo-area-creation-id-fix-and-ftn-address-parsing-hardening-1)
 - [BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers](#binkp-session-close-could-be-reported-as-a-failed-session-by-remote-mailers-1)
 - [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable-1)
+- [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -54,6 +56,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Uplink Status Card Now Shows Network Name and Is Sortable
 
 - The Uplink Status card on the **Binkp Status** admin page (Overview tab) is now a table with **Network**, **Node Number**, and **Status** columns instead of a plain list, and each column header can be clicked to sort.
+
+### Fresh Installs Now Get the Full Set of Built-In Themes
+
+- Installs without a `config/themes.json` file previously only offered **Regular** and **Dark** in the theme picker. They now also offer **Amber**, **Cyberpunk**, and **Green Term**, matching `config/themes.json.example`.
 
 ---
 
@@ -113,6 +119,12 @@ If you're troubleshooting a similar report, `binkp_server.php`, `binkp_poll.php`
 The Uplink Status card on the **Binkp Status** admin page previously listed each uplink as a plain row showing only its node address and connectivity state, with no indication of which network it belonged to.
 
 That card is now a table with three columns — **Network**, **Node Number**, and **Status** — so the two pieces of identifying information line up in their own columns instead of being crammed together. The network name is resolved from the uplink's configured domain via **Admin → Networks**; if a domain has no matching network record, the raw domain string is shown instead. Clicking any column header sorts the table by that column, toggling between ascending and descending order.
+
+## Fresh Installs Now Get the Full Set of Built-In Themes
+
+`Config::getThemes()` falls back to a hardcoded theme list whenever `config/themes.json` doesn't exist yet, which is the case on every fresh install until a sysop creates that file. That fallback previously only listed **Regular** and **Dark**, even though the codebase ships four other stylesheets (`amber.css`, `cyberpunk.css`, `greenterm.css`) that were only reachable by manually creating `config/themes.json`.
+
+The fallback now matches `config/themes.json.example`, so a fresh install's theme picker shows **Amber**, **Cyberpunk**, **Dark**, **Green Term**, and **Regular** without any extra setup. If you already have a `config/themes.json` file, this change has no effect on you — your file continues to take precedence.
 
 ## Upgrade Instructions
 
