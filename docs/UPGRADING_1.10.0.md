@@ -15,6 +15,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes)
   - [Docker Image Was Missing Required PHP Extensions](#docker-image-was-missing-required-php-extensions)
   - [Docker: BinkStream Realtime Server Was Not Started or Reachable](#docker-binkstream-realtime-server-was-not-started-or-reachable)
+  - [Docker: PHP Fatal Errors Were Silently Lost](#docker-php-fatal-errors-were-silently-lost)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
 - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch-1)
@@ -137,6 +138,15 @@ The fallback now matches `config/themes.json.example`, so a fresh install's them
 - `docker/supervisord.conf` never started `scripts/realtime_server.php`, the WebSocket server behind BinkStream (the real-time event bus used for live updates in the browser interface). A `[program:realtime_server]` entry has been added alongside the existing `admin_daemon` entry so it now starts automatically with the rest of the daemons.
 - The Docker image's Apache config also has no WebSocket reverse proxy set up (unlike the bare-metal install guide, which configures `mod_proxy_wstunnel` in front of this same daemon), and Apache in this image only listens on plain HTTP, so there was no way to reach the daemon from outside the container even once it was running. Port `6010` (`BINKSTREAM_WS_PORT`) is now published in `docker-compose.yml` and `EXPOSE`d in the `Dockerfile`, and the daemon binds `0.0.0.0` instead of `127.0.0.1` (via a new `BINKSTREAM_WS_BIND_HOST` setting) so it's reachable on that port directly. If you terminate TLS with a reverse proxy in front of BinktermPHP, proxy `wss://` traffic for this port through to it the same way you would `https://` traffic to `HTTP_PORT`.
 - Rebuild your image (`docker-compose build --no-cache`) and recreate the container to pick up the updated supervisord, `Dockerfile`, and `docker-compose.yml` configuration.
+
+### Docker: PHP Fatal Errors Were Silently Lost
+
+- The `php:8.2-apache` base image ships with no `php.ini` at all, only the fragments that enable individual extensions. That leaves PHP on its compiled-in defaults: `log_errors` off and no `error_log` target, with `display_errors` on. A PHP fatal error (for example, the missing-`mbstring` crash described above) was therefore only ever written inline into the raw HTTP response body — for a JSON/AJAX endpoint the frontend's JSON parse just silently failed and fell back to a generic error message, and the actual error text never reached any log file or `docker-compose logs` output, making this class of failure effectively undiagnosable from inside the container.
+- A new `docker/php-error-logging.ini` is now installed into `/usr/local/etc/php/conf.d/` that turns `display_errors` off, turns `log_errors` on, and points `error_log` at `data/logs/php_errors.log` (alongside the application's existing log files). PHP fatal errors, parse errors, and warnings now show up there instead of vanishing:
+  ```bash
+  docker exec -it binkterm-app tail -f /var/www/html/data/logs/php_errors.log
+  ```
+- Rebuild your image (`docker-compose build --no-cache`) and recreate the container to pick up the new `php.ini` fragment.
 
 ## Upgrade Instructions
 
