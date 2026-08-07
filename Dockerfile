@@ -30,6 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
         libgmp-dev \
         libpq-dev \
+        libxml2-dev \
         libzip-dev \
         nodejs \
         p7zip-full \
