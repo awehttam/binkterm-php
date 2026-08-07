@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
+        libgmp-dev \
         libpq-dev \
         libzip-dev \
         nodejs \
@@ -37,7 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         unzip \
         # DOSBox-X for DOS door support with headless operation
         dosbox-x \
-    && docker-php-ext-install -j"$(nproc)" pcntl posix pdo pdo_pgsql pgsql sockets zip \
+    && docker-php-ext-install -j"$(nproc)" dom gmp mbstring pcntl posix pdo pdo_pgsql pgsql sockets xml zip \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
