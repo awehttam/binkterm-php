@@ -51,8 +51,10 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy composer files and install dependencies
-COPY composer.json composer.lock ./
+# Copy composer files and install dependencies.
+# composer.lock is not committed to the repo, so only composer.json is copied here;
+# composer resolves and locks versions fresh at build time.
+COPY composer.json ./
 RUN composer install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
 
 # Copy application files
