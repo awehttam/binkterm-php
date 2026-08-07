@@ -14,7 +14,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable)
   - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes)
   - [Docker Image Was Missing Required PHP Extensions](#docker-image-was-missing-required-php-extensions)
-  - [Docker: BinkStream Realtime Server Was Not Started](#docker-binkstream-realtime-server-was-not-started)
+  - [Docker: BinkStream Realtime Server Was Not Started or Reachable](#docker-binkstream-realtime-server-was-not-started-or-reachable)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
 - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch-1)
@@ -23,8 +23,6 @@ Make sure you have a current backup of your database and files before upgrading.
 - [BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers](#binkp-session-close-could-be-reported-as-a-failed-session-by-remote-mailers-1)
 - [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable-1)
 - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes-1)
-- [Docker Image Was Missing Required PHP Extensions](#docker-image-was-missing-required-php-extensions-1)
-- [Docker: BinkStream Realtime Server Was Not Started](#docker-binkstream-realtime-server-was-not-started-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -134,9 +132,11 @@ The fallback now matches `config/themes.json.example`, so a fresh install's them
 
 - The `Dockerfile` did not install the `mbstring`, `dom`, `xml`, or `gmp` PHP extensions, even though the bare-metal install guide (`docs/INSTALL.md`) requires them. This most visibly broke posting a new echomail message, which calls `mb_substr()` unconditionally when updating an echo area's message count. Without `mbstring` loaded, that call is a fatal PHP error rather than a catchable exception, so it surfaced as a generic "failed to send" error in the compose UI with no useful detail in the response. Docker builds now install all four extensions, matching the bare-metal requirements. Rebuild your image (`docker-compose build --no-cache`) to pick up the fix.
 
-### Docker: BinkStream Realtime Server Was Not Started
+### Docker: BinkStream Realtime Server Was Not Started or Reachable
 
-- `docker/supervisord.conf` never started `scripts/realtime_server.php`, the WebSocket server behind BinkStream (the real-time event bus used for live updates in the browser interface). A `[program:realtime_server]` entry has been added alongside the existing `admin_daemon` entry so it now starts automatically with the rest of the daemons. It runs in the foreground on the standard `BINKSTREAM_WS_PORT`/`REALTIME_WS_PORT` port and is expected to be reached through Apache's existing WebSocket proxy configuration rather than a directly published container port. Rebuild and recreate your container to pick up the updated supervisord configuration.
+- `docker/supervisord.conf` never started `scripts/realtime_server.php`, the WebSocket server behind BinkStream (the real-time event bus used for live updates in the browser interface). A `[program:realtime_server]` entry has been added alongside the existing `admin_daemon` entry so it now starts automatically with the rest of the daemons.
+- The Docker image's Apache config also has no WebSocket reverse proxy set up (unlike the bare-metal install guide, which configures `mod_proxy_wstunnel` in front of this same daemon), and Apache in this image only listens on plain HTTP, so there was no way to reach the daemon from outside the container even once it was running. Port `6010` (`BINKSTREAM_WS_PORT`) is now published in `docker-compose.yml` and `EXPOSE`d in the `Dockerfile`, and the daemon binds `0.0.0.0` instead of `127.0.0.1` (via a new `BINKSTREAM_WS_BIND_HOST` setting) so it's reachable on that port directly. If you terminate TLS with a reverse proxy in front of BinktermPHP, proxy `wss://` traffic for this port through to it the same way you would `https://` traffic to `HTTP_PORT`.
+- Rebuild your image (`docker-compose build --no-cache`) and recreate the container to pick up the updated supervisord, `Dockerfile`, and `docker-compose.yml` configuration.
 
 ## Upgrade Instructions
 

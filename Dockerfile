@@ -87,6 +87,7 @@ EXPOSE 80
 EXPOSE 2323
 EXPOSE 24554
 EXPOSE 24555
+EXPOSE 6010
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

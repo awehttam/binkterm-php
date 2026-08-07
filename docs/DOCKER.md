@@ -92,6 +92,7 @@ FIDONET_ADDRESS=1:2/3.4            # Your FidoNet address
 HTTP_PORT=80              # Web interface (default: 80)
 BINKP_PORT=24554          # BinkP server (default: 24554)
 DOSDOOR_WS_PORT=24555     # DOS Door WebSocket (default: 24555)
+BINKSTREAM_WS_PORT=6010   # Realtime (BinkStream) WebSocket (default: 6010)
 ```
 
 If you need to use different ports (e.g., 8080 instead of 80):
