@@ -300,6 +300,8 @@ return [
     'errors.binkp.kept_packets.license_required' => 'Ansehening packet files requires registration',
     'errors.binkp.kept_packets.inspect_failed' => 'Failed to inspect packet',
     'errors.binkp.queue.inspect_failed' => 'Failed to inspect queue packet',
+    'errors.binkp.hub_outbound.list_failed' => 'Downlink-Warteschlange konnte nicht geladen werden',
+    'errors.binkp.hub_outbound.invalid_id' => 'Ungültige Warteschlangen-ID',
     'errors.binkp.uplink.address_hostname_required' => 'Hinzufügenress and hostname sind erforderlich',
     'errors.binkp.uplink.address_required' => 'Uplink address ist erforderlich',
     'errors.messages.forward_email.email_required' => 'An email address ist erforderlich',

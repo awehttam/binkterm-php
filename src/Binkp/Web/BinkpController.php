@@ -270,7 +270,106 @@ class BinkpController
             return $this->apiErrorResponse('errors.binkp.files.outbound_failed', $e->getMessage());
         }
     }
-    
+
+    /**
+     * List queued hub_node_outbound rows (metadata only - packet_data is
+     * excluded) for the Downlink Queue tab on /binkp. Not license-gated,
+     * matching the ungated live queue file listing.
+     */
+    public function getHubOutboundQueue(int $limit = 200): array
+    {
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT hno.id, hno.hub_node_id, hn.node_address, hn.name AS node_name, hn.node_type,
+                       hno.message_type, hno.status, hno.size_bytes, hno.priority, hno.attempts,
+                       hno.created_at, hno.next_attempt_at, hno.sent_at, hno.error_message
+                FROM hub_node_outbound hno
+                JOIN hub_nodes hn ON hn.id = hno.hub_node_id
+                ORDER BY hno.created_at DESC
+                LIMIT ?
+            ");
+            $stmt->bindValue(1, $limit, \PDO::PARAM_INT);
+            $stmt->execute();
+
+            return [
+                'success' => true,
+                'rows' => $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [],
+            ];
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.hub_outbound.list_failed', $e->getMessage());
+        }
+    }
+
+    /**
+     * Parse a queued hub_node_outbound packet's contents. Requires a valid
+     * license, matching the existing live/kept-packet inspectors.
+     */
+    public function inspectHubOutboundPacket(int $id): array
+    {
+        if (!\BinktermPHP\License::isValid()) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.binkp.kept_packets.license_required',
+                'error'      => 'Viewing packets requires a registered license',
+            ];
+        }
+
+        $bytes = $this->fetchHubOutboundPacketData($id);
+        if ($bytes === null) {
+            return ['success' => false, 'error' => 'Packet not found'];
+        }
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'hubpkt_');
+        try {
+            if (file_put_contents($tmpFile, $bytes) === false) {
+                return ['success' => false, 'error' => 'Failed to stage packet for inspection'];
+            }
+            return $this->parsePacketFull($tmpFile);
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.queue.inspect_failed', $e->getMessage());
+        } finally {
+            @unlink($tmpFile);
+        }
+    }
+
+    /**
+     * Fetch a queued hub_node_outbound row's raw packet bytes and a
+     * download-friendly filename, for the download route (license-gated
+     * at the route level, matching the existing download route).
+     *
+     * @return array{filename:string,bytes:string}|null
+     */
+    public function getHubOutboundPacketBytes(int $id): ?array
+    {
+        $bytes = $this->fetchHubOutboundPacketData($id);
+        if ($bytes === null) {
+            return null;
+        }
+
+        return [
+            'filename' => 'hub_outbound_' . $id . '.pkt',
+            'bytes' => $bytes,
+        ];
+    }
+
+    private function fetchHubOutboundPacketData(int $id): ?string
+    {
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("SELECT packet_data FROM hub_node_outbound WHERE id = ?");
+        $stmt->execute([$id]);
+        $bytes = $stmt->fetchColumn();
+
+        if ($bytes === false) {
+            return null;
+        }
+        if (is_resource($bytes)) {
+            $bytes = stream_get_contents($bytes);
+        }
+
+        return $bytes;
+    }
+
     public function processInbound()
     {
         try {
@@ -829,146 +928,7 @@ class BinkpController
      */
     private function parsePacketFull(string $filepath): array
     {
-        $handle = fopen($filepath, 'rb');
-        if (!$handle) {
-            return ['success' => false, 'error' => 'Cannot open packet file'];
-        }
-
-        try {
-            // ── Packet header (58 bytes, FTS-0001) ───────────────────────────
-            $hdr = fread($handle, 60);
-            if (strlen($hdr) < 58) {
-                fclose($handle);
-                return ['success' => false, 'error' => 'File too small to be a valid FTS-0001 packet'];
-            }
-
-            $h = unpack(
-                'vorigNode/vdestNode/vyear/vmonth/vday/vhour/vminute/vsecond/' .
-                'vbaud/vpacketVersion/vorigNet/vdestNet/CprodCodeLo/CrevMajor',
-                substr($hdr, 0, 26)
-            );
-
-            // FTS-0001: password is 8 bytes (offsets 26–33)
-            // origZone/destZone at 34/36, origPoint/destPoint at 50/52
-            $password  = rtrim(substr($hdr, 26, 8), "\x00");
-            $origZone  = unpack('v', substr($hdr, 34, 2))[1];
-            $destZone  = unpack('v', substr($hdr, 36, 2))[1];
-            $origPoint = unpack('v', substr($hdr, 50, 2))[1];
-            $destPoint = unpack('v', substr($hdr, 52, 2))[1];
-
-            $month = ($h['month'] < 12) ? $h['month'] + 1 : $h['month']; // 0-based in spec
-            $created = sprintf('%04d-%02d-%02d %02d:%02d:%02d',
-                $h['year'], $month, $h['day'], $h['hour'], $h['minute'], $h['second']);
-
-            $fmtAddr = function(int $zone, int $net, int $node, int $point): string {
-                $addr = "{$zone}:{$net}/{$node}";
-                if ($point > 0) $addr .= ".{$point}";
-                return $addr;
-            };
-
-            $packet = [
-                'orig_address'   => $fmtAddr($origZone, $h['origNet'], $h['origNode'], $origPoint),
-                'dest_address'   => $fmtAddr($destZone, $h['destNet'], $h['destNode'], $destPoint),
-                'created'        => $created,
-                'has_password'   => $password !== '',
-                'packet_version' => $h['packetVersion'],
-                'product_code'   => sprintf('%02X', $h['prodCodeLo']),
-                'file_size'      => filesize($filepath),
-            ];
-
-            // ── Message headers ───────────────────────────────────────────────
-            fseek($handle, 58);
-            $messages   = [];
-            $maxMsgs    = 1000;
-            $attrLabels = [
-                0  => 'Pvt',  1 => 'Crash', 2 => 'Rcvd', 3 => 'Sent',
-                4  => 'Att',  5 => 'Trs',   6 => 'Orphn', 7 => 'K/S',
-                8  => 'Local', 9 => 'Hold', 11 => 'FReq', 12 => 'RReq',
-                13 => 'RRec', 14 => 'Audit', 15 => 'FUpd',
-            ];
-
-            while (!feof($handle) && count($messages) < $maxMsgs) {
-                $typeBytes = fread($handle, 2);
-                if (strlen($typeBytes) < 2) break;
-                $msgType = unpack('v', $typeBytes)[1];
-                if ($msgType === 0) break;          // end-of-packet marker
-                if ($msgType !== 2) break;           // unexpected type
-
-                // 12-byte message header: origNode destNode origNet destNet attr cost
-                $mhBytes = fread($handle, 12);
-                if (strlen($mhBytes) < 12) break;
-                $mh = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $mhBytes);
-
-                $datetime = $this->pktReadString($handle, 20);
-                $toName   = $this->pktReadString($handle, 36);
-                $fromName = $this->pktReadString($handle, 36);
-                $subject  = $this->pktReadString($handle, 72);
-
-                // Skip message body (null-terminated)
-                if (!$this->pktSkipBody($handle, 65536)) break;
-
-                $flags = [];
-                foreach ($attrLabels as $bit => $label) {
-                    if ($mh['attr'] & (1 << $bit)) {
-                        $flags[] = $label;
-                    }
-                }
-
-                $cp437 = fn(string $s): string =>
-                    (@iconv('CP437', 'UTF-8//IGNORE', $s) ?: mb_convert_encoding($s, 'UTF-8', 'UTF-8'));
-
-                $messages[] = [
-                    'from'      => $cp437($fromName),
-                    'to'        => $cp437($toName),
-                    'subject'   => $cp437($subject),
-                    'date'      => $datetime,
-                    'orig_addr' => $mh['origNet'] . ':' . $mh['origNode'],
-                    'dest_addr' => $mh['destNet'] . ':' . $mh['destNode'],
-                    'flags'     => $flags,
-                    'cost'      => $mh['cost'],
-                ];
-            }
-
-            fclose($handle);
-
-            return [
-                'success'  => true,
-                'packet'   => $packet,
-                'messages' => $messages,
-            ];
-
-        } catch (\Exception $e) {
-            if (is_resource($handle)) fclose($handle);
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Read a null-terminated string from $handle, consuming at most $maxLen bytes.
-     */
-    private function pktReadString($handle, int $maxLen): string
-    {
-        $result = '';
-        for ($i = 0; $i < $maxLen; $i++) {
-            $ch = fread($handle, 1);
-            if ($ch === false || $ch === '' || $ch === "\x00") break;
-            $result .= $ch;
-        }
-        return $result;
-    }
-
-    /**
-     * Skip a null-terminated message body, consuming at most $maxLen bytes.
-     * Returns false if the read failed before finding the null terminator.
-     */
-    private function pktSkipBody($handle, int $maxLen): bool
-    {
-        for ($i = 0; $i < $maxLen; $i++) {
-            $ch = fread($handle, 1);
-            if ($ch === false || $ch === '') return false;
-            if ($ch === "\x00") return true;
-        }
-        return true; // Reached limit — treat as terminated
+        return \BinktermPHP\Binkp\Protocol\PacketInspector::inspect($filepath);
     }
 
     /**

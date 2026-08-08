@@ -301,6 +301,8 @@ return [
     'errors.binkp.kept_packets.license_required' => 'Viewing packet files requires registration',
     'errors.binkp.kept_packets.inspect_failed' => 'Failed to inspect packet',
     'errors.binkp.queue.inspect_failed' => 'Failed to inspect queue packet',
+    'errors.binkp.hub_outbound.list_failed' => 'Failed to load downlink queue',
+    'errors.binkp.hub_outbound.invalid_id' => 'Invalid queue item id',
     'errors.binkp.uplink.address_hostname_required' => 'Address and hostname are required',
     'errors.binkp.uplink.address_required' => 'Uplink address is required',
     'errors.messages.forward_email.email_required' => 'An email address is required',

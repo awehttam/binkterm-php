@@ -405,6 +405,26 @@ php scripts/binkp_scheduler.php --interval=120
 php scripts/debug_binkp.php 1:153/149
 ```
 
+### Test Client (Point/Downlink Simulator)
+`binkp_test_client.php` connects to a binkp server (typically your own, on `localhost`) as an arbitrary FTN address, for testing hub/point (downlink) support end-to-end without needing a real point system. It authenticates (plaintext or CRAM-MD5, whichever the server offers), receives and dumps anything the server pushes, and can compose and send a test netmail.
+
+```bash
+# Connect as a registered point, receive/dump whatever's queued for it
+php scripts/binkp_test_client.php --host=localhost --address=1:153/149.1 --password=secret
+
+# Force plaintext auth even if the server offers CRAM-MD5 (test the plaintext-fallback path)
+php scripts/binkp_test_client.php --host=localhost --address=1:153/149.1 --password=secret --no-cram
+
+# Compose and send a test netmail as the point
+php scripts/binkp_test_client.php --host=localhost --address=1:153/149.1 --password=secret \
+    --compose-netmail --to=1:1/1 --subject="Hi" --body="Test from a point"
+
+# Send an existing .pkt file as-is
+php scripts/binkp_test_client.php --host=localhost --address=1:153/149.1 --password=secret --send-file=test.pkt
+```
+
+Received files are saved under `data/binkp_test_client/` by default (`--save-dir=PATH` to override); `.pkt` files are dumped (packet header + per-message From/To/Subject/Date/Flags, the same format as the `/binkp` admin Downlink Queue viewer) unless `--no-dump` is given. Run with `--help` for the full flag list.
+
 ## Packet Processing
 ```bash
 # Process inbound packets

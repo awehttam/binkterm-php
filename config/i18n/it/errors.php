@@ -301,6 +301,8 @@ return [
     'errors.binkp.kept_packets.license_required' => 'La visualizzazione dei file pacchetto richiede la registrazione',
     'errors.binkp.kept_packets.inspect_failed' => 'Impossibile ispezionare il pacchetto',
     'errors.binkp.queue.inspect_failed' => 'Impossibile ispezionare il pacchetto in coda',
+    'errors.binkp.hub_outbound.list_failed' => 'Impossibile caricare la coda downlink',
+    'errors.binkp.hub_outbound.invalid_id' => 'ID elemento coda non valido',
     'errors.binkp.uplink.address_hostname_required' => 'Indirizzo e hostname sono obbligatori',
     'errors.binkp.uplink.address_required' => 'Indirizzo uplink obbligatorio',
     'errors.messages.forward_email.email_required' => 'È richiesto un indirizzo email',

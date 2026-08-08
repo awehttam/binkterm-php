@@ -59,6 +59,9 @@
             <button class="nav-link" id="queues-tab" data-bs-toggle="tab" data-bs-target="#queues" type="button" role="tab">{{ t('ui.binkp.queues_tab') }}</button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" id="hub-outbound-tab" data-bs-toggle="tab" data-bs-target="#hub-outbound" type="button" role="tab">{{ t('ui.binkp.hub_outbound_tab') }}</button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="kept-packets-tab" data-bs-toggle="tab" data-bs-target="#kept-packets" type="button" role="tab"{% if license_valid %} onclick="onKeptPacketsTabOpen()"{% endif %}>
                 {{ t('ui.binkp.kept_packets_tab') }}{% if not license_valid %} <i class="fas fa-lock ms-1 text-warning small"></i>{% endif %}
             </button>
@@ -182,6 +185,35 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Downlink (Hub/Point) Queue Tab -->
+        <div class="tab-pane fade" id="hub-outbound" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5>{{ t('ui.binkp.hub_outbound_heading') }}</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="refreshHubOutboundQueue()">
+                    <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped" id="hubOutboundTable">
+                    <thead>
+                        <tr>
+                            <th>{{ t('ui.binkp.hub_outbound.downlink') }}</th>
+                            <th>{{ t('ui.binkp.hub_outbound.type') }}</th>
+                            <th>{{ t('ui.binkp.status') }}</th>
+                            <th>{{ t('ui.binkp.hub_outbound.size') }}</th>
+                            <th>{{ t('ui.binkp.hub_outbound.attempts') }}</th>
+                            <th>{{ t('ui.binkp.hub_outbound.created') }}</th>
+                            <th>{{ t('ui.binkp.hub_outbound.sent_next') }}</th>
+                            <th>{{ t('ui.binkp.hub_outbound.error') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hub-outbound-rows">
+                        <tr><td colspan="8">{{ t('ui.common.loading') }}</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -459,10 +491,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadI18nNamespaces(['common', 'errors']).then(function() {
         refreshBinkpOverview();
         refreshQueues();
+        refreshHubOutboundQueue();
         refreshLogs();
         CronBuilder.init('pollScheduleInput');
         setInterval(function() {
             refreshQueues();
+            refreshHubOutboundQueue();
             refreshBinkpOverview();
         }, 15000);
     });
@@ -833,6 +867,90 @@ function updateOutboundFiles(data) {
     }
 
     container.innerHTML = html;
+}
+
+function refreshHubOutboundQueue() {
+    fetch('/api/binkp/hub-outbound')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiErrorText(data, uiT('ui.binkp.hub_outbound.load_failed', 'Failed to load downlink queue')));
+            }
+            renderHubOutboundQueue(data.rows || []);
+        })
+        .catch(error => {
+            document.getElementById('hub-outbound-rows').innerHTML =
+                `<tr><td colspan="8" class="text-danger">${escapeHtml(error.message)}</td></tr>`;
+        });
+}
+
+function renderHubOutboundQueue(rows) {
+    const tbody = document.getElementById('hub-outbound-rows');
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.empty', 'No queued downlink packets'))}</td></tr>`;
+        return;
+    }
+
+    const statusBadge = (status) => {
+        const cls = { pending: 'bg-secondary', sent: 'bg-success', failed: 'bg-danger', held: 'bg-warning text-dark' }[status] || 'bg-secondary';
+        return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+    };
+
+    tbody.innerHTML = rows.map(row => {
+        const downlink = `<code>${escapeHtml(row.node_address)}</code>${row.node_name ? `<div class="small text-muted">${escapeHtml(row.node_name)}</div>` : ''}`;
+        const sentOrNext = row.sent_at
+            ? formatLocalizedDateTime(row.sent_at)
+            : (row.next_attempt_at ? formatLocalizedDateTime(row.next_attempt_at) : '—');
+        const error = row.error_message
+            ? `<span class="text-danger small" title="${escapeHtmlAttr(row.error_message)}">${escapeHtml(row.error_message.substring(0, 40))}${row.error_message.length > 40 ? '…' : ''}</span>`
+            : '';
+        return `<tr>
+            <td>${downlink}</td>
+            <td><span class="badge bg-light text-dark">${escapeHtml(row.message_type)}</span></td>
+            <td>${statusBadge(row.status)}</td>
+            <td>${formatBytes(row.size_bytes)}</td>
+            <td>${Number(row.attempts)}</td>
+            <td class="small">${formatLocalizedDateTime(row.created_at)}</td>
+            <td class="small">${sentOrNext}</td>
+            <td>${error}
+                <div class="mt-1">
+                    <a href="#" class="small" onclick="openHubOutboundPacketInspector(${Number(row.id)}); return false;">${escapeHtml(uiT('ui.binkp.hub_outbound.inspect', 'Inspect'))}</a>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function openHubOutboundPacketInspector(id) {
+    document.getElementById('pktModalTitle').textContent = `hub_outbound_${id}.pkt`;
+    document.getElementById('pktModalBody').innerHTML =
+        '<div class="text-center py-4"><span class="spinner-border"></span></div>';
+    document.getElementById('pktDownloadBtn').href = `/api/binkp/hub-outbound/download?id=${id}`;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('packetInspectorModal'));
+    modal.show();
+
+    fetch(`/api/binkp/hub-outbound/inspect?id=${id}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('pktModalBody').innerHTML =
+                    `<div class="alert alert-danger">${data.error || 'Failed to load packet.'}</div>`;
+                return;
+            }
+            renderPacketInspector(data);
+        })
+        .catch(err => {
+            document.getElementById('pktModalBody').innerHTML =
+                `<div class="alert alert-danger">${err.message}</div>`;
+        });
+}
+
+function apiErrorText(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? String(payload.error) : fallback;
 }
 
 function openQueuePacketInspector(type, filename) {
