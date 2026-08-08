@@ -5,6 +5,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+  - [Downlinks: Act as a Hub for Subordinate Nodes and Points](#downlinks-act-as-a-hub-for-subordinate-nodes-and-points)
   - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view)
   - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix)
   - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch)
@@ -16,6 +17,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Docker Image Was Missing Required PHP Extensions](#docker-image-was-missing-required-php-extensions)
   - [Docker: BinkStream Realtime Server Was Not Started or Reachable](#docker-binkstream-realtime-server-was-not-started-or-reachable)
   - [Docker: PHP Fatal Errors Were Silently Lost](#docker-php-fatal-errors-were-silently-lost)
+- [Downlinks: Act as a Hub for Subordinate Nodes and Points](#downlinks-act-as-a-hub-for-subordinate-nodes-and-points-1)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
 - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch-1)
@@ -29,6 +31,10 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+### Downlinks: Act as a Hub for Subordinate Nodes and Points
+
+- BinktermPHP can now act as an FTN hub for subordinate systems: independently-addressed nodes/peers, and FidoNet-style points hanging off one of its own AKAs. Manage them from the new **Admin → Downlinks** page: register a downlink, choose which echo areas it receives, and it's delivered to (and can deliver mail back) automatically. See `docs/Downlinks.md` for full details.
 
 ### Echomail Unread/Read Filter (Threaded View)
 
@@ -65,6 +71,25 @@ Make sure you have a current backup of your database and files before upgrading.
 - Installs without a `config/themes.json` file previously only offered **Regular** and **Dark** in the theme picker. They now also offer **Amber**, **Cyberpunk**, and **Green Term**, matching `config/themes.json.example`.
 
 ---
+
+## Downlinks: Act as a Hub for Subordinate Nodes and Points
+
+BinktermPHP can now act as an FTN **hub**, distributing echomail and routing netmail to subordinate systems below it — the reverse of the existing uplink relationship, where BinktermPHP receives mail from and sends mail up to a hub above it.
+
+Subordinates are managed from a new admin page, **Admin → Downlinks**, and come in two kinds:
+
+- **Node** — an independently-addressed system (for example `2:345/67`), entered as a free-text FTN address. Covers both traditional downlinks and symmetric peer links.
+- **Point** — a system addressed as one of this BBS's own AKAs plus a point number (for example `1:153/149.1`). The boss address is picked from the AKAs already configured in **Admin → Networks**, and a next-available point number is suggested automatically.
+
+Each downlink has its own echo area subscription list, its own session/packet passwords, and independent enable/hold/quota controls. New echomail is distributed to every subscribed downlink and, separately, forwarded up to the area's configured uplink (unless it just came from that uplink). Netmail addressed to a registered downlink is delivered into its queue instead of being handled as ordinary local netmail, and netmail from a registered point addressed elsewhere is relayed onward rather than dropped. There is no open relay — only traffic to or from an explicitly registered downlink is handled this way.
+
+Downlinks connect the same way uplinks do, over binkp: they can either poll BinktermPHP (pull) or be polled by it on a schedule (push, for node-type downlinks with a routable host — most points are pull-only). Both CRAM-MD5 and plaintext authentication are accepted for registered downlinks regardless of the global plaintext-fallback setting, since simple point software may not support CRAM-MD5.
+
+A new **Binkp Status → Downlink Queue** tab shows every queued packet across all downlinks with an inspector to view a packet's contents before delivery, and a new `scripts/binkp_test_client.php --compose-echomail`/`--compose-netmail` mode lets you simulate a downlink for testing without a real point client.
+
+Delivered and failed queue entries are kept for each downlink's configured retention period (default 30 days) and then purged automatically by `scripts/database_maintenance.php`; pending or held mail is never purged regardless of age.
+
+See `docs/Downlinks.md` for the full reference, including field descriptions and current limitations (no Areafix self-service subscription management yet, and file-attach netmail forwards only the `.pkt` header).
 
 ## Echomail Unread/Read Filter (Threaded View)
 

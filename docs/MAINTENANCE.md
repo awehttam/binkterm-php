@@ -17,7 +17,8 @@ The maintenance script performs the following cleanup operations:
 5. **Webshare Links** - Removes expired share links
 6. **Rejected Pending Users** - Removes rejected applications older than 90 days
 7. **Login Attempts** - Removes login attempts older than 30 days (if table exists)
-8. **Database Vacuum** - Runs PostgreSQL VACUUM and ANALYZE on key tables
+8. **Downlink Outbound Queue** - Removes sent/failed packets queued for [downlinks](Downlinks.md) once they're older than each downlink's own configured retention period (pending/held packets are never removed by age)
+9. **Database Vacuum** - Runs PostgreSQL VACUUM and ANALYZE on key tables
 
 ### Usage
 
@@ -111,6 +112,7 @@ The script uses the following retention periods:
 | Webshare links | Per link expiry | User-configurable expiration |
 | Rejected pending users | 30 days | Audit trail for rejections |
 | Login attempts | 30 days | Security monitoring |
+| Downlink outbound queue (sent/failed) | Per-downlink, default 30 days | Configurable per downlink in **Admin → Downlinks**; see [Downlinks](Downlinks.md#queue-cleanup) |
 
 \* Only deleted when both sender AND recipient have marked as deleted
 \** Deleted when expired or used
