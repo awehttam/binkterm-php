@@ -81,11 +81,25 @@ class HubFanout
     ): void {
         $isPoint = $subscriber['node_type'] === HubNodeManager::TYPE_POINT;
 
+        // Record this hop: preserve any Via lines already on the message
+        // (earlier relays) and add our own, same as a real binkd/tosser
+        // would when passing mail along (FTS-4009).
+        $viaLines = EchomailSeenBy::parseViaLines($message['bottom_kludges']);
+        $viaLines[] = \generateViaLine($ourAddress);
+        $viaText = EchomailSeenBy::formatViaLines($viaLines);
+
         if ($isPoint) {
             // Points are never skipped based on SEEN-BY (they never legitimately
             // appear there) and never get SEEN-BY/PATH mutation - subscription
-            // state alone governs delivery.
-            $bottomKludges = trim((string)$message['bottom_kludges']);
+            // state alone governs delivery. Via-line history still applies: pass
+            // everything else through untouched, but replace the raw Via lines
+            // with $viaText (already contains them plus our new hop) rather than
+            // keeping both, which would duplicate the preserved ones.
+            $nonViaLines = array_filter(
+                preg_split('/\r\n|\r|\n/', (string)$message['bottom_kludges']) ?: [],
+                static fn(string $line): bool => !preg_match('/^\x01Via[:\s]/i', $line)
+            );
+            $bottomKludges = trim(trim(implode("\r", $nonViaLines)) . "\r" . $viaText);
         } else {
             $subscriberAddress = $subscriber['node_address'];
 
@@ -103,7 +117,7 @@ class HubFanout
             $seenBy = EchomailSeenBy::addToSeenBy($seenBy, $subscriberAddress);
             $path = EchomailSeenBy::addToPath($rawPath, $ourAddress);
 
-            $bottomKludges = trim(EchomailSeenBy::formatSeenBy($seenBy) . "\r" . EchomailSeenBy::formatPath($path));
+            $bottomKludges = trim(EchomailSeenBy::formatSeenBy($seenBy) . "\r" . EchomailSeenBy::formatPath($path) . "\r" . $viaText);
         }
 
         $packetMessage = [
@@ -125,6 +139,14 @@ class HubFanout
             // Already merged the full SEEN-BY/PATH set above; suppress
             // BinkdProcessor::writeMessage()'s single-hop auto-synthesis.
             'skip_default_seenby_path' => true,
+            // If this message already carries a PID kludge (i.e. it arrived
+            // via inbound packet processing and kludge_lines is the real
+            // author's, not empty), it also already has that author's
+            // tearline embedded in message_text - suppress writeMessage()'s
+            // unconditional fresh PID+tearline so we don't duplicate both.
+            // Locally-composed posts have no PID yet and should still get
+            // one generated fresh (this system is the originating tosser).
+            'skip_default_pid_tearline' => strpos((string)($message['kludge_lines'] ?? ''), "\x01PID:") !== false,
         ];
 
         $packetPath = $this->tempPacketPath();

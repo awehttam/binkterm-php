@@ -968,6 +968,13 @@ class BinkdProcessor
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
 
+        // Before giving up as undeliverable, check whether this came from one
+        // of our own registered hub nodes/points — if so, it's the point
+        // using us as its boss to relay mail onward, not misaddressed mail.
+        if ($userId === null && (new \BinktermPHP\Hub\HubNetmailRouter())->relayIfFromHubNode($message)) {
+            return;
+        }
+
         // Drop undeliverable netmail — no user matched by address or name.
         // The old sysop catch-all has been removed to prevent misrouted echomail
         // (which typically has no AREA:/SEEN-BY/PATH markers and an unrecognised
@@ -2072,21 +2079,33 @@ class BinkdProcessor
             }
         }
 
-        $kludgeLines .= "\x01PID: BinktermPHP " . Version::getVersion() . " " . PHP_OS_FAMILY . "\r";
+        // Relay/transit messages (netmail passed through from another system
+        // via HubNetmailRouter) already carry their true originator's PID and
+        // tearline embedded in the preserved kludge_lines/message_text -
+        // adding our own on top would duplicate both. skip_default_pid_tearline
+        // suppresses that for those callers only; default (unset) behavior for
+        // every other caller — genuinely new/local messages — is unchanged.
+        $skipPidTearline = !empty($message['skip_default_pid_tearline']);
+
+        if (!$skipPidTearline) {
+            $kludgeLines .= "\x01PID: BinktermPHP " . Version::getVersion() . " " . PHP_OS_FAMILY . "\r";
+        }
         // For echomail, add AREA control field first (plain text, no ^A prefix)
         $areaLine = '';
         if ($isEchomail && isset($message['echoarea_tag'])) {
             $areaLine = "AREA:{$message['echoarea_tag']}\r";  // No Space after AREA
         }
-        
+
         $messageText = $areaLine . $kludgeLines . $messageText;
-        
+
         // Add tearline and origin
         if (!empty($messageText) && !str_ends_with($messageText, "\r")) {
             $messageText .= "\r";
         }
-        $messageText .= "\r";
-        $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r";
+        if (!$skipPidTearline) {
+            $messageText .= "\r";
+            $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r";
+        }
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
@@ -2223,12 +2242,23 @@ class BinkdProcessor
             }
         }
         
+        // Strategies 3/4 below are name-based fallbacks for mail that's genuinely
+        // ours but whose address didn't cleanly resolve above - not a way to claim
+        // mail that's address-wise for a different system. Without this guard, a
+        // registered point relaying transit netmail through us to a third system,
+        // using a generic To: name like "sysop", would get misdelivered into our
+        // own local sysop's inbox instead of relayed onward (destAddr here is
+        // clearly not ours, so name matching must not override that).
+        if (!$this->isOwnAddress($destAddr)) {
+            return null;
+        }
+
         // Strategy 3: Special case for 'sysop' - lookup from binkd.config
         if (!empty($toName) && strtolower($toName) === 'sysop') {
             $sysopName = $this->config->getSystemSysop();
             if (!empty($sysopName)) {
                 $stmt = $this->db->prepare("
-                    SELECT id FROM users 
+                    SELECT id FROM users
                     WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
                     LIMIT 1
                 ");
@@ -2239,11 +2269,11 @@ class BinkdProcessor
                 }
             }
         }
-        
+
         // Strategy 4: Name-based matching (case-insensitive)
         if (!empty($toName)) {
             $stmt = $this->db->prepare("
-                SELECT id FROM users 
+                SELECT id FROM users
                 WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
                 LIMIT 1
             ");
@@ -2253,9 +2283,35 @@ class BinkdProcessor
                 return $user['id'];
             }
         }
-        
+
         // No match found — return null so caller can decide how to handle undeliverable mail
         return null;
+    }
+
+    /**
+     * True if $addr is empty (treated as "could be ours" - preserves prior
+     * behavior for legacy/malformed packets with no usable destination) or
+     * matches one of our own configured AKAs (system address or an uplink's
+     * "me" address), comparing at the host (net/node) level so a point
+     * suffix on either side doesn't prevent the match.
+     */
+    private function isOwnAddress(string $addr): bool
+    {
+        $addr = trim($addr);
+        if ($addr === '') {
+            return true;
+        }
+
+        $hostAddr = strpos($addr, '.') !== false ? explode('.', $addr, 2)[0] : $addr;
+
+        foreach ((new \BinktermPHP\Hub\HubNodeManager())->getConfiguredAkas() as $aka) {
+            $akaHost = strpos($aka, '.') !== false ? explode('.', $aka, 2)[0] : $aka;
+            if ($addr === $aka || $hostAddr === $akaHost) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function processBundle($bundleFile)

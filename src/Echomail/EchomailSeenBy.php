@@ -167,6 +167,41 @@ class EchomailSeenBy
     }
 
     /**
+     * Parse Via lines (FTS-4009 relay-hop history) out of a bottom_kludges
+     * blob into an ordered, deduplicated list of complete "\x01Via ..."
+     * lines, preserved verbatim so earlier hops stay intact when we add
+     * our own.
+     *
+     * @return string[]
+     */
+    public static function parseViaLines(?string $bottomKludges): array
+    {
+        $lines = [];
+        if (empty($bottomKludges)) {
+            return $lines;
+        }
+
+        foreach (self::splitLines($bottomKludges) as $line) {
+            if (preg_match('/^\x01Via[:\s]/i', $line) && !in_array($line, $lines, true)) {
+                $lines[] = $line;
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Join Via lines (as returned by parseViaLines(), plus any newly
+     * generated ones appended by the caller) back into bottom_kludges text.
+     *
+     * @param string[] $lines
+     */
+    public static function formatViaLines(array $lines): string
+    {
+        return implode("\r", array_unique($lines));
+    }
+
+    /**
      * True if $address (net/node[.point]) is already present in the PATH.
      */
     public static function pathContains(array $path, string $address): bool
