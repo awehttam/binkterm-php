@@ -263,7 +263,12 @@ function onHubNodeTypeChange() {
     document.getElementById('hubNodeBossFieldWrap').classList.toggle('d-none', !isPoint);
     document.getElementById('hubNodePointFieldWrap').classList.toggle('d-none', !isPoint);
     if (isPoint) {
-        populateBossAddressOptions();
+        // Preserve whatever's already selected (e.g. the node's real
+        // boss_address, set by openHubNodeModal() just before this runs) -
+        // repopulating with no selection here previously reset it to the
+        // browser's default first-option pick on every edit.
+        const currentBoss = document.getElementById('hubNodeBossAddress').value;
+        populateBossAddressOptions(currentBoss);
         refreshSuggestedPointNumber();
     }
 }
