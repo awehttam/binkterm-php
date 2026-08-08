@@ -21,7 +21,8 @@ class HubNodeManager
 
     private const COLUMNS = "
         hn.id, hn.node_type, hn.node_address, hn.boss_address, hn.point_number, hn.name, hn.sysop_name,
-        hn.session_password, hn.packet_password, hn.inet_host, hn.port, hn.enabled, hn.allow_inbound,
+        hn.session_password, hn.packet_password, hn.areafix_password, hn.filefix_password,
+        hn.inet_host, hn.port, hn.enabled, hn.allow_inbound,
         hn.allow_outbound, hn.allow_inbound_echomail, hn.allow_inbound_netmail, hn.max_packet_kb,
         hn.hold_mail, hn.queue_retention_days, hn.capability_flags, hn.notes, hn.created_at, hn.last_session_at
     ";
@@ -75,12 +76,14 @@ class HubNodeManager
         $stmt = $this->db->prepare("
             INSERT INTO hub_nodes (
                 node_type, node_address, boss_address, point_number, name, sysop_name,
-                session_password, packet_password, inet_host, port, enabled, allow_inbound,
+                session_password, packet_password, areafix_password, filefix_password,
+                inet_host, port, enabled, allow_inbound,
                 allow_outbound, allow_inbound_echomail, allow_inbound_netmail, max_packet_kb,
                 hold_mail, queue_retention_days, capability_flags, notes
             ) VALUES (
                 :node_type, :node_address, :boss_address, :point_number, :name, :sysop_name,
-                :session_password, :packet_password, :inet_host, :port, :enabled, :allow_inbound,
+                :session_password, :packet_password, :areafix_password, :filefix_password,
+                :inet_host, :port, :enabled, :allow_inbound,
                 :allow_outbound, :allow_inbound_echomail, :allow_inbound_netmail, :max_packet_kb,
                 :hold_mail, :queue_retention_days, :capability_flags, :notes
             )
@@ -116,6 +119,8 @@ class HubNodeManager
                 sysop_name = :sysop_name,
                 session_password = :session_password,
                 packet_password = :packet_password,
+                areafix_password = :areafix_password,
+                filefix_password = :filefix_password,
                 inet_host = :inet_host,
                 port = :port,
                 enabled = :enabled,
@@ -355,6 +360,33 @@ class HubNodeManager
     }
 
     /**
+     * The network domain a hub node/point belongs to, used to scope which
+     * echoareas/fileareas it may self-subscribe to via AreaFix/FileFix. For
+     * a point this is the domain of its boss AKA (points can only be
+     * created against one of our own configured AKAs, so this always
+     * resolves to exactly one domain); for a node it's resolved from its
+     * own address the same way BinkdProcessor resolves domain for inbound
+     * mail. Returns null if the domain can't be determined.
+     */
+    public function resolveDomain(array $hubNode): ?string
+    {
+        $config = BinkpConfig::getInstance();
+
+        if (($hubNode['node_type'] ?? null) === self::TYPE_POINT) {
+            $bossAddress = trim((string)($hubNode['boss_address'] ?? ''));
+            foreach ($config->getMyAddressesWithDomains() as $entry) {
+                if ($entry['address'] === $bossAddress) {
+                    return $entry['domain'] ?: null;
+                }
+            }
+            return null;
+        }
+
+        $domain = $config->getDomainByAddress(trim((string)($hubNode['node_address'] ?? '')));
+        return $domain !== false && $domain !== '' ? $domain : null;
+    }
+
+    /**
      * The AKAs BinktermPHP itself holds, for the boss-address picker.
      *
      * @return string[]
@@ -421,6 +453,8 @@ class HubNodeManager
             'sysop_name' => trim((string)($data['sysop_name'] ?? '')) ?: null,
             'session_password' => (string)($data['session_password'] ?? '') ?: null,
             'packet_password' => (string)($data['packet_password'] ?? '') ?: null,
+            'areafix_password' => (string)($data['areafix_password'] ?? '') ?: null,
+            'filefix_password' => (string)($data['filefix_password'] ?? '') ?: null,
             'inet_host' => trim((string)($data['inet_host'] ?? '')) ?: null,
             'port' => !empty($data['port']) ? (int)$data['port'] : null,
             'enabled' => filter_var($data['enabled'] ?? true, FILTER_VALIDATE_BOOLEAN),
