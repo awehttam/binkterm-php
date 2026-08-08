@@ -951,6 +951,15 @@ class BinkdProcessor
 
     private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)
     {
+        // Intercept Areafix/Filefix robot netmail (To: "AreaFix"/"FileFix" at
+        // one of our own AKAs, from a registered hub node/point). Must run
+        // before both the hub-node routing and FREQ intercept below - this is
+        // mail addressed to us to be processed as a command, not delivered
+        // or routed anywhere.
+        if ((new \BinktermPHP\Hub\HubAreafixProcessor())->processIncoming($message)) {
+            return;
+        }
+
         // Route transit netmail addressed to a registered hub node/point,
         // if enabled. Must run before the FREQ intercept below — a FREQ
         // addressed to a hub node isn't a FREQ for us to intercept.

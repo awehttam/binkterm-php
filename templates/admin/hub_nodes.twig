@@ -88,6 +88,17 @@
                         <input type="text" class="form-control font-monospace" id="hubNodePacketPassword" autocomplete="off">
                     </div>
 
+                    <div class="col-md-6">
+                        <label class="form-label" for="hubNodeAreafixPassword">{{ t('ui.admin.hub_nodes.areafix_password', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control font-monospace" id="hubNodeAreafixPassword" autocomplete="off">
+                        <div class="form-text">{{ t('ui.admin.hub_nodes.areafix_password_help', {}, locale, ['common']) }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="hubNodeFilefixPassword">{{ t('ui.admin.hub_nodes.filefix_password', {}, locale, ['common']) }}</label>
+                        <input type="text" class="form-control font-monospace" id="hubNodeFilefixPassword" autocomplete="off">
+                        <div class="form-text">{{ t('ui.admin.hub_nodes.filefix_password_help', {}, locale, ['common']) }}</div>
+                    </div>
+
                     <div class="col-md-8">
                         <label class="form-label" for="hubNodeInetHost">{{ t('ui.admin.hub_nodes.inet_host', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="hubNodeInetHost">
@@ -327,6 +338,8 @@ function openHubNodeModal(id = null) {
     document.getElementById('hubNodeSysopName').value = node ? (node.sysop_name || '') : '';
     document.getElementById('hubNodeSessionPassword').value = '';
     document.getElementById('hubNodePacketPassword').value = '';
+    document.getElementById('hubNodeAreafixPassword').value = '';
+    document.getElementById('hubNodeFilefixPassword').value = '';
     document.getElementById('hubNodeInetHost').value = node ? (node.inet_host || '') : '';
     document.getElementById('hubNodePort').value = node ? (node.port || '') : '';
     document.getElementById('hubNodeEnabled').checked = node ? !!node.enabled : true;
@@ -363,11 +376,19 @@ function saveHubNode() {
     };
     const sessionPassword = document.getElementById('hubNodeSessionPassword').value;
     const packetPassword = document.getElementById('hubNodePacketPassword').value;
+    const areafixPassword = document.getElementById('hubNodeAreafixPassword').value;
+    const filefixPassword = document.getElementById('hubNodeFilefixPassword').value;
     if (sessionPassword !== '') {
         payload.session_password = sessionPassword;
     }
     if (packetPassword !== '') {
         payload.packet_password = packetPassword;
+    }
+    if (areafixPassword !== '') {
+        payload.areafix_password = areafixPassword;
+    }
+    if (filefixPassword !== '') {
+        payload.filefix_password = filefixPassword;
     }
     const method = id ? 'PUT' : 'POST';
     const url = id ? `/admin/api/hub-nodes/${encodeURIComponent(id)}` : '/admin/api/hub-nodes';

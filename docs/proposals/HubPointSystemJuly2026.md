@@ -52,7 +52,12 @@ All three directions were verified end-to-end with real binkp sessions (`scripts
 
 See [TIC / File Area Distribution](#tic--file-area-distribution) for the design.
 
-**Phase 5 (Areafix / FileFix, server-side): Not started.**
+**Phase 5 (Areafix / FileFix, server-side): Implemented**, on branch `hubpoint`. New `src/Hub/HubAreafixProcessor.php` intercepts inbound netmail addressed to `AreaFix`/`FileFix` at one of our own AKAs, at the very top of `BinkdProcessor::storeNetmail()` (before hub-node transit routing and the FREQ intercept — this is mail addressed to us, to be processed as a command, not delivered or routed anywhere).
+
+- **Authentication deviates from the original sketch**: rather than reusing `session_password`, `hub_nodes` gained two new dedicated columns, `areafix_password` and `filefix_password` (checked against the netmail Subject line, per standard Areafix convention), so a subordinate's robot password can differ from its binkp session password and either robot can be disabled independently by leaving its password unset. A registered downlink with no password configured for a robot, or an unregistered sender, gets no reply at all (avoids becoming a backscatter/probing oracle); a registered downlink with the wrong password gets a "Password incorrect" reply.
+- **Two separate robots**, not one combined one: `AreaFix` manages `hub_node_areas`, `FileFix` manages `hub_node_fileareas` — mirrors the existing client-side `AreaFixManager` naming and avoids any ambiguity between echo and file area tag namespaces.
+- **Self-subscribable areas are restricted** to active, non-local echoareas (excluding sysop-only) and active, non-local, non-private file areas — the same eligibility already used by the admin subscription checklists — rather than a separate sysop-curated allowlist table.
+- All standard commands are implemented: `+TAG`/`-TAG` (subscribe/unsubscribe), `%LIST`, `%QUERY`, `%HELP`, `%PAUSE`/`%RESUME` (toggle `hub_nodes.hold_mail`). A reply netmail is queued directly into `hub_node_outbound` (reusing `HubNetmailRouter::buildAndEnqueue()`, widened from `private` to `public` for this) listing the result of every command in the batch.
 
 See the [Implementation Plan](#implementation-plan) checklist below for the item-by-item breakdown, and the [New Files](#new-files) / [Modified Files](#modified-files) tables for what actually landed vs. what was originally sketched (a few paths diverged from the original plan during implementation).
 
@@ -473,11 +478,13 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | `%PAUSE` | Pause all areas (hold mail) | Both |
 | `%RESUME` | Resume all areas | Both |
 
-### Design notes for current phase
+### Design notes (Implemented)
 
-- The `hub_node_areas.paused`, `hub_node_fileareas.paused`, and `hub_nodes.hold_mail` columns support Areafix/Filefix PAUSE/RESUME already
-- When adding subscriptions via admin UI, the same `hub_node_areas`/`hub_node_fileareas` tables are used — Areafix/Filefix will just be an automated writer to the same tables
-- The Areafix/Filefix robot applies identically to nodes and points; it is implemented as a `BinkdProcessor` hook that intercepts netmails addressed to a configurable robot name and dispatches commands, resolving the sender against `hub_nodes.node_address`
+- The `hub_node_areas.paused`, `hub_node_fileareas.paused`, and `hub_nodes.hold_mail` columns support Areafix/Filefix PAUSE/RESUME as planned — `%PAUSE`/`%RESUME` toggle `hub_nodes.hold_mail` (whole-subordinate, matching the table's granularity; there's no per-command way to pause a single area).
+- Subscriptions written by `+TAG`/`-TAG` go through the same `HubNodeManager::setAreaSubscription()`/`setFileAreaSubscription()` methods the admin UI checklist uses, so Areafix/Filefix is just an automated writer to `hub_node_areas`/`hub_node_fileareas` as planned.
+- The robot applies identically to nodes and points; it's implemented as `src/Hub/HubAreafixProcessor.php`, hooked into `BinkdProcessor::storeNetmail()`, resolving the sender against `hub_nodes.node_address` (`getByAddress()`) — not a "configurable robot name" as originally sketched; the robot names are fixed as `AreaFix`/`FileFix` (case-insensitive `to_name` match), matching the fixed names the client-side `AreaFixManager` already sends to.
+- **Robot names and passwords, not in the original sketch**: `AreaFix` and `FileFix` are two separate netmail addresses (not one combined robot), each authenticated by its own new `hub_nodes.areafix_password`/`filefix_password` column rather than the existing `session_password` — see [Implementation Status](#implementation-status) for the reasoning.
+- **Area eligibility, not in the original sketch**: `+TAG` only succeeds for areas eligible for self-subscription — active, non-local echoareas (excluding sysop-only), and active, non-local, non-private file areas. This reuses the same filter as the admin subscription checklists rather than a new per-subordinate allowlist table.
 
 ---
 
@@ -519,11 +526,11 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 15. [x] Delivery: extend `BinkpSession::sendHubNodeOutbound()` to send a TIC pair (control file + data file) for `message_type='tic'` rows instead of a single `.pkt`
 16. [x] Downlink Queue viewer: display and inspect `tic` rows alongside `echomail`/`netmail`
 
-### Phase 5 — Areafix / FileFix (separate proposal) — **Not started**
+### Phase 5 — Areafix / FileFix (separate proposal) — **Done** (branch `hubpoint`)
 
-17. [ ] Areafix/Filefix robot and netmail command parser (server-side)
-18. [ ] Reply packet generation
-19. [ ] Per-subordinate access controls (which areas they're allowed to request)
+17. [x] Areafix/Filefix robot and netmail command parser (server-side) — `src/Hub/HubAreafixProcessor.php`, hooked into `BinkdProcessor::storeNetmail()`
+18. [x] Reply netmail generation — queued into `hub_node_outbound` via `HubNetmailRouter::buildAndEnqueue()`
+19. [x] Per-subordinate access controls — implemented as a shared eligibility filter (active, non-local areas; echoareas also exclude sysop-only, file areas also exclude private) rather than a new per-subordinate allowlist table; see [Implementation Status](#implementation-status)
 
 ---
 
@@ -545,6 +552,8 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | `database/migrations/v20260808164447_create_hub_node_fileareas_table.sql` | `hub_node_fileareas` table (mirrors `hub_node_areas`) | Done (Phase 4) |
 | `database/migrations/v20260808164452_add_tic_columns_to_hub_node_outbound.sql` | Adds `file_id`, `tic_file_data`, `tic_filename` and widens the `message_type` check constraint to include `'tic'` | Done (Phase 4) |
 | ~~`src/Hub/HubFileAreaFanout.php`~~ | Superseded — file-area fanout landed as `HubFanout::fanoutFile()` on the existing `HubFanout` class instead of a sibling file, matching how the class already mixes echomail-fanout entry points | Not built (by design, Phase 4) |
+| `database/migrations/v20260808213648_add_areafix_filefix_passwords_to_hub_nodes.sql` | Adds `hub_nodes.areafix_password`/`filefix_password` | Done (Phase 5) |
+| `src/Hub/HubAreafixProcessor.php` | Areafix/Filefix robot: detects `AreaFix`/`FileFix`-addressed netmail, authenticates via the new password columns, parses `+TAG`/`-TAG`/`%LIST`/`%QUERY`/`%HELP`/`%PAUSE`/`%RESUME`, and queues a reply | Done (Phase 5) |
 
 ## Modified Files
 
@@ -571,7 +580,12 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | `templates/admin/hub_nodes.twig` | Second per-downlink subscription modal/checklist for file areas, mirroring the echo area one | Done (Phase 4) |
 | `templates/binkp.twig` | Downlink Queue viewer displays and inspects `tic` rows alongside `echomail`/`netmail`; the packet inspector modal renders a TIC-fields view instead of a `.pkt` header/message view when inspecting a `tic` row | Done (Phase 4) |
 | `docs/Downlinks.md` | Added "File area (TIC) distribution" section; updated area-subscriptions, delivery, and queue-monitoring sections to mention file areas/TIC pairs/`tic` rows | Done (Phase 4) |
-| `config/i18n/{de,en,es,fr,it,ru}/{common,errors}.php` | Added `ui.admin.hub_nodes.fileareas.*`, `errors.admin.hub_nodes.fileareas_*_failed`, and `ui.binkp.hub_outbound.tic_*` keys | Done (Phase 4) |
+| `config/i18n/{de,en,es,fr,it,ru}/{common,errors}.php` | Added `ui.admin.hub_nodes.fileareas.*`, `errors.admin.hub_nodes.fileareas_*_failed`, and `ui.binkp.hub_outbound.tic_*` keys (Phase 4); added `ui.admin.hub_nodes.areafix_password`/`filefix_password` (+ `_help`) keys (Phase 5) | Done (Phase 4, Phase 5) |
+| `src/BinkdProcessor.php` | `storeNetmail()` gained a new first check calling `HubAreafixProcessor::processIncoming()`, ahead of the existing `HubNetmailRouter::routeIfHubNode()` hook | Done (Phase 5) |
+| `src/Hub/HubNetmailRouter.php` | `buildAndEnqueue()` widened from `private` to `public` so `HubAreafixProcessor` can reuse it to queue robot replies | Done (Phase 5) |
+| `src/Hub/HubNodeManager.php` | `COLUMNS`, `prepareFields()`, and the `create()`/`update()` SQL gained `areafix_password`/`filefix_password` | Done (Phase 5) |
+| `templates/admin/hub_nodes.twig` | Add/edit modal gained AreaFix Password / FileFix Password fields, following the existing session/packet password pattern (sent only when non-empty; never pre-filled on edit) | Done (Phase 5) |
+| `docs/Downlinks.md` | Added an "AreaFix / FileFix" section; updated the field table; removed the stale "Areafix not yet implemented" limitation | Done (Phase 5) |
 
 Exact packet-processing entry point and outbound file layout should be confirmed against current `src/Binkp/` code at implementation time, since the two source proposals disagreed on class names in places. (Resolved during Phase 1: the entry point is `src/BinkdProcessor.php`, not `src/Binkp/PacketProcessor.php`.)
 
@@ -589,6 +603,9 @@ Exact packet-processing entry point and outbound file layout should be confirmed
 8. **Inbound echomail/netmail from subordinates**: configurable per subordinate via `allow_inbound_echomail` / `allow_inbound_netmail` (both default `true`).
 9. **Full third-party transit is excluded** from this phase; see [Out of Scope](#out-of-scope).
 10. **TIC deliveries reuse `hub_node_outbound` rather than a parallel queue table** (Phase 4). A TIC delivery is a control-file/data-file pair, not a single `.pkt`, so the table gains nullable `file_id`/`tic_file_data`/`tic_filename` columns used only when `message_type='tic'`. This keeps one queue table and one Downlink Queue viewer for every distribution type instead of fragmenting delivery/monitoring across two tables for what is, from the admin's point of view, the same kind of queue.
+11. **Areafix/Filefix passwords are dedicated columns, not the session password** (Phase 5). `hub_nodes.areafix_password`/`filefix_password` are separate from `session_password` so a subordinate's robot credential can be rotated or disabled independently of its binkp session authentication.
+12. **Areafix/Filefix are two robots, not one** (Phase 5). `AreaFix` manages echoareas, `FileFix` manages file areas — matching the existing client-side `AreaFixManager` naming rather than inventing a combined robot that would need to disambiguate tag namespaces.
+13. **Areafix/Filefix self-subscription eligibility reuses the admin checklist filter, not a new allowlist table** (Phase 5). A subordinate can `+TAG` any area the admin UI's own subscription checklist would show it (active, non-local; echoareas also exclude sysop-only, file areas also exclude private) — no separate per-subordinate "areas you're allowed to request" table.
 
 ---
 
@@ -611,6 +628,6 @@ Exact packet-processing entry point and outbound file layout should be confirmed
 
 ---
 
-**Document Status:** Draft Proposal — Phases 1-4 implemented (branch `hubpoint`; Phase 1 committed `36c4ab8d`, Phase 2 committed `7ad64d70`, Phase 3 committed `0e4c6a7f`/`4ddc552b`/`b17f0398`, Phase 4 not yet committed); Phase 5 (Areafix/FileFix) not started
+**Document Status:** Draft Proposal — All five phases implemented (branch `hubpoint`; Phase 1 committed `36c4ab8d`, Phase 2 committed `7ad64d70`, Phase 3 committed `0e4c6a7f`/`4ddc552b`/`b17f0398`, Phases 4-5 not yet committed)
 **Last Updated:** 2026-08-08
 **Author:** AI-Generated (Requires Review)

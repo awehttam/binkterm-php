@@ -215,11 +215,13 @@ class HubNetmailRouter
 
     /**
      * Build a .pkt from $packetMessage addressed to $hubNode and insert it
-     * into hub_node_outbound. Shared by both routing directions.
+     * into hub_node_outbound. Shared by both routing directions, and reused
+     * by HubAreafixProcessor to deliver Areafix/Filefix robot replies
+     * (Phase 5 of docs/proposals/HubPointSystemJuly2026.md) - hence public.
      *
      * @param array<string, mixed> $hubNode
      */
-    private function buildAndEnqueue(array $packetMessage, array $hubNode, ?int $netmailId): bool
+    public function buildAndEnqueue(array $packetMessage, array $hubNode, ?int $netmailId): bool
     {
         $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hubnetmail_' . uniqid('', true) . '.pkt';
         try {

@@ -25,6 +25,7 @@ From **Admin → Downlinks**, choose **Add Downlink** and select **Node** or **P
 | Name / Sysop Name | Both | Informational |
 | Session Password | Both | Authenticates this downlink when *it* connects to us (binkp session password) |
 | Packet Password | Both | `.pkt`-level password |
+| AreaFix Password / FileFix Password | Both | Password this downlink must send to self-manage its own echo/file area subscriptions via netmail (see [AreaFix / FileFix](#areafix--filefix)). Independent of the session password; leaving one blank disables that robot for this downlink |
 | Internet Host / Port | Node | Override host/port for push delivery; falls back to the nodelist if unset. Points typically have no routable host and are pull-only |
 | Enabled | Both | Disabling stops all delivery to/from this downlink without deleting it |
 | Hold Mail | Both | Pauses delivery; queued mail accumulates until released |
@@ -64,6 +65,26 @@ Files are announced to downlinks the same way they're announced to uplinks — v
 
 Local-only and private file areas are never distributed to downlinks, matching the existing uplink behavior. Both node- and point-type downlinks can be subscribed to a file area, though in practice this is mainly useful for node-type downlinks — most point software has no file-area engine of its own.
 
+## AreaFix / FileFix
+
+A downlink can self-manage its own echo and file area subscriptions by sending netmail to two robot addresses at one of this BBS's AKAs: **AreaFix** (echo areas) and **FileFix** (file areas) — the server-side counterpart to the AreaFix/FileFix support this BBS already uses when *sending* commands to its own uplinks.
+
+**Authentication**: the netmail's Subject line must match the downlink's configured **AreaFix Password** or **FileFix Password**. A downlink with no password configured for a robot cannot use it — the message is dropped without a reply so unconfigured robots can't be probed. A registered downlink with the wrong password gets a "Password incorrect" reply; netmail from an unregistered address is silently dropped.
+
+**Commands** (one per line in the message body):
+
+| Command | Effect |
+|---|---|
+| `+TAG` | Subscribe to area `TAG` |
+| `-TAG` | Unsubscribe from area `TAG` |
+| `%LIST` | Reply with all areas available to subscribe to |
+| `%QUERY` | Reply with this downlink's current subscriptions |
+| `%PAUSE` | Pause all areas (sets **Hold Mail**) |
+| `%RESUME` | Resume all areas (clears **Hold Mail**) |
+| `%HELP` | Reply with the command reference |
+
+Only active, non-local areas are self-subscribable — sysop-only echoareas and private/local file areas never appear in `%LIST` and can't be subscribed to via `+TAG`, matching what the admin area-subscription checklists already show. A reply netmail is queued back to the downlink for every command batch, listing the result of each command.
+
 ## Netmail routing
 
 Netmail addressed to a registered downlink's address is delivered into its queue instead of being handled as ordinary local netmail. This covers three directions:
@@ -96,5 +117,4 @@ Delivered (`sent`) and permanently failed (`failed`) queue entries are not delet
 ## Limitations
 
 - **File-attach netmail routed through a downlink** currently forwards only the `.pkt` header, not the referenced attached file.
-- **Areafix** (allowing a downlink to self-manage its own area subscriptions via netmail commands) is not yet implemented — subscriptions are currently sysop-managed only, through **Admin → Downlinks**.
 - There is no self-service "request a point" flow; points are registered by the sysop.
