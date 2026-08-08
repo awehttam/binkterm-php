@@ -906,7 +906,7 @@ function renderHubOutboundQueue(rows) {
             : '';
         return `<tr>
             <td>${downlink}</td>
-            <td><span class="badge bg-light text-dark">${escapeHtml(row.message_type)}</span></td>
+            <td><span class="badge bg-secondary">${escapeHtml(row.message_type)}</span></td>
             <td>${statusBadge(row.status)}</td>
             <td>${formatBytes(row.size_bytes)}</td>
             <td>${Number(row.attempts)}</td>
