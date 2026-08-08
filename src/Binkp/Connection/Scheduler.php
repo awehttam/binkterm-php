@@ -47,6 +47,10 @@ class Scheduler
     private $iterationPolledAddresses = [];
     /** Minimum seconds between scheduled crashmail polls */
     const CRASHMAIL_POLL_INTERVAL = 300;
+    /** Minimum seconds between scheduled hub node push checks */
+    const HUB_PUSH_POLL_INTERVAL = 300;
+    /** Unix timestamp of last scheduled hub node push check */
+    private $lastHubPushPoll = 0;
 
     public function __construct($config = null, $logger = null)
     {
@@ -520,6 +524,7 @@ class Scheduler
                 $this->processInboundIfNeeded();
 
                 $this->runScheduledCrashmailPoll();
+                $this->runScheduledHubNodePush();
                 $this->processAdvertisingCampaigns();
                 
             } catch (\Exception $e) {
@@ -571,6 +576,57 @@ class Scheduler
             $this->lastCrashmailPoll = $now;
         } catch (\Throwable $e) {
             $this->log("Crashmail poll error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Push pending hub_node_outbound packets to any enabled, non-held,
+     * push-eligible (allow_outbound, inet_host set) node-type hub node that
+     * has pending work, gated by HUB_PUSH_POLL_INTERVAL. Points are pull-only
+     * (no inet_host) and are naturally excluded.
+     */
+    private function runScheduledHubNodePush(): void
+    {
+        $now = time();
+        $elapsed = $now - $this->lastHubPushPoll;
+        if ($elapsed < self::HUB_PUSH_POLL_INTERVAL) {
+            $remaining = self::HUB_PUSH_POLL_INTERVAL - $elapsed;
+            $this->log("Hub node push check not due yet ({$remaining}s remaining)", 'DEBUG');
+            return;
+        }
+
+        try {
+            $db = Database::getInstance()->getPdo();
+            $stmt = $db->query("
+                SELECT DISTINCT hn.node_address
+                FROM hub_nodes hn
+                JOIN hub_node_outbound hno ON hno.hub_node_id = hn.id
+                WHERE hno.status = 'pending'
+                  AND hn.node_type = 'node'
+                  AND hn.enabled = TRUE
+                  AND hn.allow_outbound = TRUE
+                  AND hn.hold_mail = FALSE
+                  AND hn.inet_host IS NOT NULL
+            ");
+            $addresses = $stmt->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+
+            if (empty($addresses)) {
+                $this->log("No push-eligible hub nodes with pending outbound work", 'DEBUG');
+            } else {
+                foreach ($addresses as $address) {
+                    $this->log("Hub node push starting for {$address}");
+                    $result = $this->client->binkPoll($address);
+                    if (($result['exit_code'] ?? 1) === 0) {
+                        $this->log("Hub node push completed for {$address}");
+                    } else {
+                        $this->log("Hub node push failed for {$address}", 'ERROR');
+                    }
+                }
+            }
+
+            $this->lastHubPushPoll = $now;
+        } catch (\Throwable $e) {
+            $this->log("Hub node push check error: " . $e->getMessage(), 'ERROR');
         }
     }
 

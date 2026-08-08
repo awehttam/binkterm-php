@@ -77,17 +77,25 @@ class BinkpClient
         $uplink = $this->config->getUplinkByAddress($address);
 
         if (!$uplink && !$hostname) {
-            // Not a configured uplink — resolve via nodelist or binkp_zone DNS
-            $resolved = $this->resolveNodeHostname($address);
-            if ($resolved === null) {
-                throw new \Exception(
-                    "Cannot resolve hostname for {$address}: not a configured uplink and not found in nodelist or binkp_zone DNS"
-                );
+            // Not a configured uplink — check for a hub node/point with a routable host
+            $hubNode = (new \BinktermPHP\Hub\HubNodeManager())->getByAddress($address);
+            if ($hubNode && !empty($hubNode['inet_host'])) {
+                $hostname = $hubNode['inet_host'];
+                $port     = $hubNode['port'] ?: 24554;
+                $password = $hubNode['session_password'] ?? '';
+            } else {
+                // Not a hub node either — resolve via nodelist or binkp_zone DNS
+                $resolved = $this->resolveNodeHostname($address);
+                if ($resolved === null) {
+                    throw new \Exception(
+                        "Cannot resolve hostname for {$address}: not a configured uplink, not a hub node with a routable host, and not found in nodelist or binkp_zone DNS"
+                    );
+                }
+                $hostname = $resolved['hostname'];
+                $port     = $resolved['port'];
+                // Anonymous session — no password
+                $password = '';
             }
-            $hostname = $resolved['hostname'];
-            $port     = $resolved['port'];
-            // Anonymous session — no password
-            $password = '';
         }
 
         $hostname = $hostname ?: $uplink['hostname'];
@@ -344,7 +352,44 @@ class BinkpClient
         
         return $results;
     }
-    
+
+    /**
+     * Poll every node-type hub node with a routable host (enabled, allowed to
+     * be pushed to, not held). Points typically have no inet_host and are
+     * pull-only, so they're naturally excluded.
+     *
+     * @return array<string, array>
+     */
+    public function pollAllHubNodes(): array
+    {
+        $manager = new \BinktermPHP\Hub\HubNodeManager();
+        $nodes = $manager->getAll(\BinktermPHP\Hub\HubNodeManager::TYPE_NODE);
+        $results = [];
+
+        foreach ($nodes as $node) {
+            if (!$node['enabled'] || !$node['allow_outbound'] || $node['hold_mail'] || empty($node['inet_host'])) {
+                continue;
+            }
+
+            $address = $node['node_address'];
+            try {
+                $this->log("Polling hub node: {$address}");
+                $result = $this->connect($address, $node['inet_host'], $node['port'] ?: 24554, $node['session_password'] ?? '');
+                $results[$address] = $result;
+                $this->log("Successfully polled hub node: {$address}");
+            } catch (\Exception $e) {
+                $this->log("Failed to poll hub node {$address}: " . $e->getMessage(), 'ERROR');
+                $results[$address] = [
+                    'success' => false,
+                    'error_code' => 'errors.binkp.hub_node.poll_failed',
+                    'error' => 'Failed to poll hub node',
+                ];
+            }
+        }
+
+        return $results;
+    }
+
     public function testConnection($hostname, $port = 24554, $timeout = 30)
     {
         $this->log("Testing connection to {$hostname}:{$port}");

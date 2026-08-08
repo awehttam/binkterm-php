@@ -27,9 +27,9 @@ Those two documents can be treated as historical background; new implementation 
 
 ## Implementation Status
 
-**Phase 1 (Core Infrastructure): Implemented**, on branch `hubpoint`, not yet merged or committed. Verified end-to-end against a dev database (node + point subscriber, fanout, SEEN-BY/PATH merge, no delivery).
+**Phase 1 (Core Infrastructure): Implemented**, on branch `hubpoint`, committed (`36c4ab8d`). Verified end-to-end against a dev database (node + point subscriber, fanout, SEEN-BY/PATH merge, no delivery).
 
-**Phase 2 (Delivery): Not started.** Messages currently queue in `hub_node_outbound` with `status='pending'` and are never sent — there is no binkp server/session support for hub subordinates yet, and no push mechanism.
+**Phase 2 (Delivery): Implemented**, on branch `hubpoint`, not yet committed. Both pull (a subordinate connects to us and authenticates against `hub_nodes`) and push (we poll a node-type subordinate with a routable host) work. Verified end-to-end with a live local binkp session: a raw CRAM-MD5 client simulating a hub node authenticated against `hub_nodes` and received its queued `hub_node_outbound` packet, which was then correctly marked `status='sent'`. See [Modified Files](#modified-files) for the exact delivery mechanics — notably, `BinkpClient::connect()`'s existing non-uplink fallback chain now also checks `hub_nodes` before falling to nodelist/DNS resolution, so both the CLI (`scripts/binkp_poll.php <address>`) and the Scheduler's existing `AdminDaemonClient::binkPoll()` IPC path resolve hub nodes automatically with no admin-daemon protocol changes needed.
 
 **Phase 3 (Netmail routing): Not started.**
 
@@ -383,7 +383,7 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 
 ## Implementation Plan
 
-### Phase 1 — Core infrastructure — **Done** (branch `hubpoint`, uncommitted)
+### Phase 1 — Core infrastructure — **Done** (branch `hubpoint`, committed `36c4ab8d`)
 
 1. [x] Database migrations: `hub_nodes`, `hub_node_areas`, `hub_node_outbound`
 2. [x] `HubFanout` class — fanout logic with SEEN-BY/PATH handling, point-aware branching
@@ -391,11 +391,11 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 4. [x] Hook fanout into packet processor (inbound echomail) and local post path
 5. [x] Admin: hub nodes CRUD (node + point add flows) and area subscription UI
 
-### Phase 2 — Delivery — **Not started**
+### Phase 2 — Delivery — **Done** (branch `hubpoint`, uncommitted)
 
-6. [ ] Binkp server: authenticate subordinates from `hub_nodes`; serve `hub_node_outbound`
-7. [ ] Push flags (`--hub-node` / `--all-hub-nodes`) for node-type subordinates with a routable host
-8. [ ] Scheduler integration for push delivery
+6. [x] Binkp server: authenticate subordinates from `hub_nodes`; serve `hub_node_outbound`
+7. [x] Push delivery for node-type subordinates with a routable host — implemented as `--all-hub-nodes` on `scripts/binkp_poll.php` plus automatic hub-node resolution inside `BinkpClient::connect()` (a plain positional address now works for hub nodes too; no separate `--hub-node=` flag was added since it would duplicate what `connect()` already does — see [Modified Files](#modified-files))
+8. [x] Scheduler integration for push delivery — `Scheduler::runScheduledHubNodePush()`
 
 ### Phase 3 — Netmail routing — **Not started**
 
@@ -415,7 +415,7 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 |---|---|---|
 | `src/Hub/HubNodeManager.php` | CRUD for hub nodes/points and area subscriptions | Done (Phase 1) |
 | `src/Hub/HubFanout.php` | Echomail fanout engine (point-aware) | Done (Phase 1) |
-| `src/Hub/HubDelivery.php` | Packet assembly and outbound queue management | Not started (Phase 2) |
+| ~~`src/Hub/HubDelivery.php`~~ | Superseded — no separate delivery class was built. Packet materialization (temp-file write from the BYTEA blob, then reuse of the existing `sendFile()`) lives directly in `BinkpSession::sendHubNodeOutbound()`, and queue-selection for push lives in `BinkpClient::pollAllHubNodes()` / `Scheduler::runScheduledHubNodePush()` — this matched the existing `sendFreqFiles()`/`sendHoldFiles()` pattern closely enough that a new class would have been a redundant thin wrapper | Not built (by design, Phase 2) |
 | `src/Echomail/EchomailSeenBy.php` | SEEN-BY / PATH parse, check, update, format; point-address detection | Done (Phase 1) |
 | `database/migrations/v20260808003922_create_hub_nodes_table.sql` | | Done (Phase 1) |
 | `database/migrations/v20260808003926_create_hub_node_areas_table.sql` | | Done (Phase 1) |
@@ -429,13 +429,14 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | File | Change | Status |
 |---|---|---|
 | `src/BinkdProcessor.php` (the actual inbound packet processing entry point; `src/Binkp/PacketProcessor.php` does not exist) | Call `HubFanout::fanout()` in `storeEchomail()` right after the message-count update, guarded by `if ($newId > 0)`. Also gained a `skip_default_seenby_path` opt-out flag on `writeMessage()` so `HubFanout` can supply its own merged SEEN-BY/PATH without the existing single-hop auto-synthesis duplicating it (default behavior for all other callers unchanged). | Done (Phase 1, echomail only — netmail routing check is Phase 3) |
-| Binkp server session handling (`src/Binkp/Protocol/BinkpSession.php`) | Authenticate subordinates; serve `hub_node_outbound` during pull sessions | Not started (Phase 2) |
-| Binkp poll entry point | Add `--hub-node` / `--all-hub-nodes` flags for push delivery | Not started (Phase 2) |
-| `src/Binkp/Connection/Scheduler.php` | Add hub node push schedules | Not started (Phase 2) |
+| `src/Binkp/Protocol/BinkpSession.php` | M_ADR address-matching loop also checks `HubNodeManager::getByAddress()`, not just uplinks (fixes a real bug where a hub node/point offering multiple AKAs could get the wrong one selected). `getPasswordForRemote()` falls back to a hub node's `session_password` when no uplink matches (covers both plaintext and CRAM-MD5, which both funnel through this method). New `sendHubNodeOutbound()`, modeled on `sendFreqFiles()`/`sendHoldFiles()`, called from `processSession()` for both originator and answerer roles — serves pending `hub_node_outbound` rows to the authenticated peer by address, marking each `sent`/`failed`. | Done (Phase 2) |
+| `src/Binkp/Protocol/BinkpClient.php` | `connect()`'s existing non-uplink fallback chain now checks `HubNodeManager::getByAddress()` (using `inet_host`/`port`/`session_password`) before falling to nodelist/DNS resolution — this is what makes push delivery work through the *existing* address-based call paths with no protocol/IPC changes. New `pollAllHubNodes()`, modeled on `pollAllUplinks()`. | Done (Phase 2) |
+| `scripts/binkp_poll.php` | Added `--all-hub-nodes` flag. No separate `--hub-node=<address>` flag — the existing plain positional-address path already calls `connect()` unchanged, which now resolves hub nodes automatically. | Done (Phase 2, deviates from the original `--hub-node`/`--all-hub-nodes` wording — see Phase 2 checklist note) |
+| `src/Binkp/Connection/Scheduler.php` | Added `runScheduledHubNodePush()`, modeled directly on `runScheduledCrashmailPoll()` (same interval-gated check-and-trigger shape, `HUB_PUSH_POLL_INTERVAL = 300`s), called from `runDaemon()`'s loop. Queries for push-eligible hub nodes with pending `hub_node_outbound` rows and triggers `AdminDaemonClient::binkPoll($address)` per address — the same IPC path already used for uplinks. No admin-daemon changes needed. | Done (Phase 2) |
 | `routes/admin-routes.php` | Added `/admin/hub-nodes` page route and `/admin/api/hub-nodes` REST routes (list/create/update/delete, area subscriptions, next-point-number lookup) | Done (Phase 1) |
 | `src/MessageHandler.php` | Added `fanoutToHubNodes()`, called from `postEchomail()` and `approveEchomail()` alongside the existing `spoolOutboundEchomail()` call (reuses the existing moderation gate) | Done (Phase 1) |
-| `templates/base.twig`, `templates/shells/web/base.twig`, `templates/shells/bbs-menu/base.twig` | Added "Hub Nodes" nav entry next to "Networks" | Done (Phase 1) |
-| `config/i18n/{de,en,es,fr,it,ru}/{common,errors}.php` | Added `ui.admin.hub_nodes.*` / `errors.admin.hub_nodes.*` keys | Done (Phase 1) |
+| `templates/base.twig`, `templates/shells/web/base.twig`, `templates/shells/bbs-menu/base.twig` | Added a "Downlinks" nav entry next to "Networks" (labeled "Downlinks", not "Hub Nodes" — see the Admin UI labeling note above) | Done (Phase 1, relabeled after initial ship) |
+| `config/i18n/{de,en,es,fr,it,ru}/{common,errors}.php` | Added `ui.admin.hub_nodes.*` / `errors.admin.hub_nodes.*` keys (values display as "Downlink(s)") | Done (Phase 1, relabeled after initial ship) |
 
 Exact packet-processing entry point and outbound file layout should be confirmed against current `src/Binkp/` code at implementation time, since the two source proposals disagreed on class names in places. (Resolved during Phase 1: the entry point is `src/BinkdProcessor.php`, not `src/Binkp/PacketProcessor.php`.)
 
@@ -473,6 +474,6 @@ Exact packet-processing entry point and outbound file layout should be confirmed
 
 ---
 
-**Document Status:** Draft Proposal — Phase 1 implemented (branch `hubpoint`, uncommitted); Phases 2-4 not started
+**Document Status:** Draft Proposal — Phases 1-2 implemented (branch `hubpoint`; Phase 1 committed `36c4ab8d`, Phase 2 uncommitted); Phases 3-4 not started
 **Last Updated:** 2026-08-08
 **Author:** AI-Generated (Requires Review)

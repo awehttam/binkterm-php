@@ -336,6 +336,9 @@ class BinkpSession
 
                 // Deliver any hold-directory files queued for the connecting node (runs for both roles)
                 $this->sendHoldFiles();
+
+                // Deliver any hub_node_outbound packets queued for this subordinate (runs for both roles)
+                $this->sendHubNodeOutbound();
             }
 
             if ($this->isOriginator) {
@@ -681,9 +684,10 @@ class BinkpSession
                 // Trim whitespace first to handle leading/trailing spaces
                 $addresses = array_values(array_filter(explode(' ', trim($addressData)), 'strlen'));
 
-                // Try to find a matching address in our uplinks
+                // Try to find a matching address among our uplinks or hub nodes/points
                 $matchedAddress = null;
                 $matchedAddressWithDomain = null;
+                $hubNodeManager = new \BinktermPHP\Hub\HubNodeManager();
                 foreach ($addresses as $addr) {
                     $addr = trim($addr);
                     $addrWithDomain = $addr;
@@ -699,7 +703,7 @@ class BinkpSession
                         $addr = substr($addr, 0, -2);
                     }
 
-                    if (!empty($addr) && $this->config->getUplinkByAddress($addr)) {
+                    if (!empty($addr) && ($this->config->getUplinkByAddress($addr) || $hubNodeManager->getByAddress($addr))) {
                         $matchedAddress = $addr;
                         $matchedAddressWithDomain = $addrWithDomain;
                         break;
@@ -1110,6 +1114,74 @@ class BinkpSession
         $remaining = glob($holdDir . '/*');
         if ($remaining !== false && empty($remaining)) {
             @rmdir($holdDir);
+        }
+    }
+
+    /**
+     * Send any pending hub_node_outbound packets queued for the connecting
+     * subordinate (node or point). Called at session start for both
+     * originator and answerer, mirroring sendFreqFiles()/sendHoldFiles().
+     */
+    private function sendHubNodeOutbound(): void
+    {
+        $remoteAddr = $this->remoteAddress ?? '';
+        if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+            return;
+        }
+
+        try {
+            $hubNode = (new \BinktermPHP\Hub\HubNodeManager())->getByAddress($remoteAddr);
+            if (!$hubNode || !$hubNode['enabled'] || $hubNode['hold_mail']) {
+                return;
+            }
+
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare(
+                "SELECT id, packet_data
+                 FROM hub_node_outbound
+                 WHERE hub_node_id = ? AND status = 'pending'
+                 ORDER BY priority ASC, next_attempt_at ASC"
+            );
+            $stmt->execute([$hubNode['id']]);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (empty($rows)) {
+                return;
+            }
+
+            $this->log("Sending " . count($rows) . " hub node outbound packet(s) queued for {$remoteAddr}", 'INFO');
+
+            $markSent = $db->prepare(
+                "UPDATE hub_node_outbound SET status = 'sent', sent_at = NOW() WHERE id = ?"
+            );
+            $markFailed = $db->prepare(
+                "UPDATE hub_node_outbound SET status = 'failed', attempts = attempts + 1, error_message = ? WHERE id = ?"
+            );
+
+            foreach ($rows as $row) {
+                $id = (int)$row['id'];
+                $bytes = $row['packet_data'];
+                if (is_resource($bytes)) {
+                    $bytes = stream_get_contents($bytes);
+                }
+
+                $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hubnode_' . uniqid('', true) . '.pkt';
+                try {
+                    if (file_put_contents($tmpPath, $bytes) === false) {
+                        throw new \Exception('Failed to write temp packet file');
+                    }
+                    $this->sendFile($tmpPath);
+                    $markSent->execute([$id]);
+                    $this->log("Hub node outbound: sent packet #{$id} to {$remoteAddr}", 'INFO');
+                } catch (\Exception $e) {
+                    $markFailed->execute([$e->getMessage(), $id]);
+                    $this->log("Hub node outbound: failed to send packet #{$id} to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
+                } finally {
+                    @unlink($tmpPath);
+                }
+            }
+        } catch (\Exception $e) {
+            $this->log("sendHubNodeOutbound error: " . $e->getMessage(), 'ERROR');
         }
     }
 
@@ -2049,10 +2121,16 @@ class BinkpSession
             if ($uplink) {
                 $this->log("Found uplink config for {$this->remoteAddress}", 'DEBUG');
                 return $uplink['password'] ?? '';
-            } else {
-                $this->log("No uplink config found for {$this->remoteAddress}", 'WARNING');
-                return '';
             }
+
+            $hubNode = (new \BinktermPHP\Hub\HubNodeManager())->getByAddress($this->remoteAddress);
+            if ($hubNode) {
+                $this->log("Found hub node config for {$this->remoteAddress}", 'DEBUG');
+                return $hubNode['session_password'] ?? '';
+            }
+
+            $this->log("No uplink or hub node config found for {$this->remoteAddress}", 'WARNING');
+            return '';
         }
         return '';
     }
