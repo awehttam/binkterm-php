@@ -44,11 +44,15 @@ function showUsage()
     echo "Sending:\n";
     echo "  --send-file=PATH     Send an existing file (e.g. a .pkt) as-is\n";
     echo "  --compose-netmail    Build and send a one-message test netmail packet\n";
-    echo "  --to=ADDR            Destination address (required with --compose-netmail)\n";
-    echo "  --to-name=NAME       Netmail To: name (default: sysop)\n";
-    echo "  --subject=TEXT       Netmail subject (default: Test message)\n";
-    echo "  --body=TEXT          Netmail body text\n";
-    echo "  --body-file=PATH     Read netmail body from a file instead of --body\n\n";
+    echo "  --to=ADDR            Destination/boss address (required with --compose-netmail\n";
+    echo "                       and --compose-echomail)\n";
+    echo "  --to-name=NAME       Netmail To: name (default: sysop; ignored for echomail, always All)\n";
+    echo "  --subject=TEXT       Message subject (default: Test message)\n";
+    echo "  --body=TEXT          Message body text\n";
+    echo "  --body-file=PATH     Read message body from a file instead of --body\n";
+    echo "  --compose-echomail   Build and send a one-message test echomail packet\n";
+    echo "  --area=TAG           Echoarea tag (required with --compose-echomail)\n";
+    echo "  --domain=NAME        Echoarea network domain, for MSGID (optional)\n\n";
     echo "Receiving:\n";
     echo "  --save-dir=PATH      Where to save received files (default: data/binkp_test_client/)\n";
     echo "  --no-dump            Don't print packet header/message dump for received .pkt files\n\n";
@@ -57,6 +61,8 @@ function showUsage()
     echo "  php binkp_test_client.php --host=localhost --address=1:153/149.1 --password=secret\n";
     echo "  php binkp_test_client.php --host=localhost --address=1:153/149.1 --password=secret \\\n";
     echo "      --compose-netmail --to=1:1/1 --subject=\"Hi\" --body=\"Test from a point\"\n";
+    echo "  php binkp_test_client.php --host=localhost --address=1:153/149.1 --password=secret \\\n";
+    echo "      --compose-echomail --to=1:1/1 --area=GENERAL --subject=\"Hi\" --body=\"Test post from a point\"\n";
     echo "  php binkp_test_client.php --host=localhost --address=1:153/149.1 --password=secret --no-cram\n\n";
 }
 
@@ -80,6 +86,22 @@ function parseCramChallenge(string $nulData): ?string
 function computeCramDigest(string $challengeHex, string $password): string
 {
     return hash_hmac('md5', hex2bin($challengeHex), $password);
+}
+
+/**
+ * Resolve the message body from --body-file if given, else --body.
+ * Exits with an error if --body-file was given but doesn't exist.
+ */
+function resolveBody(array $options): string
+{
+    if (!$options['body-file']) {
+        return $options['body'];
+    }
+    if (!file_exists($options['body-file'])) {
+        echo "Error: --body-file path does not exist: {$options['body-file']}\n";
+        exit(1);
+    }
+    return file_get_contents($options['body-file']);
 }
 
 /**
@@ -133,8 +155,11 @@ $options = [
     'no-cram' => false,
     'send-file' => null,
     'compose-netmail' => false,
+    'compose-echomail' => false,
     'to' => null,
-    'to-name' => 'sysop',
+    'to-name' => null,
+    'area' => null,
+    'domain' => null,
     'subject' => 'Test message',
     'body' => 'This is a test message from binkp_test_client.php.',
     'body-file' => null,
@@ -187,6 +212,17 @@ if ($options['compose-netmail'] && !$options['to']) {
     exit(1);
 }
 
+if ($options['compose-echomail']) {
+    if (!$options['to']) {
+        echo "Error: --compose-echomail requires --to=ADDR (the boss/uplink address)\n\n";
+        exit(1);
+    }
+    if (!$options['area']) {
+        echo "Error: --compose-echomail requires --area=TAG\n\n";
+        exit(1);
+    }
+}
+
 $saveDir = $options['save-dir'] ?: (__DIR__ . '/../data/binkp_test_client');
 if (!is_dir($saveDir)) {
     mkdir($saveDir, 0755, true);
@@ -203,29 +239,40 @@ if ($options['send-file']) {
     $outboundFiles[] = $options['send-file'];
 }
 if ($options['compose-netmail']) {
-    $body = $options['body'];
-    if ($options['body-file']) {
-        if (!file_exists($options['body-file'])) {
-            echo "Error: --body-file path does not exist: {$options['body-file']}\n";
-            exit(1);
-        }
-        $body = file_get_contents($options['body-file']);
-    }
-
     $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'binkp_test_client_' . uniqid('', true) . '.pkt';
     $message = [
         'from_address' => $options['address'],
         'to_address' => $options['to'],
         'from_name' => $options['sysop'],
-        'to_name' => $options['to-name'],
+        'to_name' => $options['to-name'] ?: 'sysop',
         'subject' => $options['subject'],
-        'message_text' => $body,
+        'message_text' => resolveBody($options),
         'date_written' => date('Y-m-d H:i:s'),
         'attributes' => 0x0001, // private/netmail
         'is_echomail' => false,
     ];
 
     log_msg("Composing test netmail: {$options['address']} -> {$options['to']} \"{$options['subject']}\"");
+    (new BinkdProcessor())->createOutboundPacket([$message], $options['to'], $tmpPath);
+    $outboundFiles[] = $tmpPath;
+}
+if ($options['compose-echomail']) {
+    $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'binkp_test_client_' . uniqid('', true) . '.pkt';
+    $message = [
+        'from_address' => $options['address'],
+        'to_address' => $options['to'],
+        'from_name' => $options['sysop'],
+        'to_name' => 'All',
+        'subject' => $options['subject'],
+        'message_text' => resolveBody($options),
+        'date_written' => date('Y-m-d H:i:s'),
+        'attributes' => 0x0000, // echomail (no private bit)
+        'is_echomail' => true,
+        'echoarea_tag' => strtoupper($options['area']),
+        'echoarea_domain' => $options['domain'] ?: null,
+    ];
+
+    log_msg("Composing test echomail: {$options['address']} -> {$options['to']} area={$message['echoarea_tag']} \"{$options['subject']}\"");
     (new BinkdProcessor())->createOutboundPacket([$message], $options['to'], $tmpPath);
     $outboundFiles[] = $tmpPath;
 }
