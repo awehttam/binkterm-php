@@ -153,21 +153,38 @@ class HubNodeManager
     }
 
     /**
-     * All echoareas with the subscription status (and pause flag) for a given hub node.
+     * All echoareas with the subscription status (and pause flag) for a given hub node,
+     * scoped to areas in the node's own network domain (resolveDomain()) - local areas
+     * (no domain, or a literal 'local'-ish domain value) are never offered since a hub
+     * node/point only ever exchanges mail within one real network domain. Areas the
+     * node is already subscribed to are always included regardless of domain, even if
+     * that subscription predates domain scoping or was assigned cross-domain by an
+     * admin - otherwise a save via bulkSetAreaSubscriptions() (a full replace of
+     * whatever list this returns) would silently drop it.
      *
      * @return array<int, array<string, mixed>>
      */
     public function getAreaSubscriptions(int $hubNodeId): array
     {
+        $hubNode = $this->getById($hubNodeId);
+        if (!$hubNode) {
+            throw new \InvalidArgumentException('Hub node not found');
+        }
+        $domain = $this->resolveDomain($hubNode);
+
         $stmt = $this->db->prepare("
             SELECT ea.id AS echoarea_id, ea.tag, ea.domain, ea.description,
                    hna.id AS subscription_id, hna.paused, hna.subscribed_at
             FROM echoareas ea
             LEFT JOIN hub_node_areas hna ON hna.echoarea_id = ea.id AND hna.hub_node_id = ?
             WHERE ea.is_active = TRUE
+              AND (
+                    hna.id IS NOT NULL
+                    OR (ea.domain IS NOT NULL AND ea.domain != '' AND LOWER(ea.domain) = LOWER(?))
+                  )
             ORDER BY ea.domain, ea.tag
         ");
-        $stmt->execute([$hubNodeId]);
+        $stmt->execute([$hubNodeId, $domain]);
 
         return array_map(function (array $row) {
             $row['echoarea_id'] = (int)$row['echoarea_id'];
@@ -248,12 +265,19 @@ class HubNodeManager
 
     /**
      * All file areas with the subscription status (and pause flag) for a given hub node.
-     * Mirrors getAreaSubscriptions(). See docs/proposals/HubPointSystemJuly2026.md Phase 4.
+     * Mirrors getAreaSubscriptions(), including its domain scoping and the same
+     * always-include-existing-subscriptions rule. See docs/proposals/HubPointSystemJuly2026.md Phase 4.
      *
      * @return array<int, array<string, mixed>>
      */
     public function getFileAreaSubscriptions(int $hubNodeId): array
     {
+        $hubNode = $this->getById($hubNodeId);
+        if (!$hubNode) {
+            throw new \InvalidArgumentException('Hub node not found');
+        }
+        $domain = $this->resolveDomain($hubNode);
+
         $stmt = $this->db->prepare("
             SELECT fa.id AS file_area_id, fa.tag, fa.domain, fa.description,
                    hnf.id AS subscription_id, hnf.paused, hnf.subscribed_at
@@ -261,9 +285,13 @@ class HubNodeManager
             LEFT JOIN hub_node_fileareas hnf ON hnf.file_area_id = fa.id AND hnf.hub_node_id = ?
             WHERE fa.is_active = TRUE
               AND fa.is_private = FALSE
+              AND (
+                    hnf.id IS NOT NULL
+                    OR (fa.domain IS NOT NULL AND fa.domain != '' AND LOWER(fa.domain) = LOWER(?))
+                  )
             ORDER BY fa.domain, fa.tag
         ");
-        $stmt->execute([$hubNodeId]);
+        $stmt->execute([$hubNodeId, $domain]);
 
         return array_map(function (array $row) {
             $row['file_area_id'] = (int)$row['file_area_id'];
