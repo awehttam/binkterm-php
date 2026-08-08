@@ -3006,6 +3006,28 @@ class MessageHandler
                 $message['attributes'] |= 0x0800;
             }
 
+            // If the destination is a registered downlink node/point, deliver directly
+            // to it via hub_node_outbound instead of falling into uplink network-pattern
+            // routing, which has no knowledge of hub_nodes and would otherwise send this
+            // toward whatever uplink's pattern happens to match the destination's zone/net.
+            $hubRouter = new \BinktermPHP\Hub\HubNetmailRouter($this->db);
+            if ($hubRouter->routeOutboundIfHubNode($message, $messageId)) {
+                $this->db->prepare("UPDATE netmail SET is_sent = TRUE, spooled_at = CURRENT_TIMESTAMP WHERE id = ?")
+                         ->execute([$messageId]);
+
+                \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'netmail sent', [
+                    'from'    => "{$fromName} <{$fromAddr}>",
+                    'to'      => "{$toName} <{$toAddr}>",
+                    'subject' => $subject,
+                    'msgid'   => $message['message_id'] ?? '',
+                    'packet'  => '(hub node outbound)',
+                ]);
+
+                $this->queueImmediateOutboundPoll($toAddr, "netmail #{$messageId}");
+
+                return true;
+            }
+
             // Get the uplink that handles routing for this destination
             // The packet must be addressed to the hub/uplink, not the final destination
             // The final destination is preserved in the message headers and INTL kludge

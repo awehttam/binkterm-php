@@ -29,9 +29,13 @@ Those two documents can be treated as historical background; new implementation 
 
 **Phase 1 (Core Infrastructure): Implemented**, on branch `hubpoint`, committed (`36c4ab8d`). Verified end-to-end against a dev database (node + point subscriber, fanout, SEEN-BY/PATH merge, no delivery).
 
-**Phase 2 (Delivery): Implemented**, on branch `hubpoint`, not yet committed. Both pull (a subordinate connects to us and authenticates against `hub_nodes`) and push (we poll a node-type subordinate with a routable host) work. Verified end-to-end with a live local binkp session: a raw CRAM-MD5 client simulating a hub node authenticated against `hub_nodes` and received its queued `hub_node_outbound` packet, which was then correctly marked `status='sent'`. See [Modified Files](#modified-files) for the exact delivery mechanics — notably, `BinkpClient::connect()`'s existing non-uplink fallback chain now also checks `hub_nodes` before falling to nodelist/DNS resolution, so both the CLI (`scripts/binkp_poll.php <address>`) and the Scheduler's existing `AdminDaemonClient::binkPoll()` IPC path resolve hub nodes automatically with no admin-daemon protocol changes needed.
+**Phase 2 (Delivery): Implemented**, on branch `hubpoint`, committed (`7ad64d70`). Both pull (a subordinate connects to us and authenticates against `hub_nodes`) and push (we poll a node-type subordinate with a routable host) work. Verified end-to-end with a live local binkp session: a raw CRAM-MD5 client simulating a hub node authenticated against `hub_nodes` and received its queued `hub_node_outbound` packet, which was then correctly marked `status='sent'`. See [Modified Files](#modified-files) for the exact delivery mechanics — notably, `BinkpClient::connect()`'s existing non-uplink fallback chain now also checks `hub_nodes` before falling to nodelist/DNS resolution, so both the CLI (`scripts/binkp_poll.php <address>`) and the Scheduler's existing `AdminDaemonClient::binkPoll()` IPC path resolve hub nodes automatically with no admin-daemon protocol changes needed.
 
-**Phase 3 (Netmail routing): Not started.**
+**Phase 3 (Netmail routing): Implemented**, on branch `hubpoint`, not yet committed. Two directions are covered:
+- **Inbound transit** — netmail arriving whose destination matches a registered, enabled `hub_nodes` entry (with `allow_inbound_netmail`, not held) is forwarded into `hub_node_outbound` instead of being dropped as undeliverable. Gated off by default behind the `HUB_ROUTE_NETMAIL` env flag (see `docs/CONFIGURATION.md`) since it changes handling of mail not addressed to us.
+- **Outbound to a registered downlink** — added after initial ship, in response to a real bug report: a user composing netmail to a registered point (`227:1/400.1`) got a `.pkt` addressed to `227:1/1` instead, because `MessageHandler::spoolOutboundNetmail()`'s uplink network-pattern routing (`BinkpConfig::getUplinkForDestination()`) has no knowledge of `hub_nodes` and matched the zone/net wildcard of an unrelated uplink. Fixed by checking `HubNodeManager::getByAddress()` before uplink routing and delivering straight to `hub_node_outbound` when the destination is a registered, enabled downlink with `allow_outbound`. **Not** gated by `HUB_ROUTE_NETMAIL` (that flag is specifically about relaying foreign transit mail; this is our own user mailing an address we administer — the per-node `allow_outbound` flag is the opt-in). Verified end-to-end: packet header now correctly shows the downlink's boss address instead of the wrong uplink.
+
+**Remaining scope boundary**: **file-attach netmail** (`FILE_ATTACH` bit) routed to a hub node — either direction — forwards only the `.pkt` header, not the referenced attached file; the existing attachment-delivery mechanism is keyed to a *local* netmail row that doesn't exist for transit mail, and wasn't addressed for the outbound case either. Noted as a known limitation, not solved in Phase 3.
 
 **Phase 4 (Areafix, server-side): Not started.**
 
@@ -397,9 +401,9 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 7. [x] Push delivery for node-type subordinates with a routable host — implemented as `--all-hub-nodes` on `scripts/binkp_poll.php` plus automatic hub-node resolution inside `BinkpClient::connect()` (a plain positional address now works for hub nodes too; no separate `--hub-node=` flag was added since it would duplicate what `connect()` already does — see [Modified Files](#modified-files))
 8. [x] Scheduler integration for push delivery — `Scheduler::runScheduledHubNodePush()`
 
-### Phase 3 — Netmail routing — **Not started**
+### Phase 3 — Netmail routing — **Done** (branch `hubpoint`, uncommitted; inbound transit only — see Implementation Status scope boundaries)
 
-9. [ ] Netmail passthrough routing to nodes and points, gated by `allow_inbound_netmail` and `HUB_ROUTE_NETMAIL`
+9. [x] Netmail passthrough routing to nodes and points, gated by `allow_inbound_netmail` and `HUB_ROUTE_NETMAIL` — `src/Hub/HubNetmailRouter.php`
 
 ### Phase 4 — Areafix (separate proposal) — **Not started**
 
@@ -423,20 +427,22 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | `templates/admin/hub_nodes.twig` | Admin hub nodes list, add/edit modal, and area-subscription modal (single-page pattern, mirroring `templates/admin/networks.twig` — no separate edit template was needed) | Done (Phase 1) |
 | ~~`templates/admin/hub_node_edit.twig`~~ | Superseded — folded into `hub_nodes.twig`'s modal instead of a separate page | Not built (by design) |
 | ~~`routes/admin-hub-routes.php`~~ | Superseded — hub routes were added directly to `routes/admin-routes.php` (`/admin/hub-nodes` page route + `/admin/api/hub-nodes*` REST routes), matching how `/networks` is handled rather than splitting into a new route file | Not built (by design) |
+| `src/Hub/HubNetmailRouter.php` | `routeIfHubNode()`: inbound transit netmail into `hub_node_outbound`, gated by `HUB_ROUTE_NETMAIL` and per-node `allow_inbound_netmail`. `routeOutboundIfHubNode()`: locally-composed netmail addressed to a registered downlink, gated by per-node `allow_outbound` only. Both share a private `buildAndEnqueue()` helper for packet build + insert. | Done (Phase 3) |
 
 ## Modified Files
 
 | File | Change | Status |
 |---|---|---|
-| `src/BinkdProcessor.php` (the actual inbound packet processing entry point; `src/Binkp/PacketProcessor.php` does not exist) | Call `HubFanout::fanout()` in `storeEchomail()` right after the message-count update, guarded by `if ($newId > 0)`. Also gained a `skip_default_seenby_path` opt-out flag on `writeMessage()` so `HubFanout` can supply its own merged SEEN-BY/PATH without the existing single-hop auto-synthesis duplicating it (default behavior for all other callers unchanged). | Done (Phase 1, echomail only — netmail routing check is Phase 3) |
+| `src/BinkdProcessor.php` (the actual inbound packet processing entry point; `src/Binkp/PacketProcessor.php` does not exist) | Call `HubFanout::fanout()` in `storeEchomail()` right after the message-count update, guarded by `if ($newId > 0)`. Also gained a `skip_default_seenby_path` opt-out flag on `writeMessage()` so `HubFanout` can supply its own merged SEEN-BY/PATH without the existing single-hop auto-synthesis duplicating it (default behavior for all other callers unchanged). `storeNetmail()` gained a single-line hook at the top calling `HubNetmailRouter::routeIfHubNode()` before the existing FREQ-intercept check — zero structural change to the rest of the method. | Done (Phase 1 echomail hook; Phase 3 netmail hook) |
 | `src/Binkp/Protocol/BinkpSession.php` | M_ADR address-matching loop also checks `HubNodeManager::getByAddress()`, not just uplinks (fixes a real bug where a hub node/point offering multiple AKAs could get the wrong one selected). `getPasswordForRemote()` falls back to a hub node's `session_password` when no uplink matches (covers both plaintext and CRAM-MD5, which both funnel through this method). New `sendHubNodeOutbound()`, modeled on `sendFreqFiles()`/`sendHoldFiles()`, called from `processSession()` for both originator and answerer roles — serves pending `hub_node_outbound` rows to the authenticated peer by address, marking each `sent`/`failed`. | Done (Phase 2) |
 | `src/Binkp/Protocol/BinkpClient.php` | `connect()`'s existing non-uplink fallback chain now checks `HubNodeManager::getByAddress()` (using `inet_host`/`port`/`session_password`) before falling to nodelist/DNS resolution — this is what makes push delivery work through the *existing* address-based call paths with no protocol/IPC changes. New `pollAllHubNodes()`, modeled on `pollAllUplinks()`. | Done (Phase 2) |
 | `scripts/binkp_poll.php` | Added `--all-hub-nodes` flag. No separate `--hub-node=<address>` flag — the existing plain positional-address path already calls `connect()` unchanged, which now resolves hub nodes automatically. | Done (Phase 2, deviates from the original `--hub-node`/`--all-hub-nodes` wording — see Phase 2 checklist note) |
 | `src/Binkp/Connection/Scheduler.php` | Added `runScheduledHubNodePush()`, modeled directly on `runScheduledCrashmailPoll()` (same interval-gated check-and-trigger shape, `HUB_PUSH_POLL_INTERVAL = 300`s), called from `runDaemon()`'s loop. Queries for push-eligible hub nodes with pending `hub_node_outbound` rows and triggers `AdminDaemonClient::binkPoll($address)` per address — the same IPC path already used for uplinks. No admin-daemon changes needed. | Done (Phase 2) |
 | `routes/admin-routes.php` | Added `/admin/hub-nodes` page route and `/admin/api/hub-nodes` REST routes (list/create/update/delete, area subscriptions, next-point-number lookup) | Done (Phase 1) |
-| `src/MessageHandler.php` | Added `fanoutToHubNodes()`, called from `postEchomail()` and `approveEchomail()` alongside the existing `spoolOutboundEchomail()` call (reuses the existing moderation gate) | Done (Phase 1) |
+| `src/MessageHandler.php` | Added `fanoutToHubNodes()`, called from `postEchomail()` and `approveEchomail()` alongside the existing `spoolOutboundEchomail()` call (reuses the existing moderation gate). `spoolOutboundNetmail()` now checks `HubNetmailRouter::routeOutboundIfHubNode()` before uplink routing (bug fix — see Phase 3 status above). | Done (Phase 1 + Phase 3 bug fix) |
 | `templates/base.twig`, `templates/shells/web/base.twig`, `templates/shells/bbs-menu/base.twig` | Added a "Downlinks" nav entry next to "Networks" (labeled "Downlinks", not "Hub Nodes" — see the Admin UI labeling note above) | Done (Phase 1, relabeled after initial ship) |
 | `config/i18n/{de,en,es,fr,it,ru}/{common,errors}.php` | Added `ui.admin.hub_nodes.*` / `errors.admin.hub_nodes.*` keys (values display as "Downlink(s)") | Done (Phase 1, relabeled after initial ship) |
+| `docs/CONFIGURATION.md` | Documented `HUB_ROUTE_NETMAIL` in the `.env` Miscellaneous section | Done (Phase 3) |
 
 Exact packet-processing entry point and outbound file layout should be confirmed against current `src/Binkp/` code at implementation time, since the two source proposals disagreed on class names in places. (Resolved during Phase 1: the entry point is `src/BinkdProcessor.php`, not `src/Binkp/PacketProcessor.php`.)
 
@@ -474,6 +480,6 @@ Exact packet-processing entry point and outbound file layout should be confirmed
 
 ---
 
-**Document Status:** Draft Proposal — Phases 1-2 implemented (branch `hubpoint`; Phase 1 committed `36c4ab8d`, Phase 2 uncommitted); Phases 3-4 not started
+**Document Status:** Draft Proposal — Phases 1-3 implemented (branch `hubpoint`; Phase 1 committed `36c4ab8d`, Phase 2 committed `7ad64d70`, Phase 3 uncommitted); Phase 4 not started
 **Last Updated:** 2026-08-08
 **Author:** AI-Generated (Requires Review)

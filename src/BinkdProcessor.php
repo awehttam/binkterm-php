@@ -951,6 +951,13 @@ class BinkdProcessor
 
     private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)
     {
+        // Route transit netmail addressed to a registered hub node/point,
+        // if enabled. Must run before the FREQ intercept below — a FREQ
+        // addressed to a hub node isn't a FREQ for us to intercept.
+        if ((new \BinktermPHP\Hub\HubNetmailRouter())->routeIfHubNode($message)) {
+            return;
+        }
+
         // Intercept inbound netmail FREQs (FILE_REQUEST attribute 0x0800).
         // These are protocol requests, not user mail — log and discard rather than deliver.
         if (($message['attributes'] ?? 0) & 0x0800) {

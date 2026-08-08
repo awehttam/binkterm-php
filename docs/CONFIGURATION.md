@@ -267,6 +267,12 @@ PERF_LOG_SLOW_MS=500
 # File area rule action log
 FILEAREA_RULE_ACTION_LOG=data/logs/filearea_rules.log
 
+# Route inbound netmail addressed to a registered hub node/point (see
+# Admin -> Downlinks) into its outbound queue instead of dropping it as
+# undeliverable. Also requires the hub node's own "Accept Netmail From
+# This Subordinate" setting to be enabled.
+# HUB_ROUTE_NETMAIL=false
+
 # ⚠️  DEVELOPMENT MODE — NEVER enable on a production system.
 # Activates destructive diagnostic functions that can disrupt normal operation,
 # including the ability to purge per-user QWK state (conference pointers,
