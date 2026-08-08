@@ -1165,7 +1165,11 @@ class BinkpSession
                     $bytes = stream_get_contents($bytes);
                 }
 
-                $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hubnode_' . uniqid('', true) . '.pkt';
+                // Wire filename must be 8.3-compatible (FTN convention) - this
+                // basename is what handleSentFileConfirmation() matches against
+                // the remote's M_GOT, so keep it short like other packet names
+                // in this codebase (see BinkdProcessor::createOutboundPacket()).
+                $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.pkt';
                 $wireName = basename($tmpPath);
                 try {
                     if (file_put_contents($tmpPath, $bytes) === false) {
