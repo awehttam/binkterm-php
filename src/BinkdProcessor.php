@@ -1551,9 +1551,49 @@ class BinkdProcessor
             } catch (\Throwable $e) {
                 $this->log("[BINKD] Hub fanout failed for echomail #{$newId}: " . $e->getMessage());
             }
+
+            try {
+                $this->relayEchomailToUplinkIfNeeded($newId, $echoareaTag, $domain, $message['origAddr'], $bottomKludgeText);
+            } catch (\Throwable $e) {
+                $this->log("[BINKD] Uplink relay failed for echomail #{$newId}: " . $e->getMessage());
+            }
         }
 
         //$this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
+    }
+
+    /**
+     * Relay a newly-stored inbound echomail message to the echoarea's
+     * configured uplink, unless the uplink already has it (we received it
+     * from that same uplink, or its address is already in the message's
+     * SEEN-BY). Without this, echomail posted by a registered downlink/point
+     * would only ever be distributed to other downlinks, never forwarded up
+     * to the real network - only half of real FTN hub relay behavior.
+     */
+    private function relayEchomailToUplinkIfNeeded(int $messageId, string $echoareaTag, string $domain, string $origAddr, string $bottomKludgeText): void
+    {
+        $messageHandler = new \BinktermPHP\MessageHandler();
+        $uplinkAddress = $messageHandler->getEchoareaUplink($echoareaTag, $domain);
+        if (!$uplinkAddress) {
+            return;
+        }
+
+        $origParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts(trim($origAddr));
+        $uplinkParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts($uplinkAddress);
+        if ($origAddr !== '' && $origParts['net'] === $uplinkParts['net'] && $origParts['node'] === $uplinkParts['node']) {
+            // Received directly from this uplink - don't send it straight back.
+            return;
+        }
+
+        $rawSeenBy = \BinktermPHP\Echomail\EchomailSeenBy::parseSeenBy($bottomKludgeText);
+        if (\BinktermPHP\Echomail\EchomailSeenBy::seenByContains($rawSeenBy, $uplinkAddress)) {
+            // Uplink already has a copy via some other path.
+            return;
+        }
+
+        if ($messageHandler->spoolOutboundEchomail($messageId, $echoareaTag, $domain)) {
+            $messageHandler->flushImmediateOutboundPolls();
+        }
     }
 
     private function getOrCreateEchoarea($tag,$domain)
@@ -2055,8 +2095,14 @@ class BinkdProcessor
         } elseif ($isEchomail) {
             // Use stored kludges from database if available
             if (!empty($message['kludge_lines'])) {
-                // Convert stored kludges to packet format (bare CR per FTS-0001)
-                $storedKludges = str_replace(["\r\n", "\n"], "\r", $message['kludge_lines']);
+                // Convert stored kludges to packet format (bare CR per FTS-0001).
+                // Stored kludges include the original AREA: line (kept for
+                // display/history), but a fresh AREA: line is always built
+                // separately below from echoarea_tag - drop the stored one
+                // here so it isn't written into the packet twice.
+                $storedLines = preg_split('/\r\n|\r|\n/', $message['kludge_lines']) ?: [];
+                $storedLines = array_filter($storedLines, static fn(string $line): bool => stripos($line, 'AREA:') !== 0);
+                $storedKludges = implode("\r", $storedLines);
                 $kludgeLines .= $storedKludges . "\r";
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
@@ -2102,27 +2148,30 @@ class BinkdProcessor
         if (!empty($messageText) && !str_ends_with($messageText, "\r")) {
             $messageText .= "\r";
         }
-        if (!$skipPidTearline) {
-            $messageText .= "\r";
-            $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r";
-        }
-        
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
 
-        // Origin line is echomail-only per FTS-0004
-        if ($isEchomail) {
-            $originText = " * Origin: ";
-            $origin = $this->config->getSystemOrigin();
-            if (!empty($origin)) {
-                $originText .= $origin;
-            } else {
-                $originText .= $this->config->getSystemName();
+        if (!$skipPidTearline) {
+            $messageText .= "\r";
+            $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r";
+
+            // Origin line is echomail-only per FTS-0004. Skipped along with the
+            // tearline above for relay/transit messages whose message_text
+            // already carries the true originator's tearline+origin - adding
+            // ours on top would duplicate both.
+            if ($isEchomail) {
+                $originText = " * Origin: ";
+                $origin = $this->config->getSystemOrigin();
+                if (!empty($origin)) {
+                    $originText .= $origin;
+                } else {
+                    $originText .= $this->config->getSystemName();
+                }
+
+                $originText .= " (" . $systemAddress . ")";
+
+                $messageText .= $originText;
             }
-
-            $originText .= " (" . $systemAddress . ")";
-
-            $messageText .= $originText;
         }
 
         // Add bottom kludges (Via lines, etc.) after origin per FTS-4009.001

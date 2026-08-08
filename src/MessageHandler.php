@@ -3287,7 +3287,7 @@ class MessageHandler
         }
     }
 
-    private function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
+    public function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
     {
         $stmt = $this->db->prepare("
             SELECT em.*, ea.tag as echoarea_tag, ea.domain as echoarea_domain, ea.is_local
@@ -3354,6 +3354,21 @@ class MessageHandler
 
             if ($uplinkAddress) {
                 $message['to_address'] = $uplinkAddress;
+
+                // If this message already carries a PID kludge (i.e. it arrived
+                // via inbound packet processing, then is being relayed onward to
+                // our uplink), it also already has that author's tearline/origin
+                // embedded in message_text, and its own SEEN-BY/PATH already
+                // stored in bottom_kludges - suppress writeMessage()'s unconditional
+                // fresh PID+tearline+origin and single-hop SEEN-BY/PATH synthesis so
+                // we don't duplicate any of them; just pass the existing set through
+                // unmodified, same as a real tosser relaying traffic upward. Freshly
+                // locally-composed posts have no PID yet and should still get all of
+                // that generated fresh (this system is the originating tosser).
+                $isRelayed = strpos((string)($message['kludge_lines'] ?? ''), "\x01PID:") !== false;
+                $message['skip_default_pid_tearline'] = $isRelayed;
+                $message['skip_default_seenby_path'] = $isRelayed;
+
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
                 $this->queueImmediateOutboundPoll($uplinkAddress, "echomail #{$messageId}");
@@ -3402,7 +3417,7 @@ class MessageHandler
      * @param $domain - the domain, eg: fidonet
      * @return false|mixed|string
      */
-    private function getEchoareaUplink($echoareaTag, $domain='')
+    public function getEchoareaUplink($echoareaTag, $domain='')
     {
         // Uplinks require a domain - return false if domain is blank/null
         if (empty($domain)) {

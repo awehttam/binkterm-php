@@ -81,25 +81,13 @@ class HubFanout
     ): void {
         $isPoint = $subscriber['node_type'] === HubNodeManager::TYPE_POINT;
 
-        // Record this hop: preserve any Via lines already on the message
-        // (earlier relays) and add our own, same as a real binkd/tosser
-        // would when passing mail along (FTS-4009).
-        $viaLines = EchomailSeenBy::parseViaLines($message['bottom_kludges']);
-        $viaLines[] = \generateViaLine($ourAddress);
-        $viaText = EchomailSeenBy::formatViaLines($viaLines);
-
         if ($isPoint) {
             // Points are never skipped based on SEEN-BY (they never legitimately
             // appear there) and never get SEEN-BY/PATH mutation - subscription
-            // state alone governs delivery. Via-line history still applies: pass
-            // everything else through untouched, but replace the raw Via lines
-            // with $viaText (already contains them plus our new hop) rather than
-            // keeping both, which would duplicate the preserved ones.
-            $nonViaLines = array_filter(
-                preg_split('/\r\n|\r|\n/', (string)$message['bottom_kludges']) ?: [],
-                static fn(string $line): bool => !preg_match('/^\x01Via[:\s]/i', $line)
-            );
-            $bottomKludges = trim(trim(implode("\r", $nonViaLines)) . "\r" . $viaText);
+            // state alone governs delivery. Pass bottom_kludges through untouched;
+            // echomail hop history is tracked via PATH, not Via (Via is netmail-only,
+            // FSC-0043 - real tossers like HPT never stamp it onto echomail).
+            $bottomKludges = (string)$message['bottom_kludges'];
         } else {
             $subscriberAddress = $subscriber['node_address'];
 
@@ -117,7 +105,7 @@ class HubFanout
             $seenBy = EchomailSeenBy::addToSeenBy($seenBy, $subscriberAddress);
             $path = EchomailSeenBy::addToPath($rawPath, $ourAddress);
 
-            $bottomKludges = trim(EchomailSeenBy::formatSeenBy($seenBy) . "\r" . EchomailSeenBy::formatPath($path) . "\r" . $viaText);
+            $bottomKludges = trim(EchomailSeenBy::formatSeenBy($seenBy) . "\r" . EchomailSeenBy::formatPath($path));
         }
 
         $packetMessage = [
