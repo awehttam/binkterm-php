@@ -1166,10 +1166,19 @@ class BinkpSession
                 }
 
                 $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hubnode_' . uniqid('', true) . '.pkt';
+                $wireName = basename($tmpPath);
                 try {
                     if (file_put_contents($tmpPath, $bytes) === false) {
                         throw new \Exception('Failed to write temp packet file');
                     }
+                    // Register as an "extra" file (same bucket as .req files -
+                    // see addExtraFile()) so handleSentFileConfirmation() knows
+                    // this filename lives outside data/outbound/ when the
+                    // remote's M_GOT arrives, instead of logging a spurious
+                    // "Sent file not found" warning while looking for it there.
+                    // Deliberately not calling addExtraFile() itself - that
+                    // also queues the file for sendFiles() to send again.
+                    $this->extraOutboundFilesByName[$wireName] = $tmpPath;
                     $this->sendFile($tmpPath);
                     $markSent->execute([$id]);
                     $this->log("Hub node outbound: sent packet #{$id} to {$remoteAddr}", 'INFO');
@@ -1177,6 +1186,14 @@ class BinkpSession
                     $markFailed->execute([$e->getMessage(), $id]);
                     $this->log("Hub node outbound: failed to send packet #{$id} to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
                 } finally {
+                    // Delete the temp file now (we don't keep it around waiting
+                    // for M_GOT the way data/outbound/ files do), but leave the
+                    // extraOutboundFilesByName entry in place - the remote's
+                    // M_GOT for this filename can arrive well after this loop
+                    // moves on, and handleSentFileConfirmation() needs to find
+                    // the mapping then, not just at send time. It no-ops safely
+                    // once file_exists() is false, same as .req files that are
+                    // confirmed after already being cleaned up.
                     @unlink($tmpPath);
                 }
             }
