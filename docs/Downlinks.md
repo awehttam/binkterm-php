@@ -42,6 +42,8 @@ Downlinks authenticate with their **Session Password** when connecting to this B
 
 Each downlink has its own echomail area subscription list, managed from its row in **Admin → Downlinks**. Subscriptions can be bulk-toggled, and individual areas can be paused without removing the subscription.
 
+Each downlink also has a separate **file area** subscription list, managed the same way from its own row via a second checklist. See [File area (TIC) distribution](#file-area-tic-distribution).
+
 ## Echomail distribution
 
 When a new echomail message is stored — whether it arrived from the network, was posted locally, or was posted back by a registered point/node — it's distributed in every direction:
@@ -52,6 +54,15 @@ When a new echomail message is stored — whether it arrived from the network, w
 Node-type downlinks get standard SEEN-BY/PATH loop-prevention bookkeeping applied (their own address is added to SEEN-BY, and this BBS's address is appended to PATH). Point-type downlinks never appear in SEEN-BY or PATH — per FTS convention, point numbers have no place in either kludge — so a point's delivery is governed purely by its subscription state, not by SEEN-BY matching.
 
 Mail posted by a point is tossed the same way as a locally-composed post: it carries this BBS's own SEEN-BY/PATH entry, not the point's, and fans out normally to every other subscribed downlink.
+
+## File area (TIC) distribution
+
+Files are announced to downlinks the same way they're announced to uplinks — via **TIC** (File Information Control, FSC-0087) control files paired with the data file itself — using the same subscription/queue/delivery model as echomail, extended to file areas:
+
+- **Down**, to every enabled, non-held downlink subscribed to the file's area, whenever a file is uploaded or received via an inbound TIC. A downlink already recorded in the file's TIC `Seenby` trail is skipped (the same loop-prevention principle as echomail SEEN-BY).
+- **Up**, to the file area's configured uplink(s), unless the file was received directly from that uplink or the uplink already appears in the `Seenby` trail.
+
+Local-only and private file areas are never distributed to downlinks, matching the existing uplink behavior. Both node- and point-type downlinks can be subscribed to a file area, though in practice this is mainly useful for node-type downlinks — most point software has no file-area engine of its own.
 
 ## Netmail routing
 
@@ -70,11 +81,13 @@ Downlinks are served through the existing binkp server/client, using the same se
 - **Pull** — the downlink connects to this BBS's binkp server and authenticates; any pending queued packets are delivered during that session.
 - **Push** — this BBS connects out to the downlink (for node-type downlinks with a routable **Internet Host**, or a nodelist-resolvable address) and delivers pending packets. Push delivery runs automatically on a schedule alongside uplink polling; it can also be triggered manually with `scripts/binkp_poll.php --all-hub-nodes` (see `docs/CLI.md`).
 
+A queued file area entry is sent as a TIC pair — the data file first, then its `.tic` control file — over the same session, rather than as a single packet.
+
 Points typically have no independently routable host and are effectively pull-only.
 
 ## Monitoring the queue
 
-**Binkp Status → Downlink Queue** (`/binkp`) lists every queued packet across all downlinks — destination, type (echomail/netmail), status, size, attempt count, and timestamps — with an **Inspect** action to view a queued packet's header and message contents before it's delivered.
+**Binkp Status → Downlink Queue** (`/binkp`) lists every queued packet across all downlinks — destination, type (echomail/netmail/tic), status, size, attempt count, and timestamps — with an **Inspect** action to view a queued packet's header and message contents (or, for a `tic` entry, its TIC control fields and referenced filename) before it's delivered.
 
 ## Queue cleanup
 

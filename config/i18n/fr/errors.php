@@ -729,6 +729,8 @@ return [
     'errors.admin.hub_nodes.delete_failed' => 'Echec de la suppression du downlink',
     'errors.admin.hub_nodes.areas_load_failed' => 'Echec du chargement des abonnements aux zones',
     'errors.admin.hub_nodes.areas_save_failed' => 'Echec de l\'enregistrement des abonnements aux zones',
+    'errors.admin.hub_nodes.fileareas_load_failed' => 'Echec du chargement des abonnements aux zones de fichiers',
+    'errors.admin.hub_nodes.fileareas_save_failed' => 'Echec de l\'enregistrement des abonnements aux zones de fichiers',
     'errors.admin.hub_nodes.next_point_failed' => 'Impossible de determiner le prochain numero de point',
 ];
 

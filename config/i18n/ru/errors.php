@@ -777,5 +777,7 @@ return [
     'errors.admin.hub_nodes.delete_failed' => 'Не удалось удалить даунлинк',
     'errors.admin.hub_nodes.areas_load_failed' => 'Не удалось загрузить подписки',
     'errors.admin.hub_nodes.areas_save_failed' => 'Не удалось сохранить подписки',
+    'errors.admin.hub_nodes.fileareas_load_failed' => 'Не удалось загрузить подписки на файловые области',
+    'errors.admin.hub_nodes.fileareas_save_failed' => 'Не удалось сохранить подписки на файловые области',
     'errors.admin.hub_nodes.next_point_failed' => 'Не удалось определить следующий номер поинта',
 ];

@@ -1137,7 +1137,7 @@ class BinkpSession
 
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare(
-                "SELECT id, packet_data
+                "SELECT id, message_type, packet_data, tic_file_data, tic_filename
                  FROM hub_node_outbound
                  WHERE hub_node_id = ? AND status = 'pending'
                  ORDER BY priority ASC, next_attempt_at ASC"
@@ -1159,6 +1159,11 @@ class BinkpSession
             );
 
             foreach ($rows as $row) {
+                if (($row['message_type'] ?? 'echomail') === 'tic') {
+                    $this->sendHubNodeTicRow($row, $remoteAddr, $markSent, $markFailed);
+                    continue;
+                }
+
                 $id = (int)$row['id'];
                 $bytes = $row['packet_data'];
                 if (is_resource($bytes)) {
@@ -1203,6 +1208,76 @@ class BinkpSession
             }
         } catch (\Exception $e) {
             $this->log("sendHubNodeOutbound error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Send a queued hub_node_outbound row with message_type='tic' - a TIC
+     * control-file + data-file pair (docs/proposals/HubPointSystemJuly2026.md
+     * Phase 4), rather than a single .pkt. Mirrors the .tic-pair handling in
+     * sendFiles() (data file first, then the .tic control file), but reads
+     * from hub_node_outbound's BYTEA columns instead of the outbound
+     * directory.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function sendHubNodeTicRow(array $row, string $remoteAddr, \PDOStatement $markSent, \PDOStatement $markFailed): void
+    {
+        $id = (int)$row['id'];
+
+        $ticBytes = $row['packet_data'];
+        if (is_resource($ticBytes)) {
+            $ticBytes = stream_get_contents($ticBytes);
+        }
+        $dataBytes = $row['tic_file_data'];
+        if (is_resource($dataBytes)) {
+            $dataBytes = stream_get_contents($dataBytes);
+        }
+        $origFilename = basename((string)($row['tic_filename'] ?? ''));
+
+        if ($ticBytes === false || $ticBytes === null || $dataBytes === false || $dataBytes === null || $origFilename === '') {
+            $markFailed->execute(['Missing TIC payload data', $id]);
+            $this->log("Hub node outbound: TIC row #{$id} has incomplete payload, marking failed", 'ERROR');
+            return;
+        }
+
+        // Each row gets its own temp subdirectory so the data file can keep
+        // its original filename (required - the .tic "File" field and the
+        // remote's TicFileProcessor match on it) without colliding with any
+        // other queued row that happens to share the same original filename.
+        $tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hubtic_' . substr(uniqid(), -8);
+        $dataTmpPath = $tmpDir . DIRECTORY_SEPARATOR . $origFilename;
+        // TIC control filename must be 8.3-compatible, same convention as
+        // TicFileGenerator::createTicFile()'s randomized outbound names.
+        $ticTmpPath = $tmpDir . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.tic';
+
+        try {
+            if (!@mkdir($tmpDir, 0700, true) && !is_dir($tmpDir)) {
+                throw new \Exception('Failed to create temp directory for TIC pair');
+            }
+            if (file_put_contents($dataTmpPath, $dataBytes) === false) {
+                throw new \Exception('Failed to write temp TIC data file');
+            }
+            if (file_put_contents($ticTmpPath, $ticBytes) === false) {
+                throw new \Exception('Failed to write temp TIC control file');
+            }
+
+            // See sendHubNodeOutbound() above for why these are registered as
+            // "extra" files rather than via addExtraFile().
+            $this->extraOutboundFilesByName[basename($dataTmpPath)] = $dataTmpPath;
+            $this->extraOutboundFilesByName[basename($ticTmpPath)] = $ticTmpPath;
+
+            $this->sendFile($dataTmpPath);
+            $this->sendFile($ticTmpPath);
+            $markSent->execute([$id]);
+            $this->log("Hub node outbound: sent TIC pair #{$id} ({$origFilename}) to {$remoteAddr}", 'INFO');
+        } catch (\Exception $e) {
+            $markFailed->execute([$e->getMessage(), $id]);
+            $this->log("Hub node outbound: failed to send TIC pair #{$id} to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
+        } finally {
+            @unlink($dataTmpPath);
+            @unlink($ticTmpPath);
+            @rmdir($tmpDir);
         }
     }
 

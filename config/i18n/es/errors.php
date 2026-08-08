@@ -774,5 +774,7 @@ return [
     'errors.admin.hub_nodes.delete_failed' => 'No se pudo eliminar el downlink',
     'errors.admin.hub_nodes.areas_load_failed' => 'No se pudieron cargar las suscripciones de areas',
     'errors.admin.hub_nodes.areas_save_failed' => 'No se pudieron guardar las suscripciones de areas',
+    'errors.admin.hub_nodes.fileareas_load_failed' => 'No se pudieron cargar las suscripciones de areas de archivos',
+    'errors.admin.hub_nodes.fileareas_save_failed' => 'No se pudieron guardar las suscripciones de areas de archivos',
     'errors.admin.hub_nodes.next_point_failed' => 'No se pudo determinar el siguiente numero de point',
 ];

@@ -40,7 +40,17 @@ All three directions were verified end-to-end with real binkp sessions (`scripts
 
 **Remaining scope boundary**: **file-attach netmail** (`FILE_ATTACH` bit) routed to a hub node — any direction — forwards only the `.pkt` header, not the referenced attached file; the existing attachment-delivery mechanism is keyed to a *local* netmail row that doesn't exist for transit mail. Noted as a known limitation, not solved in Phase 3.
 
-**Phase 4 (TIC / File Area Distribution): Not started.** Everything shipped in Phases 1-3 covers echomail and netmail only — file areas are entirely out of scope for those phases. Today, `TicFileGenerator::createTicFilesForUplinks()` (`src/TicFileGenerator.php`) only ever distributes to configured **uplinks**; it has no knowledge of `hub_nodes` at all, so files uploaded to a networked file area are never forwarded to a registered downlink or point, and TIC files received from elsewhere are never relayed onward to downlinks either. See [TIC / File Area Distribution](#tic--file-area-distribution) for the design.
+**Phase 4 (TIC / File Area Distribution): Implemented**, on branch `hubpoint`. Extends the same hub-distribution pattern used for echomail to file areas:
+
+- `hub_node_fileareas` table (mirrors `hub_node_areas`) and new `hub_node_outbound` columns (`file_id`, `tic_file_data`, `tic_filename`), with `message_type` widened to accept `'tic'`.
+- `HubFanout::fanoutFile()` — subscriber lookup via `hub_node_fileareas`, Seenby-based loop prevention (comparing full FTN addresses, unlike echomail's compact net/node SEEN-BY), and TIC control-file generation addressed to each downlink via a new `TicFileGenerator::buildTicContentForDownlink()`.
+- Hooked into `FileAreaManager::finalizeApprovedUserUpload()` (both `uploadFile()`/`uploadFileFromPath()` funnel through it) right after the existing uplink `createTicFilesForUplinks()` call, and into `scripts/process_packets.php`'s inbound-TIC handling after a successful, non-duplicate store.
+- **Uplink relay for files received from a downlink/point**: rather than a separate relay path, `TicFileGenerator::createTicFilesForUplinks()` itself gained a per-uplink loop guard (`uplinkAlreadyHasFile()`) checking the file's `uploaded_from_address` and `tic_seenby` columns — this makes the *existing* uplink-distribution call, now also invoked from `process_packets.php` for inbound TIC files, naturally skip sending a file back to the uplink it arrived from or to an uplink that's already in its Seenby trail. Locally-uploaded files have neither field set, so this is a no-op for the pre-existing upload path.
+- `BinkpSession::sendHubNodeOutbound()` gained `sendHubNodeTicRow()`: for a `message_type='tic'` row, writes the data file (under its original filename) and the `.tic` control file to a per-row temp directory and sends the data file first, then the control file — matching how `sendFiles()` already sends uplink-bound TIC pairs.
+- Admin UI: a second per-downlink subscription checklist (file areas) in `templates/admin/hub_nodes.twig`, backed by `/admin/api/hub-nodes/{id}/fileareas` (GET/PUT).
+- Downlink Queue viewer (`/binkp`, "Downlink Queue" tab): `tic` rows list and inspect like `echomail`/`netmail` rows; inspecting a `tic` row parses and displays its TIC control fields (Area, File, Size, To/From, Path, Seenby, description) instead of attempting to parse it as an FTS-0001 `.pkt`, and downloading fetches the referenced data file itself rather than the control text.
+
+See [TIC / File Area Distribution](#tic--file-area-distribution) for the design.
 
 **Phase 5 (Areafix / FileFix, server-side): Not started.**
 
@@ -499,15 +509,15 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 
 9. [x] Netmail passthrough routing to nodes and points, gated by `allow_inbound_netmail` (the `HUB_ROUTE_NETMAIL` global flag from the original design was implemented, then removed — see [Implementation Status](#implementation-status)) — `src/Hub/HubNetmailRouter.php`
 
-### Phase 4 — TIC / File Area Distribution — **Not started**
+### Phase 4 — TIC / File Area Distribution — **Done** (branch `hubpoint`)
 
-10. [ ] Database migration: `hub_node_fileareas`; `hub_node_outbound` gains `file_id`, `tic_file_data`, `tic_filename` and its `message_type` check constraint gains `'tic'`
-11. [ ] Fanout logic (`HubFanout::fanoutFile()` or a sibling class) — subscriber lookup via `hub_node_fileareas`, Seenby-based loop prevention, TIC content generation addressed to each downlink
-12. [ ] Hook fanout into `FileAreaManager::uploadFile()`/`uploadFileFromPath()` (alongside the existing `createTicFilesForUplinks()` call) and inbound TIC processing
-13. [ ] Uplink relay for files received from a downlink/point, mirroring the Phase 3 echomail-uplink-relay loop guards
-14. [ ] Admin: file area subscription UI per downlink (mirrors echo area subscription UI)
-15. [ ] Delivery: extend `BinkpSession::sendHubNodeOutbound()` to send a TIC pair (control file + data file) for `message_type='tic'` rows instead of a single `.pkt`
-16. [ ] Downlink Queue viewer: display and inspect `tic` rows alongside `echomail`/`netmail`
+10. [x] Database migration: `hub_node_fileareas`; `hub_node_outbound` gains `file_id`, `tic_file_data`, `tic_filename` and its `message_type` check constraint gains `'tic'`
+11. [x] Fanout logic (`HubFanout::fanoutFile()`) — subscriber lookup via `hub_node_fileareas`, Seenby-based loop prevention, TIC content generation addressed to each downlink
+12. [x] Hook fanout into `FileAreaManager::uploadFile()`/`uploadFileFromPath()` (alongside the existing `createTicFilesForUplinks()` call) and inbound TIC processing
+13. [x] Uplink relay for files received from a downlink/point — implemented as a loop guard inside `TicFileGenerator::createTicFilesForUplinks()` itself (see Implementation Status) rather than a separate relay method, since that single call site is shared by both the local-upload and inbound-TIC-relay cases
+14. [x] Admin: file area subscription UI per downlink (mirrors echo area subscription UI)
+15. [x] Delivery: extend `BinkpSession::sendHubNodeOutbound()` to send a TIC pair (control file + data file) for `message_type='tic'` rows instead of a single `.pkt`
+16. [x] Downlink Queue viewer: display and inspect `tic` rows alongside `echomail`/`netmail`
 
 ### Phase 5 — Areafix / FileFix (separate proposal) — **Not started**
 
@@ -532,9 +542,9 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | ~~`templates/admin/hub_node_edit.twig`~~ | Superseded — folded into `hub_nodes.twig`'s modal instead of a separate page | Not built (by design) |
 | ~~`routes/admin-hub-routes.php`~~ | Superseded — hub routes were added directly to `routes/admin-routes.php` (`/admin/hub-nodes` page route + `/admin/api/hub-nodes*` REST routes), matching how `/networks` is handled rather than splitting into a new route file | Not built (by design) |
 | `src/Hub/HubNetmailRouter.php` | `routeIfHubNode()`: inbound transit netmail into `hub_node_outbound`, gated by per-node `allow_inbound_netmail` (the global `HUB_ROUTE_NETMAIL` flag was removed - see Implementation Status). `routeOutboundIfHubNode()`: locally-composed netmail addressed to a registered downlink, gated by per-node `allow_outbound`. `relayIfFromHubNode()`: netmail from a registered point addressed elsewhere, relayed via the normal uplink-routing outbound queue, gated by per-node `allow_inbound_netmail`. All three share a private `buildAndEnqueue()`/temp-file pattern for packet build + insert, and add a `skip_default_pid_tearline` flag plus a Via-line hop (see `src/functions.php`'s `generateViaLine()`) when relaying preserved kludges. | Done (Phase 3) |
-| `database/migrations/*_create_hub_node_fileareas_table.sql` | `hub_node_fileareas` table (mirrors `hub_node_areas`) | Planned (Phase 4) |
-| `database/migrations/*_add_tic_columns_to_hub_node_outbound.sql` | Adds `file_id`, `tic_file_data`, `tic_filename` and widens the `message_type` check constraint to include `'tic'` | Planned (Phase 4) |
-| `src/Hub/HubFileAreaFanout.php` (name tentative — may end up a method on `HubFanout` instead) | File-area fanout engine: subscriber lookup via `hub_node_fileareas`, Seenby-based loop prevention, TIC content generation per downlink | Planned (Phase 4) |
+| `database/migrations/v20260808164447_create_hub_node_fileareas_table.sql` | `hub_node_fileareas` table (mirrors `hub_node_areas`) | Done (Phase 4) |
+| `database/migrations/v20260808164452_add_tic_columns_to_hub_node_outbound.sql` | Adds `file_id`, `tic_file_data`, `tic_filename` and widens the `message_type` check constraint to include `'tic'` | Done (Phase 4) |
+| ~~`src/Hub/HubFileAreaFanout.php`~~ | Superseded — file-area fanout landed as `HubFanout::fanoutFile()` on the existing `HubFanout` class instead of a sibling file, matching how the class already mixes echomail-fanout entry points | Not built (by design, Phase 4) |
 
 ## Modified Files
 
@@ -550,10 +560,18 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | `templates/base.twig`, `templates/shells/web/base.twig`, `templates/shells/bbs-menu/base.twig` | Added a "Downlinks" nav entry next to "Networks" (labeled "Downlinks", not "Hub Nodes" — see the Admin UI labeling note above) | Done (Phase 1, relabeled after initial ship) |
 | `config/i18n/{de,en,es,fr,it,ru}/{common,errors}.php` | Added `ui.admin.hub_nodes.*` / `errors.admin.hub_nodes.*` keys (values display as "Downlink(s)") | Done (Phase 1, relabeled after initial ship) |
 | `docs/CONFIGURATION.md` | ~~Documented `HUB_ROUTE_NETMAIL` in the `.env` Miscellaneous section~~ — entry added then removed once the flag itself was removed (see Implementation Status) | Done (Phase 3, later reverted) |
-| `src/FileAreaManager.php` | Call the new file-area fanout after the existing `createTicFilesForUplinks()` call in `uploadFile()`/`uploadFileFromPath()` | Planned (Phase 4) |
-| `src/TicFileGenerator.php` | Extract the existing `buildTicContent()` addressing logic so it can be reused to build a downlink-addressed TIC file, not just an uplink-addressed one | Planned (Phase 4) |
-| `src/Binkp/Protocol/BinkpSession.php` | `sendHubNodeOutbound()` gains handling for `message_type='tic'` rows: send the `.tic` control file, then the data file named `tic_filename` | Planned (Phase 4) |
-| `templates/binkp.twig` | Downlink Queue viewer displays and inspects `tic` rows alongside `echomail`/`netmail` | Planned (Phase 4) |
+| `src/FileAreaManager.php` | `finalizeApprovedUserUpload()` (the single call site both `uploadFile()`/`uploadFileFromPath()` funnel through) calls `HubFanout::fanoutFile()` right after the existing `createTicFilesForUplinks()` call, inside the same `is_local`/`is_private` guard | Done (Phase 4) |
+| `src/TicFileGenerator.php` | `buildTicContent()`'s field-building logic extracted into a shared private `buildTicLines()`, reused by a new public `buildTicContentForDownlink()` that takes caller-supplied Path/Seenby address lists instead of the uplink path's single-hop defaults. `createTicFilesForUplinks()` also gained a per-uplink `uplinkAlreadyHasFile()` loop guard (checks `uploaded_from_address` and `tic_seenby` against each uplink) so the same call now safely relays inbound-TIC files without looping | Done (Phase 4) |
+| `src/Hub/HubFanout.php` | New `fanoutFile()` entry point (plus `loadFile()`/`loadFileArea()`/`queueFileForSubscriber()` and small address-list helpers) alongside the existing echomail `fanout()` | Done (Phase 4) |
+| `src/Hub/HubNodeManager.php` | New `getFileAreaSubscriptions()`, `setFileAreaSubscription()`, `bulkSetFileAreaSubscriptions()`, `getSubscribersForFileArea()` mirroring the existing echoarea-subscription methods | Done (Phase 4) |
+| `scripts/process_packets.php` | `processInboundTicFiles()` calls `HubFanout::fanoutFile()` and `TicFileGenerator::createTicFilesForUplinks()` after a successful, non-duplicate inbound TIC store | Done (Phase 4) |
+| `src/Binkp/Protocol/BinkpSession.php` | `sendHubNodeOutbound()` branches on `message_type='tic'` into a new `sendHubNodeTicRow()`: writes the data file (original filename) and `.tic` control file to a per-row temp directory and sends the data file first, then the control file | Done (Phase 4) |
+| `src/Binkp/Web/BinkpController.php` | `inspectHubOutboundPacket()`/`getHubOutboundPacketBytes()` branch on `message_type='tic'` — inspecting parses the TIC control text into fields instead of treating it as a `.pkt` (new `inspectHubOutboundTicRow()`), and downloading returns the referenced data file instead of the control text. New shared `fetchHubOutboundRow()` replaces the old packet-data-only fetch | Done (Phase 4) |
+| `routes/admin-routes.php` | Added `/admin/api/hub-nodes/{id}/fileareas` GET/PUT routes, mirroring the existing `/areas` routes | Done (Phase 4) |
+| `templates/admin/hub_nodes.twig` | Second per-downlink subscription modal/checklist for file areas, mirroring the echo area one | Done (Phase 4) |
+| `templates/binkp.twig` | Downlink Queue viewer displays and inspects `tic` rows alongside `echomail`/`netmail`; the packet inspector modal renders a TIC-fields view instead of a `.pkt` header/message view when inspecting a `tic` row | Done (Phase 4) |
+| `docs/Downlinks.md` | Added "File area (TIC) distribution" section; updated area-subscriptions, delivery, and queue-monitoring sections to mention file areas/TIC pairs/`tic` rows | Done (Phase 4) |
+| `config/i18n/{de,en,es,fr,it,ru}/{common,errors}.php` | Added `ui.admin.hub_nodes.fileareas.*`, `errors.admin.hub_nodes.fileareas_*_failed`, and `ui.binkp.hub_outbound.tic_*` keys | Done (Phase 4) |
 
 Exact packet-processing entry point and outbound file layout should be confirmed against current `src/Binkp/` code at implementation time, since the two source proposals disagreed on class names in places. (Resolved during Phase 1: the entry point is `src/BinkdProcessor.php`, not `src/Binkp/PacketProcessor.php`.)
 
@@ -593,6 +611,6 @@ Exact packet-processing entry point and outbound file layout should be confirmed
 
 ---
 
-**Document Status:** Draft Proposal — Phases 1-3 implemented (branch `hubpoint`; Phase 1 committed `36c4ab8d`, Phase 2 committed `7ad64d70`, Phase 3 committed `0e4c6a7f`/`4ddc552b`/`b17f0398`); Phase 4 (TIC/File Area Distribution) and Phase 5 (Areafix/FileFix) not started
+**Document Status:** Draft Proposal — Phases 1-4 implemented (branch `hubpoint`; Phase 1 committed `36c4ab8d`, Phase 2 committed `7ad64d70`, Phase 3 committed `0e4c6a7f`/`4ddc552b`/`b17f0398`, Phase 4 not yet committed); Phase 5 (Areafix/FileFix) not started
 **Last Updated:** 2026-08-08
 **Author:** AI-Generated (Requires Review)

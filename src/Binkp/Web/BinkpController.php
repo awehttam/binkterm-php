@@ -315,7 +315,16 @@ class BinkpController
             ];
         }
 
-        $bytes = $this->fetchHubOutboundPacketData($id);
+        $row = $this->fetchHubOutboundRow($id);
+        if ($row === null) {
+            return ['success' => false, 'error' => 'Packet not found'];
+        }
+
+        if (($row['message_type'] ?? 'echomail') === 'tic') {
+            return $this->inspectHubOutboundTicRow($row);
+        }
+
+        $bytes = $row['packet_data'];
         if ($bytes === null) {
             return ['success' => false, 'error' => 'Packet not found'];
         }
@@ -334,15 +343,71 @@ class BinkpController
     }
 
     /**
+     * Parse a queued hub_node_outbound row's TIC control-file content
+     * (docs/proposals/HubPointSystemJuly2026.md Phase 4) for display,
+     * rather than treating it as an FTS-0001 .pkt.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function inspectHubOutboundTicRow(array $row): array
+    {
+        $ticContent = (string)($row['packet_data'] ?? '');
+        $fields = ['Path' => [], 'Seenby' => [], 'LDesc' => []];
+
+        foreach (preg_split('/\r\n|\r|\n/', $ticContent, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $line) {
+            if (!preg_match('/^(\w+)\s+(.+)$/i', trim($line), $m)) {
+                continue;
+            }
+            $key = ucfirst(strtolower($m[1]));
+            $key = $key === 'Ldesc' ? 'LDesc' : $key;
+            $value = trim($m[2]);
+
+            if (in_array($key, ['Path', 'Seenby', 'LDesc'], true)) {
+                $fields[$key][] = $value;
+            } else {
+                $fields[$key] = $value;
+            }
+        }
+
+        return [
+            'success' => true,
+            'type' => 'tic',
+            'tic' => $fields,
+            'data_filename' => (string)($row['tic_filename'] ?? ''),
+            'data_size' => strlen((string)($row['tic_file_data'] ?? '')),
+        ];
+    }
+
+    /**
      * Fetch a queued hub_node_outbound row's raw packet bytes and a
      * download-friendly filename, for the download route (license-gated
-     * at the route level, matching the existing download route).
+     * at the route level, matching the existing download route). For a
+     * message_type='tic' row, downloads the referenced data file itself
+     * (tic_file_data/tic_filename) rather than the .tic control text.
      *
      * @return array{filename:string,bytes:string}|null
      */
     public function getHubOutboundPacketBytes(int $id): ?array
     {
-        $bytes = $this->fetchHubOutboundPacketData($id);
+        $row = $this->fetchHubOutboundRow($id);
+        if ($row === null) {
+            return null;
+        }
+
+        if (($row['message_type'] ?? 'echomail') === 'tic') {
+            $bytes = $row['tic_file_data'];
+            if ($bytes === null) {
+                return null;
+            }
+            $filename = basename((string)($row['tic_filename'] ?? ''));
+
+            return [
+                'filename' => $filename !== '' ? $filename : ('hub_outbound_' . $id),
+                'bytes' => $bytes,
+            ];
+        }
+
+        $bytes = $row['packet_data'];
         if ($bytes === null) {
             return null;
         }
@@ -353,21 +418,28 @@ class BinkpController
         ];
     }
 
-    private function fetchHubOutboundPacketData(int $id): ?string
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetchHubOutboundRow(int $id): ?array
     {
         $db = \BinktermPHP\Database::getInstance()->getPdo();
-        $stmt = $db->prepare("SELECT packet_data FROM hub_node_outbound WHERE id = ?");
+        $stmt = $db->prepare("SELECT message_type, packet_data, tic_file_data, tic_filename FROM hub_node_outbound WHERE id = ?");
         $stmt->execute([$id]);
-        $bytes = $stmt->fetchColumn();
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-        if ($bytes === false) {
+        if (!$row) {
             return null;
         }
-        if (is_resource($bytes)) {
-            $bytes = stream_get_contents($bytes);
+
+        if (is_resource($row['packet_data'])) {
+            $row['packet_data'] = stream_get_contents($row['packet_data']);
+        }
+        if (is_resource($row['tic_file_data'])) {
+            $row['tic_file_data'] = stream_get_contents($row['tic_file_data']);
         }
 
-        return $bytes;
+        return $row;
     }
 
     public function processInbound()

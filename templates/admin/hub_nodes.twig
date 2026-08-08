@@ -165,6 +165,26 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="hubNodeFileAreasModal" tabindex="-1" aria-labelledby="hubNodeFileAreasModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="hubNodeFileAreasModalTitle">{{ t('ui.admin.hub_nodes.fileareas.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="hubNodeFileAreasNodeId">
+                <div id="hubNodeFileAreasModalAlert"></div>
+                <div id="hubNodeFileAreasList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button class="btn btn-primary" type="button" onclick="saveHubNodeFileAreas()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -173,6 +193,7 @@ let hubNodes = [];
 let hubAkas = [];
 let hubNodeModal;
 let hubNodeAreasModal;
+let hubNodeFileAreasModal;
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -184,6 +205,7 @@ function uiT(key, fallback, params = {}) {
 document.addEventListener('DOMContentLoaded', function() {
     hubNodeModal = new bootstrap.Modal(document.getElementById('hubNodeModal'));
     hubNodeAreasModal = new bootstrap.Modal(document.getElementById('hubNodeAreasModal'));
+    hubNodeFileAreasModal = new bootstrap.Modal(document.getElementById('hubNodeFileAreasModal'));
     loadI18nNamespaces(['common', 'errors']).then(loadHubNodes);
 });
 
@@ -230,6 +252,9 @@ function renderHubNodes() {
                 <div class="btn-group btn-group-sm" role="group" aria-label="${escapeHtmlAttr(uiT('ui.common.actions', 'Actions'))}">
                     <button class="btn btn-outline-secondary" type="button" onclick="openHubNodeAreasModal(${Number(node.id)})" title="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.areas.title', 'Area Subscriptions'))}" aria-label="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.areas.title', 'Area Subscriptions'))}">
                         <i class="fas fa-list-check" aria-hidden="true"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" onclick="openHubNodeFileAreasModal(${Number(node.id)})" title="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.fileareas.title', 'File Area Subscriptions'))}" aria-label="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.fileareas.title', 'File Area Subscriptions'))}">
+                        <i class="fas fa-folder-tree" aria-hidden="true"></i>
                     </button>
                     <button class="btn btn-outline-primary" type="button" onclick="openHubNodeModal(${Number(node.id)})" title="${escapeHtmlAttr(uiT('ui.common.edit', 'Edit'))}" aria-label="${escapeHtmlAttr(uiT('ui.common.edit', 'Edit'))}">
                         <i class="fas fa-pen" aria-hidden="true"></i>
@@ -431,6 +456,60 @@ function saveHubNodeAreas() {
             showAlert('hubNodesAlert', apiMessage(data, uiT('ui.admin.hub_nodes.areas.saved', 'Area subscriptions saved')), 'success');
         })
         .catch(error => showAlert('hubNodeAreasModalAlert', error.message, 'danger'));
+}
+
+function openHubNodeFileAreasModal(id) {
+    document.getElementById('hubNodeFileAreasModalAlert').innerHTML = '';
+    document.getElementById('hubNodeFileAreasNodeId').value = id;
+    document.getElementById('hubNodeFileAreasList').innerHTML = `<div class="text-muted">${escapeHtml(uiT('ui.common.loading', 'Loading...'))}</div>`;
+    hubNodeFileAreasModal.show();
+
+    fetch(`/admin/api/hub-nodes/${encodeURIComponent(id)}/fileareas`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.hub_nodes.fileareas.load_failed', 'Failed to load file area subscriptions')));
+            }
+            renderHubNodeFileAreas(data.fileareas || []);
+        })
+        .catch(error => showAlert('hubNodeFileAreasModalAlert', error.message, 'danger'));
+}
+
+function renderHubNodeFileAreas(fileareas) {
+    const container = document.getElementById('hubNodeFileAreasList');
+    if (fileareas.length === 0) {
+        container.innerHTML = `<div class="text-muted">${escapeHtml(uiT('ui.admin.hub_nodes.fileareas.none', 'No file areas found'))}</div>`;
+        return;
+    }
+    container.innerHTML = fileareas.map(area => `
+        <div class="form-check">
+            <input class="form-check-input hub-node-filearea-checkbox" type="checkbox" value="${Number(area.file_area_id)}" id="hubNodeFileArea${Number(area.file_area_id)}" ${area.subscribed ? 'checked' : ''}>
+            <label class="form-check-label" for="hubNodeFileArea${Number(area.file_area_id)}">
+                <code>${escapeHtml(area.tag || '')}</code>
+                <span class="text-muted small">${escapeHtml(area.domain || '')}</span>
+                ${area.description ? `&mdash; ${escapeHtml(area.description)}` : ''}
+            </label>
+        </div>
+    `).join('');
+}
+
+function saveHubNodeFileAreas() {
+    const id = document.getElementById('hubNodeFileAreasNodeId').value;
+    const fileAreaIds = Array.from(document.querySelectorAll('.hub-node-filearea-checkbox:checked')).map(el => Number(el.value));
+    fetch(`/admin/api/hub-nodes/${encodeURIComponent(id)}/fileareas`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_area_ids: fileAreaIds })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.hub_nodes.fileareas.save_failed', 'Failed to save file area subscriptions')));
+            }
+            hubNodeFileAreasModal.hide();
+            showAlert('hubNodesAlert', apiMessage(data, uiT('ui.admin.hub_nodes.fileareas.saved', 'File area subscriptions saved')), 'success');
+        })
+        .catch(error => showAlert('hubNodeFileAreasModalAlert', error.message, 'danger'));
 }
 
 function apiError(payload, fallback) {

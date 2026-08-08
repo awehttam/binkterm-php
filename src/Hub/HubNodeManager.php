@@ -242,6 +242,103 @@ class HubNodeManager
     }
 
     /**
+     * All file areas with the subscription status (and pause flag) for a given hub node.
+     * Mirrors getAreaSubscriptions(). See docs/proposals/HubPointSystemJuly2026.md Phase 4.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getFileAreaSubscriptions(int $hubNodeId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT fa.id AS file_area_id, fa.tag, fa.domain, fa.description,
+                   hnf.id AS subscription_id, hnf.paused, hnf.subscribed_at
+            FROM file_areas fa
+            LEFT JOIN hub_node_fileareas hnf ON hnf.file_area_id = fa.id AND hnf.hub_node_id = ?
+            WHERE fa.is_active = TRUE
+              AND fa.is_private = FALSE
+            ORDER BY fa.domain, fa.tag
+        ");
+        $stmt->execute([$hubNodeId]);
+
+        return array_map(function (array $row) {
+            $row['file_area_id'] = (int)$row['file_area_id'];
+            $row['subscribed'] = $row['subscription_id'] !== null;
+            $row['paused'] = filter_var($row['paused'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            return $row;
+        }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    public function setFileAreaSubscription(int $hubNodeId, int $fileAreaId, bool $subscribed, bool $paused = false): void
+    {
+        if (!$this->getById($hubNodeId)) {
+            throw new \InvalidArgumentException('Hub node not found');
+        }
+
+        if (!$subscribed) {
+            $stmt = $this->db->prepare("DELETE FROM hub_node_fileareas WHERE hub_node_id = ? AND file_area_id = ?");
+            $stmt->execute([$hubNodeId, $fileAreaId]);
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO hub_node_fileareas (hub_node_id, file_area_id, paused)
+            VALUES (?, ?, ?)
+            ON CONFLICT (hub_node_id, file_area_id) DO UPDATE SET paused = EXCLUDED.paused
+        ");
+        $stmt->execute([$hubNodeId, $fileAreaId, $paused ? 'true' : 'false']);
+    }
+
+    /**
+     * Replace the full file area subscription set for a hub node in one call.
+     * Mirrors bulkSetAreaSubscriptions().
+     *
+     * @param int[] $fileAreaIds
+     */
+    public function bulkSetFileAreaSubscriptions(int $hubNodeId, array $fileAreaIds): void
+    {
+        if (!$this->getById($hubNodeId)) {
+            throw new \InvalidArgumentException('Hub node not found');
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $this->db->prepare("DELETE FROM hub_node_fileareas WHERE hub_node_id = ?")->execute([$hubNodeId]);
+
+            $stmt = $this->db->prepare("INSERT INTO hub_node_fileareas (hub_node_id, file_area_id) VALUES (?, ?)");
+            foreach (array_unique(array_map('intval', $fileAreaIds)) as $fileAreaId) {
+                $stmt->execute([$hubNodeId, $fileAreaId]);
+            }
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Active hub_nodes subscribed to a given file area (enabled, not held,
+     * subscription not individually paused). Used by HubFanout::fanoutFile().
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getSubscribersForFileArea(int $fileAreaId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT " . self::COLUMNS . "
+            FROM hub_nodes hn
+            JOIN hub_node_fileareas hnf ON hnf.hub_node_id = hn.id
+            WHERE hnf.file_area_id = ?
+              AND hn.enabled = TRUE
+              AND hn.hold_mail = FALSE
+              AND hnf.paused = FALSE
+        ");
+        $stmt->execute([$fileAreaId]);
+
+        return array_map([$this, 'normalizeRow'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /**
      * Suggest the next unused point number for a given boss AKA.
      */
     public function suggestNextPointNumber(string $bossAddress): int

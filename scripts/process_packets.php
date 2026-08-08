@@ -12,6 +12,9 @@ use BinktermPHP\BinkdProcessor;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
+use BinktermPHP\FileAreaManager;
+use BinktermPHP\Hub\HubFanout;
+use BinktermPHP\TicFileGenerator;
 use BinktermPHP\TicFileProcessor;
 
 // Initialize database
@@ -72,6 +75,31 @@ function processInboundTicFiles(TicFileProcessor $ticProcessor, Logger $logger):
 
                     if (isset($result['duplicate']) && $result['duplicate']) {
                         $logger->warning("  WARN Duplicate file (skipped)");
+                    } else {
+                        // Fan out to subscribed hub node downlinks/points, and relay
+                        // onward to the file area's configured uplink(s), unless it
+                        // came from that uplink or is already in its Seenby trail
+                        // (docs/proposals/HubPointSystemJuly2026.md Phase 4).
+                        try {
+                            (new HubFanout())->fanoutFile((int)$result['file_id']);
+                        } catch (\Throwable $e) {
+                            $logger->error("Failed to fan out inbound TIC file to hub node subscribers: " . $e->getMessage());
+                        }
+
+                        try {
+                            $fileAreaManager = new FileAreaManager();
+                            $fileRecord = $fileAreaManager->getFileById((int)$result['file_id']);
+                            $fileAreaRecord = $fileRecord ? $fileAreaManager->getFileAreaById((int)$fileRecord['file_area_id']) : null;
+                            if ($fileRecord && $fileAreaRecord) {
+                                $ticGenerator = new TicFileGenerator();
+                                $createdTics = $ticGenerator->createTicFilesForUplinks($fileRecord, $fileAreaRecord);
+                                if (count($createdTics) > 0) {
+                                    $logger->info("  Relayed inbound TIC file to " . count($createdTics) . " uplink(s)");
+                                }
+                            }
+                        } catch (\Throwable $e) {
+                            $logger->error("Failed to relay inbound TIC file to uplinks: " . $e->getMessage());
+                        }
                     }
 
                     // Clean up TIC file (data file was cleaned up by processor)

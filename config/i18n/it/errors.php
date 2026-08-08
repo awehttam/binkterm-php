@@ -774,5 +774,7 @@ return [
     'errors.admin.hub_nodes.delete_failed' => 'Impossibile eliminare il downlink',
     'errors.admin.hub_nodes.areas_load_failed' => 'Impossibile caricare le iscrizioni alle aree',
     'errors.admin.hub_nodes.areas_save_failed' => 'Impossibile salvare le iscrizioni alle aree',
+    'errors.admin.hub_nodes.fileareas_load_failed' => 'Impossibile caricare le iscrizioni alle aree file',
+    'errors.admin.hub_nodes.fileareas_save_failed' => 'Impossibile salvare le iscrizioni alle aree file',
     'errors.admin.hub_nodes.next_point_failed' => 'Impossibile determinare il prossimo numero di point',
 ];

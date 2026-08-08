@@ -938,12 +938,54 @@ function openHubOutboundPacketInspector(id) {
                     `<div class="alert alert-danger">${data.error || 'Failed to load packet.'}</div>`;
                 return;
             }
+            if (data.type === 'tic') {
+                renderTicInspector(data, id);
+                return;
+            }
             renderPacketInspector(data);
         })
         .catch(err => {
             document.getElementById('pktModalBody').innerHTML =
                 `<div class="alert alert-danger">${err.message}</div>`;
         });
+}
+
+function renderTicInspector(data, id) {
+    const tic = data.tic || {};
+    const filename = data.data_filename || `hub_outbound_${id}`;
+
+    document.getElementById('pktModalTitle').textContent = filename;
+    document.getElementById('pktDownloadBtn').href = `/api/binkp/hub-outbound/download?id=${id}`;
+
+    const row = (label, value) => value
+        ? `<tr><th style="width:35%">${escapeHtml(label)}</th><td>${value}</td></tr>`
+        : '';
+    const lines = (values) => (values && values.length)
+        ? values.map(v => `<code>${escapeHtml(v)}</code>`).join('<br>')
+        : '';
+
+    let html = `
+    <h6 class="text-muted mb-3">${escapeHtml(uiT('ui.binkp.hub_outbound.tic_fields', 'TIC Fields'))}</h6>
+    <table class="table table-sm table-bordered mb-4">
+        <tbody>
+            ${row(uiT('ui.binkp.hub_outbound.tic_area', 'Area'), tic.Area ? `<code>${escapeHtml(tic.Area)}</code>` : '')}
+            ${row(uiT('ui.binkp.hub_outbound.tic_file', 'File'), filename ? `<code>${escapeHtml(filename)}</code>` : '')}
+            ${row(uiT('ui.common.size', 'Size'), formatBytes(data.data_size || 0))}
+            ${row(uiT('ui.binkp.from_address', 'From'), tic.From ? `<code>${escapeHtml(tic.From)}</code>` : '')}
+            ${row(uiT('ui.binkp.to_address', 'To'), tic.To ? `<code>${escapeHtml(tic.To)}</code>` : '')}
+            ${row(uiT('ui.binkp.hub_outbound.tic_desc', 'Description'), tic.Desc ? escapeHtml(tic.Desc) : '')}
+            ${row('Path', lines(tic.Path))}
+            ${row('Seenby', lines(tic.Seenby))}
+            ${row('Crc', tic.Crc ? `<code>${escapeHtml(tic.Crc)}</code>` : '')}
+        </tbody>
+    </table>`;
+
+    if (tic.LDesc && tic.LDesc.length) {
+        html += `<h6 class="text-muted mb-2">${escapeHtml(uiT('ui.binkp.hub_outbound.tic_ldesc', 'Long Description'))}</h6>
+        <pre class="small">${escapeHtml(tic.LDesc.join('\n'))}</pre>`;
+    }
+
+    document.getElementById('pktModalBody').innerHTML = html;
 }
 
 function apiErrorText(payload, fallback) {

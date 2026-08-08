@@ -7,6 +7,7 @@ use BinktermPHP\Database;
 use BinktermPHP\BinkdProcessor;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Echomail\EchomailSeenBy;
+use BinktermPHP\TicFileGenerator;
 
 /**
  * Fans a newly-stored echomail message out to subscribed hub_nodes
@@ -164,5 +165,155 @@ class HubFanout
     private function tempPacketPath(): string
     {
         return sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hubfanout_' . uniqid('', true) . '.pkt';
+    }
+
+    /**
+     * Fan a stored file (upload, or inbound TIC storage) out to subscribed
+     * hub_nodes, enqueueing one TIC control-file + data-file pair per
+     * subscriber into hub_node_outbound (message_type='tic'). This is
+     * Phase 4 of docs/proposals/HubPointSystemJuly2026.md.
+     *
+     * @param int $fileId The stored files.id row to fan out.
+     */
+    public function fanoutFile(int $fileId): void
+    {
+        $file = $this->loadFile($fileId);
+        if (!$file) {
+            return;
+        }
+
+        $fileArea = $this->loadFileArea((int)$file['file_area_id']);
+        if (!$fileArea) {
+            return;
+        }
+
+        $subscribers = $this->nodeManager->getSubscribersForFileArea((int)$file['file_area_id']);
+        if (empty($subscribers)) {
+            return;
+        }
+
+        if (!file_exists($file['storage_path'])) {
+            return;
+        }
+
+        $existingSeenBy = $this->splitAddressList($file['tic_seenby'] ?? '');
+        $existingPath = $this->splitAddressList($file['tic_path'] ?? '');
+        $ourAddress = (string)BinkpConfig::getInstance()->getSystemAddress();
+
+        $ticGenerator = new TicFileGenerator();
+
+        foreach ($subscribers as $subscriber) {
+            $this->queueFileForSubscriber($ticGenerator, $file, $fileArea, $subscriber, $existingSeenBy, $existingPath, $ourAddress);
+        }
+    }
+
+    private function loadFile(int $fileId): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM files WHERE id = ? AND status = 'approved'");
+        $stmt->execute([$fileId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    private function loadFileArea(int $fileAreaId): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM file_areas WHERE id = ?");
+        $stmt->execute([$fileAreaId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     * @param array<string, mixed> $fileArea
+     * @param array<string, mixed> $subscriber
+     * @param string[] $existingSeenBy
+     * @param string[] $existingPath
+     */
+    private function queueFileForSubscriber(
+        TicFileGenerator $ticGenerator,
+        array $file,
+        array $fileArea,
+        array $subscriber,
+        array $existingSeenBy,
+        array $existingPath,
+        string $ourAddress
+    ): void {
+        $subscriberAddress = $subscriber['node_address'];
+
+        // Loop guard: skip if the subscriber has already seen this file
+        // (mirrors SEEN-BY loop prevention for echomail).
+        if ($this->addressListContains($existingSeenBy, $subscriberAddress)) {
+            return;
+        }
+
+        $seenBy = $this->addAddressToList($existingSeenBy, $ourAddress);
+        $seenBy = $this->addAddressToList($seenBy, $subscriberAddress);
+        $path = $this->addAddressToList($existingPath, $ourAddress);
+
+        $ticContent = $ticGenerator->buildTicContentForDownlink(
+            $file,
+            $fileArea,
+            $file['filename'],
+            $ourAddress,
+            $subscriberAddress,
+            $path,
+            $seenBy,
+            (string)($fileArea['password'] ?? '')
+        );
+
+        $dataBytes = @file_get_contents($file['storage_path']);
+        if ($dataBytes === false) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO hub_node_outbound (hub_node_id, message_type, file_id, packet_data, tic_file_data, tic_filename, size_bytes, status)
+            VALUES (:hub_node_id, 'tic', :file_id, :packet_data, :tic_file_data, :tic_filename, :size_bytes, 'pending')
+        ");
+        $stmt->bindValue(':hub_node_id', $subscriber['id'], PDO::PARAM_INT);
+        $stmt->bindValue(':file_id', $file['id'], PDO::PARAM_INT);
+        $stmt->bindValue(':packet_data', $ticContent, PDO::PARAM_LOB);
+        $stmt->bindValue(':tic_file_data', $dataBytes, PDO::PARAM_LOB);
+        $stmt->bindValue(':tic_filename', $file['filename']);
+        $stmt->bindValue(':size_bytes', strlen($dataBytes) + strlen($ticContent), PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
+    /**
+     * @return string[] Lowercase-normalized, deduplicated FTN addresses.
+     */
+    private function splitAddressList(?string $value): array
+    {
+        if (empty($value)) {
+            return [];
+        }
+        $parts = preg_split('/\s+/', trim($value), -1, PREG_SPLIT_NO_EMPTY);
+
+        return array_values(array_unique(array_map('strtolower', $parts)));
+    }
+
+    /**
+     * @param string[] $list
+     */
+    private function addressListContains(array $list, string $address): bool
+    {
+        return in_array(strtolower(trim($address)), $list, true);
+    }
+
+    /**
+     * @param string[] $list
+     * @return string[]
+     */
+    private function addAddressToList(array $list, string $address): array
+    {
+        $normalized = strtolower(trim($address));
+        if (!in_array($normalized, $list, true)) {
+            $list[] = $normalized;
+        }
+
+        return $list;
     }
 }

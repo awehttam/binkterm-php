@@ -776,5 +776,7 @@ return [
     'errors.admin.hub_nodes.delete_failed' => 'Downlink konnte nicht gelöscht werden',
     'errors.admin.hub_nodes.areas_load_failed' => 'Bereichsabonnements konnten nicht geladen werden',
     'errors.admin.hub_nodes.areas_save_failed' => 'Bereichsabonnements konnten nicht gespeichert werden',
+    'errors.admin.hub_nodes.fileareas_load_failed' => 'Dateibereichsabonnements konnten nicht geladen werden',
+    'errors.admin.hub_nodes.fileareas_save_failed' => 'Dateibereichsabonnements konnten nicht gespeichert werden',
     'errors.admin.hub_nodes.next_point_failed' => 'Die nächste Point-Nummer konnte nicht ermittelt werden',
 ];

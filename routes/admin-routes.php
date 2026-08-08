@@ -3522,6 +3522,45 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/hub-nodes/{id}/fileareas', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                echo json_encode(['success' => true, 'fileareas' => $manager->getFileAreaSubscriptions((int)$id)]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.fileareas_load_failed', apiLocalizedText('errors.admin.hub_nodes.fileareas_load_failed', 'Failed to load file area subscriptions'), 500);
+            }
+        });
+
+        SimpleRouter::put('/hub-nodes/{id}/fileareas', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $fileAreaIds = is_array($payload) && isset($payload['file_area_ids']) && is_array($payload['file_area_ids'])
+                    ? array_map('intval', $payload['file_area_ids'])
+                    : [];
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $manager->bulkSetFileAreaSubscriptions((int)$id, $fileAreaIds);
+                echo json_encode(['success' => true, 'fileareas' => $manager->getFileAreaSubscriptions((int)$id), 'message_code' => 'ui.admin.hub_nodes.fileareas_saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.fileareas_save_failed', $e->getMessage(), 400);
+            }
+        });
+
         SimpleRouter::get('/hub-nodes/next-point', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
