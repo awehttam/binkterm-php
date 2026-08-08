@@ -722,6 +722,12 @@ return [
     'errors.pgp.passphrase_too_short' => 'Utilisez une phrase de passe PGP plus longue.',
     'errors.pgp.passphrase_mismatch' => 'La confirmation de la phrase de passe ne correspond pas.',
     'errors.pgp.generation_failed' => 'Impossible de generer la cle PGP geree.',
+    'errors.admin.hub_nodes.load_failed' => 'Echec du chargement des downlinks',
+    'errors.admin.hub_nodes.save_failed' => 'Echec de l\'enregistrement du downlink',
+    'errors.admin.hub_nodes.delete_failed' => 'Echec de la suppression du downlink',
+    'errors.admin.hub_nodes.areas_load_failed' => 'Echec du chargement des abonnements aux zones',
+    'errors.admin.hub_nodes.areas_save_failed' => 'Echec de l\'enregistrement des abonnements aux zones',
+    'errors.admin.hub_nodes.next_point_failed' => 'Impossible de determiner le prochain numero de point',
 ];
 
 

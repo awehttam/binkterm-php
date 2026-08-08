@@ -1995,6 +1995,7 @@ class MessageHandler
             }
 
             $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
+            $this->fanoutToHubNodes($messageId);
         }
 
         return $messageId > 0;
@@ -2051,6 +2052,7 @@ class MessageHandler
         $domain      = $message['echoarea_domain'] ?? '';
 
         $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
+        $this->fanoutToHubNodes($messageId);
 
         // Check whether the author should be auto-promoted
         $userId = $message['user_id'] ? (int)$message['user_id'] : null;
@@ -3357,6 +3359,19 @@ class MessageHandler
             // Log error but don't fail the message creation
             $this->logger->error("[SPOOL] Failed to spool echomail #{$messageId} (area={$areaTag}, from=\"{$fromName}\", subject=\"{$subject}\"): " . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Fan a locally-approved echomail message out to subscribed hub_nodes
+     * (subordinate nodes/points). Failures are logged, never fatal to posting.
+     */
+    private function fanoutToHubNodes(int $messageId): void
+    {
+        try {
+            (new \BinktermPHP\Hub\HubFanout())->fanout($messageId);
+        } catch (\Exception $e) {
+            $this->logger->error("[HUB] Fanout failed for echomail #{$messageId}: " . $e->getMessage());
         }
     }
 

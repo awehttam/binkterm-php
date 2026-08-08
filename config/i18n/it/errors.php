@@ -767,4 +767,10 @@ return [
     'errors.admin.appearance.term_menu_keys.duplicate_key' => 'Ogni tasto del menu deve essere univoco',
     'errors.admin.appearance.term_menu_keys.quit_required' => 'Deve essere assegnato un tasto a Esci',
     'errors.admin.appearance.term_menu_keys.save_failed' => 'Impossibile salvare le impostazioni dei tasti del menu',
+    'errors.admin.hub_nodes.load_failed' => 'Impossibile caricare i downlink',
+    'errors.admin.hub_nodes.save_failed' => 'Impossibile salvare il downlink',
+    'errors.admin.hub_nodes.delete_failed' => 'Impossibile eliminare il downlink',
+    'errors.admin.hub_nodes.areas_load_failed' => 'Impossibile caricare le iscrizioni alle aree',
+    'errors.admin.hub_nodes.areas_save_failed' => 'Impossibile salvare le iscrizioni alle aree',
+    'errors.admin.hub_nodes.next_point_failed' => 'Impossibile determinare il prossimo numero di point',
 ];

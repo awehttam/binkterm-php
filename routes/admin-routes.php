@@ -393,6 +393,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    SimpleRouter::get('/hub-nodes', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/hub_nodes.twig');
+    });
+
     // Webdoors config page
     SimpleRouter::get('/webdoors', function() {
         $user = RouteHelper::requireAdmin();
@@ -3396,6 +3403,140 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'message_code' => 'ui.admin.networks.deleted']);
             } catch (Throwable $e) {
                 apiError('errors.admin.networks.delete_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::get('/hub-nodes', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                echo json_encode([
+                    'success' => true,
+                    'hub_nodes' => $manager->getAll(),
+                    'akas' => $manager->getConfiguredAkas(),
+                ]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.load_failed', apiLocalizedText('errors.admin.hub_nodes.load_failed', 'Failed to load hub nodes'), 500);
+            }
+        });
+
+        SimpleRouter::post('/hub-nodes', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $hubNode = $manager->create(is_array($payload) ? $payload : []);
+                echo json_encode(['success' => true, 'hub_node' => $hubNode, 'message_code' => 'ui.admin.hub_nodes.saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::put('/hub-nodes/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $hubNode = $manager->update((int)$id, is_array($payload) ? $payload : []);
+                echo json_encode(['success' => true, 'hub_node' => $hubNode, 'message_code' => 'ui.admin.hub_nodes.saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::delete('/hub-nodes/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $manager->delete((int)$id);
+                echo json_encode(['success' => true, 'message_code' => 'ui.admin.hub_nodes.deleted']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.delete_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::get('/hub-nodes/{id}/areas', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                echo json_encode(['success' => true, 'areas' => $manager->getAreaSubscriptions((int)$id)]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.areas_load_failed', apiLocalizedText('errors.admin.hub_nodes.areas_load_failed', 'Failed to load area subscriptions'), 500);
+            }
+        });
+
+        SimpleRouter::put('/hub-nodes/{id}/areas', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $echoareaIds = is_array($payload) && isset($payload['echoarea_ids']) && is_array($payload['echoarea_ids'])
+                    ? array_map('intval', $payload['echoarea_ids'])
+                    : [];
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $manager->bulkSetAreaSubscriptions((int)$id, $echoareaIds);
+                echo json_encode(['success' => true, 'areas' => $manager->getAreaSubscriptions((int)$id), 'message_code' => 'ui.admin.hub_nodes.areas_saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.areas_save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::get('/hub-nodes/next-point', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $bossAddress = (string)($_GET['boss_address'] ?? '');
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                echo json_encode(['success' => true, 'point_number' => $manager->suggestNextPointNumber($bossAddress)]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.next_point_failed', apiLocalizedText('errors.admin.hub_nodes.next_point_failed', 'Failed to determine next point number'), 500);
             }
         });
 

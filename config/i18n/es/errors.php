@@ -767,4 +767,10 @@ return [
     'errors.admin.appearance.term_menu_keys.duplicate_key' => 'Cada tecla del menu debe ser unica',
     'errors.admin.appearance.term_menu_keys.quit_required' => 'Debe asignarse una tecla a Salir',
     'errors.admin.appearance.term_menu_keys.save_failed' => 'No se pudo guardar la configuracion de las teclas del menu',
+    'errors.admin.hub_nodes.load_failed' => 'No se pudieron cargar los downlinks',
+    'errors.admin.hub_nodes.save_failed' => 'No se pudo guardar el downlink',
+    'errors.admin.hub_nodes.delete_failed' => 'No se pudo eliminar el downlink',
+    'errors.admin.hub_nodes.areas_load_failed' => 'No se pudieron cargar las suscripciones de areas',
+    'errors.admin.hub_nodes.areas_save_failed' => 'No se pudieron guardar las suscripciones de areas',
+    'errors.admin.hub_nodes.next_point_failed' => 'No se pudo determinar el siguiente numero de point',
 ];

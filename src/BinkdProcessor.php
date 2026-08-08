@@ -1531,6 +1531,12 @@ class BinkdProcessor
                 mb_substr($message['fromName'] ?? '', 0, 100),
                 $echoarea['id'],
             ]);
+
+            try {
+                (new \BinktermPHP\Hub\HubFanout())->fanout($newId);
+            } catch (\Throwable $e) {
+                $this->log("[BINKD] Hub fanout failed for echomail #{$newId}: " . $e->getMessage());
+            }
         }
 
         //$this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
@@ -2101,8 +2107,12 @@ class BinkdProcessor
             $messageText .= $bottomKludges;
         }
 
-        // Add echomail-specific control lines after bottom kludges
-        if ($isEchomail) {
+        // Add echomail-specific control lines after bottom kludges. Callers that
+        // already provide a fully-formed SEEN-BY/PATH set in bottom_kludges (e.g.
+        // BinktermPHP\Hub\HubFanout, which merges accumulated SEEN-BY/PATH across
+        // hops) set skip_default_seenby_path to avoid this single-hop synthesis
+        // duplicating what they already wrote.
+        if ($isEchomail && empty($message['skip_default_seenby_path'])) {
             $messageText .= "\r";
 
             // Parse system address for SEEN-BY and PATH lines

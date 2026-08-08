@@ -769,4 +769,10 @@ return [
     'errors.admin.appearance.term_menu_keys.duplicate_key' => 'Jede Menütaste muss eindeutig sein',
     'errors.admin.appearance.term_menu_keys.quit_required' => 'Für Beenden muss eine Taste zugewiesen sein',
     'errors.admin.appearance.term_menu_keys.save_failed' => 'Die Menütasteneinstellungen konnten nicht gespeichert werden',
+    'errors.admin.hub_nodes.load_failed' => 'Downlinks konnten nicht geladen werden',
+    'errors.admin.hub_nodes.save_failed' => 'Downlink konnte nicht gespeichert werden',
+    'errors.admin.hub_nodes.delete_failed' => 'Downlink konnte nicht gelöscht werden',
+    'errors.admin.hub_nodes.areas_load_failed' => 'Bereichsabonnements konnten nicht geladen werden',
+    'errors.admin.hub_nodes.areas_save_failed' => 'Bereichsabonnements konnten nicht gespeichert werden',
+    'errors.admin.hub_nodes.next_point_failed' => 'Die nächste Point-Nummer konnte nicht ermittelt werden',
 ];
