@@ -3,7 +3,6 @@
 namespace BinktermPHP\Hub;
 
 use PDO;
-use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\BinkdProcessor;
 use BinktermPHP\Binkp\Config\BinkpConfig;
@@ -43,7 +42,11 @@ class HubNetmailRouter
      * If $message's destination address belongs to a registered, enabled
      * hub node/point with allow_inbound_netmail, enqueue it for delivery
      * and return true. Returns false (no side effects) otherwise, so the
-     * caller falls through to the existing local-delivery logic.
+     * caller falls through to the existing local-delivery logic. Gated
+     * solely by the per-node allow_inbound_netmail flag - this is core
+     * "deliver mail addressed to a registered downlink" functionality, not
+     * an opt-in relay feature, so (unlike an earlier version of this
+     * method) there is no separate global flag to also remember to enable.
      *
      * @param array $message Raw inbound message array as built by
      *   BinkdProcessor (destAddr, origAddr, fromName, toName, subject,
@@ -51,10 +54,6 @@ class HubNetmailRouter
      */
     public function routeIfHubNode(array $message): bool
     {
-        if (Config::env('HUB_ROUTE_NETMAIL', 'false') !== 'true') {
-            return false;
-        }
-
         $destAddr = trim((string)($message['destAddr'] ?? ''));
         if ($destAddr === '') {
             return false;
