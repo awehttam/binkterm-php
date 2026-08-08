@@ -1975,13 +1975,21 @@ class BinkpSession
         }
 
         // Plain text password validation
-        // If we sent a challenge and got a plain password, check if fallback is allowed
+        // If we sent a challenge and got a plain password, check if fallback is allowed.
+        // Registered hub nodes/points always accept plaintext regardless of the global
+        // uplink security policy - they're subordinate systems under our own admin
+        // control, not the public FTN network the plaintext-fallback policy guards.
         if ($this->cramChallenge !== null) {
-            if (!$this->config->getAllowPlaintextFallback()) {
+            $isHubNode = $this->remoteAddress !== null
+                && (new \BinktermPHP\Hub\HubNodeManager())->getByAddress($this->remoteAddress) !== null;
+
+            if (!$this->config->getAllowPlaintextFallback() && !$isHubNode) {
                 $this->log("Plain text password rejected - CRAM-MD5 required", 'WARNING');
                 return false;
             }
-            $this->log("Accepting plain text password fallback", 'DEBUG');
+            $this->log($isHubNode
+                ? "Accepting plain text password for registered hub node {$this->remoteAddress}"
+                : "Accepting plain text password fallback", 'DEBUG');
         }
 
         $match = hash_equals($expectedPassword, $password);
