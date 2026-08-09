@@ -264,6 +264,55 @@ class HubNodeManager
     }
 
     /**
+     * IDs of the active echoareas a hub node is currently subscribed to and
+     * not paused on. Used by HubFanout::rescanForNode() for the AreaFix
+     * %RESCAN command - deliberately ignores hn.enabled/hold_mail (unlike
+     * getSubscribersForArea()) since rescanForNode() checks those itself.
+     *
+     * @return int[]
+     */
+    public function getSubscribedEchoareaIds(int $hubNodeId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT hna.echoarea_id
+            FROM hub_node_areas hna
+            JOIN echoareas ea ON ea.id = hna.echoarea_id
+            WHERE hna.hub_node_id = ? AND hna.paused = FALSE AND ea.is_active = TRUE
+        ");
+        $stmt->execute([$hubNodeId]);
+
+        return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'echoarea_id'));
+    }
+
+    /**
+     * The active, non-paused echoarea a hub node is currently subscribed to
+     * matching $tag, or null if it isn't subscribed to any such area. Used
+     * by HubAreafixProcessor's %RESCAN <AREATAG> to scope a rescan to one
+     * area - deliberately requires an existing subscription rather than any
+     * matching area, so %RESCAN can't be used to peek at unsubscribed history.
+     *
+     * @return array{id: int, tag: string, domain: ?string}|null
+     */
+    public function findSubscribedEchoareaByTag(int $hubNodeId, string $tag): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT ea.id, ea.tag, ea.domain
+            FROM hub_node_areas hna
+            JOIN echoareas ea ON ea.id = hna.echoarea_id
+            WHERE hna.hub_node_id = ? AND hna.paused = FALSE AND ea.is_active = TRUE
+              AND UPPER(ea.tag) = UPPER(?)
+            LIMIT 1
+        ");
+        $stmt->execute([$hubNodeId, $tag]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        return ['id' => (int)$row['id'], 'tag' => $row['tag'], 'domain' => $row['domain']];
+    }
+
+    /**
      * All file areas with the subscription status (and pause flag) for a given hub node.
      * Mirrors getAreaSubscriptions(), including its domain scoping and the same
      * always-include-existing-subscriptions rule. See docs/proposals/HubPointSystemJuly2026.md Phase 4.

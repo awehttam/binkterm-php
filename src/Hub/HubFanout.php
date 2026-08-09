@@ -109,6 +109,26 @@ class HubFanout
             $bottomKludges = trim(EchomailSeenBy::formatSeenBy($seenBy) . "\r" . EchomailSeenBy::formatPath($path));
         }
 
+        $this->buildAndQueuePacket($processor, $message, $subscriber, $bottomKludges);
+    }
+
+    /**
+     * Build a one-message outbound packet for $subscriber and insert it into
+     * hub_node_outbound. Shared by queueForSubscriber() (live fanout, which
+     * computes $bottomKludges via the SEEN-BY loop-guard/mutation above) and
+     * rescanForNode() (which passes the message's original bottom_kludges
+     * through unchanged - a rescan is a deliberate resend, not a fresh toss,
+     * so it must not be blocked by the "subscriber already in SEEN-BY" check).
+     *
+     * @param array<string, mixed> $message
+     * @param array<string, mixed> $subscriber
+     */
+    private function buildAndQueuePacket(
+        BinkdProcessor $processor,
+        array $message,
+        array $subscriber,
+        string $bottomKludges
+    ): void {
         $packetMessage = [
             'from_address' => $message['from_address'],
             'to_address' => $subscriber['node_address'],
@@ -160,6 +180,73 @@ class HubFanout
         $stmt->bindValue(':packet_data', $bytes, PDO::PARAM_LOB);
         $stmt->bindValue(':size_bytes', strlen($bytes), PDO::PARAM_INT);
         $stmt->execute();
+    }
+
+    /**
+     * Default lookback window for %RESCAN when no day count is given,
+     * matching Mystic's areafix RESCAN default of roughly 6 months.
+     */
+    public const RESCAN_DEFAULT_DAYS = 182;
+
+    /** Upper bound on %RESCAN's day count, to keep a mistyped huge number from queueing years of mail. */
+    public const RESCAN_MAX_DAYS = 3650;
+
+    /**
+     * Re-queue historical echomail into hub_node_outbound for a single hub
+     * node, going back $days days (server AreaFix %RESCAN command). With
+     * $echoareaId null, covers all of the node's currently subscribed
+     * (active, non-paused) echoareas; with it set, only that one area
+     * (caller must have already verified the node is subscribed to it -
+     * see HubNodeManager::findSubscribedEchoareaByTag()). Unlike fanout(),
+     * this always resends every matching message regardless of SEEN-BY -
+     * it's an explicit request to receive again, not a fresh toss, and
+     * points are already exempt from SEEN-BY entirely (see queueForSubscriber()).
+     *
+     * @return int Number of messages queued.
+     */
+    public function rescanForNode(int $hubNodeId, ?int $days = null, ?int $echoareaId = null): int
+    {
+        $days = $days !== null ? max(1, min($days, self::RESCAN_MAX_DAYS)) : self::RESCAN_DEFAULT_DAYS;
+
+        $subscriber = $this->nodeManager->getById($hubNodeId);
+        if (!$subscriber || !$subscriber['enabled']) {
+            return 0;
+        }
+
+        $echoareaIds = $echoareaId !== null ? [$echoareaId] : $this->nodeManager->getSubscribedEchoareaIds($hubNodeId);
+        if (empty($echoareaIds)) {
+            return 0;
+        }
+
+        $processor = new BinkdProcessor();
+        $queued = 0;
+
+        foreach ($echoareaIds as $echoareaId) {
+            foreach ($this->loadRecentMessages($echoareaId, $days) as $message) {
+                $this->buildAndQueuePacket($processor, $message, $subscriber, (string)$message['bottom_kludges']);
+                $queued++;
+            }
+        }
+
+        return $queued;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function loadRecentMessages(int $echoareaId, int $days): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT em.*, ea.tag AS echoarea_tag, ea.domain AS echoarea_domain
+            FROM echomail em
+            JOIN echoareas ea ON ea.id = em.echoarea_id
+            WHERE em.echoarea_id = ?
+              AND em.date_received >= (NOW() AT TIME ZONE 'UTC') - make_interval(days => ?)
+            ORDER BY em.date_received ASC
+        ");
+        $stmt->execute([$echoareaId, $days]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     private function tempPacketPath(): string

@@ -120,6 +120,9 @@ class HubAreafixProcessor
             $this->nodeManager->update((int)$hubNode['id'], ['hold_mail' => false]);
             return ['Mail resumed (hold mail disabled).'];
         }
+        if ($upper === '%RESCAN' || str_starts_with($upper, '%RESCAN ')) {
+            return $this->rescan($hubNode, $robot, trim(substr($line, 7)));
+        }
 
         if ($line[0] === '+' || $line[0] === '-') {
             $subscribe = $line[0] === '+';
@@ -134,6 +137,54 @@ class HubAreafixProcessor
         }
 
         return ["Unknown command: {$line}"];
+    }
+
+    /**
+     * %RESCAN [AREATAG] [days] - re-queue historical echomail, going back
+     * $days days (default/max per HubFanout::RESCAN_DEFAULT_DAYS /
+     * RESCAN_MAX_DAYS). With no area tag, rescans all of the caller's
+     * currently subscribed areas; with one, only that area (which must be
+     * one the caller is currently subscribed to). Tag and day count may
+     * appear in either order (e.g. "%RESCAN GENERAL 30" or "%RESCAN 30
+     * GENERAL"); a purely-numeric token is always taken as the day count.
+     * Matches common areafix conventions (Mystic et al). Echomail only -
+     * not meaningful for FileFix, which has no per-message history to replay.
+     *
+     * @param array<string, mixed> $hubNode
+     * @return string[]
+     */
+    private function rescan(array $hubNode, string $robot, string $args): array
+    {
+        if ($robot === 'filefix') {
+            return ['%RESCAN is not supported for FileFix.'];
+        }
+
+        $days = null;
+        $areaTag = null;
+        foreach (preg_split('/\s+/', trim($args), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $token) {
+            if (preg_match('/^\d{1,4}$/', $token)) {
+                $days = (int)$token;
+            } elseif ($areaTag === null) {
+                $areaTag = strtoupper($token);
+            } else {
+                return ["Invalid command: %RESCAN {$args}"];
+            }
+        }
+
+        $usedDays = $days !== null ? max(1, min($days, HubFanout::RESCAN_MAX_DAYS)) : HubFanout::RESCAN_DEFAULT_DAYS;
+        $fanout = new HubFanout($this->db, $this->nodeManager);
+
+        if ($areaTag !== null) {
+            $area = $this->nodeManager->findSubscribedEchoareaByTag((int)$hubNode['id'], $areaTag);
+            if (!$area) {
+                return ["{$areaTag}: not currently subscribed, nothing to rescan"];
+            }
+            $queued = $fanout->rescanForNode((int)$hubNode['id'], $days, (int)$area['id']);
+            return ["Rescan queued {$queued} message(s) from {$areaTag} (last {$usedDays} day(s))."];
+        }
+
+        $queued = $fanout->rescanForNode((int)$hubNode['id'], $days);
+        return ["Rescan queued {$queued} message(s) from the last {$usedDays} day(s)."];
     }
 
     /**
@@ -219,7 +270,7 @@ class HubAreafixProcessor
     {
         $verb = $robot === 'filefix' ? 'file area' : 'echo area';
 
-        return [
+        $lines = [
             'AreaFix/FileFix command reference:',
             "+TAG        Subscribe to a {$verb}",
             "-TAG        Unsubscribe from a {$verb}",
@@ -227,8 +278,16 @@ class HubAreafixProcessor
             '%QUERY      List your current subscriptions',
             '%PAUSE      Pause all areas (hold mail)',
             '%RESUME     Resume all areas',
-            '%HELP       This help text',
         ];
+
+        if ($robot !== 'filefix') {
+            $lines[] = '%RESCAN [AREATAG] [days]  Re-queue echomail history (all subscribed areas, or one)';
+            $lines[] = '            (default/max ' . HubFanout::RESCAN_DEFAULT_DAYS . '/' . HubFanout::RESCAN_MAX_DAYS . ' days)';
+        }
+
+        $lines[] = '%HELP       This help text';
+
+        return $lines;
     }
 
     /**
