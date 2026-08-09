@@ -1118,9 +1118,13 @@ class BinkpSession
     }
 
     /**
-     * Send any pending hub_node_outbound packets queued for the connecting
+     * Send any pending hub_node_outbound rows queued for the connecting
      * subordinate (node or point). Called at session start for both
      * originator and answerer, mirroring sendFreqFiles()/sendHoldFiles().
+     * All pending echomail/netmail rows are bundled into one multi-message
+     * .pkt at send time (see sendHubNodeOutboundBundle()) rather than sent
+     * as separate files; TIC rows are always sent individually as their own
+     * file pair.
      */
     private function sendHubNodeOutbound(): void
     {
@@ -1137,7 +1141,7 @@ class BinkpSession
 
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare(
-                "SELECT id, message_type, packet_data, tic_file_data, tic_filename
+                "SELECT id, message_type, packet_data, message_payload, tic_file_data, tic_filename
                  FROM hub_node_outbound
                  WHERE hub_node_id = ? AND status = 'pending'
                  ORDER BY priority ASC, next_attempt_at ASC"
@@ -1158,56 +1162,146 @@ class BinkpSession
                 "UPDATE hub_node_outbound SET status = 'failed', attempts = attempts + 1, error_message = ? WHERE id = ?"
             );
 
+            // Bundle every pending echomail/netmail row into a single
+            // multi-message .pkt at send time (one file instead of one per
+            // row) - message_payload holds the createOutboundPacket()-ready
+            // array captured at queue time. Rows queued before this column
+            // existed (message_payload NULL) fall back to sending their
+            // individually pre-rendered packet_data, same as before.
+            $bundleMessages = [];
+            $bundleIds = [];
+            $legacyRows = [];
+
             foreach ($rows as $row) {
                 if (($row['message_type'] ?? 'echomail') === 'tic') {
                     $this->sendHubNodeTicRow($row, $remoteAddr, $markSent, $markFailed);
                     continue;
                 }
 
-                $id = (int)$row['id'];
-                $bytes = $row['packet_data'];
-                if (is_resource($bytes)) {
-                    $bytes = stream_get_contents($bytes);
+                $payloadJson = $row['message_payload'];
+                if (is_resource($payloadJson)) {
+                    $payloadJson = stream_get_contents($payloadJson);
                 }
+                $packetMessage = $payloadJson !== null ? json_decode((string)$payloadJson, true) : null;
 
-                // Wire filename must be 8.3-compatible (FTN convention) - this
-                // basename is what handleSentFileConfirmation() matches against
-                // the remote's M_GOT, so keep it short like other packet names
-                // in this codebase (see BinkdProcessor::createOutboundPacket()).
-                $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.pkt';
-                $wireName = basename($tmpPath);
-                try {
-                    if (file_put_contents($tmpPath, $bytes) === false) {
-                        throw new \Exception('Failed to write temp packet file');
-                    }
-                    // Register as an "extra" file (same bucket as .req files -
-                    // see addExtraFile()) so handleSentFileConfirmation() knows
-                    // this filename lives outside data/outbound/ when the
-                    // remote's M_GOT arrives, instead of logging a spurious
-                    // "Sent file not found" warning while looking for it there.
-                    // Deliberately not calling addExtraFile() itself - that
-                    // also queues the file for sendFiles() to send again.
-                    $this->extraOutboundFilesByName[$wireName] = $tmpPath;
-                    $this->sendFile($tmpPath);
-                    $markSent->execute([$id]);
-                    $this->log("Hub node outbound: sent packet #{$id} to {$remoteAddr}", 'INFO');
-                } catch (\Exception $e) {
-                    $markFailed->execute([$e->getMessage(), $id]);
-                    $this->log("Hub node outbound: failed to send packet #{$id} to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
-                } finally {
-                    // Delete the temp file now (we don't keep it around waiting
-                    // for M_GOT the way data/outbound/ files do), but leave the
-                    // extraOutboundFilesByName entry in place - the remote's
-                    // M_GOT for this filename can arrive well after this loop
-                    // moves on, and handleSentFileConfirmation() needs to find
-                    // the mapping then, not just at send time. It no-ops safely
-                    // once file_exists() is false, same as .req files that are
-                    // confirmed after already being cleaned up.
-                    @unlink($tmpPath);
+                if (is_array($packetMessage)) {
+                    $bundleMessages[] = $packetMessage;
+                    $bundleIds[] = (int)$row['id'];
+                } else {
+                    $legacyRows[] = $row;
                 }
+            }
+
+            if (!empty($bundleMessages)) {
+                $this->sendHubNodeOutboundBundle($bundleMessages, $bundleIds, $remoteAddr, $markSent, $markFailed);
+            }
+
+            foreach ($legacyRows as $row) {
+                $this->sendHubNodeOutboundLegacyRow($row, $remoteAddr, $markSent, $markFailed);
             }
         } catch (\Exception $e) {
             $this->log("sendHubNodeOutbound error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Build and send one combined .pkt carrying every bundled message, then
+     * mark all of $bundleIds sent (or all failed together, so a partial
+     * bundle is never left half-delivered) - matches the semantics of
+     * BinkdProcessor::createOutboundPacket() writing one header/terminator
+     * around N message records.
+     *
+     * @param array<int, array<string, mixed>> $bundleMessages
+     * @param int[] $bundleIds
+     */
+    private function sendHubNodeOutboundBundle(
+        array $bundleMessages,
+        array $bundleIds,
+        string $remoteAddr,
+        \PDOStatement $markSent,
+        \PDOStatement $markFailed
+    ): void {
+        $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.pkt';
+        $wireName = basename($tmpPath);
+
+        try {
+            (new \BinktermPHP\BinkdProcessor())->createOutboundPacket($bundleMessages, $remoteAddr, $tmpPath);
+
+            // See sendHubNodeOutbound()'s per-row version below for why this
+            // is registered as an "extra" file rather than via addExtraFile().
+            $this->extraOutboundFilesByName[$wireName] = $tmpPath;
+            $this->sendFile($tmpPath);
+
+            foreach ($bundleIds as $id) {
+                $markSent->execute([$id]);
+            }
+            $this->log(
+                "Hub node outbound: sent bundled packet with " . count($bundleIds) . " message(s) (#" . implode(',', $bundleIds) . ") to {$remoteAddr}",
+                'INFO'
+            );
+        } catch (\Exception $e) {
+            foreach ($bundleIds as $id) {
+                $markFailed->execute([$e->getMessage(), $id]);
+            }
+            $this->log("Hub node outbound: failed to send bundled packet (#" . implode(',', $bundleIds) . ") to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
+        } finally {
+            @unlink($tmpPath);
+        }
+    }
+
+    /**
+     * Send a single pre-rendered hub_node_outbound row's packet_data as its
+     * own file - the pre-message_payload behavior, kept as a fallback for
+     * rows queued before that column existed.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function sendHubNodeOutboundLegacyRow(
+        array $row,
+        string $remoteAddr,
+        \PDOStatement $markSent,
+        \PDOStatement $markFailed
+    ): void {
+        $id = (int)$row['id'];
+        $bytes = $row['packet_data'];
+        if (is_resource($bytes)) {
+            $bytes = stream_get_contents($bytes);
+        }
+
+        // Wire filename must be 8.3-compatible (FTN convention) - this
+        // basename is what handleSentFileConfirmation() matches against
+        // the remote's M_GOT, so keep it short like other packet names
+        // in this codebase (see BinkdProcessor::createOutboundPacket()).
+        $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.pkt';
+        $wireName = basename($tmpPath);
+        try {
+            if (file_put_contents($tmpPath, $bytes) === false) {
+                throw new \Exception('Failed to write temp packet file');
+            }
+            // Register as an "extra" file (same bucket as .req files -
+            // see addExtraFile()) so handleSentFileConfirmation() knows
+            // this filename lives outside data/outbound/ when the
+            // remote's M_GOT arrives, instead of logging a spurious
+            // "Sent file not found" warning while looking for it there.
+            // Deliberately not calling addExtraFile() itself - that
+            // also queues the file for sendFiles() to send again.
+            $this->extraOutboundFilesByName[$wireName] = $tmpPath;
+            $this->sendFile($tmpPath);
+            $markSent->execute([$id]);
+            $this->log("Hub node outbound: sent packet #{$id} to {$remoteAddr}", 'INFO');
+        } catch (\Exception $e) {
+            $markFailed->execute([$e->getMessage(), $id]);
+            $this->log("Hub node outbound: failed to send packet #{$id} to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
+        } finally {
+            // Delete the temp file now (we don't keep it around waiting
+            // for M_GOT the way data/outbound/ files do), but leave the
+            // extraOutboundFilesByName entry in place - the remote's
+            // M_GOT for this filename can arrive well after this loop
+            // moves on, and handleSentFileConfirmation() needs to find
+            // the mapping then, not just at send time. It no-ops safely
+            // once file_exists() is false, same as .req files that are
+            // confirmed after already being cleaned up.
+            @unlink($tmpPath);
         }
     }
 

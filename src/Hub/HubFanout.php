@@ -11,9 +11,13 @@ use BinktermPHP\TicFileGenerator;
 
 /**
  * Fans a newly-stored echomail message out to subscribed hub_nodes
- * (subordinate nodes and points), enqueueing one packet per subscriber into
+ * (subordinate nodes and points), enqueueing one row per subscriber into
  * hub_node_outbound. This is Phase 1 of docs/proposals/HubPointSystemJuly2026.md:
- * enqueue only, no delivery (Phase 2).
+ * enqueue only, no delivery (Phase 2). Each row carries both a pre-rendered
+ * single-message packet_data blob (used by the admin Downlink Queue
+ * inspect/download UI) and a message_payload JSON array; delivery
+ * (BinkpSession::sendHubNodeOutbound()) decodes message_payload to bundle
+ * every pending row for a node into one multi-message .pkt at send time.
  */
 class HubFanout
 {
@@ -171,13 +175,14 @@ class HubFanout
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO hub_node_outbound (hub_node_id, message_type, echoarea_id, echomail_id, packet_data, size_bytes, status)
-            VALUES (:hub_node_id, 'echomail', :echoarea_id, :echomail_id, :packet_data, :size_bytes, 'pending')
+            INSERT INTO hub_node_outbound (hub_node_id, message_type, echoarea_id, echomail_id, packet_data, message_payload, size_bytes, status)
+            VALUES (:hub_node_id, 'echomail', :echoarea_id, :echomail_id, :packet_data, :message_payload, :size_bytes, 'pending')
         ");
         $stmt->bindValue(':hub_node_id', $subscriber['id'], PDO::PARAM_INT);
         $stmt->bindValue(':echoarea_id', $message['echoarea_id'], PDO::PARAM_INT);
         $stmt->bindValue(':echomail_id', $message['id'], PDO::PARAM_INT);
         $stmt->bindValue(':packet_data', $bytes, PDO::PARAM_LOB);
+        $stmt->bindValue(':message_payload', json_encode($packetMessage), PDO::PARAM_STR);
         $stmt->bindValue(':size_bytes', strlen($bytes), PDO::PARAM_INT);
         $stmt->execute();
     }

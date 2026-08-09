@@ -236,12 +236,13 @@ class HubNetmailRouter
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO hub_node_outbound (hub_node_id, message_type, netmail_id, packet_data, size_bytes, status)
-            VALUES (:hub_node_id, 'netmail', :netmail_id, :packet_data, :size_bytes, 'pending')
+            INSERT INTO hub_node_outbound (hub_node_id, message_type, netmail_id, packet_data, message_payload, size_bytes, status)
+            VALUES (:hub_node_id, 'netmail', :netmail_id, :packet_data, :message_payload, :size_bytes, 'pending')
         ");
         $stmt->bindValue(':hub_node_id', $hubNode['id'], PDO::PARAM_INT);
         $stmt->bindValue(':netmail_id', $netmailId, $netmailId !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':packet_data', $bytes, PDO::PARAM_LOB);
+        $stmt->bindValue(':message_payload', json_encode($packetMessage), PDO::PARAM_STR);
         $stmt->bindValue(':size_bytes', strlen($bytes), PDO::PARAM_INT);
         $stmt->execute();
 
