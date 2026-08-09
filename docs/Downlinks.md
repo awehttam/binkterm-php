@@ -81,9 +81,12 @@ A downlink can self-manage its own echo and file area subscriptions by sending n
 | `%QUERY` | Reply with this downlink's current subscriptions |
 | `%PAUSE` | Pause all areas (sets **Hold Mail**) |
 | `%RESUME` | Resume all areas (clears **Hold Mail**) |
+| `%RESCAN [AREATAG] [days]` | Re-queue echomail history (AreaFix only, see below) |
 | `%HELP` | Reply with the command reference |
 
 Only active, non-local areas are self-subscribable — sysop-only echoareas and private/local file areas never appear in `%LIST` and can't be subscribed to via `+TAG`, matching what the admin area-subscription checklists already show. A reply netmail is queued back to the downlink for every command batch, listing the result of each command.
+
+**`%RESCAN`** re-sends past echomail the downlink is entitled to, e.g. after it lost message history locally. With no arguments it re-queues every area the downlink is currently subscribed to, going back 182 days (~6 months) by default (maximum 3650). Add a number to change the day count (`%RESCAN 30`), an area tag to scope it to just that one area (`%RESCAN GENERAL`, must already be subscribed), or both in either order (`%RESCAN GENERAL 30` or `%RESCAN 30 GENERAL`). AreaFix only — FileFix has no per-message history to replay.
 
 ## Netmail routing
 

@@ -58,6 +58,7 @@ See [TIC / File Area Distribution](#tic--file-area-distribution) for the design.
 - **Two separate robots**, not one combined one: `AreaFix` manages `hub_node_areas`, `FileFix` manages `hub_node_fileareas` — mirrors the existing client-side `AreaFixManager` naming and avoids any ambiguity between echo and file area tag namespaces.
 - **Self-subscribable areas are restricted** to active, non-local echoareas (excluding sysop-only) and active, non-local, non-private file areas — the same eligibility already used by the admin subscription checklists — rather than a separate sysop-curated allowlist table.
 - All standard commands are implemented: `+TAG`/`-TAG` (subscribe/unsubscribe), `%LIST`, `%QUERY`, `%HELP`, `%PAUSE`/`%RESUME` (toggle `hub_nodes.hold_mail`). A reply netmail is queued directly into `hub_node_outbound` (reusing `HubNetmailRouter::buildAndEnqueue()`, widened from `private` to `public` for this) listing the result of every command in the batch.
+- **`%RESCAN [AREATAG] [days]`, not in the original sketch**: re-queues historical echomail into `hub_node_outbound` for a downlink to receive again, matching common areafix convention (e.g. Mystic). With no area tag, rescans every area the downlink is currently subscribed to; with one, only that area (must already be subscribed - `%RESCAN` can't be used to probe unsubscribed history). Tag and day count may appear in either order; a purely-numeric token is always the day count. Defaults to 182 days (~6 months) if no day count is given, capped at 3650. Echomail only, not implemented for FileFix (file areas have no per-message history to replay). Implemented as `HubFanout::rescanForNode()`, which always resends regardless of SEEN-BY - a rescan is a deliberate re-request, not a fresh toss, so it must not be blocked by the "downlink already in SEEN-BY" loop guard that live fanout uses.
 
 See the [Implementation Plan](#implementation-plan) checklist below for the item-by-item breakdown, and the [New Files](#new-files) / [Modified Files](#modified-files) tables for what actually landed vs. what was originally sketched (a few paths diverged from the original plan during implementation).
 
@@ -477,6 +478,7 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | `%HELP` | Reply with command reference | Both |
 | `%PAUSE` | Pause all areas (hold mail) | Both |
 | `%RESUME` | Resume all areas | Both |
+| `%RESCAN [AREATAG] [days]` | Re-queue echomail history (all subscribed areas, or one) | Areafix (echo areas) only |
 
 ### Design notes (Implemented)
 
@@ -485,6 +487,7 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 - The robot applies identically to nodes and points; it's implemented as `src/Hub/HubAreafixProcessor.php`, hooked into `BinkdProcessor::storeNetmail()`, resolving the sender against `hub_nodes.node_address` (`getByAddress()`) — not a "configurable robot name" as originally sketched; the robot names are fixed as `AreaFix`/`FileFix` (case-insensitive `to_name` match), matching the fixed names the client-side `AreaFixManager` already sends to.
 - **Robot names and passwords, not in the original sketch**: `AreaFix` and `FileFix` are two separate netmail addresses (not one combined robot), each authenticated by its own new `hub_nodes.areafix_password`/`filefix_password` column rather than the existing `session_password` — see [Implementation Status](#implementation-status) for the reasoning.
 - **Area eligibility, not in the original sketch**: `+TAG` only succeeds for areas eligible for self-subscription — active, non-local echoareas (excluding sysop-only), and active, non-local, non-private file areas. This reuses the same filter as the admin subscription checklists rather than a new per-subordinate allowlist table.
+- **`%RESCAN`, not in the original sketch**: added after Phase 5 shipped, matching a common areafix convention (e.g. Mystic) that the original sketch didn't cover. See the Phase 5 implementation note above and `HubFanout::rescanForNode()`.
 
 ---
 
@@ -531,6 +534,7 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 17. [x] Areafix/Filefix robot and netmail command parser (server-side) — `src/Hub/HubAreafixProcessor.php`, hooked into `BinkdProcessor::storeNetmail()`
 18. [x] Reply netmail generation — queued into `hub_node_outbound` via `HubNetmailRouter::buildAndEnqueue()`
 19. [x] Per-subordinate access controls — implemented as a shared eligibility filter (active, non-local areas; echoareas also exclude sysop-only, file areas also exclude private) rather than a new per-subordinate allowlist table; see [Implementation Status](#implementation-status)
+20. [x] `%RESCAN [AREATAG] [days]` — re-queue echomail history into `hub_node_outbound`, added after Phase 5 shipped; `HubFanout::rescanForNode()`, `HubNodeManager::getSubscribedEchoareaIds()`/`findSubscribedEchoareaByTag()`
 
 ---
 
@@ -553,7 +557,7 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | `database/migrations/v20260808164452_add_tic_columns_to_hub_node_outbound.sql` | Adds `file_id`, `tic_file_data`, `tic_filename` and widens the `message_type` check constraint to include `'tic'` | Done (Phase 4) |
 | ~~`src/Hub/HubFileAreaFanout.php`~~ | Superseded — file-area fanout landed as `HubFanout::fanoutFile()` on the existing `HubFanout` class instead of a sibling file, matching how the class already mixes echomail-fanout entry points | Not built (by design, Phase 4) |
 | `database/migrations/v20260808213648_add_areafix_filefix_passwords_to_hub_nodes.sql` | Adds `hub_nodes.areafix_password`/`filefix_password` | Done (Phase 5) |
-| `src/Hub/HubAreafixProcessor.php` | Areafix/Filefix robot: detects `AreaFix`/`FileFix`-addressed netmail, authenticates via the new password columns, parses `+TAG`/`-TAG`/`%LIST`/`%QUERY`/`%HELP`/`%PAUSE`/`%RESUME`, and queues a reply | Done (Phase 5) |
+| `src/Hub/HubAreafixProcessor.php` | Areafix/Filefix robot: detects `AreaFix`/`FileFix`-addressed netmail, authenticates via the new password columns, parses `+TAG`/`-TAG`/`%LIST`/`%QUERY`/`%HELP`/`%PAUSE`/`%RESUME`/`%RESCAN`, and queues a reply | Done (Phase 5) |
 
 ## Modified Files
 
@@ -585,7 +589,9 @@ Areafix is a netmail robot that allows remote sysops (or point owners) to manage
 | `src/Hub/HubNetmailRouter.php` | `buildAndEnqueue()` widened from `private` to `public` so `HubAreafixProcessor` can reuse it to queue robot replies | Done (Phase 5) |
 | `src/Hub/HubNodeManager.php` | `COLUMNS`, `prepareFields()`, and the `create()`/`update()` SQL gained `areafix_password`/`filefix_password` | Done (Phase 5) |
 | `templates/admin/hub_nodes.twig` | Add/edit modal gained AreaFix Password / FileFix Password fields, following the existing session/packet password pattern (sent only when non-empty; never pre-filled on edit) | Done (Phase 5) |
-| `docs/Downlinks.md` | Added an "AreaFix / FileFix" section; updated the field table; removed the stale "Areafix not yet implemented" limitation | Done (Phase 5) |
+| `docs/Downlinks.md` | Added an "AreaFix / FileFix" section; updated the field table; removed the stale "Areafix not yet implemented" limitation; later updated again for `%RESCAN` | Done (Phase 5) |
+| `src/Hub/HubFanout.php` | New `rescanForNode()` (plus `loadRecentMessages()`); `queueForSubscriber()`'s packet-build/insert logic split out into a shared `buildAndQueuePacket()` so both it and `rescanForNode()` can reuse it - `rescanForNode()` calls it directly with the message's original `bottom_kludges`, bypassing the SEEN-BY loop-guard/mutation `queueForSubscriber()` applies for live fanout | Done (Phase 5, `%RESCAN` addendum) |
+| `src/Hub/HubNodeManager.php` | New `getSubscribedEchoareaIds()` and `findSubscribedEchoareaByTag()`, backing `%RESCAN`'s all-areas and single-area forms respectively | Done (Phase 5, `%RESCAN` addendum) |
 
 Exact packet-processing entry point and outbound file layout should be confirmed against current `src/Binkp/` code at implementation time, since the two source proposals disagreed on class names in places. (Resolved during Phase 1: the entry point is `src/BinkdProcessor.php`, not `src/Binkp/PacketProcessor.php`.)
 
