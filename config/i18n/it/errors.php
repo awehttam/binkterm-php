@@ -303,6 +303,7 @@ return [
     'errors.binkp.queue.inspect_failed' => 'Impossibile ispezionare il pacchetto in coda',
     'errors.binkp.hub_outbound.list_failed' => 'Impossibile caricare la coda downlink',
     'errors.binkp.hub_outbound.invalid_id' => 'ID elemento coda non valido',
+    'errors.binkp.hub_outbound.delete_failed' => 'Impossibile eliminare gli elementi della coda',
     'errors.binkp.uplink.address_hostname_required' => 'Indirizzo e hostname sono obbligatori',
     'errors.binkp.uplink.address_required' => 'Indirizzo uplink obbligatorio',
     'errors.messages.forward_email.email_required' => 'È richiesto un indirizzo email',

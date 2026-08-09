@@ -302,6 +302,36 @@ class BinkpController
     }
 
     /**
+     * Delete queued hub_node_outbound rows by id, for the Downlink Queue
+     * tab's multi-select delete action.
+     */
+    public function deleteHubOutboundRows(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn($id) => $id > 0)));
+        if (empty($ids)) {
+            return [
+                'success'    => false,
+                'error_code' => 'errors.binkp.hub_outbound.invalid_id',
+                'error'      => 'Invalid queue item id',
+            ];
+        }
+
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $db->prepare("DELETE FROM hub_node_outbound WHERE id IN ($placeholders)");
+            $stmt->execute($ids);
+
+            return [
+                'success' => true,
+                'deleted' => $stmt->rowCount(),
+            ];
+        } catch (\Exception $e) {
+            return $this->apiErrorResponse('errors.binkp.hub_outbound.delete_failed', $e->getMessage());
+        }
+    }
+
+    /**
      * Parse a queued hub_node_outbound packet's contents. Requires a valid
      * license, matching the existing live/kept-packet inspectors.
      */

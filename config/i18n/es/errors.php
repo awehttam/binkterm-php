@@ -303,6 +303,7 @@ return [
     'errors.binkp.queue.inspect_failed' => 'No se pudo inspeccionar el paquete de la cola',
     'errors.binkp.hub_outbound.list_failed' => 'No se pudo cargar la cola de downlinks',
     'errors.binkp.hub_outbound.invalid_id' => 'ID de elemento de cola invalido',
+    'errors.binkp.hub_outbound.delete_failed' => 'No se pudieron eliminar los elementos de la cola',
     'errors.binkp.uplink.address_hostname_required' => 'Se requieren direccion y hostname',
     'errors.binkp.uplink.address_required' => 'Se requiere la direccion del uplink',
     'errors.messages.forward_email.email_required' => 'Se requiere una direccion de correo',

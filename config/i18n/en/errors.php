@@ -303,6 +303,7 @@ return [
     'errors.binkp.queue.inspect_failed' => 'Failed to inspect queue packet',
     'errors.binkp.hub_outbound.list_failed' => 'Failed to load downlink queue',
     'errors.binkp.hub_outbound.invalid_id' => 'Invalid queue item id',
+    'errors.binkp.hub_outbound.delete_failed' => 'Failed to delete queue items',
     'errors.binkp.uplink.address_hostname_required' => 'Address and hostname are required',
     'errors.binkp.uplink.address_required' => 'Uplink address is required',
     'errors.messages.forward_email.email_required' => 'An email address is required',

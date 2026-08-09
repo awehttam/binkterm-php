@@ -190,16 +190,25 @@
 
         <!-- Downlink (Hub/Point) Queue Tab -->
         <div class="tab-pane fade" id="hub-outbound" role="tabpanel">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5>{{ t('ui.binkp.hub_outbound_heading') }}</h5>
-                <button class="btn btn-sm btn-outline-primary" onclick="refreshHubOutboundQueue()">
-                    <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
-                </button>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h5 class="mb-0">{{ t('ui.binkp.hub_outbound_heading') }}</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <select class="form-select form-select-sm" id="hubOutboundNodeFilter" style="width:auto;" onchange="applyHubOutboundFilter()">
+                        <option value="">{{ t('ui.binkp.hub_outbound.filter_all') }}</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-danger" id="hubOutboundDeleteBtn" onclick="deleteSelectedHubOutbound()" disabled>
+                        <i class="fas fa-trash"></i> {{ t('ui.binkp.hub_outbound.delete_selected') }}
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshHubOutboundQueue()">
+                        <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
+                    </button>
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="table table-sm table-striped" id="hubOutboundTable">
                     <thead>
                         <tr>
+                            <th style="width:2em;"><input type="checkbox" id="hubOutboundSelectAll" aria-label="{{ t('ui.binkp.hub_outbound.select_all') }}" onchange="toggleAllHubOutboundSelection(this.checked)"></th>
                             <th>{{ t('ui.binkp.hub_outbound.downlink') }}</th>
                             <th>{{ t('ui.binkp.hub_outbound.type') }}</th>
                             <th>{{ t('ui.binkp.status') }}</th>
@@ -211,7 +220,7 @@
                         </tr>
                     </thead>
                     <tbody id="hub-outbound-rows">
-                        <tr><td colspan="8">{{ t('ui.common.loading') }}</td></tr>
+                        <tr><td colspan="9">{{ t('ui.common.loading') }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -869,6 +878,9 @@ function updateOutboundFiles(data) {
     container.innerHTML = html;
 }
 
+let hubOutboundRows = [];
+let hubOutboundSelectedIds = new Set();
+
 function refreshHubOutboundQueue() {
     fetch('/api/binkp/hub-outbound')
         .then(r => r.json())
@@ -876,18 +888,104 @@ function refreshHubOutboundQueue() {
             if (!data.success) {
                 throw new Error(apiErrorText(data, uiT('ui.binkp.hub_outbound.load_failed', 'Failed to load downlink queue')));
             }
-            renderHubOutboundQueue(data.rows || []);
+            hubOutboundRows = data.rows || [];
+            hubOutboundSelectedIds.clear();
+            populateHubOutboundNodeFilter(hubOutboundRows);
+            applyHubOutboundFilter();
         })
         .catch(error => {
             document.getElementById('hub-outbound-rows').innerHTML =
-                `<tr><td colspan="8" class="text-danger">${escapeHtml(error.message)}</td></tr>`;
+                `<tr><td colspan="9" class="text-danger">${escapeHtml(error.message)}</td></tr>`;
+        });
+}
+
+function populateHubOutboundNodeFilter(rows) {
+    const select = document.getElementById('hubOutboundNodeFilter');
+    const previous = select.value;
+    const nodes = new Map();
+    rows.forEach(row => {
+        if (!nodes.has(row.node_address)) {
+            nodes.set(row.node_address, row.node_name || '');
+        }
+    });
+
+    const options = [`<option value="">${escapeHtml(uiT('ui.binkp.hub_outbound.filter_all', 'All downlinks'))}</option>`];
+    Array.from(nodes.keys()).sort().forEach(address => {
+        const name = nodes.get(address);
+        options.push(`<option value="${escapeHtmlAttr(address)}">${escapeHtml(address)}${name ? ' - ' + escapeHtml(name) : ''}</option>`);
+    });
+    select.innerHTML = options.join('');
+    if (nodes.has(previous)) {
+        select.value = previous;
+    }
+}
+
+function applyHubOutboundFilter() {
+    const filter = document.getElementById('hubOutboundNodeFilter').value;
+    const filtered = filter ? hubOutboundRows.filter(row => row.node_address === filter) : hubOutboundRows;
+    renderHubOutboundQueue(filtered);
+}
+
+function toggleAllHubOutboundSelection(checked) {
+    document.querySelectorAll('.hub-outbound-row-check').forEach(cb => {
+        cb.checked = checked;
+        const id = Number(cb.value);
+        if (checked) {
+            hubOutboundSelectedIds.add(id);
+        } else {
+            hubOutboundSelectedIds.delete(id);
+        }
+    });
+    updateHubOutboundDeleteButton();
+}
+
+function toggleHubOutboundSelection(id, checked) {
+    if (checked) {
+        hubOutboundSelectedIds.add(id);
+    } else {
+        hubOutboundSelectedIds.delete(id);
+        document.getElementById('hubOutboundSelectAll').checked = false;
+    }
+    updateHubOutboundDeleteButton();
+}
+
+function updateHubOutboundDeleteButton() {
+    document.getElementById('hubOutboundDeleteBtn').disabled = hubOutboundSelectedIds.size === 0;
+}
+
+function deleteSelectedHubOutbound() {
+    const ids = Array.from(hubOutboundSelectedIds);
+    if (ids.length === 0) {
+        return;
+    }
+    if (!confirm(uiT('ui.binkp.hub_outbound.delete_confirm', 'Delete {count} selected queue item(s)?', { count: ids.length }))) {
+        return;
+    }
+
+    fetch('/api/binkp/hub-outbound', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiErrorText(data, uiT('ui.binkp.hub_outbound.delete_failed', 'Failed to delete queue items')));
+            }
+            hubOutboundSelectedIds.clear();
+            refreshHubOutboundQueue();
+        })
+        .catch(error => {
+            alert(error.message);
         });
 }
 
 function renderHubOutboundQueue(rows) {
     const tbody = document.getElementById('hub-outbound-rows');
+    document.getElementById('hubOutboundSelectAll').checked = false;
     if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.empty', 'No queued downlink packets'))}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.empty', 'No queued downlink packets'))}</td></tr>`;
+        updateHubOutboundDeleteButton();
         return;
     }
 
@@ -897,6 +995,7 @@ function renderHubOutboundQueue(rows) {
     };
 
     tbody.innerHTML = rows.map(row => {
+        const id = Number(row.id);
         const downlink = `<code>${escapeHtml(row.node_address)}</code>${row.node_name ? `<div class="small text-muted">${escapeHtml(row.node_name)}</div>` : ''}`;
         const sentOrNext = row.sent_at
             ? formatLocalizedDateTime(row.sent_at)
@@ -904,7 +1003,9 @@ function renderHubOutboundQueue(rows) {
         const error = row.error_message
             ? `<span class="text-danger small" title="${escapeHtmlAttr(row.error_message)}">${escapeHtml(row.error_message.substring(0, 40))}${row.error_message.length > 40 ? '…' : ''}</span>`
             : '';
+        const checked = hubOutboundSelectedIds.has(id) ? 'checked' : '';
         return `<tr>
+            <td><input type="checkbox" class="hub-outbound-row-check" value="${id}" ${checked} onchange="toggleHubOutboundSelection(${id}, this.checked)"></td>
             <td>${downlink}</td>
             <td><span class="badge bg-secondary">${escapeHtml(row.message_type)}</span></td>
             <td>${statusBadge(row.status)}</td>
@@ -914,11 +1015,12 @@ function renderHubOutboundQueue(rows) {
             <td class="small">${sentOrNext}</td>
             <td>${error}
                 <div class="mt-1">
-                    <a href="#" class="small" onclick="openHubOutboundPacketInspector(${Number(row.id)}); return false;">${escapeHtml(uiT('ui.binkp.hub_outbound.inspect', 'Inspect'))}</a>
+                    <a href="#" class="small" onclick="openHubOutboundPacketInspector(${id}); return false;">${escapeHtml(uiT('ui.binkp.hub_outbound.inspect', 'Inspect'))}</a>
                 </div>
             </td>
         </tr>`;
     }).join('');
+    updateHubOutboundDeleteButton();
 }
 
 function openHubOutboundPacketInspector(id) {

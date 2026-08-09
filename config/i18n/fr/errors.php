@@ -536,6 +536,7 @@ return [
     'errors.binkp.queue.inspect_failed' => 'Échec de l\'inspection du paquet en file d\'attente',
     'errors.binkp.hub_outbound.list_failed' => 'Echec du chargement de la file des downlinks',
     'errors.binkp.hub_outbound.invalid_id' => 'Identifiant d\'element de file invalide',
+    'errors.binkp.hub_outbound.delete_failed' => 'Echec de la suppression des elements de la file',
     'errors.binkp.kept_packets.invalid_type' => 'Le type doit être inbound ou outbound',
     'errors.binkp.kept_packets.license_required' => 'La consultation des paquets conservés nécessite une licence enregistrée',
 

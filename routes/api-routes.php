@@ -9241,6 +9241,23 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode($controller->getHubOutboundQueue());
     });
 
+    SimpleRouter::delete('/binkp/hub-outbound', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $ids = is_array($input['ids'] ?? null) ? $input['ids'] : [];
+        if (empty($ids)) {
+            apiError('errors.binkp.hub_outbound.invalid_id', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->deleteHubOutboundRows($ids));
+    });
+
     SimpleRouter::get('/binkp/hub-outbound/inspect', function() {
         $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);

@@ -299,6 +299,7 @@ return [
     'errors.binkp.queue.inspect_failed' => 'Не удалось просмотреть пакет в очереди',
     'errors.binkp.hub_outbound.list_failed' => 'Не удалось загрузить очередь даунлинков',
     'errors.binkp.hub_outbound.invalid_id' => 'Неверный идентификатор элемента очереди',
+    'errors.binkp.hub_outbound.delete_failed' => 'Не удалось удалить элементы очереди',
     'errors.binkp.uplink.address_hostname_required' => 'Адрес и имя хоста обязательны',
     'errors.binkp.uplink.address_required' => 'Адрес аплинка обязателен',
     'errors.messages.forward_email.email_required' => 'Адрес электронной почты обязателен',
