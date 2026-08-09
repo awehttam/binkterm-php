@@ -24,6 +24,13 @@ use BinktermPHP\Database;
 
 class Scheduler
 {
+    /**
+     * Must match BinkpSession::HUB_OUTBOUND_MAX_ATTEMPTS - the two caps
+     * gate the same hub_node_outbound.attempts value from different sides
+     * (deciding whether to dial out vs. deciding what to send once connected).
+     */
+    private const HUB_OUTBOUND_MAX_ATTEMPTS = 10;
+
     /** @var array<string,int> Unix timestamps of last outbound-triggered polls by uplink */
     private $lastOutboundPollTimes;
     /** @var array<string,bool> Whether an uplink had outbound work on the previous scan */
@@ -597,17 +604,22 @@ class Scheduler
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->query("
+            // Failed rows are retried up to the same attempts cap as
+            // BinkpSession::HUB_OUTBOUND_MAX_ATTEMPTS so a node whose only
+            // work is a failed (e.g. interrupted) send still gets redialed,
+            // not just nodes with fresh 'pending' rows.
+            $stmt = $db->prepare("
                 SELECT DISTINCT hn.node_address
                 FROM hub_nodes hn
                 JOIN hub_node_outbound hno ON hno.hub_node_id = hn.id
-                WHERE hno.status = 'pending'
+                WHERE (hno.status = 'pending' OR (hno.status = 'failed' AND hno.attempts < ?))
                   AND hn.node_type = 'node'
                   AND hn.enabled = TRUE
                   AND hn.allow_outbound = TRUE
                   AND hn.hold_mail = FALSE
                   AND hn.inet_host IS NOT NULL
             ");
+            $stmt->execute([self::HUB_OUTBOUND_MAX_ATTEMPTS]);
             $addresses = $stmt->fetchAll(\PDO::FETCH_COLUMN) ?: [];
 
             if (empty($addresses)) {

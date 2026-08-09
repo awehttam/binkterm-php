@@ -5373,6 +5373,8 @@ return [
     'ui.admin.hub_nodes.port' => 'Puerto',
     'ui.admin.hub_nodes.enabled' => 'Habilitado',
     'ui.admin.hub_nodes.hold_mail' => 'Retener Correo',
+    'ui.admin.hub_nodes.compress_outbound' => 'Comprimir Saliente',
+    'ui.admin.hub_nodes.compress_outbound_help' => 'Empaquetar el echomail/netmail saliente combinado en un paquete ZIP arcmail en lugar de un paquete sin comprimir. Active esto solo si el enlace es otra instancia de BinktermPHP o un mailer que detecta automáticamente las extensiones de paquete.',
     'ui.admin.hub_nodes.allow_inbound_echomail' => 'Aceptar echomail de este subordinado',
     'ui.admin.hub_nodes.allow_inbound_netmail' => 'Aceptar netmail de este subordinado',
     'ui.admin.hub_nodes.max_packet_kb' => 'Tamano Maximo de Paquete (KB)',

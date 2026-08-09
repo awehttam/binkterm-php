@@ -120,6 +120,11 @@
                                 <label class="form-check-label" for="hubNodeHoldMail">{{ t('ui.admin.hub_nodes.hold_mail', {}, locale, ['common']) }}</label>
                             </div>
                             <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="hubNodeCompressOutbound">
+                                <label class="form-check-label" for="hubNodeCompressOutbound">{{ t('ui.admin.hub_nodes.compress_outbound', {}, locale, ['common']) }}</label>
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.compress_outbound_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="form-check mt-2">
                                 <input class="form-check-input" type="checkbox" id="hubNodeAllowInboundEchomail" checked>
                                 <label class="form-check-label" for="hubNodeAllowInboundEchomail">{{ t('ui.admin.hub_nodes.allow_inbound_echomail', {}, locale, ['common']) }}</label>
                             </div>
@@ -241,6 +246,7 @@ function renderHubNodes() {
         const flags = [
             node.enabled ? null : uiT('ui.admin.hub_nodes.disabled', 'Disabled'),
             node.hold_mail ? uiT('ui.admin.hub_nodes.hold_mail', 'Hold Mail') : null,
+            node.compress_outbound ? uiT('ui.admin.hub_nodes.compress_outbound', 'Compress Outbound') : null,
         ].filter(Boolean);
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -344,6 +350,7 @@ function openHubNodeModal(id = null) {
     document.getElementById('hubNodePort').value = node ? (node.port || '') : '';
     document.getElementById('hubNodeEnabled').checked = node ? !!node.enabled : true;
     document.getElementById('hubNodeHoldMail').checked = node ? !!node.hold_mail : false;
+    document.getElementById('hubNodeCompressOutbound').checked = node ? !!node.compress_outbound : false;
     document.getElementById('hubNodeAllowInboundEchomail').checked = node ? !!node.allow_inbound_echomail : true;
     document.getElementById('hubNodeAllowInboundNetmail').checked = node ? !!node.allow_inbound_netmail : true;
     document.getElementById('hubNodeMaxPacketKb').value = node ? node.max_packet_kb : 0;
@@ -368,6 +375,7 @@ function saveHubNode() {
         port: document.getElementById('hubNodePort').value,
         enabled: document.getElementById('hubNodeEnabled').checked,
         hold_mail: document.getElementById('hubNodeHoldMail').checked,
+        compress_outbound: document.getElementById('hubNodeCompressOutbound').checked,
         allow_inbound_echomail: document.getElementById('hubNodeAllowInboundEchomail').checked,
         allow_inbound_netmail: document.getElementById('hubNodeAllowInboundNetmail').checked,
         max_packet_kb: document.getElementById('hubNodeMaxPacketKb').value,

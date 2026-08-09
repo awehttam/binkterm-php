@@ -159,6 +159,7 @@ CREATE TABLE hub_nodes (
     allow_inbound_netmail    BOOLEAN     NOT NULL DEFAULT TRUE,   -- accept netmail from them for onward routing
     max_packet_kb            INTEGER     NOT NULL DEFAULT 0,      -- 0 = unlimited
     hold_mail                BOOLEAN     NOT NULL DEFAULT FALSE,  -- hold mail (paused)
+    compress_outbound        BOOLEAN     NOT NULL DEFAULT FALSE,  -- ZIP the bundled outbound .pkt (see BinkpSession::zipOutboundPacket())
     queue_retention_days     INTEGER     NOT NULL DEFAULT 30,     -- days to keep sent outbound rows
     capability_flags         VARCHAR(50),    -- points: informational CM/ICM-style flags
     notes                    TEXT,

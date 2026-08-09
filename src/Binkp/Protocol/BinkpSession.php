@@ -1118,13 +1118,22 @@ class BinkpSession
     }
 
     /**
-     * Send any pending hub_node_outbound rows queued for the connecting
-     * subordinate (node or point). Called at session start for both
-     * originator and answerer, mirroring sendFreqFiles()/sendHoldFiles().
-     * All pending echomail/netmail rows are bundled into one multi-message
-     * .pkt at send time (see sendHubNodeOutboundBundle()) rather than sent
-     * as separate files; TIC rows are always sent individually as their own
-     * file pair.
+     * Cap on hub_node_outbound.attempts before a failed row is no longer
+     * retried on reconnect - keeps a genuinely poison row (e.g. malformed
+     * message data) from being retried forever while still surfacing it as
+     * 'failed' for admin visibility.
+     */
+    private const HUB_OUTBOUND_MAX_ATTEMPTS = 10;
+
+    /**
+     * Send any pending (and retry-eligible failed) hub_node_outbound rows
+     * queued for the connecting subordinate (node or point). Called at
+     * session start for both originator and answerer, mirroring
+     * sendFreqFiles()/sendHoldFiles(). Pending echomail/netmail rows are
+     * bundled into one or more multi-message .pkt files at send time (see
+     * chunkHubNodeBundle()/sendHubNodeOutboundBundle()), capped at
+     * hub_nodes.max_packet_kb per file rather than one unbounded bundle;
+     * TIC rows are always sent individually as their own file pair.
      */
     private function sendHubNodeOutbound(): void
     {
@@ -1140,13 +1149,18 @@ class BinkpSession
             }
 
             $db = \BinktermPHP\Database::getInstance()->getPdo();
+            // Retry 'failed' rows (e.g. from a session that was interrupted
+            // mid-transfer) on the subordinate's next connection, same as
+            // 'pending' rows - up to HUB_OUTBOUND_MAX_ATTEMPTS so a genuinely
+            // broken row doesn't retry forever.
             $stmt = $db->prepare(
-                "SELECT id, message_type, packet_data, message_payload, tic_file_data, tic_filename
+                "SELECT id, message_type, packet_data, message_payload, tic_file_data, tic_filename, size_bytes
                  FROM hub_node_outbound
-                 WHERE hub_node_id = ? AND status = 'pending'
+                 WHERE hub_node_id = ?
+                   AND (status = 'pending' OR (status = 'failed' AND attempts < ?))
                  ORDER BY priority ASC, next_attempt_at ASC"
             );
-            $stmt->execute([$hubNode['id']]);
+            $stmt->execute([$hubNode['id'], self::HUB_OUTBOUND_MAX_ATTEMPTS]);
             $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
             if (empty($rows)) {
@@ -1162,14 +1176,15 @@ class BinkpSession
                 "UPDATE hub_node_outbound SET status = 'failed', attempts = attempts + 1, error_message = ? WHERE id = ?"
             );
 
-            // Bundle every pending echomail/netmail row into a single
-            // multi-message .pkt at send time (one file instead of one per
-            // row) - message_payload holds the createOutboundPacket()-ready
+            // Bundle every pending echomail/netmail row into one or more
+            // multi-message .pkt files at send time (rather than one file
+            // per row) - message_payload holds the createOutboundPacket()-ready
             // array captured at queue time. Rows queued before this column
             // existed (message_payload NULL) fall back to sending their
             // individually pre-rendered packet_data, same as before.
             $bundleMessages = [];
             $bundleIds = [];
+            $bundleSizes = [];
             $legacyRows = [];
 
             foreach ($rows as $row) {
@@ -1187,13 +1202,19 @@ class BinkpSession
                 if (is_array($packetMessage)) {
                     $bundleMessages[] = $packetMessage;
                     $bundleIds[] = (int)$row['id'];
+                    $bundleSizes[] = (int)($row['size_bytes'] ?? 0);
                 } else {
                     $legacyRows[] = $row;
                 }
             }
 
             if (!empty($bundleMessages)) {
-                $this->sendHubNodeOutboundBundle($bundleMessages, $bundleIds, $remoteAddr, $markSent, $markFailed);
+                $maxBytes = (int)($hubNode['max_packet_kb'] ?? 0) * 1024;
+                $chunks = $this->chunkHubNodeBundle($bundleMessages, $bundleIds, $bundleSizes, $maxBytes);
+                $compress = !empty($hubNode['compress_outbound']);
+                foreach ($chunks as $chunk) {
+                    $this->sendHubNodeOutboundBundle($chunk['messages'], $chunk['ids'], $remoteAddr, $markSent, $markFailed, $compress);
+                }
             }
 
             foreach ($legacyRows as $row) {
@@ -1205,11 +1226,65 @@ class BinkpSession
     }
 
     /**
+     * Split bundled messages into one or more chunks so no single .pkt
+     * exceeds $maxBytes (hub_nodes.max_packet_kb * 1024; 0/unlimited returns
+     * everything as one chunk, the pre-existing behavior). Greedy bin-packing
+     * using hub_node_outbound.size_bytes (each row's own pre-bundle packet
+     * size) as a per-message size estimate - close enough since the only
+     * per-chunk overhead beyond the sum of message sizes is one shared
+     * packet header/terminator. A single message larger than $maxBytes still
+     * gets its own chunk rather than being dropped, so an oversized message
+     * doesn't stall the queue.
+     *
+     * @param array<int, array<string, mixed>> $messages
+     * @param int[] $ids
+     * @param int[] $sizes
+     * @return array<int, array{messages: array<int, array<string, mixed>>, ids: int[]}>
+     */
+    private function chunkHubNodeBundle(array $messages, array $ids, array $sizes, int $maxBytes): array
+    {
+        if ($maxBytes <= 0) {
+            return [['messages' => $messages, 'ids' => $ids]];
+        }
+
+        $chunks = [];
+        $currentMessages = [];
+        $currentIds = [];
+        $currentBytes = 0;
+
+        foreach ($messages as $i => $message) {
+            $size = $sizes[$i] ?? 0;
+            if (!empty($currentMessages) && $currentBytes + $size > $maxBytes) {
+                $chunks[] = ['messages' => $currentMessages, 'ids' => $currentIds];
+                $currentMessages = [];
+                $currentIds = [];
+                $currentBytes = 0;
+            }
+            $currentMessages[] = $message;
+            $currentIds[] = $ids[$i];
+            $currentBytes += $size;
+        }
+
+        if (!empty($currentMessages)) {
+            $chunks[] = ['messages' => $currentMessages, 'ids' => $currentIds];
+        }
+
+        return $chunks;
+    }
+
+    /**
      * Build and send one combined .pkt carrying every bundled message, then
      * mark all of $bundleIds sent (or all failed together, so a partial
      * bundle is never left half-delivered) - matches the semantics of
      * BinkdProcessor::createOutboundPacket() writing one header/terminator
      * around N message records.
+     *
+     * When $compress is true, the .pkt is packed into a ZIP arcmail bundle
+     * (see zipOutboundPacket()) before sending, since bundled hub node
+     * outbound is the case most likely to produce large multi-message
+     * packets. Compression is opt-in per downlink (hub_nodes.compress_outbound)
+     * because it's only safe when we know the receiving mailer auto-detects
+     * bundle extensions the way BinkdProcessor::processPacket() does.
      *
      * @param array<int, array<string, mixed>> $bundleMessages
      * @param int[] $bundleIds
@@ -1219,18 +1294,33 @@ class BinkpSession
         array $bundleIds,
         string $remoteAddr,
         \PDOStatement $markSent,
-        \PDOStatement $markFailed
+        \PDOStatement $markFailed,
+        bool $compress = false
     ): void {
         $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.pkt';
-        $wireName = basename($tmpPath);
+        $sendPath = $tmpPath;
 
         try {
             (new \BinktermPHP\BinkdProcessor())->createOutboundPacket($bundleMessages, $remoteAddr, $tmpPath);
 
+            if ($compress) {
+                $zipPath = $this->zipOutboundPacket($tmpPath);
+                if ($zipPath !== null) {
+                    $sendPath = $zipPath;
+                    $this->log(sprintf(
+                        "Hub node outbound: compressed bundled packet %d -> %d bytes for {$remoteAddr}",
+                        filesize($tmpPath),
+                        filesize($zipPath)
+                    ), 'INFO');
+                }
+            }
+
+            $wireName = basename($sendPath);
+
             // See sendHubNodeOutbound()'s per-row version below for why this
             // is registered as an "extra" file rather than via addExtraFile().
-            $this->extraOutboundFilesByName[$wireName] = $tmpPath;
-            $this->sendFile($tmpPath);
+            $this->extraOutboundFilesByName[$wireName] = $sendPath;
+            $this->sendFile($sendPath);
 
             foreach ($bundleIds as $id) {
                 $markSent->execute([$id]);
@@ -1246,7 +1336,47 @@ class BinkpSession
             $this->log("Hub node outbound: failed to send bundled packet (#" . implode(',', $bundleIds) . ") to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
         } finally {
             @unlink($tmpPath);
+            if ($sendPath !== $tmpPath) {
+                @unlink($sendPath);
+            }
         }
+    }
+
+    /**
+     * Pack a single .pkt into a ZIP arcmail bundle named with the FTS-5001
+     * day-of-week extension (.mo0, .tu0, etc.) that BinkdProcessor::processPacket()
+     * already recognizes and unpacks on the receiving side. Returns null
+     * (caller falls back to sending the raw .pkt) if ZipArchive is
+     * unavailable or the archive can't be built - a missing/broken archiver
+     * must never block mail flow.
+     */
+    private function zipOutboundPacket(string $pktPath): ?string
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            $this->log("Hub node outbound: ZipArchive extension unavailable, sending uncompressed", 'WARNING');
+            return null;
+        }
+
+        $days = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
+        $ext = $days[(int)date('w')] . '0';
+        $zipPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.' . $ext;
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            $this->log("Hub node outbound: failed to create ZIP bundle {$zipPath}", 'WARNING');
+            return null;
+        }
+
+        $added = $zip->addFile($pktPath, basename($pktPath));
+        $zip->close();
+
+        if (!$added || !is_file($zipPath)) {
+            @unlink($zipPath);
+            $this->log("Hub node outbound: failed to add packet to ZIP bundle {$zipPath}", 'WARNING');
+            return null;
+        }
+
+        return $zipPath;
     }
 
     /**

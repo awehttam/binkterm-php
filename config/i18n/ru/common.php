@@ -5407,6 +5407,8 @@ return [
     'ui.admin.hub_nodes.port' => 'Порт',
     'ui.admin.hub_nodes.enabled' => 'Включено',
     'ui.admin.hub_nodes.hold_mail' => 'Задержать почту',
+    'ui.admin.hub_nodes.compress_outbound' => 'Сжимать исходящие',
+    'ui.admin.hub_nodes.compress_outbound_help' => 'Упаковывать собранную исходящую эхопочту/нетмейл в ZIP-архив arcmail вместо необработанного пакета. Включайте только если узел — другой экземпляр BinktermPHP или почтовик, автоматически распознающий расширения бандлов.',
     'ui.admin.hub_nodes.allow_inbound_echomail' => 'Принимать эхопочту от этого подчинённого узла',
     'ui.admin.hub_nodes.allow_inbound_netmail' => 'Принимать нетмейл от этого подчинённого узла',
     'ui.admin.hub_nodes.max_packet_kb' => 'Максимальный размер пакета (КБ)',

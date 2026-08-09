@@ -5278,6 +5278,8 @@ return [
     'ui.admin.hub_nodes.port' => 'Port',
     'ui.admin.hub_nodes.enabled' => 'Enabled',
     'ui.admin.hub_nodes.hold_mail' => 'Hold Mail',
+    'ui.admin.hub_nodes.compress_outbound' => 'Compress Outbound',
+    'ui.admin.hub_nodes.compress_outbound_help' => 'Pack bundled outbound echomail/netmail into a ZIP arcmail bundle instead of a raw packet. Only enable this if the downlink is another BinktermPHP instance or a mailer that auto-detects bundle extensions.',
     'ui.admin.hub_nodes.allow_inbound_echomail' => 'Accept Echomail From This Subordinate',
     'ui.admin.hub_nodes.allow_inbound_netmail' => 'Accept Netmail From This Subordinate',
     'ui.admin.hub_nodes.max_packet_kb' => 'Max Packet Size (KB)',

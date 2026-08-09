@@ -5280,6 +5280,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.hub_nodes.port' => 'Port',
     'ui.admin.hub_nodes.enabled' => 'Active',
     'ui.admin.hub_nodes.hold_mail' => 'Retenir le courrier',
+    'ui.admin.hub_nodes.compress_outbound' => 'Compresser les sortants',
+    'ui.admin.hub_nodes.compress_outbound_help' => 'Empaqueter l\'echomail/netmail sortant groupé dans une archive ZIP arcmail au lieu d\'un paquet brut. N\'activez ceci que si le correspondant est une autre instance BinktermPHP ou un logiciel de messagerie qui détecte automatiquement les extensions de bundle.',
     'ui.admin.hub_nodes.allow_inbound_echomail' => 'Accepter l\'echomail de ce subordonne',
     'ui.admin.hub_nodes.allow_inbound_netmail' => 'Accepter le netmail de ce subordonne',
     'ui.admin.hub_nodes.max_packet_kb' => 'Taille maximale de paquet (Ko)',
