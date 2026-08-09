@@ -3336,7 +3336,6 @@ return [
     'ui.binkp.hub_outbound.size' => 'Dimensione',
     'ui.binkp.hub_outbound.attempts' => 'Tentativi',
     'ui.binkp.hub_outbound.created' => 'Creato',
-    'ui.binkp.hub_outbound.sent_next' => 'Inviato / Prossimo Tentativo',
     'ui.binkp.hub_outbound.error' => 'Errore',
     'ui.binkp.hub_outbound.empty' => 'Nessun pacchetto downlink in coda',
     'ui.binkp.hub_outbound.inspect' => 'Ispeziona',

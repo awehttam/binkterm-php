@@ -244,12 +244,11 @@
                                 <th>{{ t('ui.binkp.hub_outbound.size') }}</th>
                                 <th>{{ t('ui.binkp.hub_outbound.attempts') }}</th>
                                 <th>{{ t('ui.binkp.hub_outbound.created') }}</th>
-                                <th>{{ t('ui.binkp.hub_outbound.sent_next') }}</th>
                                 <th>{{ t('ui.binkp.hub_outbound.error') }}</th>
                             </tr>
                         </thead>
                         <tbody id="hub-outbound-rows">
-                            <tr><td colspan="8">{{ t('ui.common.loading') }}</td></tr>
+                            <tr><td colspan="7">{{ t('ui.common.loading') }}</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1049,7 +1048,7 @@ function renderHubOutboundQueue(rows) {
     const tbody = document.getElementById('hub-outbound-rows');
     document.getElementById('hubOutboundSelectAll').checked = false;
     if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.empty', 'No queued downlink packets'))}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.empty', 'No queued downlink packets'))}</td></tr>`;
         updateHubOutboundDeleteButton();
         return;
     }
@@ -1061,9 +1060,6 @@ function renderHubOutboundQueue(rows) {
 
     tbody.innerHTML = rows.map(row => {
         const id = Number(row.id);
-        const sentOrNext = row.sent_at
-            ? formatLocalizedDateTime(row.sent_at)
-            : (row.next_attempt_at ? formatLocalizedDateTime(row.next_attempt_at) : '—');
         const error = row.error_message
             ? `<span class="text-danger small" title="${escapeHtmlAttr(row.error_message)}">${escapeHtml(row.error_message.substring(0, 40))}${row.error_message.length > 40 ? '…' : ''}</span>`
             : '';
@@ -1075,7 +1071,6 @@ function renderHubOutboundQueue(rows) {
             <td>${formatBytes(row.size_bytes)}</td>
             <td>${Number(row.attempts)}</td>
             <td class="small">${formatLocalizedDateTime(row.created_at)}</td>
-            <td class="small">${sentOrNext}</td>
             <td>${error}
                 <div class="mt-1">
                     <a href="#" class="small" onclick="openHubOutboundPacketInspector(${id}); return false;">${escapeHtml(uiT('ui.binkp.hub_outbound.inspect', 'Inspect'))}</a>

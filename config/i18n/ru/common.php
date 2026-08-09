@@ -3360,7 +3360,6 @@ return [
     'ui.binkp.hub_outbound.size' => 'Размер',
     'ui.binkp.hub_outbound.attempts' => 'Попытки',
     'ui.binkp.hub_outbound.created' => 'Создано',
-    'ui.binkp.hub_outbound.sent_next' => 'Отправлено / След. попытка',
     'ui.binkp.hub_outbound.error' => 'Ошибка',
     'ui.binkp.hub_outbound.empty' => 'Нет пакетов в очереди даунлинков',
     'ui.binkp.hub_outbound.inspect' => 'Просмотр',

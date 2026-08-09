@@ -3354,7 +3354,6 @@ return [
     'ui.binkp.hub_outbound.size' => 'Size',
     'ui.binkp.hub_outbound.attempts' => 'Attempts',
     'ui.binkp.hub_outbound.created' => 'Created',
-    'ui.binkp.hub_outbound.sent_next' => 'Sent / Next Attempt',
     'ui.binkp.hub_outbound.error' => 'Error',
     'ui.binkp.hub_outbound.empty' => 'No queued downlink packets',
     'ui.binkp.hub_outbound.inspect' => 'Inspect',

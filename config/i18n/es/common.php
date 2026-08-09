@@ -3337,7 +3337,6 @@ return [
     'ui.binkp.hub_outbound.size' => 'Tamano',
     'ui.binkp.hub_outbound.attempts' => 'Intentos',
     'ui.binkp.hub_outbound.created' => 'Creado',
-    'ui.binkp.hub_outbound.sent_next' => 'Enviado / Proximo Intento',
     'ui.binkp.hub_outbound.error' => 'Error',
     'ui.binkp.hub_outbound.empty' => 'No hay paquetes de downlink en cola',
     'ui.binkp.hub_outbound.inspect' => 'Inspeccionar',

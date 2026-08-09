@@ -2784,7 +2784,6 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.binkp.hub_outbound.size' => 'Taille',
     'ui.binkp.hub_outbound.attempts' => 'Tentatives',
     'ui.binkp.hub_outbound.created' => 'Cree',
-    'ui.binkp.hub_outbound.sent_next' => 'Envoye / Prochaine tentative',
     'ui.binkp.hub_outbound.error' => 'Erreur',
     'ui.binkp.hub_outbound.empty' => 'Aucun paquet de downlink en file d\'attente',
     'ui.binkp.hub_outbound.inspect' => 'Inspecter',
