@@ -3,7 +3,9 @@
 namespace BinktermPHP\Hub;
 
 use PDO;
+use BinktermPHP\Config;
 use BinktermPHP\Database;
+use BinktermPHP\Binkp\Logger;
 
 /**
  * Server-side Areafix/Filefix robot: intercepts netmail addressed to
@@ -20,12 +22,14 @@ class HubAreafixProcessor
     private PDO $db;
     private HubNodeManager $nodeManager;
     private HubNetmailRouter $netmailRouter;
+    private Logger $logger;
 
     public function __construct(?PDO $db = null, ?HubNodeManager $nodeManager = null, ?HubNetmailRouter $netmailRouter = null)
     {
         $this->db = $db ?? Database::getInstance()->getPdo();
         $this->nodeManager = $nodeManager ?? new HubNodeManager($this->db);
         $this->netmailRouter = $netmailRouter ?? new HubNetmailRouter($this->db, $this->nodeManager);
+        $this->logger = new Logger(Config::getLogPath('server.log'), Logger::LEVEL_INFO, false);
     }
 
     /**
@@ -73,6 +77,7 @@ class HubAreafixProcessor
         $providedPassword = (string)($message['subject'] ?? '');
 
         if ($expectedPassword === '' || !hash_equals($expectedPassword, $providedPassword)) {
+            $this->logger->warning(ucfirst($robot) . ": incorrect password from {$origAddr}");
             $this->sendReply($message, $hubNode, $robot, ['Password incorrect.']);
             return true;
         }
@@ -88,7 +93,9 @@ class HubAreafixProcessor
             }
             $replyLines[] = "> {$line}";
             $replyLines[] = '';
-            $replyLines = array_merge($replyLines, $this->processCommand($line, $hubNode, $robot));
+            $commandReply = $this->processCommand($line, $hubNode, $robot);
+            $this->logger->info(ucfirst($robot) . " command from {$origAddr}: {$line} -> " . implode(' | ', $commandReply));
+            $replyLines = array_merge($replyLines, $commandReply);
         }
 
         if (empty($replyLines)) {
