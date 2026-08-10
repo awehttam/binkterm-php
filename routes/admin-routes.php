@@ -2813,6 +2813,26 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/appearance/sixel-screens/{key}/raw', function(string $key) {
+            RouteHelper::requireAdmin();
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->getSixelScreen($key);
+                if (empty($screen['exists'])) {
+                    http_response_code(404);
+                    header('Content-Type: text/plain');
+                    echo 'Not found';
+                    return;
+                }
+                header('Content-Type: text/plain; charset=binary');
+                echo base64_decode((string)($screen['content_base64'] ?? ''));
+            } catch (Exception $e) {
+                http_response_code(500);
+                header('Content-Type: text/plain');
+                echo 'Failed to load sixel screen';
+            }
+        });
+
         SimpleRouter::post('/appearance/sixel-screens/{key}/upload', function(string $key) {
             RouteHelper::requireAdmin();
             header('Content-Type: application/json');

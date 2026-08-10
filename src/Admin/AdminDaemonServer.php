@@ -2889,6 +2889,7 @@ class AdminDaemonServer
             'label'      => $meta['label'],
             'description'=> $meta['description'],
             'exists'     => $exists,
+            'content_base64' => $exists ? base64_encode((string)(@file_get_contents($path) ?: '')) : '',
             'size'       => $exists ? filesize($path) : 0,
             'updated_at' => $exists ? date('Y-m-d H:i', filemtime($path)) : null,
         ];

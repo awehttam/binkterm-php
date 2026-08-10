@@ -674,6 +674,7 @@ return [
     'ui.admin.appearance.sixel.list_failed' => 'Не удалось загрузить Sixel-экраны',
     'ui.admin.appearance.sixel.upload_failed' => 'Не удалось загрузить Sixel-экран',
     'ui.admin.appearance.sixel.delete_failed' => 'Не удалось удалить Sixel-экран',
+    'ui.admin.appearance.sixel.preview_failed' => 'Не удалось декодировать предпросмотр Sixel',
 
 
     'ui.ansi_editor.insert_escape_prefix' => 'Вставить ESC[',

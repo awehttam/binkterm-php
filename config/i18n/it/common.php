@@ -646,6 +646,7 @@ return [
     'ui.admin.appearance.sixel.list_failed' => 'Impossibile caricare le schermate sixel',
     'ui.admin.appearance.sixel.upload_failed' => 'Impossibile caricare la schermata sixel',
     'ui.admin.appearance.sixel.delete_failed' => 'Impossibile eliminare la schermata sixel',
+    'ui.admin.appearance.sixel.preview_failed' => 'Impossibile decodificare l\'anteprima sixel',
     'ui.ansi_editor.insert_escape_prefix' => 'Inserisci ESC[',
     'ui.ansi_editor.insert_sequence' => 'Inserisci sequenza',
     'ui.ansi_editor.select_sequence' => 'Seleziona sequenza ANSI',

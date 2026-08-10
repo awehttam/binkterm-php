@@ -638,6 +638,10 @@
                     <div class="small text-muted" id="sixelScreenMeta"></div>
                 </div>
 
+                <div class="mt-3" id="sixelScreenPreviewWrap" style="display:none;">
+                    <div id="sixelScreenPreview" style="background:#000;border-radius:4px;padding:8px;display:inline-block;max-width:100%;overflow:auto;"></div>
+                </div>
+
                 <span id="sixelScreenStatus" class="mt-2 d-block small"></span>
             </div>
         </div>
@@ -1664,6 +1668,8 @@ function loadSixelScreenList(selectedKey) {
             $('#sixelScreenDescription').text('');
             $('#sixelScreenMeta').text('');
             $('#deleteSixelScreenBtn').hide();
+            $('#sixelScreenPreviewWrap').hide();
+            $('#sixelScreenPreview').empty();
         }
     }).fail(function(xhr) {
         showStatus('sixelScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.sixel.list_failed', 'Failed to load sixel screens')));
@@ -1690,6 +1696,31 @@ function loadSixelScreen(key, cachedScreens) {
     $('#sixelScreenMeta').text(metaParts.join(' \u2022 '));
     $('#deleteSixelScreenBtn').toggle(!!screen.exists);
     $('#sixelScreenStatus').text('');
+    loadSixelScreenPreview(key, !!screen.exists);
+}
+
+function loadSixelScreenPreview(key, exists) {
+    const $wrap = $('#sixelScreenPreviewWrap');
+    const $preview = $('#sixelScreenPreview');
+    if (!exists) {
+        $wrap.hide();
+        $preview.empty();
+        return;
+    }
+    fetch('/admin/api/appearance/sixel-screens/' + encodeURIComponent(key) + '/raw', {credentials: 'same-origin'})
+        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(function(text) {
+            if (key !== currentSixelScreenKey) return;
+            $wrap.show();
+            if (typeof renderSixelFilePreview === 'function') {
+                renderSixelFilePreview($preview, text);
+            }
+        })
+        .catch(function() {
+            if (key !== currentSixelScreenKey) return;
+            $wrap.show();
+            $preview.html('<div class="alert alert-danger m-0 small">' + uiT('ui.admin.appearance.sixel.preview_failed', 'Failed to decode sixel preview') + '</div>');
+        });
 }
 
 function uploadSixelScreen(input) {

@@ -665,6 +665,7 @@ return [
     'ui.admin.appearance.sixel.list_failed' => 'Failed to load sixel screens',
     'ui.admin.appearance.sixel.upload_failed' => 'Failed to upload sixel screen',
     'ui.admin.appearance.sixel.delete_failed' => 'Failed to delete sixel screen',
+    'ui.admin.appearance.sixel.preview_failed' => 'Failed to decode sixel preview',
     'ui.ansi_editor.insert_escape_prefix' => 'Insert ESC[',
     'ui.ansi_editor.insert_sequence' => 'Insert Sequence',
     'ui.ansi_editor.select_sequence' => 'Select ANSI sequence',

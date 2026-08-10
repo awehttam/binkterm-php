@@ -620,6 +620,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.appearance.sixel.list_failed' => 'Échec du chargement des écrans sixel',
     'ui.admin.appearance.sixel.upload_failed' => 'Échec de l\'importation de l\'écran sixel',
     'ui.admin.appearance.sixel.delete_failed' => 'Échec de la suppression de l\'écran sixel',
+    'ui.admin.appearance.sixel.preview_failed' => 'Échec du décodage de l\'aperçu sixel',
     'ui.ansi_editor.insert_escape_prefix' => 'Insérer ESC[',
     'ui.ansi_editor.insert_sequence' => 'Insérer une séquence',
     'ui.ansi_editor.select_sequence' => 'Sélectionner une séquence ANSI',

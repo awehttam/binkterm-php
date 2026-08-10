@@ -649,6 +649,7 @@ Du kannst einzelne Erinnerungen mit den „Erinnern“-Schaltflächen in der Ben
     'ui.admin.appearance.sixel.list_failed' => 'sixel screens konnten nicht geladen werden',
     'ui.admin.appearance.sixel.upload_failed' => 'Sixel-Bildschirm konnte nicht hochgeladen werden',
     'ui.admin.appearance.sixel.delete_failed' => 'sixel screen konnte nicht gelöscht werden',
+    'ui.admin.appearance.sixel.preview_failed' => 'Sixel-Vorschau konnte nicht dekodiert werden',
     'ui.ansi_editor.insert_escape_prefix' => 'Insert ESC[',
     'ui.ansi_editor.insert_sequence' => 'Insert Sequence',
     'ui.ansi_editor.select_sequence' => 'ANSI-Sequenz auswählen',
