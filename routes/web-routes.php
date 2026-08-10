@@ -265,7 +265,9 @@ SimpleRouter::get('/', function() {
     }
     $todaysCallers = !empty($user['is_admin']) ? $auth->getTodaysCallers($adminTimezone) : null;
 
-    $showDashboardSystemInfoStats = \BinktermPHP\AppearanceConfig::getShowDashboardSystemInfoStats();
+    $dashboardStatsMode = \BinktermPHP\AppearanceConfig::getDashboardSystemInfoStatsMode();
+    $showDashboardSystemInfoStats = $dashboardStatsMode === 'all'
+        || ($dashboardStatsMode === 'sysop' && !empty($user['is_admin']));
     $registeredUserCount = null;
     $totalLoginCount = null;
     $systemUptimeSeconds = null;
