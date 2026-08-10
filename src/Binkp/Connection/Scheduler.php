@@ -588,9 +588,11 @@ class Scheduler
 
     /**
      * Push pending hub_node_outbound packets to any enabled, non-held,
-     * push-eligible (allow_outbound, inet_host set) node-type hub node that
-     * has pending work, gated by HUB_PUSH_POLL_INTERVAL. Points are pull-only
-     * (no inet_host) and are naturally excluded.
+     * push-eligible (allow_outbound, inet_host set) hub node that has
+     * pending work, gated by HUB_PUSH_POLL_INTERVAL. Applies to both node-
+     * and point-type hub nodes - points are pull-only by default (no
+     * inet_host), but a point given a routable inet_host (see the field's
+     * help text on the downlink edit form) is push-eligible too.
      */
     private function runScheduledHubNodePush(): void
     {
@@ -613,11 +615,11 @@ class Scheduler
                 FROM hub_nodes hn
                 JOIN hub_node_outbound hno ON hno.hub_node_id = hn.id
                 WHERE (hno.status = 'pending' OR (hno.status = 'failed' AND hno.attempts < ?))
-                  AND hn.node_type = 'node'
                   AND hn.enabled = TRUE
                   AND hn.allow_outbound = TRUE
                   AND hn.hold_mail = FALSE
                   AND hn.inet_host IS NOT NULL
+                  AND hn.inet_host <> ''
             ");
             $stmt->execute([self::HUB_OUTBOUND_MAX_ATTEMPTS]);
             $addresses = $stmt->fetchAll(\PDO::FETCH_COLUMN) ?: [];
