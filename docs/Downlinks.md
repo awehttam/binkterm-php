@@ -2,7 +2,7 @@
 
 BinktermPHP can act as an FTN **hub** for subordinate systems below it — regular independently-addressed nodes/peers, and FidoNet-style **points** hanging off one of this system's own addresses. This is the reverse of the existing uplink relationship (where BinktermPHP receives mail from, and sends mail up to, a hub above it): here, BinktermPHP *is* the hub, and downlinks are the systems below it.
 
-Downlinks are managed from **Admin → Downlinks**.
+Downlinks are managed from **Admin → BBS Settings → BinkP Downlinks**.
 
 ## Nodes vs. points
 
@@ -13,9 +13,11 @@ A downlink is one of two types:
 
 Both types share the same underlying distribution, queueing, and authentication mechanics — the only structural difference is addressing.
 
+A point's address only exists on the network of the boss AKA it's registered under — a point at `1:153/149.1` is a valid address on network `1:153/149`'s network only. It cannot be used to reach a different FTN network this BBS also participates in; that would require a separate point registered under an AKA on *that* network. Netmail a point sends onward (see [Netmail routing](#netmail-routing)) is still only deliverable to destinations this BBS has an uplink configured for, exactly as with any other outbound netmail — a point doesn't gain reachability to networks this BBS itself can't route to.
+
 ## Adding a downlink
 
-From **Admin → Downlinks**, choose **Add Downlink** and select **Node** or **Point**:
+From **Admin → BBS Settings → BinkP Downlinks**, choose **Add Downlink** and select **Node** or **Point**:
 
 | Field | Applies to | Notes |
 |---|---|---|
@@ -32,6 +34,7 @@ From **Admin → Downlinks**, choose **Add Downlink** and select **Node** or **P
 | Accept Echomail From This Subordinate | Both | Whether echomail posted back by this downlink is accepted |
 | Accept Netmail From This Subordinate | Both | Whether netmail from this downlink is accepted for relay/routing |
 | Max Packet Size (KB) | Both | `0` = unlimited |
+| Compress Outbound | Both | Packs bundled outbound echomail/netmail into a ZIP arcmail bundle instead of a raw packet. Only enable this if the downlink is another BinktermPHP instance or a mailer that auto-detects bundle extensions |
 | Queue Retention (Days) | Both | How long sent/failed queue entries are kept before being purged (see [Queue cleanup](#queue-cleanup)) |
 | Notes | Both | Free text |
 
@@ -41,7 +44,7 @@ Downlinks authenticate with their **Session Password** when connecting to this B
 
 ## Area subscriptions
 
-Each downlink has its own echomail area subscription list, managed from its row in **Admin → Downlinks**. Subscriptions can be bulk-toggled, and individual areas can be paused without removing the subscription.
+Each downlink has its own echomail area subscription list, managed from its row in **Admin → BBS Settings → BinkP Downlinks**. Subscriptions can be bulk-toggled, and individual areas can be paused without removing the subscription.
 
 Each downlink also has a separate **file area** subscription list, managed the same way from its own row via a second checklist. See [File area (TIC) distribution](#file-area-tic-distribution).
 
@@ -94,7 +97,7 @@ Netmail addressed to a registered downlink's address is delivered into its queue
 
 - **Inbound, addressed to a downlink** — netmail arriving from the network addressed to one of this BBS's registered downlinks is forwarded on, gated by that downlink's **Accept Netmail From This Subordinate** setting.
 - **Outbound, composed locally** — netmail a user on this BBS composes to a registered downlink's address is delivered directly to that downlink's queue instead of being routed toward an unrelated uplink.
-- **Relayed, from a point** — netmail sent *by* a registered point to an address that is neither this BBS nor another registered downlink is relayed onward through the normal outbound routing, rather than being misdelivered locally or silently dropped.
+- **Relayed, from a point** — netmail sent *by* a registered point to an address that is neither this BBS nor another registered downlink is relayed onward through the normal outbound routing, rather than being misdelivered locally or silently dropped. This still requires this BBS to have an uplink configured for the destination's network — a point can't relay to a network this BBS has no uplink for, regardless of which network the point's own boss AKA belongs to.
 
 There is no open relay to arbitrary third-party addresses — only traffic to or from a registered downlink is handled this way.
 

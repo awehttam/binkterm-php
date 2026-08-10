@@ -112,7 +112,7 @@ The script uses the following retention periods:
 | Webshare links | Per link expiry | User-configurable expiration |
 | Rejected pending users | 30 days | Audit trail for rejections |
 | Login attempts | 30 days | Security monitoring |
-| Downlink outbound queue (sent/failed) | Per-downlink, default 30 days | Configurable per downlink in **Admin → Downlinks**; see [Downlinks](Downlinks.md#queue-cleanup) |
+| Downlink outbound queue (sent/failed) | Per-downlink, default 30 days | Configurable per downlink in **Admin → BBS Settings → BinkP Downlinks**; see [Downlinks](Downlinks.md#queue-cleanup) |
 
 \* Only deleted when both sender AND recipient have marked as deleted
 \** Deleted when expired or used

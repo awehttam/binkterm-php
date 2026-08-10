@@ -403,7 +403,7 @@ CREATE INDEX idx_hub_node_fileareas_node       ON hub_node_fileareas (hub_node_i
 CREATE INDEX idx_hub_node_fileareas_filearea   ON hub_node_fileareas (file_area_id);
 ```
 
-Managed the same way as echo area subscriptions: a checklist per downlink in **Admin → Downlinks**, bulk subscribe/unsubscribe, per-area pause.
+Managed the same way as echo area subscriptions: a checklist per downlink in **Admin → BBS Settings → BinkP Downlinks**, bulk subscribe/unsubscribe, per-area pause.
 
 ### Queueing TIC deliveries
 

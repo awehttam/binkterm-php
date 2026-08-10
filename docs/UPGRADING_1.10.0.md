@@ -35,7 +35,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Downlinks: Act as a Hub for Subordinate Nodes and Points
 
-- BinktermPHP can now act as an FTN hub for subordinate systems: independently-addressed nodes/peers, and FidoNet-style points hanging off one of its own AKAs. Manage them from the new **Admin → Downlinks** page: register a downlink, choose which echo areas it receives, and it's delivered to (and can deliver mail back) automatically. See `docs/Downlinks.md` for full details.
+- BinktermPHP can now act as an FTN hub for subordinate systems: independently-addressed nodes/peers, and FidoNet-style points hanging off one of its own AKAs. Manage them from the new **Admin → BBS Settings → BinkP Downlinks** page: register a downlink, choose which echo areas it receives, and it's delivered to (and can deliver mail back) automatically. See `docs/Downlinks.md` for full details.
 
 ### Echomail Unread/Read Filter (Threaded View)
 
@@ -77,7 +77,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 BinktermPHP can now act as an FTN **hub**, distributing echomail and routing netmail to subordinate systems below it — the reverse of the existing uplink relationship, where BinktermPHP receives mail from and sends mail up to a hub above it.
 
-Subordinates are managed from a new admin page, **Admin → Downlinks**, and come in two kinds:
+Subordinates are managed from a new admin page, **Admin → BBS Settings → BinkP Downlinks**, and come in two kinds:
 
 - **Node** — an independently-addressed system (for example `2:345/67`), entered as a free-text FTN address. Covers both traditional downlinks and symmetric peer links.
 - **Point** — a system addressed as one of this BBS's own AKAs plus a point number (for example `1:153/149.1`). The boss address is picked from the AKAs already configured in **Admin → Networks**, and a next-available point number is suggested automatically.
