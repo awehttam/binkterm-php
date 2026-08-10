@@ -305,11 +305,27 @@ class OutboundQueue
                     $fixedHeader = fread($handle, 14 + 20 + 36 + 36 + 72);
                     if (strlen($fixedHeader) < 14 + 20 + 36 + 36 + 72) break;
 
-                    // Skip message body (variable length, null-terminated)
+                    // Skip message body (variable length, null-terminated). Read in
+                    // chunks and search for the terminator instead of fread()'ing one
+                    // byte at a time — the latter is extremely slow for large bodies.
                     $textBytes = 0;
-                    while (($char = fread($handle, 1)) !== false && $char !== '' && ord($char) !== 0) {
-                        $textBytes++;
-                        if ($textBytes > 64000) { // Reasonable message size limit
+                    $maxTextBytes = 64000; // Reasonable message size limit
+                    while (!feof($handle)) {
+                        $chunk = fread($handle, 4096);
+                        if ($chunk === false || $chunk === '') {
+                            break;
+                        }
+
+                        $nullPos = strpos($chunk, "\0");
+                        if ($nullPos !== false) {
+                            // Rewind past whatever we over-read beyond the terminator
+                            fseek($handle, -(strlen($chunk) - $nullPos - 1), SEEK_CUR);
+                            $textBytes += $nullPos;
+                            break;
+                        }
+
+                        $textBytes += strlen($chunk);
+                        if ($textBytes > $maxTextBytes) {
                             $this->log("Message text too long in packet {$filepath}, stopping analysis", 'WARNING');
                             break 2;
                         }

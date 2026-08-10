@@ -591,12 +591,17 @@ class BinkpController
     
     /**
      * List kept (preserved) packets from inbound/keep or outbound/keep, grouped by
-     * date directory, sorted newest-first.  Requires a valid registered license.
+     * date directory, sorted newest-first.  Paginated by date group so that only the
+     * packets in the requested page are parsed — parsing every kept packet on every
+     * request does not scale once months of history accumulate.  Requires a valid
+     * registered license.
      *
-     * @param string $type 'inbound' or 'outbound'
+     * @param string $type   'inbound' or 'outbound'
+     * @param int    $offset Number of date groups (newest-first) to skip
+     * @param int    $limit  Number of date groups to return (max 100)
      * @return array
      */
-    public function getKeptPackets(string $type): array
+    public function getKeptPackets(string $type, int $offset = 0, int $limit = 10): array
     {
         if (!\BinktermPHP\License::isValid()) {
             return [
@@ -606,13 +611,24 @@ class BinkpController
             ];
         }
 
+        $offset = max(0, $offset);
+        $limit  = $limit > 0 ? min($limit, 100) : 10;
+
         try {
             $basePath = $type === 'inbound'
                 ? $this->config->getInboundPath() . DIRECTORY_SEPARATOR . 'keep'
                 : $this->config->getOutboundPath() . DIRECTORY_SEPARATOR . 'keep';
 
             if (!is_dir($basePath)) {
-                return ['success' => true, 'groups' => [], 'total' => 0];
+                return [
+                    'success'      => true,
+                    'groups'       => [],
+                    'total'        => 0,
+                    'total_groups' => 0,
+                    'offset'       => $offset,
+                    'limit'        => $limit,
+                    'has_more'     => false,
+                ];
             }
 
             $analyzer = new \BinktermPHP\Binkp\Queue\OutboundQueue($this->config, $this->logger);
@@ -622,11 +638,19 @@ class BinkpController
             // Collect entries: date subdirs + any loose .pkt files at root
             $entries = array_diff(scandir($basePath), ['.', '..']);
 
-            // Sort newest-first (date dirs are "Mon-DD-YYYY"; string sort works after reverse)
+            // Sort newest-first (date dirs are "Mon-DD-YYYY"; string sort works after reverse).
+            // This only stats directories/files — no packet parsing happens yet, so it stays
+            // cheap even with a large history.
             usort($entries, fn($a, $b) => filemtime($basePath . DIRECTORY_SEPARATOR . $b)
                                         - filemtime($basePath . DIRECTORY_SEPARATOR . $a));
 
-            foreach ($entries as $entry) {
+            $totalGroups = count($entries);
+
+            // Only parse packets for the requested page of date groups — everything
+            // outside the window is skipped entirely (no scandir, no analyzePacket).
+            $pageEntries = array_slice($entries, $offset, $limit);
+
+            foreach ($pageEntries as $entry) {
                 $entryPath = $basePath . DIRECTORY_SEPARATOR . $entry;
                 $packets   = [];
 
@@ -667,7 +691,15 @@ class BinkpController
 
             usort($groups, static fn(array $a, array $b): int => $b['latest_modified_ts'] <=> $a['latest_modified_ts']);
 
-            return ['success' => true, 'groups' => $groups, 'total' => $total];
+            return [
+                'success'      => true,
+                'groups'       => $groups,
+                'total'        => $total,
+                'total_groups' => $totalGroups,
+                'offset'       => $offset,
+                'limit'        => $limit,
+                'has_more'     => ($offset + $limit) < $totalGroups,
+            ];
 
         } catch (\Exception $e) {
             return $this->apiErrorResponse('errors.binkp.kept_packets.failed', $e->getMessage());

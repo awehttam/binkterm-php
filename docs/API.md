@@ -1496,15 +1496,19 @@ Retrieves a list of kept packet bundles (inbound or outbound). Requires BinkP ad
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `type` | string | No | Bundle type: 'inbound' or 'outbound' (default: 'inbound') |
+| `offset` | integer | No | Number of date groups (newest-first) to skip (default: 0) |
+| `limit` | integer | No | Number of date groups to return, max 100 (default: 10) |
 
 **Response** _(JSON)_
 
-Kept packets grouped by date directory, newest first
+Kept packets grouped by date directory, newest first. Paginated by date group — only
+packets in the requested page are parsed, so `total` reflects packets on the current
+page only, not the full archive.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on success |
-| `groups` | array | Date-grouped list of packet entries |
+| `groups` | array | Date-grouped list of packet entries for the requested page |
 | `groups[].date` | string | Date directory label (e.g. `"Mar-18-2026"`), empty for loose root-level files |
 | `groups[].packets` | array | Packet and bundle records within this date group |
 | `groups[].packets[].file_type` | string | Either `"pkt"` (raw packet) or `"bundle"` (arcmail archive) |
@@ -1516,7 +1520,11 @@ Kept packets grouped by date directory, newest first
 | `groups[].packets[].dest_address` | string | Destination FidoNet address _(pkt only)_ |
 | `groups[].packets[].orig_address` | string | Originating FidoNet address _(pkt only)_ |
 | `groups[].latest_modified_ts` | integer | Unix timestamp of the most recently modified file in this group |
-| `total` | integer | Total number of packet/bundle files across all groups |
+| `total` | integer | Total number of packet/bundle files on the current page |
+| `total_groups` | integer | Total number of date groups across the full archive |
+| `offset` | integer | Echo of the requested offset |
+| `limit` | integer | Echo of the requested limit |
+| `has_more` | boolean | True if more date groups exist beyond this page |
 
 **Error Responses**
 

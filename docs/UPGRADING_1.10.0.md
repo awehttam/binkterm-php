@@ -15,6 +15,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable)
   - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes)
   - [Admin: Sixel Screen Slot Preview](#admin-sixel-screen-slot-preview)
+  - [Uplink Kept Packets Page Was Slow to Load with Months of History](#uplink-kept-packets-page-was-slow-to-load-with-months-of-history)
   - [Docker Image Was Missing Required PHP Extensions](#docker-image-was-missing-required-php-extensions)
   - [Docker: BinkStream Realtime Server Was Not Started or Reachable](#docker-binkstream-realtime-server-was-not-started-or-reachable)
   - [Docker: PHP Fatal Errors Were Silently Lost](#docker-php-fatal-errors-were-silently-lost)
@@ -29,6 +30,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable-1)
 - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes-1)
 - [Admin: Sixel Screen Slot Preview](#admin-sixel-screen-slot-preview-1)
+- [Uplink Kept Packets Page Was Slow to Load with Months of History](#uplink-kept-packets-page-was-slow-to-load-with-months-of-history-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -72,6 +74,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Fresh Installs Now Get the Full Set of Built-In Themes
 
 - Installs without a `config/themes.json` file previously only offered **Regular** and **Dark** in the theme picker. They now also offer **Amber**, **Cyberpunk**, and **Green Term**, matching `config/themes.json.example`.
+
+### Uplink Kept Packets Page Was Slow to Load with Months of History
+
+- The **Uplink Kept Packets** tab on the **Binkp Status** admin page re-parsed every archived packet on every load and returned the entire history in one response, which got slow once months of kept packets had accumulated. The page now loads and parses packets ten date groups at a time, with a **Load More** button to fetch older groups, and the per-packet parser itself is significantly faster.
 
 ---
 
@@ -162,6 +168,15 @@ The fallback now matches `config/themes.json.example`, so a fresh install's them
 The **Sixel Graphics** section on **Admin → Appearance** lets you upload a `.sixel`/`.six` file for each screen slot (Welcome, Main Menu, Goodbye) shown to sixel-capable terminal clients. Previously there was no way to see what a slot actually contained short of connecting with a sixel-capable client, so mistakes in an uploaded file weren't obvious until a user reported them.
 
 The slot picker now shows a decoded, rendered preview of the currently selected slot's image directly on the page. The preview updates automatically when you switch slots, upload a new file, or remove one.
+
+## Uplink Kept Packets Page Was Slow to Load with Months of History
+
+The **Uplink Kept Packets** tab on the **Binkp Status** admin page lists archived inbound and outbound packets kept in the `keep` subdirectories, grouped by date. It previously fetched and parsed every kept packet in a single request every time the tab was opened, including the message count and originating/destination address for each individual packet inside every archived `.pkt` file. With months of accumulated history this meant re-parsing thousands of packets on every page load, making the tab noticeably slow to open.
+
+Two changes address this:
+
+- The page is now paginated by date group. Only the ten most recent date groups are fetched and parsed initially; a **Load More** button at the bottom of the list fetches the next ten. Date groups outside the currently loaded window are never scanned or parsed, no matter how much history exists.
+- The packet parser itself (`OutboundQueue::analyzePacket()`) previously skipped each message's variable-length body one byte at a time to find its null terminator. It now reads the body in 4&nbsp;KB chunks and searches each chunk for the terminator, which is substantially faster per packet regardless of pagination.
 
 ### Docker Image Was Missing Required PHP Extensions
 

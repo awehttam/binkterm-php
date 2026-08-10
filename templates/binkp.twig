@@ -1288,11 +1288,13 @@ function switchKeptType(type) {
 
 window._keptData = { inbound: null, outbound: null };
 
+const KEPT_PACKETS_PAGE_SIZE = 10;
+
 function loadKeptPackets(type) {
     const container = document.getElementById('kept-packets-content');
     container.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>' + window.t('ui.common.loading', {}, 'Loading...') + '</div>';
 
-    fetch(`/api/binkp/kept-packets?type=${type}`)
+    fetch(`/api/binkp/kept-packets?type=${type}&offset=0&limit=${KEPT_PACKETS_PAGE_SIZE}`)
         .then(r => r.json())
         .then(data => {
             _keptLoaded[type] = true;
@@ -1301,6 +1303,37 @@ function loadKeptPackets(type) {
         })
         .catch(err => {
             container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+        });
+}
+
+function loadMoreKeptPackets(type) {
+    const data = window._keptData[type];
+    if (!data || !data.has_more) return;
+
+    const btn = document.getElementById('keptLoadMoreBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>' + window.t('ui.common.loading', {}, 'Loading...');
+    }
+
+    const nextOffset = data.offset + data.limit;
+
+    fetch(`/api/binkp/kept-packets?type=${type}&offset=${nextOffset}&limit=${KEPT_PACKETS_PAGE_SIZE}`)
+        .then(r => r.json())
+        .then(more => {
+            if (!more || !more.success) {
+                if (btn) btn.disabled = false;
+                return;
+            }
+            data.groups = data.groups.concat(more.groups);
+            data.total += more.total;
+            data.offset = more.offset;
+            data.limit = more.limit;
+            data.has_more = more.has_more;
+            renderKeptPackets(type, data);
+        })
+        .catch(() => {
+            if (btn) btn.disabled = false;
         });
 }
 
@@ -1317,7 +1350,7 @@ function renderKeptPackets(type, data) {
         return;
     }
 
-    const totalLabel = window.t('ui.binkp.kept_packets_total', { count: data.total }, `${data.total} packet(s)`);
+    const totalLabel = window.t('ui.binkp.kept_packets_total_groups', { shown: data.groups.length, total: data.total_groups }, `Showing ${data.groups.length} of ${data.total_groups} date group(s)`);
 
     let html = `<p class="text-muted small mb-3">${totalLabel}</p><div class="accordion" id="keptAccordion">`;
 
@@ -1382,6 +1415,16 @@ function renderKeptPackets(type, data) {
     });
 
     html += '</div>';
+
+    if (data.has_more) {
+        const loadMoreLabel = window.t('ui.binkp.kept_packets_load_more', {}, 'Load More');
+        html += `<div class="text-center mt-3">
+            <button type="button" id="keptLoadMoreBtn" class="btn btn-sm btn-outline-secondary" onclick="loadMoreKeptPackets('${type}')">
+                ${loadMoreLabel}
+            </button>
+        </div>`;
+    }
+
     container.innerHTML = html;
 }
 
