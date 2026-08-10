@@ -6,6 +6,7 @@ use PDO;
 use BinktermPHP\Database;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Echomail\EchomailSeenBy;
+use BinktermPHP\NetworkManager;
 
 /**
  * CRUD for hub_nodes (subordinate FTN nodes/points BinktermPHP distributes
@@ -491,6 +492,41 @@ class HubNodeManager
         }
 
         return array_values(array_unique($akas));
+    }
+
+    /**
+     * The AKAs BinktermPHP itself holds, paired with the display name of the
+     * network each belongs to (for the boss-address picker on the downlink
+     * form, so a point's network is visible while choosing which AKA it
+     * hangs off of).
+     *
+     * @return array<int, array{address: string, network_name: ?string}>
+     */
+    public function getConfiguredAkasWithNetworkNames(): array
+    {
+        $config = BinkpConfig::getInstance();
+        $networkManager = new NetworkManager();
+
+        $domainsByAddress = [];
+        foreach ($config->getMyAddressesWithDomains() as $entry) {
+            $domainsByAddress[$entry['address']] = $entry['domain'];
+        }
+
+        $result = [];
+        foreach ($this->getConfiguredAkas() as $address) {
+            $domain = $domainsByAddress[$address] ?? ($config->getDomainByAddress($address) ?: null);
+            $networkName = null;
+            if ($domain) {
+                $network = $networkManager->getByDomain($domain);
+                $networkName = $network['name'] ?? $domain;
+            }
+            $result[] = [
+                'address' => $address,
+                'network_name' => $networkName,
+            ];
+        }
+
+        return $result;
     }
 
     /**

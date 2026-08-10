@@ -64,7 +64,8 @@
                             </div>
                             <div class="col-md-4 d-none" id="hubNodeBossFieldWrap">
                                 <label class="form-label" for="hubNodeBossAddress">{{ t('ui.admin.hub_nodes.boss_address', {}, locale, ['common']) }}</label>
-                                <select class="form-select font-monospace" id="hubNodeBossAddress" onchange="refreshSuggestedPointNumber()"></select>
+                                <select class="form-select font-monospace" id="hubNodeBossAddress" onchange="onHubNodeBossAddressChange()"></select>
+                                <div class="form-text" id="hubNodeBossNetworkName"></div>
                             </div>
                             <div class="col-md-4 d-none" id="hubNodePointFieldWrap">
                                 <label class="form-label" for="hubNodePointNumber">{{ t('ui.admin.hub_nodes.point_number', {}, locale, ['common']) }}</label>
@@ -319,10 +320,22 @@ function getHubNodeTypeLabel(node) {
 
 function populateBossAddressOptions(selected) {
     const select = document.getElementById('hubNodeBossAddress');
-    select.innerHTML = hubAkas.map(aka => `<option value="${escapeHtmlAttr(aka)}">${escapeHtml(aka)}</option>`).join('');
+    select.innerHTML = hubAkas.map(aka => `<option value="${escapeHtmlAttr(aka.address)}">${escapeHtml(aka.address)}</option>`).join('');
     if (selected) {
         select.value = selected;
     }
+    updateBossNetworkNameDisplay();
+}
+
+function onHubNodeBossAddressChange() {
+    refreshSuggestedPointNumber();
+    updateBossNetworkNameDisplay();
+}
+
+function updateBossNetworkNameDisplay() {
+    const address = document.getElementById('hubNodeBossAddress').value;
+    const aka = hubAkas.find(a => a.address === address);
+    document.getElementById('hubNodeBossNetworkName').textContent = aka && aka.network_name ? aka.network_name : '';
 }
 
 function onHubNodeTypeChange() {

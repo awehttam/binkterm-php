@@ -3443,7 +3443,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode([
                     'success' => true,
                     'hub_nodes' => $manager->getAll(),
-                    'akas' => $manager->getConfiguredAkas(),
+                    'akas' => $manager->getConfiguredAkasWithNetworkNames(),
                 ]);
             } catch (Throwable $e) {
                 apiError('errors.admin.hub_nodes.load_failed', apiLocalizedText('errors.admin.hub_nodes.load_failed', 'Failed to load hub nodes'), 500);
