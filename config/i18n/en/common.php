@@ -5295,6 +5295,8 @@ return [
     'ui.admin.hub_nodes.max_packet_kb' => 'Max Packet Size (KB)',
     'ui.admin.hub_nodes.max_packet_kb_help' => '0 = unlimited',
     'ui.admin.hub_nodes.queue_retention_days' => 'Queue Retention (Days)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes' => 'Push Interval (Minutes)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes_help' => 'How often to automatically dial out and push pending outbound work to this node. Default is 360 minutes (6 hours); minimum is 5 minutes.',
     'ui.admin.hub_nodes.notes' => 'Notes',
     'ui.admin.hub_nodes.flags' => 'Flags',
     'ui.admin.hub_nodes.queue' => 'Retention',

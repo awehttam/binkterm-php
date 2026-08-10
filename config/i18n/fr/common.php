@@ -5297,6 +5297,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.hub_nodes.max_packet_kb' => 'Taille maximale de paquet (Ko)',
     'ui.admin.hub_nodes.max_packet_kb_help' => '0 = illimite',
     'ui.admin.hub_nodes.queue_retention_days' => 'Retention de la file (jours)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes' => 'Intervalle de push (minutes)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes_help' => 'A quelle frequence composer automatiquement et transmettre le travail sortant en attente a ce noeud. Par defaut 360 minutes (6 heures) ; minimum 5 minutes.',
     'ui.admin.hub_nodes.notes' => 'Notes',
     'ui.admin.hub_nodes.flags' => 'Indicateurs',
     'ui.admin.hub_nodes.queue' => 'Retention',

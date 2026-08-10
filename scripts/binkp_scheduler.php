@@ -116,12 +116,27 @@ try {
         foreach ($status as $address => $info) {
             $dueStatus = $info['due_now'] ? 'DUE NOW' : 'Scheduled';
             $enabledStatus = $info['enabled'] ? 'Enabled' : 'Disabled';
-            
+
             echo "\n{$address}:\n";
             echo "  Schedule: {$info['schedule']}\n";
             echo "  Status: {$enabledStatus} / {$dueStatus}\n";
             echo "  Last poll: " . formatStatusTimestamp($info['last_poll']) . "\n";
             echo "  Next poll: " . formatStatusTimestamp($info['next_poll']) . "\n";
+        }
+
+        $hubNodeStatus = $scheduler->getHubNodeScheduleStatus();
+
+        echo "\n=== DOWNLINK PUSH SCHEDULE STATUS ===\n";
+        foreach ($hubNodeStatus as $address => $info) {
+            $dueStatus = $info['due_now'] ? 'DUE NOW' : 'Scheduled';
+            $enabledStatus = $info['enabled'] ? 'Enabled' : 'Disabled';
+            $eligibleStatus = $info['push_eligible'] ? "{$dueStatus}" : 'Pull-only / not push-eligible';
+
+            echo "\n{$address} ({$info['node_type']}):\n";
+            echo "  Push interval: every {$info['interval_minutes']} minute(s)\n";
+            echo "  Status: {$enabledStatus} / {$eligibleStatus}\n";
+            echo "  Last push: " . formatStatusTimestamp($info['last_push']) . "\n";
+            echo "  Next push: " . formatStatusTimestamp($info['next_push']) . "\n";
         }
         exit(0);
     }
@@ -154,7 +169,23 @@ try {
         $schedule = $uplink['poll_schedule'] ?? '0 */4 * * *';
         $logger->info("  - {$uplink['address']} [{$status}] ({$schedule})");
     }
-    
+
+    try {
+        $hubNodes = (new \BinktermPHP\Hub\HubNodeManager())->getAll();
+    } catch (\Throwable $e) {
+        $hubNodes = [];
+        $logger->warning("Could not load configured downlinks: " . $e->getMessage());
+    }
+
+    $logger->info("Configured downlinks: " . count($hubNodes));
+
+    foreach ($hubNodes as $hubNode) {
+        $status = $hubNode['enabled'] ? 'enabled' : 'disabled';
+        $pushEligible = $hubNode['enabled'] && $hubNode['allow_outbound'] && !$hubNode['hold_mail'] && !empty($hubNode['inet_host']);
+        $schedule = $pushEligible ? "push every {$hubNode['push_poll_interval_minutes']}m" : 'pull-only';
+        $logger->info("  - {$hubNode['node_address']} [{$status}] ({$schedule})");
+    }
+
     if (function_exists('pcntl_async_signals')) {
         pcntl_async_signals(true);
     }

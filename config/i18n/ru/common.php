@@ -5424,6 +5424,8 @@ return [
     'ui.admin.hub_nodes.max_packet_kb' => 'Максимальный размер пакета (КБ)',
     'ui.admin.hub_nodes.max_packet_kb_help' => '0 = без ограничений',
     'ui.admin.hub_nodes.queue_retention_days' => 'Хранение очереди (дней)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes' => 'Интервал отправки (минут)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes_help' => 'Как часто автоматически дозваниваться и отправлять ожидающую исходящую работу на этот узел. По умолчанию 360 минут (6 часов); минимум 5 минут.',
     'ui.admin.hub_nodes.notes' => 'Заметки',
     'ui.admin.hub_nodes.flags' => 'Флаги',
     'ui.admin.hub_nodes.queue' => 'Хранение',

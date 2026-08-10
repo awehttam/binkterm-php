@@ -168,9 +168,14 @@
                                 <input type="number" min="0" class="form-control" id="hubNodeMaxPacketKb" value="0">
                                 <div class="form-text">{{ t('ui.admin.hub_nodes.max_packet_kb_help', {}, locale, ['common']) }}</div>
                             </div>
-                            <div>
+                            <div class="mb-3">
                                 <label class="form-label" for="hubNodeQueueRetentionDays">{{ t('ui.admin.hub_nodes.queue_retention_days', {}, locale, ['common']) }}</label>
                                 <input type="number" min="1" class="form-control" id="hubNodeQueueRetentionDays" value="30">
+                            </div>
+                            <div>
+                                <label class="form-label" for="hubNodePushIntervalMinutes">{{ t('ui.admin.hub_nodes.push_poll_interval_minutes', {}, locale, ['common']) }}</label>
+                                <input type="number" min="5" class="form-control" id="hubNodePushIntervalMinutes" value="360">
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.push_poll_interval_minutes_help', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
@@ -424,6 +429,7 @@ function openHubNodeModal(id = null) {
     document.getElementById('hubNodeAllowInboundNetmail').checked = node ? !!node.allow_inbound_netmail : true;
     document.getElementById('hubNodeMaxPacketKb').value = node ? node.max_packet_kb : 0;
     document.getElementById('hubNodeQueueRetentionDays').value = node ? node.queue_retention_days : 30;
+    document.getElementById('hubNodePushIntervalMinutes').value = node ? node.push_poll_interval_minutes : 360;
     document.getElementById('hubNodeNotes').value = node ? (node.notes || '') : '';
     document.getElementById('hubNodeModalTitle').textContent = node ? uiT('ui.admin.hub_nodes.edit_node', 'Edit Downlink') : uiT('ui.admin.hub_nodes.add_node', 'Add Downlink');
     onHubNodeTypeChange();
@@ -449,6 +455,7 @@ function saveHubNode() {
         allow_inbound_netmail: document.getElementById('hubNodeAllowInboundNetmail').checked,
         max_packet_kb: document.getElementById('hubNodeMaxPacketKb').value,
         queue_retention_days: document.getElementById('hubNodeQueueRetentionDays').value,
+        push_poll_interval_minutes: document.getElementById('hubNodePushIntervalMinutes').value,
         notes: document.getElementById('hubNodeNotes').value.trim(),
     };
     const sessionPassword = document.getElementById('hubNodeSessionPassword').value;

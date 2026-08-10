@@ -5390,6 +5390,8 @@ return [
     'ui.admin.hub_nodes.max_packet_kb' => 'Tamano Maximo de Paquete (KB)',
     'ui.admin.hub_nodes.max_packet_kb_help' => '0 = sin limite',
     'ui.admin.hub_nodes.queue_retention_days' => 'Retencion de Cola (Dias)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes' => 'Intervalo de Envio (Minutos)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes_help' => 'Con que frecuencia marcar automaticamente y enviar el trabajo saliente pendiente a este nodo. El valor predeterminado es 360 minutos (6 horas); el minimo es 5 minutos.',
     'ui.admin.hub_nodes.notes' => 'Notas',
     'ui.admin.hub_nodes.flags' => 'Marcas',
     'ui.admin.hub_nodes.queue' => 'Retencion',

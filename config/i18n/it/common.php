@@ -5387,6 +5387,8 @@ return [
     'ui.admin.hub_nodes.max_packet_kb' => 'Dimensione Massima Pacchetto (KB)',
     'ui.admin.hub_nodes.max_packet_kb_help' => '0 = illimitato',
     'ui.admin.hub_nodes.queue_retention_days' => 'Conservazione Coda (Giorni)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes' => 'Intervallo di Push (Minuti)',
+    'ui.admin.hub_nodes.push_poll_interval_minutes_help' => 'Con quale frequenza comporre automaticamente e inviare il lavoro in uscita in sospeso a questo nodo. Il valore predefinito e 360 minuti (6 ore); il minimo e 5 minuti.',
     'ui.admin.hub_nodes.notes' => 'Note',
     'ui.admin.hub_nodes.flags' => 'Flag',
     'ui.admin.hub_nodes.queue' => 'Conservazione',

@@ -80,7 +80,7 @@ BinktermPHP can now act as an FTN **hub**, distributing echomail and routing net
 Subordinates are managed from a new admin page, **Admin → BBS Settings → BinkP Downlinks**, and come in two kinds:
 
 - **Node** — an independently-addressed system (for example `2:345/67`), entered as a free-text FTN address. Covers both traditional downlinks and symmetric peer links.
-- **Point** — a system addressed as one of this BBS's own AKAs plus a point number (for example `1:153/149.1`). The boss address is picked from the AKAs already configured in **Admin → Networks**, and a next-available point number is suggested automatically.
+- **Point** — a system addressed as one of this BBS's own AKAs plus a point number (for example `1:153/149.1`). The boss address is picked from the AKAs already configured under **Admin → Binkp Uplinks**, and a next-available point number is suggested automatically.
 
 Each downlink has its own echo area subscription list, its own session/packet passwords, and independent enable/hold/quota controls. New echomail is distributed to every subscribed downlink and, separately, forwarded up to the area's configured uplink (unless it just came from that uplink). Netmail addressed to a registered downlink is delivered into its queue instead of being handled as ordinary local netmail, and netmail from a registered point addressed elsewhere is relayed onward rather than dropped. There is no open relay — only traffic to or from an explicitly registered downlink is handled this way.
 

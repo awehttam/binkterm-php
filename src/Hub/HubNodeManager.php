@@ -24,7 +24,8 @@ class HubNodeManager
         hn.session_password, hn.packet_password, hn.areafix_password, hn.filefix_password,
         hn.inet_host, hn.port, hn.enabled, hn.allow_inbound,
         hn.allow_outbound, hn.allow_inbound_echomail, hn.allow_inbound_netmail, hn.max_packet_kb,
-        hn.hold_mail, hn.compress_outbound, hn.queue_retention_days, hn.capability_flags, hn.notes, hn.created_at, hn.last_session_at
+        hn.hold_mail, hn.compress_outbound, hn.queue_retention_days, hn.capability_flags, hn.notes, hn.created_at, hn.last_session_at,
+        hn.push_poll_interval_minutes, hn.last_push_at
     ";
 
     public function __construct(?PDO $db = null)
@@ -79,13 +80,15 @@ class HubNodeManager
                 session_password, packet_password, areafix_password, filefix_password,
                 inet_host, port, enabled, allow_inbound,
                 allow_outbound, allow_inbound_echomail, allow_inbound_netmail, max_packet_kb,
-                hold_mail, compress_outbound, queue_retention_days, capability_flags, notes
+                hold_mail, compress_outbound, queue_retention_days, capability_flags, notes,
+                push_poll_interval_minutes
             ) VALUES (
                 :node_type, :node_address, :boss_address, :point_number, :name, :sysop_name,
                 :session_password, :packet_password, :areafix_password, :filefix_password,
                 :inet_host, :port, :enabled, :allow_inbound,
                 :allow_outbound, :allow_inbound_echomail, :allow_inbound_netmail, :max_packet_kb,
-                :hold_mail, :compress_outbound, :queue_retention_days, :capability_flags, :notes
+                :hold_mail, :compress_outbound, :queue_retention_days, :capability_flags, :notes,
+                :push_poll_interval_minutes
             )
             RETURNING id
         ");
@@ -133,7 +136,8 @@ class HubNodeManager
                 compress_outbound = :compress_outbound,
                 queue_retention_days = :queue_retention_days,
                 capability_flags = :capability_flags,
-                notes = :notes
+                notes = :notes,
+                push_poll_interval_minutes = :push_poll_interval_minutes
             WHERE id = :id
         ");
         $bindable = $this->bindable($prepared);
@@ -546,6 +550,7 @@ class HubNodeManager
             'queue_retention_days' => (int)($data['queue_retention_days'] ?? 30),
             'capability_flags' => trim((string)($data['capability_flags'] ?? '')) ?: null,
             'notes' => trim((string)($data['notes'] ?? '')) ?: null,
+            'push_poll_interval_minutes' => max(5, (int)($data['push_poll_interval_minutes'] ?? 360)),
         ];
     }
 
@@ -583,6 +588,7 @@ class HubNodeManager
         $row['port'] = $row['port'] !== null ? (int)$row['port'] : null;
         $row['max_packet_kb'] = (int)$row['max_packet_kb'];
         $row['queue_retention_days'] = (int)$row['queue_retention_days'];
+        $row['push_poll_interval_minutes'] = (int)$row['push_poll_interval_minutes'];
 
         foreach (['enabled', 'allow_inbound', 'allow_outbound', 'allow_inbound_echomail', 'allow_inbound_netmail', 'hold_mail', 'compress_outbound'] as $field) {
             if (array_key_exists($field, $row)) {
