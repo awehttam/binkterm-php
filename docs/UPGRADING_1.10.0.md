@@ -17,6 +17,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Docker Image Was Missing Required PHP Extensions](#docker-image-was-missing-required-php-extensions)
   - [Docker: BinkStream Realtime Server Was Not Started or Reachable](#docker-binkstream-realtime-server-was-not-started-or-reachable)
   - [Docker: PHP Fatal Errors Were Silently Lost](#docker-php-fatal-errors-were-silently-lost)
+  - [Docker: Upload and POST Size Limits Were PHP Defaults](#docker-upload-and-post-size-limits-were-php-defaults)
 - [Downlinks: Act as a Hub for Subordinate Nodes and Points](#downlinks-act-as-a-hub-for-subordinate-nodes-and-points-1)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
@@ -172,6 +173,12 @@ The fallback now matches `config/themes.json.example`, so a fresh install's them
   docker exec -it binkterm-app tail -f /var/www/html/data/logs/php_errors.log
   ```
 - Rebuild your image (`docker-compose build --no-cache`) and recreate the container to pick up the new `php.ini` fragment.
+
+### Docker: Upload and POST Size Limits Were PHP Defaults
+
+- Because the `php:8.2-apache` base image ships with no `php.ini` (see above), `upload_max_filesize` and `post_max_size` were also left at PHP's compiled-in defaults of `2M` and `8M`. Any file upload larger than 2 MB — file area uploads, door/attachment transfers — failed silently or with a generic error, with no way to raise the limit without editing the image yourself.
+- A new `docker/php-uploads.ini` is now installed into `/usr/local/etc/php/conf.d/` alongside `php-error-logging.ini`, raising `upload_max_filesize` to `128M` and `post_max_size` to `136M`.
+- Rebuild your image (`docker-compose build --no-cache`) and recreate the container to pick up the new `php.ini` fragment. If you need a different limit, override it with your own conf.d file or by editing `docker/php-uploads.ini` before building.
 
 ## Upgrade Instructions
 

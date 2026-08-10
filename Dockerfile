@@ -84,6 +84,7 @@ RUN mkdir -p \
 # Copy Docker configuration files
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/php-error-logging.ini /usr/local/etc/php/conf.d/zz-error-logging.ini
+COPY docker/php-uploads.ini /usr/local/etc/php/conf.d/zz-uploads.ini
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
