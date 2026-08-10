@@ -87,6 +87,16 @@ class HubFanout
         $isPoint = $subscriber['node_type'] === HubNodeManager::TYPE_POINT;
 
         if ($isPoint) {
+            // Never echo a message back to the point that originated it - it
+            // already has its own copy. Compare full 4D address (zone/net/
+            // node/point) since SEEN-BY never carries point numbers and can't
+            // be used as the loop guard here (see comment below).
+            $subscriberParts = EchomailSeenBy::parseFtnAddressParts((string)$subscriber['node_address']);
+            $authorParts = EchomailSeenBy::parseFtnAddressParts((string)($message['from_address'] ?? ''));
+            if ($subscriberParts === $authorParts) {
+                return;
+            }
+
             // Points are never skipped based on SEEN-BY (they never legitimately
             // appear there) and never get SEEN-BY/PATH mutation - subscription
             // state alone governs delivery. Pass bottom_kludges through untouched;
