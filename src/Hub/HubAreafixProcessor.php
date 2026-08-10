@@ -74,7 +74,7 @@ class HubAreafixProcessor
 
         $passwordField = $robot === 'filefix' ? 'filefix_password' : 'areafix_password';
         $expectedPassword = (string)($hubNode[$passwordField] ?? '');
-        $providedPassword = (string)($message['subject'] ?? '');
+        $providedPassword = (string)trim(($message['subject']) ?? '');
 
         if ($expectedPassword === '' || !hash_equals($expectedPassword, $providedPassword)) {
             $this->logger->warning(ucfirst($robot) . ": incorrect password from {$origAddr}");
