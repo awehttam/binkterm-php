@@ -336,6 +336,9 @@ class BinkpSession
 
                 // Deliver any hold-directory files queued for the connecting node (runs for both roles)
                 $this->sendHoldFiles();
+
+                // Deliver any hub_node_outbound packets queued for this subordinate (runs for both roles)
+                $this->sendHubNodeOutbound();
             }
 
             if ($this->isOriginator) {
@@ -681,9 +684,10 @@ class BinkpSession
                 // Trim whitespace first to handle leading/trailing spaces
                 $addresses = array_values(array_filter(explode(' ', trim($addressData)), 'strlen'));
 
-                // Try to find a matching address in our uplinks
+                // Try to find a matching address among our uplinks or hub nodes/points
                 $matchedAddress = null;
                 $matchedAddressWithDomain = null;
+                $hubNodeManager = new \BinktermPHP\Hub\HubNodeManager();
                 foreach ($addresses as $addr) {
                     $addr = trim($addr);
                     $addrWithDomain = $addr;
@@ -699,7 +703,7 @@ class BinkpSession
                         $addr = substr($addr, 0, -2);
                     }
 
-                    if (!empty($addr) && $this->config->getUplinkByAddress($addr)) {
+                    if (!empty($addr) && ($this->config->getUplinkByAddress($addr) || $hubNodeManager->getByAddress($addr))) {
                         $matchedAddress = $addr;
                         $matchedAddressWithDomain = $addrWithDomain;
                         break;
@@ -1110,6 +1114,394 @@ class BinkpSession
         $remaining = glob($holdDir . '/*');
         if ($remaining !== false && empty($remaining)) {
             @rmdir($holdDir);
+        }
+    }
+
+    /**
+     * Cap on hub_node_outbound.attempts before a failed row is no longer
+     * retried on reconnect - keeps a genuinely poison row (e.g. malformed
+     * message data) from being retried forever while still surfacing it as
+     * 'failed' for admin visibility.
+     */
+    private const HUB_OUTBOUND_MAX_ATTEMPTS = 10;
+
+    /**
+     * Send any pending (and retry-eligible failed) hub_node_outbound rows
+     * queued for the connecting subordinate (node or point). Called at
+     * session start for both originator and answerer, mirroring
+     * sendFreqFiles()/sendHoldFiles(). Pending echomail/netmail rows are
+     * bundled into one or more multi-message .pkt files at send time (see
+     * chunkHubNodeBundle()/sendHubNodeOutboundBundle()), capped at
+     * hub_nodes.max_packet_kb per file rather than one unbounded bundle;
+     * TIC rows are always sent individually as their own file pair.
+     */
+    private function sendHubNodeOutbound(): void
+    {
+        $remoteAddr = $this->remoteAddress ?? '';
+        if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+            return;
+        }
+
+        try {
+            $hubNode = (new \BinktermPHP\Hub\HubNodeManager())->getByAddress($remoteAddr);
+            if (!$hubNode || !$hubNode['enabled'] || $hubNode['hold_mail']) {
+                return;
+            }
+
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            // Retry 'failed' rows (e.g. from a session that was interrupted
+            // mid-transfer) on the subordinate's next connection, same as
+            // 'pending' rows - up to HUB_OUTBOUND_MAX_ATTEMPTS so a genuinely
+            // broken row doesn't retry forever.
+            $stmt = $db->prepare(
+                "SELECT id, message_type, packet_data, message_payload, tic_file_data, tic_filename, size_bytes
+                 FROM hub_node_outbound
+                 WHERE hub_node_id = ?
+                   AND (status = 'pending' OR (status = 'failed' AND attempts < ?))
+                 ORDER BY priority ASC, next_attempt_at ASC"
+            );
+            $stmt->execute([$hubNode['id'], self::HUB_OUTBOUND_MAX_ATTEMPTS]);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (empty($rows)) {
+                return;
+            }
+
+            $this->log("Sending " . count($rows) . " hub node outbound packet(s) queued for {$remoteAddr}", 'INFO');
+
+            $markSent = $db->prepare(
+                "UPDATE hub_node_outbound SET status = 'sent', sent_at = NOW() WHERE id = ?"
+            );
+            $markFailed = $db->prepare(
+                "UPDATE hub_node_outbound SET status = 'failed', attempts = attempts + 1, error_message = ? WHERE id = ?"
+            );
+
+            // Bundle every pending echomail/netmail row into one or more
+            // multi-message .pkt files at send time (rather than one file
+            // per row) - message_payload holds the createOutboundPacket()-ready
+            // array captured at queue time. Rows queued before this column
+            // existed (message_payload NULL) fall back to sending their
+            // individually pre-rendered packet_data, same as before.
+            $bundleMessages = [];
+            $bundleIds = [];
+            $bundleSizes = [];
+            $legacyRows = [];
+
+            foreach ($rows as $row) {
+                if (($row['message_type'] ?? 'echomail') === 'tic') {
+                    $this->sendHubNodeTicRow($row, $remoteAddr, $markSent, $markFailed);
+                    continue;
+                }
+
+                $payloadJson = $row['message_payload'];
+                if (is_resource($payloadJson)) {
+                    $payloadJson = stream_get_contents($payloadJson);
+                }
+                $packetMessage = $payloadJson !== null ? json_decode((string)$payloadJson, true) : null;
+
+                if (is_array($packetMessage)) {
+                    $bundleMessages[] = $packetMessage;
+                    $bundleIds[] = (int)$row['id'];
+                    $bundleSizes[] = (int)($row['size_bytes'] ?? 0);
+                } else {
+                    $legacyRows[] = $row;
+                }
+            }
+
+            if (!empty($bundleMessages)) {
+                $maxBytes = (int)($hubNode['max_packet_kb'] ?? 0) * 1024;
+                $chunks = $this->chunkHubNodeBundle($bundleMessages, $bundleIds, $bundleSizes, $maxBytes);
+                $compress = !empty($hubNode['compress_outbound']);
+                foreach ($chunks as $chunk) {
+                    $this->sendHubNodeOutboundBundle($chunk['messages'], $chunk['ids'], $remoteAddr, $markSent, $markFailed, $compress);
+                }
+            }
+
+            foreach ($legacyRows as $row) {
+                $this->sendHubNodeOutboundLegacyRow($row, $remoteAddr, $markSent, $markFailed);
+            }
+        } catch (\Exception $e) {
+            $this->log("sendHubNodeOutbound error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Split bundled messages into one or more chunks so no single .pkt
+     * exceeds $maxBytes (hub_nodes.max_packet_kb * 1024; 0/unlimited returns
+     * everything as one chunk, the pre-existing behavior). Greedy bin-packing
+     * using hub_node_outbound.size_bytes (each row's own pre-bundle packet
+     * size) as a per-message size estimate - close enough since the only
+     * per-chunk overhead beyond the sum of message sizes is one shared
+     * packet header/terminator. A single message larger than $maxBytes still
+     * gets its own chunk rather than being dropped, so an oversized message
+     * doesn't stall the queue.
+     *
+     * @param array<int, array<string, mixed>> $messages
+     * @param int[] $ids
+     * @param int[] $sizes
+     * @return array<int, array{messages: array<int, array<string, mixed>>, ids: int[]}>
+     */
+    private function chunkHubNodeBundle(array $messages, array $ids, array $sizes, int $maxBytes): array
+    {
+        if ($maxBytes <= 0) {
+            return [['messages' => $messages, 'ids' => $ids]];
+        }
+
+        $chunks = [];
+        $currentMessages = [];
+        $currentIds = [];
+        $currentBytes = 0;
+
+        foreach ($messages as $i => $message) {
+            $size = $sizes[$i] ?? 0;
+            if (!empty($currentMessages) && $currentBytes + $size > $maxBytes) {
+                $chunks[] = ['messages' => $currentMessages, 'ids' => $currentIds];
+                $currentMessages = [];
+                $currentIds = [];
+                $currentBytes = 0;
+            }
+            $currentMessages[] = $message;
+            $currentIds[] = $ids[$i];
+            $currentBytes += $size;
+        }
+
+        if (!empty($currentMessages)) {
+            $chunks[] = ['messages' => $currentMessages, 'ids' => $currentIds];
+        }
+
+        return $chunks;
+    }
+
+    /**
+     * Build and send one combined .pkt carrying every bundled message, then
+     * mark all of $bundleIds sent (or all failed together, so a partial
+     * bundle is never left half-delivered) - matches the semantics of
+     * BinkdProcessor::createOutboundPacket() writing one header/terminator
+     * around N message records.
+     *
+     * When $compress is true, the .pkt is packed into a ZIP arcmail bundle
+     * (see zipOutboundPacket()) before sending, since bundled hub node
+     * outbound is the case most likely to produce large multi-message
+     * packets. Compression is opt-in per downlink (hub_nodes.compress_outbound)
+     * because it's only safe when we know the receiving mailer auto-detects
+     * bundle extensions the way BinkdProcessor::processPacket() does.
+     *
+     * @param array<int, array<string, mixed>> $bundleMessages
+     * @param int[] $bundleIds
+     */
+    private function sendHubNodeOutboundBundle(
+        array $bundleMessages,
+        array $bundleIds,
+        string $remoteAddr,
+        \PDOStatement $markSent,
+        \PDOStatement $markFailed,
+        bool $compress = false
+    ): void {
+        $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.pkt';
+        $sendPath = $tmpPath;
+
+        try {
+            (new \BinktermPHP\BinkdProcessor())->createOutboundPacket($bundleMessages, $remoteAddr, $tmpPath);
+
+            if ($compress) {
+                $zipPath = $this->zipOutboundPacket($tmpPath);
+                if ($zipPath !== null) {
+                    $sendPath = $zipPath;
+                    $this->log(sprintf(
+                        "Hub node outbound: compressed bundled packet %d -> %d bytes for {$remoteAddr}",
+                        filesize($tmpPath),
+                        filesize($zipPath)
+                    ), 'INFO');
+                }
+            }
+
+            $wireName = basename($sendPath);
+
+            // See sendHubNodeOutbound()'s per-row version below for why this
+            // is registered as an "extra" file rather than via addExtraFile().
+            $this->extraOutboundFilesByName[$wireName] = $sendPath;
+            $this->sendFile($sendPath);
+
+            foreach ($bundleIds as $id) {
+                $markSent->execute([$id]);
+            }
+            $this->log(
+                "Hub node outbound: sent bundled packet with " . count($bundleIds) . " message(s) (#" . implode(',', $bundleIds) . ") to {$remoteAddr}",
+                'INFO'
+            );
+        } catch (\Exception $e) {
+            foreach ($bundleIds as $id) {
+                $markFailed->execute([$e->getMessage(), $id]);
+            }
+            $this->log("Hub node outbound: failed to send bundled packet (#" . implode(',', $bundleIds) . ") to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
+        } finally {
+            @unlink($tmpPath);
+            if ($sendPath !== $tmpPath) {
+                @unlink($sendPath);
+            }
+        }
+    }
+
+    /**
+     * Pack a single .pkt into a ZIP arcmail bundle named with the FTS-5001
+     * day-of-week extension (.mo0, .tu0, etc.) that BinkdProcessor::processPacket()
+     * already recognizes and unpacks on the receiving side. Returns null
+     * (caller falls back to sending the raw .pkt) if ZipArchive is
+     * unavailable or the archive can't be built - a missing/broken archiver
+     * must never block mail flow.
+     */
+    private function zipOutboundPacket(string $pktPath): ?string
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            $this->log("Hub node outbound: ZipArchive extension unavailable, sending uncompressed", 'WARNING');
+            return null;
+        }
+
+        $days = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
+        $ext = $days[(int)date('w')] . '0';
+        $zipPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.' . $ext;
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            $this->log("Hub node outbound: failed to create ZIP bundle {$zipPath}", 'WARNING');
+            return null;
+        }
+
+        $added = $zip->addFile($pktPath, basename($pktPath));
+        $zip->close();
+
+        if (!$added || !is_file($zipPath)) {
+            @unlink($zipPath);
+            $this->log("Hub node outbound: failed to add packet to ZIP bundle {$zipPath}", 'WARNING');
+            return null;
+        }
+
+        return $zipPath;
+    }
+
+    /**
+     * Send a single pre-rendered hub_node_outbound row's packet_data as its
+     * own file - the pre-message_payload behavior, kept as a fallback for
+     * rows queued before that column existed.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function sendHubNodeOutboundLegacyRow(
+        array $row,
+        string $remoteAddr,
+        \PDOStatement $markSent,
+        \PDOStatement $markFailed
+    ): void {
+        $id = (int)$row['id'];
+        $bytes = $row['packet_data'];
+        if (is_resource($bytes)) {
+            $bytes = stream_get_contents($bytes);
+        }
+
+        // Wire filename must be 8.3-compatible (FTN convention) - this
+        // basename is what handleSentFileConfirmation() matches against
+        // the remote's M_GOT, so keep it short like other packet names
+        // in this codebase (see BinkdProcessor::createOutboundPacket()).
+        $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.pkt';
+        $wireName = basename($tmpPath);
+        try {
+            if (file_put_contents($tmpPath, $bytes) === false) {
+                throw new \Exception('Failed to write temp packet file');
+            }
+            // Register as an "extra" file (same bucket as .req files -
+            // see addExtraFile()) so handleSentFileConfirmation() knows
+            // this filename lives outside data/outbound/ when the
+            // remote's M_GOT arrives, instead of logging a spurious
+            // "Sent file not found" warning while looking for it there.
+            // Deliberately not calling addExtraFile() itself - that
+            // also queues the file for sendFiles() to send again.
+            $this->extraOutboundFilesByName[$wireName] = $tmpPath;
+            $this->sendFile($tmpPath);
+            $markSent->execute([$id]);
+            $this->log("Hub node outbound: sent packet #{$id} to {$remoteAddr}", 'INFO');
+        } catch (\Exception $e) {
+            $markFailed->execute([$e->getMessage(), $id]);
+            $this->log("Hub node outbound: failed to send packet #{$id} to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
+        } finally {
+            // Delete the temp file now (we don't keep it around waiting
+            // for M_GOT the way data/outbound/ files do), but leave the
+            // extraOutboundFilesByName entry in place - the remote's
+            // M_GOT for this filename can arrive well after this loop
+            // moves on, and handleSentFileConfirmation() needs to find
+            // the mapping then, not just at send time. It no-ops safely
+            // once file_exists() is false, same as .req files that are
+            // confirmed after already being cleaned up.
+            @unlink($tmpPath);
+        }
+    }
+
+    /**
+     * Send a queued hub_node_outbound row with message_type='tic' - a TIC
+     * control-file + data-file pair (docs/proposals/HubPointSystemJuly2026.md
+     * Phase 4), rather than a single .pkt. Mirrors the .tic-pair handling in
+     * sendFiles() (data file first, then the .tic control file), but reads
+     * from hub_node_outbound's BYTEA columns instead of the outbound
+     * directory.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function sendHubNodeTicRow(array $row, string $remoteAddr, \PDOStatement $markSent, \PDOStatement $markFailed): void
+    {
+        $id = (int)$row['id'];
+
+        $ticBytes = $row['packet_data'];
+        if (is_resource($ticBytes)) {
+            $ticBytes = stream_get_contents($ticBytes);
+        }
+        $dataBytes = $row['tic_file_data'];
+        if (is_resource($dataBytes)) {
+            $dataBytes = stream_get_contents($dataBytes);
+        }
+        $origFilename = basename((string)($row['tic_filename'] ?? ''));
+
+        if ($ticBytes === false || $ticBytes === null || $dataBytes === false || $dataBytes === null || $origFilename === '') {
+            $markFailed->execute(['Missing TIC payload data', $id]);
+            $this->log("Hub node outbound: TIC row #{$id} has incomplete payload, marking failed", 'ERROR');
+            return;
+        }
+
+        // Each row gets its own temp subdirectory so the data file can keep
+        // its original filename (required - the .tic "File" field and the
+        // remote's TicFileProcessor match on it) without colliding with any
+        // other queued row that happens to share the same original filename.
+        $tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hubtic_' . substr(uniqid(), -8);
+        $dataTmpPath = $tmpDir . DIRECTORY_SEPARATOR . $origFilename;
+        // TIC control filename must be 8.3-compatible, same convention as
+        // TicFileGenerator::createTicFile()'s randomized outbound names.
+        $ticTmpPath = $tmpDir . DIRECTORY_SEPARATOR . substr(uniqid(), -8) . '.tic';
+
+        try {
+            if (!@mkdir($tmpDir, 0700, true) && !is_dir($tmpDir)) {
+                throw new \Exception('Failed to create temp directory for TIC pair');
+            }
+            if (file_put_contents($dataTmpPath, $dataBytes) === false) {
+                throw new \Exception('Failed to write temp TIC data file');
+            }
+            if (file_put_contents($ticTmpPath, $ticBytes) === false) {
+                throw new \Exception('Failed to write temp TIC control file');
+            }
+
+            // See sendHubNodeOutbound() above for why these are registered as
+            // "extra" files rather than via addExtraFile().
+            $this->extraOutboundFilesByName[basename($dataTmpPath)] = $dataTmpPath;
+            $this->extraOutboundFilesByName[basename($ticTmpPath)] = $ticTmpPath;
+
+            $this->sendFile($dataTmpPath);
+            $this->sendFile($ticTmpPath);
+            $markSent->execute([$id]);
+            $this->log("Hub node outbound: sent TIC pair #{$id} ({$origFilename}) to {$remoteAddr}", 'INFO');
+        } catch (\Exception $e) {
+            $markFailed->execute([$e->getMessage(), $id]);
+            $this->log("Hub node outbound: failed to send TIC pair #{$id} to {$remoteAddr}: " . $e->getMessage(), 'ERROR');
+        } finally {
+            @unlink($dataTmpPath);
+            @unlink($ticTmpPath);
+            @rmdir($tmpDir);
         }
     }
 
@@ -1903,13 +2295,21 @@ class BinkpSession
         }
 
         // Plain text password validation
-        // If we sent a challenge and got a plain password, check if fallback is allowed
+        // If we sent a challenge and got a plain password, check if fallback is allowed.
+        // Registered hub nodes/points always accept plaintext regardless of the global
+        // uplink security policy - they're subordinate systems under our own admin
+        // control, not the public FTN network the plaintext-fallback policy guards.
         if ($this->cramChallenge !== null) {
-            if (!$this->config->getAllowPlaintextFallback()) {
+            $isHubNode = $this->remoteAddress !== null
+                && (new \BinktermPHP\Hub\HubNodeManager())->getByAddress($this->remoteAddress) !== null;
+
+            if (!$this->config->getAllowPlaintextFallback() && !$isHubNode) {
                 $this->log("Plain text password rejected - CRAM-MD5 required", 'WARNING');
                 return false;
             }
-            $this->log("Accepting plain text password fallback", 'DEBUG');
+            $this->log($isHubNode
+                ? "Accepting plain text password for registered hub node {$this->remoteAddress}"
+                : "Accepting plain text password fallback", 'DEBUG');
         }
 
         $match = hash_equals($expectedPassword, $password);
@@ -2049,10 +2449,16 @@ class BinkpSession
             if ($uplink) {
                 $this->log("Found uplink config for {$this->remoteAddress}", 'DEBUG');
                 return $uplink['password'] ?? '';
-            } else {
-                $this->log("No uplink config found for {$this->remoteAddress}", 'WARNING');
-                return '';
             }
+
+            $hubNode = (new \BinktermPHP\Hub\HubNodeManager())->getByAddress($this->remoteAddress);
+            if ($hubNode) {
+                $this->log("Found hub node config for {$this->remoteAddress}", 'DEBUG');
+                return $hubNode['session_password'] ?? '';
+            }
+
+            $this->log("No uplink or hub node config found for {$this->remoteAddress}", 'WARNING');
+            return '';
         }
         return '';
     }

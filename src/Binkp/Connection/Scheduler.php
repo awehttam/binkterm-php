@@ -24,6 +24,13 @@ use BinktermPHP\Database;
 
 class Scheduler
 {
+    /**
+     * Must match BinkpSession::HUB_OUTBOUND_MAX_ATTEMPTS - the two caps
+     * gate the same hub_node_outbound.attempts value from different sides
+     * (deciding whether to dial out vs. deciding what to send once connected).
+     */
+    private const HUB_OUTBOUND_MAX_ATTEMPTS = 10;
+
     /** @var array<string,int> Unix timestamps of last outbound-triggered polls by uplink */
     private $lastOutboundPollTimes;
     /** @var array<string,bool> Whether an uplink had outbound work on the previous scan */
@@ -47,6 +54,10 @@ class Scheduler
     private $iterationPolledAddresses = [];
     /** Minimum seconds between scheduled crashmail polls */
     const CRASHMAIL_POLL_INTERVAL = 300;
+    /** Minimum seconds between scheduled hub node push checks */
+    const HUB_PUSH_POLL_INTERVAL = 300;
+    /** Unix timestamp of last scheduled hub node push check */
+    private $lastHubPushPoll = 0;
 
     public function __construct($config = null, $logger = null)
     {
@@ -520,6 +531,7 @@ class Scheduler
                 $this->processInboundIfNeeded();
 
                 $this->runScheduledCrashmailPoll();
+                $this->runScheduledHubNodePush();
                 $this->processAdvertisingCampaigns();
                 
             } catch (\Exception $e) {
@@ -571,6 +583,64 @@ class Scheduler
             $this->lastCrashmailPoll = $now;
         } catch (\Throwable $e) {
             $this->log("Crashmail poll error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Push pending hub_node_outbound packets to any enabled, non-held,
+     * push-eligible (allow_outbound, inet_host set) hub node that has
+     * pending work, gated by HUB_PUSH_POLL_INTERVAL. Applies to both node-
+     * and point-type hub nodes - points are pull-only by default (no
+     * inet_host), but a point given a routable inet_host (see the field's
+     * help text on the downlink edit form) is push-eligible too.
+     */
+    private function runScheduledHubNodePush(): void
+    {
+        $now = time();
+        $elapsed = $now - $this->lastHubPushPoll;
+        if ($elapsed < self::HUB_PUSH_POLL_INTERVAL) {
+            $remaining = self::HUB_PUSH_POLL_INTERVAL - $elapsed;
+            $this->log("Hub node push check not due yet ({$remaining}s remaining)", 'DEBUG');
+            return;
+        }
+
+        try {
+            $db = Database::getInstance()->getPdo();
+            // Failed rows are retried up to the same attempts cap as
+            // BinkpSession::HUB_OUTBOUND_MAX_ATTEMPTS so a node whose only
+            // work is a failed (e.g. interrupted) send still gets redialed,
+            // not just nodes with fresh 'pending' rows.
+            $stmt = $db->prepare("
+                SELECT DISTINCT hn.node_address
+                FROM hub_nodes hn
+                JOIN hub_node_outbound hno ON hno.hub_node_id = hn.id
+                WHERE (hno.status = 'pending' OR (hno.status = 'failed' AND hno.attempts < ?))
+                  AND hn.enabled = TRUE
+                  AND hn.allow_outbound = TRUE
+                  AND hn.hold_mail = FALSE
+                  AND hn.inet_host IS NOT NULL
+                  AND hn.inet_host <> ''
+            ");
+            $stmt->execute([self::HUB_OUTBOUND_MAX_ATTEMPTS]);
+            $addresses = $stmt->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+
+            if (empty($addresses)) {
+                $this->log("No push-eligible hub nodes with pending outbound work", 'DEBUG');
+            } else {
+                foreach ($addresses as $address) {
+                    $this->log("Hub node push starting for {$address}");
+                    $result = $this->client->binkPoll($address);
+                    if (($result['exit_code'] ?? 1) === 0) {
+                        $this->log("Hub node push completed for {$address}");
+                    } else {
+                        $this->log("Hub node push failed for {$address}", 'ERROR');
+                    }
+                }
+            }
+
+            $this->lastHubPushPoll = $now;
+        } catch (\Throwable $e) {
+            $this->log("Hub node push check error: " . $e->getMessage(), 'ERROR');
         }
     }
 

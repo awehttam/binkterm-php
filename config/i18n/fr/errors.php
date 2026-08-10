@@ -534,6 +534,9 @@ return [
     'errors.binkp.kept_packets.failed' => 'Échec du chargement des paquets conservés',
     'errors.binkp.kept_packets.inspect_failed' => 'Échec de l\'inspection du paquet',
     'errors.binkp.queue.inspect_failed' => 'Échec de l\'inspection du paquet en file d\'attente',
+    'errors.binkp.hub_outbound.list_failed' => 'Echec du chargement de la file des downlinks',
+    'errors.binkp.hub_outbound.invalid_id' => 'Identifiant d\'element de file invalide',
+    'errors.binkp.hub_outbound.delete_failed' => 'Echec de la suppression des elements de la file',
     'errors.binkp.kept_packets.invalid_type' => 'Le type doit être inbound ou outbound',
     'errors.binkp.kept_packets.license_required' => 'La consultation des paquets conservés nécessite une licence enregistrée',
 
@@ -722,6 +725,14 @@ return [
     'errors.pgp.passphrase_too_short' => 'Utilisez une phrase de passe PGP plus longue.',
     'errors.pgp.passphrase_mismatch' => 'La confirmation de la phrase de passe ne correspond pas.',
     'errors.pgp.generation_failed' => 'Impossible de generer la cle PGP geree.',
+    'errors.admin.hub_nodes.load_failed' => 'Echec du chargement des downlinks',
+    'errors.admin.hub_nodes.save_failed' => 'Echec de l\'enregistrement du downlink',
+    'errors.admin.hub_nodes.delete_failed' => 'Echec de la suppression du downlink',
+    'errors.admin.hub_nodes.areas_load_failed' => 'Echec du chargement des abonnements aux zones',
+    'errors.admin.hub_nodes.areas_save_failed' => 'Echec de l\'enregistrement des abonnements aux zones',
+    'errors.admin.hub_nodes.fileareas_load_failed' => 'Echec du chargement des abonnements aux zones de fichiers',
+    'errors.admin.hub_nodes.fileareas_save_failed' => 'Echec de l\'enregistrement des abonnements aux zones de fichiers',
+    'errors.admin.hub_nodes.next_point_failed' => 'Impossible de determiner le prochain numero de point',
 ];
 
 

@@ -1,0 +1,649 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.hub_nodes.page_title', {}, locale, ['common']) }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.hub_nodes.heading', {}, locale, ['common']) }}</h1>
+        <button class="btn btn-primary" type="button" onclick="openHubNodeModal()">
+            <i class="fas fa-plus me-1"></i>{{ t('ui.admin.hub_nodes.add_node', {}, locale, ['common']) }}
+        </button>
+    </div>
+
+    <p class="text-muted">{{ t('ui.admin.hub_nodes.intro', {}, locale, ['common']) }}</p>
+
+    <div id="hubNodesAlert"></div>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped align-middle" id="hubNodesTable">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width: 3rem;" title="{{ t('ui.admin.hub_nodes.type', {}, locale, ['common']) }}" aria-label="{{ t('ui.admin.hub_nodes.type', {}, locale, ['common']) }}">
+                                <i class="fas fa-shapes" aria-hidden="true"></i>
+                            </th>
+                            <th>{{ t('ui.admin.hub_nodes.address', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.hub_nodes.name', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.hub_nodes.flags', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.hub_nodes.queue', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.actions', {}, locale, ['common']) }}</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="hubNodeModal" tabindex="-1" aria-labelledby="hubNodeModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="hubNodeModalTitle">{{ t('ui.admin.hub_nodes.add_node', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="hubNodeId">
+                <div id="hubNodeModalAlert"></div>
+                <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="hubNodeType">{{ t('ui.admin.hub_nodes.type', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="hubNodeType" onchange="onHubNodeTypeChange()">
+                                    <option value="node">{{ t('ui.admin.hub_nodes.type_node', {}, locale, ['common']) }}</option>
+                                    <option value="point">{{ t('ui.admin.hub_nodes.type_point', {}, locale, ['common']) }}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-8" id="hubNodeAddressFieldWrap">
+                                <label class="form-label" for="hubNodeAddress">{{ t('ui.admin.hub_nodes.address', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control font-monospace" id="hubNodeAddress" placeholder="1:153/150">
+                            </div>
+                            <div class="col-md-4 d-none" id="hubNodeBossFieldWrap">
+                                <label class="form-label" for="hubNodeBossAddress">{{ t('ui.admin.hub_nodes.boss_address', {}, locale, ['common']) }}</label>
+                                <select class="form-select font-monospace" id="hubNodeBossAddress" onchange="refreshSuggestedPointNumber()"></select>
+                            </div>
+                            <div class="col-md-4 d-none" id="hubNodePointFieldWrap">
+                                <label class="form-label" for="hubNodePointNumber">{{ t('ui.admin.hub_nodes.point_number', {}, locale, ['common']) }}</label>
+                                <input type="number" min="1" class="form-control" id="hubNodePointNumber">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeName">{{ t('ui.admin.hub_nodes.name', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="hubNodeName">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeSysopName">{{ t('ui.admin.hub_nodes.sysop_name', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="hubNodeSysopName">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeSessionPassword">{{ t('ui.admin.hub_nodes.session_password', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control font-monospace" id="hubNodeSessionPassword" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodeSessionPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.session_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodePacketPassword">{{ t('ui.admin.hub_nodes.packet_password', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control font-monospace" id="hubNodePacketPassword" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodePacketPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeAreafixPassword">{{ t('ui.admin.hub_nodes.areafix_password', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control font-monospace" id="hubNodeAreafixPassword" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodeAreafixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.areafix_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeFilefixPassword">{{ t('ui.admin.hub_nodes.filefix_password', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control font-monospace" id="hubNodeFilefixPassword" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodeFilefixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.filefix_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="col-md-8">
+                                <label class="form-label" for="hubNodeInetHost">{{ t('ui.admin.hub_nodes.inet_host', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="hubNodeInetHost">
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.inet_host_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="hubNodePort">{{ t('ui.admin.hub_nodes.port', {}, locale, ['common']) }}</label>
+                                <input type="number" min="1" max="65535" class="form-control" id="hubNodePort">
+                            </div>
+
+                            <div class="col-md-12">
+                                <label class="form-label" for="hubNodeNotes">{{ t('ui.admin.hub_nodes.notes', {}, locale, ['common']) }}</label>
+                                <textarea class="form-control" id="hubNodeNotes" rows="2"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="border rounded p-3 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="hubNodeEnabled" checked>
+                                <label class="form-check-label" for="hubNodeEnabled">{{ t('ui.admin.hub_nodes.enabled', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="hubNodeHoldMail">
+                                <label class="form-check-label" for="hubNodeHoldMail">{{ t('ui.admin.hub_nodes.hold_mail', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="hubNodeCompressOutbound">
+                                <label class="form-check-label" for="hubNodeCompressOutbound">{{ t('ui.admin.hub_nodes.compress_outbound', {}, locale, ['common']) }}</label>
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.compress_outbound_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="hubNodeAllowInboundEchomail" checked>
+                                <label class="form-check-label" for="hubNodeAllowInboundEchomail">{{ t('ui.admin.hub_nodes.allow_inbound_echomail', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="hubNodeAllowInboundNetmail" checked>
+                                <label class="form-check-label" for="hubNodeAllowInboundNetmail">{{ t('ui.admin.hub_nodes.allow_inbound_netmail', {}, locale, ['common']) }}</label>
+                            </div>
+                        </div>
+                        <div class="border rounded p-3">
+                            <div class="mb-3">
+                                <label class="form-label" for="hubNodeMaxPacketKb">{{ t('ui.admin.hub_nodes.max_packet_kb', {}, locale, ['common']) }}</label>
+                                <input type="number" min="0" class="form-control" id="hubNodeMaxPacketKb" value="0">
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.max_packet_kb_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div>
+                                <label class="form-label" for="hubNodeQueueRetentionDays">{{ t('ui.admin.hub_nodes.queue_retention_days', {}, locale, ['common']) }}</label>
+                                <input type="number" min="1" class="form-control" id="hubNodeQueueRetentionDays" value="30">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button class="btn btn-primary" type="button" onclick="saveHubNode()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="hubNodeAreasModal" tabindex="-1" aria-labelledby="hubNodeAreasModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="hubNodeAreasModalTitle">{{ t('ui.admin.hub_nodes.areas.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="hubNodeAreasNodeId">
+                <div id="hubNodeAreasModalAlert"></div>
+                <div id="hubNodeAreasList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button class="btn btn-primary" type="button" onclick="saveHubNodeAreas()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="hubNodeFileAreasModal" tabindex="-1" aria-labelledby="hubNodeFileAreasModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="hubNodeFileAreasModalTitle">{{ t('ui.admin.hub_nodes.fileareas.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="hubNodeFileAreasNodeId">
+                <div id="hubNodeFileAreasModalAlert"></div>
+                <div id="hubNodeFileAreasList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button class="btn btn-primary" type="button" onclick="saveHubNodeFileAreas()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let hubNodes = [];
+let hubAkas = [];
+let hubNodeModal;
+let hubNodeAreasModal;
+let hubNodeFileAreasModal;
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    hubNodeModal = new bootstrap.Modal(document.getElementById('hubNodeModal'));
+    hubNodeAreasModal = new bootstrap.Modal(document.getElementById('hubNodeAreasModal'));
+    hubNodeFileAreasModal = new bootstrap.Modal(document.getElementById('hubNodeFileAreasModal'));
+    loadI18nNamespaces(['common', 'errors']).then(loadHubNodes);
+});
+
+function loadHubNodes() {
+    fetch('/admin/api/hub-nodes')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.hub_nodes.load_failed', 'Failed to load downlinks')));
+            }
+            hubNodes = data.hub_nodes || [];
+            hubAkas = data.akas || [];
+            renderHubNodes();
+        })
+        .catch(error => showAlert('hubNodesAlert', error.message, 'danger'));
+}
+
+function renderHubNodes() {
+    const tbody = document.querySelector('#hubNodesTable tbody');
+    tbody.innerHTML = '';
+    hubNodes.forEach(node => {
+        const flags = [
+            node.enabled ? null : uiT('ui.admin.hub_nodes.disabled', 'Disabled'),
+            node.hold_mail ? uiT('ui.admin.hub_nodes.hold_mail', 'Hold Mail') : null,
+            node.compress_outbound ? uiT('ui.admin.hub_nodes.compress_outbound', 'Compress Outbound') : null,
+        ].filter(Boolean);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="text-center">
+                <span class="text-primary" role="img" title="${escapeHtmlAttr(getHubNodeTypeLabel(node))}" aria-label="${escapeHtmlAttr(getHubNodeTypeLabel(node))}">
+                    <i class="${node.node_type === 'point' ? 'fas fa-diagram-project' : 'fas fa-network-wired'}" aria-hidden="true"></i>
+                </span>
+            </td>
+            <td>
+                <code>${escapeHtml(node.node_address || '')}</code>
+                ${node.node_type === 'point' ? `<div class="small text-muted">${escapeHtml(uiT('ui.admin.hub_nodes.boss_address', 'Boss Address'))}: ${escapeHtml(node.boss_address || '')}</div>` : ''}
+            </td>
+            <td>
+                <div>${escapeHtml(node.name || '')}</div>
+                ${node.sysop_name ? `<div class="small text-muted">${escapeHtml(node.sysop_name)}</div>` : ''}
+            </td>
+            <td>${flags.map(flag => `<span class="badge bg-secondary me-1">${escapeHtml(flag)}</span>`).join('') || '<span class="text-muted">&mdash;</span>'}</td>
+            <td>${node.queue_retention_days} ${escapeHtml(uiT('ui.admin.hub_nodes.days', 'days'))}</td>
+            <td class="text-nowrap">
+                <div class="btn-group btn-group-sm" role="group" aria-label="${escapeHtmlAttr(uiT('ui.common.actions', 'Actions'))}">
+                    <button class="btn btn-outline-secondary" type="button" onclick="openHubNodeAreasModal(${Number(node.id)})" title="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.areas.title', 'Area Subscriptions'))}" aria-label="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.areas.title', 'Area Subscriptions'))}">
+                        <i class="fas fa-list-check" aria-hidden="true"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" onclick="openHubNodeFileAreasModal(${Number(node.id)})" title="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.fileareas.title', 'File Area Subscriptions'))}" aria-label="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.fileareas.title', 'File Area Subscriptions'))}">
+                        <i class="fas fa-folder-tree" aria-hidden="true"></i>
+                    </button>
+                    <button class="btn btn-outline-primary" type="button" onclick="openHubNodeModal(${Number(node.id)})" title="${escapeHtmlAttr(uiT('ui.common.edit', 'Edit'))}" aria-label="${escapeHtmlAttr(uiT('ui.common.edit', 'Edit'))}">
+                        <i class="fas fa-pen" aria-hidden="true"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" type="button" onclick="deleteHubNode(${Number(node.id)})" title="${escapeHtmlAttr(uiT('ui.common.delete', 'Delete'))}" aria-label="${escapeHtmlAttr(uiT('ui.common.delete', 'Delete'))}">
+                        <i class="fas fa-trash" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function getHubNodeTypeLabel(node) {
+    return node.node_type === 'point' ? uiT('ui.admin.hub_nodes.type_point', 'Point') : uiT('ui.admin.hub_nodes.type_node', 'Node');
+}
+
+function populateBossAddressOptions(selected) {
+    const select = document.getElementById('hubNodeBossAddress');
+    select.innerHTML = hubAkas.map(aka => `<option value="${escapeHtmlAttr(aka)}">${escapeHtml(aka)}</option>`).join('');
+    if (selected) {
+        select.value = selected;
+    }
+}
+
+function onHubNodeTypeChange() {
+    const type = document.getElementById('hubNodeType').value;
+    const isPoint = type === 'point';
+    document.getElementById('hubNodeAddressFieldWrap').classList.toggle('d-none', isPoint);
+    document.getElementById('hubNodeBossFieldWrap').classList.toggle('d-none', !isPoint);
+    document.getElementById('hubNodePointFieldWrap').classList.toggle('d-none', !isPoint);
+    if (isPoint) {
+        // Preserve whatever's already selected (e.g. the node's real
+        // boss_address, set by openHubNodeModal() just before this runs) -
+        // repopulating with no selection here previously reset it to the
+        // browser's default first-option pick on every edit.
+        const currentBoss = document.getElementById('hubNodeBossAddress').value;
+        populateBossAddressOptions(currentBoss);
+        refreshSuggestedPointNumber();
+    }
+}
+
+function refreshSuggestedPointNumber() {
+    const bossAddress = document.getElementById('hubNodeBossAddress').value;
+    if (!bossAddress) {
+        return;
+    }
+    fetch(`/admin/api/hub-nodes/next-point?boss_address=${encodeURIComponent(bossAddress)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && !document.getElementById('hubNodeId').value) {
+                document.getElementById('hubNodePointNumber').value = data.point_number;
+            }
+        })
+        .catch(() => {});
+}
+
+function toggleHubNodePasswordVisibility(inputId, button) {
+    const input = document.getElementById(inputId);
+    if (!input || !button) {
+        return;
+    }
+
+    const icon = button.querySelector('i');
+    const isHidden = input.type === 'password';
+    const nextLabel = isHidden
+        ? uiT('ui.common.hide_password', 'Hide password')
+        : uiT('ui.common.show_password', 'Show password');
+
+    input.type = isHidden ? 'text' : 'password';
+    button.setAttribute('title', nextLabel);
+    button.setAttribute('aria-label', nextLabel);
+
+    if (icon) {
+        icon.classList.toggle('fa-eye', !isHidden);
+        icon.classList.toggle('fa-eye-slash', isHidden);
+    }
+}
+
+function resetHubNodePasswordVisibility() {
+    ['hubNodeSessionPassword', 'hubNodePacketPassword', 'hubNodeAreafixPassword', 'hubNodeFilefixPassword'].forEach(function(inputId) {
+        const input = document.getElementById(inputId);
+        if (!input) {
+            return;
+        }
+
+        input.type = 'password';
+        const button = input.parentElement ? input.parentElement.querySelector('button') : null;
+        const icon = button ? button.querySelector('i') : null;
+        const label = uiT('ui.common.show_password', 'Show password');
+
+        if (button) {
+            button.setAttribute('title', label);
+            button.setAttribute('aria-label', label);
+        }
+
+        if (icon) {
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    });
+}
+
+function openHubNodeModal(id = null) {
+    const node = id ? hubNodes.find(item => Number(item.id) === Number(id)) : null;
+    document.getElementById('hubNodeModalAlert').innerHTML = '';
+    document.getElementById('hubNodeId').value = node ? node.id : '';
+    document.getElementById('hubNodeType').value = node ? node.node_type : 'node';
+    document.getElementById('hubNodeType').disabled = !!node;
+    document.getElementById('hubNodeAddress').value = node ? node.node_address : '';
+    document.getElementById('hubNodeAddress').readOnly = !!node;
+    populateBossAddressOptions(node ? node.boss_address : null);
+    document.getElementById('hubNodePointNumber').value = node ? node.point_number : '';
+    document.getElementById('hubNodeName').value = node ? (node.name || '') : '';
+    document.getElementById('hubNodeSysopName').value = node ? (node.sysop_name || '') : '';
+    document.getElementById('hubNodeSessionPassword').value = node ? (node.session_password || '') : '';
+    document.getElementById('hubNodePacketPassword').value = node ? (node.packet_password || '') : '';
+    document.getElementById('hubNodeAreafixPassword').value = node ? (node.areafix_password || '') : '';
+    document.getElementById('hubNodeFilefixPassword').value = node ? (node.filefix_password || '') : '';
+    resetHubNodePasswordVisibility();
+    document.getElementById('hubNodeInetHost').value = node ? (node.inet_host || '') : '';
+    document.getElementById('hubNodePort').value = node ? (node.port || '') : '';
+    document.getElementById('hubNodeEnabled').checked = node ? !!node.enabled : true;
+    document.getElementById('hubNodeHoldMail').checked = node ? !!node.hold_mail : false;
+    document.getElementById('hubNodeCompressOutbound').checked = node ? !!node.compress_outbound : false;
+    document.getElementById('hubNodeAllowInboundEchomail').checked = node ? !!node.allow_inbound_echomail : true;
+    document.getElementById('hubNodeAllowInboundNetmail').checked = node ? !!node.allow_inbound_netmail : true;
+    document.getElementById('hubNodeMaxPacketKb').value = node ? node.max_packet_kb : 0;
+    document.getElementById('hubNodeQueueRetentionDays').value = node ? node.queue_retention_days : 30;
+    document.getElementById('hubNodeNotes').value = node ? (node.notes || '') : '';
+    document.getElementById('hubNodeModalTitle').textContent = node ? uiT('ui.admin.hub_nodes.edit_node', 'Edit Downlink') : uiT('ui.admin.hub_nodes.add_node', 'Add Downlink');
+    onHubNodeTypeChange();
+    hubNodeModal.show();
+}
+
+function saveHubNode() {
+    const id = document.getElementById('hubNodeId').value;
+    const type = document.getElementById('hubNodeType').value;
+    const payload = {
+        node_type: type,
+        node_address: document.getElementById('hubNodeAddress').value.trim(),
+        boss_address: document.getElementById('hubNodeBossAddress').value,
+        point_number: document.getElementById('hubNodePointNumber').value,
+        name: document.getElementById('hubNodeName').value.trim(),
+        sysop_name: document.getElementById('hubNodeSysopName').value.trim(),
+        inet_host: document.getElementById('hubNodeInetHost').value.trim(),
+        port: document.getElementById('hubNodePort').value,
+        enabled: document.getElementById('hubNodeEnabled').checked,
+        hold_mail: document.getElementById('hubNodeHoldMail').checked,
+        compress_outbound: document.getElementById('hubNodeCompressOutbound').checked,
+        allow_inbound_echomail: document.getElementById('hubNodeAllowInboundEchomail').checked,
+        allow_inbound_netmail: document.getElementById('hubNodeAllowInboundNetmail').checked,
+        max_packet_kb: document.getElementById('hubNodeMaxPacketKb').value,
+        queue_retention_days: document.getElementById('hubNodeQueueRetentionDays').value,
+        notes: document.getElementById('hubNodeNotes').value.trim(),
+    };
+    const sessionPassword = document.getElementById('hubNodeSessionPassword').value;
+    const packetPassword = document.getElementById('hubNodePacketPassword').value;
+    const areafixPassword = document.getElementById('hubNodeAreafixPassword').value;
+    const filefixPassword = document.getElementById('hubNodeFilefixPassword').value;
+    if (sessionPassword !== '') {
+        payload.session_password = sessionPassword;
+    }
+    if (packetPassword !== '') {
+        payload.packet_password = packetPassword;
+    }
+    if (areafixPassword !== '') {
+        payload.areafix_password = areafixPassword;
+    }
+    if (filefixPassword !== '') {
+        payload.filefix_password = filefixPassword;
+    }
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/admin/api/hub-nodes/${encodeURIComponent(id)}` : '/admin/api/hub-nodes';
+    fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.hub_nodes.save_failed', 'Failed to save downlink')));
+            }
+            hubNodeModal.hide();
+            loadHubNodes();
+            showAlert('hubNodesAlert', apiMessage(data, uiT('ui.admin.hub_nodes.saved', 'Downlink saved')), 'success');
+        })
+        .catch(error => showAlert('hubNodeModalAlert', error.message, 'danger'));
+}
+
+function deleteHubNode(id) {
+    if (!confirm(uiT('ui.admin.hub_nodes.delete_confirm', 'Delete this downlink?'))) {
+        return;
+    }
+    fetch(`/admin/api/hub-nodes/${encodeURIComponent(id)}`, { method: 'DELETE' })
+        .then(response => response.json().catch(() => ({})).then(data => ({ response, data })))
+        .then(({ response, data }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.hub_nodes.delete_failed', 'Failed to delete downlink')));
+            }
+            loadHubNodes();
+            showAlert('hubNodesAlert', apiMessage(data, uiT('ui.admin.hub_nodes.deleted', 'Downlink deleted')), 'success');
+        })
+        .catch(error => showAlert('hubNodesAlert', error.message, 'danger'));
+}
+
+function openHubNodeAreasModal(id) {
+    document.getElementById('hubNodeAreasModalAlert').innerHTML = '';
+    document.getElementById('hubNodeAreasNodeId').value = id;
+    document.getElementById('hubNodeAreasList').innerHTML = `<div class="text-muted">${escapeHtml(uiT('ui.common.loading', 'Loading...'))}</div>`;
+    hubNodeAreasModal.show();
+
+    fetch(`/admin/api/hub-nodes/${encodeURIComponent(id)}/areas`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.hub_nodes.areas.load_failed', 'Failed to load area subscriptions')));
+            }
+            renderHubNodeAreas(data.areas || []);
+        })
+        .catch(error => showAlert('hubNodeAreasModalAlert', error.message, 'danger'));
+}
+
+function renderHubNodeAreas(areas) {
+    const container = document.getElementById('hubNodeAreasList');
+    if (areas.length === 0) {
+        container.innerHTML = `<div class="text-muted">${escapeHtml(uiT('ui.admin.hub_nodes.areas.none', 'No echoareas found'))}</div>`;
+        return;
+    }
+    container.innerHTML = areas.map(area => `
+        <div class="form-check">
+            <input class="form-check-input hub-node-area-checkbox" type="checkbox" value="${Number(area.echoarea_id)}" id="hubNodeArea${Number(area.echoarea_id)}" ${area.subscribed ? 'checked' : ''}>
+            <label class="form-check-label" for="hubNodeArea${Number(area.echoarea_id)}">
+                <code>${escapeHtml(area.tag || '')}</code>
+                <span class="text-muted small">${escapeHtml(area.domain || '')}</span>
+                ${area.description ? `&mdash; ${escapeHtml(area.description)}` : ''}
+            </label>
+        </div>
+    `).join('');
+}
+
+function saveHubNodeAreas() {
+    const id = document.getElementById('hubNodeAreasNodeId').value;
+    const echoareaIds = Array.from(document.querySelectorAll('.hub-node-area-checkbox:checked')).map(el => Number(el.value));
+    fetch(`/admin/api/hub-nodes/${encodeURIComponent(id)}/areas`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ echoarea_ids: echoareaIds })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.hub_nodes.areas.save_failed', 'Failed to save area subscriptions')));
+            }
+            hubNodeAreasModal.hide();
+            showAlert('hubNodesAlert', apiMessage(data, uiT('ui.admin.hub_nodes.areas.saved', 'Area subscriptions saved')), 'success');
+        })
+        .catch(error => showAlert('hubNodeAreasModalAlert', error.message, 'danger'));
+}
+
+function openHubNodeFileAreasModal(id) {
+    document.getElementById('hubNodeFileAreasModalAlert').innerHTML = '';
+    document.getElementById('hubNodeFileAreasNodeId').value = id;
+    document.getElementById('hubNodeFileAreasList').innerHTML = `<div class="text-muted">${escapeHtml(uiT('ui.common.loading', 'Loading...'))}</div>`;
+    hubNodeFileAreasModal.show();
+
+    fetch(`/admin/api/hub-nodes/${encodeURIComponent(id)}/fileareas`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.hub_nodes.fileareas.load_failed', 'Failed to load file area subscriptions')));
+            }
+            renderHubNodeFileAreas(data.fileareas || []);
+        })
+        .catch(error => showAlert('hubNodeFileAreasModalAlert', error.message, 'danger'));
+}
+
+function renderHubNodeFileAreas(fileareas) {
+    const container = document.getElementById('hubNodeFileAreasList');
+    if (fileareas.length === 0) {
+        container.innerHTML = `<div class="text-muted">${escapeHtml(uiT('ui.admin.hub_nodes.fileareas.none', 'No file areas found'))}</div>`;
+        return;
+    }
+    container.innerHTML = fileareas.map(area => `
+        <div class="form-check">
+            <input class="form-check-input hub-node-filearea-checkbox" type="checkbox" value="${Number(area.file_area_id)}" id="hubNodeFileArea${Number(area.file_area_id)}" ${area.subscribed ? 'checked' : ''}>
+            <label class="form-check-label" for="hubNodeFileArea${Number(area.file_area_id)}">
+                <code>${escapeHtml(area.tag || '')}</code>
+                <span class="text-muted small">${escapeHtml(area.domain || '')}</span>
+                ${area.description ? `&mdash; ${escapeHtml(area.description)}` : ''}
+            </label>
+        </div>
+    `).join('');
+}
+
+function saveHubNodeFileAreas() {
+    const id = document.getElementById('hubNodeFileAreasNodeId').value;
+    const fileAreaIds = Array.from(document.querySelectorAll('.hub-node-filearea-checkbox:checked')).map(el => Number(el.value));
+    fetch(`/admin/api/hub-nodes/${encodeURIComponent(id)}/fileareas`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_area_ids: fileAreaIds })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.hub_nodes.fileareas.save_failed', 'Failed to save file area subscriptions')));
+            }
+            hubNodeFileAreasModal.hide();
+            showAlert('hubNodesAlert', apiMessage(data, uiT('ui.admin.hub_nodes.fileareas.saved', 'File area subscriptions saved')), 'success');
+        })
+        .catch(error => showAlert('hubNodeFileAreasModalAlert', error.message, 'danger'));
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? String(payload.error) : fallback;
+}
+
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    return payload && payload.message ? String(payload.message) : fallback;
+}
+
+function showAlert(id, message, type) {
+    document.getElementById(id).innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${escapeHtml(message || '')}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function escapeHtmlAttr(value) {
+    return escapeHtml(value).replace(/"/g, '&quot;');
+}
+</script>
+{% endblock %}

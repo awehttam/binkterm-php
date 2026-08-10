@@ -67,6 +67,16 @@ class TicFileGenerator
         $createdTics = [];
 
         foreach ($uplinks as $uplink) {
+            // Loop guards for files that arrived via TIC from another system
+            // (docs/proposals/HubPointSystemJuly2026.md Phase 4 uplink relay):
+            // don't send a file straight back to the uplink we received it
+            // from, and don't send it to an uplink that already has a copy
+            // per the TIC Seenby trail. Locally-uploaded files have no
+            // uploaded_from_address/tic_seenby, so this is a no-op for them.
+            if ($this->uplinkAlreadyHasFile($file, $uplink)) {
+                continue;
+            }
+
             try {
                 $ticPath = $this->createTicFile($file, $fileArea, $uplink);
                 if ($ticPath) {
@@ -177,6 +187,66 @@ class TicFileGenerator
      */
     private function buildTicContent(array $file, array $fileArea, string $filename, string $fromAddress, string $toAddress, array $uplink): string
     {
+        // Password (FSC-87 Pw field) precedence:
+        // 1. file area TIC password
+        // 2. uplink TIC password
+        // If neither is set, emit a blank Pw field.
+        $password = $fileArea['password'] ?? '';
+        if ($password === '') {
+            $password = $uplink['tic_password'] ?? '';
+        }
+
+        $lines = $this->buildTicLines($file, $fileArea, $filename, $fromAddress, $toAddress, [$fromAddress], [$fromAddress], $password);
+
+        return implode("\r\n", $lines) . "\r\n";
+    }
+
+    /**
+     * Build TIC file content addressed to a hub-distribution downlink/point
+     * (docs/proposals/HubPointSystemJuly2026.md Phase 4), reusing the same
+     * FSC-87 field logic as the uplink path but with a caller-supplied
+     * Path/Seenby address set instead of the single-hop uplink defaults.
+     *
+     * @param array $file File record
+     * @param array $fileArea File area record
+     * @param string $filename Original filename (what the file should be named when received)
+     * @param string $fromAddress Our FidoNet address
+     * @param string $toAddress Destination downlink/point address
+     * @param string[] $pathAddresses Path hop addresses, in order
+     * @param string[] $seenByAddresses Seenby addresses that have already seen this file
+     * @param string $password TIC Pw field value (already resolved by the caller)
+     * @return string TIC file content
+     */
+    public function buildTicContentForDownlink(
+        array $file,
+        array $fileArea,
+        string $filename,
+        string $fromAddress,
+        string $toAddress,
+        array $pathAddresses,
+        array $seenByAddresses,
+        string $password = ''
+    ): string {
+        $lines = $this->buildTicLines($file, $fileArea, $filename, $fromAddress, $toAddress, $pathAddresses, $seenByAddresses, $password);
+
+        return implode("\r\n", $lines) . "\r\n";
+    }
+
+    /**
+     * @param string[] $pathAddresses
+     * @param string[] $seenByAddresses
+     * @return string[] TIC content lines, without trailing newline
+     */
+    private function buildTicLines(
+        array $file,
+        array $fileArea,
+        string $filename,
+        string $fromAddress,
+        string $toAddress,
+        array $pathAddresses,
+        array $seenByAddresses,
+        string $password
+    ): array {
         $lines = [];
 
         // Area tag (required by FSC-87)
@@ -224,27 +294,22 @@ class TicFileGenerator
         $crc = $this->calculateCrc32($file['storage_path']);
         $lines[] = 'Crc ' . strtoupper(dechex($crc));
 
-        // Path line (shows routing path)
-        $lines[] = 'Path ' . $fromAddress;
-
-        // Seenby (required by FSC-87) - at least our address
-        $lines[] = 'Seenby ' . $fromAddress;
-
-        // Password (FSC-87 Pw field) precedence:
-        // 1. file area TIC password
-        // 2. uplink TIC password
-        // If neither is set, emit a blank Pw field.
-        $password = $fileArea['password'] ?? '';
-        if ($password === '') {
-            $password = $uplink['tic_password'] ?? '';
+        // Path line(s) (shows routing path) - one line per hop, FSC-87 allows repetition
+        foreach ($pathAddresses as $pathAddress) {
+            $lines[] = 'Path ' . $pathAddress;
         }
+
+        // Seenby line(s) (required by FSC-87) - at least our address
+        foreach ($seenByAddresses as $seenByAddress) {
+            $lines[] = 'Seenby ' . $seenByAddress;
+        }
+
         $lines[] = 'Pw ' . $password;
 
         // Created by
         $lines[] = 'Created BinktermPHP ' . \BinktermPHP\Version::getVersion();
 
-        // Add final newline
-        return implode("\r\n", $lines) . "\r\n";
+        return $lines;
     }
 
     /**
@@ -268,6 +333,40 @@ class TicFileGenerator
     private function getUplinksForDomain(string $domain): array
     {
         return $this->config->getUplinksForDomain($domain);
+    }
+
+    /**
+     * True if $uplink is the system this file was received from, or already
+     * appears in the file's TIC Seenby trail.
+     *
+     * @param array $file File record from database (uploaded_from_address, tic_seenby)
+     * @param array $uplink Uplink configuration (address)
+     */
+    private function uplinkAlreadyHasFile(array $file, array $uplink): bool
+    {
+        $uplinkAddress = trim((string)($uplink['address'] ?? ''));
+        if ($uplinkAddress === '') {
+            return false;
+        }
+        $uplinkParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts($uplinkAddress);
+
+        $fromAddress = trim((string)($file['uploaded_from_address'] ?? ''));
+        if ($fromAddress !== '') {
+            $fromParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts($fromAddress);
+            if ($fromParts['net'] === $uplinkParts['net'] && $fromParts['node'] === $uplinkParts['node']) {
+                return true;
+            }
+        }
+
+        $seenBy = preg_split('/\s+/', trim((string)($file['tic_seenby'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach ($seenBy as $seenByAddress) {
+            $seenByParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts($seenByAddress);
+            if ($seenByParts['net'] === $uplinkParts['net'] && $seenByParts['node'] === $uplinkParts['node']) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

@@ -951,6 +951,22 @@ class BinkdProcessor
 
     private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)
     {
+        // Intercept Areafix/Filefix robot netmail (To: "AreaFix"/"FileFix" at
+        // one of our own AKAs, from a registered hub node/point). Must run
+        // before both the hub-node routing and FREQ intercept below - this is
+        // mail addressed to us to be processed as a command, not delivered
+        // or routed anywhere.
+        if ((new \BinktermPHP\Hub\HubAreafixProcessor())->processIncoming($message)) {
+            return;
+        }
+
+        // Route transit netmail addressed to a registered hub node/point,
+        // if enabled. Must run before the FREQ intercept below — a FREQ
+        // addressed to a hub node isn't a FREQ for us to intercept.
+        if ((new \BinktermPHP\Hub\HubNetmailRouter())->routeIfHubNode($message)) {
+            return;
+        }
+
         // Intercept inbound netmail FREQs (FILE_REQUEST attribute 0x0800).
         // These are protocol requests, not user mail — log and discard rather than deliver.
         if (($message['attributes'] ?? 0) & 0x0800) {
@@ -960,6 +976,13 @@ class BinkdProcessor
 
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
+
+        // Before giving up as undeliverable, check whether this came from one
+        // of our own registered hub nodes/points — if so, it's the point
+        // using us as its boss to relay mail onward, not misaddressed mail.
+        if ($userId === null && (new \BinktermPHP\Hub\HubNetmailRouter())->relayIfFromHubNode($message)) {
+            return;
+        }
 
         // Drop undeliverable netmail — no user matched by address or name.
         // The old sysop catch-all has been removed to prevent misrouted echomail
@@ -1531,9 +1554,55 @@ class BinkdProcessor
                 mb_substr($message['fromName'] ?? '', 0, 100),
                 $echoarea['id'],
             ]);
+
+            try {
+                (new \BinktermPHP\Hub\HubFanout())->fanout($newId);
+            } catch (\Throwable $e) {
+                $this->log("[BINKD] Hub fanout failed for echomail #{$newId}: " . $e->getMessage());
+            }
+
+            try {
+                $this->relayEchomailToUplinkIfNeeded($newId, $echoareaTag, $domain, $message['origAddr'], $bottomKludgeText);
+            } catch (\Throwable $e) {
+                $this->log("[BINKD] Uplink relay failed for echomail #{$newId}: " . $e->getMessage());
+            }
         }
 
         //$this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
+    }
+
+    /**
+     * Relay a newly-stored inbound echomail message to the echoarea's
+     * configured uplink, unless the uplink already has it (we received it
+     * from that same uplink, or its address is already in the message's
+     * SEEN-BY). Without this, echomail posted by a registered downlink/point
+     * would only ever be distributed to other downlinks, never forwarded up
+     * to the real network - only half of real FTN hub relay behavior.
+     */
+    private function relayEchomailToUplinkIfNeeded(int $messageId, string $echoareaTag, string $domain, string $origAddr, string $bottomKludgeText): void
+    {
+        $messageHandler = new \BinktermPHP\MessageHandler();
+        $uplinkAddress = $messageHandler->getEchoareaUplink($echoareaTag, $domain);
+        if (!$uplinkAddress) {
+            return;
+        }
+
+        $origParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts(trim($origAddr));
+        $uplinkParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts($uplinkAddress);
+        if ($origAddr !== '' && $origParts['net'] === $uplinkParts['net'] && $origParts['node'] === $uplinkParts['node']) {
+            // Received directly from this uplink - don't send it straight back.
+            return;
+        }
+
+        $rawSeenBy = \BinktermPHP\Echomail\EchomailSeenBy::parseSeenBy($bottomKludgeText);
+        if (\BinktermPHP\Echomail\EchomailSeenBy::seenByContains($rawSeenBy, $uplinkAddress)) {
+            // Uplink already has a copy via some other path.
+            return;
+        }
+
+        if ($messageHandler->spoolOutboundEchomail($messageId, $echoareaTag, $domain)) {
+            $messageHandler->flushImmediateOutboundPolls();
+        }
     }
 
     private function getOrCreateEchoarea($tag,$domain)
@@ -2035,8 +2104,14 @@ class BinkdProcessor
         } elseif ($isEchomail) {
             // Use stored kludges from database if available
             if (!empty($message['kludge_lines'])) {
-                // Convert stored kludges to packet format (bare CR per FTS-0001)
-                $storedKludges = str_replace(["\r\n", "\n"], "\r", $message['kludge_lines']);
+                // Convert stored kludges to packet format (bare CR per FTS-0001).
+                // Stored kludges include the original AREA: line (kept for
+                // display/history), but a fresh AREA: line is always built
+                // separately below from echoarea_tag - drop the stored one
+                // here so it isn't written into the packet twice.
+                $storedLines = preg_split('/\r\n|\r|\n/', $message['kludge_lines']) ?: [];
+                $storedLines = array_filter($storedLines, static fn(string $line): bool => stripos($line, 'AREA:') !== 0);
+                $storedKludges = implode("\r", $storedLines);
                 $kludgeLines .= $storedKludges . "\r";
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
@@ -2059,38 +2134,53 @@ class BinkdProcessor
             }
         }
 
-        $kludgeLines .= "\x01PID: BinktermPHP " . Version::getVersion() . " " . PHP_OS_FAMILY . "\r";
+        // Relay/transit messages (netmail passed through from another system
+        // via HubNetmailRouter) already carry their true originator's PID and
+        // tearline embedded in the preserved kludge_lines/message_text -
+        // adding our own on top would duplicate both. skip_default_pid_tearline
+        // suppresses that for those callers only; default (unset) behavior for
+        // every other caller — genuinely new/local messages — is unchanged.
+        $skipPidTearline = !empty($message['skip_default_pid_tearline']);
+
+        if (!$skipPidTearline) {
+            $kludgeLines .= "\x01PID: BinktermPHP " . Version::getVersion() . " " . PHP_OS_FAMILY . "\r";
+        }
         // For echomail, add AREA control field first (plain text, no ^A prefix)
         $areaLine = '';
         if ($isEchomail && isset($message['echoarea_tag'])) {
             $areaLine = "AREA:{$message['echoarea_tag']}\r";  // No Space after AREA
         }
-        
+
         $messageText = $areaLine . $kludgeLines . $messageText;
-        
+
         // Add tearline and origin
         if (!empty($messageText) && !str_ends_with($messageText, "\r")) {
             $messageText .= "\r";
         }
-        $messageText .= "\r";
-        $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r";
-        
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
 
-        // Origin line is echomail-only per FTS-0004
-        if ($isEchomail) {
-            $originText = " * Origin: ";
-            $origin = $this->config->getSystemOrigin();
-            if (!empty($origin)) {
-                $originText .= $origin;
-            } else {
-                $originText .= $this->config->getSystemName();
+        if (!$skipPidTearline) {
+            $messageText .= "\r";
+            $messageText .= Version::getTearlineWithComponent($message['tearline_component'] ?? null) . "\r";
+
+            // Origin line is echomail-only per FTS-0004. Skipped along with the
+            // tearline above for relay/transit messages whose message_text
+            // already carries the true originator's tearline+origin - adding
+            // ours on top would duplicate both.
+            if ($isEchomail) {
+                $originText = " * Origin: ";
+                $origin = $this->config->getSystemOrigin();
+                if (!empty($origin)) {
+                    $originText .= $origin;
+                } else {
+                    $originText .= $this->config->getSystemName();
+                }
+
+                $originText .= " (" . $systemAddress . ")";
+
+                $messageText .= $originText;
             }
-
-            $originText .= " (" . $systemAddress . ")";
-
-            $messageText .= $originText;
         }
 
         // Add bottom kludges (Via lines, etc.) after origin per FTS-4009.001
@@ -2101,8 +2191,12 @@ class BinkdProcessor
             $messageText .= $bottomKludges;
         }
 
-        // Add echomail-specific control lines after bottom kludges
-        if ($isEchomail) {
+        // Add echomail-specific control lines after bottom kludges. Callers that
+        // already provide a fully-formed SEEN-BY/PATH set in bottom_kludges (e.g.
+        // BinktermPHP\Hub\HubFanout, which merges accumulated SEEN-BY/PATH across
+        // hops) set skip_default_seenby_path to avoid this single-hop synthesis
+        // duplicating what they already wrote.
+        if ($isEchomail && empty($message['skip_default_seenby_path'])) {
             $messageText .= "\r";
 
             // Parse system address for SEEN-BY and PATH lines
@@ -2206,12 +2300,23 @@ class BinkdProcessor
             }
         }
         
+        // Strategies 3/4 below are name-based fallbacks for mail that's genuinely
+        // ours but whose address didn't cleanly resolve above - not a way to claim
+        // mail that's address-wise for a different system. Without this guard, a
+        // registered point relaying transit netmail through us to a third system,
+        // using a generic To: name like "sysop", would get misdelivered into our
+        // own local sysop's inbox instead of relayed onward (destAddr here is
+        // clearly not ours, so name matching must not override that).
+        if (!$this->isOwnAddress($destAddr)) {
+            return null;
+        }
+
         // Strategy 3: Special case for 'sysop' - lookup from binkd.config
         if (!empty($toName) && strtolower($toName) === 'sysop') {
             $sysopName = $this->config->getSystemSysop();
             if (!empty($sysopName)) {
                 $stmt = $this->db->prepare("
-                    SELECT id FROM users 
+                    SELECT id FROM users
                     WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
                     LIMIT 1
                 ");
@@ -2222,11 +2327,11 @@ class BinkdProcessor
                 }
             }
         }
-        
+
         // Strategy 4: Name-based matching (case-insensitive)
         if (!empty($toName)) {
             $stmt = $this->db->prepare("
-                SELECT id FROM users 
+                SELECT id FROM users
                 WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
                 LIMIT 1
             ");
@@ -2236,9 +2341,35 @@ class BinkdProcessor
                 return $user['id'];
             }
         }
-        
+
         // No match found — return null so caller can decide how to handle undeliverable mail
         return null;
+    }
+
+    /**
+     * True if $addr is empty (treated as "could be ours" - preserves prior
+     * behavior for legacy/malformed packets with no usable destination) or
+     * matches one of our own configured AKAs (system address or an uplink's
+     * "me" address), comparing at the host (net/node) level so a point
+     * suffix on either side doesn't prevent the match.
+     */
+    private function isOwnAddress(string $addr): bool
+    {
+        $addr = trim($addr);
+        if ($addr === '') {
+            return true;
+        }
+
+        $hostAddr = strpos($addr, '.') !== false ? explode('.', $addr, 2)[0] : $addr;
+
+        foreach ((new \BinktermPHP\Hub\HubNodeManager())->getConfiguredAkas() as $aka) {
+            $akaHost = strpos($aka, '.') !== false ? explode('.', $aka, 2)[0] : $aka;
+            if ($addr === $aka || $hostAddr === $akaHost) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function processBundle($bundleFile)

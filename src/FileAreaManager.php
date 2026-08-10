@@ -19,6 +19,7 @@ namespace BinktermPHP;
 use PDO;
 use BinktermPHP\FileArea\FileAreaRuleProcessor;
 use BinktermPHP\Realtime\BinkStream;
+use BinktermPHP\Hub\HubFanout;
 
 /**
  * FileAreaManager - Manages file areas and files
@@ -3360,6 +3361,12 @@ class FileAreaManager
                 }
             } catch (\Throwable $e) {
                 $this->logger->error("Failed to generate TIC files for uploaded file: " . $e->getMessage());
+            }
+
+            try {
+                (new HubFanout())->fanoutFile((int)$fileId);
+            } catch (\Throwable $e) {
+                $this->logger->error("Failed to fan out uploaded file to hub node subscribers: " . $e->getMessage());
             }
         }
     }

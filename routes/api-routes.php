@@ -9231,6 +9231,81 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         readfile($filepath);
     });
 
+    SimpleRouter::get('/binkp/hub-outbound', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        header('Content-Type: application/json');
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->getHubOutboundQueue());
+    });
+
+    SimpleRouter::delete('/binkp/hub-outbound', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $ids = is_array($input['ids'] ?? null) ? $input['ids'] : [];
+        if (empty($ids)) {
+            apiError('errors.binkp.hub_outbound.invalid_id', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->deleteHubOutboundRows($ids));
+    });
+
+    SimpleRouter::get('/binkp/hub-outbound/inspect', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        header('Content-Type: application/json');
+
+        $id = (int)($_GET['id'] ?? 0);
+        if ($id <= 0) {
+            apiError('errors.binkp.hub_outbound.invalid_id', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        echo json_encode($controller->inspectHubOutboundPacket($id));
+    });
+
+    SimpleRouter::get('/binkp/hub-outbound/download', function() {
+        $user = RouteHelper::requireAuth();
+        requireBinkpAdmin($user);
+
+        if (!\BinktermPHP\License::isValid()) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.kept_packets.license_required', apiLocalizedText('errors.binkp.kept_packets.license_required', 'Viewing packets requires a registered license', $user), 403);
+            return;
+        }
+
+        $id = (int)($_GET['id'] ?? 0);
+        if ($id <= 0) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.hub_outbound.invalid_id', 'Invalid parameters', 400);
+            return;
+        }
+
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
+        $packet = $controller->getHubOutboundPacketBytes($id);
+        if ($packet === null) {
+            header('Content-Type: application/json');
+            apiError('errors.binkp.queue.inspect_failed', 'Packet not found', 404);
+            return;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . strlen($packet['bytes']));
+        header('Content-Disposition: attachment; filename="' . $packet['filename'] . '"');
+        header('X-Content-Type-Options: nosniff');
+        echo $packet['bytes'];
+    });
+
     SimpleRouter::get('/binkp/kept-packets/bundle/list', function() {
         $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);

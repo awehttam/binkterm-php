@@ -26,6 +26,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 - [FREQ](FREQ.md) — File request (FREQ) serving and requesting: modes, magic names, routing, and CLI tools
 - [LovlyNet](LovlyNet.md) — LovlyNet network file sharing and FileFix integration
 - [AreaFix / FileFix](AreaFix.md) — Managing echomail and file-area subscriptions with hub uplinks
+- [Downlinks](Downlinks.md) — Acting as a hub for subordinate nodes and points: registration, area subscriptions, echomail/netmail distribution, and delivery
 
 ---
 

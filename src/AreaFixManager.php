@@ -16,6 +16,7 @@
 namespace BinktermPHP;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Logger;
 
 /**
  * Manages AreaFix and FileFix robot interactions for FTN hub uplinks.
@@ -28,10 +29,12 @@ class AreaFixManager
 {
     /** @var \PDO */
     private \PDO $db;
+    private Logger $logger;
 
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
+        $this->logger = new Logger(Config::getLogPath('server.log'), Logger::LEVEL_INFO, false);
     }
 
     /**
@@ -79,6 +82,8 @@ class AreaFixManager
             $password,
             $messageText
         );
+
+        $this->logger->info(ucfirst($robot) . " command sent to {$uplinkAddress} by user #{$sysopUserId}: " . implode(' | ', $commands));
     }
 
     /**
