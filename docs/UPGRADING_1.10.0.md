@@ -79,7 +79,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Uplink Kept Packets Page Was Slow to Load with Months of History
 
-- The **Uplink Kept Packets** tab on the **Binkp Status** admin page re-parsed every archived packet on every load and returned the entire history in one response, which got slow once months of kept packets had accumulated. The page now loads and parses packets ten date groups at a time, with a **Load More** button to fetch older groups, and the per-packet parser itself is significantly faster.
+- The **Uplink Kept Packets** tab on the **Binkp Status** admin page re-parsed every archived packet on every load and returned the entire history in one response, which got slow once months of kept packets had accumulated. The page now loads and parses packets ten date groups at a time, with a **Load More** button to fetch older groups, and the per-packet parser itself is significantly faster. A date picker was also added next to the Inbound/Outbound toggle so you can jump straight to a specific day instead of clicking **Load More** repeatedly to page back through a long history.
 
 ### Manage Downlinks: Pending Queue Counts and Quick Link to Queue Viewer
 
@@ -179,10 +179,11 @@ The slot picker now shows a decoded, rendered preview of the currently selected 
 
 The **Uplink Kept Packets** tab on the **Binkp Status** admin page lists archived inbound and outbound packets kept in the `keep` subdirectories, grouped by date. It previously fetched and parsed every kept packet in a single request every time the tab was opened, including the message count and originating/destination address for each individual packet inside every archived `.pkt` file. With months of accumulated history this meant re-parsing thousands of packets on every page load, making the tab noticeably slow to open.
 
-Two changes address this:
+Three changes address this:
 
 - The page is now paginated by date group. Only the ten most recent date groups are fetched and parsed initially; a **Load More** button at the bottom of the list fetches the next ten. Date groups outside the currently loaded window are never scanned or parsed, no matter how much history exists.
 - The packet parser itself (`OutboundQueue::analyzePacket()`) previously skipped each message's variable-length body one byte at a time to find its null terminator. It now reads the body in 4&nbsp;KB chunks and searches each chunk for the terminator, which is substantially faster per packet regardless of pagination.
+- A date picker next to the Inbound/Outbound toggle lets you jump straight to a specific day instead of clicking **Load More** repeatedly. Picking a date resolves to the newest kept-packet date group on or before that day (falling back to the oldest available group if you pick a date older than any kept packets) and loads that page directly, so getting to old history no longer means paging back through everything in between.
 
 ## Manage Downlinks: Pending Queue Counts and Quick Link to Queue Viewer
 
