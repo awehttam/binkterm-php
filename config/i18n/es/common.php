@@ -3361,6 +3361,7 @@ return [
     'ui.binkp.hub_outbound.delete_confirm' => 'Eliminar {count} elemento(s) de cola seleccionado(s)?',
     'ui.binkp.hub_outbound.deleted' => '{count} elemento(s) de cola eliminado(s)',
     'ui.binkp.kept_packets_tab' => 'Paquetes de Uplink guardados',
+    'ui.binkp.kept_jump_to_date' => 'Ir a la fecha',
     'ui.binkp.kept_packets_locked' => 'Esta funcion requiere una licencia registrada.',
     'ui.binkp.kept_packets_register' => 'Registrarse para desbloquear',
     'ui.binkp.logs_tab' => 'Logs',

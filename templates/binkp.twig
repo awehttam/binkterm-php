@@ -268,15 +268,18 @@
         <!-- Kept Packets Tab -->
         <div class="tab-pane fade" id="kept-packets" role="tabpanel">
             {% if license_valid %}
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5>{{ t('ui.binkp.kept_packets_tab') }}</h5>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-sm btn-outline-primary active" id="keptInboundBtn" onclick="switchKeptType('inbound')">
-                        <i class="fas fa-inbox"></i> {{ t('ui.binkp.kept_inbound') }}
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="keptOutboundBtn" onclick="switchKeptType('outbound')">
-                        <i class="fas fa-paper-plane"></i> {{ t('ui.binkp.kept_outbound') }}
-                    </button>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h5 class="mb-0">{{ t('ui.binkp.kept_packets_tab') }}</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="date" class="form-control form-control-sm" id="keptDatePicker" style="width:auto;" title="{{ t('ui.binkp.kept_jump_to_date') }}" onchange="jumpToKeptDate(this.value)">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-primary active" id="keptInboundBtn" onclick="switchKeptType('inbound')">
+                            <i class="fas fa-inbox"></i> {{ t('ui.binkp.kept_inbound') }}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="keptOutboundBtn" onclick="switchKeptType('outbound')">
+                            <i class="fas fa-paper-plane"></i> {{ t('ui.binkp.kept_outbound') }}
+                        </button>
+                    </div>
                 </div>
             </div>
             <div id="kept-packets-content">
@@ -1327,11 +1330,16 @@ window._keptData = { inbound: null, outbound: null };
 
 const KEPT_PACKETS_PAGE_SIZE = 10;
 
-function loadKeptPackets(type) {
+function loadKeptPackets(type, date) {
     const container = document.getElementById('kept-packets-content');
     container.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>' + window.t('ui.common.loading', {}, 'Loading...') + '</div>';
 
-    fetch(`/api/binkp/kept-packets?type=${type}&offset=0&limit=${KEPT_PACKETS_PAGE_SIZE}`)
+    let url = `/api/binkp/kept-packets?type=${type}&offset=0&limit=${KEPT_PACKETS_PAGE_SIZE}`;
+    if (date) {
+        url += `&date=${encodeURIComponent(date)}`;
+    }
+
+    fetch(url)
         .then(r => r.json())
         .then(data => {
             _keptLoaded[type] = true;
@@ -1341,6 +1349,11 @@ function loadKeptPackets(type) {
         .catch(err => {
             container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
         });
+}
+
+function jumpToKeptDate(date) {
+    if (!date) return;
+    loadKeptPackets(_keptType, date);
 }
 
 function loadMoreKeptPackets(type) {

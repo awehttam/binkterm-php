@@ -3384,6 +3384,7 @@ return [
     'ui.binkp.hub_outbound.delete_confirm' => 'Удалить {count} выбранных элементов очереди?',
     'ui.binkp.hub_outbound.deleted' => 'Удалено элементов очереди: {count}',
     'ui.binkp.kept_packets_tab' => 'Сохранённые пакеты аплинков',
+    'ui.binkp.kept_jump_to_date' => 'Перейти к дате',
     'ui.binkp.kept_packets_locked' => 'Для использования этой функции требуется зарегистрированная лицензия.',
     'ui.binkp.kept_packets_register' => 'Зарегистрируйтесь, чтобы разблокировать',
     'ui.binkp.logs_tab' => 'Журналы',

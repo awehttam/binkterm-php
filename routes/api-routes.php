@@ -9406,9 +9406,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
         $limit  = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $date   = isset($_GET['date']) && $_GET['date'] !== '' ? (string)$_GET['date'] : null;
 
         $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-        echo json_encode($controller->getKeptPackets($type, $offset, $limit));
+        echo json_encode($controller->getKeptPackets($type, $offset, $limit, $date));
     });
 
     SimpleRouter::get('/binkp/logs', function() {

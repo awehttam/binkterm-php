@@ -596,12 +596,16 @@ class BinkpController
      * request does not scale once months of history accumulate.  Requires a valid
      * registered license.
      *
-     * @param string $type   'inbound' or 'outbound'
-     * @param int    $offset Number of date groups (newest-first) to skip
-     * @param int    $limit  Number of date groups to return (max 100)
+     * @param string      $type   'inbound' or 'outbound'
+     * @param int         $offset Number of date groups (newest-first) to skip
+     * @param int         $limit  Number of date groups to return (max 100)
+     * @param string|null $date   Optional ISO date (YYYY-MM-DD). When given, $offset is
+     *                            ignored and replaced with the position of the newest date
+     *                            group on or before this date, so the caller can jump
+     *                            straight to a calendar date instead of paging manually.
      * @return array
      */
-    public function getKeptPackets(string $type, int $offset = 0, int $limit = 10): array
+    public function getKeptPackets(string $type, int $offset = 0, int $limit = 10, ?string $date = null): array
     {
         if (!\BinktermPHP\License::isValid()) {
             return [
@@ -645,6 +649,25 @@ class BinkpController
                                         - filemtime($basePath . DIRECTORY_SEPARATOR . $a));
 
             $totalGroups = count($entries);
+
+            if ($date !== null) {
+                $target = \DateTime::createFromFormat('Y-m-d', $date);
+                if ($target !== false) {
+                    $target->setTime(23, 59, 59); // end of day, so same-day groups still match
+                    $offset = max(0, $totalGroups - 1); // fall back to oldest group if date predates all history
+                    foreach ($entries as $i => $entry) {
+                        $entryPath = $basePath . DIRECTORY_SEPARATOR . $entry;
+                        if (!is_dir($entryPath)) {
+                            continue;
+                        }
+                        $entryDate = \DateTime::createFromFormat('M-d-Y', $entry);
+                        if ($entryDate === false || $entryDate <= $target) {
+                            $offset = $i;
+                            break;
+                        }
+                    }
+                }
+            }
 
             // Only parse packets for the requested page of date groups — everything
             // outside the window is skipped entirely (no scandir, no analyzePacket).

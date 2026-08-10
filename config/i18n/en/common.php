@@ -3378,6 +3378,7 @@ return [
     'ui.binkp.hub_outbound.delete_confirm' => 'Delete {count} selected queue item(s)?',
     'ui.binkp.hub_outbound.deleted' => 'Deleted {count} queue item(s)',
     'ui.binkp.kept_packets_tab' => 'Uplink Kept Packets',
+    'ui.binkp.kept_jump_to_date' => 'Jump to date',
     'ui.binkp.kept_packets_locked' => 'This feature requires a registered license.',
     'ui.binkp.kept_packets_register' => 'Register to unlock',
     'ui.binkp.logs_tab' => 'Logs',

@@ -1498,6 +1498,7 @@ Retrieves a list of kept packet bundles (inbound or outbound). Requires BinkP ad
 | `type` | string | No | Bundle type: 'inbound' or 'outbound' (default: 'inbound') |
 | `offset` | integer | No | Number of date groups (newest-first) to skip (default: 0) |
 | `limit` | integer | No | Number of date groups to return, max 100 (default: 10) |
+| `date` | string | No | ISO date (`YYYY-MM-DD`) to jump to. When given, `offset` is ignored and replaced with the position of the newest date group on or before this date. |
 
 **Response** _(JSON)_
 

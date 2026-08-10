@@ -4530,6 +4530,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.binkp.kept_packets_locked' => 'Cette fonctionnalité nécessite une licence enregistrée.',
     'ui.binkp.kept_packets_register' => 'S\'enregistrer pour débloquer',
     'ui.binkp.kept_packets_tab' => 'Paquets Uplink conservés',
+    'ui.binkp.kept_jump_to_date' => 'Aller à la date',
     'ui.binkp.kept_packets_total_groups' => 'Affichage de {shown} sur {total} groupe(s) de date',
     'ui.binkp.kept_packets_load_more' => 'Charger plus',
     'ui.binkp.log_matches' => '{count} / {total} lignes',

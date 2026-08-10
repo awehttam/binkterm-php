@@ -3360,6 +3360,7 @@ return [
     'ui.binkp.hub_outbound.delete_confirm' => 'Eliminare {count} elemento/i di coda selezionato/i?',
     'ui.binkp.hub_outbound.deleted' => '{count} elemento/i di coda eliminato/i',
     'ui.binkp.kept_packets_tab' => 'Pacchetti Uplink conservati',
+    'ui.binkp.kept_jump_to_date' => 'Vai alla data',
     'ui.binkp.kept_packets_locked' => 'Questa funzionalità richiede una licenza registrata.',
     'ui.binkp.kept_packets_register' => 'Registrati per sbloccare',
     'ui.binkp.logs_tab' => 'Log',
