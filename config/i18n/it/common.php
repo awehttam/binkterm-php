@@ -3326,6 +3326,7 @@ return [
     'ui.binkp.inbound_queue' => 'Coda in ingresso',
     'ui.binkp.outbound_queue' => 'Coda in uscita',
     'ui.binkp.uplinks' => 'Uplink',
+    'ui.binkp.outbound_count_breakdown' => '{uplink} uplink · {downlink} downlink',
     'ui.binkp.status_tab' => 'Stato',
     'ui.binkp.uplinks_tab' => 'Uplink',
     'ui.binkp.queues_tab' => 'Code Uplink',

@@ -3327,6 +3327,7 @@ return [
     'ui.binkp.inbound_queue' => 'Cola de entrada',
     'ui.binkp.outbound_queue' => 'Cola de salida',
     'ui.binkp.uplinks' => 'Uplinks',
+    'ui.binkp.outbound_count_breakdown' => '{uplink} uplink · {downlink} downlink',
     'ui.binkp.status_tab' => 'Estado',
     'ui.binkp.uplinks_tab' => 'Uplinks',
     'ui.binkp.queues_tab' => 'Colas de Uplink',

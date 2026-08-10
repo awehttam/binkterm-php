@@ -33,7 +33,8 @@
             <div class="card">
                 <div class="card-body text-center">
                     <h5 class="card-title">{{ t('ui.binkp.outbound_queue') }}</h5>
-                    <p class="card-text" id="outbound-count">{{ t('ui.common.loading') }}</p>
+                    <p class="card-text mb-1" id="outbound-count">{{ t('ui.common.loading') }}</p>
+                    <p class="card-text small text-muted mb-0" id="outbound-count-breakdown"></p>
                 </div>
             </div>
         </div>
@@ -587,7 +588,16 @@ function updateStatusDisplay(data) {
     // Update cards
     document.getElementById('system-status').textContent = data.system.address;
     document.getElementById('inbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: data.queues.inbound.pending_files });
-    document.getElementById('outbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: data.queues.outbound.pending_files });
+
+    const uplinkOutboundCount = data.queues.outbound.pending_files;
+    const downlinkOutboundCount = data.queues.outbound.downlink_pending || 0;
+    document.getElementById('outbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: uplinkOutboundCount + downlinkOutboundCount });
+    document.getElementById('outbound-count-breakdown').textContent = uiT(
+        'ui.binkp.outbound_count_breakdown',
+        '{uplink} uplink · {downlink} downlink',
+        { uplink: uplinkOutboundCount, downlink: downlinkOutboundCount }
+    );
+
     document.getElementById('uplink-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: binkpUplinks.length });
 
     // Update system info

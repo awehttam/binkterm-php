@@ -3343,6 +3343,7 @@ return [
     'ui.binkp.system_status' => 'System Status',
     'ui.binkp.inbound_queue' => 'Inbound Queue',
     'ui.binkp.outbound_queue' => 'Outbound Queue',
+    'ui.binkp.outbound_count_breakdown' => '{uplink} uplink · {downlink} downlink',
     'ui.binkp.uplinks' => 'Uplinks',
     'ui.binkp.status_tab' => 'Status',
     'ui.binkp.uplinks_tab' => 'Uplinks',

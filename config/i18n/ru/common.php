@@ -3350,6 +3350,7 @@ return [
     'ui.binkp.inbound_queue' => 'Входящая очередь',
     'ui.binkp.outbound_queue' => 'Исходящая очередь',
     'ui.binkp.uplinks' => 'Аплинки',
+    'ui.binkp.outbound_count_breakdown' => '{uplink} аплинк · {downlink} даунлинк',
     'ui.binkp.status_tab' => 'Статус',
     'ui.binkp.uplinks_tab' => 'Аплинки',
     'ui.binkp.queues_tab' => 'Очереди аплинков',

@@ -46,7 +46,8 @@ class BinkpController
         $inboundStats = $inboundQueue->getStats();
         $outboundStats = $outboundQueue->getStats();
         unset($inboundStats['inbound_path'], $outboundStats['outbound_path']);
-        
+        $outboundStats['downlink_pending'] = $this->getHubOutboundPendingCount();
+
         return [
             'system' => [
                 'address' => $this->config->getSystemAddress(),
@@ -62,6 +63,22 @@ class BinkpController
             ],
             'timestamp' => $this->formatUnixTimestamp(time())
         ];
+    }
+
+    /**
+     * Count of pending hub_node_outbound rows (the downlink fanout queue,
+     * separate from the flat-file uplink outbound queue), for the Binkp
+     * status overview's Outbound Queue card.
+     */
+    private function getHubOutboundPendingCount(): int
+    {
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->query("SELECT COUNT(*) FROM hub_node_outbound WHERE status = 'pending'");
+            return (int)$stmt->fetchColumn();
+        } catch (\Exception $e) {
+            return 0;
+        }
     }
 
     public function testUplinkAuthentication(string $address): array

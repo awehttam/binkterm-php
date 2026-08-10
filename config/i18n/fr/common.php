@@ -2774,6 +2774,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.binkp.inbound_queue' => 'File d\'attente entrante',
     'ui.binkp.outbound_queue' => 'File d\'attente sortante',
     'ui.binkp.uplinks' => 'Uplinks',
+    'ui.binkp.outbound_count_breakdown' => '{uplink} uplink · {downlink} downlink',
     'ui.binkp.status_tab' => 'État',
     'ui.binkp.uplinks_tab' => 'Uplinks',
     'ui.binkp.queues_tab' => 'Files d\'attente Uplink',
