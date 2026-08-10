@@ -1426,6 +1426,24 @@ function renderKeptPackets(type, data) {
     }
 
     container.innerHTML = html;
+
+    // Bootstrap's accordion expansion can leave the viewport scrolled to wherever
+    // it happened to land (often mid-table) instead of the group's date header.
+    // Scroll the clicked header to just below the sticky top navbar once it
+    // finishes expanding, rather than letting it land behind the navbar or
+    // mid-way down the newly-revealed content.
+    container.querySelectorAll('.accordion-collapse').forEach(el => {
+        el.addEventListener('shown.bs.collapse', function() {
+            const header = this.previousElementSibling;
+            if (!header) return;
+
+            const navbar = document.querySelector('nav.sticky-top');
+            const navbarHeight = navbar ? navbar.offsetHeight : 0;
+            const targetY = window.scrollY + header.getBoundingClientRect().top - navbarHeight - 8;
+
+            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+        });
+    });
 }
 
 function openPacketInspector(type, date, filename) {
