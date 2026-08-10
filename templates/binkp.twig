@@ -1325,16 +1325,135 @@ function loadMoreKeptPackets(type) {
                 if (btn) btn.disabled = false;
                 return;
             }
+
+            // Append only the newly-fetched date groups to the existing accordion
+            // instead of re-rendering everything — a full re-render would reset
+            // every group back to its default expand state (only the first group
+            // open), collapsing whatever the user currently had open.
+            const accordion = document.getElementById('keptAccordion');
+            const startIndex = data.groups.length;
+
+            const temp = document.createElement('div');
+            more.groups.forEach((group, i) => {
+                temp.insertAdjacentHTML('beforeend', buildKeptPacketGroupHtml(type, group, startIndex + i, false));
+            });
+            while (temp.firstElementChild) {
+                accordion.appendChild(temp.firstElementChild);
+            }
+            more.groups.forEach((group, i) => {
+                const collapseEl = document.getElementById(`keptCollapse${startIndex + i}`);
+                if (collapseEl) attachKeptGroupScrollListener(collapseEl);
+            });
+
             data.groups = data.groups.concat(more.groups);
             data.total += more.total;
             data.offset = more.offset;
             data.limit = more.limit;
             data.has_more = more.has_more;
-            renderKeptPackets(type, data);
+
+            const totalLabelEl = document.getElementById('keptTotalLabel');
+            if (totalLabelEl) {
+                totalLabelEl.textContent = window.t('ui.binkp.kept_packets_total_groups', { shown: data.groups.length, total: data.total_groups }, `Showing ${data.groups.length} of ${data.total_groups} date group(s)`);
+            }
+
+            const loadMoreWrap = document.getElementById('keptLoadMoreWrap');
+            if (loadMoreWrap) loadMoreWrap.remove();
+            if (data.has_more) {
+                document.getElementById('kept-packets-content')
+                    .insertAdjacentHTML('beforeend', buildKeptLoadMoreHtml(type));
+            }
         })
         .catch(() => {
             if (btn) btn.disabled = false;
         });
+}
+
+function buildKeptPacketGroupHtml(type, group, gi, expanded) {
+    const groupId    = `keptGroup${gi}`;
+    const collapseId = `keptCollapse${gi}`;
+    const dateLabel   = group.date || '—';
+    const count       = group.packets.length;
+
+    let html = `
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="${groupId}">
+            <button class="accordion-button${expanded ? '' : ' collapsed'}" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#${collapseId}"
+                    aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="${collapseId}">
+                <strong>${dateLabel}</strong>
+                <span class="badge bg-secondary ms-2">${count}</span>
+            </button>
+        </h2>
+        <div id="${collapseId}" class="accordion-collapse collapse${expanded ? ' show' : ''}" data-bs-parent="#keptAccordion">
+            <div class="accordion-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr>
+                        <th>{{ t('ui.common.filename') }}</th>
+                        <th>{{ t('ui.binkp.from_address') }}</th>
+                        <th>{{ t('ui.binkp.to_address') }}</th>
+                        <th>{{ t('ui.binkp.message_count') }}</th>
+                        <th>{{ t('ui.common.size') }}</th>
+                        <th>{{ t('ui.common.date') }}</th>
+                    </tr></thead>
+                    <tbody>`;
+
+    group.packets.forEach(pkt => {
+        const size = pkt.size < 1024 ? pkt.size + ' B'
+                   : pkt.size < 1048576 ? (pkt.size / 1024).toFixed(1) + ' KB'
+                   : (pkt.size / 1048576).toFixed(2) + ' MB';
+        const escDate = encodeURIComponent(group.date);
+        const escFile = encodeURIComponent(pkt.filename);
+
+        if (pkt.file_type === 'bundle') {
+            html += `<tr>
+                <td><a href="#" class="font-monospace text-decoration-none" onclick="openBundleInspector('${type}','${escDate}','${escFile}');return false;"><i class="fas fa-file-archive me-1 text-warning"></i>${pkt.filename}</a></td>
+                <td colspan="2"><span class="text-muted small">{{ t('ui.binkp.bundle_arcmail', {}, 'Arcmail bundle') }}</span></td>
+                <td>—</td>
+                <td>${size}</td>
+                <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
+            </tr>`;
+        } else {
+            const msgs = pkt.message_count > 0 ? pkt.message_count : '—';
+            html += `<tr>
+                <td><a href="#" class="font-monospace text-decoration-none" onclick="openPacketInspector('${type}','${escDate}','${escFile}');return false;">${pkt.filename}</a></td>
+                <td>${pkt.orig_address}</td>
+                <td>${pkt.dest_address}</td>
+                <td>${msgs}</td>
+                <td>${size}</td>
+                <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
+            </tr>`;
+        }
+    });
+
+    html += `</tbody></table></div></div></div>`;
+    return html;
+}
+
+function buildKeptLoadMoreHtml(type) {
+    const loadMoreLabel = window.t('ui.binkp.kept_packets_load_more', {}, 'Load More');
+    return `<div class="text-center mt-3" id="keptLoadMoreWrap">
+        <button type="button" id="keptLoadMoreBtn" class="btn btn-sm btn-outline-secondary" onclick="loadMoreKeptPackets('${type}')">
+            ${loadMoreLabel}
+        </button>
+    </div>`;
+}
+
+// Bootstrap's accordion expansion can leave the viewport scrolled to wherever
+// it happened to land (often mid-table) instead of the group's date header.
+// Scroll the clicked header to just below the sticky top navbar once it
+// finishes expanding, rather than letting it land behind the navbar or
+// mid-way down the newly-revealed content.
+function attachKeptGroupScrollListener(collapseEl) {
+    collapseEl.addEventListener('shown.bs.collapse', function() {
+        const header = this.previousElementSibling;
+        if (!header) return;
+
+        const navbar = document.querySelector('nav.sticky-top');
+        const navbarHeight = navbar ? navbar.offsetHeight : 0;
+        const targetY = window.scrollY + header.getBoundingClientRect().top - navbarHeight - 8;
+
+        window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+    });
 }
 
 function renderKeptPackets(type, data) {
@@ -1352,98 +1471,21 @@ function renderKeptPackets(type, data) {
 
     const totalLabel = window.t('ui.binkp.kept_packets_total_groups', { shown: data.groups.length, total: data.total_groups }, `Showing ${data.groups.length} of ${data.total_groups} date group(s)`);
 
-    let html = `<p class="text-muted small mb-3">${totalLabel}</p><div class="accordion" id="keptAccordion">`;
+    let html = `<p class="text-muted small mb-3" id="keptTotalLabel">${totalLabel}</p><div class="accordion" id="keptAccordion">`;
 
     data.groups.forEach((group, gi) => {
-        const groupId   = `keptGroup${gi}`;
-        const collapseId = `keptCollapse${gi}`;
-        const dateLabel  = group.date || '—';
-        const count      = group.packets.length;
-
-        html += `
-        <div class="accordion-item">
-            <h2 class="accordion-header" id="${groupId}">
-                <button class="accordion-button${gi > 0 ? ' collapsed' : ''}" type="button"
-                        data-bs-toggle="collapse" data-bs-target="#${collapseId}"
-                        aria-expanded="${gi === 0 ? 'true' : 'false'}" aria-controls="${collapseId}">
-                    <strong>${dateLabel}</strong>
-                    <span class="badge bg-secondary ms-2">${count}</span>
-                </button>
-            </h2>
-            <div id="${collapseId}" class="accordion-collapse collapse${gi === 0 ? ' show' : ''}" data-bs-parent="#keptAccordion">
-                <div class="accordion-body p-0">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead><tr>
-                            <th>{{ t('ui.common.filename') }}</th>
-                            <th>{{ t('ui.binkp.from_address') }}</th>
-                            <th>{{ t('ui.binkp.to_address') }}</th>
-                            <th>{{ t('ui.binkp.message_count') }}</th>
-                            <th>{{ t('ui.common.size') }}</th>
-                            <th>{{ t('ui.common.date') }}</th>
-                        </tr></thead>
-                        <tbody>`;
-
-        group.packets.forEach(pkt => {
-            const size = pkt.size < 1024 ? pkt.size + ' B'
-                       : pkt.size < 1048576 ? (pkt.size / 1024).toFixed(1) + ' KB'
-                       : (pkt.size / 1048576).toFixed(2) + ' MB';
-            const escDate = encodeURIComponent(group.date);
-            const escFile = encodeURIComponent(pkt.filename);
-
-            if (pkt.file_type === 'bundle') {
-                html += `<tr>
-                    <td><a href="#" class="font-monospace text-decoration-none" onclick="openBundleInspector('${type}','${escDate}','${escFile}');return false;"><i class="fas fa-file-archive me-1 text-warning"></i>${pkt.filename}</a></td>
-                    <td colspan="2"><span class="text-muted small">{{ t('ui.binkp.bundle_arcmail', {}, 'Arcmail bundle') }}</span></td>
-                    <td>—</td>
-                    <td>${size}</td>
-                    <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
-                </tr>`;
-            } else {
-                const msgs = pkt.message_count > 0 ? pkt.message_count : '—';
-                html += `<tr>
-                    <td><a href="#" class="font-monospace text-decoration-none" onclick="openPacketInspector('${type}','${escDate}','${escFile}');return false;">${pkt.filename}</a></td>
-                    <td>${pkt.orig_address}</td>
-                    <td>${pkt.dest_address}</td>
-                    <td>${msgs}</td>
-                    <td>${size}</td>
-                    <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
-                </tr>`;
-            }
-        });
-
-        html += `</tbody></table></div></div></div>`;
+        html += buildKeptPacketGroupHtml(type, group, gi, gi === 0);
     });
 
     html += '</div>';
 
     if (data.has_more) {
-        const loadMoreLabel = window.t('ui.binkp.kept_packets_load_more', {}, 'Load More');
-        html += `<div class="text-center mt-3">
-            <button type="button" id="keptLoadMoreBtn" class="btn btn-sm btn-outline-secondary" onclick="loadMoreKeptPackets('${type}')">
-                ${loadMoreLabel}
-            </button>
-        </div>`;
+        html += buildKeptLoadMoreHtml(type);
     }
 
     container.innerHTML = html;
 
-    // Bootstrap's accordion expansion can leave the viewport scrolled to wherever
-    // it happened to land (often mid-table) instead of the group's date header.
-    // Scroll the clicked header to just below the sticky top navbar once it
-    // finishes expanding, rather than letting it land behind the navbar or
-    // mid-way down the newly-revealed content.
-    container.querySelectorAll('.accordion-collapse').forEach(el => {
-        el.addEventListener('shown.bs.collapse', function() {
-            const header = this.previousElementSibling;
-            if (!header) return;
-
-            const navbar = document.querySelector('nav.sticky-top');
-            const navbarHeight = navbar ? navbar.offsetHeight : 0;
-            const targetY = window.scrollY + header.getBoundingClientRect().top - navbarHeight - 8;
-
-            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-        });
-    });
+    container.querySelectorAll('.accordion-collapse').forEach(attachKeptGroupScrollListener);
 }
 
 function openPacketInspector(type, date, filename) {
