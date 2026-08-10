@@ -116,6 +116,8 @@ Points typically have no independently routable host and are effectively pull-on
 
 **Binkp Status → Downlink Queue** (`/binkp`) lists every queued packet across all downlinks — destination, type (echomail/netmail/tic), status, size, attempt count, and timestamps — with an **Inspect** action to view a queued packet's header and message contents (or, for a `tic` entry, its TIC control fields and referenced filename) before it's delivered.
 
+**Admin → BBS Settings → BinkP Downlinks** also shows each downlink's current pending/failed/held queue counts inline in its row, with a **View Queue** action that jumps straight to that downlink's filtered view on the Downlink Queue tab above.
+
 ## Queue cleanup
 
 Delivered (`sent`) and permanently failed (`failed`) queue entries are not deleted immediately — they're kept for each downlink's configured **Queue Retention (Days)** (default 30) before being purged. This purge runs as part of `scripts/database_maintenance.php`. Entries still `pending` or `held` are never purged regardless of age; they remain queued until delivered, held mail is released, or the downlink is deleted.

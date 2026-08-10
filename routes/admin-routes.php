@@ -3440,9 +3440,20 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $hubNodes = $manager->getAll();
+                $queueCounts = $manager->getQueueCounts();
+                foreach ($hubNodes as &$node) {
+                    $counts = $queueCounts[(int)$node['id']] ?? ['pending' => 0, 'failed' => 0, 'held' => 0, 'total' => 0];
+                    $node['queue_pending'] = $counts['pending'];
+                    $node['queue_failed']  = $counts['failed'];
+                    $node['queue_held']    = $counts['held'];
+                    $node['queue_total']   = $counts['total'];
+                }
+                unset($node);
+
                 echo json_encode([
                     'success' => true,
-                    'hub_nodes' => $manager->getAll(),
+                    'hub_nodes' => $hubNodes,
                     'akas' => $manager->getConfiguredAkasWithNetworkNames(),
                 ]);
             } catch (Throwable $e) {

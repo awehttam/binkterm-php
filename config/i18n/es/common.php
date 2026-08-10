@@ -5404,6 +5404,8 @@ return [
     'ui.admin.hub_nodes.push_poll_interval_minutes_help' => 'Con que frecuencia marcar automaticamente y enviar el trabajo saliente pendiente a este nodo. El valor predeterminado es 360 minutos (6 horas); el minimo es 5 minutos.',
     'ui.admin.hub_nodes.notes' => 'Notas',
     'ui.admin.hub_nodes.flags' => 'Marcas',
+    'ui.admin.hub_nodes.pending' => 'Pendientes',
+    'ui.admin.hub_nodes.view_queue' => 'Ver Cola',
     'ui.admin.hub_nodes.queue' => 'Retencion',
     'ui.admin.hub_nodes.disabled' => 'Deshabilitado',
     'ui.admin.hub_nodes.days' => 'dias',

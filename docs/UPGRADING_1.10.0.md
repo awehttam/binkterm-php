@@ -16,6 +16,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes)
   - [Admin: Sixel Screen Slot Preview](#admin-sixel-screen-slot-preview)
   - [Uplink Kept Packets Page Was Slow to Load with Months of History](#uplink-kept-packets-page-was-slow-to-load-with-months-of-history)
+  - [Manage Downlinks: Pending Queue Counts and Quick Link to Queue Viewer](#manage-downlinks-pending-queue-counts-and-quick-link-to-queue-viewer)
   - [Docker Image Was Missing Required PHP Extensions](#docker-image-was-missing-required-php-extensions)
   - [Docker: BinkStream Realtime Server Was Not Started or Reachable](#docker-binkstream-realtime-server-was-not-started-or-reachable)
   - [Docker: PHP Fatal Errors Were Silently Lost](#docker-php-fatal-errors-were-silently-lost)
@@ -31,6 +32,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes-1)
 - [Admin: Sixel Screen Slot Preview](#admin-sixel-screen-slot-preview-1)
 - [Uplink Kept Packets Page Was Slow to Load with Months of History](#uplink-kept-packets-page-was-slow-to-load-with-months-of-history-1)
+- [Manage Downlinks: Pending Queue Counts and Quick Link to Queue Viewer](#manage-downlinks-pending-queue-counts-and-quick-link-to-queue-viewer-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -78,6 +80,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Uplink Kept Packets Page Was Slow to Load with Months of History
 
 - The **Uplink Kept Packets** tab on the **Binkp Status** admin page re-parsed every archived packet on every load and returned the entire history in one response, which got slow once months of kept packets had accumulated. The page now loads and parses packets ten date groups at a time, with a **Load More** button to fetch older groups, and the per-packet parser itself is significantly faster.
+
+### Manage Downlinks: Pending Queue Counts and Quick Link to Queue Viewer
+
+- Each row on **Admin → BBS Settings → BinkP Downlinks** now shows that downlink's current pending/failed/held queue counts, and a new **View Queue** action jumps directly to that downlink's filtered view on the **Binkp Status → Downlink Queue** tab instead of requiring you to navigate there and pick it out of the list manually.
 
 ---
 
@@ -177,6 +183,12 @@ Two changes address this:
 
 - The page is now paginated by date group. Only the ten most recent date groups are fetched and parsed initially; a **Load More** button at the bottom of the list fetches the next ten. Date groups outside the currently loaded window are never scanned or parsed, no matter how much history exists.
 - The packet parser itself (`OutboundQueue::analyzePacket()`) previously skipped each message's variable-length body one byte at a time to find its null terminator. It now reads the body in 4&nbsp;KB chunks and searches each chunk for the terminator, which is substantially faster per packet regardless of pagination.
+
+## Manage Downlinks: Pending Queue Counts and Quick Link to Queue Viewer
+
+Each downlink's row on **Admin → BBS Settings → BinkP Downlinks** now shows its current outbound queue counts — pending, failed, and held — instead of requiring a trip to the Downlink Queue tab just to see whether anything is backed up.
+
+A new **View Queue** action in that row's action buttons opens **Binkp Status → Downlink Queue** (`/binkp`) with that downlink already selected, jumping straight to its filtered detail view instead of landing on the summary and having to pick it out of the list manually.
 
 ### Docker Image Was Missing Required PHP Extensions
 

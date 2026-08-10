@@ -536,6 +536,22 @@ function formatLocalizedDateTime(value, fallback = null) {
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
+    // Deep link support from the Manage Downlinks page's "View Queue" button
+    // (/binkp?tab=hub-outbound&downlink=1:153/149) — jump straight to the
+    // Downlink Queue tab and that node's detail view once its data loads.
+    const deepLinkParams = new URLSearchParams(window.location.search);
+    const deepLinkTab = deepLinkParams.get('tab');
+    const deepLinkDownlink = deepLinkParams.get('downlink');
+    if (deepLinkDownlink) {
+        hubOutboundActiveNode = deepLinkDownlink;
+    }
+    if (deepLinkTab) {
+        const tabButton = document.getElementById(`${deepLinkTab}-tab`);
+        if (tabButton) {
+            bootstrap.Tab.getOrCreateInstance(tabButton).show();
+        }
+    }
+
     loadI18nNamespaces(['common', 'errors']).then(function() {
         refreshBinkpOverview();
         refreshQueues();

@@ -27,6 +27,7 @@
                             <th>{{ t('ui.admin.hub_nodes.address', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.hub_nodes.name', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.hub_nodes.flags', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.hub_nodes.pending', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.hub_nodes.queue', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.common.actions', {}, locale, ['common']) }}</th>
                         </tr>
@@ -291,9 +292,18 @@ function renderHubNodes() {
                 ${node.sysop_name ? `<div class="small text-muted">${escapeHtml(node.sysop_name)}</div>` : ''}
             </td>
             <td>${flags.map(flag => `<span class="badge bg-secondary me-1">${escapeHtml(flag)}</span>`).join('') || '<span class="text-muted">&mdash;</span>'}</td>
+            <td class="text-nowrap">
+                ${node.queue_pending ? `<span class="badge bg-secondary me-1">${Number(node.queue_pending)}</span>` : ''}
+                ${node.queue_failed ? `<span class="badge bg-danger me-1">${Number(node.queue_failed)}</span>` : ''}
+                ${node.queue_held ? `<span class="badge bg-warning text-dark me-1">${Number(node.queue_held)}</span>` : ''}
+                ${!node.queue_total ? '<span class="text-muted">0</span>' : ''}
+            </td>
             <td>${node.queue_retention_days} ${escapeHtml(uiT('ui.admin.hub_nodes.days', 'days'))}</td>
             <td class="text-nowrap">
                 <div class="btn-group btn-group-sm" role="group" aria-label="${escapeHtmlAttr(uiT('ui.common.actions', 'Actions'))}">
+                    <a class="btn btn-outline-secondary" href="/binkp?tab=hub-outbound&downlink=${encodeURIComponent(node.node_address || '')}" title="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.view_queue', 'View Queue'))}" aria-label="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.view_queue', 'View Queue'))}">
+                        <i class="fas fa-layer-group" aria-hidden="true"></i>
+                    </a>
                     <button class="btn btn-outline-secondary" type="button" onclick="openHubNodeAreasModal(${Number(node.id)})" title="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.areas.title', 'Area Subscriptions'))}" aria-label="${escapeHtmlAttr(uiT('ui.admin.hub_nodes.areas.title', 'Area Subscriptions'))}">
                         <i class="fas fa-list-check" aria-hidden="true"></i>
                     </button>

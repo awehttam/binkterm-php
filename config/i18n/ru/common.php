@@ -5438,6 +5438,8 @@ return [
     'ui.admin.hub_nodes.push_poll_interval_minutes_help' => 'Как часто автоматически дозваниваться и отправлять ожидающую исходящую работу на этот узел. По умолчанию 360 минут (6 часов); минимум 5 минут.',
     'ui.admin.hub_nodes.notes' => 'Заметки',
     'ui.admin.hub_nodes.flags' => 'Флаги',
+    'ui.admin.hub_nodes.pending' => 'В очереди',
+    'ui.admin.hub_nodes.view_queue' => 'Просмотр очереди',
     'ui.admin.hub_nodes.queue' => 'Хранение',
     'ui.admin.hub_nodes.disabled' => 'Отключено',
     'ui.admin.hub_nodes.days' => 'дней',

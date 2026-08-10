@@ -495,6 +495,38 @@ class HubNodeManager
     }
 
     /**
+     * Outbound queue counts per downlink (pending/failed/held/total), for the
+     * Manage Downlinks page's queue-size column and its link into the
+     * Binkp Status page's Downlink Queue tab.
+     *
+     * @return array<int, array{pending: int, failed: int, held: int, total: int}> keyed by hub_node_id
+     */
+    public function getQueueCounts(): array
+    {
+        $stmt = $this->db->query("
+            SELECT hub_node_id, status, COUNT(*) AS cnt
+            FROM hub_node_outbound
+            GROUP BY hub_node_id, status
+        ");
+
+        $counts = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $id = (int)$row['hub_node_id'];
+            if (!isset($counts[$id])) {
+                $counts[$id] = ['pending' => 0, 'failed' => 0, 'held' => 0, 'total' => 0];
+            }
+            $status = (string)$row['status'];
+            $cnt = (int)$row['cnt'];
+            if (array_key_exists($status, $counts[$id])) {
+                $counts[$id][$status] = $cnt;
+            }
+            $counts[$id]['total'] += $cnt;
+        }
+
+        return $counts;
+    }
+
+    /**
      * The AKAs BinktermPHP itself holds, paired with the display name of the
      * network each belongs to (for the boss-address picker on the downlink
      * form, so a point's network is visible while choosing which AKA it

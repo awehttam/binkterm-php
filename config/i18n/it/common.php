@@ -5401,6 +5401,8 @@ return [
     'ui.admin.hub_nodes.push_poll_interval_minutes_help' => 'Con quale frequenza comporre automaticamente e inviare il lavoro in uscita in sospeso a questo nodo. Il valore predefinito e 360 minuti (6 ore); il minimo e 5 minuti.',
     'ui.admin.hub_nodes.notes' => 'Note',
     'ui.admin.hub_nodes.flags' => 'Flag',
+    'ui.admin.hub_nodes.pending' => 'In sospeso',
+    'ui.admin.hub_nodes.view_queue' => 'Visualizza coda',
     'ui.admin.hub_nodes.queue' => 'Conservazione',
     'ui.admin.hub_nodes.disabled' => 'Disabilitato',
     'ui.admin.hub_nodes.days' => 'giorni',
