@@ -230,7 +230,7 @@
             <div id="hubOutboundDetailView" style="display:none;">
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="showHubOutboundSummary()">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="backFromHubOutboundDetail()">
                             <i class="fas fa-arrow-left"></i> {{ t('ui.common.back') }}
                         </button>
                         <h5 class="mb-0" id="hubOutboundDetailHeading"></h5>
@@ -544,6 +544,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const deepLinkDownlink = deepLinkParams.get('downlink');
     if (deepLinkDownlink) {
         hubOutboundActiveNode = deepLinkDownlink;
+        hubOutboundCameFromExternalLink = true;
     }
     if (deepLinkTab) {
         const tabButton = document.getElementById(`${deepLinkTab}-tab`);
@@ -954,6 +955,12 @@ function updateOutboundFiles(data) {
 let hubOutboundRows = [];
 let hubOutboundSelectedIds = new Set();
 let hubOutboundActiveNode = null;
+// True only while the current detail view was reached via an external deep
+// link (e.g. the "View Queue" button on Manage Downlinks) rather than by
+// clicking a row in this page's own summary table. Determines whether the
+// Back button should leave the page (browser back) or just return to the
+// summary view in-place.
+let hubOutboundCameFromExternalLink = false;
 
 function refreshHubOutboundQueue() {
     fetch('/api/binkp/hub-outbound')
@@ -1009,7 +1016,13 @@ function renderHubOutboundSummary(rows) {
         </tr>`;
     }).join('');
     tbody.querySelectorAll('.hub-outbound-summary-row').forEach(tr => {
-        tr.addEventListener('click', () => showHubOutboundDetail(tr.dataset.nodeAddress));
+        tr.addEventListener('click', () => {
+            // Navigating to a detail view from this page's own summary table
+            // is in-page navigation, so Back should return here, not leave
+            // the page even if the current view was originally deep-linked.
+            hubOutboundCameFromExternalLink = false;
+            showHubOutboundDetail(tr.dataset.nodeAddress);
+        });
     });
 }
 
@@ -1018,6 +1031,14 @@ function showHubOutboundSummary() {
     hubOutboundSelectedIds.clear();
     document.getElementById('hubOutboundDetailView').style.display = 'none';
     document.getElementById('hubOutboundSummaryView').style.display = '';
+}
+
+function backFromHubOutboundDetail() {
+    if (hubOutboundCameFromExternalLink && window.history.length > 1) {
+        window.history.back();
+        return;
+    }
+    showHubOutboundSummary();
 }
 
 function showHubOutboundDetail(nodeAddress) {
