@@ -39,7 +39,7 @@
 </div>
 
 <div class="modal fade" id="hubNodeModal" tabindex="-1" aria-labelledby="hubNodeModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="hubNodeModalTitle">{{ t('ui.admin.hub_nodes.add_node', {}, locale, ['common']) }}</h5>
@@ -49,88 +49,97 @@
                 <input type="hidden" id="hubNodeId">
                 <div id="hubNodeModalAlert"></div>
                 <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label" for="hubNodeType">{{ t('ui.admin.hub_nodes.type', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="hubNodeType" onchange="onHubNodeTypeChange()">
-                            <option value="node">{{ t('ui.admin.hub_nodes.type_node', {}, locale, ['common']) }}</option>
-                            <option value="point">{{ t('ui.admin.hub_nodes.type_point', {}, locale, ['common']) }}</option>
-                        </select>
-                    </div>
-                    <div class="col-md-8" id="hubNodeAddressFieldWrap">
-                        <label class="form-label" for="hubNodeAddress">{{ t('ui.admin.hub_nodes.address', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control font-monospace" id="hubNodeAddress" placeholder="1:153/150">
-                    </div>
-                    <div class="col-md-4 d-none" id="hubNodeBossFieldWrap">
-                        <label class="form-label" for="hubNodeBossAddress">{{ t('ui.admin.hub_nodes.boss_address', {}, locale, ['common']) }}</label>
-                        <select class="form-select font-monospace" id="hubNodeBossAddress" onchange="refreshSuggestedPointNumber()"></select>
-                    </div>
-                    <div class="col-md-4 d-none" id="hubNodePointFieldWrap">
-                        <label class="form-label" for="hubNodePointNumber">{{ t('ui.admin.hub_nodes.point_number', {}, locale, ['common']) }}</label>
-                        <input type="number" min="1" class="form-control" id="hubNodePointNumber">
-                    </div>
+                    <div class="col-lg-8">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="hubNodeType">{{ t('ui.admin.hub_nodes.type', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="hubNodeType" onchange="onHubNodeTypeChange()">
+                                    <option value="node">{{ t('ui.admin.hub_nodes.type_node', {}, locale, ['common']) }}</option>
+                                    <option value="point">{{ t('ui.admin.hub_nodes.type_point', {}, locale, ['common']) }}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-8" id="hubNodeAddressFieldWrap">
+                                <label class="form-label" for="hubNodeAddress">{{ t('ui.admin.hub_nodes.address', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control font-monospace" id="hubNodeAddress" placeholder="1:153/150">
+                            </div>
+                            <div class="col-md-4 d-none" id="hubNodeBossFieldWrap">
+                                <label class="form-label" for="hubNodeBossAddress">{{ t('ui.admin.hub_nodes.boss_address', {}, locale, ['common']) }}</label>
+                                <select class="form-select font-monospace" id="hubNodeBossAddress" onchange="refreshSuggestedPointNumber()"></select>
+                            </div>
+                            <div class="col-md-4 d-none" id="hubNodePointFieldWrap">
+                                <label class="form-label" for="hubNodePointNumber">{{ t('ui.admin.hub_nodes.point_number', {}, locale, ['common']) }}</label>
+                                <input type="number" min="1" class="form-control" id="hubNodePointNumber">
+                            </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label" for="hubNodeName">{{ t('ui.admin.hub_nodes.name', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="hubNodeName">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="hubNodeSysopName">{{ t('ui.admin.hub_nodes.sysop_name', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="hubNodeSysopName">
-                    </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeName">{{ t('ui.admin.hub_nodes.name', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="hubNodeName">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeSysopName">{{ t('ui.admin.hub_nodes.sysop_name', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="hubNodeSysopName">
+                            </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label" for="hubNodeSessionPassword">{{ t('ui.admin.hub_nodes.session_password', {}, locale, ['common']) }}</label>
-                        <div class="input-group">
-                            <input type="password" class="form-control font-monospace" id="hubNodeSessionPassword" autocomplete="off">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodeSessionPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeSessionPassword">{{ t('ui.admin.hub_nodes.session_password', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control font-monospace" id="hubNodeSessionPassword" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodeSessionPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.session_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodePacketPassword">{{ t('ui.admin.hub_nodes.packet_password', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control font-monospace" id="hubNodePacketPassword" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodePacketPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeAreafixPassword">{{ t('ui.admin.hub_nodes.areafix_password', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control font-monospace" id="hubNodeAreafixPassword" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodeAreafixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.areafix_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="hubNodeFilefixPassword">{{ t('ui.admin.hub_nodes.filefix_password', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control font-monospace" id="hubNodeFilefixPassword" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodeFilefixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.filefix_password_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="col-md-8">
+                                <label class="form-label" for="hubNodeInetHost">{{ t('ui.admin.hub_nodes.inet_host', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="hubNodeInetHost">
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.inet_host_help', {}, locale, ['common']) }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="hubNodePort">{{ t('ui.admin.hub_nodes.port', {}, locale, ['common']) }}</label>
+                                <input type="number" min="1" max="65535" class="form-control" id="hubNodePort">
+                            </div>
+
+                            <div class="col-md-12">
+                                <label class="form-label" for="hubNodeNotes">{{ t('ui.admin.hub_nodes.notes', {}, locale, ['common']) }}</label>
+                                <textarea class="form-control" id="hubNodeNotes" rows="2"></textarea>
+                            </div>
                         </div>
-                        <div class="form-text">{{ t('ui.admin.hub_nodes.session_password_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="hubNodePacketPassword">{{ t('ui.admin.hub_nodes.packet_password', {}, locale, ['common']) }}</label>
-                        <div class="input-group">
-                            <input type="password" class="form-control font-monospace" id="hubNodePacketPassword" autocomplete="off">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodePacketPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
                     </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label" for="hubNodeAreafixPassword">{{ t('ui.admin.hub_nodes.areafix_password', {}, locale, ['common']) }}</label>
-                        <div class="input-group">
-                            <input type="password" class="form-control font-monospace" id="hubNodeAreafixPassword" autocomplete="off">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodeAreafixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
-                        <div class="form-text">{{ t('ui.admin.hub_nodes.areafix_password_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="hubNodeFilefixPassword">{{ t('ui.admin.hub_nodes.filefix_password', {}, locale, ['common']) }}</label>
-                        <div class="input-group">
-                            <input type="password" class="form-control font-monospace" id="hubNodeFilefixPassword" autocomplete="off">
-                            <button class="btn btn-outline-secondary" type="button" onclick="toggleHubNodePasswordVisibility('hubNodeFilefixPassword', this)" title="{{ t('ui.common.show_password', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.show_password', {}, locale, ['common']) }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
-                        <div class="form-text">{{ t('ui.admin.hub_nodes.filefix_password_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="col-md-8">
-                        <label class="form-label" for="hubNodeInetHost">{{ t('ui.admin.hub_nodes.inet_host', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="hubNodeInetHost">
-                        <div class="form-text">{{ t('ui.admin.hub_nodes.inet_host_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label" for="hubNodePort">{{ t('ui.admin.hub_nodes.port', {}, locale, ['common']) }}</label>
-                        <input type="number" min="1" max="65535" class="form-control" id="hubNodePort">
-                    </div>
-
-                    <div class="col-md-6">
-                        <div class="border rounded p-3 h-100">
+                    <div class="col-lg-4">
+                        <div class="border rounded p-3 mb-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="hubNodeEnabled" checked>
                                 <label class="form-check-label" for="hubNodeEnabled">{{ t('ui.admin.hub_nodes.enabled', {}, locale, ['common']) }}</label>
@@ -153,9 +162,7 @@
                                 <label class="form-check-label" for="hubNodeAllowInboundNetmail">{{ t('ui.admin.hub_nodes.allow_inbound_netmail', {}, locale, ['common']) }}</label>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="border rounded p-3 h-100">
+                        <div class="border rounded p-3">
                             <div class="mb-3">
                                 <label class="form-label" for="hubNodeMaxPacketKb">{{ t('ui.admin.hub_nodes.max_packet_kb', {}, locale, ['common']) }}</label>
                                 <input type="number" min="0" class="form-control" id="hubNodeMaxPacketKb" value="0">
@@ -166,11 +173,6 @@
                                 <input type="number" min="1" class="form-control" id="hubNodeQueueRetentionDays" value="30">
                             </div>
                         </div>
-                    </div>
-
-                    <div class="col-md-12">
-                        <label class="form-label" for="hubNodeNotes">{{ t('ui.admin.hub_nodes.notes', {}, locale, ['common']) }}</label>
-                        <textarea class="form-control" id="hubNodeNotes" rows="2"></textarea>
                     </div>
                 </div>
             </div>
