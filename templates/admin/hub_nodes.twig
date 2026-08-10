@@ -410,7 +410,7 @@ function openHubNodeModal(id = null) {
     const node = id ? hubNodes.find(item => Number(item.id) === Number(id)) : null;
     document.getElementById('hubNodeModalAlert').innerHTML = '';
     document.getElementById('hubNodeId').value = node ? node.id : '';
-    document.getElementById('hubNodeType').value = node ? node.node_type : 'node';
+    document.getElementById('hubNodeType').value = node ? node.node_type : 'point';
     document.getElementById('hubNodeType').disabled = !!node;
     document.getElementById('hubNodeAddress').value = node ? node.node_address : '';
     document.getElementById('hubNodeAddress').readOnly = !!node;
