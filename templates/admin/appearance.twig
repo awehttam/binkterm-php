@@ -1771,7 +1771,7 @@ function deleteSixelScreen() {
 $('#sixelScreenSelect').on('change', function() {
     currentSixelScreenKey = $(this).val() || '';
     if (currentSixelScreenKey) {
-        loadSixelScreen(currentSixelScreenKey);
+        loadSixelScreenList(currentSixelScreenKey);
     }
 });
 
