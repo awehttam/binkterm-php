@@ -248,7 +248,6 @@ SimpleRouter::get('/', function() {
     }
 
     $onlineCount = $auth->getOnlineUserCount(15);
-    $activeTodayCount = $auth->getActiveTodayCount();
     $adminTimezone = 'UTC';
     $handler = new \BinktermPHP\MessageHandler();
     $userSettings = $handler->getUserSettings($userId);
@@ -263,6 +262,8 @@ SimpleRouter::get('/', function() {
             }
         }
     }
+    // Same timezone used for both so the System Information stat and the Today's Callers list agree
+    $activeTodayCount = $auth->getActiveTodayCount($adminTimezone);
     $todaysCallers = !empty($user['is_admin']) ? $auth->getTodaysCallers($adminTimezone) : null;
 
     $dashboardStatsMode = \BinktermPHP\AppearanceConfig::getDashboardSystemInfoStatsMode();

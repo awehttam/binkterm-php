@@ -362,34 +362,52 @@ class Auth
     }
 
     /**
-     * Get count of distinct active users today (UTC midnight to now).
+     * Get count of distinct active users today (midnight to now, in the given timezone).
      * Counts users who either logged in today or have an active session with activity today,
      * so users with long-lived cookies who did not re-login are included.
      *
+     * Uses the same day-boundary calculation as getTodaysCallers() so the two stay consistent;
+     * passing a different timezone than that call will cause the counts to diverge.
+     *
+     * @param string $timezone A valid PHP/IANA timezone name, e.g. 'America/New_York'
      * @return int
      */
-    public function getActiveTodayCount(): int
+    public function getActiveTodayCount(string $timezone = 'UTC'): int
     {
+        // Validate timezone to prevent SQL injection; fall back to UTC if unknown
+        try {
+            new \DateTimeZone($timezone);
+        } catch (\Exception $e) {
+            $timezone = 'UTC';
+        }
+
         $stmt = $this->db->prepare("
+            WITH today_start AS (
+                SELECT date_trunc('day', NOW() AT TIME ZONE :tz_name) AT TIME ZONE :tz_name2 AS ts
+            )
             SELECT COUNT(DISTINCT u.id) AS count
-            FROM users u
+            FROM users u, today_start
             WHERE u.is_active = TRUE
               AND (
                 EXISTS (
                     SELECT 1 FROM user_activity_log al
                     WHERE al.user_id = u.id
-                      AND al.activity_type_id = ?
-                      AND al.created_at >= CURRENT_DATE
+                      AND al.activity_type_id = :type
+                      AND al.created_at >= today_start.ts
                 )
                 OR EXISTS (
                     SELECT 1 FROM user_sessions s
                     WHERE s.user_id = u.id
-                      AND s.last_activity >= CURRENT_DATE
+                      AND s.last_activity >= today_start.ts
                       AND s.expires_at > NOW()
                 )
               )
         ");
-        $stmt->execute([ActivityTracker::TYPE_LOGIN]);
+        $stmt->execute([
+            ':tz_name'  => $timezone,
+            ':tz_name2' => $timezone,
+            ':type'     => ActivityTracker::TYPE_LOGIN,
+        ]);
         $result = $stmt->fetch(\PDO::FETCH_ASSOC);
         return (int) ($result['count'] ?? 0);
     }
