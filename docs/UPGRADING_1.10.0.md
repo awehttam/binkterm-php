@@ -14,6 +14,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers](#binkp-session-close-could-be-reported-as-a-failed-session-by-remote-mailers)
   - [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable)
   - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes)
+  - [Admin: Sixel Screen Slot Preview](#admin-sixel-screen-slot-preview)
   - [Docker Image Was Missing Required PHP Extensions](#docker-image-was-missing-required-php-extensions)
   - [Docker: BinkStream Realtime Server Was Not Started or Reachable](#docker-binkstream-realtime-server-was-not-started-or-reachable)
   - [Docker: PHP Fatal Errors Were Silently Lost](#docker-php-fatal-errors-were-silently-lost)
@@ -27,6 +28,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [BinkP Session Close Could Be Reported as a Failed Session by Remote Mailers](#binkp-session-close-could-be-reported-as-a-failed-session-by-remote-mailers-1)
 - [Uplink Status Card Now Shows Network Name and Is Sortable](#uplink-status-card-now-shows-network-name-and-is-sortable-1)
 - [Fresh Installs Now Get the Full Set of Built-In Themes](#fresh-installs-now-get-the-full-set-of-built-in-themes-1)
+- [Admin: Sixel Screen Slot Preview](#admin-sixel-screen-slot-preview-1)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -154,6 +156,12 @@ That card is now a table with three columns — **Network**, **Node Number**, an
 `Config::getThemes()` falls back to a hardcoded theme list whenever `config/themes.json` doesn't exist yet, which is the case on every fresh install until a sysop creates that file. That fallback previously only listed **Regular** and **Dark**, even though the codebase ships four other stylesheets (`amber.css`, `cyberpunk.css`, `greenterm.css`) that were only reachable by manually creating `config/themes.json`.
 
 The fallback now matches `config/themes.json.example`, so a fresh install's theme picker shows **Amber**, **Cyberpunk**, **Dark**, **Green Term**, and **Regular** without any extra setup. If you already have a `config/themes.json` file, this change has no effect on you — your file continues to take precedence.
+
+## Admin: Sixel Screen Slot Preview
+
+The **Sixel Graphics** section on **Admin → Appearance** lets you upload a `.sixel`/`.six` file for each screen slot (Welcome, Main Menu, Goodbye) shown to sixel-capable terminal clients. Previously there was no way to see what a slot actually contained short of connecting with a sixel-capable client, so mistakes in an uploaded file weren't obvious until a user reported them.
+
+The slot picker now shows a decoded, rendered preview of the currently selected slot's image directly on the page. The preview updates automatically when you switch slots, upload a new file, or remove one.
 
 ### Docker Image Was Missing Required PHP Extensions
 
