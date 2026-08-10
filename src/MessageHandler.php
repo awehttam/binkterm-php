@@ -3374,6 +3374,30 @@ class MessageHandler
                 $message['skip_default_pid_tearline'] = $isRelayed;
                 $message['skip_default_seenby_path'] = $isRelayed;
 
+                // writeMessage()'s single-hop synthesis is suppressed above for
+                // relayed messages, so it never records that this system handled
+                // the hop. Stamp our own address into SEEN-BY/PATH here instead,
+                // the same way HubFanout does for its own downlink subscribers -
+                // otherwise a relayed message goes to our uplink with no record
+                // of us ever having touched it.
+                if ($isRelayed) {
+                    $ourAddress = (string)\BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getSystemAddress();
+                    $bottomKludges = (string)($message['bottom_kludges'] ?? '');
+                    $seenBy = \BinktermPHP\Echomail\EchomailSeenBy::addToSeenBy(
+                        \BinktermPHP\Echomail\EchomailSeenBy::parseSeenBy($bottomKludges),
+                        $ourAddress
+                    );
+                    $seenBy = \BinktermPHP\Echomail\EchomailSeenBy::addToSeenBy($seenBy, $uplinkAddress);
+                    $path = \BinktermPHP\Echomail\EchomailSeenBy::addToPath(
+                        \BinktermPHP\Echomail\EchomailSeenBy::parsePath($bottomKludges),
+                        $ourAddress
+                    );
+                    $message['bottom_kludges'] = trim(
+                        \BinktermPHP\Echomail\EchomailSeenBy::formatSeenBy($seenBy) . "\r"
+                        . \BinktermPHP\Echomail\EchomailSeenBy::formatPath($path)
+                    );
+                }
+
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
                 $this->queueImmediateOutboundPoll($uplinkAddress, "echomail #{$messageId}");
