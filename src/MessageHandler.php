@@ -3381,7 +3381,15 @@ class MessageHandler
                 // otherwise a relayed message goes to our uplink with no record
                 // of us ever having touched it.
                 if ($isRelayed) {
-                    $ourAddress = (string)\BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getSystemAddress();
+                    // getSystemAddress() is a single global fallback and does NOT
+                    // reflect per-network identity - a system can be a member of
+                    // several networks (domains) simultaneously, each with its own
+                    // "me" address (see binkp.json uplinks). Using the wrong one
+                    // stamps PATH/SEEN-BY with an address from a completely
+                    // unrelated network. Resolve the address for this message's
+                    // actual domain, same as postEchomail() does for $myAddress.
+                    $binkpConfigForAddress = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                    $ourAddress = (string)($binkpConfigForAddress->getMyAddressByDomain($domain) ?: $binkpConfigForAddress->getSystemAddress());
                     $bottomKludges = (string)($message['bottom_kludges'] ?? '');
                     $seenBy = \BinktermPHP\Echomail\EchomailSeenBy::addToSeenBy(
                         \BinktermPHP\Echomail\EchomailSeenBy::parseSeenBy($bottomKludges),

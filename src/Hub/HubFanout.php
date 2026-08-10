@@ -47,7 +47,14 @@ class HubFanout
 
         $rawSeenBy = EchomailSeenBy::parseSeenBy($message['bottom_kludges']);
         $rawPath = EchomailSeenBy::parsePath($message['bottom_kludges']);
-        $ourAddress = (string)BinkpConfig::getInstance()->getSystemAddress();
+        // getSystemAddress() is a single global fallback and does NOT reflect
+        // per-network identity - a system can belong to several networks
+        // (domains) simultaneously, each with its own "me" address (see
+        // binkp.json uplinks). Using the wrong one stamps SEEN-BY/PATH with an
+        // address from a completely unrelated network. Resolve the address for
+        // this message's actual domain instead.
+        $binkpConfig = BinkpConfig::getInstance();
+        $ourAddress = (string)($binkpConfig->getMyAddressByDomain($message['echoarea_domain'] ?? '') ?: $binkpConfig->getSystemAddress());
 
         $processor = new BinkdProcessor();
 
