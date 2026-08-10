@@ -380,6 +380,11 @@
                     <dt class="col-sm-5">{{ t('ui.dashboard.sysop', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">{{ sysop_name }}</dd>
 
+                    {% if system_location and system_location != 'Unknown Location' %}
+                    <dt class="col-sm-5">{{ t('ui.common.location', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-sm-7">{{ system_location }}</dd>
+                    {% endif %}
+
                     <dt class="col-sm-5">{{ t('ui.dashboard.user', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">{{ current_user.username }}</dd>
 

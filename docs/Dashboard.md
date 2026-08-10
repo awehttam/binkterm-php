@@ -41,7 +41,7 @@ Shows the count of unread bulletins with a link to the Bulletins page. Displays 
 
 ### System Information *(sidebar)*
 
-Shows the sysop name, the logged-in user's username, and the FTN network addresses the BBS is registered on. By default that's all it shows. Sysops can opt into a few extra running totals — registered user count, today's caller count, system uptime (host OS uptime, when it can be determined), file area file count, all-time total login count, and total echomail message count — from **Admin → Appearance & Content → Dashboard → Show extra statistics in System Information card**.
+Shows the sysop name, the system's configured location (when set to something other than the "Unknown Location" placeholder), the logged-in user's username, and the FTN network addresses the BBS is registered on. By default that's all it shows. Sysops can opt into a few extra running totals — registered user count, today's caller count, system uptime (host OS uptime, when it can be determined), file area file count, all-time total login count, and total echomail message count — from **Admin → Appearance & Content → Dashboard → Show extra statistics in System Information card**.
 
 ### Today's Callers *(sidebar, admin only)*
 
