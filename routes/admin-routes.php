@@ -2398,6 +2398,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     return;
                 }
 
+                $showSystemInfoStats = !empty($payload['show_system_info_stats']);
+
                 // Validate card IDs against the full card catalogue
                 $allCards = \BinktermPHP\DashboardCardRegistry::getAllCards();
                 $allIds = array_keys($allCards);
@@ -2431,6 +2433,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'sidebar' => $sidebar,
                     'hidden'  => $hidden,
                 ];
+                $config['dashboard']['show_system_info_stats'] = $showSystemInfoStats;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);

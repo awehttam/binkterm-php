@@ -265,6 +265,27 @@ SimpleRouter::get('/', function() {
     }
     $todaysCallers = !empty($user['is_admin']) ? $auth->getTodaysCallers($adminTimezone) : null;
 
+    $showDashboardSystemInfoStats = \BinktermPHP\AppearanceConfig::getShowDashboardSystemInfoStats();
+    $registeredUserCount = null;
+    $totalLoginCount = null;
+    $systemUptimeSeconds = null;
+    $systemUptimeDays = null;
+    $systemUptimeHours = null;
+    $systemUptimeMinutes = null;
+    $fileAreaFileCount = null;
+    $totalEchomailCount = null;
+    if ($showDashboardSystemInfoStats) {
+        $registeredUserCount = $auth->getRegisteredUserCount();
+        $totalLoginCount = $auth->getTotalLoginCount();
+        $adminController = new \BinktermPHP\AdminController();
+        $systemUptimeSeconds = $adminController->getSystemUptimeSeconds();
+        $systemUptimeDays = $systemUptimeSeconds !== null ? intdiv($systemUptimeSeconds, 86400) : null;
+        $systemUptimeHours = $systemUptimeSeconds !== null ? intdiv($systemUptimeSeconds % 86400, 3600) : null;
+        $systemUptimeMinutes = $systemUptimeSeconds !== null ? intdiv($systemUptimeSeconds % 3600, 60) : null;
+        $fileAreaFileCount = (new \BinktermPHP\FileAreaManager())->getStats(true)['total_files'];
+        $totalEchomailCount = $adminController->getTotalEchomailCount();
+    }
+
     // Build dashboard card registry and layout
     $creditsConfig = $bbsConfig['credits'] ?? [];
     $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
@@ -294,6 +315,15 @@ SimpleRouter::get('/', function() {
         'online_user_count' => $onlineCount,
         'active_today_count' => $activeTodayCount,
         'todays_callers' => $todaysCallers,
+        'show_dashboard_system_info_stats' => $showDashboardSystemInfoStats,
+        'registered_user_count' => $registeredUserCount,
+        'total_login_count' => $totalLoginCount,
+        'system_uptime_seconds' => $systemUptimeSeconds,
+        'system_uptime_days' => $systemUptimeDays,
+        'system_uptime_hours' => $systemUptimeHours,
+        'system_uptime_minutes' => $systemUptimeMinutes,
+        'file_area_file_count' => $fileAreaFileCount,
+        'total_echomail_count' => $totalEchomailCount,
         'bulletin_unread_count' => $bulletinUnreadCount,
         'dashboard_layout' => $dashboardLayout,
         'dashboard_available_cards' => $availableCards,

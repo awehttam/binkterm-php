@@ -498,6 +498,31 @@ class Auth
     }
 
     /**
+     * Get count of registered (non-system) users.
+     *
+     * @return int
+     */
+    public function getRegisteredUserCount(): int
+    {
+        $result = $this->db->query("SELECT COUNT(*) AS count FROM users WHERE is_system = FALSE")->fetch(\PDO::FETCH_ASSOC);
+        return (int) ($result['count'] ?? 0);
+    }
+
+    /**
+     * Get the all-time total number of successful logins, from the login
+     * activity events recorded in user_activity_log.
+     *
+     * @return int
+     */
+    public function getTotalLoginCount(): int
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) AS count FROM user_activity_log WHERE activity_type_id = ?");
+        $stmt->execute([ActivityTracker::TYPE_LOGIN]);
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return (int) ($result['count'] ?? 0);
+    }
+
+    /**
      * Update user's location
      *
      * @param int $userId User ID

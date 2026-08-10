@@ -392,6 +392,28 @@
                     </dd>
                     {% endif %}
 
+                    {% if show_dashboard_system_info_stats %}
+                    <dt class="col-sm-5">{{ t('ui.dashboard.registered_users', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-sm-7">{{ registered_user_count }}</dd>
+
+                    <dt class="col-sm-5">{{ t('ui.dashboard.todays_callers', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-sm-7">{{ active_today_count }}</dd>
+
+                    {% if system_uptime_seconds is not null %}
+                    <dt class="col-sm-5">{{ t('ui.dashboard.system_uptime', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-sm-7">{{ t('ui.dashboard.uptime_value', {'days': system_uptime_days, 'hours': system_uptime_hours, 'minutes': system_uptime_minutes}, locale, ['common']) }}</dd>
+                    {% endif %}
+
+                    <dt class="col-sm-5">{{ t('ui.dashboard.file_area_files', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-sm-7">{{ file_area_file_count }}</dd>
+
+                    <dt class="col-sm-5">{{ t('ui.dashboard.total_logins', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-sm-7">{{ total_login_count }}</dd>
+
+                    <dt class="col-sm-5">{{ t('ui.dashboard.total_echomail', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-sm-7">{{ total_echomail_count }}</dd>
+                    {% endif %}
+
                 </dl>
             </div>
         </div>

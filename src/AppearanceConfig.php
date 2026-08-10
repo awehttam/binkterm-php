@@ -166,6 +166,7 @@ class AppearanceConfig
             ],
             'dashboard' => [
                 'default_layout' => null,
+                'show_system_info_stats' => false,
             ],
         ];
     }
@@ -582,5 +583,16 @@ class AppearanceConfig
             return null;
         }
         return $layout;
+    }
+
+    /**
+     * Whether the System Information dashboard card should show the extra
+     * statistics (registered users, today's callers, uptime, file count,
+     * total logins) in addition to sysop name, user, and networks.
+     */
+    public static function getShowDashboardSystemInfoStats(): bool
+    {
+        self::load();
+        return (bool)(self::$config['dashboard']['show_system_info_stats'] ?? false);
     }
 }
