@@ -3387,9 +3387,20 @@ class MessageHandler
                     // "me" address (see binkp.json uplinks). Using the wrong one
                     // stamps PATH/SEEN-BY with an address from a completely
                     // unrelated network. Resolve the address for this message's
-                    // actual domain, same as postEchomail() does for $myAddress.
+                    // actual domain - use $message['echoarea_domain'] (loaded
+                    // straight from the echoarea row above), NOT the $domain
+                    // parameter: when this is called via
+                    // BinkdProcessor::relayEchomailToUplinkIfNeeded(), that
+                    // parameter traces back to getDomainByAddress() on the
+                    // inbound packet's origin address, a separate and looser
+                    // resolution than getEchoareaUplink()'s own multi-level
+                    // fallback (tag+domain -> domain default -> global default
+                    // uplink) - the two can disagree on a mismatched domain
+                    // string, with getEchoareaUplink() masking it by silently
+                    // falling through to the default uplink while this lookup
+                    // has no such fallback and lands on the wrong network.
                     $binkpConfigForAddress = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-                    $ourAddress = (string)($binkpConfigForAddress->getMyAddressByDomain($domain) ?: $binkpConfigForAddress->getSystemAddress());
+                    $ourAddress = (string)($binkpConfigForAddress->getMyAddressByDomain($message['echoarea_domain'] ?? '') ?: $binkpConfigForAddress->getSystemAddress());
                     $bottomKludges = (string)($message['bottom_kludges'] ?? '');
                     $seenBy = \BinktermPHP\Echomail\EchomailSeenBy::addToSeenBy(
                         \BinktermPHP\Echomail\EchomailSeenBy::parseSeenBy($bottomKludges),
