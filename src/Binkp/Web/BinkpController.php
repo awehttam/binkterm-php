@@ -1108,6 +1108,7 @@ class BinkpController
             'binkp_poll.log'      => \BinktermPHP\Config::getLogPath('binkp_poll.log'),
             'binkp_server.log'    => \BinktermPHP\Config::getLogPath('binkp_server.log'),
             'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
+            'binkp_web.log'       => \BinktermPHP\Config::getLogPath('binkp_web.log'),
             'admin_daemon.log'    => \BinktermPHP\Config::getLogPath('admin_daemon.log'),
             'mrc_daemon.log'      => \BinktermPHP\Config::getLogPath('mrc_daemon.log'),
             'packets.log'         => \BinktermPHP\Config::getLogPath('packets.log'),

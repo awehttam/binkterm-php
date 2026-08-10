@@ -44,6 +44,7 @@ class AdminDaemonServer
         'binkp_poll.log',
         'binkp_server.log',
         'binkp_scheduler.log',
+        'binkp_web.log',
         'admin_daemon.log',
         'mrc_daemon.log',
         'ai_bot_daemon.log',
