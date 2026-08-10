@@ -152,14 +152,18 @@ class HubFanout
             // Already merged the full SEEN-BY/PATH set above; suppress
             // BinkdProcessor::writeMessage()'s single-hop auto-synthesis.
             'skip_default_seenby_path' => true,
-            // If this message already carries a PID kludge (i.e. it arrived
-            // via inbound packet processing and kludge_lines is the real
-            // author's, not empty), it also already has that author's
-            // tearline embedded in message_text - suppress writeMessage()'s
-            // unconditional fresh PID+tearline so we don't duplicate both.
-            // Locally-composed posts have no PID yet and should still get
-            // one generated fresh (this system is the originating tosser).
-            'skip_default_pid_tearline' => strpos((string)($message['kludge_lines'] ?? ''), "\x01PID:") !== false,
+            // If this message already carries a PID kludge or an origin_line
+            // (i.e. it arrived via inbound packet processing - from a downlink
+            // point or an uplink - and kludge_lines/origin_line are the real
+            // author's, not empty), it also already has that author's tearline
+            // embedded in message_text - suppress writeMessage()'s unconditional
+            // fresh PID+tearline so we don't duplicate both. Some point tossers
+            // embed a tearline+origin without a PID kludge, so origin_line (only
+            // ever set by inbound packet processing, never by local composition)
+            // is checked too. Locally-composed posts have neither and should
+            // still get one generated fresh (this system is the originating tosser).
+            'skip_default_pid_tearline' => !empty($message['origin_line'])
+                || strpos((string)($message['kludge_lines'] ?? ''), "\x01PID:") !== false,
         ];
 
         $packetPath = $this->tempPacketPath();
