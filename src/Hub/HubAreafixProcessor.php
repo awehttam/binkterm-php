@@ -83,6 +83,11 @@ class HubAreafixProcessor
             if ($line === '' || ord($line[0]) === 0x01) {
                 continue; // blank or kludge line
             }
+            if (!empty($replyLines)) {
+                $replyLines[] = '';
+            }
+            $replyLines[] = "> {$line}";
+            $replyLines[] = '';
             $replyLines = array_merge($replyLines, $this->processCommand($line, $hubNode, $robot));
         }
 
