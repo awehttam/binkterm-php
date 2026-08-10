@@ -3351,6 +3351,8 @@ return [
     'ui.binkp.outbound_queue' => 'Исходящая очередь',
     'ui.binkp.uplinks' => 'Аплинки',
     'ui.binkp.outbound_count_breakdown' => '{uplink} аплинк · {downlink} даунлинк',
+    'ui.binkp.downlinks' => 'Даунлинки',
+    'ui.binkp.downlink_node_count_breakdown' => '{enabled} включено',
     'ui.binkp.status_tab' => 'Статус',
     'ui.binkp.uplinks_tab' => 'Аплинки',
     'ui.binkp.queues_tab' => 'Очереди аплинков',

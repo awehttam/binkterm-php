@@ -3345,6 +3345,8 @@ return [
     'ui.binkp.outbound_queue' => 'Outbound Queue',
     'ui.binkp.outbound_count_breakdown' => '{uplink} uplink · {downlink} downlink',
     'ui.binkp.uplinks' => 'Uplinks',
+    'ui.binkp.downlinks' => 'Downlinks',
+    'ui.binkp.downlink_node_count_breakdown' => '{enabled} enabled',
     'ui.binkp.status_tab' => 'Status',
     'ui.binkp.uplinks_tab' => 'Uplinks',
     'ui.binkp.queues_tab' => 'Uplink Queues',

@@ -834,6 +834,9 @@ BinkP daemon operational status
 | `queues.outbound.total_messages` | integer | Total message count across outbound packets |
 | `queues.outbound.last_check` | string | Timestamp of last outbound queue check |
 | `queues.outbound.downlink_pending` | integer | Pending `hub_node_outbound` rows queued for downlink/point delivery (separate from the flat-file uplink outbound queue above) |
+| `hub_nodes` | object | Registered downlink/point counts |
+| `hub_nodes.total` | integer | Total registered `hub_nodes` rows |
+| `hub_nodes.enabled` | integer | Registered `hub_nodes` rows with `enabled = true` |
 | `timestamp` | string | ISO 8601 UTC timestamp of when this status was generated |
 
 **Error Responses**

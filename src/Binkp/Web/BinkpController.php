@@ -61,6 +61,7 @@ class BinkpController
                 'inbound' => $inboundStats,
                 'outbound' => $outboundStats
             ],
+            'hub_nodes' => $this->getHubNodesStats(),
             'timestamp' => $this->formatUnixTimestamp(time())
         ];
     }
@@ -78,6 +79,25 @@ class BinkpController
             return (int)$stmt->fetchColumn();
         } catch (\Exception $e) {
             return 0;
+        }
+    }
+
+    /**
+     * Total/enabled counts of registered hub_nodes (downlinks/points), for
+     * the Binkp status overview's Downlinks card.
+     */
+    private function getHubNodesStats(): array
+    {
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->query("SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE enabled) AS enabled FROM hub_nodes");
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC) ?: ['total' => 0, 'enabled' => 0];
+            return [
+                'total' => (int)$row['total'],
+                'enabled' => (int)$row['enabled'],
+            ];
+        } catch (\Exception $e) {
+            return ['total' => 0, 'enabled' => 0];
         }
     }
 

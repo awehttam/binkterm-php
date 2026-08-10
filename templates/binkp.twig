@@ -12,25 +12,25 @@
     </div>
 
     <!-- Status Overview -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-5 g-3 mb-4">
+        <div class="col">
+            <div class="card h-100">
                 <div class="card-body text-center">
                     <h5 class="card-title">{{ t('ui.binkp.system_status') }}</h5>
                     <p class="card-text" id="system-status">{{ t('ui.common.loading') }}</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card">
+        <div class="col">
+            <div class="card h-100">
                 <div class="card-body text-center">
                     <h5 class="card-title">{{ t('ui.binkp.inbound_queue') }}</h5>
                     <p class="card-text" id="inbound-count">{{ t('ui.common.loading') }}</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card">
+        <div class="col">
+            <div class="card h-100">
                 <div class="card-body text-center">
                     <h5 class="card-title">{{ t('ui.binkp.outbound_queue') }}</h5>
                     <p class="card-text mb-1" id="outbound-count">{{ t('ui.common.loading') }}</p>
@@ -38,11 +38,20 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card">
+        <div class="col">
+            <div class="card h-100">
                 <div class="card-body text-center">
                     <h5 class="card-title">{{ t('ui.binkp.uplinks') }}</h5>
                     <p class="card-text" id="uplink-count">{{ t('ui.common.loading') }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">{{ t('ui.binkp.downlinks') }}</h5>
+                    <p class="card-text mb-1" id="downlink-node-count">{{ t('ui.common.loading') }}</p>
+                    <p class="card-text small text-muted mb-0" id="downlink-node-count-breakdown"></p>
                 </div>
             </div>
         </div>
@@ -599,6 +608,15 @@ function updateStatusDisplay(data) {
     );
 
     document.getElementById('uplink-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: binkpUplinks.length });
+
+    const hubNodesTotal = (data.hub_nodes && data.hub_nodes.total) || 0;
+    const hubNodesEnabled = (data.hub_nodes && data.hub_nodes.enabled) || 0;
+    document.getElementById('downlink-node-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: hubNodesTotal });
+    document.getElementById('downlink-node-count-breakdown').textContent = uiT(
+        'ui.binkp.downlink_node_count_breakdown',
+        '{enabled} enabled',
+        { enabled: hubNodesEnabled }
+    );
 
     // Update system info
     const systemInfo = document.getElementById('system-info');
