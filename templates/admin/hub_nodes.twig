@@ -452,7 +452,7 @@ function openHubNodeModal(id = null) {
     document.getElementById('hubNodePort').value = node ? (node.port || '') : '';
     document.getElementById('hubNodeEnabled').checked = node ? !!node.enabled : true;
     document.getElementById('hubNodeHoldMail').checked = node ? !!node.hold_mail : false;
-    document.getElementById('hubNodeCompressOutbound').checked = node ? !!node.compress_outbound : false;
+    document.getElementById('hubNodeCompressOutbound').checked = node ? !!node.compress_outbound : (document.getElementById('hubNodeType').value === 'point');
     document.getElementById('hubNodeAllowInboundEchomail').checked = node ? !!node.allow_inbound_echomail : true;
     document.getElementById('hubNodeAllowInboundNetmail').checked = node ? !!node.allow_inbound_netmail : true;
     document.getElementById('hubNodeMaxPacketKb').value = node ? node.max_packet_kb : 0;

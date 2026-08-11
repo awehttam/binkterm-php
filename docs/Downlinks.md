@@ -34,7 +34,7 @@ From **Admin → BBS Settings → BinkP Downlinks**, choose **Add Downlink** and
 | Accept Echomail From This Subordinate | Both | Whether echomail posted back by this downlink is accepted |
 | Accept Netmail From This Subordinate | Both | Whether netmail from this downlink is accepted for relay/routing |
 | Max Packet Size (KB) | Both | `0` = unlimited |
-| Compress Outbound | Both | Packs bundled outbound echomail/netmail into a ZIP arcmail bundle instead of a raw packet. Only enable this if the downlink is another BinktermPHP instance or a mailer that auto-detects bundle extensions |
+| Compress Outbound | Both | Packs bundled outbound echomail/netmail into a ZIP arcmail bundle instead of a raw packet. Only enable this if the downlink is another BinktermPHP instance or a mailer that auto-detects bundle extensions. Defaults to enabled for newly created points, and off for newly created nodes |
 | Queue Retention (Days) | Both | How long sent/failed queue entries are kept before being purged (see [Queue cleanup](#queue-cleanup)) |
 | Notes | Both | Free text |
 

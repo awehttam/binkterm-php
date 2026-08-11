@@ -788,7 +788,7 @@ class HubNodeManager
             'allow_inbound_netmail' => filter_var($data['allow_inbound_netmail'] ?? true, FILTER_VALIDATE_BOOLEAN),
             'max_packet_kb' => (int)($data['max_packet_kb'] ?? 0),
             'hold_mail' => filter_var($data['hold_mail'] ?? false, FILTER_VALIDATE_BOOLEAN),
-            'compress_outbound' => filter_var($data['compress_outbound'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'compress_outbound' => filter_var($data['compress_outbound'] ?? ($nodeType === self::TYPE_POINT), FILTER_VALIDATE_BOOLEAN),
             'queue_retention_days' => (int)($data['queue_retention_days'] ?? 30),
             'capability_flags' => trim((string)($data['capability_flags'] ?? '')) ?: null,
             'notes' => trim((string)($data['notes'] ?? '')) ?: null,
