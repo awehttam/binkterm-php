@@ -14,9 +14,10 @@ Herzlich willkommen! Dieses Handbuch führt dich durch alles, was dieses BBS zu 
 6. [Doors: Spiele & Anwendungen](#doors-spiele-anwendungen)
 7. [Dateibereiche](#dateibereiche)
 8. [Die BBS-Netzwerke erkunden](#die-bbs-netzwerke-erkunden)
-9. [Radio- und Mesh-Zugang (PacketBBS)](#radio--und-mesh-zugang-packetbbs)
-10. [Dein Profil & Einstellungen](#dein-profil-einstellungen)
-11. [Hilfe erhalten](#hilfe-erhalten)
+9. [Deinen eigenen Point betreiben](#deinen-eigenen-point-betreiben)
+10. [Radio- und Mesh-Zugang (PacketBBS)](#radio--und-mesh-zugang-packetbbs)
+11. [Dein Profil & Einstellungen](#dein-profil-einstellungen)
+12. [Hilfe erhalten](#hilfe-erhalten)
 
 ---
 
@@ -228,6 +229,28 @@ Jeder Knoten im FTN-Netzwerk hat eine eindeutige Adresse im Format **Zone:Netz/K
 | Point | Eine optionale Unteradresse für einen Benutzer an einem Knoten |
 
 Mehrere FTN-Netzwerke (FidoNet, FSXNet, AgoraNet, DoveNet u. a.) arbeiten unabhängig voneinander, verwenden jedoch dieselbe Adressierungskonvention.
+
+---
+
+## Deinen eigenen Point betreiben {#deinen-eigenen-point-betreiben}
+
+Ein **Point** ist eine persönliche FTN-Unteradresse, die an der eigenen Adresse dieser BBS hängt — zum Beispiel `1:218/700.5`, wobei `1:218/700` diese BBS ist und `.5` deine Point-Nummer. Points werden normalerweise auf Anfrage beim Sysop eingerichtet, aber wenn dein Sysop deinem Konto **Point-Verwaltungszugriff** gewährt hat, kannst du deinen eigenen Point direkt registrieren und verwalten, ohne eine Anfrage stellen zu müssen.
+
+Wenn du Zugriff hast, erscheint ein Eintrag **Point-Verwaltung** in deinem Kontomenü.
+
+### Einen Point erstellen
+
+Auf der Point-Verwaltungsseite wählst du eines der konfigurierten Netzwerke der BBS aus, gibst deinem Point einen Namen und erstellst ihn. Deine Point-Nummer, dein Sitzungspasswort und ein kombiniertes AreaFix/FileFix-Passwort werden automatisch generiert. Jedes Netzwerk erlaubt eine begrenzte Anzahl selbst erstellter Points pro Benutzer (dein Sysop legt dieses Limit fest); falls du mehr benötigst, bitte deinen Sysop, stattdessen einen bestehenden Point mit deinem Konto zu verknüpfen.
+
+### Deinen Point verwalten
+
+Auf derselben Seite kannst du:
+
+- **Bearbeiten**: Name, Sitzungspasswort, AreaFix/FileFix-Passwort, Internet-Host und Port deines Points sowie Hold Mail und Compress Outbound umschalten.
+- **Echo- und Dateibereich-Abonnements** für deinen Point verwalten, genauso wie du sie mit AreaFix/FileFix-Befehlen per Netmail verwalten würdest — es werden nur Bereiche aufgelistet, die für Selbstabonnement geöffnet sind.
+- **Löschen**: deinen Point entfernen, wenn du ihn nicht mehr brauchst.
+
+Deine Point-Nummer, die Boss-Adresse und ob der Point aktiviert ist, bleiben unter der Kontrolle des Sysops. Point-bezogene Mail läuft über die normale Binkp-Sitzungs- und Warteschlangenmechanik — siehe [FTN-Adressen verstehen](#ftn-adressen-verstehen) dafür, wie Point-Adressen in das größere FTN-Adressierungsschema passen.
 
 ---
 

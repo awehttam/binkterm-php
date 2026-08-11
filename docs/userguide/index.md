@@ -14,9 +14,10 @@ Welcome aboard! This guide will walk you through everything this BBS has to offe
 6. [Doors: Games & Applications](#doors-games-applications)
 7. [File Areas](#file-areas)
 8. [Exploring the BBS Networks](#exploring-the-bbs-networks)
-9. [Radio & Mesh Access (PacketBBS)](#radio-mesh-access-packetbbs)
-10. [Your Profile & Settings](#your-profile-settings)
-11. [Getting Help](#getting-help)
+9. [Running Your Own Point](#running-your-own-point)
+10. [Radio & Mesh Access (PacketBBS)](#radio-mesh-access-packetbbs)
+11. [Your Profile & Settings](#your-profile-settings)
+12. [Getting Help](#getting-help)
 
 ---
 
@@ -228,6 +229,28 @@ Every node on the FTN network has a unique address in the format **Zone:Net/Node
 | Point | An optional sub-address for a user on a node |
 
 Multiple FTN networks (FidoNet, FSXNet, AgoraNet, DoveNet, and others) operate independently but use the same addressing convention.
+
+---
+
+## Running Your Own Point {#running-your-own-point}
+
+A **point** is a personal FTN sub-address hanging off this BBS's own address — for example `1:218/700.5`, where `1:218/700` is this BBS and `.5` is your point number. Points are normally set up by request from the sysop, but if your sysop has granted your account **Point Management Access**, you can register and manage your own point directly, no request needed.
+
+If you have access, a **Point Management** entry appears in your account menu.
+
+### Creating a Point
+
+From the Point Management page, pick one of the BBS's configured networks and give your point a name, then create it. Your point number, Session Password, and a combined AreaFix/FileFix password are generated automatically. Each network allows a limited number of self-created points per user (your sysop sets this limit); if you need more, ask your sysop to link an existing point to your account instead.
+
+### Managing Your Point
+
+From the same page you can:
+
+- **Edit** your point's name, Session Password, AreaFix/FileFix password, Internet Host, and Port, and toggle Hold Mail and Compress Outbound.
+- **Manage echo and file area subscriptions** for your point, the same way you'd manage them with AreaFix/FileFix commands over netmail — only areas open to self-subscription are listed.
+- **Delete** your point if you no longer need it.
+
+Your point number, boss address, and whether it's enabled remain under the sysop's control. Point-related mail flows through the normal binkp session and queueing mechanics — see [Understanding FTN Addresses](#understanding-ftn-addresses) for how point addresses fit into the wider FTN addressing scheme.
 
 ---
 

@@ -14,9 +14,10 @@ Benvenuto a bordo! Questa guida ti illustrera tutto cio che questo BBS ha da off
 6. [Doors: Giochi e Applicazioni](#doors-giochi-e-applicazioni)
 7. [Aree File](#aree-file)
 8. [Esplorare le Reti BBS](#esplorare-le-reti-bbs)
-9. [Accesso Radio e Mesh (PacketBBS)](#accesso-radio-e-mesh-packetbbs)
-10. [Il Tuo Profilo e le Impostazioni](#il-tuo-profilo-e-le-impostazioni)
-11. [Ottenere Assistenza](#ottenere-assistenza)
+9. [Gestire il Proprio Point](#gestire-il-proprio-point)
+10. [Accesso Radio e Mesh (PacketBBS)](#accesso-radio-e-mesh-packetbbs)
+11. [Il Tuo Profilo e le Impostazioni](#il-tuo-profilo-e-le-impostazioni)
+12. [Ottenere Assistenza](#ottenere-assistenza)
 
 ---
 
@@ -228,6 +229,28 @@ Ogni nodo sulla rete FTN ha un indirizzo univoco nel formato **Zona:Net/Nodo** �
 | Point | Un indirizzo secondario opzionale per un utente su un nodo |
 
 Molteplici reti FTN (FidoNet, FSXNet, AgoraNet, DoveNet e altre) operano indipendentemente ma usano la stessa convenzione di indirizzamento.
+
+---
+
+## Gestire il Proprio Point {#gestire-il-proprio-point}
+
+Un **point** è un sotto-indirizzo FTN personale collegato all'indirizzo di questa BBS — ad esempio `1:218/700.5`, dove `1:218/700` è questa BBS e `.5` è il tuo numero di point. I point vengono normalmente creati dal sysop su richiesta, ma se il tuo sysop ha concesso al tuo account l'**Accesso alla Gestione Point**, puoi registrare e gestire il tuo point direttamente, senza bisogno di fare richiesta.
+
+Se hai accesso, nel menu del tuo account comparirà una voce **Gestione Point**.
+
+### Creare un Point
+
+Dalla pagina di Gestione Point, scegli una delle reti configurate sulla BBS, assegna un nome al tuo point e crealo. Il numero di point, la Password di Sessione e una password combinata AreaFix/FileFix vengono generati automaticamente. Ogni rete consente un numero limitato di point autocreati per utente (il limite è impostato dal sysop); se te ne servono altri, chiedi al sysop di collegare un point esistente al tuo account.
+
+### Gestire il Tuo Point
+
+Dalla stessa pagina puoi:
+
+- **Modificare** il nome del point, la Password di Sessione, la password AreaFix/FileFix, l'Host Internet e la Porta, oltre ad attivare/disattivare Hold Mail e Compress Outbound.
+- **Gestire le sottoscrizioni alle aree echo e file** del tuo point, allo stesso modo in cui le gestiresti con i comandi AreaFix/FileFix via netmail — vengono elencate solo le aree aperte all'auto-sottoscrizione.
+- **Eliminare** il tuo point se non ti serve più.
+
+Il numero di point, l'indirizzo boss e lo stato di abilitazione restano sotto il controllo del sysop. La posta relativa al point passa attraverso i normali meccanismi di sessione e coda binkp — vedi [Capire gli Indirizzi FTN](#capire-gli-indirizzi-ftn) per come gli indirizzi point si inseriscono nello schema di indirizzamento FTN più ampio.
 
 ---
 
