@@ -3,6 +3,7 @@
 namespace BinktermPHP\Hub;
 
 use PDO;
+use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Echomail\EchomailSeenBy;
@@ -528,14 +529,11 @@ class HubNodeManager
     }
 
     /**
-     * Suggest the next unused point number for a given boss AKA.
+     * Suggest the next unused point number for a given boss AKA. Lower
+     * numbers are reserved for manual/sysop assignment and are never
+     * auto-suggested; the floor is configurable via
+     * HUB_POINT_FIRST_AUTO_NUMBER (default 10, i.e. 1-9 reserved).
      */
-    /**
-     * Point numbers 1-9 are reserved (not auto-assigned) for each boss
-     * address, so automatic allocation always starts at 10.
-     */
-    private const FIRST_AUTO_POINT_NUMBER = 10;
-
     public function suggestNextPointNumber(string $bossAddress): int
     {
         $stmt = $this->db->prepare("
@@ -546,7 +544,9 @@ class HubNodeManager
         $stmt->execute([trim($bossAddress)]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return max(self::FIRST_AUTO_POINT_NUMBER, (int)($row['max_point'] ?? 0) + 1);
+        $firstAutoNumber = (int)Config::env('HUB_POINT_FIRST_AUTO_NUMBER', '10');
+
+        return max($firstAutoNumber, (int)($row['max_point'] ?? 0) + 1);
     }
 
     /**

@@ -100,7 +100,7 @@ BinktermPHP can now act as an FTN **hub**, distributing echomail and routing net
 Subordinates are managed from a new admin page, **Admin → BBS Settings → BinkP Downlinks**, and come in two kinds:
 
 - **Node** — an independently-addressed system (for example `2:345/67`), entered as a free-text FTN address. Covers both traditional downlinks and symmetric peer links.
-- **Point** — a system addressed as one of this BBS's own AKAs plus a point number (for example `1:153/149.1`). The boss address is picked from the AKAs already configured under **Admin → Binkp Uplinks**, and a next-available point number is suggested automatically starting at 10 (numbers 1-9 are reserved and can still be entered manually).
+- **Point** — a system addressed as one of this BBS's own AKAs plus a point number (for example `1:153/149.1`). The boss address is picked from the AKAs already configured under **Admin → Binkp Uplinks**, and a next-available point number is suggested automatically starting at 10 by default (configurable via `HUB_POINT_FIRST_AUTO_NUMBER`; lower numbers are reserved and can still be entered manually).
 
 Each downlink has its own echo area subscription list, its own session/packet passwords, and independent enable/hold/quota controls. New echomail is distributed to every subscribed downlink and, separately, forwarded up to the area's configured uplink (unless it just came from that uplink). Netmail addressed to a registered downlink is delivered into its queue instead of being handled as ordinary local netmail, and netmail from a registered point addressed elsewhere is relayed onward rather than dropped. There is no open relay — only traffic to or from an explicitly registered downlink is handled this way.
 
@@ -116,7 +116,7 @@ See `docs/Downlinks.md` for the full reference, including field descriptions and
 
 Users can now be granted **Point Management Access** on their account (**Admin → Manage Users**) to register and manage their own point without going through the sysop for each request. Once granted, a **Point Management** entry appears in that user's account menu, from which they can:
 
-- **Create a point** under any configured network that isn't itself a point address, up to a configurable per-network limit (`HUB_POINT_MAX_PER_USER_PER_NETWORK` in `.env`, default `1` — see `docs/CONFIGURATION.md`). The point number is allocated automatically starting at 10 (numbers 1-9 are reserved for the sysop), and a Session Password plus a single AreaFix Password (also used as the FileFix Password) are generated automatically.
+- **Create a point** under any configured network that isn't itself a point address, up to a configurable per-network limit (`HUB_POINT_MAX_PER_USER_PER_NETWORK` in `.env`, default `1` — see `docs/CONFIGURATION.md`). The point number is allocated automatically starting at 10 by default (configurable via `HUB_POINT_FIRST_AUTO_NUMBER`, reserving lower numbers for the sysop), and a Session Password plus a single AreaFix Password (also used as the FileFix Password) are generated automatically.
 - **Edit** their point's Name, Session Password, AreaFix/FileFix Password, Internet Host, Port, Hold Mail, and Compress Outbound. Point Number, Boss Address, Enabled state, and the accept-echomail/accept-netmail flags remain sysop-only, changeable only from **Admin → BBS Settings → BinkP Downlinks**.
 - **Manage their own echo and file area subscriptions**, using the same eligibility rules as the AreaFix/FileFix netmail robots.
 - **Delete** their own point registration.

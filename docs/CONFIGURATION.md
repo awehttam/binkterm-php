@@ -241,6 +241,13 @@ See [docs/DOSBox_Headless_Mode.md](DOSBox_Headless_Mode.md) and [docs/DOSDoors.m
 # association selector. A value of 0 or less disables self-service point
 # creation entirely (existing self-registered points are unaffected).
 # HUB_POINT_MAX_PER_USER_PER_NETWORK=1
+
+# Lowest point number that is ever auto-suggested for a new point, on both
+# the admin Downlinks "Add Downlink" form and self-service point creation.
+# Numbers below this are reserved for the sysop to assign manually per
+# network -- they are never picked automatically, but can still be typed
+# into the Point Number field on the admin form.
+# HUB_POINT_FIRST_AUTO_NUMBER=10
 ```
 
 Configure which users may access the self-serve Point Management page itself (`/point-management`) via the "Point Management Access" toggle on a user's account, from **Admin → Manage Users**.

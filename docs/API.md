@@ -6728,7 +6728,7 @@ Lists the system's own configured AKAs (boss addresses) the current user may sti
 
 **Requires authentication** (`manage_hub_point` flag or admin)
 
-Self-provisions a new point under the given network. The point number is allocated automatically, starting at 10 (point numbers 1-9 are reserved for manual/sysop assignment and are never auto-suggested). A random `session_password` is generated, along with a single random `areafix_password` that is also used as `filefix_password` (Areafix and Filefix share one generated credential). No `packet_password` is generated. Enforces the configurable `HUB_POINT_MAX_PER_USER_PER_NETWORK` self-service limit (see `docs/CONFIGURATION.md`) and notifies the sysop on success.
+Self-provisions a new point under the given network. The point number is allocated automatically, starting at 10 by default (configurable via `HUB_POINT_FIRST_AUTO_NUMBER`, see `docs/CONFIGURATION.md`) — numbers below that are reserved for manual/sysop assignment and are never auto-suggested. A random `session_password` is generated, along with a single random `areafix_password` that is also used as `filefix_password` (Areafix and Filefix share one generated credential). No `packet_password` is generated. Enforces the configurable `HUB_POINT_MAX_PER_USER_PER_NETWORK` self-service limit (see `docs/CONFIGURATION.md`) and notifies the sysop on success.
 
 **Request Body** _(JSON)_
 
