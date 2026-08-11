@@ -23,7 +23,7 @@ From **Admin → BBS Settings → BinkP Downlinks**, choose **Add Downlink** and
 |---|---|---|
 | Address | Node | Free-text FTN address |
 | Boss Address | Point | Picked from configured AKAs |
-| Point Number | Point | Suggested automatically, editable |
+| Point Number | Point | Suggested automatically (starting at 10 — numbers 1-9 are reserved and never auto-assigned, but can still be entered manually here), editable |
 | Name / Sysop Name | Both | Informational |
 | Session Password | Both | Authenticates this downlink when *it* connects to us (binkp session password) |
 | Packet Password | Both | `.pkt`-level password |
@@ -97,8 +97,8 @@ A user account can be granted **Point Management Access** (**Admin → Manage Us
 
 From that page, a user can:
 
-- **Create a point** under any configured network (boss AKA) that isn't itself a point address, up to a configurable limit per network (`HUB_POINT_MAX_PER_USER_PER_NETWORK` in `.env`, default `1` — see `docs/CONFIGURATION.md`). The point number is allocated automatically; a Session Password and a single AreaFix Password (also used as the FileFix Password) are generated automatically. No Packet Password is generated.
-- **Edit** their point's Session Password, AreaFix/FileFix Password, Internet Host, Port, Hold Mail, and Compress Outbound. Point Number, Boss Address, Enabled state, and the accept-echomail/accept-netmail flags remain sysop-only and can only be changed from **Admin → BBS Settings → BinkP Downlinks**.
+- **Create a point** under any configured network (boss AKA) that isn't itself a point address, up to a configurable limit per network (`HUB_POINT_MAX_PER_USER_PER_NETWORK` in `.env`, default `1` — see `docs/CONFIGURATION.md`). The point number is allocated automatically, starting at 10 — numbers 1-9 are reserved for the sysop to assign manually and are never auto-assigned to a self-service point. A Session Password and a single AreaFix Password (also used as the FileFix Password) are generated automatically. No Packet Password is generated.
+- **Edit** their point's Name, Session Password, AreaFix/FileFix Password, Internet Host, Port, Hold Mail, and Compress Outbound. Point Number, Boss Address, Enabled state, and the accept-echomail/accept-netmail flags remain sysop-only and can only be changed from **Admin → BBS Settings → BinkP Downlinks**.
 - **Manage their echo and file area subscriptions**, using the same eligibility rules as `%LIST`/`+TAG` over netmail (see [AreaFix / FileFix](#areafix--filefix)) — this is a third way to reach the same subscription data, not a separate model.
 - **Delete** their own point registration.
 

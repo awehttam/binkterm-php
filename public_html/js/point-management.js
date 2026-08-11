@@ -60,6 +60,7 @@ function loadPmNetworks() {
 
 function createPoint() {
     const bossAddress = document.getElementById('pmCreateNetwork').value;
+    const name = document.getElementById('pmCreateName').value.trim();
     if (!bossAddress) {
         showError(window.t('ui.point_management.select_network_required', {}, 'Please select a network'));
         return;
@@ -68,7 +69,7 @@ function createPoint() {
     fetch('/api/point-management', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ boss_address: bossAddress })
+        body: JSON.stringify({ boss_address: bossAddress, name })
     })
         .then(response => response.json())
         .then(data => {
@@ -93,6 +94,7 @@ function renderPointCard(point) {
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>
                 <strong class="font-monospace">${escapeHtml(point.node_address)}</strong>
+                ${point.name ? `<span class="ms-2">${escapeHtml(point.name)}</span>` : ''}
                 ${point.network_name ? `<span class="text-muted ms-2">${escapeHtml(point.network_name)}</span>` : ''}
                 <span class="text-muted ms-2">${escapeHtml(window.t('ui.point_management.point_number_label', {}, 'Point number'))}: ${escapeHtml(String(point.point_number))}</span>
             </div>
@@ -115,6 +117,10 @@ function renderPointCard(point) {
         <div class="card-body">
             <div id="pmAlert-${id}"></div>
             <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="pmName-${id}">${escapeHtml(window.t('ui.admin.hub_nodes.name', {}, 'Name'))}</label>
+                    <input type="text" class="form-control" id="pmName-${id}" value="${escapeHtml(point.name || '')}">
+                </div>
                 <div class="col-md-6">
                     <label class="form-label" for="pmSessionPassword-${id}">${escapeHtml(window.t('ui.point_management.session_password', {}, 'Session Password'))}</label>
                     <div class="input-group">
@@ -190,6 +196,7 @@ function togglePmPasswordVisibility(inputId, button) {
 
 function savePmPoint(id) {
     const payload = {
+        name: document.getElementById(`pmName-${id}`).value.trim(),
         session_password: document.getElementById(`pmSessionPassword-${id}`).value,
         packet_password: document.getElementById(`pmPacketPassword-${id}`).value,
         areafix_password: document.getElementById(`pmAreafixPassword-${id}`).value,

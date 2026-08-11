@@ -26,11 +26,15 @@
                         <div id="pointManagementNoPoints" class="alert alert-info d-none">{{ t('ui.point_management.no_points', {}, locale, ['common']) }}</div>
                         <div id="pointManagementNoNetworks" class="alert alert-secondary d-none">{{ t('ui.point_management.no_networks_available', {}, locale, ['common']) }}</div>
                         <div id="pointManagementCreateForm" class="row g-3 align-items-end d-none">
-                            <div class="col-md-6">
+                            <div class="col-md-5">
                                 <label class="form-label" for="pmCreateNetwork">{{ t('ui.point_management.select_network', {}, locale, ['common']) }}</label>
                                 <select class="form-select" id="pmCreateNetwork"></select>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <label class="form-label" for="pmCreateName">{{ t('ui.admin.hub_nodes.name', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="pmCreateName">
+                            </div>
+                            <div class="col-md-3">
                                 <button type="button" class="btn btn-primary" onclick="createPoint()">
                                     <i class="fas fa-plus me-1"></i>{{ t('ui.point_management.create_point', {}, locale, ['common']) }}
                                 </button>

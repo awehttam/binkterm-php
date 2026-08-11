@@ -13043,7 +13043,7 @@ SimpleRouter::group(['prefix' => '/api/point-management'], function() {
 
     /**
      * POST /api/point-management
-     * Body: { boss_address }
+     * Body: { boss_address, name? }
      * Self-provisions a new point under the given boss AKA, subject to the
      * configurable HUB_POINT_MAX_PER_USER_PER_NETWORK self-service limit.
      */
@@ -13095,6 +13095,7 @@ SimpleRouter::group(['prefix' => '/api/point-management'], function() {
                 'node_type' => \BinktermPHP\Hub\HubNodeManager::TYPE_POINT,
                 'boss_address' => $bossAddress,
                 'point_number' => $pointNumber,
+                'name' => trim((string)($payload['name'] ?? '')) ?: null,
                 'sysop_name' => $user['real_name'] ?? $user['username'] ?? null,
                 'session_password' => $sessionPassword,
                 'areafix_password' => $areafixPassword,

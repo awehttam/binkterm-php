@@ -6694,6 +6694,7 @@ Returns all `hub_nodes` rows owned by the authenticated user, self-registered or
 | `points[].boss_address` | string | Boss AKA this point hangs off |
 | `points[].network_name` | string\|null | Display name of the network this point's boss AKA belongs to |
 | `points[].point_number` | integer | Point number |
+| `points[].name` | string\|null | Display name for the point (self-serve editable) |
 | `points[].session_password` | string\|null | Binkp session password |
 | `points[].packet_password` | string\|null | Packet (AUTH) password |
 | `points[].areafix_password` | string\|null | Areafix robot password |
@@ -6727,13 +6728,14 @@ Lists the system's own configured AKAs (boss addresses) the current user may sti
 
 **Requires authentication** (`manage_hub_point` flag or admin)
 
-Self-provisions a new point under the given network. The point number is allocated automatically. A random `session_password` is generated, along with a single random `areafix_password` that is also used as `filefix_password` (Areafix and Filefix share one generated credential). No `packet_password` is generated. Enforces the configurable `HUB_POINT_MAX_PER_USER_PER_NETWORK` self-service limit (see `docs/CONFIGURATION.md`) and notifies the sysop on success.
+Self-provisions a new point under the given network. The point number is allocated automatically, starting at 10 (point numbers 1-9 are reserved for manual/sysop assignment and are never auto-suggested). A random `session_password` is generated, along with a single random `areafix_password` that is also used as `filefix_password` (Areafix and Filefix share one generated credential). No `packet_password` is generated. Enforces the configurable `HUB_POINT_MAX_PER_USER_PER_NETWORK` self-service limit (see `docs/CONFIGURATION.md`) and notifies the sysop on success.
 
 **Request Body** _(JSON)_
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `boss_address` | string | Yes | One of the system's own configured AKAs, from `GET /api/point-management/networks` |
+| `name` | string | No | Display name for the point |
 
 **Response** _(JSON)_
 
@@ -6756,7 +6758,7 @@ Self-provisions a new point under the given network. The point number is allocat
 
 **Requires authentication** (`manage_hub_point` flag or admin)
 
-Updates the self-serve editable field subset of one of the user's own points: `session_password`, `packet_password`, `areafix_password`, `filefix_password`, `inet_host`, `port`, `hold_mail`, `compress_outbound`. Any other field in the request body is ignored. Point number, boss address, enabled state, and inbound/outbound allow flags remain sysop-only.
+Updates the self-serve editable field subset of one of the user's own points: `name`, `session_password`, `packet_password`, `areafix_password`, `filefix_password`, `inet_host`, `port`, `hold_mail`, `compress_outbound`. Any other field in the request body is ignored. Point number, boss address, enabled state, and inbound/outbound allow flags remain sysop-only.
 
 **Path Parameters**
 

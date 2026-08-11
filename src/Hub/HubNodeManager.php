@@ -202,7 +202,7 @@ class HubNodeManager
      * docs/proposals/HubPointManagementAugust2026.md.
      */
     private const SELF_SERVE_FIELDS = [
-        'session_password', 'packet_password', 'areafix_password', 'filefix_password',
+        'name', 'session_password', 'packet_password', 'areafix_password', 'filefix_password',
         'inet_host', 'port', 'hold_mail', 'compress_outbound',
     ];
 
@@ -530,6 +530,12 @@ class HubNodeManager
     /**
      * Suggest the next unused point number for a given boss AKA.
      */
+    /**
+     * Point numbers 1-9 are reserved (not auto-assigned) for each boss
+     * address, so automatic allocation always starts at 10.
+     */
+    private const FIRST_AUTO_POINT_NUMBER = 10;
+
     public function suggestNextPointNumber(string $bossAddress): int
     {
         $stmt = $this->db->prepare("
@@ -540,7 +546,7 @@ class HubNodeManager
         $stmt->execute([trim($bossAddress)]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return (int)($row['max_point'] ?? 0) + 1;
+        return max(self::FIRST_AUTO_POINT_NUMBER, (int)($row['max_point'] ?? 0) + 1);
     }
 
     /**
