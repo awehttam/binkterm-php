@@ -232,6 +232,19 @@ See [docs/DOSBox_Headless_Mode.md](DOSBox_Headless_Mode.md) and [docs/DOSDoors.m
 # FAVICONICO=/robot_favicon.ico
 ```
 
+### Point Management
+
+```bash
+# Maximum number of points a manage_hub_point-flagged user may self-register
+# per network (boss AKA) from the self-serve Point Management page. Does not
+# limit points a sysop assigns to a user via the admin Downlinks user
+# association selector. A value of 0 or less disables self-service point
+# creation entirely (existing self-registered points are unaffected).
+# HUB_POINT_MAX_PER_USER_PER_NETWORK=1
+```
+
+Configure which users may access the self-serve Point Management page itself (`/point-management`) via the "Point Management Access" toggle on a user's account, from **Admin → Manage Users**.
+
 ### Miscellaneous
 
 ```bash

@@ -733,6 +733,19 @@ return [
     'errors.admin.hub_nodes.fileareas_load_failed' => 'Echec du chargement des abonnements aux zones de fichiers',
     'errors.admin.hub_nodes.fileareas_save_failed' => 'Echec de l\'enregistrement des abonnements aux zones de fichiers',
     'errors.admin.hub_nodes.next_point_failed' => 'Impossible de determiner le prochain numero de point',
+    'errors.point_management.access_denied' => 'Vous n\'avez pas acces a la gestion des points.',
+    'errors.point_management.boss_address_required' => 'Un reseau doit etre selectionne.',
+    'errors.point_management.invalid_network' => 'Ce reseau n\'est pas disponible pour la creation de points.',
+    'errors.point_management.self_service_disabled' => 'La creation autonome de points est desactivee.',
+    'errors.point_management.limit_reached' => 'Vous avez atteint le nombre maximal de points en libre-service pour ce reseau.',
+    'errors.point_management.create_failed' => 'Echec de la creation du point.',
+    'errors.point_management.not_found' => 'Point introuvable.',
+    'errors.point_management.save_failed' => 'Echec de l\'enregistrement du point.',
+    'errors.point_management.delete_failed' => 'Echec de la suppression du point.',
+    'errors.point_management.areas_save_failed' => 'Echec de l\'enregistrement des abonnements aux zones.',
+    'errors.point_management.fileareas_save_failed' => 'Echec de l\'enregistrement des abonnements aux zones de fichiers.',
+    'errors.admin.hub_nodes.invalid_owner_user' => 'L\'utilisateur selectionne n\'existe pas.',
+    'errors.admin.users.autocomplete_failed' => 'Echec de la recherche d\'utilisateurs.',
 ];
 
 

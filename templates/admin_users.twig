@@ -335,6 +335,13 @@
                                 </label>
                                 <div class="form-text">{{ t('ui.admin_users.is_system_account_help', {}, locale, ['common']) }}</div>
                             </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="edit-manage-hub-point">
+                                <label class="form-check-label" for="edit-manage-hub-point">
+                                    {{ t('ui.admin_users.manage_hub_point', {}, locale, ['common']) }}
+                                </label>
+                                <div class="form-text">{{ t('ui.admin_users.manage_hub_point_help', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
                     </div>
                     
@@ -895,6 +902,7 @@ function editUser(userId) {
                 $('#edit-email').val(user.email || '');
                 $('#edit-is-active').prop('checked', !!user.is_active);
                 $('#edit-is-admin').prop('checked', !!user.is_admin);
+                $('#edit-manage-hub-point').prop('checked', !!user.manage_hub_point);
                 $('#edit-is-system').prop('checked', !!user.is_system);
                 $('#edit-echomail-moderation-forced').prop('checked', !!user.echomail_moderation_forced);
                 $('#edit-can-post-netecho-unmoderated').prop('checked', !!user.can_post_netecho_unmoderated);
@@ -931,6 +939,7 @@ function saveUserChanges() {
         email: $('#edit-email').val(),
         is_active: $('#edit-is-active').is(':checked') ? 1 : 0,
         is_admin: $('#edit-is-admin').is(':checked') ? 1 : 0,
+        manage_hub_point: $('#edit-manage-hub-point').is(':checked') ? 1 : 0,
         is_system: $('#edit-is-system').is(':checked') ? 1 : 0,
         echomail_moderation_forced: $('#edit-echomail-moderation-forced').is(':checked') ? 1 : 0,
         can_post_netecho_unmoderated: $('#edit-can-post-netecho-unmoderated').is(':checked') ? 1 : 0

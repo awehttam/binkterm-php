@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
   - [Downlinks: Act as a Hub for Subordinate Nodes and Points](#downlinks-act-as-a-hub-for-subordinate-nodes-and-points)
+  - [Self-Serve Point Management](#self-serve-point-management)
   - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view)
   - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix)
   - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch)
@@ -22,6 +23,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Docker: PHP Fatal Errors Were Silently Lost](#docker-php-fatal-errors-were-silently-lost)
   - [Docker: Upload and POST Size Limits Were PHP Defaults](#docker-upload-and-post-size-limits-were-php-defaults)
 - [Downlinks: Act as a Hub for Subordinate Nodes and Points](#downlinks-act-as-a-hub-for-subordinate-nodes-and-points-1)
+- [Self-Serve Point Management](#self-serve-point-management-1)
 - [Echomail Unread/Read Filter (Threaded View)](#echomail-unreadread-filter-threaded-view-1)
 - [Auto Feed (RSS/Bluesky) Watermark Fix](#auto-feed-rssbluesky-watermark-fix-1)
 - [Duplicate Auto-Created Echo Areas from Domain Case Mismatch](#duplicate-auto-created-echo-areas-from-domain-case-mismatch-1)
@@ -42,6 +44,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Downlinks: Act as a Hub for Subordinate Nodes and Points
 
 - BinktermPHP can now act as an FTN hub for subordinate systems: independently-addressed nodes/peers, and FidoNet-style points hanging off one of its own AKAs. Manage them from the new **Admin → BBS Settings → BinkP Downlinks** page: register a downlink, choose which echo areas it receives, and it's delivered to (and can deliver mail back) automatically. See `docs/Downlinks.md` for full details.
+
+### Self-Serve Point Management
+
+- Users granted a new **Point Management Access** flag on their account can now register and manage their own point address from a new **Point Management** page in their account menu, without waiting on the sysop for each request. See `docs/Downlinks.md#self-serve-point-management`.
 
 ### Echomail Unread/Read Filter (Threaded View)
 
@@ -104,7 +110,20 @@ A new **Binkp Status → Downlink Queue** tab shows every queued packet across a
 
 Delivered and failed queue entries are kept for each downlink's configured retention period (default 30 days) and then purged automatically by `scripts/database_maintenance.php`; pending or held mail is never purged regardless of age.
 
-See `docs/Downlinks.md` for the full reference, including field descriptions and current limitations (no Areafix self-service subscription management yet, and file-attach netmail forwards only the `.pkt` header).
+See `docs/Downlinks.md` for the full reference, including field descriptions and current limitations (file-attach netmail forwards only the `.pkt` header).
+
+## Self-Serve Point Management
+
+Users can now be granted **Point Management Access** on their account (**Admin → Manage Users**) to register and manage their own point without going through the sysop for each request. Once granted, a **Point Management** entry appears in that user's account menu, from which they can:
+
+- **Create a point** under any configured network that isn't itself a point address, up to a configurable per-network limit (`HUB_POINT_MAX_PER_USER_PER_NETWORK` in `.env`, default `1` — see `docs/CONFIGURATION.md`). The point number is allocated automatically, and a Session Password plus a single AreaFix Password (also used as the FileFix Password) are generated automatically.
+- **Edit** their point's Session Password, AreaFix/FileFix Password, Internet Host, Port, Hold Mail, and Compress Outbound. Point Number, Boss Address, Enabled state, and the accept-echomail/accept-netmail flags remain sysop-only, changeable only from **Admin → BBS Settings → BinkP Downlinks**.
+- **Manage their own echo and file area subscriptions**, using the same eligibility rules as the AreaFix/FileFix netmail robots.
+- **Delete** their own point registration.
+
+A sysop can hand an existing downlink off to a user for self-service by searching for a username in that downlink's edit form on **Admin → BBS Settings → BinkP Downlinks**; this also lets a sysop register additional points for a user beyond that user's self-service per-network limit. Self-service point creation notifies the sysop.
+
+See `docs/Downlinks.md#self-serve-point-management` for the full reference.
 
 ## Echomail Unread/Read Filter (Threaded View)
 

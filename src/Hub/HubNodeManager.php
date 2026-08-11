@@ -26,7 +26,7 @@ class HubNodeManager
         hn.inet_host, hn.port, hn.enabled, hn.allow_inbound,
         hn.allow_outbound, hn.allow_inbound_echomail, hn.allow_inbound_netmail, hn.max_packet_kb,
         hn.hold_mail, hn.compress_outbound, hn.queue_retention_days, hn.capability_flags, hn.notes, hn.created_at, hn.last_session_at,
-        hn.push_poll_interval_minutes, hn.last_push_at
+        hn.push_poll_interval_minutes, hn.last_push_at, hn.user_id
     ";
 
     public function __construct(?PDO $db = null)
@@ -67,6 +67,41 @@ class HubNodeManager
         return $row ? $this->normalizeRow($row) : null;
     }
 
+    /**
+     * All hub_nodes rows (nodes or points, self-registered or sysop-assigned)
+     * associated with a local user account, for the self-serve Point
+     * Management page. See docs/proposals/HubPointManagementAugust2026.md.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getByUserId(int $userId): array
+    {
+        $stmt = $this->db->prepare("SELECT " . self::COLUMNS . " FROM hub_nodes hn WHERE hn.user_id = ? ORDER BY hn.node_type, hn.node_address");
+        $stmt->execute([$userId]);
+
+        return array_map([$this, 'normalizeRow'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /**
+     * Count of self-registerable points (node_type='point') a user already
+     * holds under a given boss AKA - used to enforce the configurable
+     * HUB_POINT_MAX_PER_USER_PER_NETWORK self-service limit. Locks the
+     * matching rows (SELECT ... FOR UPDATE) so the caller can safely count
+     * then insert within the same transaction without a race on rapid
+     * double-submit.
+     */
+    public function countUserPointsForBossAddressForUpdate(int $userId, string $bossAddress): int
+    {
+        $stmt = $this->db->prepare("
+            SELECT id FROM hub_nodes
+            WHERE node_type = 'point' AND user_id = ? AND boss_address = ?
+            FOR UPDATE
+        ");
+        $stmt->execute([$userId, trim($bossAddress)]);
+
+        return count($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
     public function create(array $data): array
     {
         $prepared = $this->prepareFields($data);
@@ -82,14 +117,14 @@ class HubNodeManager
                 inet_host, port, enabled, allow_inbound,
                 allow_outbound, allow_inbound_echomail, allow_inbound_netmail, max_packet_kb,
                 hold_mail, compress_outbound, queue_retention_days, capability_flags, notes,
-                push_poll_interval_minutes
+                push_poll_interval_minutes, user_id
             ) VALUES (
                 :node_type, :node_address, :boss_address, :point_number, :name, :sysop_name,
                 :session_password, :packet_password, :areafix_password, :filefix_password,
                 :inet_host, :port, :enabled, :allow_inbound,
                 :allow_outbound, :allow_inbound_echomail, :allow_inbound_netmail, :max_packet_kb,
                 :hold_mail, :compress_outbound, :queue_retention_days, :capability_flags, :notes,
-                :push_poll_interval_minutes
+                :push_poll_interval_minutes, :user_id
             )
             RETURNING id
         ");
@@ -138,7 +173,8 @@ class HubNodeManager
                 queue_retention_days = :queue_retention_days,
                 capability_flags = :capability_flags,
                 notes = :notes,
-                push_poll_interval_minutes = :push_poll_interval_minutes
+                push_poll_interval_minutes = :push_poll_interval_minutes,
+                user_id = :user_id
             WHERE id = :id
         ");
         $bindable = $this->bindable($prepared);
@@ -156,6 +192,52 @@ class HubNodeManager
 
         $stmt = $this->db->prepare("DELETE FROM hub_nodes WHERE id = ?");
         $stmt->execute([$id]);
+    }
+
+    /**
+     * Self-serve field allowlist for the Point Management page - a point
+     * owner may edit only these columns of their own row. Everything else
+     * (point number, boss address, enable/disable, inbound/outbound allow
+     * flags, etc.) stays sysop-only. See
+     * docs/proposals/HubPointManagementAugust2026.md.
+     */
+    private const SELF_SERVE_FIELDS = [
+        'session_password', 'packet_password', 'areafix_password', 'filefix_password',
+        'inet_host', 'port', 'hold_mail', 'compress_outbound',
+    ];
+
+    /**
+     * Update the self-serve-editable field subset of a hub_nodes row owned
+     * by $ownerId. Throws if the row doesn't exist or isn't owned by
+     * $ownerId, so a self-serve caller can never touch another user's (or
+     * an unassociated) row.
+     *
+     * @param array<string, mixed> $fields
+     */
+    public function updateSelfServeFields(int $hubNodeId, int $ownerId, array $fields): array
+    {
+        $existing = $this->getById($hubNodeId);
+        if (!$existing || (int)($existing['user_id'] ?? 0) !== $ownerId) {
+            throw new \InvalidArgumentException('Hub node not found');
+        }
+
+        $allowed = array_intersect_key($fields, array_flip(self::SELF_SERVE_FIELDS));
+
+        return $this->update($hubNodeId, $allowed);
+    }
+
+    /**
+     * Delete a hub_nodes row owned by $ownerId. Throws if the row doesn't
+     * exist or isn't owned by $ownerId.
+     */
+    public function deleteOwnedByUser(int $hubNodeId, int $ownerId): void
+    {
+        $existing = $this->getById($hubNodeId);
+        if (!$existing || (int)($existing['user_id'] ?? 0) !== $ownerId) {
+            throw new \InvalidArgumentException('Hub node not found');
+        }
+
+        $this->delete($hubNodeId);
     }
 
     /**
@@ -427,6 +509,25 @@ class HubNodeManager
     }
 
     /**
+     * IDs of the active fileareas a hub node is currently subscribed to and
+     * not paused on. Mirrors getSubscribedEchoareaIds().
+     *
+     * @return int[]
+     */
+    public function getSubscribedFileareaIds(int $hubNodeId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT hnf.file_area_id
+            FROM hub_node_fileareas hnf
+            JOIN file_areas fa ON fa.id = hnf.file_area_id
+            WHERE hnf.hub_node_id = ? AND hnf.paused = FALSE AND fa.is_active = TRUE
+        ");
+        $stmt->execute([$hubNodeId]);
+
+        return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'file_area_id'));
+    }
+
+    /**
      * Suggest the next unused point number for a given boss AKA.
      */
     public function suggestNextPointNumber(string $bossAddress): int
@@ -470,6 +571,66 @@ class HubNodeManager
     }
 
     /**
+     * Echoareas a subordinate (node or point) in the given network domain
+     * may self-subscribe to: active, non-local, non-sysop-only, scoped to
+     * that domain. This is the single source of truth for "eligible for
+     * self-service subscription" - used by both HubAreafixProcessor (netmail
+     * +TAG/%LIST) and the self-serve Point Management subscription
+     * endpoints, so a point can never subscribe via one path to an area it
+     * couldn't reach via the other.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getEligibleEchoareasForDomain(?string $domain): array
+    {
+        if ($domain === null || $domain === '') {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT id, tag, domain, description
+            FROM echoareas
+            WHERE is_active = TRUE AND COALESCE(is_local, FALSE) = FALSE AND COALESCE(is_sysop_only, FALSE) = FALSE
+              AND domain IS NOT NULL AND LOWER(domain) = LOWER(?)
+            ORDER BY tag
+        ");
+        $stmt->execute([$domain]);
+
+        return array_map(function (array $row) {
+            $row['id'] = (int)$row['id'];
+            return $row;
+        }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /**
+     * File areas a subordinate in the given network domain may
+     * self-subscribe to: active, non-local, non-private, scoped to that
+     * domain. Mirrors getEligibleEchoareasForDomain(). See its docblock.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getEligibleFileareasForDomain(?string $domain): array
+    {
+        if ($domain === null || $domain === '') {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT id, tag, domain, description
+            FROM file_areas
+            WHERE is_active = TRUE AND COALESCE(is_local, FALSE) = FALSE AND COALESCE(is_private, FALSE) = FALSE
+              AND domain IS NOT NULL AND LOWER(domain) = LOWER(?)
+            ORDER BY tag
+        ");
+        $stmt->execute([$domain]);
+
+        return array_map(function (array $row) {
+            $row['id'] = (int)$row['id'];
+            return $row;
+        }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /**
      * The AKAs BinktermPHP itself holds, for the boss-address picker.
      *
      * @return string[]
@@ -490,6 +651,13 @@ class HubNodeManager
                 $akas[] = $me;
             }
         }
+
+        // A boss AKA must be a "real" address, not itself a point of some
+        // other system - prepareFields() already rejects this on create, so
+        // exclude it here too rather than offering a boss address that will
+        // always fail validation (e.g. one of our AKAs is itself a point
+        // hanging off an uplink).
+        $akas = array_filter($akas, fn($address) => !EchomailSeenBy::isPointAddress($address));
 
         return array_values(array_unique($akas));
     }
@@ -619,6 +787,7 @@ class HubNodeManager
             'capability_flags' => trim((string)($data['capability_flags'] ?? '')) ?: null,
             'notes' => trim((string)($data['notes'] ?? '')) ?: null,
             'push_poll_interval_minutes' => max(5, (int)($data['push_poll_interval_minutes'] ?? 360)),
+            'user_id' => !empty($data['user_id']) ? (int)$data['user_id'] : null,
         ];
     }
 
@@ -654,6 +823,9 @@ class HubNodeManager
         $row['id'] = (int)$row['id'];
         $row['point_number'] = $row['point_number'] !== null ? (int)$row['point_number'] : null;
         $row['port'] = $row['port'] !== null ? (int)$row['port'] : null;
+        if (array_key_exists('user_id', $row)) {
+            $row['user_id'] = $row['user_id'] !== null ? (int)$row['user_id'] : null;
+        }
         $row['max_packet_kb'] = (int)$row['max_packet_kb'];
         $row['queue_retention_days'] = (int)$row['queue_retention_days'];
         $row['push_poll_interval_minutes'] = (int)$row['push_poll_interval_minutes'];

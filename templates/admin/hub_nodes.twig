@@ -25,6 +25,7 @@
                                 <i class="fas fa-shapes" aria-hidden="true"></i>
                             </th>
                             <th>{{ t('ui.admin.hub_nodes.address', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.hub_nodes.owner_user', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.hub_nodes.name', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.hub_nodes.flags', {}, locale, ['common']) }}</th>
                             <th>{{ t('ui.admin.hub_nodes.pending', {}, locale, ['common']) }}</th>
@@ -130,6 +131,19 @@
                             <div class="col-md-4">
                                 <label class="form-label" for="hubNodePort">{{ t('ui.admin.hub_nodes.port', {}, locale, ['common']) }}</label>
                                 <input type="number" min="1" max="65535" class="form-control" id="hubNodePort">
+                            </div>
+
+                            <div class="col-md-12 position-relative">
+                                <label class="form-label" for="hubNodeUserSearch">{{ t('ui.admin.hub_nodes.owner_user', {}, locale, ['common']) }}</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="hubNodeUserSearch" autocomplete="off" placeholder="{{ t('ui.admin.hub_nodes.owner_user_placeholder', {}, locale, ['common']) }}" oninput="onHubNodeUserSearchInput()">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="clearHubNodeUser()" title="{{ t('ui.common.clear', {}, locale, ['common']) }}" aria-label="{{ t('ui.common.clear', {}, locale, ['common']) }}">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <input type="hidden" id="hubNodeUserId">
+                                <div id="hubNodeUserSuggestions" class="list-group position-absolute w-100 d-none" style="z-index: 1060; max-height: 200px; overflow-y: auto;"></div>
+                                <div class="form-text">{{ t('ui.admin.hub_nodes.owner_user_help', {}, locale, ['common']) }}</div>
                             </div>
 
                             <div class="col-md-12">
@@ -287,6 +301,7 @@ function renderHubNodes() {
                 <code>${escapeHtml(node.node_address || '')}</code>
                 ${node.node_type === 'point' ? `<div class="small text-muted">${escapeHtml(uiT('ui.admin.hub_nodes.boss_address', 'Boss Address'))}: ${escapeHtml(node.boss_address || '')}</div>` : ''}
             </td>
+            <td>${node.owner_username ? escapeHtml(node.owner_username) : '<span class="text-muted">&mdash;</span>'}</td>
             <td>
                 <div>${escapeHtml(node.name || '')}</div>
                 ${node.sysop_name ? `<div class="small text-muted">${escapeHtml(node.sysop_name)}</div>` : ''}
@@ -444,10 +459,74 @@ function openHubNodeModal(id = null) {
     document.getElementById('hubNodeQueueRetentionDays').value = node ? node.queue_retention_days : 30;
     document.getElementById('hubNodePushIntervalMinutes').value = node ? node.push_poll_interval_minutes : 360;
     document.getElementById('hubNodeNotes').value = node ? (node.notes || '') : '';
+    document.getElementById('hubNodeUserId').value = node && node.user_id ? node.user_id : '';
+    document.getElementById('hubNodeUserSearch').value = node && node.owner_username ? node.owner_username : '';
+    document.getElementById('hubNodeUserSuggestions').classList.add('d-none');
     document.getElementById('hubNodeModalTitle').textContent = node ? uiT('ui.admin.hub_nodes.edit_node', 'Edit Downlink') : uiT('ui.admin.hub_nodes.add_node', 'Add Downlink');
     onHubNodeTypeChange();
     hubNodeModal.show();
 }
+
+let hubNodeUserSearchTimer = null;
+
+function onHubNodeUserSearchInput() {
+    document.getElementById('hubNodeUserId').value = '';
+    const query = document.getElementById('hubNodeUserSearch').value.trim();
+    const suggestionsEl = document.getElementById('hubNodeUserSuggestions');
+
+    if (hubNodeUserSearchTimer) {
+        clearTimeout(hubNodeUserSearchTimer);
+    }
+
+    if (query.length < 2) {
+        suggestionsEl.classList.add('d-none');
+        suggestionsEl.innerHTML = '';
+        return;
+    }
+
+    hubNodeUserSearchTimer = setTimeout(() => {
+        fetch(`/admin/api/users/autocomplete?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                const users = (data && data.success && Array.isArray(data.users)) ? data.users : [];
+                if (users.length === 0) {
+                    suggestionsEl.classList.add('d-none');
+                    suggestionsEl.innerHTML = '';
+                    return;
+                }
+                suggestionsEl.innerHTML = users.map(u =>
+                    `<button type="button" class="list-group-item list-group-item-action" onclick="selectHubNodeUser(${u.id}, '${String(u.username).replace(/'/g, "\\'")}')">${u.username}</button>`
+                ).join('');
+                suggestionsEl.classList.remove('d-none');
+            })
+            .catch(() => {
+                suggestionsEl.classList.add('d-none');
+                suggestionsEl.innerHTML = '';
+            });
+    }, 250);
+}
+
+function clearHubNodeUser() {
+    document.getElementById('hubNodeUserId').value = '';
+    document.getElementById('hubNodeUserSearch').value = '';
+    document.getElementById('hubNodeUserSuggestions').classList.add('d-none');
+}
+
+function selectHubNodeUser(id, username) {
+    document.getElementById('hubNodeUserId').value = id;
+    document.getElementById('hubNodeUserSearch').value = username;
+    const suggestionsEl = document.getElementById('hubNodeUserSuggestions');
+    suggestionsEl.classList.add('d-none');
+    suggestionsEl.innerHTML = '';
+}
+
+document.addEventListener('click', function(event) {
+    const wrap = document.getElementById('hubNodeUserSearch');
+    const suggestionsEl = document.getElementById('hubNodeUserSuggestions');
+    if (wrap && suggestionsEl && event.target !== wrap && !suggestionsEl.contains(event.target)) {
+        suggestionsEl.classList.add('d-none');
+    }
+});
 
 function saveHubNode() {
     const id = document.getElementById('hubNodeId').value;
@@ -470,6 +549,7 @@ function saveHubNode() {
         queue_retention_days: document.getElementById('hubNodeQueueRetentionDays').value,
         push_poll_interval_minutes: document.getElementById('hubNodePushIntervalMinutes').value,
         notes: document.getElementById('hubNodeNotes').value.trim(),
+        user_id: document.getElementById('hubNodeUserId').value || null,
     };
     const sessionPassword = document.getElementById('hubNodeSessionPassword').value;
     const packetPassword = document.getElementById('hubNodePacketPassword').value;

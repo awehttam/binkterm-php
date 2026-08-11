@@ -82,6 +82,7 @@ Content-Type: application/json
   - [Nodelist](#nodelist) (2)
   - [Notify](#notify) (3)
   - [Pending Users](#pending-users) (4)
+  - [Point Management](#point-management) (8)
   - [Polls](#polls) (3)
   - [Qwk](#qwk) (7)
   - [Referrals](#referrals) (2)
@@ -6657,6 +6658,256 @@ Rejection confirmation
 | 400 | Rejection failed |
 | 403 | User is not an admin |
 | 401 | Authentication required |
+
+---
+
+### Point Management
+
+Self-serve management of a user's own FTN point address (`hub_nodes` row with `node_type='point'`). Requires the `manage_hub_point` user flag or admin. All endpoints scope to `hub_nodes` rows whose `user_id` matches the authenticated user. See `docs/proposals/HubPointManagementAugust2026.md`.
+
+| Method | Path | Auth | Summary |
+|--------|------|------|---------|
+| `GET` | [`/api/point-management`](#get-apipoint-management) | Yes | List the current user's own points. |
+| `GET` | [`/api/point-management/networks`](#get-apipoint-managementnetworks) | Yes | List networks (boss AKAs) available for point creation. |
+| `POST` | [`/api/point-management`](#post-apipoint-management) | Yes | Self-provision a new point under a chosen network. |
+| `PUT` | [`/api/point-management/{id}`](#put-apipoint-managementid) | Yes | Update the self-serve editable fields of one of the user's own points. |
+| `DELETE` | [`/api/point-management/{id}`](#delete-apipoint-managementid) | Yes | Delete one of the user's own points. |
+| `GET` | [`/api/point-management/{id}/areas`](#get-apipoint-managementidareas) | Yes | List eligible echoareas and subscription status for one of the user's own points. |
+| `PUT` | [`/api/point-management/{id}/areas`](#put-apipoint-managementidareas) | Yes | Replace the echoarea subscription set for one of the user's own points. |
+| `GET` | [`/api/point-management/{id}/fileareas`](#get-apipoint-managementidfileareas) | Yes | List eligible fileareas and subscription status for one of the user's own points. |
+| `PUT` | [`/api/point-management/{id}/fileareas`](#put-apipoint-managementidfileareas) | Yes | Replace the filearea subscription set for one of the user's own points. |
+
+#### `GET /api/point-management`
+
+**Requires authentication** (`manage_hub_point` flag or admin)
+
+Returns all `hub_nodes` rows owned by the authenticated user, self-registered or sysop-assigned alike. Empty array if the user has no points. Each point is annotated with `network_name`, resolved from its `boss_address` the same way `GET /api/point-management/networks` names a network (not limited by the self-service cap that endpoint applies).
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `points` | array of objects | The user's own points |
+| `points[].id` | integer | Hub node ID |
+| `points[].node_address` | string | Full point address (`boss_address.point_number`) |
+| `points[].boss_address` | string | Boss AKA this point hangs off |
+| `points[].network_name` | string\|null | Display name of the network this point's boss AKA belongs to |
+| `points[].point_number` | integer | Point number |
+| `points[].session_password` | string\|null | Binkp session password |
+| `points[].packet_password` | string\|null | Packet (AUTH) password |
+| `points[].areafix_password` | string\|null | Areafix robot password |
+| `points[].filefix_password` | string\|null | Filefix robot password |
+| `points[].inet_host` | string\|null | Internet hostname/IP |
+| `points[].port` | integer\|null | Binkp port |
+| `points[].enabled` | boolean | Whether the point is enabled (sysop-only field) |
+| `points[].hold_mail` | boolean | Whether outbound mail is held |
+| `points[].compress_outbound` | boolean | Whether outbound packets are compressed |
+
+---
+
+#### `GET /api/point-management/networks`
+
+**Requires authentication** (`manage_hub_point` flag or admin)
+
+Lists the system's own configured AKAs (boss addresses) the current user may still self-register a *new* point under. Excludes any AKA that is itself a point address (it can never be a valid boss address) and any network where the user has already reached the configurable `HUB_POINT_MAX_PER_USER_PER_NETWORK` self-service limit (see `docs/CONFIGURATION.md`) — returns an empty array entirely if self-service point creation is disabled (`HUB_POINT_MAX_PER_USER_PER_NETWORK <= 0`). This filtering only affects self-service creation; it does not limit what a sysop can assign via the admin Downlinks user-association selector, so a network already at the self-service cap for this user can still show up in `GET /api/point-management` if the sysop added another point there directly.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `networks` | array of objects | Boss AKAs still available to this user for self-service point creation |
+| `networks[].address` | string | Boss AKA (zone:net/node) |
+| `networks[].network_name` | string\|null | Display name of the network this AKA belongs to |
+
+---
+
+#### `POST /api/point-management`
+
+**Requires authentication** (`manage_hub_point` flag or admin)
+
+Self-provisions a new point under the given network. The point number is allocated automatically. A random `session_password` is generated, along with a single random `areafix_password` that is also used as `filefix_password` (Areafix and Filefix share one generated credential). No `packet_password` is generated. Enforces the configurable `HUB_POINT_MAX_PER_USER_PER_NETWORK` self-service limit (see `docs/CONFIGURATION.md`) and notifies the sysop on success.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `boss_address` | string | Yes | One of the system's own configured AKAs, from `GET /api/point-management/networks` |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `point` | object | The newly created point (same shape as `points[]` above) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing or invalid `boss_address` |
+| 403 | Self-service point creation disabled (`HUB_POINT_MAX_PER_USER_PER_NETWORK <= 0`) |
+| 409 | User has reached the self-service point limit for this network |
+
+---
+
+#### `PUT /api/point-management/{id}`
+
+**Requires authentication** (`manage_hub_point` flag or admin)
+
+Updates the self-serve editable field subset of one of the user's own points: `session_password`, `packet_password`, `areafix_password`, `filefix_password`, `inet_host`, `port`, `hold_mail`, `compress_outbound`. Any other field in the request body is ignored. Point number, boss address, enabled state, and inbound/outbound allow flags remain sysop-only.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Hub node ID, must belong to the authenticated user |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `point` | object | The updated point (same shape as `points[]` above) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 404 | Point not found, or not owned by the authenticated user |
+
+---
+
+#### `DELETE /api/point-management/{id}`
+
+**Requires authentication** (`manage_hub_point` flag or admin)
+
+Deletes one of the user's own point registrations.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Hub node ID, must belong to the authenticated user |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 404 | Point not found, or not owned by the authenticated user |
+
+---
+
+#### `GET /api/point-management/{id}/areas`
+
+**Requires authentication** (`manage_hub_point` flag or admin)
+
+Lists echoareas eligible for self-service subscription (active, non-local, non-sysop-only, scoped to the point's network domain) with current subscription status.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Hub node ID, must belong to the authenticated user |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `areas` | array of objects | Eligible echoareas |
+| `areas[].id` | integer | Echoarea ID |
+| `areas[].tag` | string | Echoarea tag |
+| `areas[].domain` | string\|null | Network domain |
+| `areas[].description` | string\|null | Echoarea description |
+| `areas[].subscribed` | boolean | Whether the point is currently subscribed |
+
+---
+
+#### `PUT /api/point-management/{id}/areas`
+
+**Requires authentication** (`manage_hub_point` flag or admin)
+
+Replaces the point's echoarea subscription set. Requested IDs are intersected against the eligible list server-side, so a self-serve request can never subscribe to a sysop-only, local, or inactive area even by ID-guessing.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Hub node ID, must belong to the authenticated user |
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `echoarea_ids` | array of integers | No | Full replacement set of subscribed echoarea IDs (defaults to empty) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `areas` | array of objects | Updated eligible echoareas with subscription status (same shape as `GET`) |
+
+---
+
+#### `GET /api/point-management/{id}/fileareas`
+
+**Requires authentication** (`manage_hub_point` flag or admin)
+
+Mirrors `GET /api/point-management/{id}/areas` for file areas (eligible: active, non-local, non-private, scoped to the point's network domain).
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Hub node ID, must belong to the authenticated user |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `fileareas` | array of objects | Eligible fileareas |
+| `fileareas[].id` | integer | File area ID |
+| `fileareas[].tag` | string | File area tag |
+| `fileareas[].domain` | string\|null | Network domain |
+| `fileareas[].description` | string\|null | File area description |
+| `fileareas[].subscribed` | boolean | Whether the point is currently subscribed |
+
+---
+
+#### `PUT /api/point-management/{id}/fileareas`
+
+**Requires authentication** (`manage_hub_point` flag or admin)
+
+Mirrors `PUT /api/point-management/{id}/areas` for file areas.
+
+**Path Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | integer | Hub node ID, must belong to the authenticated user |
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file_area_ids` | array of integers | No | Full replacement set of subscribed file area IDs (defaults to empty) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on success |
+| `fileareas` | array of objects | Updated eligible fileareas with subscription status (same shape as `GET`) |
 
 ---
 

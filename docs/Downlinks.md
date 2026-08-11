@@ -91,6 +91,21 @@ Only active, non-local areas are self-subscribable — sysop-only echoareas and 
 
 **`%RESCAN`** re-sends past echomail the downlink is entitled to, e.g. after it lost message history locally. With no arguments it re-queues every area the downlink is currently subscribed to, going back 182 days (~6 months) by default (maximum 3650). Add a number to change the day count (`%RESCAN 30`), an area tag to scope it to just that one area (`%RESCAN GENERAL`, must already be subscribed), or both in either order (`%RESCAN GENERAL 30` or `%RESCAN 30 GENERAL`). AreaFix only — FileFix has no per-message history to replay.
 
+## Self-serve point management
+
+A user account can be granted **Point Management Access** (**Admin → Manage Users**) so it can register and manage its own point without the sysop handling each request individually. Once granted, a **Point Management** entry appears in that user's account menu.
+
+From that page, a user can:
+
+- **Create a point** under any configured network (boss AKA) that isn't itself a point address, up to a configurable limit per network (`HUB_POINT_MAX_PER_USER_PER_NETWORK` in `.env`, default `1` — see `docs/CONFIGURATION.md`). The point number is allocated automatically; a Session Password and a single AreaFix Password (also used as the FileFix Password) are generated automatically. No Packet Password is generated.
+- **Edit** their point's Session Password, AreaFix/FileFix Password, Internet Host, Port, Hold Mail, and Compress Outbound. Point Number, Boss Address, Enabled state, and the accept-echomail/accept-netmail flags remain sysop-only and can only be changed from **Admin → BBS Settings → BinkP Downlinks**.
+- **Manage their echo and file area subscriptions**, using the same eligibility rules as `%LIST`/`+TAG` over netmail (see [AreaFix / FileFix](#areafix--filefix)) — this is a third way to reach the same subscription data, not a separate model.
+- **Delete** their own point registration.
+
+A sysop can hand an existing downlink off for self-service by searching for a username in that downlink's edit form on **Admin → BBS Settings → BinkP Downlinks**. This association also lets a sysop register additional points for a user beyond that user's self-service per-network limit — the limit only applies to points the user creates themselves.
+
+Self-service point creation sends the sysop a notification so new registrations don't go unnoticed.
+
 ## Netmail routing
 
 Netmail addressed to a registered downlink's address is delivered into its queue instead of being handled as ordinary local netmail. This covers three directions:
@@ -125,4 +140,3 @@ Delivered (`sent`) and permanently failed (`failed`) queue entries are not delet
 ## Limitations
 
 - **File-attach netmail routed through a downlink** currently forwards only the `.pkt` header, not the referenced attached file.
-- There is no self-service "request a point" flow; points are registered by the sysop.

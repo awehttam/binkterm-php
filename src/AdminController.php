@@ -40,7 +40,7 @@ class AdminController
         
         try {
             $sql = "
-                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, is_system
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, is_system, manage_hub_point
                 FROM users
                 WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
                 ORDER BY created_at DESC
@@ -51,7 +51,7 @@ class AdminController
         } catch (\PDOException $e) {
             // is_system column not yet present (migration v1.10.18 not run) — fall back
             $sql = "
-                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, manage_hub_point
                 FROM users
                 WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
                 ORDER BY created_at DESC
@@ -258,6 +258,11 @@ class AdminController
         if (isset($data['is_admin'])) {
             $updates[] = 'is_admin = ?';
             $params[] = $data['is_admin'] ? 1 : 0;
+        }
+
+        if (isset($data['manage_hub_point'])) {
+            $updates[] = 'manage_hub_point = ?';
+            $params[] = $data['manage_hub_point'] ? 1 : 0;
         }
 
         if (isset($data['echomail_moderation_forced'])) {

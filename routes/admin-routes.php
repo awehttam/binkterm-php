@@ -115,6 +115,15 @@ if (!function_exists('apiLocalizedText')) {
     }
 }
 
+if (!function_exists('adminUserExists')) {
+    function adminUserExists(int $userId): bool
+    {
+        $stmt = \BinktermPHP\Database::getInstance()->getPdo()->prepare("SELECT 1 FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        return (bool)$stmt->fetchColumn();
+    }
+}
+
 if (!function_exists('apiLocalizeErrorPayload')) {
     function apiLocalizeErrorPayload(array $payload, ?array $user = null): array
     {
@@ -981,7 +990,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(404);
                 apiError('errors.admin.users.not_found', apiLocalizedText('errors.admin.users.not_found', 'User not found'));
             }
-        });
+        })->where(['id' => '[0-9]+']);
 
         // Grant credits to a user
         SimpleRouter::post('/users/{id}/credits', function($id) {
@@ -3445,12 +3454,26 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $manager = new \BinktermPHP\Hub\HubNodeManager();
                 $hubNodes = $manager->getAll();
                 $queueCounts = $manager->getQueueCounts();
+
+                $userIds = array_values(array_unique(array_filter(array_map(fn($n) => $n['user_id'] ?? null, $hubNodes))));
+                $usernamesById = [];
+                if (!empty($userIds)) {
+                    $db = \BinktermPHP\Database::getInstance()->getPdo();
+                    $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+                    $userStmt = $db->prepare("SELECT id, username FROM users WHERE id IN ($placeholders)");
+                    $userStmt->execute($userIds);
+                    foreach ($userStmt->fetchAll(PDO::FETCH_ASSOC) as $userRow) {
+                        $usernamesById[(int)$userRow['id']] = $userRow['username'];
+                    }
+                }
+
                 foreach ($hubNodes as &$node) {
                     $counts = $queueCounts[(int)$node['id']] ?? ['pending' => 0, 'failed' => 0, 'held' => 0, 'total' => 0];
                     $node['queue_pending'] = $counts['pending'];
                     $node['queue_failed']  = $counts['failed'];
                     $node['queue_held']    = $counts['held'];
                     $node['queue_total']   = $counts['total'];
+                    $node['owner_username'] = $node['user_id'] ? ($usernamesById[(int)$node['user_id']] ?? null) : null;
                 }
                 unset($node);
 
@@ -3474,9 +3497,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             header('Content-Type: application/json');
 
             try {
-                $payload = json_decode(file_get_contents('php://input'), true);
+                $decoded = json_decode(file_get_contents('php://input'), true);
+                $payload = is_array($decoded) ? $decoded : [];
+                if (!empty($payload['user_id']) && !adminUserExists((int)$payload['user_id'])) {
+                    apiError('errors.admin.hub_nodes.invalid_owner_user', apiLocalizedText('errors.admin.hub_nodes.invalid_owner_user', 'Selected user does not exist'), 400);
+                    return;
+                }
                 $manager = new \BinktermPHP\Hub\HubNodeManager();
-                $hubNode = $manager->create(is_array($payload) ? $payload : []);
+                $hubNode = $manager->create($payload);
                 echo json_encode(['success' => true, 'hub_node' => $hubNode, 'message_code' => 'ui.admin.hub_nodes.saved']);
             } catch (Throwable $e) {
                 apiError('errors.admin.hub_nodes.save_failed', $e->getMessage(), 400);
@@ -3493,9 +3521,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             header('Content-Type: application/json');
 
             try {
-                $payload = json_decode(file_get_contents('php://input'), true);
+                $decoded = json_decode(file_get_contents('php://input'), true);
+                $payload = is_array($decoded) ? $decoded : [];
+                if (!empty($payload['user_id']) && !adminUserExists((int)$payload['user_id'])) {
+                    apiError('errors.admin.hub_nodes.invalid_owner_user', apiLocalizedText('errors.admin.hub_nodes.invalid_owner_user', 'Selected user does not exist'), 400);
+                    return;
+                }
                 $manager = new \BinktermPHP\Hub\HubNodeManager();
-                $hubNode = $manager->update((int)$id, is_array($payload) ? $payload : []);
+                $hubNode = $manager->update((int)$id, $payload);
                 echo json_encode(['success' => true, 'hub_node' => $hubNode, 'message_code' => 'ui.admin.hub_nodes.saved']);
             } catch (Throwable $e) {
                 apiError('errors.admin.hub_nodes.save_failed', $e->getMessage(), 400);
@@ -3613,6 +3646,46 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'point_number' => $manager->suggestNextPointNumber($bossAddress)]);
             } catch (Throwable $e) {
                 apiError('errors.admin.hub_nodes.next_point_failed', apiLocalizedText('errors.admin.hub_nodes.next_point_failed', 'Failed to determine next point number'), 500);
+            }
+        });
+
+        /**
+         * GET /admin/api/users/autocomplete?q=
+         * Lightweight {id, username} search for the Downlinks user-association
+         * selector (and any similar future free-text username picker). Not the
+         * heavier paginated GET /admin/api/users listing.
+         */
+        SimpleRouter::get('/users/autocomplete', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $query = trim((string)($_GET['q'] ?? ''));
+            if (mb_strlen($query) < 2) {
+                echo json_encode(['success' => true, 'users' => []]);
+                return;
+            }
+
+            try {
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $stmt = $db->prepare("
+                    SELECT id, username FROM users
+                    WHERE username ILIKE ? AND is_active = TRUE
+                    ORDER BY username
+                    LIMIT 15
+                ");
+                $stmt->execute(['%' . $query . '%']);
+                $users = array_map(function ($row) {
+                    return ['id' => (int)$row['id'], 'username' => $row['username']];
+                }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+
+                echo json_encode(['success' => true, 'users' => $users]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.users.autocomplete_failed', apiLocalizedText('errors.admin.users.autocomplete_failed', 'Failed to search users'), 500);
             }
         });
 

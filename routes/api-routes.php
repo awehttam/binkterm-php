@@ -10980,7 +10980,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, is_system, echomail_moderation_forced, can_post_netecho_unmoderated, created_at, last_login FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, username, real_name, email, credit_balance, is_active, is_admin, manage_hub_point, is_system, echomail_moderation_forced, can_post_netecho_unmoderated, created_at, last_login FROM users WHERE id = ?");
             $stmt->execute([$id]);
             $userData = $stmt->fetch();
 
@@ -11093,6 +11093,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $email = $_POST['email'] ?? '';
             $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
             $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
+            $manageHubPoint = isset($_POST['manage_hub_point']) ? (int)$_POST['manage_hub_point'] : 0;
             $isSystem = isset($_POST['is_system']) ? (int)$_POST['is_system'] : 0;
             $echomailModerationForced = isset($_POST['echomail_moderation_forced']) ? (int)$_POST['echomail_moderation_forced'] : 0;
             $canPostNetechoUnmoderated = isset($_POST['can_post_netecho_unmoderated']) ? (int)$_POST['can_post_netecho_unmoderated'] : 0;
@@ -11110,11 +11111,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'email = ?',
                 'is_active = ?',
                 'is_admin = ?',
+                'manage_hub_point = ?',
                 'is_system = ?',
                 'echomail_moderation_forced = ?',
                 'can_post_netecho_unmoderated = ?'
             ];
-            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $isSystem, $echomailModerationForced ? 'true' : 'false', $canPostNetechoUnmoderated ? 'true' : 'false'];
+            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin, $manageHubPoint, $isSystem, $echomailModerationForced ? 'true' : 'false', $canPostNetechoUnmoderated ? 'true' : 'false'];
 
             // Add password if provided
             if ($password) {
@@ -12964,6 +12966,337 @@ SimpleRouter::group(['prefix' => '/api/interests'], function() {
 
         $result = $handler->getEchomailFromInterest($userId, (int)$id, $page, null, $filter, $sort);
         echo json_encode($result);
+    })->where(['id' => '[0-9]+']);
+
+});
+
+/**
+ * Self-serve Point Management. See docs/proposals/HubPointManagementAugust2026.md.
+ * Every endpoint requires the manage_hub_point grant (or admin) via
+ * RouteHelper::requireHubPointAccess(), and scopes to hub_nodes rows owned
+ * (user_id) by the requesting user.
+ */
+SimpleRouter::group(['prefix' => '/api/point-management'], function() {
+
+    /**
+     * GET /api/point-management
+     * Returns an array of the current user's hub_nodes rows (self-registered
+     * or sysop-assigned alike) - empty array if they have none. Each point is
+     * annotated with network_name (resolved from its boss_address) for display.
+     */
+    SimpleRouter::get('/', function() {
+        $user = RouteHelper::requireHubPointAccess();
+        header('Content-Type: application/json');
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\Hub\HubNodeManager();
+
+        $networkNamesByAddress = [];
+        foreach ($manager->getConfiguredAkasWithNetworkNames() as $network) {
+            $networkNamesByAddress[$network['address']] = $network['network_name'];
+        }
+
+        $points = array_map(function ($point) use ($networkNamesByAddress) {
+            $point['network_name'] = $networkNamesByAddress[$point['boss_address'] ?? ''] ?? null;
+            return $point;
+        }, $manager->getByUserId($userId));
+
+        echo json_encode(['success' => true, 'points' => $points]);
+    });
+
+    /**
+     * GET /api/point-management/networks
+     * Boss AKAs the current user may still self-register a point under -
+     * excludes any network where they have already reached the configurable
+     * HUB_POINT_MAX_PER_USER_PER_NETWORK self-service limit (or all networks
+     * if self-service is disabled entirely, limit <= 0).
+     */
+    SimpleRouter::get('/networks', function() {
+        $user = RouteHelper::requireHubPointAccess();
+        header('Content-Type: application/json');
+
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        $limit  = (int)\BinktermPHP\Config::env('HUB_POINT_MAX_PER_USER_PER_NETWORK', '1');
+
+        if ($limit <= 0) {
+            echo json_encode(['success' => true, 'networks' => []]);
+            return;
+        }
+
+        $manager = new \BinktermPHP\Hub\HubNodeManager();
+
+        $pointCountsByBoss = [];
+        foreach ($manager->getByUserId($userId) as $point) {
+            if (($point['node_type'] ?? null) === \BinktermPHP\Hub\HubNodeManager::TYPE_POINT) {
+                $boss = (string)($point['boss_address'] ?? '');
+                $pointCountsByBoss[$boss] = ($pointCountsByBoss[$boss] ?? 0) + 1;
+            }
+        }
+
+        $networks = array_values(array_filter(
+            $manager->getConfiguredAkasWithNetworkNames(),
+            fn($network) => ($pointCountsByBoss[$network['address']] ?? 0) < $limit
+        ));
+
+        echo json_encode(['success' => true, 'networks' => $networks]);
+    });
+
+    /**
+     * POST /api/point-management
+     * Body: { boss_address }
+     * Self-provisions a new point under the given boss AKA, subject to the
+     * configurable HUB_POINT_MAX_PER_USER_PER_NETWORK self-service limit.
+     */
+    SimpleRouter::post('/', function() {
+        $user = RouteHelper::requireHubPointAccess();
+        header('Content-Type: application/json');
+
+        $userId      = (int)($user['user_id'] ?? $user['id']);
+        $payload     = json_decode(file_get_contents('php://input'), true) ?: [];
+        $bossAddress = trim((string)($payload['boss_address'] ?? ''));
+
+        if ($bossAddress === '') {
+            apiError('errors.point_management.boss_address_required', apiLocalizedText('errors.point_management.boss_address_required', 'A network must be selected.', $user), 400);
+            return;
+        }
+
+        $db      = \BinktermPHP\Database::getInstance()->getPdo();
+        $manager = new \BinktermPHP\Hub\HubNodeManager($db);
+
+        if (!in_array($bossAddress, $manager->getConfiguredAkas(), true)) {
+            apiError('errors.point_management.invalid_network', apiLocalizedText('errors.point_management.invalid_network', 'That network is not available for point creation.', $user), 400);
+            return;
+        }
+
+        $limit = (int)\BinktermPHP\Config::env('HUB_POINT_MAX_PER_USER_PER_NETWORK', '1');
+        if ($limit <= 0) {
+            apiError('errors.point_management.self_service_disabled', apiLocalizedText('errors.point_management.self_service_disabled', 'Self-service point creation is disabled.', $user), 403);
+            return;
+        }
+
+        try {
+            $db->beginTransaction();
+
+            $existingCount = $manager->countUserPointsForBossAddressForUpdate($userId, $bossAddress);
+            if ($existingCount >= $limit) {
+                $db->rollBack();
+                apiError('errors.point_management.limit_reached', apiLocalizedText('errors.point_management.limit_reached', 'You have reached the maximum number of self-service points for this network.', $user), 409);
+                return;
+            }
+
+            $pointNumber = $manager->suggestNextPointNumber($bossAddress);
+            // 8 chars, uppercase hex -- some binkp/mailer software has trouble with
+            // long or mixed-case passwords, so keep generated point credentials short.
+            // No packet_password is generated -- Areafix/FileFix share one password.
+            $sessionPassword = strtoupper(bin2hex(random_bytes(4)));
+            $areafixPassword = strtoupper(bin2hex(random_bytes(4)));
+
+            $point = $manager->create([
+                'node_type' => \BinktermPHP\Hub\HubNodeManager::TYPE_POINT,
+                'boss_address' => $bossAddress,
+                'point_number' => $pointNumber,
+                'sysop_name' => $user['real_name'] ?? $user['username'] ?? null,
+                'session_password' => $sessionPassword,
+                'areafix_password' => $areafixPassword,
+                'filefix_password' => $areafixPassword,
+                'user_id' => $userId,
+            ]);
+
+            $db->commit();
+
+            \BinktermPHP\SysopNotificationService::sendNoticeToSysop(
+                'New self-service point registered',
+                "User {$user['username']} registered a new point address {$point['node_address']} under network {$bossAddress}."
+            );
+
+            echo json_encode(['success' => true, 'point' => $point, 'message_code' => 'ui.point_management.created']);
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            apiError('errors.point_management.create_failed', $e->getMessage(), 400);
+        }
+    });
+
+    /**
+     * PUT /api/point-management/{id}
+     * Updates the self-serve editable field subset of one of the user's own points.
+     */
+    SimpleRouter::put('/{id}', function($id) {
+        $user = RouteHelper::requireHubPointAccess();
+        header('Content-Type: application/json');
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+        $manager = new \BinktermPHP\Hub\HubNodeManager();
+
+        try {
+            $point = $manager->updateSelfServeFields((int)$id, $userId, is_array($payload) ? $payload : []);
+            echo json_encode(['success' => true, 'point' => $point, 'message_code' => 'ui.point_management.saved']);
+        } catch (\InvalidArgumentException $e) {
+            apiError('errors.point_management.not_found', apiLocalizedText('errors.point_management.not_found', 'Point not found.', $user), 404);
+        } catch (Throwable $e) {
+            apiError('errors.point_management.save_failed', $e->getMessage(), 400);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * DELETE /api/point-management/{id}
+     * Deletes one of the user's own point registrations.
+     */
+    SimpleRouter::delete('/{id}', function($id) {
+        $user = RouteHelper::requireHubPointAccess();
+        header('Content-Type: application/json');
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\Hub\HubNodeManager();
+
+        try {
+            $manager->deleteOwnedByUser((int)$id, $userId);
+            echo json_encode(['success' => true, 'message_code' => 'ui.point_management.deleted']);
+        } catch (\InvalidArgumentException $e) {
+            apiError('errors.point_management.not_found', apiLocalizedText('errors.point_management.not_found', 'Point not found.', $user), 404);
+        } catch (Throwable $e) {
+            apiError('errors.point_management.delete_failed', $e->getMessage(), 400);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/point-management/{id}/areas
+     * Eligible echoareas for one of the user's own points, with subscription status.
+     */
+    SimpleRouter::get('/{id}/areas', function($id) {
+        $user = RouteHelper::requireHubPointAccess();
+        header('Content-Type: application/json');
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\Hub\HubNodeManager();
+        $point   = $manager->getById((int)$id);
+
+        if (!$point || (int)($point['user_id'] ?? 0) !== $userId) {
+            apiError('errors.point_management.not_found', apiLocalizedText('errors.point_management.not_found', 'Point not found.', $user), 404);
+            return;
+        }
+
+        $domain = $manager->resolveDomain($point);
+        $subscribedIds = array_flip($manager->getSubscribedEchoareaIds((int)$id));
+        $areas = array_map(function (array $area) use ($subscribedIds) {
+            $area['subscribed'] = isset($subscribedIds[$area['id']]);
+            return $area;
+        }, $manager->getEligibleEchoareasForDomain($domain));
+
+        echo json_encode(['success' => true, 'areas' => $areas]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * PUT /api/point-management/{id}/areas
+     * Body: { echoarea_ids: int[] }
+     * Requested IDs are intersected against eligible areas before saving, so a
+     * self-serve request can never subscribe to a sysop-only/local/inactive area.
+     */
+    SimpleRouter::put('/{id}/areas', function($id) {
+        $user = RouteHelper::requireHubPointAccess();
+        header('Content-Type: application/json');
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\Hub\HubNodeManager();
+        $point   = $manager->getById((int)$id);
+
+        if (!$point || (int)($point['user_id'] ?? 0) !== $userId) {
+            apiError('errors.point_management.not_found', apiLocalizedText('errors.point_management.not_found', 'Point not found.', $user), 404);
+            return;
+        }
+
+        $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+        $requestedIds = is_array($payload) && isset($payload['echoarea_ids']) && is_array($payload['echoarea_ids'])
+            ? array_map('intval', $payload['echoarea_ids'])
+            : [];
+
+        $domain = $manager->resolveDomain($point);
+        $eligibleIds = array_column($manager->getEligibleEchoareasForDomain($domain), 'id');
+        $filteredIds = array_values(array_intersect($requestedIds, $eligibleIds));
+
+        try {
+            $manager->bulkSetAreaSubscriptions((int)$id, $filteredIds);
+
+            $subscribedIds = array_flip($manager->getSubscribedEchoareaIds((int)$id));
+            $areas = array_map(function (array $area) use ($subscribedIds) {
+                $area['subscribed'] = isset($subscribedIds[$area['id']]);
+                return $area;
+            }, $manager->getEligibleEchoareasForDomain($domain));
+
+            echo json_encode(['success' => true, 'areas' => $areas, 'message_code' => 'ui.point_management.areas_saved']);
+        } catch (Throwable $e) {
+            apiError('errors.point_management.areas_save_failed', $e->getMessage(), 400);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/point-management/{id}/fileareas
+     * Mirrors GET /{id}/areas for file areas.
+     */
+    SimpleRouter::get('/{id}/fileareas', function($id) {
+        $user = RouteHelper::requireHubPointAccess();
+        header('Content-Type: application/json');
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\Hub\HubNodeManager();
+        $point   = $manager->getById((int)$id);
+
+        if (!$point || (int)($point['user_id'] ?? 0) !== $userId) {
+            apiError('errors.point_management.not_found', apiLocalizedText('errors.point_management.not_found', 'Point not found.', $user), 404);
+            return;
+        }
+
+        $domain = $manager->resolveDomain($point);
+        $subscribedIds = array_flip($manager->getSubscribedFileareaIds((int)$id));
+        $areas = array_map(function (array $area) use ($subscribedIds) {
+            $area['subscribed'] = isset($subscribedIds[$area['id']]);
+            return $area;
+        }, $manager->getEligibleFileareasForDomain($domain));
+
+        echo json_encode(['success' => true, 'fileareas' => $areas]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * PUT /api/point-management/{id}/fileareas
+     * Mirrors PUT /{id}/areas for file areas.
+     */
+    SimpleRouter::put('/{id}/fileareas', function($id) {
+        $user = RouteHelper::requireHubPointAccess();
+        header('Content-Type: application/json');
+
+        $userId  = (int)($user['user_id'] ?? $user['id']);
+        $manager = new \BinktermPHP\Hub\HubNodeManager();
+        $point   = $manager->getById((int)$id);
+
+        if (!$point || (int)($point['user_id'] ?? 0) !== $userId) {
+            apiError('errors.point_management.not_found', apiLocalizedText('errors.point_management.not_found', 'Point not found.', $user), 404);
+            return;
+        }
+
+        $payload = json_decode(file_get_contents('php://input'), true) ?: [];
+        $requestedIds = is_array($payload) && isset($payload['file_area_ids']) && is_array($payload['file_area_ids'])
+            ? array_map('intval', $payload['file_area_ids'])
+            : [];
+
+        $domain = $manager->resolveDomain($point);
+        $eligibleIds = array_column($manager->getEligibleFileareasForDomain($domain), 'id');
+        $filteredIds = array_values(array_intersect($requestedIds, $eligibleIds));
+
+        try {
+            $manager->bulkSetFileAreaSubscriptions((int)$id, $filteredIds);
+
+            $subscribedIds = array_flip($manager->getSubscribedFileareaIds((int)$id));
+            $areas = array_map(function (array $area) use ($subscribedIds) {
+                $area['subscribed'] = isset($subscribedIds[$area['id']]);
+                return $area;
+            }, $manager->getEligibleFileareasForDomain($domain));
+
+            echo json_encode(['success' => true, 'fileareas' => $areas, 'message_code' => 'ui.point_management.fileareas_saved']);
+        } catch (Throwable $e) {
+            apiError('errors.point_management.fileareas_save_failed', $e->getMessage(), 400);
+        }
     })->where(['id' => '[0-9]+']);
 
 });

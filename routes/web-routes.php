@@ -2007,6 +2007,28 @@ SimpleRouter::get('/subscriptions', function() {
     }
 });
 
+/**
+ * Self-serve Point Management page. See docs/proposals/HubPointManagementAugust2026.md.
+ * Gated the same way as its API (manage_hub_point flag or admin) - the menu
+ * item is hidden for other users, but this is the actual enforcement point.
+ */
+SimpleRouter::get('/point-management', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!Auth::canManageHubPoint($user)) {
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.web.errors.point_management_access_only'
+        ]);
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('point_management.twig', []);
+});
+
 SimpleRouter::get('/polls/create', function() {
     $user = RouteHelper::requireAuth();
 

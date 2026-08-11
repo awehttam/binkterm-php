@@ -170,6 +170,9 @@
                     <li><a class="dropdown-item" href="/profile"><i class="fas fa-id-card"></i> {{ t('ui.base.profile', {}, 'common') }}</a></li>
                     <li><a class="dropdown-item" href="/settings"><i class="fas fa-cog"></i> {{ t('ui.base.settings', {}, 'common') }}</a></li>
                     <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.subscriptions', {}, 'common') }}</a></li>
+                    {% if current_user.manage_hub_point or current_user.is_admin %}
+                    <li><a class="dropdown-item" href="/point-management"><i class="fas fa-network-wired"></i> {{ t('ui.point_management.nav_label', {}, 'common') }}</a></li>
+                    {% endif %}
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="#" onclick="logout(); return false;"><i class="fas fa-sign-out-alt"></i> {{ t('ui.base.logout', {}, 'common') }}</a></li>
                 </ul>

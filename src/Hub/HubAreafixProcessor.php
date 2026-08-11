@@ -242,17 +242,13 @@ class HubAreafixProcessor
      */
     private function findEligibleEchoarea(string $tag, ?string $domain): ?array
     {
-        $stmt = $this->db->prepare("
-            SELECT id, tag, domain, description
-            FROM echoareas
-            WHERE UPPER(tag) = UPPER(?) AND is_active = TRUE AND COALESCE(is_local, FALSE) = FALSE
-              AND COALESCE(is_sysop_only, FALSE) = FALSE
-              AND domain IS NOT NULL AND LOWER(domain) = LOWER(?)
-        ");
-        $stmt->execute([$tag, $domain]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        foreach ($this->nodeManager->getEligibleEchoareasForDomain($domain) as $area) {
+            if (strcasecmp($area['tag'], $tag) === 0) {
+                return $area;
+            }
+        }
 
-        return $row ?: null;
+        return null;
     }
 
     /**
@@ -262,17 +258,13 @@ class HubAreafixProcessor
      */
     private function findEligibleFilearea(string $tag, ?string $domain): ?array
     {
-        $stmt = $this->db->prepare("
-            SELECT id, tag, domain, description
-            FROM file_areas
-            WHERE UPPER(tag) = UPPER(?) AND is_active = TRUE
-              AND COALESCE(is_local, FALSE) = FALSE AND COALESCE(is_private, FALSE) = FALSE
-              AND domain IS NOT NULL AND LOWER(domain) = LOWER(?)
-        ");
-        $stmt->execute([$tag, $domain]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        foreach ($this->nodeManager->getEligibleFileareasForDomain($domain) as $area) {
+            if (strcasecmp($area['tag'], $tag) === 0) {
+                return $area;
+            }
+        }
 
-        return $row ?: null;
+        return null;
     }
 
     /**
@@ -310,24 +302,11 @@ class HubAreafixProcessor
     {
         $domain = $this->nodeManager->resolveDomain($hubNode);
 
-        if ($robot === 'filefix') {
-            $stmt = $this->db->prepare("
-                SELECT tag, description FROM file_areas
-                WHERE is_active = TRUE AND COALESCE(is_local, FALSE) = FALSE AND COALESCE(is_private, FALSE) = FALSE
-                  AND domain IS NOT NULL AND LOWER(domain) = LOWER(?)
-                ORDER BY tag
-            ");
-        } else {
-            $stmt = $this->db->prepare("
-                SELECT tag, description FROM echoareas
-                WHERE is_active = TRUE AND COALESCE(is_local, FALSE) = FALSE AND COALESCE(is_sysop_only, FALSE) = FALSE
-                  AND domain IS NOT NULL AND LOWER(domain) = LOWER(?)
-                ORDER BY tag
-            ");
-        }
-        $stmt->execute([$domain]);
+        $areas = $robot === 'filefix'
+            ? $this->nodeManager->getEligibleFileareasForDomain($domain)
+            : $this->nodeManager->getEligibleEchoareasForDomain($domain);
 
-        return $this->formatAreaRows($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'No areas available.');
+        return $this->formatAreaRows($areas, 'No areas available.');
     }
 
     /**
