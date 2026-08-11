@@ -115,6 +115,15 @@ if (!function_exists('apiLocalizedText')) {
     }
 }
 
+if (!function_exists('userIdExists')) {
+    function userIdExists(int $userId): bool
+    {
+        $stmt = \BinktermPHP\Database::getInstance()->getPdo()->prepare("SELECT 1 FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        return (bool)$stmt->fetchColumn();
+    }
+}
+
 if (!function_exists('apiLocalizeErrorPayload')) {
     function apiLocalizeErrorPayload(array $payload, ?array $user = null): array
     {
@@ -391,6 +400,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/networks.twig', [
             'supported_charsets' => \BinktermPHP\Binkp\Config\BinkpConfig::getSupportedCharsets(),
         ]);
+    });
+
+    SimpleRouter::get('/hub-nodes', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/hub_nodes.twig');
     });
 
     // Webdoors config page
@@ -974,7 +990,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(404);
                 apiError('errors.admin.users.not_found', apiLocalizedText('errors.admin.users.not_found', 'User not found'));
             }
-        });
+        })->where(['id' => '[0-9]+']);
 
         // Grant credits to a user
         SimpleRouter::post('/users/{id}/credits', function($id) {
@@ -2391,6 +2407,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     return;
                 }
 
+                $statsMode = $payload['show_system_info_stats'] ?? \BinktermPHP\AppearanceConfig::DEFAULT_DASHBOARD_STATS_MODE;
+                if (!in_array($statsMode, \BinktermPHP\AppearanceConfig::VALID_DASHBOARD_STATS_MODES, true)) {
+                    $statsMode = \BinktermPHP\AppearanceConfig::DEFAULT_DASHBOARD_STATS_MODE;
+                }
+
                 // Validate card IDs against the full card catalogue
                 $allCards = \BinktermPHP\DashboardCardRegistry::getAllCards();
                 $allIds = array_keys($allCards);
@@ -2424,6 +2445,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'sidebar' => $sidebar,
                     'hidden'  => $hidden,
                 ];
+                $config['dashboard']['show_system_info_stats'] = $statsMode;
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->setAppearanceConfig($config);
@@ -2803,6 +2825,26 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.sixel.list_failed', apiLocalizedText('errors.admin.appearance.sixel.list_failed', 'Failed to load sixel screens'));
+            }
+        });
+
+        SimpleRouter::get('/appearance/sixel-screens/{key}/raw', function(string $key) {
+            RouteHelper::requireAdmin();
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $screen = $client->getSixelScreen($key);
+                if (empty($screen['exists'])) {
+                    http_response_code(404);
+                    header('Content-Type: text/plain');
+                    echo 'Not found';
+                    return;
+                }
+                header('Content-Type: text/plain; charset=binary');
+                echo base64_decode((string)($screen['content_base64'] ?? ''));
+            } catch (Exception $e) {
+                http_response_code(500);
+                header('Content-Type: text/plain');
+                echo 'Failed to load sixel screen';
             }
         });
 
@@ -3399,6 +3441,254 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/hub-nodes', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $hubNodes = $manager->getAll();
+                $queueCounts = $manager->getQueueCounts();
+
+                $userIds = array_values(array_unique(array_filter(array_map(fn($n) => $n['user_id'] ?? null, $hubNodes))));
+                $usernamesById = [];
+                if (!empty($userIds)) {
+                    $db = \BinktermPHP\Database::getInstance()->getPdo();
+                    $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+                    $userStmt = $db->prepare("SELECT id, username FROM users WHERE id IN ($placeholders)");
+                    $userStmt->execute($userIds);
+                    foreach ($userStmt->fetchAll(PDO::FETCH_ASSOC) as $userRow) {
+                        $usernamesById[(int)$userRow['id']] = $userRow['username'];
+                    }
+                }
+
+                foreach ($hubNodes as &$node) {
+                    $counts = $queueCounts[(int)$node['id']] ?? ['pending' => 0, 'failed' => 0, 'held' => 0, 'total' => 0];
+                    $node['queue_pending'] = $counts['pending'];
+                    $node['queue_failed']  = $counts['failed'];
+                    $node['queue_held']    = $counts['held'];
+                    $node['queue_total']   = $counts['total'];
+                    $node['owner_username'] = $node['user_id'] ? ($usernamesById[(int)$node['user_id']] ?? null) : null;
+                }
+                unset($node);
+
+                echo json_encode([
+                    'success' => true,
+                    'hub_nodes' => $hubNodes,
+                    'akas' => $manager->getConfiguredAkasWithNetworkNames(),
+                ]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.load_failed', apiLocalizedText('errors.admin.hub_nodes.load_failed', 'Failed to load hub nodes'), 500);
+            }
+        });
+
+        SimpleRouter::post('/hub-nodes', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $decoded = json_decode(file_get_contents('php://input'), true);
+                $payload = is_array($decoded) ? $decoded : [];
+                if (!empty($payload['user_id']) && !userIdExists((int)$payload['user_id'])) {
+                    apiError('errors.admin.hub_nodes.invalid_owner_user', apiLocalizedText('errors.admin.hub_nodes.invalid_owner_user', 'Selected user does not exist'), 400);
+                    return;
+                }
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $hubNode = $manager->create($payload);
+                echo json_encode(['success' => true, 'hub_node' => $hubNode, 'message_code' => 'ui.admin.hub_nodes.saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::put('/hub-nodes/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $decoded = json_decode(file_get_contents('php://input'), true);
+                $payload = is_array($decoded) ? $decoded : [];
+                if (!empty($payload['user_id']) && !userIdExists((int)$payload['user_id'])) {
+                    apiError('errors.admin.hub_nodes.invalid_owner_user', apiLocalizedText('errors.admin.hub_nodes.invalid_owner_user', 'Selected user does not exist'), 400);
+                    return;
+                }
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $hubNode = $manager->update((int)$id, $payload);
+                echo json_encode(['success' => true, 'hub_node' => $hubNode, 'message_code' => 'ui.admin.hub_nodes.saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::delete('/hub-nodes/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $manager->delete((int)$id);
+                echo json_encode(['success' => true, 'message_code' => 'ui.admin.hub_nodes.deleted']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.delete_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::get('/hub-nodes/{id}/areas', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                echo json_encode(['success' => true, 'areas' => $manager->getAreaSubscriptions((int)$id)]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.areas_load_failed', apiLocalizedText('errors.admin.hub_nodes.areas_load_failed', 'Failed to load area subscriptions'), 500);
+            }
+        });
+
+        SimpleRouter::put('/hub-nodes/{id}/areas', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $echoareaIds = is_array($payload) && isset($payload['echoarea_ids']) && is_array($payload['echoarea_ids'])
+                    ? array_map('intval', $payload['echoarea_ids'])
+                    : [];
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $manager->bulkSetAreaSubscriptions((int)$id, $echoareaIds);
+                echo json_encode(['success' => true, 'areas' => $manager->getAreaSubscriptions((int)$id), 'message_code' => 'ui.admin.hub_nodes.areas_saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.areas_save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::get('/hub-nodes/{id}/fileareas', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                echo json_encode(['success' => true, 'fileareas' => $manager->getFileAreaSubscriptions((int)$id)]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.fileareas_load_failed', apiLocalizedText('errors.admin.hub_nodes.fileareas_load_failed', 'Failed to load file area subscriptions'), 500);
+            }
+        });
+
+        SimpleRouter::put('/hub-nodes/{id}/fileareas', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $fileAreaIds = is_array($payload) && isset($payload['file_area_ids']) && is_array($payload['file_area_ids'])
+                    ? array_map('intval', $payload['file_area_ids'])
+                    : [];
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                $manager->bulkSetFileAreaSubscriptions((int)$id, $fileAreaIds);
+                echo json_encode(['success' => true, 'fileareas' => $manager->getFileAreaSubscriptions((int)$id), 'message_code' => 'ui.admin.hub_nodes.fileareas_saved']);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.fileareas_save_failed', $e->getMessage(), 400);
+            }
+        });
+
+        SimpleRouter::get('/hub-nodes/next-point', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $bossAddress = (string)($_GET['boss_address'] ?? '');
+                $manager = new \BinktermPHP\Hub\HubNodeManager();
+                echo json_encode(['success' => true, 'point_number' => $manager->suggestNextPointNumber($bossAddress)]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.hub_nodes.next_point_failed', apiLocalizedText('errors.admin.hub_nodes.next_point_failed', 'Failed to determine next point number'), 500);
+            }
+        });
+
+        /**
+         * GET /admin/api/users/autocomplete?q=
+         * Lightweight {id, username} search for the Downlinks user-association
+         * selector (and any similar future free-text username picker). Not the
+         * heavier paginated GET /admin/api/users listing.
+         */
+        SimpleRouter::get('/users/autocomplete', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $query = trim((string)($_GET['q'] ?? ''));
+            if (mb_strlen($query) < 2) {
+                echo json_encode(['success' => true, 'users' => []]);
+                return;
+            }
+
+            try {
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $stmt = $db->prepare("
+                    SELECT id, username FROM users
+                    WHERE username ILIKE ? AND is_active = TRUE
+                    ORDER BY username
+                    LIMIT 15
+                ");
+                $stmt->execute(['%' . $query . '%']);
+                $users = array_map(function ($row) {
+                    return ['id' => (int)$row['id'], 'username' => $row['username']];
+                }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+
+                echo json_encode(['success' => true, 'users' => $users]);
+            } catch (Throwable $e) {
+                apiError('errors.admin.users.autocomplete_failed', apiLocalizedText('errors.admin.users.autocomplete_failed', 'Failed to search users'), 500);
+            }
+        });
+
         SimpleRouter::get('/binkp-config', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
@@ -3442,10 +3732,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         $uplink['default_charset'],
                         $uplink['posting_name_policy']
                     );
-                    $domain = trim((string)($uplink['domain'] ?? ''));
+                    $domain = \BinktermPHP\NetworkManager::normalizeDomain((string)($uplink['domain'] ?? ''));
                     if ($domain !== '' && !$networkManager->exists($domain)) {
                         throw new InvalidArgumentException("Unknown network domain: {$domain}");
                     }
+                    $uplink['domain'] = $domain;
                 }
                 unset($uplink);
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();

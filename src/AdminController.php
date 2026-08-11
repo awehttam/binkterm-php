@@ -40,7 +40,7 @@ class AdminController
         
         try {
             $sql = "
-                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, is_system
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, is_system, manage_hub_point
                 FROM users
                 WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
                 ORDER BY created_at DESC
@@ -51,7 +51,7 @@ class AdminController
         } catch (\PDOException $e) {
             // is_system column not yet present (migration v1.10.18 not run) — fall back
             $sql = "
-                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin, manage_hub_point
                 FROM users
                 WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
                 ORDER BY created_at DESC
@@ -260,6 +260,11 @@ class AdminController
             $params[] = $data['is_admin'] ? 1 : 0;
         }
 
+        if (isset($data['manage_hub_point'])) {
+            $updates[] = 'manage_hub_point = ?';
+            $params[] = $data['manage_hub_point'] ? 1 : 0;
+        }
+
         if (isset($data['echomail_moderation_forced'])) {
             $updates[] = 'echomail_moderation_forced = ?';
             $params[] = $data['echomail_moderation_forced'] ? 'true' : 'false';
@@ -359,8 +364,19 @@ class AdminController
         $stats['system_metrics_supported'] = PHP_OS_FAMILY !== 'Windows';
         $stats['load_average'] = $this->getLoadAverageSummary();
         $stats['ram_usage'] = $this->getRamUsageSummary();
-        
+
         return $stats;
+    }
+
+    /**
+     * Get the all-time total number of echomail messages.
+     *
+     * @return int
+     */
+    public function getTotalEchomailCount(): int
+    {
+        $result = $this->db->query("SELECT COUNT(*) AS count FROM echomail")->fetch(\PDO::FETCH_ASSOC);
+        return (int) ($result['count'] ?? 0);
     }
 
     public function getRamUsageDetails(): ?string
@@ -427,6 +443,52 @@ class AdminController
         }
 
         return number_format($totalMb, 1, '.', '') . ' MB';
+    }
+
+    /**
+     * Get the host system's uptime in seconds since last boot.
+     *
+     * Reads /proc/uptime on Linux, or LastBootUpTime via PowerShell on Windows.
+     * Returns null when the value cannot be determined.
+     *
+     * @return int|null
+     */
+    public function getSystemUptimeSeconds(): ?int
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $output = @shell_exec('powershell -NoProfile -Command "try { $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop; if ($os -and $os.LastBootUpTime) { $os.LastBootUpTime.ToUniversalTime().ToString(\'o\') } } catch {}" 2>&1');
+            if (!is_string($output) || trim($output) === '') {
+                return null;
+            }
+            try {
+                $bootTime = new \DateTime(trim($output), new \DateTimeZone('UTC'));
+                return max(0, time() - $bootTime->getTimestamp());
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        $uptimeFile = '/proc/uptime';
+        if (is_file($uptimeFile)) {
+            $content = trim((string)@file_get_contents($uptimeFile));
+            if ($content !== '') {
+                $parts = preg_split('/\s+/', $content);
+                if (isset($parts[0]) && is_numeric($parts[0])) {
+                    return (int)floor((float)$parts[0]);
+                }
+            }
+        }
+
+        $output = @shell_exec('uptime -s 2>&1');
+        if (!is_string($output) || trim($output) === '') {
+            return null;
+        }
+        try {
+            $bootTime = new \DateTime(trim($output));
+            return max(0, time() - $bootTime->getTimestamp());
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     public function getEconomyStats(string $period = '30d'): array

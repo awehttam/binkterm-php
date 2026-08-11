@@ -1995,6 +1995,7 @@ class MessageHandler
             }
 
             $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
+            $this->fanoutToHubNodes($messageId);
         }
 
         return $messageId > 0;
@@ -2051,6 +2052,7 @@ class MessageHandler
         $domain      = $message['echoarea_domain'] ?? '';
 
         $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
+        $this->fanoutToHubNodes($messageId);
 
         // Check whether the author should be auto-promoted
         $userId = $message['user_id'] ? (int)$message['user_id'] : null;
@@ -3004,6 +3006,28 @@ class MessageHandler
                 $message['attributes'] |= 0x0800;
             }
 
+            // If the destination is a registered downlink node/point, deliver directly
+            // to it via hub_node_outbound instead of falling into uplink network-pattern
+            // routing, which has no knowledge of hub_nodes and would otherwise send this
+            // toward whatever uplink's pattern happens to match the destination's zone/net.
+            $hubRouter = new \BinktermPHP\Hub\HubNetmailRouter($this->db);
+            if ($hubRouter->routeOutboundIfHubNode($message, $messageId)) {
+                $this->db->prepare("UPDATE netmail SET is_sent = TRUE, spooled_at = CURRENT_TIMESTAMP WHERE id = ?")
+                         ->execute([$messageId]);
+
+                \BinktermPHP\Admin\AdminDaemonClient::log('INFO', 'netmail sent', [
+                    'from'    => "{$fromName} <{$fromAddr}>",
+                    'to'      => "{$toName} <{$toAddr}>",
+                    'subject' => $subject,
+                    'msgid'   => $message['message_id'] ?? '',
+                    'packet'  => '(hub node outbound)',
+                ]);
+
+                $this->queueImmediateOutboundPoll($toAddr, "netmail #{$messageId}");
+
+                return true;
+            }
+
             // Get the uplink that handles routing for this destination
             // The packet must be addressed to the hub/uplink, not the final destination
             // The final destination is preserved in the message headers and INTL kludge
@@ -3263,7 +3287,7 @@ class MessageHandler
         }
     }
 
-    private function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
+    public function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
     {
         $stmt = $this->db->prepare("
             SELECT em.*, ea.tag as echoarea_tag, ea.domain as echoarea_domain, ea.is_local
@@ -3330,6 +3354,69 @@ class MessageHandler
 
             if ($uplinkAddress) {
                 $message['to_address'] = $uplinkAddress;
+
+                // If this message already carries a PID kludge or an origin_line
+                // (i.e. it arrived via inbound packet processing - from a downlink
+                // point or an uplink - and is being relayed onward to our uplink),
+                // it also already has that author's tearline/origin embedded in
+                // message_text, and its own SEEN-BY/PATH already stored in
+                // bottom_kludges - suppress writeMessage()'s unconditional fresh
+                // PID+tearline+origin and single-hop SEEN-BY/PATH synthesis so we
+                // don't duplicate any of them; just pass the existing set through
+                // unmodified, same as a real tosser relaying traffic upward. Some
+                // point tossers embed a tearline+origin without a PID kludge, so
+                // origin_line (only ever set by inbound packet processing, never by
+                // local composition - see postEchomail()) is checked too. Freshly
+                // locally-composed posts have neither and should still get all of
+                // that generated fresh (this system is the originating tosser).
+                $isRelayed = !empty($message['origin_line'])
+                    || strpos((string)($message['kludge_lines'] ?? ''), "\x01PID:") !== false;
+                $message['skip_default_pid_tearline'] = $isRelayed;
+                $message['skip_default_seenby_path'] = $isRelayed;
+
+                // writeMessage()'s single-hop synthesis is suppressed above for
+                // relayed messages, so it never records that this system handled
+                // the hop. Stamp our own address into SEEN-BY/PATH here instead,
+                // the same way HubFanout does for its own downlink subscribers -
+                // otherwise a relayed message goes to our uplink with no record
+                // of us ever having touched it.
+                if ($isRelayed) {
+                    // getSystemAddress() is a single global fallback and does NOT
+                    // reflect per-network identity - a system can be a member of
+                    // several networks (domains) simultaneously, each with its own
+                    // "me" address (see binkp.json uplinks). Using the wrong one
+                    // stamps PATH/SEEN-BY with an address from a completely
+                    // unrelated network. Resolve the address for this message's
+                    // actual domain - use $message['echoarea_domain'] (loaded
+                    // straight from the echoarea row above), NOT the $domain
+                    // parameter: when this is called via
+                    // BinkdProcessor::relayEchomailToUplinkIfNeeded(), that
+                    // parameter traces back to getDomainByAddress() on the
+                    // inbound packet's origin address, a separate and looser
+                    // resolution than getEchoareaUplink()'s own multi-level
+                    // fallback (tag+domain -> domain default -> global default
+                    // uplink) - the two can disagree on a mismatched domain
+                    // string, with getEchoareaUplink() masking it by silently
+                    // falling through to the default uplink while this lookup
+                    // has no such fallback and lands on the wrong network.
+                    $binkpConfigForAddress = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                    $ourAddress = (string)($binkpConfigForAddress->getMyAddressByDomain($message['echoarea_domain'] ?? '') ?: $binkpConfigForAddress->getSystemAddress());
+                    $bottomKludges = (string)($message['bottom_kludges'] ?? '');
+                    $seenBy = \BinktermPHP\Echomail\EchomailSeenBy::addToSeenBy(
+                        \BinktermPHP\Echomail\EchomailSeenBy::parseSeenBy($bottomKludges),
+                        $ourAddress
+                    );
+                    $seenBy = \BinktermPHP\Echomail\EchomailSeenBy::addToSeenBy($seenBy, $uplinkAddress);
+                    $path = \BinktermPHP\Echomail\EchomailSeenBy::addToPath(
+                        \BinktermPHP\Echomail\EchomailSeenBy::parsePath($bottomKludges),
+                        $ourAddress
+                    );
+                    $message['bottom_kludges'] = trim(
+                        \BinktermPHP\Echomail\EchomailSeenBy::formatSeenBy($seenBy) . "\r"
+                        . \BinktermPHP\Echomail\EchomailSeenBy::formatPath($path)
+                    );
+                }
+
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
                 $this->queueImmediateOutboundPoll($uplinkAddress, "echomail #{$messageId}");
@@ -3360,12 +3447,25 @@ class MessageHandler
         }
     }
 
+    /**
+     * Fan a locally-approved echomail message out to subscribed hub_nodes
+     * (subordinate nodes/points). Failures are logged, never fatal to posting.
+     */
+    private function fanoutToHubNodes(int $messageId): void
+    {
+        try {
+            (new \BinktermPHP\Hub\HubFanout())->fanout($messageId);
+        } catch (\Exception $e) {
+            $this->logger->error("[HUB] Fanout failed for echomail #{$messageId}: " . $e->getMessage());
+        }
+    }
+
     /** Returns an active uplink address for a given echoarea tag and domain.  First choice is uplink in echoarea table, then to binkp.json configuration.
      * @param $echoareaTag - the tag, eg: LOCALTEST
      * @param $domain - the domain, eg: fidonet
      * @return false|mixed|string
      */
-    private function getEchoareaUplink($echoareaTag, $domain='')
+    public function getEchoareaUplink($echoareaTag, $domain='')
     {
         // Uplinks require a domain - return false if domain is blank/null
         if (empty($domain)) {
@@ -5789,7 +5889,17 @@ class MessageHandler
             $limit = 25; // Default fallback if no user ID
         }
 
-        if ($echoareaTag && $filter === 'tome' && $userId) {
+        if ($filter === 'tome' && $echoareaTag && $userId) {
+            return $this->getEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter, false, false, $sort);
+        }
+
+        // Threaded pagination groups messages by thread (root + replies). That's a poor
+        // fit for "unread"/"read": a thread can mix read and unread messages, and readers
+        // expect the Unread tab to show just the unread messages, not whole conversations
+        // with already-read messages mixed in. Delegate to the flat (non-threaded) query,
+        // which filters per-message and is also far cheaper than reasoning about read
+        // state across an entire thread tree.
+        if (($filter === 'unread' || $filter === 'read') && $userId) {
             return $this->getEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter, false, false, $sort);
         }
 
@@ -5797,11 +5907,7 @@ class MessageHandler
         $filterClause = "";
         $filterParams = [];
 
-        if ($filter === 'unread' && $userId) {
-            $filterClause = " AND mrs.read_at IS NULL";
-        } elseif ($filter === 'read' && $userId) {
-            $filterClause = " AND mrs.read_at IS NOT NULL";
-        } elseif ($filter === 'tome' && $userId) {
+        if ($filter === 'tome' && $userId) {
             $user = $this->getUserById($userId);
             if ($user) {
                 $filterClause = " AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))";

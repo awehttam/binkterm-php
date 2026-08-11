@@ -171,8 +171,11 @@ class Config
 
         // Default themes if file missing or invalid
         self::$themes = [
-            'Regular' => '/css/style.css',
-            'Dark' => '/css/dark.css'
+            'Amber' => '/css/amber.css',
+            'Cyberpunk' => '/css/cyberpunk.css',
+            'Dark' => '/css/dark.css',
+            'Green Term' => '/css/greenterm.css',
+            'Regular' => '/css/style.css'
         ];
 
         return self::$themes;

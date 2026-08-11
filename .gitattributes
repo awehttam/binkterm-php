@@ -1,0 +1,5 @@
+# Shell scripts are executed directly on Linux (bare metal and inside Docker) via
+# their shebang line. A CRLF-corrupted shebang (e.g. from a Windows checkout with
+# core.autocrlf=true) makes the interpreter unresolvable and the script unrunnable.
+# Force LF regardless of platform or local Git configuration.
+*.sh text eol=lf

@@ -28,7 +28,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
+        libgmp-dev \
+        libonig-dev \
         libpq-dev \
+        libxml2-dev \
         libzip-dev \
         nodejs \
         p7zip-full \
@@ -37,7 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         unzip \
         # DOSBox-X for DOS door support with headless operation
         dosbox-x \
-    && docker-php-ext-install -j"$(nproc)" pcntl posix pdo pdo_pgsql pgsql sockets zip \
+    && docker-php-ext-install -j"$(nproc)" dom gmp mbstring pcntl posix pdo pdo_pgsql pgsql sockets xml zip \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
@@ -50,8 +53,10 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy composer files and install dependencies
-COPY composer.json composer.lock ./
+# Copy composer files and install dependencies.
+# composer.lock is not committed to the repo, so only composer.json is copied here;
+# composer resolves and locks versions fresh at build time.
+COPY composer.json ./
 RUN composer install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
 
 # Copy application files
@@ -78,6 +83,8 @@ RUN mkdir -p \
 
 # Copy Docker configuration files
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/php-error-logging.ini /usr/local/etc/php/conf.d/zz-error-logging.ini
+COPY docker/php-uploads.ini /usr/local/etc/php/conf.d/zz-uploads.ini
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
@@ -86,6 +93,7 @@ EXPOSE 80
 EXPOSE 2323
 EXPOSE 24554
 EXPOSE 24555
+EXPOSE 6010
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

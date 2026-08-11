@@ -64,6 +64,33 @@ class RouteHelper
     }
 
     /**
+     * Require authentication plus the manage_hub_point grant (or admin) and
+     * return the authenticated user. Used by the self-serve Point
+     * Management API. See docs/proposals/HubPointManagementAugust2026.md.
+     *
+     * @return array The authenticated user array
+     * @throws \Exception If authentication fails
+     */
+    public static function requireHubPointAccess(): array
+    {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        if (!Auth::canManageHubPoint($user)) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'error_code' => 'errors.point_management.access_denied',
+                'error' => 'You do not have access to point management.',
+            ]);
+            exit;
+        }
+
+        return $user;
+    }
+
+    /**
      * Get the current authenticated user without requiring authentication
      *
      * Returns null if user is not authenticated.

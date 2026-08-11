@@ -330,10 +330,51 @@ try {
     }
 
     // ========================================================================
-    // 10. PostgreSQL VACUUM and ANALYZE (if not dry run)
+    // 10. Clean up old hub_node_outbound packets (sent/failed only, per node
+    //     queue_retention_days - pending/held rows are never purged here)
+    // ========================================================================
+    echo "\n[10] Cleaning old hub node outbound packets...\n";
+
+    $tableCheck = $db->query("
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'hub_node_outbound'
+        )
+    ");
+
+    if ($tableCheck->fetchColumn()) {
+        if ($dryRun) {
+            $stmt = $db->query("
+                SELECT COUNT(*) AS count
+                FROM hub_node_outbound hno
+                JOIN hub_nodes hn ON hn.id = hno.hub_node_id
+                WHERE hno.status IN ('sent', 'failed')
+                  AND COALESCE(hno.sent_at, hno.created_at) < NOW() - (hn.queue_retention_days || ' days')::interval
+            ");
+            $result = $stmt->fetch();
+            echo "    Would delete {$result['count']} sent/failed hub node outbound packets past their node's retention period\n";
+        } else {
+            $stmt = $db->prepare("
+                DELETE FROM hub_node_outbound hno
+                USING hub_nodes hn
+                WHERE hn.id = hno.hub_node_id
+                  AND hno.status IN ('sent', 'failed')
+                  AND COALESCE(hno.sent_at, hno.created_at) < NOW() - (hn.queue_retention_days || ' days')::interval
+            ");
+            $stmt->execute();
+            $deleted = $stmt->rowCount();
+            $totalCleaned += $deleted;
+            echo "    Deleted $deleted sent/failed hub node outbound packets past their node's retention period\n";
+        }
+    } else {
+        echo "    Table 'hub_node_outbound' does not exist, skipping\n";
+    }
+
+    // ========================================================================
+    // 11. PostgreSQL VACUUM and ANALYZE (if not dry run)
     // ========================================================================
     if (!$dryRun) {
-        echo "\n[10] Running VACUUM and ANALYZE...\n";
+        echo "\n[11] Running VACUUM and ANALYZE...\n";
 
         $tables = $db->query("
             SELECT relname AS table_name
@@ -351,7 +392,7 @@ try {
             }
         }
     } else {
-        echo "\n[10] Skipping VACUUM and ANALYZE (dry run)\n";
+        echo "\n[11] Skipping VACUUM and ANALYZE (dry run)\n";
     }
 
     // ========================================================================

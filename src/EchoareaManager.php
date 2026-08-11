@@ -178,6 +178,7 @@ class EchoareaManager
                 posting_name_policy, art_format_hint, missing_chrs_charset, color,
                 is_active, is_local, is_sysop_only, domain, gemini_public
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
         ");
         $insertStmt->execute([
             $tag,
@@ -195,7 +196,8 @@ class EchoareaManager
             $geminiPublic ? 'true' : 'false',
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $row = $insertStmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? (int)$row['id'] : 0;
     }
 
     public function updateDescription(int $id, string $description): bool

@@ -107,7 +107,8 @@ BinktermPHP runs in any modern browser across different features and themes.
 ### FTN / Networking
 - **Native BinkP mailer** — inbound server, polling scheduler, and on-demand poll
 - Multiple simultaneous FTN network connections (FidoNet, fsxnet, DoveNet, LovlyNet, and others)
-- AreaFix and FileFix for automated subscription management with hub uplinks
+- AreaFix and FileFix for automated echo/file area subscription management — both as a downlink self-managing subscriptions with an uplink, and as a hub offering AreaFix/FileFix to its own downlinks
+- **Downlink / hub support** — act as an FTN hub for subordinate nodes and FidoNet-style points, with per-downlink AreaFix/FileFix passwords, packet/session authentication, and queueing
 - **PGP support** — public key directory, encrypted netmail composition, and optional BBS-managed private keys
 - Nodelist browser with text/address/flag search, map view, and crashmail routing
 - **LovlyNet** — Zone 227 FTN with automated node registration (`scripts/lovlynet_setup.php`)
@@ -234,6 +235,7 @@ These features are disabled by default and require additional setup:
 | SSH Server | [docs/SSHServer.md](docs/SSHServer.md) |
 | File Areas | [docs/FileAreas.md](docs/FileAreas.md) |
 | FTP Server | [docs/FTPServer.md](docs/FTPServer.md) |
+| Downlinks (hub / AreaFix / FileFix) | [docs/Downlinks.md](docs/Downlinks.md) |
 | Matterbridge Chat Bridge | [docs/Matterbridge.md](docs/Matterbridge.md) |
 
 See **[docs/index.md](docs/index.md)** for the full documentation index.

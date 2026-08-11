@@ -21,9 +21,17 @@ use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Admin\AdminDaemonClient;
 use BinktermPHP\Crashmail\CrashmailService;
 use BinktermPHP\Database;
+use BinktermPHP\Hub\HubNodeManager;
 
 class Scheduler
 {
+    /**
+     * Must match BinkpSession::HUB_OUTBOUND_MAX_ATTEMPTS - the two caps
+     * gate the same hub_node_outbound.attempts value from different sides
+     * (deciding whether to dial out vs. deciding what to send once connected).
+     */
+    private const HUB_OUTBOUND_MAX_ATTEMPTS = 10;
+
     /** @var array<string,int> Unix timestamps of last outbound-triggered polls by uplink */
     private $lastOutboundPollTimes;
     /** @var array<string,bool> Whether an uplink had outbound work on the previous scan */
@@ -520,6 +528,7 @@ class Scheduler
                 $this->processInboundIfNeeded();
 
                 $this->runScheduledCrashmailPoll();
+                $this->runScheduledHubNodePush();
                 $this->processAdvertisingCampaigns();
                 
             } catch (\Exception $e) {
@@ -571,6 +580,59 @@ class Scheduler
             $this->lastCrashmailPoll = $now;
         } catch (\Throwable $e) {
             $this->log("Crashmail poll error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Push pending hub_node_outbound packets to any enabled, non-held,
+     * push-eligible (allow_outbound, inet_host set) hub node that has
+     * pending work, gated per-node by hub_nodes.push_poll_interval_minutes
+     * (elapsed since hub_nodes.last_push_at). Applies to both node- and
+     * point-type hub nodes - points are pull-only by default (no
+     * inet_host), but a point given a routable inet_host (see the field's
+     * help text on the downlink edit form) is push-eligible too.
+     */
+    private function runScheduledHubNodePush(): void
+    {
+        try {
+            $db = Database::getInstance()->getPdo();
+            // Failed rows are retried up to the same attempts cap as
+            // BinkpSession::HUB_OUTBOUND_MAX_ATTEMPTS so a node whose only
+            // work is a failed (e.g. interrupted) send still gets redialed,
+            // not just nodes with fresh 'pending' rows.
+            $stmt = $db->prepare("
+                SELECT DISTINCT hn.id, hn.node_address
+                FROM hub_nodes hn
+                JOIN hub_node_outbound hno ON hno.hub_node_id = hn.id
+                WHERE (hno.status = 'pending' OR (hno.status = 'failed' AND hno.attempts < ?))
+                  AND hn.enabled = TRUE
+                  AND hn.allow_outbound = TRUE
+                  AND hn.hold_mail = FALSE
+                  AND hn.inet_host IS NOT NULL
+                  AND hn.inet_host <> ''
+                  AND (hn.last_push_at IS NULL OR hn.last_push_at <= NOW() - (hn.push_poll_interval_minutes || ' minutes')::interval)
+            ");
+            $stmt->execute([self::HUB_OUTBOUND_MAX_ATTEMPTS]);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+            if (empty($rows)) {
+                $this->log("No push-eligible hub nodes with pending outbound work", 'DEBUG');
+            } else {
+                $touchStmt = $db->prepare("UPDATE hub_nodes SET last_push_at = NOW() WHERE id = ?");
+                foreach ($rows as $row) {
+                    $address = $row['node_address'];
+                    $this->log("Hub node push starting for {$address}");
+                    $result = $this->client->binkPoll($address);
+                    $touchStmt->execute([$row['id']]);
+                    if (($result['exit_code'] ?? 1) === 0) {
+                        $this->log("Hub node push completed for {$address}");
+                    } else {
+                        $this->log("Hub node push failed for {$address}", 'ERROR');
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->log("Hub node push check error: " . $e->getMessage(), 'ERROR');
         }
     }
 
@@ -660,6 +722,42 @@ class Scheduler
             ];
         }
         
+        return $status;
+    }
+
+    /**
+     * Per-node push schedule status for hub_nodes (downlinks), analogous to
+     * getScheduleStatus() for uplinks. Push eligibility mirrors the gating
+     * in runScheduledHubNodePush(): enabled, allow_outbound, not held, and
+     * a routable inet_host.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function getHubNodeScheduleStatus(): array
+    {
+        $status = [];
+
+        foreach ((new HubNodeManager($this->db))->getAll() as $hubNode) {
+            $address = $hubNode['node_address'];
+            $intervalMinutes = (int)$hubNode['push_poll_interval_minutes'];
+            $pushEligible = $hubNode['enabled'] && $hubNode['allow_outbound'] && !$hubNode['hold_mail'] && !empty($hubNode['inet_host']);
+
+            $lastPushAt = $hubNode['last_push_at'] ?? null;
+            $lastPushTimestamp = $lastPushAt ? strtotime($lastPushAt) : 0;
+            $nextPushTimestamp = $lastPushTimestamp > 0 ? $lastPushTimestamp + ($intervalMinutes * 60) : 0;
+
+            $status[$address] = [
+                'address' => $address,
+                'node_type' => $hubNode['node_type'],
+                'interval_minutes' => $intervalMinutes,
+                'enabled' => $hubNode['enabled'],
+                'push_eligible' => $pushEligible,
+                'last_push' => $this->formatStatusTimestamp($lastPushTimestamp, 'Never'),
+                'next_push' => $pushEligible ? $this->formatStatusTimestamp($nextPushTimestamp, 'Due now') : 'N/A (pull-only or disabled)',
+                'due_now' => $pushEligible && ($lastPushTimestamp <= 0 || $nextPushTimestamp <= time()),
+            ];
+        }
+
         return $status;
     }
 

@@ -14,11 +14,13 @@ function showUsage()
     echo "Usage: php binkp_poll.php [options] [address]\n";
     echo "Options:\n";
     echo "  --all             Poll all configured uplinks\n";
+    echo "  --all-hub-nodes   Poll all node-type hub nodes/downlinks with a routable host\n";
     echo "  --test            Test connection without polling\n";
     echo "  --hostname=HOST   Override hostname for connection\n";
     echo "  --port=PORT       Override port for connection\n";
     echo "  --password=PASS   Override password for connection\n";
     echo "  --log-level=LEVEL Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL\n";
+    echo "                    (falls back to the BINKP_LOG_LEVEL .env variable, then INFO)\n";
     echo "  --log-file=FILE   Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_poll.log') . ")\n";
     echo "  --no-console      Disable console logging\n";
     echo "  --quiet           Minimal output\n";
@@ -27,9 +29,12 @@ function showUsage()
     echo "\n";
     echo "Examples:\n";
     echo "  php binkp_poll.php --all\n";
+    echo "  php binkp_poll.php --all-hub-nodes\n";
     echo "  php binkp_poll.php 1:123/456\n";
     echo "  php binkp_poll.php --test --hostname=bbs.example.com 1:123/456\n";
     echo "\n";
+    echo "A plain [address] also resolves hub nodes/points automatically (via their\n";
+    echo "configured inet_host/port/session_password) if it isn't a configured uplink.\n";
 }
 
 function parseArgs($argv)
@@ -99,7 +104,7 @@ if (isset($args['help'])) {
 try {
     $config = BinkpConfig::getInstance();
     $queued_only=false;
-    $logLevel = isset($args['log-level']) ? $args['log-level'] : 'INFO';
+    $logLevel = isset($args['log-level']) ? $args['log-level'] : \BinktermPHP\Config::env('BINKP_LOG_LEVEL', 'INFO');
     $logFile = isset($args['log-file']) ? $args['log-file'] : \BinktermPHP\Config::getLogPath('binkp_poll.log');
     if(isset($args['queued-only'])){
         $queued_only=true;
@@ -152,7 +157,30 @@ try {
         }
         
         exit($successCount === $totalCount ? 0 : 1);
-        
+
+    } elseif (isset($args['all-hub-nodes'])) {
+        if (!$quiet) $logger->log('INFO', 'Polling all node-type hub nodes with a routable host...');
+
+        $results = $client->pollAllHubNodes();
+
+        foreach ($results as $address => $result) {
+            $routeFreqResponses($result);
+            if ($quiet) {
+                echo "{$address}: " . formatResult($result, true) . "\n";
+            } else {
+                logResult($result, $logger, $address);
+            }
+        }
+
+        $successCount = count(array_filter($results, function($r) { return $r['success']; }));
+        $totalCount = count($results);
+
+        if (!$quiet) {
+            $logger->log('INFO', "Summary: {$successCount}/{$totalCount} successful");
+        }
+
+        exit($successCount === $totalCount ? 0 : 1);
+
     } elseif (!empty($positional)) {
         $address = $positional[0];
         

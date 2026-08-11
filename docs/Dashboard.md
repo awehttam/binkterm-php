@@ -41,7 +41,7 @@ Shows the count of unread bulletins with a link to the Bulletins page. Displays 
 
 ### System Information *(sidebar)*
 
-Shows the sysop name, the logged-in user's username, and the FTN network addresses the BBS is registered on.
+Shows the sysop name, the system's configured location (when set to something other than the "Unknown Location" placeholder), the logged-in user's username, and the FTN network addresses the BBS is registered on. A few extra running totals — registered user count, today's caller count, system uptime (host OS uptime, when it can be determined), file area file count, all-time total login count, and total echomail message count — can also be shown, controlled by **Admin → Appearance & Content → Dashboard → Extra statistics in System Information card**, which offers three modes: **Off**, **Sysop Only** (default), and **All Users**.
 
 ### Today's Callers *(sidebar, admin only)*
 
@@ -88,3 +88,5 @@ The **Mail & Areas** card is required and cannot be hidden.
 **Default layout** — Sysops can configure the layout new users start with from **Admin → Appearance & Content → Dashboard**. Drag cards between the Main Column, Sidebar Column, and Hidden lists and save. Individual users who have already customized their layout are unaffected; they can reset to the sysop default using the Reset button on their own Customize modal.
 
 **System News** — Edit the MOTD displayed in the System News card from **Admin → Appearance & Content → Content → System News**. The field accepts Markdown.
+
+**System Information extra statistics** — The "Extra statistics in System Information card" setting on **Admin → Appearance & Content → Dashboard** adds registered users, today's callers, system uptime, file area file count, total logins, and total echomail messages to the System Information card. Choose **Off** to hide them, **Sysop Only** (default) to show them only to admins, or **All Users** to show them to everyone.

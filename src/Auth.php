@@ -70,7 +70,7 @@ class Auth
     public function authenticateCredentials(string $username, string $password): array|false
     {
         $stmt = $this->db->prepare('
-            SELECT id, username, real_name, email, is_admin, password_hash, created_at, last_login, location, fidonet_address
+            SELECT id, username, real_name, email, is_admin, manage_hub_point, password_hash, created_at, last_login, location, fidonet_address
             FROM users
             WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND is_active = TRUE
             LIMIT 1
@@ -95,7 +95,7 @@ class Auth
     public function validateSession($sessionId)
     {
         $stmt = $this->db->prepare('
-            SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.password_hash, u.created_at, u.last_login, u.location, u.about_me, u.fidonet_address
+            SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.manage_hub_point, u.password_hash, u.created_at, u.last_login, u.location, u.about_me, u.fidonet_address
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.session_id = ? AND s.expires_at > NOW() AND u.is_active = TRUE
@@ -213,6 +213,15 @@ class Auth
             return $user;
         }
         return null;
+    }
+
+    /**
+     * True if the user may access the self-serve Point Management page/API --
+     * either explicitly granted, or implied by admin access.
+     */
+    public static function canManageHubPoint(?array $user): bool
+    {
+        return $user && (!empty($user['manage_hub_point']) || !empty($user['is_admin']));
     }
 
     public function requireAuth()
@@ -362,34 +371,52 @@ class Auth
     }
 
     /**
-     * Get count of distinct active users today (UTC midnight to now).
+     * Get count of distinct active users today (midnight to now, in the given timezone).
      * Counts users who either logged in today or have an active session with activity today,
      * so users with long-lived cookies who did not re-login are included.
      *
+     * Uses the same day-boundary calculation as getTodaysCallers() so the two stay consistent;
+     * passing a different timezone than that call will cause the counts to diverge.
+     *
+     * @param string $timezone A valid PHP/IANA timezone name, e.g. 'America/New_York'
      * @return int
      */
-    public function getActiveTodayCount(): int
+    public function getActiveTodayCount(string $timezone = 'UTC'): int
     {
+        // Validate timezone to prevent SQL injection; fall back to UTC if unknown
+        try {
+            new \DateTimeZone($timezone);
+        } catch (\Exception $e) {
+            $timezone = 'UTC';
+        }
+
         $stmt = $this->db->prepare("
+            WITH today_start AS (
+                SELECT date_trunc('day', NOW() AT TIME ZONE :tz_name) AT TIME ZONE :tz_name2 AS ts
+            )
             SELECT COUNT(DISTINCT u.id) AS count
-            FROM users u
+            FROM users u, today_start
             WHERE u.is_active = TRUE
               AND (
                 EXISTS (
                     SELECT 1 FROM user_activity_log al
                     WHERE al.user_id = u.id
-                      AND al.activity_type_id = ?
-                      AND al.created_at >= CURRENT_DATE
+                      AND al.activity_type_id = :type
+                      AND al.created_at >= today_start.ts
                 )
                 OR EXISTS (
                     SELECT 1 FROM user_sessions s
                     WHERE s.user_id = u.id
-                      AND s.last_activity >= CURRENT_DATE
+                      AND s.last_activity >= today_start.ts
                       AND s.expires_at > NOW()
                 )
               )
         ");
-        $stmt->execute([ActivityTracker::TYPE_LOGIN]);
+        $stmt->execute([
+            ':tz_name'  => $timezone,
+            ':tz_name2' => $timezone,
+            ':type'     => ActivityTracker::TYPE_LOGIN,
+        ]);
         $result = $stmt->fetch(\PDO::FETCH_ASSOC);
         return (int) ($result['count'] ?? 0);
     }
@@ -495,6 +522,31 @@ class Auth
         ");
         $stmt->execute([':hours' => $hours]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get count of registered (non-system) users.
+     *
+     * @return int
+     */
+    public function getRegisteredUserCount(): int
+    {
+        $result = $this->db->query("SELECT COUNT(*) AS count FROM users WHERE is_system = FALSE")->fetch(\PDO::FETCH_ASSOC);
+        return (int) ($result['count'] ?? 0);
+    }
+
+    /**
+     * Get the all-time total number of successful logins, from the login
+     * activity events recorded in user_activity_log.
+     *
+     * @return int
+     */
+    public function getTotalLoginCount(): int
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) AS count FROM user_activity_log WHERE activity_type_id = ?");
+        $stmt->execute([ActivityTracker::TYPE_LOGIN]);
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return (int) ($result['count'] ?? 0);
     }
 
     /**

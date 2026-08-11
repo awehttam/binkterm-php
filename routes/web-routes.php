@@ -248,7 +248,6 @@ SimpleRouter::get('/', function() {
     }
 
     $onlineCount = $auth->getOnlineUserCount(15);
-    $activeTodayCount = $auth->getActiveTodayCount();
     $adminTimezone = 'UTC';
     $handler = new \BinktermPHP\MessageHandler();
     $userSettings = $handler->getUserSettings($userId);
@@ -263,7 +262,32 @@ SimpleRouter::get('/', function() {
             }
         }
     }
+    // Same timezone used for both so the System Information stat and the Today's Callers list agree
+    $activeTodayCount = $auth->getActiveTodayCount($adminTimezone);
     $todaysCallers = !empty($user['is_admin']) ? $auth->getTodaysCallers($adminTimezone) : null;
+
+    $dashboardStatsMode = \BinktermPHP\AppearanceConfig::getDashboardSystemInfoStatsMode();
+    $showDashboardSystemInfoStats = $dashboardStatsMode === 'all'
+        || ($dashboardStatsMode === 'sysop' && !empty($user['is_admin']));
+    $registeredUserCount = null;
+    $totalLoginCount = null;
+    $systemUptimeSeconds = null;
+    $systemUptimeDays = null;
+    $systemUptimeHours = null;
+    $systemUptimeMinutes = null;
+    $fileAreaFileCount = null;
+    $totalEchomailCount = null;
+    if ($showDashboardSystemInfoStats) {
+        $registeredUserCount = $auth->getRegisteredUserCount();
+        $totalLoginCount = $auth->getTotalLoginCount();
+        $adminController = new \BinktermPHP\AdminController();
+        $systemUptimeSeconds = $adminController->getSystemUptimeSeconds();
+        $systemUptimeDays = $systemUptimeSeconds !== null ? intdiv($systemUptimeSeconds, 86400) : null;
+        $systemUptimeHours = $systemUptimeSeconds !== null ? intdiv($systemUptimeSeconds % 86400, 3600) : null;
+        $systemUptimeMinutes = $systemUptimeSeconds !== null ? intdiv($systemUptimeSeconds % 3600, 60) : null;
+        $fileAreaFileCount = (new \BinktermPHP\FileAreaManager())->getStats(!$user)['total_files'];
+        $totalEchomailCount = $adminController->getTotalEchomailCount();
+    }
 
     // Build dashboard card registry and layout
     $creditsConfig = $bbsConfig['credits'] ?? [];
@@ -294,6 +318,15 @@ SimpleRouter::get('/', function() {
         'online_user_count' => $onlineCount,
         'active_today_count' => $activeTodayCount,
         'todays_callers' => $todaysCallers,
+        'show_dashboard_system_info_stats' => $showDashboardSystemInfoStats,
+        'registered_user_count' => $registeredUserCount,
+        'total_login_count' => $totalLoginCount,
+        'system_uptime_seconds' => $systemUptimeSeconds,
+        'system_uptime_days' => $systemUptimeDays,
+        'system_uptime_hours' => $systemUptimeHours,
+        'system_uptime_minutes' => $systemUptimeMinutes,
+        'file_area_file_count' => $fileAreaFileCount,
+        'total_echomail_count' => $totalEchomailCount,
         'bulletin_unread_count' => $bulletinUnreadCount,
         'dashboard_layout' => $dashboardLayout,
         'dashboard_available_cards' => $availableCards,
@@ -1972,6 +2005,28 @@ SimpleRouter::get('/subscriptions', function() {
         $template = new Template();
         $template->renderResponse('user_subscriptions.twig', $data);
     }
+});
+
+/**
+ * Self-serve Point Management page. See docs/proposals/HubPointManagementAugust2026.md.
+ * Gated the same way as its API (manage_hub_point flag or admin) - the menu
+ * item is hidden for other users, but this is the actual enforcement point.
+ */
+SimpleRouter::get('/point-management', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!Auth::canManageHubPoint($user)) {
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.web.errors.point_management_access_only'
+        ]);
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('point_management.twig', []);
 });
 
 SimpleRouter::get('/polls/create', function() {

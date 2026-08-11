@@ -1,0 +1,93 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.point_management.page_title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-network-wired me-2"></i>
+                        {{ t('ui.point_management.heading', {}, locale, ['common']) }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">{{ t('ui.point_management.intro', {}, locale, ['common']) }}</p>
+
+                    <div id="pointManagementLoading" class="text-muted">
+                        <i class="fas fa-spinner fa-spin me-2"></i>{{ t('ui.common.loading', {}, locale, ['common']) }}
+                    </div>
+
+                    <div id="pointManagementList" class="d-none"></div>
+
+                    <div id="pointManagementCreate" class="d-none">
+                        <div id="pointManagementNoPoints" class="alert alert-info d-none">{{ t('ui.point_management.no_points', {}, locale, ['common']) }}</div>
+                        <div id="pointManagementNoNetworks" class="alert alert-secondary d-none">{{ t('ui.point_management.no_networks_available', {}, locale, ['common']) }}</div>
+                        <div id="pointManagementCreateForm" class="row g-3 align-items-end d-none">
+                            <div class="col-md-5">
+                                <label class="form-label" for="pmCreateNetwork">{{ t('ui.point_management.select_network', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="pmCreateNetwork"></select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="pmCreateName">{{ t('ui.admin.hub_nodes.name', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="pmCreateName">
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-primary" onclick="createPoint()">
+                                    <i class="fas fa-plus me-1"></i>{{ t('ui.point_management.create_point', {}, locale, ['common']) }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pmAreasModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.point_management.areas.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="pmAreasPointId">
+                <div id="pmAreasModalAlert"></div>
+                <div id="pmAreasList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button class="btn btn-primary" type="button" onclick="savePmAreas()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pmFileAreasModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.point_management.fileareas.title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="pmFileAreasPointId">
+                <div id="pmFileAreasModalAlert"></div>
+                <div id="pmFileAreasList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button class="btn btn-primary" type="button" onclick="savePmFileAreas()">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/js/point-management.js"></script>
+{% endblock %}

@@ -38,7 +38,7 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
 
 ## Project Structure
 
- - src/ - main source code
+ - src/ - main source code. See `src/Binkp/CLAUDE.md` for BinkP protocol implementation notes.
  - routes/ - HTTP route definitions (api-routes.php, web-routes.php, admin-routes.php, etc.)
  - config/ - runtime configuration files (binkp.json, bbs.json, webdoors.json, etc.) and i18n catalogs
  - scripts/ - CLI tools (binkp_server, binkp_poll, maintenance scripts, etc.). See `scripts/CLAUDE.md` for CLI script rules.
@@ -63,10 +63,12 @@ BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. 
  - Both usernames and Real Names are considered unique. Two users cannot have the same username or real name
  - The web interface should use ajax requests by api for queries
  - This is for FTN style networks and forums
+ - **Never use `1:1/1` as a test/example FTN address**: it's a real, well-known Zone Coordinator address in live FidoNet. Using it in test data, fixtures, docs, or example configs risks confusing it with a real network node. Also avoid reusing any address that is actually configured in this project's own `config/binkp.json` (system address, or any uplink's `me`/`address`) as a generic example, since that's a real live node too — pick an obviously fictitious zone/net/node instead (e.g. `999:1/1`).
  - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
  - **User settings parity**: When adding a new setting to `user_settings`, try to keep parity between the web UI/API flow and the term server flow. Check both the web-side handlers (for example `src/MessageHandler.php`, `routes/api-routes.php`, `public_html/js/app.js`) and the term-side settings path (`telnet/src/SettingsHandler.php`) so the setting is available and persisted consistently where appropriate.
  - **Premium features**: When adding, changing, or removing any registered-only / premium feature, gate it with `License::isValid()`. Do **not** use `License::hasFeature()` — it is not yet implemented. Update the "Currently Implemented Premium Features" table in `docs/proposals/PremiumFeatures.md` and remove it from the future ideas list if it was listed there.
  - Leave the vendor directory alone. It's managed by composer only
+ - **Keep the Dockerfile in sync with new dependencies**: When adding a new PHP extension requirement (composer.json `ext-*`, or any code using a PHP extension function), a new required system package, or a new required `-dev` header package, update `Dockerfile` to install it too — both the `docker-php-ext-install` list and the `apt-get install` package list (including the corresponding `-dev` package needed to compile the extension, e.g. `libxml2-dev` for `dom`/`xml`, `libonig-dev` for `mbstring`, `libgmp-dev` for `gmp`). `docs/INSTALL.md`'s package list is the reference for what a bare-metal install requires; the Dockerfile should require the same set. Don't assume an extension ships by default in the `php:8.2-apache` base image — verify or ask.
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
  - **Theme-safe background colors**: Never use Bootstrap 5.3+ utility classes like `bg-body-tertiary` or `bg-body-secondary` — they have no theme overrides and will render incorrectly on dark/amber/greenterm/cyberpunk themes. Use `bg-light` instead, which all themes override via `.bg-light { background-color: var(--theme-var) !important; }`.
  - **Service Worker Cache**: When making changes to CSS or JavaScript files, or when updating i18n language strings in `config/i18n/`, increment the CACHE_NAME version in public_html/sw.js (e.g., 'binkcache-v2' to 'binkcache-v3') to force clients to download fresh copies. The service worker caches static assets and the i18n catalog (`/api/i18n/catalog`) to bypass aggressive browser caching on mobile devices.

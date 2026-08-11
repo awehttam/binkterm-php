@@ -186,10 +186,16 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
         }
     }
 
-    // Track the newest article GUID (first in original feed order) for deduplication.
+    // Track the newest article GUID and pubDate (first in original feed order) for deduplication.
+    // The pubDate watermark backs up filterNewArticles() when the GUID is no longer
+    // present in the feed (e.g. the article was unpublished/removed upstream).
     if ($newestGuid !== null) {
-        $stmt = $db->prepare("UPDATE auto_feed_sources SET last_article_guid = ? WHERE id = ?");
-        $stmt->execute([$newestGuid, $feed['id']]);
+        $newestArticle = $newArticles[0] ?? null;
+        $newestTimestamp = $newestArticle ? strtotime((string)($newestArticle['pubDate'] ?? '')) : false;
+        $newestPubDate = $newestTimestamp !== false ? date('Y-m-d H:i:s', $newestTimestamp) : null;
+
+        $stmt = $db->prepare("UPDATE auto_feed_sources SET last_article_guid = ?, last_article_pubdate = ? WHERE id = ?");
+        $stmt->execute([$newestGuid, $newestPubDate, $feed['id']]);
     }
 
     // Update last check time
@@ -615,10 +621,12 @@ function filterNewArticles($db, $feedId, $articles) {
         return [];
     }
 
-    // Get last posted article GUID
-    $stmt = $db->prepare("SELECT last_article_guid FROM auto_feed_sources WHERE id = ?");
+    // Get last posted article GUID and pubDate watermarks
+    $stmt = $db->prepare("SELECT last_article_guid, last_article_pubdate FROM auto_feed_sources WHERE id = ?");
     $stmt->execute([$feedId]);
-    $lastGuid = $stmt->fetchColumn();
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    $lastGuid = $row['last_article_guid'] ?? null;
+    $lastPubDate = $row['last_article_pubdate'] ?? null;
 
     // If no last GUID, this is first run - return all articles
     if (!$lastGuid) {
@@ -637,13 +645,35 @@ function filterNewArticles($db, $feedId, $articles) {
         $newArticles[] = $article;
     }
 
-    // If we didn't find the last GUID, the feed may have been cleared
-    // Return all articles to be safe (but limited by max_articles_per_check)
-    if (!$foundLast && count($articles) > 0) {
+    if ($foundLast) {
+        return $newArticles;
+    }
+
+    // The last posted GUID is no longer present in the feed. This can mean the feed
+    // was genuinely reset/cleared, but it can also mean the previously-newest article
+    // was quietly unpublished/removed upstream while the rest of the feed is unchanged.
+    // Treating every miss as a reset causes the entire feed to be reposted as "new".
+    // Fall back to a pubDate watermark instead: only articles strictly newer than the
+    // last known pubDate are considered new.
+    $lastTimestamp = $lastPubDate ? strtotime($lastPubDate) : false;
+
+    // No stored pubDate watermark (e.g. a row created before this column existed) -
+    // preserve the old one-time bootstrap behavior of returning everything.
+    if ($lastTimestamp === false) {
         return $articles;
     }
 
-    return $newArticles;
+    return array_values(array_filter($articles, function ($article) use ($lastTimestamp) {
+        $articleTimestamp = strtotime((string)($article['pubDate'] ?? ''));
+        // An unparseable pubDate is treated as "not new" rather than "new" - the
+        // alternative (treating it as new) risks flooding echoareas with reposts
+        // whenever a feed entry has a malformed or missing date, which is exactly
+        // the failure mode this fallback exists to avoid.
+        if ($articleTimestamp === false) {
+            return false;
+        }
+        return $articleTimestamp > $lastTimestamp;
+    }));
 }
 
 /**

@@ -44,6 +44,7 @@ class AdminDaemonServer
         'binkp_poll.log',
         'binkp_server.log',
         'binkp_scheduler.log',
+        'binkp_web.log',
         'admin_daemon.log',
         'mrc_daemon.log',
         'ai_bot_daemon.log',
@@ -2889,6 +2890,7 @@ class AdminDaemonServer
             'label'      => $meta['label'],
             'description'=> $meta['description'],
             'exists'     => $exists,
+            'content_base64' => $exists ? base64_encode((string)(@file_get_contents($path) ?: '')) : '',
             'size'       => $exists ? filesize($path) : 0,
             'updated_at' => $exists ? date('Y-m-d H:i', filemtime($path)) : null,
         ];

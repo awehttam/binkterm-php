@@ -232,6 +232,26 @@ See [docs/DOSBox_Headless_Mode.md](DOSBox_Headless_Mode.md) and [docs/DOSDoors.m
 # FAVICONICO=/robot_favicon.ico
 ```
 
+### Point Management
+
+```bash
+# Maximum number of points a manage_hub_point-flagged user may self-register
+# per network (boss AKA) from the self-serve Point Management page. Does not
+# limit points a sysop assigns to a user via the admin Downlinks user
+# association selector. A value of 0 or less disables self-service point
+# creation entirely (existing self-registered points are unaffected).
+# HUB_POINT_MAX_PER_USER_PER_NETWORK=1
+
+# Lowest point number that is ever auto-suggested for a new point, on both
+# the admin Downlinks "Add Downlink" form and self-service point creation.
+# Numbers below this are reserved for the sysop to assign manually per
+# network -- they are never picked automatically, but can still be typed
+# into the Point Number field on the admin form.
+# HUB_POINT_FIRST_AUTO_NUMBER=10
+```
+
+Configure which users may access the self-serve Point Management page itself (`/point-management`) via the "Point Management Access" toggle on a user's account, from **Admin → Manage Users**.
+
 ### Miscellaneous
 
 ```bash
@@ -249,6 +269,13 @@ PERF_LOG_SLOW_MS=500
 # Files are only moved/deleted after they have been untouched for 24 hours
 # Set this to true to delete stale unprocessed files instead of quarantining them
 # BINKP_DELETE_UNPROCESSED_FILES=false
+
+# Log level for binkp_server.php, binkp_poll.php, and binkp_scheduler.php
+# when no --log-level CLI flag is passed. Useful for turning on DEBUG
+# logging for a supervised daemon (systemd, cron) without editing how
+# it's launched — set this, restart the daemon, then set it back.
+# DEBUG, INFO, WARNING, ERROR, CRITICAL
+# BINKP_LOG_LEVEL=INFO
 
 # Archive extractors for Fidonet bundles (JSON array)
 # ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]

@@ -12,36 +12,46 @@
     </div>
 
     <!-- Status Overview -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-5 g-3 mb-4">
+        <div class="col">
+            <div class="card h-100">
                 <div class="card-body text-center">
                     <h5 class="card-title">{{ t('ui.binkp.system_status') }}</h5>
                     <p class="card-text" id="system-status">{{ t('ui.common.loading') }}</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card">
+        <div class="col">
+            <div class="card h-100">
                 <div class="card-body text-center">
                     <h5 class="card-title">{{ t('ui.binkp.inbound_queue') }}</h5>
                     <p class="card-text" id="inbound-count">{{ t('ui.common.loading') }}</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card">
+        <div class="col">
+            <div class="card h-100">
                 <div class="card-body text-center">
                     <h5 class="card-title">{{ t('ui.binkp.outbound_queue') }}</h5>
-                    <p class="card-text" id="outbound-count">{{ t('ui.common.loading') }}</p>
+                    <p class="card-text mb-1" id="outbound-count">{{ t('ui.common.loading') }}</p>
+                    <p class="card-text small text-muted mb-0" id="outbound-count-breakdown"></p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card">
+        <div class="col">
+            <div class="card h-100">
                 <div class="card-body text-center">
                     <h5 class="card-title">{{ t('ui.binkp.uplinks') }}</h5>
                     <p class="card-text" id="uplink-count">{{ t('ui.common.loading') }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">{{ t('ui.binkp.downlinks') }}</h5>
+                    <p class="card-text mb-1" id="downlink-node-count">{{ t('ui.common.loading') }}</p>
+                    <p class="card-text small text-muted mb-0" id="downlink-node-count-breakdown"></p>
                 </div>
             </div>
         </div>
@@ -57,6 +67,9 @@
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="queues-tab" data-bs-toggle="tab" data-bs-target="#queues" type="button" role="tab">{{ t('ui.binkp.queues_tab') }}</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="hub-outbound-tab" data-bs-toggle="tab" data-bs-target="#hub-outbound" type="button" role="tab">{{ t('ui.binkp.hub_outbound_tab') }}</button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="kept-packets-tab" data-bs-toggle="tab" data-bs-target="#kept-packets" type="button" role="tab"{% if license_valid %} onclick="onKeptPacketsTabOpen()"{% endif %}>
@@ -96,8 +109,27 @@
                                  <i class="fas fa-sync"></i> {{ t('ui.binkp.poll_all') }}
                             </button>
                         </div>
-                        <div class="card-body" id="uplink-status">
-                            {{ t('ui.binkp.loading_uplink_status') }}
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped mb-0" id="uplink-status-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="sortable" data-sort-key="network_name" style="cursor: pointer;">
+                                                {{ t('ui.binkp.network') }} <i class="fas fa-sort ms-1"></i>
+                                            </th>
+                                            <th class="sortable" data-sort-key="address" style="cursor: pointer;">
+                                                {{ t('ui.binkp.node_number') }} <i class="fas fa-sort ms-1"></i>
+                                            </th>
+                                            <th class="sortable" data-sort-key="status" style="cursor: pointer;">
+                                                {{ t('ui.binkp.status') }} <i class="fas fa-sort ms-1"></i>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="uplink-status">
+                                        <tr><td colspan="3">{{ t('ui.binkp.loading_uplink_status') }}</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -166,18 +198,88 @@
             </div>
         </div>
 
+        <!-- Downlink (Hub/Point) Queue Tab -->
+        <div class="tab-pane fade" id="hub-outbound" role="tabpanel">
+            <!-- Summary view: one row per downlink with pending/queued counts -->
+            <div id="hubOutboundSummaryView">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">{{ t('ui.binkp.hub_outbound_heading') }}</h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshHubOutboundQueue()">
+                        <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped" id="hubOutboundSummaryTable">
+                        <thead>
+                            <tr>
+                                <th>{{ t('ui.binkp.hub_outbound.downlink') }}</th>
+                                <th>{{ t('ui.binkp.hub_outbound.summary_pending') }}</th>
+                                <th>{{ t('ui.binkp.hub_outbound.summary_failed') }}</th>
+                                <th>{{ t('ui.binkp.hub_outbound.summary_held') }}</th>
+                                <th>{{ t('ui.binkp.hub_outbound.summary_total') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hub-outbound-summary-rows">
+                            <tr><td colspan="5">{{ t('ui.common.loading') }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Detail view: messages queued for one downlink -->
+            <div id="hubOutboundDetailView" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="backFromHubOutboundDetail()">
+                            <i class="fas fa-arrow-left"></i> {{ t('ui.common.back') }}
+                        </button>
+                        <h5 class="mb-0" id="hubOutboundDetailHeading"></h5>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-outline-danger" id="hubOutboundDeleteBtn" onclick="deleteSelectedHubOutbound()" disabled>
+                            <i class="fas fa-trash"></i> {{ t('ui.binkp.hub_outbound.delete_selected') }}
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshHubOutboundQueue()">
+                            <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped" id="hubOutboundTable">
+                        <thead>
+                            <tr>
+                                <th style="width:2em;"><input type="checkbox" id="hubOutboundSelectAll" aria-label="{{ t('ui.binkp.hub_outbound.select_all') }}" onchange="toggleAllHubOutboundSelection(this.checked)"></th>
+                                <th>{{ t('ui.binkp.hub_outbound.type') }}</th>
+                                <th>{{ t('ui.binkp.status') }}</th>
+                                <th>{{ t('ui.binkp.hub_outbound.size') }}</th>
+                                <th>{{ t('ui.binkp.hub_outbound.attempts') }}</th>
+                                <th>{{ t('ui.binkp.hub_outbound.created') }}</th>
+                                <th>{{ t('ui.binkp.hub_outbound.error') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hub-outbound-rows">
+                            <tr><td colspan="7">{{ t('ui.common.loading') }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Kept Packets Tab -->
         <div class="tab-pane fade" id="kept-packets" role="tabpanel">
             {% if license_valid %}
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5>{{ t('ui.binkp.kept_packets_tab') }}</h5>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-sm btn-outline-primary active" id="keptInboundBtn" onclick="switchKeptType('inbound')">
-                        <i class="fas fa-inbox"></i> {{ t('ui.binkp.kept_inbound') }}
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="keptOutboundBtn" onclick="switchKeptType('outbound')">
-                        <i class="fas fa-paper-plane"></i> {{ t('ui.binkp.kept_outbound') }}
-                    </button>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h5 class="mb-0">{{ t('ui.binkp.kept_packets_tab') }}</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="date" class="form-control form-control-sm" id="keptDatePicker" style="width:auto;" title="{{ t('ui.binkp.kept_jump_to_date') }}" onchange="jumpToKeptDate(this.value)">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-primary active" id="keptInboundBtn" onclick="switchKeptType('inbound')">
+                            <i class="fas fa-inbox"></i> {{ t('ui.binkp.kept_inbound') }}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="keptOutboundBtn" onclick="switchKeptType('outbound')">
+                            <i class="fas fa-paper-plane"></i> {{ t('ui.binkp.kept_outbound') }}
+                        </button>
+                    </div>
                 </div>
             </div>
             <div id="kept-packets-content">
@@ -437,18 +539,50 @@ function formatLocalizedDateTime(value, fallback = null) {
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
+    // Deep link support from the Manage Downlinks page's "View Queue" button
+    // (/binkp?tab=hub-outbound&downlink=1:153/149) — jump straight to the
+    // Downlink Queue tab and that node's detail view once its data loads.
+    const deepLinkParams = new URLSearchParams(window.location.search);
+    const deepLinkTab = deepLinkParams.get('tab');
+    const deepLinkDownlink = deepLinkParams.get('downlink');
+    if (deepLinkDownlink) {
+        hubOutboundActiveNode = deepLinkDownlink;
+        hubOutboundCameFromExternalLink = true;
+    }
+    if (deepLinkTab) {
+        const tabButton = document.getElementById(`${deepLinkTab}-tab`);
+        if (tabButton) {
+            bootstrap.Tab.getOrCreateInstance(tabButton).show();
+        }
+    }
+
     loadI18nNamespaces(['common', 'errors']).then(function() {
         refreshBinkpOverview();
         refreshQueues();
+        refreshHubOutboundQueue();
         refreshLogs();
         CronBuilder.init('pollScheduleInput');
         setInterval(function() {
             refreshQueues();
+            refreshHubOutboundQueue();
             refreshBinkpOverview();
         }, 15000);
     });
     document.getElementById('addUplinkModal').addEventListener('shown.bs.modal', function () {
         CronBuilder.refresh('pollScheduleInput');
+    });
+    document.querySelectorAll('#uplink-status-table th[data-sort-key]').forEach(function(th) {
+        th.addEventListener('click', function() {
+            const key = th.getAttribute('data-sort-key');
+            if (uplinkStatusSort.key === key) {
+                uplinkStatusSort.dir = uplinkStatusSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                uplinkStatusSort.key = key;
+                uplinkStatusSort.dir = 'asc';
+            }
+            updateUplinkStatusSortIcons();
+            renderUplinkStatusList(binkpUplinks);
+        });
     });
 });
 
@@ -483,8 +617,26 @@ function updateStatusDisplay(data) {
     // Update cards
     document.getElementById('system-status').textContent = data.system.address;
     document.getElementById('inbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: data.queues.inbound.pending_files });
-    document.getElementById('outbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: data.queues.outbound.pending_files });
+
+    const uplinkOutboundCount = data.queues.outbound.pending_files;
+    const downlinkOutboundCount = data.queues.outbound.downlink_pending || 0;
+    document.getElementById('outbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: uplinkOutboundCount + downlinkOutboundCount });
+    document.getElementById('outbound-count-breakdown').textContent = uiT(
+        'ui.binkp.outbound_count_breakdown',
+        '{uplink} uplink · {downlink} downlink',
+        { uplink: uplinkOutboundCount, downlink: downlinkOutboundCount }
+    );
+
     document.getElementById('uplink-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: binkpUplinks.length });
+
+    const hubNodesTotal = (data.hub_nodes && data.hub_nodes.total) || 0;
+    const hubNodesEnabled = (data.hub_nodes && data.hub_nodes.enabled) || 0;
+    document.getElementById('downlink-node-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: hubNodesTotal });
+    document.getElementById('downlink-node-count-breakdown').textContent = uiT(
+        'ui.binkp.downlink_node_count_breakdown',
+        '{enabled} enabled',
+        { enabled: hubNodesEnabled }
+    );
 
     // Update system info
     const systemInfo = document.getElementById('system-info');
@@ -523,7 +675,7 @@ function refreshUplinks() {
         })
         .catch(error => {
             console.error('Error fetching uplinks:', error);
-            document.getElementById('uplink-status').innerHTML = `<div class="alert alert-danger">${uiT('ui.binkp.error_loading_uplinks_prefix', 'Error loading uplinks:')} ${escapeHtml(error.message)}</div>`;
+            document.getElementById('uplink-status').innerHTML = `<tr><td colspan="3" class="text-danger">${uiT('ui.binkp.error_loading_uplinks_prefix', 'Error loading uplinks:')} ${escapeHtml(error.message)}</td></tr>`;
             const tbody = document.querySelector('#uplinksTable tbody');
             if (tbody) {
                 tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${uiT('ui.binkp.error_loading_uplinks_prefix', 'Error loading uplinks:')} ${escapeHtml(error.message)}</td></tr>`;
@@ -531,34 +683,73 @@ function refreshUplinks() {
         });
 }
 
+let uplinkStatusSort = { key: 'network_name', dir: 'asc' };
+
+function getUplinkStatusSortValue(uplink, key) {
+    if (key === 'address') {
+        return String(uplink.address || '');
+    }
+    if (key === 'status') {
+        return uplink.enabled ? '1' : '0';
+    }
+    return String(uplink.network_name || uplink.domain || '');
+}
+
+function sortUplinksForStatusList(uplinks) {
+    const { key, dir } = uplinkStatusSort;
+    const factor = dir === 'desc' ? -1 : 1;
+    return uplinks.slice().sort((a, b) => {
+        const va = getUplinkStatusSortValue(a, key);
+        const vb = getUplinkStatusSortValue(b, key);
+        return factor * va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
+    });
+}
+
+function updateUplinkStatusSortIcons() {
+    document.querySelectorAll('#uplink-status-table th[data-sort-key]').forEach(function(th) {
+        const icon = th.querySelector('i.fas');
+        if (!icon) {
+            return;
+        }
+        if (th.getAttribute('data-sort-key') !== uplinkStatusSort.key) {
+            icon.className = 'fas fa-sort ms-1';
+            return;
+        }
+        icon.className = uplinkStatusSort.dir === 'asc' ? 'fas fa-sort-up ms-1' : 'fas fa-sort-down ms-1';
+    });
+}
+
 function renderUplinkStatusList(uplinks) {
     const uplinkStatus = document.getElementById('uplink-status');
     if (!Array.isArray(uplinks) || uplinks.length === 0) {
-        uplinkStatus.innerHTML = `<p class="text-muted">${uiT('ui.binkp.no_uplinks_configured', 'No uplinks configured')}</p>`;
+        uplinkStatus.innerHTML = `<tr><td colspan="3" class="text-muted">${uiT('ui.binkp.no_uplinks_configured', 'No uplinks configured')}</td></tr>`;
         return;
     }
 
+    const sortedUplinks = sortUplinksForStatusList(uplinks);
+
     let html = '';
-    uplinks.forEach(uplink => {
+    sortedUplinks.forEach(uplink => {
         const address = String(uplink.address || '');
         const escapedAddress = escapeHtml(address);
+        const networkName = String(uplink.network_name || uplink.domain || '');
         const enabledBadge = uplink.enabled
-            ? `<span class="badge bg-success ms-2">${uiT('ui.binkp.enabled', 'Enabled')}</span>`
-            : `<span class="badge bg-secondary ms-2">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
+            ? `<span class="badge bg-success">${uiT('ui.binkp.enabled', 'Enabled')}</span>`
+            : `<span class="badge bg-secondary">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
         const initialStatus = getInitialUplinkConnectivityResult(uplink);
         const statusHtml = initialStatus !== null
             ? renderUplinkConnectivityHtml(initialStatus)
             : renderCheckStatusIcon(address);
 
         html += `
-            <div class="d-flex justify-content-between align-items-center mb-2" data-uplink-list-row="${escapeHtmlAttr(address)}">
-                <div>
-                    <span>${escapedAddress}</span>${enabledBadge}
-                </div>
-                <div data-uplink-list-status="${escapeHtmlAttr(address)}">
-                    ${statusHtml}
-                </div>
-            </div>
+            <tr data-uplink-list-row="${escapeHtmlAttr(address)}">
+                <td>${escapeHtml(networkName)}</td>
+                <td>${escapedAddress}</td>
+                <td>
+                    <div>${enabledBadge}</div>
+                    <div class="mt-1" data-uplink-list-status="${escapeHtmlAttr(address)}">${statusHtml}</div>
+                </td>
+            </tr>
         `;
     });
 
@@ -764,6 +955,274 @@ function updateOutboundFiles(data) {
     container.innerHTML = html;
 }
 
+let hubOutboundRows = [];
+let hubOutboundSelectedIds = new Set();
+let hubOutboundActiveNode = null;
+// True only while the current detail view was reached via an external deep
+// link (e.g. the "View Queue" button on Manage Downlinks) rather than by
+// clicking a row in this page's own summary table. Determines whether the
+// Back button should leave the page (browser back) or just return to the
+// summary view in-place.
+let hubOutboundCameFromExternalLink = false;
+
+function refreshHubOutboundQueue() {
+    fetch('/api/binkp/hub-outbound')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiErrorText(data, uiT('ui.binkp.hub_outbound.load_failed', 'Failed to load downlink queue')));
+            }
+            hubOutboundRows = data.rows || [];
+            hubOutboundSelectedIds.clear();
+            renderHubOutboundSummary(hubOutboundRows);
+            if (hubOutboundActiveNode && hubOutboundRows.some(row => row.node_address === hubOutboundActiveNode)) {
+                showHubOutboundDetail(hubOutboundActiveNode);
+            } else {
+                showHubOutboundSummary();
+            }
+        })
+        .catch(error => {
+            document.getElementById('hub-outbound-summary-rows').innerHTML =
+                `<tr><td colspan="5" class="text-danger">${escapeHtml(error.message)}</td></tr>`;
+        });
+}
+
+function renderHubOutboundSummary(rows) {
+    const tbody = document.getElementById('hub-outbound-summary-rows');
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.empty', 'No queued downlink packets'))}</td></tr>`;
+        return;
+    }
+
+    const nodes = new Map();
+    rows.forEach(row => {
+        if (!nodes.has(row.node_address)) {
+            nodes.set(row.node_address, { name: row.node_name || '', pending: 0, failed: 0, held: 0, total: 0 });
+        }
+        const stats = nodes.get(row.node_address);
+        stats.total++;
+        if (row.status === 'pending') stats.pending++;
+        else if (row.status === 'failed') stats.failed++;
+        else if (row.status === 'held') stats.held++;
+    });
+
+    const addresses = Array.from(nodes.keys()).sort();
+    tbody.innerHTML = addresses.map(address => {
+        const stats = nodes.get(address);
+        const downlink = `<code>${escapeHtml(address)}</code>${stats.name ? `<div class="small text-muted">${escapeHtml(stats.name)}</div>` : ''}`;
+        return `<tr class="hub-outbound-summary-row" style="cursor:pointer;" data-node-address="${escapeHtmlAttr(address)}">
+            <td>${downlink}</td>
+            <td>${stats.pending ? `<span class="badge bg-secondary">${stats.pending}</span>` : '0'}</td>
+            <td>${stats.failed ? `<span class="badge bg-danger">${stats.failed}</span>` : '0'}</td>
+            <td>${stats.held ? `<span class="badge bg-warning text-dark">${stats.held}</span>` : '0'}</td>
+            <td>${stats.total}</td>
+        </tr>`;
+    }).join('');
+    tbody.querySelectorAll('.hub-outbound-summary-row').forEach(tr => {
+        tr.addEventListener('click', () => {
+            // Navigating to a detail view from this page's own summary table
+            // is in-page navigation, so Back should return here, not leave
+            // the page even if the current view was originally deep-linked.
+            hubOutboundCameFromExternalLink = false;
+            showHubOutboundDetail(tr.dataset.nodeAddress);
+        });
+    });
+}
+
+function showHubOutboundSummary() {
+    hubOutboundActiveNode = null;
+    hubOutboundSelectedIds.clear();
+    document.getElementById('hubOutboundDetailView').style.display = 'none';
+    document.getElementById('hubOutboundSummaryView').style.display = '';
+}
+
+function backFromHubOutboundDetail() {
+    if (hubOutboundCameFromExternalLink && window.history.length > 1) {
+        window.history.back();
+        return;
+    }
+    showHubOutboundSummary();
+}
+
+function showHubOutboundDetail(nodeAddress) {
+    hubOutboundActiveNode = nodeAddress;
+    hubOutboundSelectedIds.clear();
+    document.getElementById('hubOutboundSummaryView').style.display = 'none';
+    document.getElementById('hubOutboundDetailView').style.display = '';
+
+    const row = hubOutboundRows.find(r => r.node_address === nodeAddress);
+    const label = row && row.node_name ? `${nodeAddress} - ${row.node_name}` : nodeAddress;
+    document.getElementById('hubOutboundDetailHeading').textContent = label;
+
+    const filtered = hubOutboundRows.filter(r => r.node_address === nodeAddress);
+    renderHubOutboundQueue(filtered);
+}
+
+function toggleAllHubOutboundSelection(checked) {
+    document.querySelectorAll('.hub-outbound-row-check').forEach(cb => {
+        cb.checked = checked;
+        const id = Number(cb.value);
+        if (checked) {
+            hubOutboundSelectedIds.add(id);
+        } else {
+            hubOutboundSelectedIds.delete(id);
+        }
+    });
+    updateHubOutboundDeleteButton();
+}
+
+function toggleHubOutboundSelection(id, checked) {
+    if (checked) {
+        hubOutboundSelectedIds.add(id);
+    } else {
+        hubOutboundSelectedIds.delete(id);
+        document.getElementById('hubOutboundSelectAll').checked = false;
+    }
+    updateHubOutboundDeleteButton();
+}
+
+function updateHubOutboundDeleteButton() {
+    document.getElementById('hubOutboundDeleteBtn').disabled = hubOutboundSelectedIds.size === 0;
+}
+
+function deleteSelectedHubOutbound() {
+    const ids = Array.from(hubOutboundSelectedIds);
+    if (ids.length === 0) {
+        return;
+    }
+    if (!confirm(uiT('ui.binkp.hub_outbound.delete_confirm', 'Delete {count} selected queue item(s)?', { count: ids.length }))) {
+        return;
+    }
+
+    fetch('/api/binkp/hub-outbound', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiErrorText(data, uiT('ui.binkp.hub_outbound.delete_failed', 'Failed to delete queue items')));
+            }
+            hubOutboundSelectedIds.clear();
+            refreshHubOutboundQueue();
+        })
+        .catch(error => {
+            alert(error.message);
+        });
+}
+
+function renderHubOutboundQueue(rows) {
+    const tbody = document.getElementById('hub-outbound-rows');
+    document.getElementById('hubOutboundSelectAll').checked = false;
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.empty', 'No queued downlink packets'))}</td></tr>`;
+        updateHubOutboundDeleteButton();
+        return;
+    }
+
+    const statusBadge = (status) => {
+        const cls = { pending: 'bg-secondary', sent: 'bg-success', failed: 'bg-danger', held: 'bg-warning text-dark' }[status] || 'bg-secondary';
+        return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+    };
+
+    tbody.innerHTML = rows.map(row => {
+        const id = Number(row.id);
+        const error = row.error_message
+            ? `<span class="text-danger small" title="${escapeHtmlAttr(row.error_message)}">${escapeHtml(row.error_message.substring(0, 40))}${row.error_message.length > 40 ? '…' : ''}</span>`
+            : '';
+        const checked = hubOutboundSelectedIds.has(id) ? 'checked' : '';
+        return `<tr>
+            <td><input type="checkbox" class="hub-outbound-row-check" value="${id}" ${checked} onchange="toggleHubOutboundSelection(${id}, this.checked)"></td>
+            <td><span class="badge bg-secondary">${escapeHtml(row.message_type)}</span></td>
+            <td>${statusBadge(row.status)}</td>
+            <td>${formatBytes(row.size_bytes)}</td>
+            <td>${Number(row.attempts)}</td>
+            <td class="small">${formatLocalizedDateTime(row.created_at)}</td>
+            <td>${error}
+                <div class="mt-1">
+                    <a href="#" class="small" onclick="openHubOutboundPacketInspector(${id}); return false;">${escapeHtml(uiT('ui.binkp.hub_outbound.inspect', 'Inspect'))}</a>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+    updateHubOutboundDeleteButton();
+}
+
+function openHubOutboundPacketInspector(id) {
+    document.getElementById('pktModalTitle').textContent = `hub_outbound_${id}.pkt`;
+    document.getElementById('pktModalBody').innerHTML =
+        '<div class="text-center py-4"><span class="spinner-border"></span></div>';
+    document.getElementById('pktDownloadBtn').href = `/api/binkp/hub-outbound/download?id=${id}`;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('packetInspectorModal'));
+    modal.show();
+
+    fetch(`/api/binkp/hub-outbound/inspect?id=${id}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('pktModalBody').innerHTML =
+                    `<div class="alert alert-danger">${data.error || 'Failed to load packet.'}</div>`;
+                return;
+            }
+            if (data.type === 'tic') {
+                renderTicInspector(data, id);
+                return;
+            }
+            renderPacketInspector(data);
+        })
+        .catch(err => {
+            document.getElementById('pktModalBody').innerHTML =
+                `<div class="alert alert-danger">${err.message}</div>`;
+        });
+}
+
+function renderTicInspector(data, id) {
+    const tic = data.tic || {};
+    const filename = data.data_filename || `hub_outbound_${id}`;
+
+    document.getElementById('pktModalTitle').textContent = filename;
+    document.getElementById('pktDownloadBtn').href = `/api/binkp/hub-outbound/download?id=${id}`;
+
+    const row = (label, value) => value
+        ? `<tr><th style="width:35%">${escapeHtml(label)}</th><td>${value}</td></tr>`
+        : '';
+    const lines = (values) => (values && values.length)
+        ? values.map(v => `<code>${escapeHtml(v)}</code>`).join('<br>')
+        : '';
+
+    let html = `
+    <h6 class="text-muted mb-3">${escapeHtml(uiT('ui.binkp.hub_outbound.tic_fields', 'TIC Fields'))}</h6>
+    <table class="table table-sm table-bordered mb-4">
+        <tbody>
+            ${row(uiT('ui.binkp.hub_outbound.tic_area', 'Area'), tic.Area ? `<code>${escapeHtml(tic.Area)}</code>` : '')}
+            ${row(uiT('ui.binkp.hub_outbound.tic_file', 'File'), filename ? `<code>${escapeHtml(filename)}</code>` : '')}
+            ${row(uiT('ui.common.size', 'Size'), formatBytes(data.data_size || 0))}
+            ${row(uiT('ui.binkp.from_address', 'From'), tic.From ? `<code>${escapeHtml(tic.From)}</code>` : '')}
+            ${row(uiT('ui.binkp.to_address', 'To'), tic.To ? `<code>${escapeHtml(tic.To)}</code>` : '')}
+            ${row(uiT('ui.binkp.hub_outbound.tic_desc', 'Description'), tic.Desc ? escapeHtml(tic.Desc) : '')}
+            ${row('Path', lines(tic.Path))}
+            ${row('Seenby', lines(tic.Seenby))}
+            ${row('Crc', tic.Crc ? `<code>${escapeHtml(tic.Crc)}</code>` : '')}
+        </tbody>
+    </table>`;
+
+    if (tic.LDesc && tic.LDesc.length) {
+        html += `<h6 class="text-muted mb-2">${escapeHtml(uiT('ui.binkp.hub_outbound.tic_ldesc', 'Long Description'))}</h6>
+        <pre class="small">${escapeHtml(tic.LDesc.join('\n'))}</pre>`;
+    }
+
+    document.getElementById('pktModalBody').innerHTML = html;
+}
+
+function apiErrorText(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? String(payload.error) : fallback;
+}
+
 function openQueuePacketInspector(type, filename) {
     const decoded = decodeURIComponent(filename);
     document.getElementById('pktModalTitle').textContent = decoded;
@@ -869,11 +1328,18 @@ function switchKeptType(type) {
 
 window._keptData = { inbound: null, outbound: null };
 
-function loadKeptPackets(type) {
+const KEPT_PACKETS_PAGE_SIZE = 10;
+
+function loadKeptPackets(type, date) {
     const container = document.getElementById('kept-packets-content');
     container.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>' + window.t('ui.common.loading', {}, 'Loading...') + '</div>';
 
-    fetch(`/api/binkp/kept-packets?type=${type}`)
+    let url = `/api/binkp/kept-packets?type=${type}&offset=0&limit=${KEPT_PACKETS_PAGE_SIZE}`;
+    if (date) {
+        url += `&date=${encodeURIComponent(date)}`;
+    }
+
+    fetch(url)
         .then(r => r.json())
         .then(data => {
             _keptLoaded[type] = true;
@@ -883,6 +1349,161 @@ function loadKeptPackets(type) {
         .catch(err => {
             container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
         });
+}
+
+function jumpToKeptDate(date) {
+    if (!date) return;
+    loadKeptPackets(_keptType, date);
+}
+
+function loadMoreKeptPackets(type) {
+    const data = window._keptData[type];
+    if (!data || !data.has_more) return;
+
+    const btn = document.getElementById('keptLoadMoreBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>' + window.t('ui.common.loading', {}, 'Loading...');
+    }
+
+    const nextOffset = data.offset + data.limit;
+
+    fetch(`/api/binkp/kept-packets?type=${type}&offset=${nextOffset}&limit=${KEPT_PACKETS_PAGE_SIZE}`)
+        .then(r => r.json())
+        .then(more => {
+            if (!more || !more.success) {
+                if (btn) btn.disabled = false;
+                return;
+            }
+
+            // Append only the newly-fetched date groups to the existing accordion
+            // instead of re-rendering everything — a full re-render would reset
+            // every group back to its default expand state (only the first group
+            // open), collapsing whatever the user currently had open.
+            const accordion = document.getElementById('keptAccordion');
+            const startIndex = data.groups.length;
+
+            const temp = document.createElement('div');
+            more.groups.forEach((group, i) => {
+                temp.insertAdjacentHTML('beforeend', buildKeptPacketGroupHtml(type, group, startIndex + i, false));
+            });
+            while (temp.firstElementChild) {
+                accordion.appendChild(temp.firstElementChild);
+            }
+            more.groups.forEach((group, i) => {
+                const collapseEl = document.getElementById(`keptCollapse${startIndex + i}`);
+                if (collapseEl) attachKeptGroupScrollListener(collapseEl);
+            });
+
+            data.groups = data.groups.concat(more.groups);
+            data.total += more.total;
+            data.offset = more.offset;
+            data.limit = more.limit;
+            data.has_more = more.has_more;
+
+            const totalLabelEl = document.getElementById('keptTotalLabel');
+            if (totalLabelEl) {
+                totalLabelEl.textContent = window.t('ui.binkp.kept_packets_total_groups', { shown: data.groups.length, total: data.total_groups }, `Showing ${data.groups.length} of ${data.total_groups} date group(s)`);
+            }
+
+            const loadMoreWrap = document.getElementById('keptLoadMoreWrap');
+            if (loadMoreWrap) loadMoreWrap.remove();
+            if (data.has_more) {
+                document.getElementById('kept-packets-content')
+                    .insertAdjacentHTML('beforeend', buildKeptLoadMoreHtml(type));
+            }
+        })
+        .catch(() => {
+            if (btn) btn.disabled = false;
+        });
+}
+
+function buildKeptPacketGroupHtml(type, group, gi, expanded) {
+    const groupId    = `keptGroup${gi}`;
+    const collapseId = `keptCollapse${gi}`;
+    const dateLabel   = group.date || '—';
+    const count       = group.packets.length;
+
+    let html = `
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="${groupId}">
+            <button class="accordion-button${expanded ? '' : ' collapsed'}" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#${collapseId}"
+                    aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="${collapseId}">
+                <strong>${dateLabel}</strong>
+                <span class="badge bg-secondary ms-2">${count}</span>
+            </button>
+        </h2>
+        <div id="${collapseId}" class="accordion-collapse collapse${expanded ? ' show' : ''}" data-bs-parent="#keptAccordion">
+            <div class="accordion-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr>
+                        <th>{{ t('ui.common.filename') }}</th>
+                        <th>{{ t('ui.binkp.from_address') }}</th>
+                        <th>{{ t('ui.binkp.to_address') }}</th>
+                        <th>{{ t('ui.binkp.message_count') }}</th>
+                        <th>{{ t('ui.common.size') }}</th>
+                        <th>{{ t('ui.common.date') }}</th>
+                    </tr></thead>
+                    <tbody>`;
+
+    group.packets.forEach(pkt => {
+        const size = pkt.size < 1024 ? pkt.size + ' B'
+                   : pkt.size < 1048576 ? (pkt.size / 1024).toFixed(1) + ' KB'
+                   : (pkt.size / 1048576).toFixed(2) + ' MB';
+        const escDate = encodeURIComponent(group.date);
+        const escFile = encodeURIComponent(pkt.filename);
+
+        if (pkt.file_type === 'bundle') {
+            html += `<tr>
+                <td><a href="#" class="font-monospace text-decoration-none" onclick="openBundleInspector('${type}','${escDate}','${escFile}');return false;"><i class="fas fa-file-archive me-1 text-warning"></i>${pkt.filename}</a></td>
+                <td colspan="2"><span class="text-muted small">{{ t('ui.binkp.bundle_arcmail', {}, 'Arcmail bundle') }}</span></td>
+                <td>—</td>
+                <td>${size}</td>
+                <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
+            </tr>`;
+        } else {
+            const msgs = pkt.message_count > 0 ? pkt.message_count : '—';
+            html += `<tr>
+                <td><a href="#" class="font-monospace text-decoration-none" onclick="openPacketInspector('${type}','${escDate}','${escFile}');return false;">${pkt.filename}</a></td>
+                <td>${pkt.orig_address}</td>
+                <td>${pkt.dest_address}</td>
+                <td>${msgs}</td>
+                <td>${size}</td>
+                <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
+            </tr>`;
+        }
+    });
+
+    html += `</tbody></table></div></div></div>`;
+    return html;
+}
+
+function buildKeptLoadMoreHtml(type) {
+    const loadMoreLabel = window.t('ui.binkp.kept_packets_load_more', {}, 'Load More');
+    return `<div class="text-center mt-3" id="keptLoadMoreWrap">
+        <button type="button" id="keptLoadMoreBtn" class="btn btn-sm btn-outline-secondary" onclick="loadMoreKeptPackets('${type}')">
+            ${loadMoreLabel}
+        </button>
+    </div>`;
+}
+
+// Bootstrap's accordion expansion can leave the viewport scrolled to wherever
+// it happened to land (often mid-table) instead of the group's date header.
+// Scroll the clicked header to just below the sticky top navbar once it
+// finishes expanding, rather than letting it land behind the navbar or
+// mid-way down the newly-revealed content.
+function attachKeptGroupScrollListener(collapseEl) {
+    collapseEl.addEventListener('shown.bs.collapse', function() {
+        const header = this.previousElementSibling;
+        if (!header) return;
+
+        const navbar = document.querySelector('nav.sticky-top');
+        const navbarHeight = navbar ? navbar.offsetHeight : 0;
+        const targetY = window.scrollY + header.getBoundingClientRect().top - navbarHeight - 8;
+
+        window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+    });
 }
 
 function renderKeptPackets(type, data) {
@@ -898,72 +1519,23 @@ function renderKeptPackets(type, data) {
         return;
     }
 
-    const totalLabel = window.t('ui.binkp.kept_packets_total', { count: data.total }, `${data.total} packet(s)`);
+    const totalLabel = window.t('ui.binkp.kept_packets_total_groups', { shown: data.groups.length, total: data.total_groups }, `Showing ${data.groups.length} of ${data.total_groups} date group(s)`);
 
-    let html = `<p class="text-muted small mb-3">${totalLabel}</p><div class="accordion" id="keptAccordion">`;
+    let html = `<p class="text-muted small mb-3" id="keptTotalLabel">${totalLabel}</p><div class="accordion" id="keptAccordion">`;
 
     data.groups.forEach((group, gi) => {
-        const groupId   = `keptGroup${gi}`;
-        const collapseId = `keptCollapse${gi}`;
-        const dateLabel  = group.date || '—';
-        const count      = group.packets.length;
-
-        html += `
-        <div class="accordion-item">
-            <h2 class="accordion-header" id="${groupId}">
-                <button class="accordion-button${gi > 0 ? ' collapsed' : ''}" type="button"
-                        data-bs-toggle="collapse" data-bs-target="#${collapseId}"
-                        aria-expanded="${gi === 0 ? 'true' : 'false'}" aria-controls="${collapseId}">
-                    <strong>${dateLabel}</strong>
-                    <span class="badge bg-secondary ms-2">${count}</span>
-                </button>
-            </h2>
-            <div id="${collapseId}" class="accordion-collapse collapse${gi === 0 ? ' show' : ''}" data-bs-parent="#keptAccordion">
-                <div class="accordion-body p-0">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead><tr>
-                            <th>{{ t('ui.common.filename') }}</th>
-                            <th>{{ t('ui.binkp.from_address') }}</th>
-                            <th>{{ t('ui.binkp.to_address') }}</th>
-                            <th>{{ t('ui.binkp.message_count') }}</th>
-                            <th>{{ t('ui.common.size') }}</th>
-                            <th>{{ t('ui.common.date') }}</th>
-                        </tr></thead>
-                        <tbody>`;
-
-        group.packets.forEach(pkt => {
-            const size = pkt.size < 1024 ? pkt.size + ' B'
-                       : pkt.size < 1048576 ? (pkt.size / 1024).toFixed(1) + ' KB'
-                       : (pkt.size / 1048576).toFixed(2) + ' MB';
-            const escDate = encodeURIComponent(group.date);
-            const escFile = encodeURIComponent(pkt.filename);
-
-            if (pkt.file_type === 'bundle') {
-                html += `<tr>
-                    <td><a href="#" class="font-monospace text-decoration-none" onclick="openBundleInspector('${type}','${escDate}','${escFile}');return false;"><i class="fas fa-file-archive me-1 text-warning"></i>${pkt.filename}</a></td>
-                    <td colspan="2"><span class="text-muted small">{{ t('ui.binkp.bundle_arcmail', {}, 'Arcmail bundle') }}</span></td>
-                    <td>—</td>
-                    <td>${size}</td>
-                    <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
-                </tr>`;
-            } else {
-                const msgs = pkt.message_count > 0 ? pkt.message_count : '—';
-                html += `<tr>
-                    <td><a href="#" class="font-monospace text-decoration-none" onclick="openPacketInspector('${type}','${escDate}','${escFile}');return false;">${pkt.filename}</a></td>
-                    <td>${pkt.orig_address}</td>
-                    <td>${pkt.dest_address}</td>
-                    <td>${msgs}</td>
-                    <td>${size}</td>
-                    <td><small class="text-muted">${escapeHtml(formatLocalizedDateTime(pkt.modified))}</small></td>
-                </tr>`;
-            }
-        });
-
-        html += `</tbody></table></div></div></div>`;
+        html += buildKeptPacketGroupHtml(type, group, gi, gi === 0);
     });
 
     html += '</div>';
+
+    if (data.has_more) {
+        html += buildKeptLoadMoreHtml(type);
+    }
+
     container.innerHTML = html;
+
+    container.querySelectorAll('.accordion-collapse').forEach(attachKeptGroupScrollListener);
 }
 
 function openPacketInspector(type, date, filename) {

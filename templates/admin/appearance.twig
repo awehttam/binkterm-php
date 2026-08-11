@@ -93,7 +93,18 @@
             </div>
             <div class="card-body">
                 <p class="text-muted mb-3">{{ t('ui.admin.appearance.dashboard.description', {}, locale, ['common']) }}</p>
-                <p class="text-muted small mb-4"><i class="fas fa-grip-vertical me-1"></i>{{ t('ui.admin.appearance.dashboard.drag_hint', {}, locale, ['common']) }}</p>
+
+                <div class="mb-4">
+                    <label class="form-label" for="showDashboardSystemInfoStats">{{ t('ui.admin.appearance.dashboard.show_system_info_stats', {}, locale, ['common']) }}</label>
+                    <select class="form-select" id="showDashboardSystemInfoStats" style="max-width: 300px;">
+                        <option value="off">{{ t('ui.admin.appearance.dashboard.show_system_info_stats_off', {}, locale, ['common']) }}</option>
+                        <option value="sysop">{{ t('ui.admin.appearance.dashboard.show_system_info_stats_sysop', {}, locale, ['common']) }}</option>
+                        <option value="all">{{ t('ui.admin.appearance.dashboard.show_system_info_stats_all', {}, locale, ['common']) }}</option>
+                    </select>
+                    <div class="form-text">{{ t('ui.admin.appearance.dashboard.show_system_info_stats_help', {}, locale, ['common']) }}</div>
+                </div>
+
+                <p class="text-muted small mb-2"><i class="fas fa-grip-vertical me-1"></i>{{ t('ui.admin.appearance.dashboard.drag_hint', {}, locale, ['common']) }}</p>
 
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
@@ -636,6 +647,10 @@
                 <div class="mt-3">
                     <div class="small text-muted mb-1" id="sixelScreenDescription"></div>
                     <div class="small text-muted" id="sixelScreenMeta"></div>
+                </div>
+
+                <div class="mt-3" id="sixelScreenPreviewWrap" style="display:none;">
+                    <div id="sixelScreenPreview" style="background:#000;border-radius:4px;padding:8px;display:inline-block;max-width:100%;overflow:auto;"></div>
                 </div>
 
                 <span id="sixelScreenStatus" class="mt-2 d-block small"></span>
@@ -1664,6 +1679,8 @@ function loadSixelScreenList(selectedKey) {
             $('#sixelScreenDescription').text('');
             $('#sixelScreenMeta').text('');
             $('#deleteSixelScreenBtn').hide();
+            $('#sixelScreenPreviewWrap').hide();
+            $('#sixelScreenPreview').empty();
         }
     }).fail(function(xhr) {
         showStatus('sixelScreenStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.sixel.list_failed', 'Failed to load sixel screens')));
@@ -1690,6 +1707,31 @@ function loadSixelScreen(key, cachedScreens) {
     $('#sixelScreenMeta').text(metaParts.join(' \u2022 '));
     $('#deleteSixelScreenBtn').toggle(!!screen.exists);
     $('#sixelScreenStatus').text('');
+    loadSixelScreenPreview(key, !!screen.exists);
+}
+
+function loadSixelScreenPreview(key, exists) {
+    const $wrap = $('#sixelScreenPreviewWrap');
+    const $preview = $('#sixelScreenPreview');
+    if (!exists) {
+        $wrap.hide();
+        $preview.empty();
+        return;
+    }
+    fetch('/admin/api/appearance/sixel-screens/' + encodeURIComponent(key) + '/raw', {credentials: 'same-origin'})
+        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(function(text) {
+            if (key !== currentSixelScreenKey) return;
+            $wrap.show();
+            if (typeof renderSixelFilePreview === 'function') {
+                renderSixelFilePreview($preview, text);
+            }
+        })
+        .catch(function() {
+            if (key !== currentSixelScreenKey) return;
+            $wrap.show();
+            $preview.html('<div class="alert alert-danger m-0 small">' + uiT('ui.admin.appearance.sixel.preview_failed', 'Failed to decode sixel preview') + '</div>');
+        });
 }
 
 function uploadSixelScreen(input) {
@@ -1740,7 +1782,7 @@ function deleteSixelScreen() {
 $('#sixelScreenSelect').on('change', function() {
     currentSixelScreenKey = $(this).val() || '';
     if (currentSixelScreenKey) {
-        loadSixelScreen(currentSixelScreenKey);
+        loadSixelScreenList(currentSixelScreenKey);
     }
 });
 
@@ -2025,6 +2067,14 @@ function initAdminDashboardTab(dashConfig) {
     buildAdminDashZone('adminDashSidebarList', layout.sidebar || []);
     buildAdminDashZone('adminDashHiddenList',  layout.hidden  || []);
 
+    const statsSelect = document.getElementById('showDashboardSystemInfoStats');
+    if (statsSelect) {
+        const rawMode = dashConfig && dashConfig.show_system_info_stats;
+        // Back-compat: older configs stored this as a boolean.
+        const mode = rawMode === true ? 'all' : rawMode === false ? 'off' : (rawMode || 'sysop');
+        statsSelect.value = ['off', 'sysop', 'all'].includes(mode) ? mode : 'sysop';
+    }
+
     // Cards in main/sidebar but not in any list should be appended to their default zone
     const allIds = Object.keys(ADMIN_DASHBOARD_CARDS);
     const placed = new Set([...(layout.main || []), ...(layout.sidebar || []), ...(layout.hidden || [])]);
@@ -2157,12 +2207,14 @@ function readAdminDashboardLayout() {
 
 function saveAdminDashboardLayout() {
     const layout = readAdminDashboardLayout();
+    const statsSelect = document.getElementById('showDashboardSystemInfoStats');
+    const showSystemInfoStats = (statsSelect && statsSelect.value) || 'sysop';
     showStatus('adminDashboardStatus', 'info', uiT('ui.admin.appearance.dashboard.saving', 'Saving...'));
     $.ajax({
         url: '/admin/api/appearance/dashboard',
         method: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({ layout: layout }),
+        data: JSON.stringify({ layout: layout, show_system_info_stats: showSystemInfoStats }),
         success: function(r) {
             if (r.success) {
                 const msg = window.getApiMessage ? window.getApiMessage(r, uiT('ui.common.saved_short', 'Saved')) : uiT('ui.common.saved_short', 'Saved');
@@ -2188,7 +2240,8 @@ function resetAdminDashboardLayout() {
         success: function(r) {
             if (r.success) {
                 const defaultLayout = getAdminDashBuiltinDefault();
-                initAdminDashboardTab({ default_layout: null });
+                const statsSelect = document.getElementById('showDashboardSystemInfoStats');
+                initAdminDashboardTab({ default_layout: null, show_system_info_stats: statsSelect && statsSelect.value });
                 const msg = window.getApiMessage ? window.getApiMessage(r, uiT('ui.common.saved_short', 'Saved')) : uiT('ui.common.saved_short', 'Saved');
                 showStatus('adminDashboardStatus', 'success', msg);
             } else {

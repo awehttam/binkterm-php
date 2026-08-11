@@ -137,12 +137,14 @@ class Template
             //$systemName = $binkpConfig->getSystemSysop() . "'s System";
             $systemName = $binkpConfig->getSystemName();
             $sysopName = $binkpConfig->getSystemSysop();
+            $systemLocation = $binkpConfig->getSystemLocation();
             $fidonetOrigin = $binkpConfig->getSystemAddress();
             $networkAddresses = $binkpConfig->getMyAddressesWithDomains();
         } catch (\Exception $e) {
             // Fall back to static config if BinkP config fails
             $systemName = Config::SYSTEM_NAME;
             $sysopName = Config::SYSOP_NAME;
+            $systemLocation = '';
             $fidonetOrigin = Config::FIDONET_ORIGIN;
             $networkAddresses = [];
         }
@@ -191,6 +193,7 @@ class Template
         $this->twig->addGlobal('current_user', $currentUser);
         $this->twig->addGlobal('system_name', $systemName);
         $this->twig->addGlobal('sysop_name', $sysopName);
+        $this->twig->addGlobal('system_location', $systemLocation);
         $this->twig->addGlobal('fidonet_origin', $fidonetOrigin);
         $this->twig->addGlobal('system_address', $fidonetOrigin);
         $this->twig->addGlobal('network_addresses', $networkAddresses);

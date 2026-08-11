@@ -403,3 +403,18 @@ function generateTzutc($timezone = null) {
     }
 }
 
+/**
+ * Build a complete FTS-4009 Via kludge line (SOH-prefixed, matching how
+ * PATH lines and every other FTN control line are stored/written elsewhere
+ * in this codebase) recording a relay hop: our own address, the current
+ * UTC time, and product/version - mirrors the PID kludge's program/version
+ * fields. Used whenever BinktermPHP relays a message it did not originate
+ * to a registered downlink/uplink, so the path a message took through the
+ * network stays visible (e.g. "Via 227:1/1 @20260808.023905.UTC hpt/lnx 1.9
+ * 2024-03-02" is the same convention a remote binkd/tosser uses).
+ */
+function generateViaLine(string $address): string
+{
+    return "\x01Via {$address} @" . gmdate('Ymd.His') . '.UTC BinktermPHP ' . \BinktermPHP\Version::getVersion();
+}
+

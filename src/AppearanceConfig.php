@@ -32,6 +32,12 @@ class AppearanceConfig
         'classic', 'double', 'single', 'heavy', 'ascii', 'rounded', 'minimal', 'mixed', 'shadow',
     ];
 
+    /** Default visibility mode for the System Information dashboard card's extra stats */
+    public const DEFAULT_DASHBOARD_STATS_MODE = 'sysop';
+
+    /** Valid dashboard system-info-stats visibility modes */
+    public const VALID_DASHBOARD_STATS_MODES = ['off', 'sysop', 'all'];
+
     /** Default terminal main menu key bindings */
     public const DEFAULT_TERM_MENU_KEYS = [
         'netmail'    => 'n',
@@ -166,6 +172,7 @@ class AppearanceConfig
             ],
             'dashboard' => [
                 'default_layout' => null,
+                'show_system_info_stats' => 'sysop',
             ],
         ];
     }
@@ -582,5 +589,27 @@ class AppearanceConfig
             return null;
         }
         return $layout;
+    }
+
+    /**
+     * Visibility mode for the extra statistics (registered users, today's
+     * callers, uptime, file count, total logins) on the System Information
+     * dashboard card, in addition to sysop name, user, and networks.
+     * One of 'off', 'sysop' (admins only), or 'all' (every user).
+     */
+    public static function getDashboardSystemInfoStatsMode(): string
+    {
+        self::load();
+        $mode = self::$config['dashboard']['show_system_info_stats'] ?? self::DEFAULT_DASHBOARD_STATS_MODE;
+
+        // Back-compat: older configs stored this as a boolean.
+        if ($mode === true) {
+            return 'all';
+        }
+        if ($mode === false) {
+            return 'off';
+        }
+
+        return in_array($mode, self::VALID_DASHBOARD_STATS_MODES, true) ? $mode : self::DEFAULT_DASHBOARD_STATS_MODE;
     }
 }
