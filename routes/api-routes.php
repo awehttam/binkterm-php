@@ -13107,7 +13107,9 @@ SimpleRouter::group(['prefix' => '/api/point-management'], function() {
 
             \BinktermPHP\SysopNotificationService::sendNoticeToSysop(
                 'New self-service point registered',
-                "User {$user['username']} registered a new point address {$point['node_address']} under network {$bossAddress}."
+                "User {$user['username']} registered a new point address {$point['node_address']} under network {$bossAddress}.",
+                'System',
+                false
             );
 
             echo json_encode(['success' => true, 'point' => $point, 'message_code' => 'ui.point_management.created']);
