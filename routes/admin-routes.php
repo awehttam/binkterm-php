@@ -115,8 +115,8 @@ if (!function_exists('apiLocalizedText')) {
     }
 }
 
-if (!function_exists('adminUserExists')) {
-    function adminUserExists(int $userId): bool
+if (!function_exists('userIdExists')) {
+    function userIdExists(int $userId): bool
     {
         $stmt = \BinktermPHP\Database::getInstance()->getPdo()->prepare("SELECT 1 FROM users WHERE id = ?");
         $stmt->execute([$userId]);
@@ -3499,7 +3499,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $decoded = json_decode(file_get_contents('php://input'), true);
                 $payload = is_array($decoded) ? $decoded : [];
-                if (!empty($payload['user_id']) && !adminUserExists((int)$payload['user_id'])) {
+                if (!empty($payload['user_id']) && !userIdExists((int)$payload['user_id'])) {
                     apiError('errors.admin.hub_nodes.invalid_owner_user', apiLocalizedText('errors.admin.hub_nodes.invalid_owner_user', 'Selected user does not exist'), 400);
                     return;
                 }
@@ -3523,7 +3523,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $decoded = json_decode(file_get_contents('php://input'), true);
                 $payload = is_array($decoded) ? $decoded : [];
-                if (!empty($payload['user_id']) && !adminUserExists((int)$payload['user_id'])) {
+                if (!empty($payload['user_id']) && !userIdExists((int)$payload['user_id'])) {
                     apiError('errors.admin.hub_nodes.invalid_owner_user', apiLocalizedText('errors.admin.hub_nodes.invalid_owner_user', 'Selected user does not exist'), 400);
                     return;
                 }
