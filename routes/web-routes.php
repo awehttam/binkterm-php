@@ -285,7 +285,7 @@ SimpleRouter::get('/', function() {
         $systemUptimeDays = $systemUptimeSeconds !== null ? intdiv($systemUptimeSeconds, 86400) : null;
         $systemUptimeHours = $systemUptimeSeconds !== null ? intdiv($systemUptimeSeconds % 86400, 3600) : null;
         $systemUptimeMinutes = $systemUptimeSeconds !== null ? intdiv($systemUptimeSeconds % 3600, 60) : null;
-        $fileAreaFileCount = (new \BinktermPHP\FileAreaManager())->getStats(true)['total_files'];
+        $fileAreaFileCount = (new \BinktermPHP\FileAreaManager())->getStats(!$user)['total_files'];
         $totalEchomailCount = $adminController->getTotalEchomailCount();
     }
 
