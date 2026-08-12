@@ -10,6 +10,7 @@ WARNING: Docker is UNTESTED and UNSUPPORTED - it is present because Claude gener
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [First Run Setup](#first-run-setup)
+- [Upgrading](#updating-the-application)
 - [Managing the Application](#managing-the-application)
 - [Volumes and Data Persistence](#volumes-and-data-persistence)
 - [Troubleshooting](#troubleshooting)
@@ -169,18 +170,23 @@ docker-compose restart binkterm
 
 ### Updating the Application
 
+**Review version-specific upgrade notes** in [docs/index.md](index.md#upgrading) before upgrading — individual versions may have specific steps you must take.
+
 ```bash
 # Pull latest code
 git pull
 
-# Rebuild and restart
-docker-compose down
-docker-compose build --no-cache
+# Rebuild the image and recreate the container
+docker-compose build
 docker-compose up -d
 
-# Run any new migrations
+# Run any new database migrations
 docker exec -it binkterm-app php /var/www/html/scripts/setup.php
 ```
+
+`docker-compose build` followed by `up -d` is enough to pick up code changes — there's no need to `docker-compose down` first, since `up -d` recreates any container whose image changed and leaves the rest running. Use `docker-compose build --no-cache` instead if a change touched system packages or PHP extensions in the `Dockerfile` and you want a fully clean rebuild.
+
+`scripts/setup.php` applies any pending database migrations and is safe to run every time you upgrade, even if there's nothing new to apply. Do not set `RUN_SETUP=true` for this — that variable is only meant for the very first `up -d` (see [First Run Setup](#first-run-setup)); running `setup.php` directly like this works against the already-running container without needing to touch `.env`.
 
 ### Accessing the Container Shell
 
