@@ -2,7 +2,7 @@
 
 This directory contains Docker-specific configuration files for BinktermPHP.
 
-WARNING: Docker is UNTESTED and UNSUPPORTED - it is present because Claude generated the files once upon a time and maybe someone will want to fiddle with this.
+**Note:** Docker is a best-effort deployment option, not the primary target — the bare-metal install (`docs/INSTALL.md`) receives the most testing. Docker support is improving as issues are reported; if you run into problems, please report them in the **LVLY_BINKTERMPHP** echo area or on [GitHub](https://github.com/awehttam/binkterm-php/issues).
 
 > **[docs/DOCKER.md](../docs/DOCKER.md) is the authoritative Docker documentation** — deployment, configuration, upgrading, volumes/backups, and troubleshooting. This file only describes the configuration files in this directory and day-to-day debugging commands.
 
