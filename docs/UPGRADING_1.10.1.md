@@ -16,6 +16,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
+### FTN Netmail Routing
+
+- Fixed a netmail routing loop: mail from a registered point/downlink addressed to an *unregistered* point under your own boss address (e.g. `227:1/200.1` sending to `227:1/200.21`, with `.21` never added under Admin -> Downlinks) was relayed upstream to your uplink instead of being dropped. Since standard FTN netmail routing strips the point suffix and delivers by node number, the uplink would just route it straight back down to you, and the same relay logic would fire again on receipt -- an unbounded ping-pong between your system and your uplink for any mail addressed to a nonexistent point of your own. `HubNetmailRouter::relayIfFromHubNode()` now checks whether the destination is one of your own AKAs before relaying and drops it as undeliverable instead if so, matching how it already behaves for a destination that belongs to neither you nor a registered downlink.
+
 ### Docker
 
 - Docker installs kept serving stale translation text (or raw translation keys instead of text) after upgrading, because the persistent `config` volume shadowed the updated translation catalogs shipped in the new image. The container now re-syncs translation catalogs from the image into that volume on every start, so upgrades pick up new and changed translation text automatically. Sysop-customized translation overrides are never touched by this sync.
