@@ -1,0 +1,78 @@
+#
+# BinktermPHP docker-compose.override.yml.example
+#
+# Docker Compose automatically merges docker-compose.override.yml with
+# docker-compose.yml if it exists, so this is the place for every
+# Docker-only setting -- optional daemons, published host ports, scheduled-
+# job timing, extra volumes, resource limits -- that should survive
+# `git pull` / image updates without editing the tracked docker-compose.yml.
+#
+# This is deliberately separate from .env: .env is BinktermPHP's own
+# application configuration (the same file bare-metal installs use) and
+# contains nothing Docker-specific. Everything in this file only makes sense
+# in a Docker context and is never read by the application itself.
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   nano docker-compose.override.yml
+#   docker-compose up -d
+#
+# The real docker-compose.override.yml is gitignored; edit it freely.
+#
+# Note on ports/volumes: Compose merges list-valued keys (ports, volumes)
+# across files by appending, not replacing. Adding a port here that isn't
+# in the base docker-compose.yml is a clean addition. If you want to change
+# a port that IS already published by the base file (e.g. remap port 80),
+# also comment out that entry in docker-compose.yml itself, or the host will
+# end up with both the default and your override both published.
+#
+services:
+  binkterm:
+    environment:
+      # --- Optional daemons (all off in docker-compose.yml by default) ---
+      # ENABLE_GEMINI: "true"
+      # ENABLE_SSH: "true"
+      # ENABLE_FTP: "true"
+      # ENABLE_MRC: "true"
+      # ENABLE_AI_BOT: "true"
+      # ENABLE_MATTERBRIDGE: "true"
+      # ENABLE_MCP_SERVER: "true"   # also requires a valid data/license.json
+
+      # --- Scheduled maintenance jobs (all on by default) ---
+      # ENABLE_RSS_POSTER: "false"
+      # RSS_POSTER_SCHEDULE: "0 * * * *"
+      # ENABLE_ECHOMAIL_ROBOTS: "false"
+      # ECHOMAIL_ROBOTS_SCHEDULE: "*/5 * * * *"
+      # ENABLE_LOGROTATE: "false"
+      # LOGROTATE_SCHEDULE: "0 0 * * 0"
+      # LOGROTATE_KEEP: "52"
+
+    ports:
+      # Each optional daemon above needs its port published here to be
+      # reachable from outside the container -- uncomment the ones you enable.
+      # - "1965:1965"   # ENABLE_GEMINI
+      # - "2022:2022"   # ENABLE_SSH
+      # - "2121:2121"   # ENABLE_FTP (control port)
+      # - "2122-2149:2122-2149"   # ENABLE_FTP passive data port range
+      # - "3740:3740"   # ENABLE_MCP_SERVER
+
+      # Example: remap the web interface to a non-standard host port
+      # (also comment out "80:80" in docker-compose.yml -- see note above).
+      # - "8080:80"
+
+    # Example: mount door games from the host instead of baking them into the image.
+    # volumes:
+    #   - ./scripts/dosbox-bridge/dos/doors:/var/www/html/scripts/dosbox-bridge/dos/doors:ro
+
+    # Example: mount source directories for live editing during development.
+    # volumes:
+    #   - ./public_html:/var/www/html/public_html
+    #   - ./templates:/var/www/html/templates
+    #   - ./src:/var/www/html/src
+
+    # Example: cap resource usage.
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G

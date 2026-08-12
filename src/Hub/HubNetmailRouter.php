@@ -170,6 +170,19 @@ class HubNetmailRouter
             return false;
         }
 
+        // Refuse to relay mail addressed to one of our own AKAs (host address,
+        // ignoring any point suffix) upstream. It got here because
+        // routeIfHubNode() didn't recognize the destination as a registered
+        // downlink/point - but "upstream" can never deliver a message whose
+        // destination resolves back to us. Standard FTN netmail routing
+        // strips the point suffix and delivers by node number, so an uplink
+        // receiving this would just send it straight back down to us,
+        // creating an unbounded relay loop between us and the uplink. Fall
+        // through to the normal undeliverable/drop path instead.
+        if ($this->isOwnHostAddress($destAddr)) {
+            return false;
+        }
+
         [$bodyText, $kludgeText, $bottomKludgeText] = $this->splitKludges((string)($message['text'] ?? ''));
 
         $dateWritten = null;
@@ -247,6 +260,31 @@ class HubNetmailRouter
         $stmt->execute();
 
         return true;
+    }
+
+    /**
+     * True if $addr matches one of our own configured AKAs (system address
+     * or an uplink's "me" address), comparing at the host (net/node) level
+     * so a point suffix doesn't prevent the match - mirrors
+     * BinkdProcessor::isOwnAddress().
+     */
+    private function isOwnHostAddress(string $addr): bool
+    {
+        $addr = trim($addr);
+        if ($addr === '') {
+            return false;
+        }
+
+        $hostAddr = strpos($addr, '.') !== false ? explode('.', $addr, 2)[0] : $addr;
+
+        foreach ($this->nodeManager->getConfiguredAkas() as $aka) {
+            $akaHost = strpos($aka, '.') !== false ? explode('.', $aka, 2)[0] : $aka;
+            if ($addr === $aka || $hostAddr === $akaHost) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

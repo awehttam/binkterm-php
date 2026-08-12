@@ -10,7 +10,7 @@ running the daemon as root.
 ## Features
 
 - Standalone daemon entrypoint: `scripts/ftp_daemon.php`
-- Disabled by default
+- Not started automatically — runs only when you launch it yourself (cron, systemd, or your process manager)
 - Normal BBS username/password login
 - Anonymous FTP login for public file areas only
 - Virtual filesystem for:
@@ -42,13 +42,14 @@ That avoids needing to run the service as `root`.
 
 ## Enable It
 
-The FTP daemon is disabled by default. Set this in `.env`:
+`scripts/ftp_daemon.php` serves FTP as soon as it's run — there's no separate
+startup gate. Enabling the service is a matter of actually starting the
+daemon (via cron, systemd, or your process manager of choice); see
+[Starting the Daemon](#starting-the-daemon) below.
 
-```ini
-FTPD_ENABLED=true
-```
-
-If `FTPD_ENABLED=false`, `scripts/ftp_daemon.php` exits immediately.
+`FTPD_ENABLED` still exists as a setting, but it only controls whether the web
+UI advertises FTP access to logged-in users (connection info shown in
+Settings). It does not start or stop the daemon process itself.
 
 ## Configuration
 
@@ -68,7 +69,7 @@ FTPD_ALLOW_ANONYMOUS=false
 
 | Variable | Default | Description |
 |---|---|---|
-| `FTPD_ENABLED` | `false` | Enables the standalone FTP daemon |
+| `FTPD_ENABLED` | `false` | Whether the web UI advertises FTP access to users. Does not start or stop the daemon. |
 | `FTPD_BIND_HOST` | `0.0.0.0` | Control-socket bind address |
 | `FTPD_PORT` | `2121` | FTP control port |
 | `FTPD_PUBLIC_HOST` | empty | Hostname or IPv4 address advertised in passive replies |
@@ -373,9 +374,6 @@ Logged events include:
 - success/failure status
 
 ## Troubleshooting
-
-**Daemon exits immediately with "FTPD is disabled"**
-- Set `FTPD_ENABLED=true` in `.env`
 
 **Login works but `LIST` or downloads fail**
 - verify the passive port range is forwarded and allowed through firewalls

@@ -12,6 +12,7 @@ This guide covers deploying BinktermPHP using Docker and Docker Compose.
 - [Included Services](#included-services)
 - [First Run Setup](#first-run-setup)
 - [Upgrading](#updating-the-application)
+  - [Upgrading from 1.10 or Earlier](#upgrading-from-110-or-earlier)
 - [Managing the Application](#managing-the-application)
 - [Volumes and Data Persistence](#volumes-and-data-persistence)
 - [Troubleshooting](#troubleshooting)
@@ -33,24 +34,41 @@ git clone https://github.com/awehttam/binkterm-php.git
 cd binkterm-php
 ```
 
-### 2. Configure Environment Variables
+### 2. Configure BinktermPHP
+
+`.env` is BinktermPHP's own application configuration — the exact same file a
+bare-metal install uses. It's loaded directly into the container and contains
+nothing Docker-specific.
 
 ```bash
 # Copy the example environment file
-cp .env.docker.example .env
+cp .env.example .env
 
 # Edit the .env file with your settings
 nano .env
 ```
 
 **Important**: Change at least these values:
-- `DB_PASSWORD` - Use a strong password
+- `DB_PASS` - Use a strong password (also set `DB_PASS` to the same value for the `postgres` container -- see [Configuration](#configuration))
 - `SITE_URL` - Your public URL (e.g., https://bbs.example.com)
-- `SITE_NAME` - Your BBS name
-- `SYSOP_NAME` - Your name
-- `FIDONET_ADDRESS` - Your FidoNet address (if applicable)
+- `ADMIN_DAEMON_SECRET` - Leave blank to have Docker generate one for you, or set your own
 
-### 3. First Run (Initialize Database)
+### 3. Configure Docker (optional daemons, ports, cron schedules)
+
+Docker-only settings — which optional daemons run, which host ports are
+published, scheduled-job timing — live separately in
+`docker-compose.override.yml`, never in `.env`:
+
+```bash
+cp docker-compose.override.yml.example docker-compose.override.yml
+nano docker-compose.override.yml
+```
+
+The defaults in `docker-compose.yml` work without any changes here: no
+optional daemons, scheduled jobs on. See [Included Services](#included-services)
+for the full list of what's configurable.
+
+### 4. First Run (Initialize Database)
 
 ```bash
 # Set RUN_SETUP=true for first run only
@@ -62,7 +80,7 @@ docker-compose logs -f binkterm
 
 Wait for the message "Initialization complete!" in the logs.
 
-### 4. Access Your BBS
+### 5. Access Your BBS
 
 Open your browser to http://localhost (or the configured SITE_URL).
 
@@ -70,53 +88,63 @@ The default admin account must be created through the registration page on first
 
 ## Configuration
 
-### Environment Variables
+Docker deployments use two separate, purpose-specific files. They're kept
+apart deliberately so a Docker-only setting can never collide with a
+same-named application setting:
 
-Edit the `.env` file to configure your deployment:
+| File | Contains | Loaded how |
+|---|---|---|
+| `.env` (from `.env.example`) | BinktermPHP application configuration -- `SITE_URL`, session settings, feature flags, per-daemon internal ports (`SSH_PORT`, `GEMINI_PORT`, etc.), everything documented in [CONFIGURATION.md](CONFIGURATION.md) | Bind-mounted live into the container (`docker-compose.yml`), re-read by `entrypoint.sh` on every start |
+| `docker-compose.override.yml` (from `docker-compose.override.yml.example`) | Docker-only settings: optional daemon toggles, published host ports, scheduled-job timing, volumes, resource limits | Baked into the container's environment at creation time by Compose |
 
-#### Database Configuration
+`.env` is never docker-aware and contains nothing Docker-specific. A setting
+like `SSH_PORT` in `.env` controls the *internal* port `ssh_daemon.php` binds
+to inside the container; the *host*-facing port it's published on is a
+completely separate concern configured in `docker-compose.override.yml` (see
+[Included Services](#included-services)). Changing one never affects the
+other.
+
+**Editing `.env`** only needs a restart, not a recreate, since it's bind-mounted live:
+
 ```bash
-DB_NAME=binkterm          # Database name
-DB_USER=binkterm          # Database username
-DB_PASSWORD=changeme      # CHANGE THIS!
+nano .env
+docker-compose restart binkterm
 ```
 
-#### Site Configuration
+**Editing `docker-compose.override.yml`** needs `docker-compose up -d` instead, since Compose only re-resolves those values when it recreates the container:
+
 ```bash
-SITE_URL=http://localhost           # Public URL of your BBS
-SITE_NAME=BinktermPHP BBS          # Name displayed on your BBS
-SYSOP_NAME=Sysop                   # Your name/handle
-FIDONET_ADDRESS=1:2/3.4            # Your FidoNet address
+nano docker-compose.override.yml
+docker-compose up -d
 ```
 
-#### Port Mappings
-```bash
-HTTP_PORT=80              # Web interface (default: 80)
-BINKP_PORT=24554          # BinkP server (default: 24554)
-DOSDOOR_WS_PORT=24555     # DOS Door WebSocket (default: 24555)
-BINKSTREAM_WS_PORT=6010   # Realtime (BinkStream) WebSocket (default: 6010)
-```
+`.env` must exist (`cp .env.example .env`) before the very first `docker-compose up` -- Docker creates an empty directory at the mount point instead of erroring if the source file is missing, which breaks startup in a confusing way. `entrypoint.sh` checks for this and fails with a clear message if it happens.
 
-If you need to use different ports (e.g., 8080 instead of 80):
-```bash
-HTTP_PORT=8080:80         # Map host port 8080 to container port 80
-```
+### Database Credentials
 
-#### DOS Door Configuration
-```bash
-DOSDOOR_DEBUG_KEEP_FILES=false    # Set to true to keep session files for debugging
-```
+`DB_NAME`, `DB_USER`, and `DB_PASS` in `.env` are used both by the app (to
+connect to the database) and by Compose (to provision the `postgres`
+container with matching credentials) -- Compose reads them from `.env`
+automatically since that's the file it auto-loads for `${...}` substitution.
+Set them once in `.env`; there's nothing to duplicate elsewhere. `DB_HOST` and
+`DB_PORT` in your `.env` are ignored inside Docker -- Compose always points
+the app at the `postgres` container regardless of what's set there.
 
-#### Development/Debug
-```bash
-APP_DEBUG=false           # Set to true for verbose error messages
-```
+### Publishing a Different Host Port
+
+The core services (web interface, Telnet, BinkP, DOS doors, BinkStream) are
+published on their standard ports in `docker-compose.yml`. To remap one (e.g.
+serve the web interface on host port 8080), add the new mapping to
+`docker-compose.override.yml` and comment out the corresponding line in
+`docker-compose.yml` -- Compose appends list-valued keys like `ports:` across
+files rather than replacing them, so leaving the original in place would
+publish both.
 
 ## Included Services
 
-`docker/supervisord.conf` only starts the basic set of services needed for the core web interface and FTN networking. It is not a complete list of everything BinktermPHP can run — several optional daemons documented elsewhere in the project are left out of the Docker image entirely so the default container stays small and focused.
+`docker/supervisord.conf` always starts the core set of services needed for the web interface and FTN networking. Everything else is opt-in via `ENABLE_*` variables set in `docker-compose.override.yml` (never in `.env` -- see [Configuration](#configuration)), read by `docker/entrypoint.sh` on every container start (no rebuild required to toggle one on or off).
 
-### Started automatically
+### Always on
 
 - **apache** — the web interface
 - **admin_daemon** — configuration/management daemon (writes `config/*.json` on behalf of the web process)
@@ -126,22 +154,35 @@ APP_DEBUG=false           # Set to true for verbose error messages
 - **dosdoor_bridge** — DOS door game multiplexing server (Node.js)
 - **telnet_daemon** — Telnet BBS server
 
-### Present but disabled by default
+### Optional, off by default
 
-- **gemini_daemon** — Gemini protocol server. Present in `supervisord.conf` with `autostart=false`; enable it by changing that line to `autostart=true` and rebuilding, or start it on demand with `docker exec -it binkterm-app supervisorctl start gemini_daemon`. Also requires publishing `GEMINI_PORT` in `docker-compose.yml`.
+Uncomment the matching `ENABLE_*` line (and its port, if it has one) in `docker-compose.override.yml` and run `docker-compose up -d` to enable. Each daemon ships as a template in `docker/conf.d.available/`.
 
-### Not included at all
+| Variable | Daemon | Port to publish in the override file | Notes |
+|---|---|---|---|
+| `ENABLE_GEMINI` | gemini_daemon | `1965:1965` | Gemini protocol server. Internal port comes from `GEMINI_PORT` in `.env` (default `1965`) |
+| `ENABLE_SSH` | ssh_daemon | `2022:2022` | Shares terminal-side code with the Telnet daemon; see `ssh/CLAUDE.md`. Internal port comes from `SSH_PORT` in `.env` (default `2022`) |
+| `ENABLE_FTP` | ftp_daemon | `2121:2121` (control) + `2122-2149:2122-2149` (passive data range) | Internal ports come from `FTPD_PORT`/`FTPD_PASSIVE_PORT_START`/`FTPD_PASSIVE_PORT_END` in `.env` |
+| `ENABLE_MRC` | mrc_daemon | none needed | Outbound-only Multi Relay Chat client |
+| `ENABLE_AI_BOT` | ai_bot_daemon | none needed | Reactive via Postgres NOTIFY |
+| `ENABLE_MATTERBRIDGE` | matterbridge_daemon | none needed | Polls the Matterbridge API |
+| `ENABLE_MCP_SERVER` | mcp_server | `3740:3740` | See `docs/MCPServer.md`. Internal port comes from `MCP_SERVER_PORT` in `.env` (default `3740`). **Requires a valid `data/license.json`** — the daemon checks for one on startup and exits if unlicensed, so enabling it without a license just fails gracefully rather than breaking the container |
 
-These daemons exist in the project but have no `supervisord.conf` entry or exposed port in the default Docker setup:
+The internal port each daemon binds to inside the container is always controlled by `.env` (application config, same as bare metal); the host-facing port it's reachable on is always controlled by `docker-compose.override.yml` (Docker-only). The two are independent -- changing the host port never changes what the daemon binds to internally, and vice versa.
 
-- **SSH daemon** (`ssh/ssh_daemon.php`, default port 2022) — shares terminal-side code with the Telnet daemon; see `ssh/CLAUDE.md`
-- **MCP server** (`mcp-server/`, default port 3740) — see `docs/MCPServer.md`
-- **Matterbridge daemon** (`scripts/matterbridge_daemon.php`)
-- **MRC daemon** (`scripts/mrc_daemon.php`)
-- **AI bot daemon** (`scripts/ai_bot_daemon.php`)
-- **FTP daemon** (`scripts/ftp_daemon.php`)
+If you need a daemon that isn't in the table above, add a `[program:...]` block for it — see [Adding a New Service to Supervisor](../docker/README.md#adding-a-new-service-to-supervisor) in `docker/README.md`.
 
-If you want to run one of these under Docker, add a `[program:...]` block for it to `docker/supervisord.conf` (see [Adding Services to Supervisor](../docker/README.md#adding-services-to-supervisor) in `docker/README.md` for the block format), publish any port it needs in `docker-compose.yml` and `EXPOSE` it in the `Dockerfile`, then rebuild. These are ordinary PHP/Node scripts with no Docker-specific requirements, so wiring one in is the same as adding any other supervisor-managed process.
+### Scheduled maintenance jobs (cron)
+
+On bare metal these run via crontab entries (see `docs/CLI.md`); in Docker they're driven by a `cron` process under supervisor, on by default. `docker/entrypoint.sh` regenerates `/etc/cron.d/binkterm` from these env vars (set in `docker-compose.yml`/`docker-compose.override.yml`, never in `.env`) on every container start, so changing a schedule or disabling a job is a `docker-compose up -d`, not a rebuild.
+
+| Job | Enable variable | Schedule variable | Default schedule | Notes |
+|---|---|---|---|---|
+| `scripts/rss_poster.php` | `ENABLE_RSS_POSTER` | `RSS_POSTER_SCHEDULE` | `0 * * * *` (hourly) | Polls RSS feeds configured under Auto Feed; see `docs/Autofeed.md` |
+| `scripts/echomail_robots.php` | `ENABLE_ECHOMAIL_ROBOTS` | `ECHOMAIL_ROBOTS_SCHEDULE` | `*/5 * * * *` (every 5 minutes) | Runs enabled echomail robots; see `docs/Robots.md` |
+| `scripts/logrotate.php` | `ENABLE_LOGROTATE` | `LOGROTATE_SCHEDULE` | `0 0 * * 0` (Sundays at midnight) | Also reads `LOGROTATE_KEEP` (default `52`) for the `--keep` count |
+
+Schedule variables take standard 5-field cron syntax. Job output is appended to its own log under `data/logs/` (e.g. `data/logs/rss_poster.log`).
 
 ## First Run Setup
 
@@ -161,7 +202,7 @@ docker-compose up -d
 docker exec -it binkterm-app php /var/www/html/scripts/setup.php
 ```
 
-**Important**: Only run setup once. After the initial setup, leave `RUN_SETUP=false` in your `.env` file.
+**Important**: Only run setup once. `RUN_SETUP` is passed inline (`RUN_SETUP=true docker-compose up -d`), not stored in a file -- just omit it on later runs.
 
 ## Managing the Application
 
@@ -200,6 +241,8 @@ docker-compose restart
 docker-compose restart binkterm
 ```
 
+This is also how you pick up a `.env` change (see [Configuration](#configuration)) -- `docker-compose restart binkterm` is enough, no `up -d` needed.
+
 ### Updating the Application
 
 **Review version-specific upgrade notes** in [docs/index.md](index.md#upgrading) before upgrading — individual versions may have specific steps you must take.
@@ -219,6 +262,59 @@ docker exec -it binkterm-app php /var/www/html/scripts/setup.php
 `docker-compose build` followed by `up -d` is enough to pick up code changes — there's no need to `docker-compose down` first, since `up -d` recreates any container whose image changed and leaves the rest running. Use `docker-compose build --no-cache` instead if a change touched system packages or PHP extensions in the `Dockerfile` and you want a fully clean rebuild.
 
 `scripts/setup.php` applies any pending database migrations and is safe to run every time you upgrade, even if there's nothing new to apply. Do not set `RUN_SETUP=true` for this — that variable is only meant for the very first `up -d` (see [First Run Setup](#first-run-setup)); running `setup.php` directly like this works against the already-running container without needing to touch `.env`.
+
+### Upgrading from 1.10 or Earlier
+
+Versions through 1.10 used a single `.env` (copied from `.env.docker.example`) that mixed real BinktermPHP settings together with Docker-only settings (optional daemon toggles, published ports, cron schedules). As of 1.10.1, those are two separate files (see [Configuration](#configuration)), and `.env` is bind-mounted live into the container instead of being folded in once at container creation. This is a one-time migration, not something you'll need to repeat on later upgrades.
+
+#### 1. Pull the New Code
+
+```bash
+git pull
+```
+
+#### 2. Rebuild Your `.env` as Pure Application Config
+
+If your existing `.env` came from the old `.env.docker.example`, it has Docker-only keys mixed into it that no longer belong there. Start fresh from the same file bare-metal installs use, and re-enter your BinktermPHP settings (`SITE_URL`, credentials, feature flags, etc.):
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+#### 3. Create `docker-compose.override.yml`
+
+Move anything Docker-only you had set in the old `.env` here — optional daemon toggles (`ENABLE_SSH`, `ENABLE_FTP`, etc.), non-default host ports, cron schedules:
+
+```bash
+cp docker-compose.override.yml.example docker-compose.override.yml
+nano docker-compose.override.yml
+```
+
+#### 4. Rebuild the Image
+
+This release also changed `Dockerfile`, `entrypoint.sh`, and `supervisord.conf`, all of which are baked into the image at build time — a plain `up -d` isn't enough on its own this time:
+
+```bash
+docker-compose build
+docker-compose up -d
+```
+
+#### 5. Verify the Migration Took Effect
+
+```bash
+docker exec -it binkterm-app cat /var/www/html/.env
+```
+
+This should match your new `.env`, with no leftover Docker-only keys.
+
+```bash
+docker exec -it binkterm-app supervisorctl status
+```
+
+`cron` should show `RUNNING`; any daemons you enabled in `docker-compose.override.yml` should show `RUNNING` too.
+
+After this one-time migration, editing `.env` only needs `docker-compose restart binkterm`, and editing `docker-compose.override.yml` only needs `docker-compose up -d` — see [Configuration](#configuration).
 
 ### Accessing the Container Shell
 
@@ -271,7 +367,7 @@ docker-compose logs binkterm
 
 Common issues:
 - Database not ready: Wait for PostgreSQL health check to pass
-- Port already in use: Change `HTTP_PORT` in `.env`
+- Port already in use: Remap the port in `docker-compose.override.yml` (see [Publishing a Different Host Port](#publishing-a-different-host-port))
 - Permission issues: Ensure data directories are writable
 
 ### Database Connection Errors

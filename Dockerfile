@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        cron \
         git \
         libgmp-dev \
         libonig-dev \
@@ -66,6 +67,9 @@ COPY . .
 # Install Node.js dependencies for DOS door bridge
 RUN cd scripts/dosbox-bridge && npm install --production
 
+# Install Node.js dependencies for the optional MCP server (ENABLE_MCP_SERVER)
+RUN cd mcp-server && npm install --production
+
 # Stash a pristine copy of the i18n translation catalogs outside config/.
 # config/ is mounted as a persistent named volume (see docker-compose.yml) so that
 # sysop-edited settings (binkp.json, bbs.json, etc.) survive image rebuilds. But that
@@ -97,8 +101,12 @@ RUN mkdir -p \
     && chmod -R 775 data config dosbox-bridge \
     && chmod +x scripts/*.php
 
-# Copy Docker configuration files
+# Copy Docker configuration files.
+# conf.d.available/ holds one supervisor template per optional daemon (SSH, Gemini,
+# FTP, MRC, AI bot, Matterbridge, MCP server); entrypoint.sh copies the ones
+# requested via ENABLE_* environment variables into the live include directory.
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/conf.d.available /opt/binkterm-conf.d-available
 COPY docker/php-error-logging.ini /usr/local/etc/php/conf.d/zz-error-logging.ini
 COPY docker/php-uploads.ini /usr/local/etc/php/conf.d/zz-uploads.ini
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
@@ -110,6 +118,11 @@ EXPOSE 2323
 EXPOSE 24554
 EXPOSE 24555
 EXPOSE 6010
+# Optional daemon ports (only listening if the matching ENABLE_* var is set)
+EXPOSE 1965
+EXPOSE 2022
+EXPOSE 2121
+EXPOSE 3740
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

@@ -75,3 +75,6 @@ matterbridge/matterbridge*
 
 # Local troubleshooting notes
 bugreports/
+
+# Sysop-local Docker Compose overrides (see docker-compose.override.yml.example)
+docker-compose.override.yml
