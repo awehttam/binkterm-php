@@ -40,7 +40,9 @@ into `/etc/supervisor/conf.d/enabled/`.
 ### entrypoint.sh
 Container initialization script that:
 - Waits for PostgreSQL to be ready
-- Creates `.env` file from environment variables
+- Regenerates `/var/www/html/.env` (the application's own config, distinct
+  from Docker-only settings -- see [docs/DOCKER.md#configuration](../docs/DOCKER.md#configuration))
+  from the container environment on every start
 - Runs database setup/migrations (if `RUN_SETUP=true`)
 - Sets correct file permissions
 - Activates optional daemons requested via `ENABLE_*` environment variables
@@ -56,9 +58,14 @@ For detailed Docker deployment instructions, see [docs/DOCKER.md](../docs/DOCKER
 
 ```bash
 # From project root directory
-cp .env.docker.example .env
-# Edit .env with your configuration
+cp .env.example .env
+# Edit .env -- the same application config bare-metal installs use
 nano .env
+
+cp docker-compose.override.yml.example docker-compose.override.yml
+# Edit docker-compose.override.yml -- Docker-only settings: optional
+# daemons, published ports, cron schedules
+nano docker-compose.override.yml
 
 # First run (initialize database)
 RUN_SETUP=true docker-compose up -d
@@ -71,7 +78,8 @@ docker-compose up -d
 
 ### Enabling an Optional Daemon
 
-Set its `ENABLE_*` variable to `true` in `.env` (see
+Uncomment its `ENABLE_*` variable (and port, if it has one) in
+`docker-compose.override.yml` (see
 [docs/DOCKER.md#included-services](../docs/DOCKER.md#included-services) for the
 full list) and restart the container -- no rebuild needed, since `entrypoint.sh`
 reads the flag on every container start:
@@ -151,7 +159,7 @@ docker exec -it binkterm-app cat /var/www/html/data/logs/binkp_server.log
 ```bash
 docker run --rm -it \
   -e DB_HOST=postgres \
-  -e DB_PASSWORD=test \
+  -e DB_PASS=test \
   --entrypoint /usr/local/bin/entrypoint.sh \
   binkterm-app \
   /bin/bash

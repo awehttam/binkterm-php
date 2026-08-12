@@ -4,12 +4,6 @@ set -e
 echo "BinktermPHP Docker Container Initialization"
 echo "==========================================="
 
-# Generate ADMIN_DAEMON_SECRET if not set
-if [ -z "$ADMIN_DAEMON_SECRET" ]; then
-    export ADMIN_DAEMON_SECRET=$(openssl rand -hex 32)
-    echo "Generated random ADMIN_DAEMON_SECRET"
-fi
-
 # Wait for PostgreSQL to be ready
 if [ -n "$DB_HOST" ]; then
     echo "Waiting for PostgreSQL at $DB_HOST:${DB_PORT:-5432}..."
@@ -30,56 +24,52 @@ if [ -n "$DB_HOST" ]; then
     done
 fi
 
-# Create .env file if it doesn't exist
-if [ ! -f /var/www/html/.env ]; then
-    echo "Creating .env file from environment variables..."
+# ADMIN_DAEMON_SECRET is a real application setting (see .env.example), read
+# via Config::env() from the app's on-disk .env, not from the container's
+# process environment. If it's unset or still the .env.example placeholder,
+# reuse a previously-generated value from an existing /var/www/html/.env
+# (so restarting the container doesn't rotate it) before generating a new
+# random one.
+if [ -z "$ADMIN_DAEMON_SECRET" ] || [ "$ADMIN_DAEMON_SECRET" = "change_me" ]; then
+    EXISTING_SECRET=""
+    if [ -f /var/www/html/.env ]; then
+        EXISTING_SECRET=$(grep '^ADMIN_DAEMON_SECRET=' /var/www/html/.env | tail -1 | cut -d= -f2-)
+    fi
 
-    cat > /var/www/html/.env <<EOF
-# Database Configuration
-DB_HOST=${DB_HOST:-localhost}
-DB_PORT=${DB_PORT:-5432}
-DB_NAME=${DB_NAME:-binkterm}
-DB_USER=${DB_USER:-binkterm}
-DB_PASS=${DB_PASS:-changeme}
-
-# Site Configuration
-SITE_URL=${SITE_URL:-http://localhost}
-SITE_NAME=${SITE_NAME:-BinktermPHP BBS}
-
-# BBS Configuration
-SYSOP_NAME=${SYSOP_NAME:-Sysop}
-FIDONET_ADDRESS=${FIDONET_ADDRESS:-}
-
-# Session Configuration
-SESSION_NAME=${SESSION_NAME:-BINKTERMPHP}
-SESSION_LIFETIME=${SESSION_LIFETIME:-86400}
-
-# DOS Door Configuration
-DOSDOOR_HEADLESS=${DOSDOOR_HEADLESS:-true}
-DOSDOOR_DEBUG_KEEP_FILES=${DOSDOOR_DEBUG_KEEP_FILES:-false}
-DOSDOOR_DOSBOX_PATH=${DOSDOOR_DOSBOX_PATH:-/usr/bin/dosbox-x}
-DOSDOOR_WS_PORT=${DOSDOOR_WS_PORT:-24555}
-
-# Realtime WebSocket (BinkStream) Configuration
-BINKSTREAM_WS_PORT=${BINKSTREAM_WS_PORT:-6010}
-BINKSTREAM_WS_BIND_HOST=${BINKSTREAM_WS_BIND_HOST:-0.0.0.0}
-
-# Credits System
-CREDITS_ENABLED=${CREDITS_ENABLED:-true}
-
-# Development/Debug
-APP_DEBUG=${APP_DEBUG:-false}
-
-# Admin Daemon
-ADMIN_DAEMON_SECRET=${ADMIN_DAEMON_SECRET}
-EOF
-
-    chown binkterm:binkterm /var/www/html/.env
-    chmod 640 /var/www/html/.env
-    echo ".env file created successfully"
-else
-    echo ".env file already exists, skipping creation"
+    if [ -n "$EXISTING_SECRET" ] && [ "$EXISTING_SECRET" != "change_me" ]; then
+        ADMIN_DAEMON_SECRET="$EXISTING_SECRET"
+        echo "Reusing existing ADMIN_DAEMON_SECRET"
+    else
+        ADMIN_DAEMON_SECRET=$(openssl rand -hex 32)
+        echo "Generated random ADMIN_DAEMON_SECRET"
+    fi
 fi
+export ADMIN_DAEMON_SECRET
+
+# Regenerate the app's /var/www/html/.env from the container's environment on
+# every start. .env arrives via docker-compose.yml's "env_file: .env" (the
+# same application config file bare-metal installs use), plus a couple of
+# Docker-computed overrides (DB_HOST, DB_PORT, ADMIN_DAEMON_SECRET). This
+# runs every start (not just once) so config changes just need
+# `docker-compose up -d`, not a rebuild.
+#
+# Config::env() only reads $_ENV populated from this file -- PHP's
+# variables_order here is GPCS (no E), so container environment variables
+# never reach the app on their own; only what's written into this file does.
+#
+# Docker-only orchestration variables (ENABLE_*, *_SCHEDULE, LOGROTATE_KEEP,
+# RUN_SETUP) and generic image/system plumbing are filtered out so this file
+# stays exclusively BinktermPHP application configuration.
+echo "Writing application .env..."
+
+DOCKER_ONLY_VARS='^(ENABLE_GEMINI|ENABLE_SSH|ENABLE_FTP|ENABLE_MRC|ENABLE_AI_BOT|ENABLE_MATTERBRIDGE|ENABLE_MCP_SERVER|ENABLE_RSS_POSTER|RSS_POSTER_SCHEDULE|ENABLE_ECHOMAIL_ROBOTS|ECHOMAIL_ROBOTS_SCHEDULE|ENABLE_LOGROTATE|LOGROTATE_SCHEDULE|LOGROTATE_KEEP|RUN_SETUP)='
+SYSTEM_PLUMBING_VARS='^(PATH|HOME|HOSTNAME|PWD|OLDPWD|SHLVL|_|TERM|LANG|LANGUAGE|LC_[A-Z]+|DEBIAN_FRONTEND|COMPOSER_ALLOW_SUPERUSER|APACHE_DOCUMENT_ROOT|APACHE_CONFDIR|APACHE_ENVVARS|PHP_[A-Z_]+|GPG_KEYS)='
+
+env | grep -Ev "$DOCKER_ONLY_VARS" | grep -Ev "$SYSTEM_PLUMBING_VARS" > /var/www/html/.env
+
+chown binkterm:binkterm /var/www/html/.env
+chmod 640 /var/www/html/.env
+echo ".env written"
 
 # Run database setup/migrations if requested
 if [ "$RUN_SETUP" = "true" ]; then
@@ -120,8 +110,9 @@ mkdir -p \
 chown -R binkterm:binkterm /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
 chmod -R 775 /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
 
-# Activate optional daemons requested via ENABLE_* environment variables.
-# Each daemon ships as a disabled-by-default template in
+# Activate optional daemons requested via ENABLE_* environment variables (set
+# in docker-compose.yml/docker-compose.override.yml -- Docker-only, never in
+# .env). Each daemon ships as a disabled-by-default template in
 # /opt/binkterm-conf.d-available/ (see docker/conf.d.available/); this loop
 # copies the requested ones into the live supervisor include directory so
 # supervisord picks them up on startup. Nothing here overrides the always-on
@@ -150,7 +141,8 @@ for var in "${!OPTIONAL_DAEMONS[@]}"; do
     fi
 done
 
-# Generate the scheduled-job crontab from the ENABLE_*/*_SCHEDULE env vars.
+# Generate the scheduled-job crontab from the ENABLE_*/*_SCHEDULE env vars
+# (Docker-only, set in docker-compose.yml/docker-compose.override.yml).
 # Regenerated on every container start so schedule changes just need a
 # `docker-compose up -d`, not a rebuild. Jobs run as the binkterm user;
 # cron itself (supervisor's [program:cron]) runs as root to read /etc/cron.d.

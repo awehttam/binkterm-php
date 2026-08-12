@@ -728,7 +728,7 @@ BINKSTREAM_WS_PID_FILE=data/run/realtime_server.pid
 
 **`FTPD_ENABLED`**, **`FTPD_BIND_HOST`**, **`FTPD_PORT`**, **`FTPD_PUBLIC_HOST`**, **`FTPD_PASSIVE_PORT_START`**, and **`FTPD_PASSIVE_PORT_END`** — settings for the standalone FTP daemon (`scripts/ftp_daemon.php`).
 
-- `FTPD_ENABLED`: enable or disable the standalone passive FTP daemon
+- `FTPD_ENABLED`: whether the web UI advertises FTP access to users. `scripts/ftp_daemon.php` serves FTP as soon as it's run, regardless of this setting -- it only controls the web UI's advertisement of the service.
 - `FTPD_BIND_HOST`: FTP control socket bind host, typically `0.0.0.0` for inbound access or `127.0.0.1` when fronted by another layer
 - `FTPD_PORT`: FTP control port, default `2121`
 - `FTPD_PUBLIC_HOST`: optional public IPv4 address or hostname advertised in `PASV` replies when the daemon sits behind NAT or binds to `0.0.0.0`

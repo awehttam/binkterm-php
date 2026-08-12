@@ -1,6 +1,8 @@
-# Upgrading to 1.10.1
+ # Upgrading to 1.10.1
 
 Make sure you have a current backup of your database and files before upgrading.
+
+> **Docker sysops:** how environment configuration is handled has changed in this release — `.env.docker.example` is gone, and Docker-only settings now live in a separate `docker-compose.override.yml` instead of being mixed into `.env`. This is not a drop-in upgrade for existing Docker deployments. Read the [Docker: Configurable Optional Daemons and Scheduled Jobs](#docker-configurable-optional-daemons-and-scheduled-jobs) section below in full, along with [docs/DOCKER.md](DOCKER.md#configuration), before upgrading a running Docker install.
 
 ## Table of Contents
 
@@ -18,7 +20,8 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Docker installs kept serving stale translation text (or raw translation keys instead of text) after upgrading, because the persistent `config` volume shadowed the updated translation catalogs shipped in the new image. The container now re-syncs translation catalogs from the image into that volume on every start, so upgrades pick up new and changed translation text automatically. Sysop-customized translation overrides are never touched by this sync.
 - The `docs/` directory was excluded from every Docker image build, so several in-app features that read Markdown files at runtime — the admin documentation browser, the user guide pages, the admin dashboard's upgrade notes, and the MCP client setup help — never worked on Docker installs. `docs/` (aside from the internal `docs/proposals/` drafts) is now included in the image.
-- Docker installs previously ran a fixed set of daemons with no way to enable the SSH, Gemini, FTP, MRC, AI bot, Matterbridge, or MCP servers, and no way to run the `rss_poster`, `echomail_robots`, or `logrotate` maintenance scripts that bare-metal installs typically schedule via crontab. Both are now configurable through `.env`, and toggling either only needs `docker-compose up -d`, not an image rebuild.
+- Docker installs previously ran a fixed set of daemons with no way to enable the SSH, Gemini, FTP, MRC, AI bot, Matterbridge, or MCP servers, and no way to run the `rss_poster`, `echomail_robots`, or `logrotate` maintenance scripts that bare-metal installs typically schedule via crontab. Both are now configurable, and toggling either only needs `docker-compose up -d`, not an image rebuild.
+- `scripts/ftp_daemon.php` no longer refuses to start when `FTPD_ENABLED=false` -- it serves FTP as soon as it's run, matching how every other standalone daemon in the project works. `FTPD_ENABLED` still exists, but now only controls whether the web UI advertises FTP access to users. This affects bare-metal installs too, not just Docker.
 
 ---
 
@@ -55,13 +58,18 @@ docker-compose up -d
 
 ## Docker: Configurable Optional Daemons and Scheduled Jobs
 
-Two previously fixed parts of the Docker image are now configurable via environment variables in `.env`:
+Two previously fixed parts of the Docker image are now configurable, and Docker deployments now use two separate config files instead of one.
 
-**Optional daemons.** `docker/supervisord.conf` used to define a fixed list of services, with no way to run the SSH, Gemini, FTP, MRC, AI bot, Matterbridge, or MCP servers under Docker at all (some of these had no Docker wiring whatsoever; Gemini required editing `supervisord.conf` and rebuilding). Each now ships as a disabled-by-default template that `docker/entrypoint.sh` activates when its `ENABLE_*` variable is `true`: `ENABLE_SSH`, `ENABLE_GEMINI`, `ENABLE_FTP`, `ENABLE_MRC`, `ENABLE_AI_BOT`, `ENABLE_MATTERBRIDGE`, `ENABLE_MCP_SERVER`. Matching port variables (`SSH_PORT`, `GEMINI_PORT`, `FTPD_PORT`, `MCP_SERVER_PORT`) control which host ports they're published on. See [Included Services](DOCKER.md#included-services) in `docs/DOCKER.md` for the full table.
+**`.env.docker.example` is gone.** Docker configuration is now split into two files that are never mixed:
 
-**Scheduled maintenance jobs.** `rss_poster.php`, `echomail_robots.php`, and `logrotate.php` previously had no way to run inside a Docker container at all — bare-metal installs schedule them via crontab, but Docker had no cron process. A `cron` process now runs under supervisor by default, with `docker/entrypoint.sh` generating `/etc/cron.d/binkterm` from `ENABLE_RSS_POSTER`, `ENABLE_ECHOMAIL_ROBOTS`, and `ENABLE_LOGROTATE` (all `true` by default) plus `RSS_POSTER_SCHEDULE`, `ECHOMAIL_ROBOTS_SCHEDULE`, and `LOGROTATE_SCHEDULE` (defaulting to hourly, every 5 minutes, and Sundays at midnight respectively) and `LOGROTATE_KEEP` (default `52`). See [Scheduled maintenance jobs (cron)](DOCKER.md#scheduled-maintenance-jobs-cron) in `docs/DOCKER.md`.
+- **`.env`** — copy it from `.env.example`, the *same file bare-metal installs use*. It contains only real BinktermPHP settings (`SITE_URL`, per-daemon internal ports like `SSH_PORT`/`GEMINI_PORT`, everything in [CONFIGURATION.md](CONFIGURATION.md)) and is loaded directly into the container. It has no Docker-specific content at all.
+- **`docker-compose.override.yml`** — copy it from `docker-compose.override.yml.example`. It contains everything Docker-only: which optional daemons run, which host ports are published, and scheduled-job timing. It's gitignored and merges automatically with `docker-compose.yml`.
 
-A `docker-compose.override.yml.example` was also added for sysop-local Compose customizations (extra volumes, extra ports, resource limits) that should survive `git pull` without touching the tracked `docker-compose.yml`. Copy it to `docker-compose.override.yml`, which is gitignored, and Compose merges it automatically.
+If you have an existing `.env` copied from the old `.env.docker.example`, replace it: copy `.env.example` to `.env` fresh and re-enter your BinktermPHP settings there, then move any Docker-only settings you'd set (host ports, `RUN_SETUP`) into a new `docker-compose.override.yml`.
+
+**Optional daemons.** `docker/supervisord.conf` used to define a fixed list of services, with no way to run the SSH, Gemini, FTP, MRC, AI bot, Matterbridge, or MCP servers under Docker at all (some of these had no Docker wiring whatsoever; Gemini required editing `supervisord.conf` and rebuilding). Each now ships as a disabled-by-default template that `docker/entrypoint.sh` activates when its `ENABLE_*` variable is `true`, set in `docker-compose.override.yml`: `ENABLE_SSH`, `ENABLE_GEMINI`, `ENABLE_FTP`, `ENABLE_MRC`, `ENABLE_AI_BOT`, `ENABLE_MATTERBRIDGE`, `ENABLE_MCP_SERVER`. The internal port each one binds to comes from `.env` (`SSH_PORT`, `GEMINI_PORT`, `FTPD_PORT`, `MCP_SERVER_PORT`) exactly as on bare metal; the host-facing port it's published on is a separate setting in `docker-compose.override.yml`. See [Included Services](DOCKER.md#included-services) in `docs/DOCKER.md` for the full table.
+
+**Scheduled maintenance jobs.** `rss_poster.php`, `echomail_robots.php`, and `logrotate.php` previously had no way to run inside a Docker container at all — bare-metal installs schedule them via crontab, but Docker had no cron process. A `cron` process now runs under supervisor by default, with `docker/entrypoint.sh` generating `/etc/cron.d/binkterm` from `ENABLE_RSS_POSTER`, `ENABLE_ECHOMAIL_ROBOTS`, and `ENABLE_LOGROTATE` (all `true` by default) plus `RSS_POSTER_SCHEDULE`, `ECHOMAIL_ROBOTS_SCHEDULE`, and `LOGROTATE_SCHEDULE` (defaulting to hourly, every 5 minutes, and Sundays at midnight respectively) and `LOGROTATE_KEEP` (default `52`) -- all set in `docker-compose.override.yml`. See [Scheduled maintenance jobs (cron)](DOCKER.md#scheduled-maintenance-jobs-cron) in `docs/DOCKER.md`.
 
 ## Upgrade Instructions
 

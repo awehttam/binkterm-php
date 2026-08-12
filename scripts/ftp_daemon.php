@@ -79,12 +79,6 @@ if (isset($args['help'])) {
     exit(0);
 }
 
-$enabled = strtolower((string)Config::env('FTPD_ENABLED', 'false')) === 'true';
-if (!$enabled) {
-    fwrite(STDERR, "FTPD is disabled. Set FTPD_ENABLED=true to run scripts/ftp_daemon.php.\n");
-    exit(1);
-}
-
 $host = (string)($args['host'] ?? Config::env('FTPD_BIND_HOST', '0.0.0.0'));
 $port = (int)($args['port'] ?? Config::env('FTPD_PORT', '2121'));
 $publicHost = (string)($args['public-host'] ?? Config::env('FTPD_PUBLIC_HOST', ''));

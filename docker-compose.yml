@@ -4,9 +4,18 @@
 # Production-ready Docker Compose configuration for BinktermPHP
 #
 # Usage:
-#   1. Copy .env.docker.example to .env and configure
-#   2. First run: RUN_SETUP=true docker-compose up -d
-#   3. Subsequent runs: docker-compose up -d
+#   1. Copy .env.example to .env and configure BinktermPHP itself -- this is
+#      the exact same file bare-metal installs use (SITE_URL, credentials,
+#      feature flags, etc.). It is loaded directly into the app container.
+#   2. Copy docker-compose.override.yml.example to docker-compose.override.yml
+#      for Docker-only settings: optional daemons, published host ports,
+#      scheduled-job timing. See that file for the full list.
+#   3. First run: RUN_SETUP=true docker-compose up -d
+#   4. Subsequent runs: docker-compose up -d
+#
+# .env and docker-compose.override.yml are deliberately separate: .env is
+# BinktermPHP application configuration and nothing else, so it never shares
+# variable names with anything Docker-specific. See docs/DOCKER.md.
 #
 services:
   postgres:
@@ -37,80 +46,48 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
-      # Database Configuration
+      # Docker-computed: a bare-metal .env normally points at DB_HOST=localhost,
+      # but inside Compose the database is the separate "postgres" service.
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-binkterm}
-      DB_USER: ${DB_USER:-binkterm}
-      DB_PASS: ${DB_PASS:-changeme}
 
-      # Site Configuration
-      SITE_URL: ${SITE_URL:-http://localhost}
-      SITE_NAME: ${SITE_NAME:-BinktermPHP BBS}
+      # Optional daemons (all off by default). Override in
+      # docker-compose.override.yml, not here and not in .env --
+      # see docs/DOCKER.md#included-services.
+      ENABLE_GEMINI: "false"
+      ENABLE_SSH: "false"
+      ENABLE_FTP: "false"
+      ENABLE_MRC: "false"
+      ENABLE_AI_BOT: "false"
+      ENABLE_MATTERBRIDGE: "false"
+      ENABLE_MCP_SERVER: "false"
 
-      # BBS Configuration
-      SYSOP_NAME: ${SYSOP_NAME:-Sysop}
-      FIDONET_ADDRESS: ${FIDONET_ADDRESS:-}
+      # Scheduled maintenance jobs (all on by default, run via cron).
+      # Override in docker-compose.override.yml.
+      ENABLE_RSS_POSTER: "true"
+      RSS_POSTER_SCHEDULE: "0 * * * *"
+      ENABLE_ECHOMAIL_ROBOTS: "true"
+      ECHOMAIL_ROBOTS_SCHEDULE: "*/5 * * * *"
+      ENABLE_LOGROTATE: "true"
+      LOGROTATE_SCHEDULE: "0 0 * * 0"
+      LOGROTATE_KEEP: "52"
 
-      # Session Configuration
-      SESSION_NAME: BINKTERMPHP
-      SESSION_LIFETIME: 86400
-
-      # DOS Door Configuration
-      DOSDOOR_HEADLESS: "true"
-      DOSDOOR_DEBUG_KEEP_FILES: ${DOSDOOR_DEBUG_KEEP_FILES:-false}
-      DOSDOOR_DOSBOX_PATH: /usr/bin/dosbox-x
-      DOSDOOR_WS_PORT: 6001
-      DOSDOOR_WS_BIND_HOST: 0.0.0.0
-
-      # Realtime WebSocket (BinkStream) Configuration
-      BINKSTREAM_WS_PORT: 6010
-      BINKSTREAM_WS_BIND_HOST: 0.0.0.0
-
-      # Credits System
-      CREDITS_ENABLED: ${CREDITS_ENABLED:-true}
-
-      # Optional daemons (all off by default -- see docs/DOCKER.md#included-services)
-      ENABLE_GEMINI: ${ENABLE_GEMINI:-false}
-      ENABLE_SSH: ${ENABLE_SSH:-false}
-      ENABLE_FTP: ${ENABLE_FTP:-false}
-      ENABLE_MRC: ${ENABLE_MRC:-false}
-      ENABLE_AI_BOT: ${ENABLE_AI_BOT:-false}
-      ENABLE_MATTERBRIDGE: ${ENABLE_MATTERBRIDGE:-false}
-      ENABLE_MCP_SERVER: ${ENABLE_MCP_SERVER:-false}
-
-      # Scheduled maintenance jobs (all on by default, run via cron)
-      ENABLE_RSS_POSTER: ${ENABLE_RSS_POSTER:-true}
-      RSS_POSTER_SCHEDULE: "${RSS_POSTER_SCHEDULE:-0 * * * *}"
-      ENABLE_ECHOMAIL_ROBOTS: ${ENABLE_ECHOMAIL_ROBOTS:-true}
-      ECHOMAIL_ROBOTS_SCHEDULE: "${ECHOMAIL_ROBOTS_SCHEDULE:-*/5 * * * *}"
-      ENABLE_LOGROTATE: ${ENABLE_LOGROTATE:-true}
-      LOGROTATE_SCHEDULE: "${LOGROTATE_SCHEDULE:-0 0 * * 0}"
-      LOGROTATE_KEEP: ${LOGROTATE_KEEP:-52}
-
-      # Development/Debug
-      APP_DEBUG: ${APP_DEBUG:-false}
-
-      # Admin Daemon (auto-generated if not set)
-      ADMIN_DAEMON_SECRET: ${ADMIN_DAEMON_SECRET:-}
-
-      # Setup flag - set to true on first run to initialize database
+      # Setup flag -- set inline for the first run only:
+      #   RUN_SETUP=true docker-compose up -d
       RUN_SETUP: ${RUN_SETUP:-false}
 
     ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${TELNET_PORT:-2323}:2323"
-      - "${BINKP_PORT:-24554}:24554"
-      - "${DOSDOOR_WS_PORT:-6001}:6001"
-      - "${GEMINI_PORT:-1965}:1965"
-      - "${BINKSTREAM_WS_PORT:-6010}:6010"
-      # Optional daemon ports -- only listening inside the container if the
-      # matching ENABLE_* variable is set to true. FTP passive mode needs an
-      # additional port range; add it via docker-compose.override.yml.
-      - "${SSH_PORT:-2022}:2022"
-      - "${FTPD_PORT:-2121}:2121"
-      - "${MCP_SERVER_PORT:-3740}:3740"
+      - "80:80"
+      - "2323:2323"
+      - "24554:24554"
+      - "6001:6001"
+      - "6010:6010"
+      # Optional daemon ports are not published by default -- enabling a
+      # daemon above also needs its port added via
+      # docker-compose.override.yml. See docker-compose.override.yml.example.
     volumes:
       # Persistent data volumes
       - binkterm_data:/var/www/html/data
