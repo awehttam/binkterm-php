@@ -267,38 +267,52 @@ docker exec -it binkterm-app php /var/www/html/scripts/setup.php
 
 Versions through 1.10 used a single `.env` (copied from `.env.docker.example`) that mixed real BinktermPHP settings together with Docker-only settings (optional daemon toggles, published ports, cron schedules). As of 1.10.1, those are two separate files (see [Configuration](#configuration)), and `.env` is bind-mounted live into the container instead of being folded in once at container creation. This is a one-time migration, not something you'll need to repeat on later upgrades.
 
-- **Pull the new code:**
-  ```bash
-  git pull
-  ```
+#### 1. Pull the New Code
 
-- **Rebuild your `.env` as pure application config.** If your existing `.env` came from the old `.env.docker.example`, it has Docker-only keys mixed into it that no longer belong there. Start fresh from the same file bare-metal installs use, and re-enter your BinktermPHP settings (`SITE_URL`, credentials, feature flags, etc.):
-  ```bash
-  cp .env.example .env
-  nano .env
-  ```
+```bash
+git pull
+```
 
-- **Create `docker-compose.override.yml` for anything Docker-only** you had set in the old `.env` — optional daemon toggles (`ENABLE_SSH`, `ENABLE_FTP`, etc.), non-default host ports, cron schedules:
-  ```bash
-  cp docker-compose.override.yml.example docker-compose.override.yml
-  nano docker-compose.override.yml
-  ```
+#### 2. Rebuild Your `.env` as Pure Application Config
 
-- **Rebuild the image.** This release also changed `Dockerfile`, `entrypoint.sh`, and `supervisord.conf`, all of which are baked into the image at build time — a plain `up -d` isn't enough on its own this time:
-  ```bash
-  docker-compose build
-  docker-compose up -d
-  ```
+If your existing `.env` came from the old `.env.docker.example`, it has Docker-only keys mixed into it that no longer belong there. Start fresh from the same file bare-metal installs use, and re-enter your BinktermPHP settings (`SITE_URL`, credentials, feature flags, etc.):
 
-- **Verify the migration took effect:**
-  ```bash
-  docker exec -it binkterm-app cat /var/www/html/.env
-  # should match your new .env, with no leftover Docker-only keys
+```bash
+cp .env.example .env
+nano .env
+```
 
-  docker exec -it binkterm-app supervisorctl status
-  # cron should be RUNNING; any daemons you enabled in
-  # docker-compose.override.yml should show RUNNING too
-  ```
+#### 3. Create `docker-compose.override.yml`
+
+Move anything Docker-only you had set in the old `.env` here — optional daemon toggles (`ENABLE_SSH`, `ENABLE_FTP`, etc.), non-default host ports, cron schedules:
+
+```bash
+cp docker-compose.override.yml.example docker-compose.override.yml
+nano docker-compose.override.yml
+```
+
+#### 4. Rebuild the Image
+
+This release also changed `Dockerfile`, `entrypoint.sh`, and `supervisord.conf`, all of which are baked into the image at build time — a plain `up -d` isn't enough on its own this time:
+
+```bash
+docker-compose build
+docker-compose up -d
+```
+
+#### 5. Verify the Migration Took Effect
+
+```bash
+docker exec -it binkterm-app cat /var/www/html/.env
+```
+
+This should match your new `.env`, with no leftover Docker-only keys.
+
+```bash
+docker exec -it binkterm-app supervisorctl status
+```
+
+`cron` should show `RUNNING`; any daemons you enabled in `docker-compose.override.yml` should show `RUNNING` too.
 
 After this one-time migration, editing `.env` only needs `docker-compose restart binkterm`, and editing `docker-compose.override.yml` only needs `docker-compose up -d` — see [Configuration](#configuration).
 
