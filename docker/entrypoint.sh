@@ -24,48 +24,56 @@ if [ -n "$DB_HOST" ]; then
     done
 fi
 
-# ADMIN_DAEMON_SECRET is a real application setting (see .env.example), read
-# via Config::env() from the app's on-disk .env, not from the container's
-# process environment. If it's unset or still the .env.example placeholder,
+# .env is bind-mounted from the host at /var/www/html/.env.source (see
+# docker-compose.yml) -- it's the same application config file bare-metal
+# installs use (from .env.example), live-synced by Docker so a host-side
+# edit followed by `docker-compose restart binkterm` is enough to pick it
+# up, with no recreate or rebuild needed.
+#
+# Docker doesn't create a bind-mount target that doesn't already exist as a
+# file -- it silently creates an empty directory instead, which breaks
+# everything below in a confusing way. Fail loudly instead.
+SRC=/var/www/html/.env.source
+if [ ! -f "$SRC" ]; then
+    echo "ERROR: $SRC not found (or not a regular file)."
+    echo "Copy .env.example to .env in the project directory before starting the container."
+    exit 1
+fi
+
+# ADMIN_DAEMON_SECRET is a real application setting (see .env.example). If
+# it's unset or still the .env.example placeholder in the mounted .env,
 # reuse a previously-generated value from an existing /var/www/html/.env
 # (so restarting the container doesn't rotate it) before generating a new
 # random one.
-if [ -z "$ADMIN_DAEMON_SECRET" ] || [ "$ADMIN_DAEMON_SECRET" = "change_me" ]; then
+SRC_SECRET=$(grep '^ADMIN_DAEMON_SECRET=' "$SRC" | tail -1 | cut -d= -f2-)
+if [ -z "$SRC_SECRET" ] || [ "$SRC_SECRET" = "change_me" ]; then
     EXISTING_SECRET=""
     if [ -f /var/www/html/.env ]; then
         EXISTING_SECRET=$(grep '^ADMIN_DAEMON_SECRET=' /var/www/html/.env | tail -1 | cut -d= -f2-)
     fi
 
     if [ -n "$EXISTING_SECRET" ] && [ "$EXISTING_SECRET" != "change_me" ]; then
-        ADMIN_DAEMON_SECRET="$EXISTING_SECRET"
+        RESOLVED_SECRET="$EXISTING_SECRET"
         echo "Reusing existing ADMIN_DAEMON_SECRET"
     else
-        ADMIN_DAEMON_SECRET=$(openssl rand -hex 32)
+        RESOLVED_SECRET=$(openssl rand -hex 32)
         echo "Generated random ADMIN_DAEMON_SECRET"
     fi
+else
+    RESOLVED_SECRET="$SRC_SECRET"
 fi
-export ADMIN_DAEMON_SECRET
 
-# Regenerate the app's /var/www/html/.env from the container's environment on
-# every start. .env arrives via docker-compose.yml's "env_file: .env" (the
-# same application config file bare-metal installs use), plus a couple of
-# Docker-computed overrides (DB_HOST, DB_PORT, ADMIN_DAEMON_SECRET). This
-# runs every start (not just once) so config changes just need
-# `docker-compose up -d`, not a rebuild.
-#
-# Config::env() only reads $_ENV populated from this file -- PHP's
-# variables_order here is GPCS (no E), so container environment variables
-# never reach the app on their own; only what's written into this file does.
-#
-# Docker-only orchestration variables (ENABLE_*, *_SCHEDULE, LOGROTATE_KEEP,
-# RUN_SETUP) and generic image/system plumbing are filtered out so this file
-# stays exclusively BinktermPHP application configuration.
+# Write /var/www/html/.env from the mounted source, with DB_HOST/DB_PORT
+# (Compose always points the app at the "postgres" service, regardless of
+# what's in .env) and the resolved ADMIN_DAEMON_SECRET layered on top.
 echo "Writing application .env..."
 
-DOCKER_ONLY_VARS='^(ENABLE_GEMINI|ENABLE_SSH|ENABLE_FTP|ENABLE_MRC|ENABLE_AI_BOT|ENABLE_MATTERBRIDGE|ENABLE_MCP_SERVER|ENABLE_RSS_POSTER|RSS_POSTER_SCHEDULE|ENABLE_ECHOMAIL_ROBOTS|ECHOMAIL_ROBOTS_SCHEDULE|ENABLE_LOGROTATE|LOGROTATE_SCHEDULE|LOGROTATE_KEEP|RUN_SETUP)='
-SYSTEM_PLUMBING_VARS='^(PATH|HOME|HOSTNAME|PWD|OLDPWD|SHLVL|_|TERM|LANG|LANGUAGE|LC_[A-Z]+|DEBIAN_FRONTEND|COMPOSER_ALLOW_SUPERUSER|APACHE_DOCUMENT_ROOT|APACHE_CONFDIR|APACHE_ENVVARS|PHP_[A-Z_]+|GPG_KEYS)='
-
-env | grep -Ev "$DOCKER_ONLY_VARS" | grep -Ev "$SYSTEM_PLUMBING_VARS" > /var/www/html/.env
+{
+    grep -Ev '^(DB_HOST|DB_PORT|ADMIN_DAEMON_SECRET)=' "$SRC"
+    echo "DB_HOST=${DB_HOST:-postgres}"
+    echo "DB_PORT=${DB_PORT:-5432}"
+    echo "ADMIN_DAEMON_SECRET=$RESOLVED_SECRET"
+} > /var/www/html/.env
 
 chown binkterm:binkterm /var/www/html/.env
 chmod 640 /var/www/html/.env

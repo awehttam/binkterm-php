@@ -4,12 +4,17 @@
 # Production-ready Docker Compose configuration for BinktermPHP
 #
 # Usage:
-#   1. Copy .env.example to .env and configure BinktermPHP itself -- this is
-#      the exact same file bare-metal installs use (SITE_URL, credentials,
-#      feature flags, etc.). It is loaded directly into the app container.
+#   1. Copy .env.example to .env (it must exist before the first `up`) and
+#      configure BinktermPHP itself -- this is the exact same file bare-metal
+#      installs use (SITE_URL, credentials, feature flags, etc.). It's
+#      bind-mounted live into the app container, so editing it and running
+#      `docker-compose restart binkterm` is enough to pick up a change --
+#      no rebuild or recreate needed.
 #   2. Copy docker-compose.override.yml.example to docker-compose.override.yml
 #      for Docker-only settings: optional daemons, published host ports,
-#      scheduled-job timing. See that file for the full list.
+#      scheduled-job timing. See that file for the full list. Changes here
+#      DO need `docker-compose up -d` (recreate), since they're baked into
+#      the container's environment at creation time.
 #   3. First run: RUN_SETUP=true docker-compose up -d
 #   4. Subsequent runs: docker-compose up -d
 #
@@ -46,8 +51,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    env_file:
-      - .env
     environment:
       # Docker-computed: a bare-metal .env normally points at DB_HOST=localhost,
       # but inside Compose the database is the separate "postgres" service.
@@ -89,6 +92,12 @@ services:
       # daemon above also needs its port added via
       # docker-compose.override.yml. See docker-compose.override.yml.example.
     volumes:
+      # BinktermPHP's own application config, bind-mounted live so entrypoint.sh
+      # picks up edits on every container start -- `docker-compose restart
+      # binkterm` is enough, no recreate needed. Must exist before first `up`
+      # or Docker will create an empty directory at this path instead.
+      - ./.env:/var/www/html/.env.source:ro
+
       # Persistent data volumes
       - binkterm_data:/var/www/html/data
       - binkterm_config:/var/www/html/config

@@ -42,7 +42,8 @@ Container initialization script that:
 - Waits for PostgreSQL to be ready
 - Regenerates `/var/www/html/.env` (the application's own config, distinct
   from Docker-only settings -- see [docs/DOCKER.md#configuration](../docs/DOCKER.md#configuration))
-  from the container environment on every start
+  from the bind-mounted `.env.source` on every start, so `docker-compose
+  restart binkterm` alone is enough to pick up a `.env` edit
 - Runs database setup/migrations (if `RUN_SETUP=true`)
 - Sets correct file permissions
 - Activates optional daemons requested via `ENABLE_*` environment variables
@@ -156,10 +157,15 @@ docker exec -it binkterm-app cat /var/www/html/data/logs/binkp_server.log
 
 ### Test Entrypoint Without Starting Services
 
+`entrypoint.sh` requires `/var/www/html/.env.source` to exist (it's normally
+the `.env` bind mount from `docker-compose.yml`) and fails fast if it
+doesn't, so mount a real `.env` in manually:
+
 ```bash
 docker run --rm -it \
   -e DB_HOST=postgres \
   -e DB_PASS=test \
+  -v "$(pwd)/.env:/var/www/html/.env.source:ro" \
   --entrypoint /usr/local/bin/entrypoint.sh \
   binkterm-app \
   /bin/bash

@@ -93,8 +93,8 @@ same-named application setting:
 
 | File | Contains | Loaded how |
 |---|---|---|
-| `.env` (from `.env.example`) | BinktermPHP application configuration -- `SITE_URL`, session settings, feature flags, per-daemon internal ports (`SSH_PORT`, `GEMINI_PORT`, etc.), everything documented in [CONFIGURATION.md](CONFIGURATION.md) | `env_file: .env` in `docker-compose.yml`, loaded directly into the container |
-| `docker-compose.override.yml` (from `docker-compose.override.yml.example`) | Docker-only settings: optional daemon toggles, published host ports, scheduled-job timing, volumes, resource limits | Merged automatically by Compose |
+| `.env` (from `.env.example`) | BinktermPHP application configuration -- `SITE_URL`, session settings, feature flags, per-daemon internal ports (`SSH_PORT`, `GEMINI_PORT`, etc.), everything documented in [CONFIGURATION.md](CONFIGURATION.md) | Bind-mounted live into the container (`docker-compose.yml`), re-read by `entrypoint.sh` on every start |
+| `docker-compose.override.yml` (from `docker-compose.override.yml.example`) | Docker-only settings: optional daemon toggles, published host ports, scheduled-job timing, volumes, resource limits | Baked into the container's environment at creation time by Compose |
 
 `.env` is never docker-aware and contains nothing Docker-specific. A setting
 like `SSH_PORT` in `.env` controls the *internal* port `ssh_daemon.php` binds
@@ -102,6 +102,22 @@ to inside the container; the *host*-facing port it's published on is a
 completely separate concern configured in `docker-compose.override.yml` (see
 [Included Services](#included-services)). Changing one never affects the
 other.
+
+**Editing `.env`** only needs a restart, not a recreate, since it's bind-mounted live:
+
+```bash
+nano .env
+docker-compose restart binkterm
+```
+
+**Editing `docker-compose.override.yml`** needs `docker-compose up -d` instead, since Compose only re-resolves those values when it recreates the container:
+
+```bash
+nano docker-compose.override.yml
+docker-compose up -d
+```
+
+`.env` must exist (`cp .env.example .env`) before the very first `docker-compose up` -- Docker creates an empty directory at the mount point instead of erroring if the source file is missing, which breaks startup in a confusing way. `entrypoint.sh` checks for this and fails with a clear message if it happens.
 
 ### Database Credentials
 
@@ -223,6 +239,8 @@ docker-compose restart
 # Restart just the app
 docker-compose restart binkterm
 ```
+
+This is also how you pick up a `.env` change (see [Configuration](#configuration)) -- `docker-compose restart binkterm` is enough, no `up -d` needed.
 
 ### Updating the Application
 
