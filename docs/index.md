@@ -157,6 +157,7 @@ Specifications published by the LovlyNet Standards Council.
 
 Release-specific upgrade notes, listed newest-first. See [UPGRADING_TEMPLATE.md](UPGRADING_TEMPLATE.md) for the document template.
 
+- [Upgrading to 1.10.1](UPGRADING_1.10.1.md)
 - [Upgrading to 1.10.0](UPGRADING_1.10.0.md)
 - [Upgrading to 1.9.10](UPGRADING_1.9.10.md)
 - [Upgrading to 1.9.9](UPGRADING_1.9.9.md)
