@@ -9,12 +9,6 @@ docker-compose.yml
 .dockerignore
 .env.docker.example
 
-# Documentation
-*.md
-docs/
-FAQ.md
-UPGRADING_*.md
-
 # Development and testing
 test/
 tests/
