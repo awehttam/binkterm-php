@@ -120,6 +120,36 @@ mkdir -p \
 chown -R binkterm:binkterm /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
 chmod -R 775 /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
 
+# Activate optional daemons requested via ENABLE_* environment variables.
+# Each daemon ships as a disabled-by-default template in
+# /opt/binkterm-conf.d-available/ (see docker/conf.d.available/); this loop
+# copies the requested ones into the live supervisor include directory so
+# supervisord picks them up on startup. Nothing here overrides the always-on
+# core services (apache, admin_daemon, binkp_scheduler, binkp_server,
+# telnet_daemon, dosdoor_bridge, realtime_server), which are defined directly
+# in supervisord.conf.
+echo "Configuring optional daemons..."
+mkdir -p /etc/supervisor/conf.d/enabled
+rm -f /etc/supervisor/conf.d/enabled/*.conf
+
+declare -A OPTIONAL_DAEMONS=(
+    [ENABLE_GEMINI]=gemini_daemon
+    [ENABLE_SSH]=ssh_daemon
+    [ENABLE_FTP]=ftp_daemon
+    [ENABLE_MRC]=mrc_daemon
+    [ENABLE_AI_BOT]=ai_bot_daemon
+    [ENABLE_MATTERBRIDGE]=matterbridge_daemon
+    [ENABLE_MCP_SERVER]=mcp_server
+)
+
+for var in "${!OPTIONAL_DAEMONS[@]}"; do
+    daemon="${OPTIONAL_DAEMONS[$var]}"
+    if [ "${!var}" = "true" ]; then
+        cp "/opt/binkterm-conf.d-available/${daemon}.conf" /etc/supervisor/conf.d/enabled/
+        echo "  enabled: $daemon (via $var)"
+    fi
+done
+
 echo "Initialization complete!"
 echo ""
 

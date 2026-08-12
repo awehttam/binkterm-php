@@ -95,6 +95,10 @@ HTTP_PORT=80              # Web interface (default: 80)
 BINKP_PORT=24554          # BinkP server (default: 24554)
 DOSDOOR_WS_PORT=24555     # DOS Door WebSocket (default: 24555)
 BINKSTREAM_WS_PORT=6010   # Realtime (BinkStream) WebSocket (default: 6010)
+GEMINI_PORT=1965          # Gemini protocol server, requires ENABLE_GEMINI=true (default: 1965)
+SSH_PORT=2022             # SSH BBS server, requires ENABLE_SSH=true (default: 2022)
+FTPD_PORT=2121            # FTP control port, requires ENABLE_FTP=true (default: 2121)
+MCP_SERVER_PORT=3740      # MCP server, requires ENABLE_MCP_SERVER=true (default: 3740)
 ```
 
 If you need to use different ports (e.g., 8080 instead of 80):
@@ -114,9 +118,9 @@ APP_DEBUG=false           # Set to true for verbose error messages
 
 ## Included Services
 
-`docker/supervisord.conf` only starts the basic set of services needed for the core web interface and FTN networking. It is not a complete list of everything BinktermPHP can run — several optional daemons documented elsewhere in the project are left out of the Docker image entirely so the default container stays small and focused.
+`docker/supervisord.conf` always starts the core set of services needed for the web interface and FTN networking. Everything else is opt-in via `ENABLE_*` environment variables in `.env`, read by `docker/entrypoint.sh` on every container start (no rebuild required to toggle one on or off).
 
-### Started automatically
+### Always on
 
 - **apache** — the web interface
 - **admin_daemon** — configuration/management daemon (writes `config/*.json` on behalf of the web process)
@@ -126,22 +130,21 @@ APP_DEBUG=false           # Set to true for verbose error messages
 - **dosdoor_bridge** — DOS door game multiplexing server (Node.js)
 - **telnet_daemon** — Telnet BBS server
 
-### Present but disabled by default
+### Optional, off by default
 
-- **gemini_daemon** — Gemini protocol server. Present in `supervisord.conf` with `autostart=false`; enable it by changing that line to `autostart=true` and rebuilding, or start it on demand with `docker exec -it binkterm-app supervisorctl start gemini_daemon`. Also requires publishing `GEMINI_PORT` in `docker-compose.yml`.
+Set the matching variable to `true` in `.env` and run `docker-compose up -d` to enable. Each one ships as a template in `docker/conf.d.available/`.
 
-### Not included at all
+| Variable | Daemon | Port variable | Notes |
+|---|---|---|---|
+| `ENABLE_GEMINI` | gemini_daemon | `GEMINI_PORT` (1965) | Gemini protocol server |
+| `ENABLE_SSH` | ssh_daemon | `SSH_PORT` (2022) | Shares terminal-side code with the Telnet daemon; see `ssh/CLAUDE.md` |
+| `ENABLE_FTP` | ftp_daemon | `FTPD_PORT` (2121) | Only the control port is published by default. Passive mode needs an additional port range (default 2122-2149) — add it via `docker-compose.override.yml` (see [docker-compose.override.yml.example](../docker-compose.override.yml.example)) |
+| `ENABLE_MRC` | mrc_daemon | — | Outbound-only Multi Relay Chat client, no port needed |
+| `ENABLE_AI_BOT` | ai_bot_daemon | — | Reactive via Postgres NOTIFY, no port needed |
+| `ENABLE_MATTERBRIDGE` | matterbridge_daemon | — | Polls the Matterbridge API, no port needed |
+| `ENABLE_MCP_SERVER` | mcp_server | `MCP_SERVER_PORT` (3740) | See `docs/MCPServer.md`. **Requires a valid `data/license.json`** — the daemon checks for one on startup and exits if unlicensed, so enabling it without a license just fails gracefully rather than breaking the container |
 
-These daemons exist in the project but have no `supervisord.conf` entry or exposed port in the default Docker setup:
-
-- **SSH daemon** (`ssh/ssh_daemon.php`, default port 2022) — shares terminal-side code with the Telnet daemon; see `ssh/CLAUDE.md`
-- **MCP server** (`mcp-server/`, default port 3740) — see `docs/MCPServer.md`
-- **Matterbridge daemon** (`scripts/matterbridge_daemon.php`)
-- **MRC daemon** (`scripts/mrc_daemon.php`)
-- **AI bot daemon** (`scripts/ai_bot_daemon.php`)
-- **FTP daemon** (`scripts/ftp_daemon.php`)
-
-If you want to run one of these under Docker, add a `[program:...]` block for it to `docker/supervisord.conf` (see [Adding Services to Supervisor](../docker/README.md#adding-services-to-supervisor) in `docker/README.md` for the block format), publish any port it needs in `docker-compose.yml` and `EXPOSE` it in the `Dockerfile`, then rebuild. These are ordinary PHP/Node scripts with no Docker-specific requirements, so wiring one in is the same as adding any other supervisor-managed process.
+If you need a daemon that isn't in the table above, add a `[program:...]` block for it — see [Adding a New Service to Supervisor](../docker/README.md#adding-a-new-service-to-supervisor) in `docker/README.md`.
 
 ## First Run Setup
 

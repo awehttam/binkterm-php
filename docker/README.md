@@ -9,14 +9,28 @@ This directory contains Docker-specific configuration files for BinktermPHP.
 ## Files
 
 ### supervisord.conf
-Supervisor configuration that manages all BinktermPHP services:
+Supervisor configuration that manages the always-on BinktermPHP services:
 - **apache**: Web server for PHP application
 - **admin_daemon**: BBS configuration and management daemon
+- **realtime_server**: BinkStream WebSocket/SSE server
 - **binkp_scheduler**: Schedules periodic BinkP mail polls
 - **binkp_server**: FidoNet mail server (BinkP protocol)
 - **dosdoor_bridge**: DOS door game multiplexing server (Node.js)
+- **telnet_daemon**: Telnet BBS server
 
-All services run as `www-data` user except Apache (must run as root).
+All services run as the `binkterm` user except Apache (must run as root). It also
+`[include]`s `/etc/supervisor/conf.d/enabled/*.conf`, the directory `entrypoint.sh`
+populates with optional daemons at container startup (see `conf.d.available/` below).
+
+### conf.d.available/
+One supervisor template per optional daemon, each disabled unless its `ENABLE_*`
+environment variable is `true`: `gemini_daemon.conf`, `ssh_daemon.conf`,
+`ftp_daemon.conf`, `mrc_daemon.conf`, `ai_bot_daemon.conf`,
+`matterbridge_daemon.conf`, `mcp_server.conf`. See
+[docs/DOCKER.md#included-services](../docs/DOCKER.md#included-services) for the
+full list of `ENABLE_*` variables. These files are shipped in the image at
+`/opt/binkterm-conf.d-available/` and are not loaded by supervisord unless copied
+into `/etc/supervisor/conf.d/enabled/`.
 
 ### entrypoint.sh
 Container initialization script that:
@@ -24,6 +38,7 @@ Container initialization script that:
 - Creates `.env` file from environment variables
 - Runs database setup/migrations (if `RUN_SETUP=true`)
 - Sets correct file permissions
+- Activates optional daemons requested via `ENABLE_*` environment variables
 - Starts supervisor
 
 ## Usage
@@ -49,9 +64,31 @@ docker-compose up -d
 
 ## Customization
 
-### Adding Services to Supervisor
+### Enabling an Optional Daemon
 
-Edit `supervisord.conf` and add a new `[program:name]` section:
+Set its `ENABLE_*` variable to `true` in `.env` (see
+[docs/DOCKER.md#included-services](../docs/DOCKER.md#included-services) for the
+full list) and restart the container -- no rebuild needed, since `entrypoint.sh`
+reads the flag on every container start:
+
+```bash
+docker-compose up -d
+```
+
+### Sysop-Local Compose Changes
+
+Use `docker-compose.override.yml` (copy it from
+`docker-compose.override.yml.example` in the project root) for host-specific
+volumes, extra ports, or resource limits. It's gitignored and merges
+automatically with `docker-compose.yml`, so it survives `git pull` / image
+upgrades without touching tracked files.
+
+### Adding a New Service to Supervisor
+
+For a daemon not already covered by an `ENABLE_*` toggle, add a new
+`[program:name]` block, either directly in `supervisord.conf` for something
+that should always run, or as a new file in `conf.d.available/` (with a matching
+entry in `entrypoint.sh`'s `OPTIONAL_DAEMONS` map) if it should be opt-in:
 
 ```ini
 [program:my_service]
@@ -60,7 +97,7 @@ autostart=true
 autorestart=true
 stdout_logfile=/var/www/html/data/logs/my_service.log
 stderr_logfile=/var/www/html/data/logs/my_service_error.log
-user=www-data
+user=binkterm
 directory=/var/www/html
 ```
 

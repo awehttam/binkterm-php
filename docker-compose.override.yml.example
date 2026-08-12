@@ -1,0 +1,40 @@
+#
+# BinktermPHP docker-compose.override.yml.example
+#
+# Docker Compose automatically merges docker-compose.override.yml with
+# docker-compose.yml if it exists, so this is the place for sysop-specific
+# tweaks -- extra volumes, extra ports, resource limits -- that should
+# survive `git pull` / image updates without editing the tracked
+# docker-compose.yml.
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   nano docker-compose.override.yml
+#   docker-compose up -d
+#
+# The real docker-compose.override.yml is gitignored; edit it freely.
+#
+services:
+  binkterm:
+    # Example: publish the FTP passive data port range for ENABLE_FTP=true.
+    # docker-compose.yml only publishes the FTP control port (FTPD_PORT) by
+    # default since the full passive range is 28 ports.
+    # ports:
+    #   - "2122-2149:2122-2149"
+
+    # Example: mount door games from the host instead of baking them into the image.
+    # volumes:
+    #   - ./scripts/dosbox-bridge/dos/doors:/var/www/html/scripts/dosbox-bridge/dos/doors:ro
+
+    # Example: mount source directories for live editing during development.
+    # volumes:
+    #   - ./public_html:/var/www/html/public_html
+    #   - ./templates:/var/www/html/templates
+    #   - ./src:/var/www/html/src
+
+    # Example: cap resource usage.
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G

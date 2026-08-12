@@ -71,6 +71,15 @@ services:
       # Credits System
       CREDITS_ENABLED: ${CREDITS_ENABLED:-true}
 
+      # Optional daemons (all off by default -- see docs/DOCKER.md#included-services)
+      ENABLE_GEMINI: ${ENABLE_GEMINI:-false}
+      ENABLE_SSH: ${ENABLE_SSH:-false}
+      ENABLE_FTP: ${ENABLE_FTP:-false}
+      ENABLE_MRC: ${ENABLE_MRC:-false}
+      ENABLE_AI_BOT: ${ENABLE_AI_BOT:-false}
+      ENABLE_MATTERBRIDGE: ${ENABLE_MATTERBRIDGE:-false}
+      ENABLE_MCP_SERVER: ${ENABLE_MCP_SERVER:-false}
+
       # Development/Debug
       APP_DEBUG: ${APP_DEBUG:-false}
 
@@ -87,6 +96,12 @@ services:
       - "${DOSDOOR_WS_PORT:-6001}:6001"
       - "${GEMINI_PORT:-1965}:1965"
       - "${BINKSTREAM_WS_PORT:-6010}:6010"
+      # Optional daemon ports -- only listening inside the container if the
+      # matching ENABLE_* variable is set to true. FTP passive mode needs an
+      # additional port range; add it via docker-compose.override.yml.
+      - "${SSH_PORT:-2022}:2022"
+      - "${FTPD_PORT:-2121}:2121"
+      - "${MCP_SERVER_PORT:-3740}:3740"
     volumes:
       # Persistent data volumes
       - binkterm_data:/var/www/html/data
