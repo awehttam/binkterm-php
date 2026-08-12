@@ -150,6 +150,37 @@ for var in "${!OPTIONAL_DAEMONS[@]}"; do
     fi
 done
 
+# Generate the scheduled-job crontab from the ENABLE_*/*_SCHEDULE env vars.
+# Regenerated on every container start so schedule changes just need a
+# `docker-compose up -d`, not a rebuild. Jobs run as the binkterm user;
+# cron itself (supervisor's [program:cron]) runs as root to read /etc/cron.d.
+echo "Configuring scheduled jobs..."
+
+RSS_POSTER_SCHEDULE="${RSS_POSTER_SCHEDULE:-0 * * * *}"
+ECHOMAIL_ROBOTS_SCHEDULE="${ECHOMAIL_ROBOTS_SCHEDULE:-*/5 * * * *}"
+LOGROTATE_SCHEDULE="${LOGROTATE_SCHEDULE:-0 0 * * 0}"
+LOGROTATE_KEEP="${LOGROTATE_KEEP:-52}"
+
+{
+    echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+    if [ "${ENABLE_RSS_POSTER:-true}" = "true" ]; then
+        echo "$RSS_POSTER_SCHEDULE binkterm cd /var/www/html && php scripts/rss_poster.php >> /var/www/html/data/logs/rss_poster.log 2>&1"
+    fi
+
+    if [ "${ENABLE_ECHOMAIL_ROBOTS:-true}" = "true" ]; then
+        echo "$ECHOMAIL_ROBOTS_SCHEDULE binkterm cd /var/www/html && php scripts/echomail_robots.php --quiet >> /var/www/html/data/logs/echomail_robots.log 2>&1"
+    fi
+
+    if [ "${ENABLE_LOGROTATE:-true}" = "true" ]; then
+        echo "$LOGROTATE_SCHEDULE binkterm cd /var/www/html && php scripts/logrotate.php --keep=$LOGROTATE_KEEP >> /var/www/html/data/logs/logrotate.log 2>&1"
+    fi
+
+    echo ""
+} > /etc/cron.d/binkterm
+
+chmod 644 /etc/cron.d/binkterm
+
 echo "Initialization complete!"
 echo ""
 

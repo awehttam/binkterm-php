@@ -17,10 +17,15 @@ Supervisor configuration that manages the always-on BinktermPHP services:
 - **binkp_server**: FidoNet mail server (BinkP protocol)
 - **dosdoor_bridge**: DOS door game multiplexing server (Node.js)
 - **telnet_daemon**: Telnet BBS server
+- **cron**: Runs the scheduled maintenance jobs (`rss_poster`, `echomail_robots`,
+  `logrotate`) defined in `/etc/cron.d/binkterm`, which `entrypoint.sh`
+  regenerates from `ENABLE_*`/`*_SCHEDULE` env vars on every container start
 
-All services run as the `binkterm` user except Apache (must run as root). It also
-`[include]`s `/etc/supervisor/conf.d/enabled/*.conf`, the directory `entrypoint.sh`
-populates with optional daemons at container startup (see `conf.d.available/` below).
+All services run as the `binkterm` user except Apache and cron (must run as
+root; cron drops to `binkterm` per-job via the user field in its crontab). It
+also `[include]`s `/etc/supervisor/conf.d/enabled/*.conf`, the directory
+`entrypoint.sh` populates with optional daemons at container startup (see
+`conf.d.available/` below).
 
 ### conf.d.available/
 One supervisor template per optional daemon, each disabled unless its `ENABLE_*`

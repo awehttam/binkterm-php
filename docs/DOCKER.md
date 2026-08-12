@@ -146,6 +146,18 @@ Set the matching variable to `true` in `.env` and run `docker-compose up -d` to 
 
 If you need a daemon that isn't in the table above, add a `[program:...]` block for it — see [Adding a New Service to Supervisor](../docker/README.md#adding-a-new-service-to-supervisor) in `docker/README.md`.
 
+### Scheduled maintenance jobs (cron)
+
+On bare metal these run via crontab entries (see `docs/CLI.md`); in Docker they're driven by a `cron` process under supervisor, on by default. `docker/entrypoint.sh` regenerates `/etc/cron.d/binkterm` from these env vars on every container start, so changing a schedule or disabling a job is a `docker-compose up -d`, not a rebuild.
+
+| Job | Enable variable | Schedule variable | Default schedule | Notes |
+|---|---|---|---|---|
+| `scripts/rss_poster.php` | `ENABLE_RSS_POSTER` | `RSS_POSTER_SCHEDULE` | `0 * * * *` (hourly) | Polls RSS feeds configured under Auto Feed; see `docs/Autofeed.md` |
+| `scripts/echomail_robots.php` | `ENABLE_ECHOMAIL_ROBOTS` | `ECHOMAIL_ROBOTS_SCHEDULE` | `*/5 * * * *` (every 5 minutes) | Runs enabled echomail robots; see `docs/Robots.md` |
+| `scripts/logrotate.php` | `ENABLE_LOGROTATE` | `LOGROTATE_SCHEDULE` | `0 0 * * 0` (Sundays at midnight) | Also reads `LOGROTATE_KEEP` (default `52`) for the `--keep` count |
+
+Schedule variables take standard 5-field cron syntax. Job output is appended to its own log under `data/logs/` (e.g. `data/logs/rss_poster.log`).
+
 ## First Run Setup
 
 ### Option 1: Environment Variable (Recommended)

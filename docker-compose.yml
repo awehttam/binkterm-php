@@ -80,6 +80,15 @@ services:
       ENABLE_MATTERBRIDGE: ${ENABLE_MATTERBRIDGE:-false}
       ENABLE_MCP_SERVER: ${ENABLE_MCP_SERVER:-false}
 
+      # Scheduled maintenance jobs (all on by default, run via cron)
+      ENABLE_RSS_POSTER: ${ENABLE_RSS_POSTER:-true}
+      RSS_POSTER_SCHEDULE: "${RSS_POSTER_SCHEDULE:-0 * * * *}"
+      ENABLE_ECHOMAIL_ROBOTS: ${ENABLE_ECHOMAIL_ROBOTS:-true}
+      ECHOMAIL_ROBOTS_SCHEDULE: "${ECHOMAIL_ROBOTS_SCHEDULE:-*/5 * * * *}"
+      ENABLE_LOGROTATE: ${ENABLE_LOGROTATE:-true}
+      LOGROTATE_SCHEDULE: "${LOGROTATE_SCHEDULE:-0 0 * * 0}"
+      LOGROTATE_KEEP: ${LOGROTATE_KEEP:-52}
+
       # Development/Debug
       APP_DEBUG: ${APP_DEBUG:-false}
 
