@@ -90,6 +90,21 @@ else
     echo "Skipping database setup (set RUN_SETUP=true to enable)"
 fi
 
+# Sync i18n translation catalogs from the image into the persistent config volume.
+# config/ is a named Docker volume so sysop settings (binkp.json, bbs.json, etc.)
+# survive image rebuilds, but that also shadows config/i18n/ -- the translation
+# catalogs, which are application code that changes every release. Docker only
+# seeds a named volume from the image on its first creation, so without this sync
+# the volume would stay frozen at whatever catalogs existed when it was first
+# created and never pick up new/changed translation keys on later upgrades.
+# config/i18n/overrides/ holds sysop-customized phrases and is excluded so it is
+# never touched.
+if [ -d /opt/binkterm-i18n-src ]; then
+    echo "Syncing i18n translation catalogs from image..."
+    mkdir -p /var/www/html/config/i18n
+    rsync -a --delete --exclude=overrides/ /opt/binkterm-i18n-src/ /var/www/html/config/i18n/
+fi
+
 # Verify critical directories exist with correct permissions.
 # Volumes may be mounted empty on first run, so re-create and re-own as needed.
 # binkterm owns the files; www-data (in binkterm group) gets write access via 775.

@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         nodejs \
         p7zip-full \
         postgresql-client \
+        rsync \
         supervisor \
         unzip \
         # DOSBox-X for DOS door support with headless operation
@@ -64,6 +65,21 @@ COPY . .
 
 # Install Node.js dependencies for DOS door bridge
 RUN cd scripts/dosbox-bridge && npm install --production
+
+# Stash a pristine copy of the i18n translation catalogs outside config/.
+# config/ is mounted as a persistent named volume (see docker-compose.yml) so that
+# sysop-edited settings (binkp.json, bbs.json, etc.) survive image rebuilds. But that
+# same volume mount also shadows config/i18n/ -- the translation catalogs, which are
+# application code that changes every release, not sysop data. Docker only seeds a
+# named volume from the image on its first creation, so without this, a sysop's
+# volume freezes at whatever i18n catalogs existed when it was first created and
+# never picks up new/changed translation keys on later upgrades.
+# entrypoint.sh rsyncs this reference copy into the live volume on every container
+# start. config/i18n/overrides/ holds sysop-customized phrases and is excluded here
+# so it is never overwritten.
+RUN mkdir -p /opt/binkterm-i18n-src \
+    && cp -a config/i18n/. /opt/binkterm-i18n-src/ \
+    && rm -rf /opt/binkterm-i18n-src/overrides
 
 # Create necessary directories and set permissions.
 # Files are owned by binkterm (mirroring a normal install).
