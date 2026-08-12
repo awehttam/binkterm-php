@@ -1,4 +1,4 @@
- # Upgrading to 1.10.1
+# Upgrading to 1.10.1
 
 Make sure you have a current backup of your database and files before upgrading.
 
