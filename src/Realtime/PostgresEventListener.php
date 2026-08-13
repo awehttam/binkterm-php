@@ -155,10 +155,25 @@ class PostgresEventListener implements EventListenerInterface
             }
         }
 
-        $connection = @pg_connect($connStr);
+        $phpWarning = null;
+        set_error_handler(function (int $errno, string $errstr) use (&$phpWarning): bool {
+            $phpWarning = $errstr;
+            return true;
+        });
+        try {
+            $connection = pg_connect($connStr);
+        } finally {
+            restore_error_handler();
+        }
+
         if (!is_resource($connection)) {
-            $error = function_exists('pg_last_error') ? @pg_last_error() : null;
-            $this->logger->error('PostgreSQL event listener: pg_connect failed', $error ? ['error' => $error] : []);
+            $this->logger->error('PostgreSQL event listener: pg_connect failed', [
+                'host' => $this->databaseConfig['host'],
+                'port' => $this->databaseConfig['port'],
+                'dbname' => $this->databaseConfig['database'],
+                'ssl_enabled' => !empty($ssl['enabled']),
+                'warning' => $phpWarning,
+            ]);
             return false;
         }
 
