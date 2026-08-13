@@ -122,11 +122,6 @@ class FileAreaManager
         }
     }
 
-    private function isFreqExperimentalEnabled(): bool
-    {
-        return Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true';
-    }
-
     /**
      * LovlyNet file areas are generally uploadable, except the project release
      * area which must stay read-only.
@@ -1090,14 +1085,9 @@ class FileAreaManager
         }
 
         $geminiPublic = (bool)($data['gemini_public'] ?? false);
-        if ($this->isFreqExperimentalEnabled()) {
-            $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
-            $freqPassword = trim((string)($data['freq_password'] ?? ''));
-            $freqPassword = $freqPassword === '' ? null : $freqPassword;
-        } else {
-            $freqEnabled = false;
-            $freqPassword = null;
-        }
+        $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
+        $freqPassword = trim((string)($data['freq_password'] ?? ''));
+        $freqPassword = $freqPassword === '' ? null : $freqPassword;
 
         $commentEchoareaId = isset($data['comment_echoarea_id']) && $data['comment_echoarea_id'] !== '' && $data['comment_echoarea_id'] !== null
             ? (int)$data['comment_echoarea_id']
@@ -1178,15 +1168,9 @@ class FileAreaManager
 
         $geminiPublic = (bool)($data['gemini_public'] ?? false);
         $isPublic = \BinktermPHP\License::isValid() ? (bool)($data['is_public'] ?? false) : false;
-        if ($this->isFreqExperimentalEnabled()) {
-            $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
-            $freqPassword = trim((string)($data['freq_password'] ?? ''));
-            $freqPassword = $freqPassword === '' ? null : $freqPassword;
-        } else {
-            $freqEnabled = !empty($currentArea['freq_enabled']);
-            $freqPassword = trim((string)($currentArea['freq_password'] ?? ''));
-            $freqPassword = $freqPassword === '' ? null : $freqPassword;
-        }
+        $freqEnabled  = (bool)($data['freq_enabled'] ?? false);
+        $freqPassword = trim((string)($data['freq_password'] ?? ''));
+        $freqPassword = $freqPassword === '' ? null : $freqPassword;
 
         // Only touch iso_mount_point when the sysop explicitly provided a value.
         $mountCols   = '';
