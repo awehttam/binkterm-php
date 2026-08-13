@@ -1025,7 +1025,7 @@ Everything above covers *serving* files to remote nodes that FREQ this BBS. The 
 To request a file:
 
 1. Go to **Files → File Requests** and click **New Request**.
-2. Enter the remote node's address (e.g. `3:770/220`), and the filename or magic name to request (e.g. `NZINTFAQ`, `ALLFILES`).
+2. Enter the remote node's address (e.g. `227:1/200`), and the filename or magic name to request (e.g. `ALLFILES`, `ALLFILES`).
 3. Choose the request method: **.req file** (default — a classic Bark/WaZOO request sent as a normal file transfer, understood by nearly every FTN mailer) or **M_GET** (a live-session binkp request per FSP-1011 — only reliable if the remote node is known to support it).
 4. Submit. The request is queued and a connection attempt to the remote node is triggered immediately; if it doesn't complete right away, it's retried automatically on an interval (`FREQ_POLL_INTERVAL`, default 300 seconds) until it either succeeds or exhausts `FREQ_MAX_ATTEMPTS` (default 5) and is marked failed.
 5. Once fulfilled, the response file lands in your private file area, and the request's row in File Requests links directly to the file viewer.

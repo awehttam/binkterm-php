@@ -24,7 +24,7 @@ The **outbound** (requesting) side already exists as a CLI tool and supporting c
 
 None of this is reachable from the web today. There is also a separate, older, **admin-only** FREQ UI: an "ALLFILES" modal in `templates/nodelist/view.twig`, gated by `ENABLE_FREQ_EXPERIMENTAL`, which sends a **netmail** FREQ (`POST /api/messages/send` with `is_freq: true`) rather than a `.req`/`M_GET` request. That modal is out of scope here and is not replaced by this work — it uses a different delivery mechanism (netmail-embedded FREQ) reviewed separately in `FileReqReview.md`.
 
-The use case driving this proposal: a user sees a node in the nodelist that advertises files via magic names (e.g. `NZINTFAQ` at `3:770/220@fidonet`). Today only a sysop with shell access can request it via `freq_getfile.php`. They should instead be able to request it from the web UI, using whichever mechanism (`.req` or `M_GET`) is likely to work for that node, and receive it in their private file area once fulfilled.
+The use case driving this proposal: a user sees a node in the nodelist that advertises files via magic names (e.g. `ALLFILES` at `227:1/200@fidonet`). Today only a sysop with shell access can request it via `freq_getfile.php`. They should instead be able to request it from the web UI, using whichever mechanism (`.req` or `M_GET`) is likely to work for that node, and receive it in their private file area once fulfilled.
 
 ## Scope
 
@@ -89,7 +89,7 @@ Pending FREQ requests (`freq_requests_outbound.status = 'pending'`) need to be r
 
 - `POST /api/freq/requests`
   - Auth: any logged-in user (`RouteHelper::requireAuth()`), gated by `FREQ_ENABLE_REQUESTS_WEB`
-  - Payload: `{ "node": "3:770/220@fidonet", "filename": "NZINTFAQ", "mode": "req", "password": null }` (`mode` one of `"req"` (default) / `"mget"`)
+  - Payload: `{ "node": "227:1/200@fidonet", "filename": "ALLFILES", "mode": "req", "password": null }` (`mode` one of `"req"` (default) / `"mget"`)
   - Validates `node` (strip `@domain`, `zone:net/node` format) and `filename`
   - Counts the current user's rows in `freq_requests_outbound` with `status = 'pending'`; if the count is `>= FREQ_MAX_CONCURRENT_PER_USER`, return 429/422 with a clear error rather than queuing
   - Inserts the tracker row itself via `FreqRequestTracker::recordRequest()`, getting the new row's `id` synchronously

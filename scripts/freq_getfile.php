@@ -22,8 +22,8 @@
  *   php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
  *
  * Arguments:
- *   address           FTN address of the node to request from (e.g. 3:770/220 or 3:770/220@fidonet)
- *   filename          Filename or magic name to request (e.g. NZINTFAQ)
+ *   address           FTN address of the node to request from (e.g. 227:1/200 or 227:1/200@fidonet)
+ *   filename          Filename or magic name to request (e.g. ALLFILES)
  *                     Multiple filenames may be listed to request more than one file.
  *
  * Options:
@@ -41,7 +41,7 @@
  *   --help            Show this help
  *
  * Examples:
- *   php scripts/freq_getfile.php 3:770/220@fidonet NZINTFAQ
+ *   php scripts/freq_getfile.php 227:1/200@fidonet ALLFILES
  *   php scripts/freq_getfile.php --user=john 1:123/456 ALLFILES
  *   php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
  *   php scripts/freq_getfile.php -g 1:123/456 ALLFILES        (M_GET mode)
@@ -71,8 +71,8 @@ function showUsage(): void
 Usage: php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
 
 Arguments:
-  address           FTN address of the remote node (e.g. 3:770/220 or 3:770/220@fidonet)
-  filename          Filename or magic name to request (e.g. NZINTFAQ)
+  address           FTN address of the remote node (e.g. 227:1/200 or 227:1/200@fidonet)
+  filename          Filename or magic name to request (e.g. ALLFILES)
                     Multiple filenames may be listed.
 
 Options:
@@ -89,7 +89,7 @@ Options:
   --help            Show this help
 
 Examples:
-  php scripts/freq_getfile.php 3:770/220@fidonet NZINTFAQ
+  php scripts/freq_getfile.php 227:1/200@fidonet ALLFILES
   php scripts/freq_getfile.php --user=john 1:123/456 ALLFILES
   php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
   php scripts/freq_getfile.php -g 1:123/456 ALLFILES        (M_GET / live-session FREQ)
@@ -141,7 +141,7 @@ function normalizeAddress(string $address): string
 
     if (!preg_match('/^\d+:\d+\/\d+(\.\d+)?$/', $address)) {
         throw new \InvalidArgumentException(
-            "Invalid FTN address format: '{$address}'. Expected zone:net/node (e.g. 3:770/220)"
+            "Invalid FTN address format: '{$address}'. Expected zone:net/node (e.g. 227:1/200)"
         );
     }
 

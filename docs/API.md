@@ -3906,8 +3906,8 @@ Validates the node address and filename, enforces the per-user concurrency cap (
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `node` | string | Yes | FTN address of the remote node, e.g. `3:770/220` or `3:770/220@fidonet` |
-| `filename` | string | Yes | Filename or magic name to request, e.g. `NZINTFAQ` |
+| `node` | string | Yes | FTN address of the remote node, e.g. `227:1/200` or `227:1/200@fidonet` |
+| `filename` | string | Yes | Filename or magic name to request, e.g. `ALLFILES` |
 | `mode` | string | No | `req` (default, Bark `.req` file) or `mget` (live-session `M_GET`) |
 | `password` | string\|null | No | Area password required by the remote node |
 

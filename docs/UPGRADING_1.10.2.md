@@ -36,7 +36,7 @@ If you have previously seen the AI bot daemon fail to start with this error, res
 
 ### Outbound file requests (FREQ) now available to all users
 
-Any logged-in user can now request a file from another FidoNet node directly from the web interface, under **Files → File Requests**. Enter the remote node's address and the filename or magic name to request (e.g. `NZINTFAQ`, `ALLFILES`), choose whether to send the request as a classic `.req` file (the default, and the most broadly compatible option) or as a live-session `M_GET` request, and submit. Once the remote fulfils the request, the file is delivered to the requesting user's private file area and the File Requests page links directly to it.
+Any logged-in user can now request a file from another FidoNet node directly from the web interface, under **Files → File Requests**. Enter the remote node's address and the filename or magic name to request (e.g. `ALLFILES`, `ALLFILES`), choose whether to send the request as a classic `.req` file (the default, and the most broadly compatible option) or as a live-session `M_GET` request, and submit. Once the remote fulfils the request, the file is delivered to the requesting user's private file area and the File Requests page links directly to it.
 
 A request that isn't fulfilled on the first attempt is retried automatically in the background, and requests that never succeed are eventually marked failed rather than retrying indefinitely. Users can delete their own request entries at any time; this only removes the tracking entry, not a file that was already received.
 

@@ -725,7 +725,7 @@ left in `data/inbound/` for `process_packets` to handle.
 
 ```bash
 # Request a file by magic name (default .req mode)
-php scripts/freq_getfile.php 3:770/220@fidonet NZINTFAQ
+php scripts/freq_getfile.php 227:1/200@fidonet ALLFILES
 
 # Request multiple files
 php scripts/freq_getfile.php 1:123/456 ALLFILES FILES
