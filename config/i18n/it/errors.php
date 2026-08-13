@@ -160,6 +160,14 @@ return [
     'errors.fileareas.update_failed' => 'Impossibile aggiornare l’area file',
     'errors.fileareas.delete_failed' => 'Impossibile eliminare l’area file',
 
+    // Outbound FREQ (file requests)
+    'errors.freq.feature_disabled' => 'Le richieste di file sono disabilitate',
+    'errors.freq.node_required' => 'È richiesto un indirizzo nodo',
+    'errors.freq.filename_required' => 'È richiesto un nome file o nome magico',
+    'errors.freq.invalid_address' => 'Formato indirizzo FTN non valido (atteso zona:rete/nodo)',
+    'errors.freq.concurrency_limit' => 'Hai già raggiunto il numero massimo di richieste file in corso ({max})',
+    'errors.freq.not_found' => 'Richiesta file non trovata',
+
     // Files
     'errors.files.feature_disabled' => 'La funzionalità aree file è disabilitata',
     'errors.files.area_id_required' => 'ID area file obbligatorio',

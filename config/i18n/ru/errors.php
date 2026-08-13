@@ -155,6 +155,14 @@ return [
     'errors.fileareas.delete_failed' => 'Не удалось удалить файлэху',
 
 
+    // Outbound FREQ (file requests)
+    'errors.freq.feature_disabled' => 'Запросы файлов отключены',
+    'errors.freq.node_required' => 'Требуется адрес узла',
+    'errors.freq.filename_required' => 'Требуется имя файла или волшебное имя',
+    'errors.freq.invalid_address' => 'Неверный формат FTN-адреса (ожидается zone:net/node)',
+    'errors.freq.concurrency_limit' => 'У вас уже максимальное количество активных запросов файлов ({max})',
+    'errors.freq.not_found' => 'Запрос файла не найден',
+
     // Files
     'errors.files.feature_disabled' => 'Функция файлэх отключена',
     'errors.files.area_id_required' => 'ID файлэхи обязателен',

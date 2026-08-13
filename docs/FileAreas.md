@@ -48,6 +48,7 @@ This document explains file area configuration, storage layout, and file area ru
   - [Access Control Summary](#access-control-summary)
   - [Magic Names](#magic-names)
   - [FREQ Response Delivery](#freq-response-delivery)
+  - [Requesting Files from Other Nodes (Outbound FREQ)](#requesting-files-from-other-nodes-outbound-freq)
   - [FREQ Log](#freq-log)
 - [Re-Hatching Existing Files](#re-hatching-existing-files)
 
@@ -1016,6 +1017,22 @@ FILE_ATTACH netmail using one of two methods:
 
 > **Note:** Routed FILE_ATTACH netmail is intentionally not used because FTN
 > hubs typically strip file attachments from forwarded messages.
+
+### Requesting Files from Other Nodes (Outbound FREQ)
+
+Everything above covers *serving* files to remote nodes that FREQ this BBS. The reverse — requesting a file *from* another node — is available to any logged-in user under **Files → File Requests** (`/file-requests`), gated by `FREQ_ENABLE_REQUESTS_WEB` (enabled by default).
+
+To request a file:
+
+1. Go to **Files → File Requests** and click **New Request**.
+2. Enter the remote node's address (e.g. `3:770/220`), and the filename or magic name to request (e.g. `NZINTFAQ`, `ALLFILES`).
+3. Choose the request method: **.req file** (default — a classic Bark/WaZOO request sent as a normal file transfer, understood by nearly every FTN mailer) or **M_GET** (a live-session binkp request per FSP-1011 — only reliable if the remote node is known to support it).
+4. Submit. The request is queued and a connection attempt to the remote node is triggered immediately; if it doesn't complete right away, it's retried automatically on an interval (`FREQ_POLL_INTERVAL`, default 300 seconds) until it either succeeds or exhausts `FREQ_MAX_ATTEMPTS` (default 5) and is marked failed.
+5. Once fulfilled, the response file lands in your private file area, and the request's row in File Requests links directly to the file viewer.
+
+A user may have at most `FREQ_MAX_CONCURRENT_PER_USER` (default 2) requests in progress at once. Old request rows (any status) can be deleted from the File Requests page — this only removes the tracking entry, not the file itself if one was already received.
+
+This is a separate mechanism from the admin-only "Request ALLFILES" netmail-based FREQ still available on individual nodelist entries (gated by `ENABLE_FREQ_EXPERIMENTAL`), which sends a FILE_REQUEST netmail rather than a `.req`/`M_GET` request.
 
 ### FREQ Log
 

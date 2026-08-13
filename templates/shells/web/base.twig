@@ -291,7 +291,20 @@
                             </a>
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item file-menu-link" href="/files"><i class="fas fa-file me-1"></i> {{ t('ui.base.files', {}, 'common') }}</a></li>
+                                {% if freq_requests_web_enabled %}
+                                <li><a class="dropdown-item file-requests-menu-link" href="/file-requests"><i class="fas fa-inbox me-1"></i> {{ t('ui.base.file_requests', {}, 'common') }}</a></li>
+                                {% endif %}
                                 <li><a class="dropdown-item file-approvals-menu-link" href="/admin/file-approvals"><i class="fas fa-check-circle me-1"></i> {{ t('ui.base.file_approvals', {}, 'common') }}</a></li>
+                            </ul>
+                        </li>
+                        {% elseif freq_requests_web_enabled %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle file-menu-parent-link" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item file-menu-link" href="/files"><i class="fas fa-file me-1"></i> {{ t('ui.base.files', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item file-requests-menu-link" href="/file-requests"><i class="fas fa-inbox me-1"></i> {{ t('ui.base.file_requests', {}, 'common') }}</a></li>
                             </ul>
                         </li>
                         {% else %}

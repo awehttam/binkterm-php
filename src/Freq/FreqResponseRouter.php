@@ -89,16 +89,16 @@ class FreqResponseRouter
             }
 
             try {
-                $fileManager->storeFreqIncoming((int)$pending['user_id'], $fullPath, $remoteAddress);
-                $completedIds[$pending['id']] = true;
-                $this->log('INFO', "Routed '{$filename}' to user_id={$pending['user_id']} (request id={$pending['id']})");
+                $fileId = $fileManager->storeFreqIncoming((int)$pending['user_id'], $fullPath, $remoteAddress);
+                $completedIds[$pending['id']] = $fileId;
+                $this->log('INFO', "Routed '{$filename}' to user_id={$pending['user_id']} (request id={$pending['id']}, file id={$fileId})");
             } catch (\Exception $e) {
                 $this->log('WARNING', "Failed to store '{$filename}': " . $e->getMessage());
             }
         }
 
-        foreach (array_keys($completedIds) as $id) {
-            $this->tracker->markComplete((int)$id);
+        foreach ($completedIds as $id => $fileId) {
+            $this->tracker->markComplete((int)$id, (int)$fileId);
         }
     }
 

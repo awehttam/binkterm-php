@@ -19,8 +19,10 @@ namespace BinktermPHP\Binkp\Connection;
 use BinktermPHP\Advertising;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Admin\AdminDaemonClient;
+use BinktermPHP\Config;
 use BinktermPHP\Crashmail\CrashmailService;
 use BinktermPHP\Database;
+use BinktermPHP\Freq\FreqRequestTracker;
 use BinktermPHP\Hub\HubNodeManager;
 
 class Scheduler
@@ -529,6 +531,7 @@ class Scheduler
 
                 $this->runScheduledCrashmailPoll();
                 $this->runScheduledHubNodePush();
+                $this->runScheduledFreqRetries();
                 $this->processAdvertisingCampaigns();
                 
             } catch (\Exception $e) {
@@ -634,6 +637,91 @@ class Scheduler
         } catch (\Throwable $e) {
             $this->log("Hub node push check error: " . $e->getMessage(), 'ERROR');
         }
+    }
+
+    /**
+     * Retry pending outbound FREQ requests (freq_requests_outbound) that are
+     * due for another attempt, and fail out any that have exhausted the
+     * configured attempts cap.
+     *
+     * FREQ_POLL_INTERVAL and FREQ_MAX_ATTEMPTS are read fresh on every call
+     * (not cached) so a .env change takes effect without restarting the
+     * daemon, consistent with refreshConfig() reloading BinkpConfig every
+     * loop iteration.
+     *
+     * At most one retry connection is triggered per remote node per pass —
+     * if several users have requests due for the same node, only the oldest
+     * is retried this tick and the rest are picked up on a later tick. This
+     * avoids opening multiple simultaneous binkp sessions to the same node
+     * in one pass while still letting other nodes retry independently.
+     */
+    private function runScheduledFreqRetries(): void
+    {
+        try {
+            $intervalSeconds = (int)Config::env('FREQ_POLL_INTERVAL', 300);
+            $maxAttempts = (int)Config::env('FREQ_MAX_ATTEMPTS', 5);
+
+            $tracker = new FreqRequestTracker($this->db);
+
+            $exhausted = $tracker->findAttemptsExhausted($maxAttempts);
+            foreach ($exhausted as $row) {
+                $tracker->markFailed((int)$row['id']);
+                $this->log("FREQ request id={$row['id']} for {$row['node_address']} exhausted {$maxAttempts} attempts, marked failed", 'WARNING');
+            }
+
+            $dueRows = $tracker->findRetryEligible($maxAttempts, $intervalSeconds);
+            if (empty($dueRows)) {
+                $this->log("No FREQ requests due for retry", 'DEBUG');
+                return;
+            }
+
+            $handledNodes = [];
+            foreach ($dueRows as $row) {
+                $address = $row['node_address'];
+                if (isset($handledNodes[$address])) {
+                    continue;
+                }
+                $handledNodes[$address] = true;
+
+                $userId = $row['user_id'] ?? null;
+                if (!$userId) {
+                    // User was deleted after the request was queued; nothing
+                    // to route a fulfilled file to.
+                    $tracker->markFailed((int)$row['id']);
+                    $this->log("FREQ request id={$row['id']} has no user (deleted?), marked failed", 'WARNING');
+                    continue;
+                }
+
+                $username = $this->getUsernameById((int)$userId);
+                if ($username === null) {
+                    $tracker->markFailed((int)$row['id']);
+                    $this->log("FREQ request id={$row['id']}: user_id={$userId} not found, marked failed", 'WARNING');
+                    continue;
+                }
+
+                $filenames = json_decode($row['requested_files'], true) ?? [];
+                if (empty($filenames)) {
+                    continue;
+                }
+
+                try {
+                    $this->log("Retrying FREQ request id={$row['id']} for {$address} (attempt " . ((int)$row['attempts'] + 1) . ")");
+                    $this->client->freqRequest($address, $filenames, $row['mode'], (int)$row['id'], $username);
+                } catch (\Exception $e) {
+                    $this->log("FREQ retry failed for id={$row['id']} ({$address}): " . $e->getMessage(), 'ERROR');
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->log("FREQ retry check error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    private function getUsernameById(int $userId): ?string
+    {
+        $stmt = $this->db->prepare("SELECT username FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $username = $stmt->fetchColumn();
+        return $username !== false ? (string)$username : null;
     }
 
     private function processInboundIfNeeded(): void

@@ -1,0 +1,245 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.file_requests.title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-inbox"></i>
+        {{ t('ui.file_requests.title', {}, 'common') }}
+    </h2>
+    <button class="btn btn-primary" onclick="showNewFreqRequestModal()">
+        <i class="fas fa-plus"></i> {{ t('ui.file_requests.new_request', {}, 'common') }}
+    </button>
+</div>
+
+<p class="text-muted">{{ t('ui.file_requests.description', {}, 'common') }}</p>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th>{{ t('ui.file_requests.col_node', {}, 'common') }}</th>
+                        <th>{{ t('ui.file_requests.col_filename', {}, 'common') }}</th>
+                        <th>{{ t('ui.file_requests.col_mode', {}, 'common') }}</th>
+                        <th>{{ t('ui.file_requests.col_status', {}, 'common') }}</th>
+                        <th>{{ t('ui.file_requests.col_attempts', {}, 'common') }}</th>
+                        <th>{{ t('ui.file_requests.col_submitted', {}, 'common') }}</th>
+                        <th class="text-end">{{ t('ui.file_requests.col_actions', {}, 'common') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="freqRequestsBody">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted p-4">
+                            <i class="fas fa-spinner fa-spin me-2"></i>{{ t('ui.file_requests.loading', {}, 'common') }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- New Request Modal -->
+<div class="modal fade" id="newFreqRequestModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.file_requests.new_request', {}, 'common') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="freqReqNode" class="form-label">{{ t('ui.file_requests.node_label', {}, 'common') }}</label>
+                    <input type="text" class="form-control" id="freqReqNode" placeholder="{{ t('ui.file_requests.node_placeholder', {}, 'common') }}" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label for="freqReqFilename" class="form-label">{{ t('ui.file_requests.filename_label', {}, 'common') }}</label>
+                    <input type="text" class="form-control" id="freqReqFilename" placeholder="{{ t('ui.file_requests.filename_placeholder', {}, 'common') }}" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label for="freqReqPassword" class="form-label">{{ t('ui.file_requests.password_label', {}, 'common') }}</label>
+                    <input type="text" class="form-control" id="freqReqPassword" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">{{ t('ui.file_requests.mode_label', {}, 'common') }}</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="freqReqMode" id="freqReqModeReq" value="req" checked>
+                        <label class="form-check-label" for="freqReqModeReq">
+                            {{ t('ui.file_requests.mode_req', {}, 'common') }}
+                        </label>
+                        <div class="form-text">{{ t('ui.file_requests.mode_req_help', {}, 'common') }}</div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="freqReqMode" id="freqReqModeMget" value="mget">
+                        <label class="form-check-label" for="freqReqModeMget">
+                            {{ t('ui.file_requests.mode_mget', {}, 'common') }}
+                        </label>
+                        <div class="form-text">{{ t('ui.file_requests.mode_mget_help', {}, 'common') }}</div>
+                    </div>
+                </div>
+                <div id="freqReqError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-primary" id="freqReqSubmitBtn" onclick="submitFreqRequest()">
+                    <i class="fas fa-file-download"></i> {{ t('ui.file_requests.submit', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const STATUS_BADGE = {
+        pending: 'bg-warning text-dark',
+        complete: 'bg-success',
+        failed: 'bg-danger'
+    };
+    const STATUS_LABEL = {
+        pending: '{{ t('ui.file_requests.status_pending', {}, 'common')|e('js') }}',
+        complete: '{{ t('ui.file_requests.status_complete', {}, 'common')|e('js') }}',
+        failed: '{{ t('ui.file_requests.status_failed', {}, 'common')|e('js') }}'
+    };
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str == null ? '' : String(str);
+        return div.innerHTML;
+    }
+
+    function renderRow(row) {
+        const files = (function() {
+            try { return JSON.parse(row.requested_files).join(', '); } catch (e) { return row.requested_files; }
+        })();
+        const badge = STATUS_BADGE[row.status] || 'bg-secondary';
+        const label = STATUS_LABEL[row.status] || row.status;
+        const submitted = row.created_at ? new Date(row.created_at).toLocaleString() : '';
+        // Once fulfilled, the response is stored as a normal file in the
+        // user's private area — link the filename straight to the existing
+        // file viewer (openFileInfoModal, from file-preview.js) instead of
+        // making the user go find it in Files themselves.
+        const filenameCell = (row.status === 'complete' && row.file_id)
+            ? '<a href="#" onclick="openFileInfoModal(' + parseInt(row.file_id, 10) + '); return false;">' + escapeHtml(files) + '</a>'
+            : escapeHtml(files);
+        return '<tr>' +
+            '<td>' + escapeHtml(row.node_address) + '</td>' +
+            '<td>' + filenameCell + '</td>' +
+            '<td>' + escapeHtml((row.mode || '').toUpperCase()) + '</td>' +
+            '<td><span class="badge ' + badge + '">' + escapeHtml(label) + '</span></td>' +
+            '<td>' + escapeHtml(row.attempts) + '</td>' +
+            '<td>' + escapeHtml(submitted) + '</td>' +
+            '<td class="text-end">' +
+                '<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteFreqRequest(' + parseInt(row.id, 10) + ')" title="{{ t('ui.file_requests.delete', {}, 'common')|e('js') }}">' +
+                    '<i class="fas fa-trash"></i>' +
+                '</button>' +
+            '</td>' +
+            '</tr>';
+    }
+
+    window.loadFreqRequests = function() {
+        fetch('/api/freq/requests')
+            .then(r => r.json())
+            .then(data => {
+                const body = document.getElementById('freqRequestsBody');
+                const rows = data.requests || [];
+                if (rows.length === 0) {
+                    body.innerHTML = '<tr><td colspan="7" class="text-center text-muted p-4">{{ t('ui.file_requests.empty', {}, 'common')|e('js') }}</td></tr>';
+                    return;
+                }
+                body.innerHTML = rows.map(renderRow).join('');
+            })
+            .catch(() => {
+                const body = document.getElementById('freqRequestsBody');
+                body.innerHTML = '<tr><td colspan="7" class="text-center text-danger p-4">{{ t('ui.file_requests.load_failed', {}, 'common')|e('js') }}</td></tr>';
+            });
+    };
+
+    window.deleteFreqRequest = function(id) {
+        if (!confirm('{{ t('ui.file_requests.delete_confirm', {}, 'common')|e('js') }}')) {
+            return;
+        }
+        fetch('/api/freq/requests/' + id, { method: 'DELETE' })
+            .then(r => r.json().then(data => ({ ok: r.ok, data: data })))
+            .then(function(result) {
+                if (result.ok && result.data.success) {
+                    loadFreqRequests();
+                } else {
+                    alert((window.getApiErrorMessage ? window.getApiErrorMessage(result.data, '') : '') || '{{ t('ui.file_requests.delete_failed', {}, 'common')|e('js') }}');
+                }
+            })
+            .catch(function() {
+                alert('{{ t('ui.file_requests.delete_failed', {}, 'common')|e('js') }}');
+            });
+    };
+
+    window.showNewFreqRequestModal = function() {
+        document.getElementById('freqReqNode').value = '';
+        document.getElementById('freqReqFilename').value = '';
+        document.getElementById('freqReqPassword').value = '';
+        document.getElementById('freqReqModeReq').checked = true;
+        document.getElementById('freqReqError').classList.add('d-none');
+        document.getElementById('freqReqSubmitBtn').disabled = false;
+        new bootstrap.Modal(document.getElementById('newFreqRequestModal')).show();
+    };
+
+    window.submitFreqRequest = function() {
+        const node = document.getElementById('freqReqNode').value.trim();
+        const filename = document.getElementById('freqReqFilename').value.trim();
+        const password = document.getElementById('freqReqPassword').value.trim();
+        const mode = document.querySelector('input[name="freqReqMode"]:checked').value;
+        const btn = document.getElementById('freqReqSubmitBtn');
+        const errorBox = document.getElementById('freqReqError');
+
+        btn.disabled = true;
+        errorBox.classList.add('d-none');
+
+        fetch('/api/freq/requests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                node: node,
+                filename: filename,
+                mode: mode,
+                password: password || null
+            })
+        })
+        .then(r => r.json().then(data => ({ ok: r.ok, data: data })))
+        .then(function(result) {
+            if (result.ok && result.data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('newFreqRequestModal')).hide();
+                if (window.showSuccess) {
+                    showSuccess('{{ t('ui.file_requests.request_submitted', {}, 'common')|e('js') }}');
+                }
+                loadFreqRequests();
+            } else {
+                errorBox.textContent = (window.getApiErrorMessage ? window.getApiErrorMessage(result.data, '') : '') || result.data.error || '{{ t('ui.file_requests.submit_failed', {}, 'common')|e('js') }}';
+                errorBox.classList.remove('d-none');
+                btn.disabled = false;
+            }
+        })
+        .catch(function() {
+            errorBox.textContent = '{{ t('ui.file_requests.submit_failed', {}, 'common')|e('js') }}';
+            errorBox.classList.remove('d-none');
+            btn.disabled = false;
+        });
+    };
+
+    loadFreqRequests();
+    // Refresh periodically so pending -> complete/failed transitions show up
+    // without a manual page reload.
+    setInterval(loadFreqRequests, 15000);
+});
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="/js/ansisys.js"></script>
+<script src="/js/sixel.js"></script>
+<script src="/js/pcboard.js"></script>
+<script src="/js/file-preview.js"></script>
+<script src="/js/media-player.js"></script>
+{% endblock %}

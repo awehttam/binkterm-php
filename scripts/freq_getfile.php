@@ -32,6 +32,9 @@
  *   --password=PASS   Area password required by the remote node
  *   --hostname=HOST   Override hostname (skip nodelist/DNS lookup)
  *   --port=PORT       Override port (default 24554)
+ *   --request-id=ID   Attach to an existing freq_requests_outbound row (e.g. one
+ *                     already inserted by the web API or a scheduled retry)
+ *                     instead of inserting a new one
  *   --log-level=LVL   Log level: DEBUG, INFO, WARNING, ERROR (default INFO)
  *   --log-file=FILE   Log file path (default: data/logs/freq_getfile.log)
  *   --no-console      Suppress console output
@@ -42,6 +45,7 @@
  *   php scripts/freq_getfile.php --user=john 1:123/456 ALLFILES
  *   php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
  *   php scripts/freq_getfile.php -g 1:123/456 ALLFILES        (M_GET mode)
+ *   php scripts/freq_getfile.php --request-id=42 -g 1:123/456 ALLFILES
  */
 
 chdir(__DIR__ . '/../');
@@ -77,6 +81,8 @@ Options:
   --password=PASS   Area password required by the remote node
   --hostname=HOST   Override hostname (bypass nodelist/DNS lookup)
   --port=PORT       Override port (default 24554)
+  --request-id=ID   Attach to an existing freq_requests_outbound row instead
+                    of inserting a new one (used by the web API / scheduler)
   --log-level=LVL   DEBUG, INFO, WARNING, ERROR (default INFO)
   --log-file=FILE   Log file path
   --no-console      Suppress console output
@@ -87,6 +93,7 @@ Examples:
   php scripts/freq_getfile.php --user=john 1:123/456 ALLFILES
   php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
   php scripts/freq_getfile.php -g 1:123/456 ALLFILES        (M_GET / live-session FREQ)
+  php scripts/freq_getfile.php --request-id=42 -g 1:123/456 ALLFILES
 
 USAGE;
 }
@@ -238,6 +245,7 @@ $username   = isset($opts['user'])      ? (string)$opts['user']      : null;
 $password   = isset($opts['password'])  ? (string)$opts['password']  : null;
 $hostname   = isset($opts['hostname'])  ? (string)$opts['hostname']  : null;
 $port       = isset($opts['port'])      ? (int)$opts['port']         : null;
+$requestId  = isset($opts['request-id']) ? (int)$opts['request-id']  : null;
 $logLevel   = isset($opts['log-level']) ? strtoupper((string)$opts['log-level']) : 'INFO';
 $logFile    = isset($opts['log-file'])
     ? (string)$opts['log-file']
@@ -283,8 +291,17 @@ try {
     $db      = Database::getInstance()->getPdo();
     $user    = resolveUser($db, $username);
     $tracker = new FreqRequestTracker($db);
-    $tracker->recordRequest($address, $filenames, (int)$user['id'], $useGet ? 'mget' : 'req');
-    $logger->log('INFO', "Recorded FREQ request for user: {$user['username']} (id={$user['id']})");
+
+    if ($requestId === null) {
+        // Not attaching to an existing row (web API / scheduled retry) —
+        // create one now.
+        $requestId = $tracker->recordRequest($address, $filenames, (int)$user['id'], $useGet ? 'mget' : 'req');
+        $logger->log('INFO', "Recorded FREQ request id={$requestId} for user: {$user['username']} (id={$user['id']})");
+    }
+    // Always record the attempt immediately before connecting, whether the
+    // row was just created above or attached to via --request-id, so
+    // "attempts" always reflects real connection attempts.
+    $tracker->recordAttempt($requestId);
 
     $result = $client->connect($address, $hostname, $port);
 
@@ -307,6 +324,36 @@ try {
         } else {
             $router = new FreqResponseRouter($db, $logger);
             $router->routeReceivedFiles($address, $received);
+
+            // Magic names (ALLFILES, NODELIST, etc.) get expanded to a different
+            // filename by the remote at fulfillment time, so the router's exact
+            // (case-insensitive) filename matching won't catch them and this
+            // request's row is still 'pending' even though the file did arrive.
+            // Since this invocation was for exactly one request, attribute any
+            // received, non-infrastructure file that the router didn't already
+            // claim directly to this request's user as a fallback.
+            $row = $tracker->find($requestId);
+            if ($row && $row['status'] === 'pending') {
+                $inboundPath = BinkpConfig::getInstance()->getInboundPath();
+                $fileManager = new FileAreaManager($db);
+                $lastFileId = null;
+                foreach ($received as $filename) {
+                    $fullPath = $inboundPath . '/' . $filename;
+                    if (!file_exists($fullPath) || FreqResponseRouter::isInfrastructureFile($filename, $fullPath)) {
+                        continue;
+                    }
+                    try {
+                        $lastFileId = $fileManager->storeFreqIncoming((int)$user['id'], $fullPath, $address);
+                        $logger->log('INFO', "Routed '{$filename}' to user {$user['username']} via magic-name fallback (request id={$requestId}, file id={$lastFileId})");
+                    } catch (\Exception $e) {
+                        $logger->log('WARNING', "Failed to store '{$filename}' via magic-name fallback: " . $e->getMessage());
+                    }
+                }
+                if ($lastFileId !== null) {
+                    $tracker->markComplete($requestId, $lastFileId);
+                }
+            }
+
             echo "Session complete — received " . count($received) . " file(s).\n";
         }
     }

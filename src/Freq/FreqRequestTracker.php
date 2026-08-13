@@ -14,7 +14,11 @@ class FreqRequestTracker
     public function __construct(private \PDO $db) {}
 
     /**
-     * Record a new outbound FREQ request.
+     * Record a new outbound FREQ request. Leaves attempts at its default (0)
+     * and last_attempt_at unset — callers must follow up with
+     * recordAttempt() immediately before actually connecting, so that
+     * "attempts" always reflects real connection attempts, whether the row
+     * was just created here or attached to later via --request-id.
      *
      * @param string   $nodeAddress    FTN address of the remote node
      * @param string[] $requestedFiles List of filenames / magic names requested
@@ -31,6 +35,23 @@ class FreqRequestTracker
         ");
         $stmt->execute([$nodeAddress, json_encode($requestedFiles), $userId, $mode]);
         return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Record an additional attempt (initial send via --request-id=, or a
+     * scheduled retry) against an existing request row, without inserting a
+     * duplicate row.
+     *
+     * @param int $id Record ID
+     */
+    public function recordAttempt(int $id): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE freq_requests_outbound
+            SET last_attempt_at = NOW(), attempts = attempts + 1
+            WHERE id = ?
+        ");
+        $stmt->execute([$id]);
     }
 
     /**
@@ -54,17 +75,113 @@ class FreqRequestTracker
     }
 
     /**
+     * Find pending requests that are due for a retry: still under the
+     * attempts cap and whose last attempt was more than $intervalSeconds ago
+     * (or that have never been attempted).
+     *
+     * @return array[] Rows from freq_requests_outbound (may be empty)
+     */
+    public function findRetryEligible(int $maxAttempts, int $intervalSeconds): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM freq_requests_outbound
+            WHERE status = 'pending'
+              AND attempts < ?
+              AND (last_attempt_at IS NULL OR last_attempt_at <= NOW() - (? || ' seconds')::interval)
+            ORDER BY node_address, created_at ASC
+        ");
+        $stmt->execute([$maxAttempts, $intervalSeconds]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Find pending requests that have exhausted the attempts cap and should
+     * be transitioned to 'failed'.
+     *
+     * @return array[] Rows from freq_requests_outbound (may be empty)
+     */
+    public function findAttemptsExhausted(int $maxAttempts): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM freq_requests_outbound
+            WHERE status = 'pending' AND attempts >= ?
+        ");
+        $stmt->execute([$maxAttempts]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Count a user's currently in-flight ('pending') requests, used to
+     * enforce a per-user concurrency cap on new submissions.
+     */
+    public function countPendingForUser(int $userId): int
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) FROM freq_requests_outbound
+            WHERE user_id = ? AND status = 'pending'
+        ");
+        $stmt->execute([$userId]);
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
      * Mark a request as complete.
      *
-     * @param int $id Record ID returned by recordRequest()
+     * @param int      $id     Record ID returned by recordRequest()
+     * @param int|null $fileId files.id of the routed response file, if known
+     *                         (lets the UI link the filename to the file viewer)
      */
-    public function markComplete(int $id): void
+    public function markComplete(int $id, ?int $fileId = null): void
     {
         $stmt = $this->db->prepare("
             UPDATE freq_requests_outbound
-            SET status = 'complete', completed_at = NOW()
+            SET status = 'complete', completed_at = NOW(), file_id = COALESCE(?, file_id)
+            WHERE id = ?
+        ");
+        $stmt->execute([$fileId, $id]);
+    }
+
+    /**
+     * Mark a request as permanently failed after exhausting the attempts cap.
+     *
+     * @param int $id Record ID
+     */
+    public function markFailed(int $id): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE freq_requests_outbound
+            SET status = 'failed'
             WHERE id = ?
         ");
         $stmt->execute([$id]);
+    }
+
+    /**
+     * Fetch a single request row by ID.
+     *
+     * @return array|null Row from freq_requests_outbound, or null if not found
+     */
+    public function find(int $id): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM freq_requests_outbound WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
+     * Delete a request row. Does not touch the routed response file (if
+     * any) sitting in the user's private file area — this only removes the
+     * tracking row. Safe to call on a 'pending' row: a freq_getfile.php
+     * process or scheduled retry already in flight for it will simply find
+     * no matching row on its next recordAttempt()/markComplete() call.
+     *
+     * @return bool True if a row was deleted
+     */
+    public function delete(int $id): bool
+    {
+        $stmt = $this->db->prepare("DELETE FROM freq_requests_outbound WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
     }
 }

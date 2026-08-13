@@ -225,6 +225,12 @@ The client automatically closes after each `sendCommand()` call. Call `close()` 
 | `binkpAuthTestAddress(string $address)` | Test binkp authentication for an uplink by address |
 | `reloadBinkpConfig()` | Send SIGHUP to the running binkp server to reload its config |
 
+### Outbound FREQ
+
+| Command (client method) | Description |
+|---|---|
+| `freqRequest(string $node, array $filenames, string $mode, int $requestId, string $username, ?string $password = null)` | Spawn `scripts/freq_getfile.php` in background for an outbound FREQ request (initial send or scheduled retry); `$mode` is `'req'` or `'mget'`. See [OutboundFreqImplementation.md](proposals/OutboundFreqImplementation.md). |
+
 ### Configuration — BBS & System
 
 | Command (client method) | Description |
@@ -400,6 +406,8 @@ The key invariant is that **no route or controller ever calls `file_put_contents
 2. Add a `case 'my_command':` branch in `AdminDaemonServer::handleCommand()`.
 3. If the command writes a new log file, add the filename to `AdminDaemonServer::UDP_ALLOWED_LOG_FILES`.
 4. If the command needs to spawn a subprocess, use `$this->spawnCommand([...])` for fire-and-forget or `$this->runCommand([...])` to wait for output.
+
+**`spawnCommand()` is a deliberate no-op on Windows** — it returns immediately without launching anything, because process spawning from a Windows daemon context was found to be unreliable. This is safe for commands like `binkp_poll` where the underlying work (an outbound packet) is already spooled to disk and a scheduled poll will pick it up later regardless of whether the immediate spawn happened. It is **not** safe for a command that has no such fallback and no other execution path — e.g. `freq_request`, where the spawned process *is* the entire operation. For those, spawn for real on Windows too via `proc_open()` with file-redirected descriptors and no `proc_close()` call (leaves the child running detached), following `AdminDaemonServer::spawnFreqRequest()` as the pattern — the same detached-process technique already used for launching DOSBox-X (`DoorSessionManager::launchDosbox()`). Forgetting this distinction produces a command that logs "spawned" and appears to succeed on Windows while never actually running anything.
 
 ---
 

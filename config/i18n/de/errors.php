@@ -160,6 +160,14 @@ return [
     'errors.fileareas.update_failed' => 'Dateibereich konnte nicht aktualisiert werden',
     'errors.fileareas.delete_failed' => 'Dateibereich konnte nicht gelöscht werden',
 
+    // Outbound FREQ (file requests)
+    'errors.freq.feature_disabled' => 'Dateianfragen sind deaktiviert',
+    'errors.freq.node_required' => 'Eine Knotenadresse ist erforderlich',
+    'errors.freq.filename_required' => 'Ein Dateiname oder Magic-Name ist erforderlich',
+    'errors.freq.invalid_address' => 'Ungültiges FTN-Adressformat (erwartet: Zone:Netz/Knoten)',
+    'errors.freq.concurrency_limit' => 'Sie haben bereits die maximale Anzahl laufender Dateianfragen ({max})',
+    'errors.freq.not_found' => 'Dateianfrage nicht gefunden',
+
     // Files
     'errors.files.feature_disabled' => 'Dateibereichs feature is deaktiviert',
     'errors.files.area_id_required' => 'Dateibereich ID ist erforderlich',
