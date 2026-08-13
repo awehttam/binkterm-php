@@ -503,6 +503,7 @@ return [
     'ui.terminalserver.freq.delete_failed' => 'Echec de la suppression de la demande de fichier.',
     'ui.terminalserver.freq.confirm_yes' => 'Oui',
     'ui.terminalserver.freq.confirm_no' => 'Non',
+    'ui.terminalserver.freq.download_not_ready' => 'Ce fichier n\'a pas encore ete recu.',
 
     // Netmail - attachments
     'ui.terminalserver.netmail.attachment_download_prompt' => 'N° de la pièce jointe à télécharger (Entrée pour annuler) : ',

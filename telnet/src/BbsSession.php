@@ -414,7 +414,7 @@ class BbsSession
         $pollsHandler         = new PollsHandler($this, $this->apiBase);
         $doorHandler          = new DoorHandler($this, $this->apiBase);
         $fileHandler          = new FileHandler($this, $this->apiBase, $this->isSsh);
-        $freqHandler          = new FreqHandler($this, $this->apiBase);
+        $freqHandler          = new FreqHandler($this, $this->apiBase, $this->isSsh);
         $interestsHandler     = new InterestsHandler($this, $this->apiBase);
         $qwkHandler           = new QwkMenuHandler($this, $this->apiBase, $this->isSsh);
         $bbsListHandler       = new BbsListHandler($this, $this->apiBase);

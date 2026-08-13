@@ -125,6 +125,8 @@ This is enabled by default; set `FREQ_ENABLE_REQUESTS_WEB=false` to hide the pag
 
 The Telnet and SSH BBS interfaces expose the same feature under **[Files] → File Requests** (default menu key `R`, configurable in **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**). `telnet/src/FreqHandler.php` lists the logged-in user's own requests, and lets them submit a new request (with an address-book lookup for the node, `?`) or delete a tracking entry — it is a thin client of the same `/api/freq/requests` endpoints listed above, so behavior and the `FREQ_ENABLE_REQUESTS_WEB` gate are identical to the web page. The menu item itself is hidden when `FREQ_ENABLE_REQUESTS_WEB=false`.
 
+Once a request completes, the received file is available right from the same screen — a `[DL]` marker appears next to fulfilled requests in the list, and pressing `D` (from the list or the request's detail view) downloads it over ZMODEM, the same way file downloads work elsewhere in the terminal server's Files area.
+
 If the BBS already has a **custom** main menu key map saved (i.e. any key was ever changed from the defaults), File Requests will not appear until the sysop explicitly assigns it a key on that same admin page — a custom map only shows actions it explicitly lists, so newly added actions aren't retroactively included. Sites still running the built-in defaults (no custom map saved) see it immediately with no admin action needed.
 
 ### CLI: scripts/freq_getfile.php

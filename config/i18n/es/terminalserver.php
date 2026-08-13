@@ -415,6 +415,7 @@ return [
     'ui.terminalserver.freq.delete_failed'              => 'No se pudo eliminar la solicitud de archivo.',
     'ui.terminalserver.freq.confirm_yes'                => 'Si',
     'ui.terminalserver.freq.confirm_no'                 => 'No',
+    'ui.terminalserver.freq.download_not_ready'         => 'Este archivo aun no ha sido recibido.',
 
     // --- Main menu: terminal settings ---
     'ui.terminalserver.server.menu.terminal_settings'  => 'T) Configuración de Terminal',

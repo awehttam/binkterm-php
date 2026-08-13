@@ -420,6 +420,7 @@ return [
     'ui.terminalserver.freq.delete_failed'              => 'Dateianfrage konnte nicht geloescht werden.',
     'ui.terminalserver.freq.confirm_yes'                => 'Ja',
     'ui.terminalserver.freq.confirm_no'                 => 'Nein',
+    'ui.terminalserver.freq.download_not_ready'         => 'Diese Datei wurde noch nicht empfangen.',
 
     // --- QWK ---
     'ui.terminalserver.qwk.action_logout'              => 'Q) Abmelden',

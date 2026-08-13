@@ -13,11 +13,14 @@ class FreqHandler
 {
     private BbsSession $server;
     private string $apiBase;
+    /** Whether the session is over SSH (no TELNET IAC escaping needed). */
+    private bool $isSsh;
 
-    public function __construct(BbsSession $server, string $apiBase)
+    public function __construct(BbsSession $server, string $apiBase, bool $isSsh = false)
     {
         $this->server  = $server;
         $this->apiBase = $apiBase;
+        $this->isSsh   = $isSsh;
     }
 
     /**
@@ -58,6 +61,14 @@ class FreqHandler
                 $row = $result['row'] ?? null;
                 if ($row !== null) {
                     $this->deleteRequest($conn, $state, $session, $row, $locale, $shell);
+                }
+                continue;
+            }
+
+            if ($result['action'] === 'download') {
+                $row = $result['row'] ?? null;
+                if ($row !== null) {
+                    $this->downloadRequestFile($conn, $state, $session, $row, $locale, $shell);
                 }
                 continue;
             }
@@ -118,13 +129,15 @@ class FreqHandler
             ['text' => ' ' . $this->t('ui.terminalserver.freq.status_view', 'View', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
             ['text' => 'A',     'color' => TelnetUtils::ANSI_RED],
             ['text' => ' ' . $this->t('ui.terminalserver.freq.status_new', 'New', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'D',     'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' ' . $this->t('ui.terminalserver.files.status_download', 'Download', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
             ['text' => 'X',     'color' => TelnetUtils::ANSI_RED],
             ['text' => ' ' . $this->t('ui.terminalserver.freq.status_delete', 'Delete', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
             ['text' => 'Q',     'color' => TelnetUtils::ANSI_RED],
             ['text' => ' ' . $this->t('ui.terminalserver.freq.status_quit', 'Quit', [], $locale), 'color' => TelnetUtils::ANSI_BLUE],
         ];
         // 'n'/'p' are reserved by showSelectableList for next/prev page — use 'a' (Add/New) instead.
-        $extraKeys = ['a' => 'new', 'x' => 'delete'];
+        $extraKeys = ['a' => 'new', 'd' => 'download', 'x' => 'delete'];
 
         $result = $shell->showSelectableList(
             $conn,
@@ -146,6 +159,9 @@ class FreqHandler
             'delete' => isset($pageItems[$result['index']])
                 ? ['action' => 'delete', 'page' => $page, 'row' => $pageItems[$result['index']], 'selectedIndex' => $result['index']]
                 : ['action' => 'redraw', 'page' => $page, 'selectedIndex' => 0],
+            'download' => isset($pageItems[$result['index']])
+                ? ['action' => 'download', 'page' => $page, 'row' => $pageItems[$result['index']], 'selectedIndex' => $result['index']]
+                : ['action' => 'redraw', 'page' => $page, 'selectedIndex' => 0],
             'select' => isset($pageItems[$result['index']])
                 ? ['action' => 'select', 'page' => $page, 'row' => $pageItems[$result['index']], 'selectedIndex' => $result['index']]
                 : ['action' => 'redraw', 'page' => $page, 'selectedIndex' => 0],
@@ -163,6 +179,7 @@ class FreqHandler
         $fname  = sprintf('%-24s', mb_substr($files, 0, 24));
         $mode   = sprintf('%-4s', strtoupper((string)($row['mode'] ?? 'req')));
         [$statusLabel, $statusColor] = $this->statusLabelAndColor((string)($row['status'] ?? 'pending'), $locale);
+        $downloadable = $this->isDownloadable($row);
 
         return ' '
             . TelnetUtils::colorize(sprintf('%2d', $num), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
@@ -174,7 +191,16 @@ class FreqHandler
             . '  '
             . TelnetUtils::colorize($mode, TelnetUtils::ANSI_DIM)
             . '  '
-            . TelnetUtils::colorize(sprintf('%-8s', $statusLabel), $statusColor);
+            . TelnetUtils::colorize(sprintf('%-8s', $statusLabel), $statusColor)
+            . ($downloadable ? '  ' . TelnetUtils::colorize('[DL]', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD) : '');
+    }
+
+    /**
+     * Whether a request row has a received file available to download.
+     */
+    private function isDownloadable(array $row): bool
+    {
+        return (string)($row['status'] ?? '') === 'complete' && !empty($row['file_id']);
     }
 
     /**
@@ -213,6 +239,50 @@ class FreqHandler
         string $locale,
         TerminalShellInterface $shell
     ): void {
+        $title = $this->t('ui.terminalserver.freq.detail_title', 'File Request', [], $locale);
+        $downloadAvailable = $this->isDownloadable($row) && ZmodemTransfer::canDownload();
+
+        $lines = $this->buildRequestDetailLines($row, $locale);
+
+        $statusSegments = [
+            ['text' => 'U/D', 'color' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD],
+            ['text' => ' ' . $this->t('ui.terminalserver.freq.status_move', 'Move', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE],
+        ];
+        if ($downloadAvailable) {
+            $statusSegments[] = ['text' => 'D', 'color' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD];
+            $statusSegments[] = ['text' => ' ' . $this->t('ui.terminalserver.files.status_download', 'Download', [], $locale) . '  ', 'color' => TelnetUtils::ANSI_BLUE];
+        }
+        $statusSegments[] = ['text' => 'Q', 'color' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD];
+        $statusSegments[] = ['text' => ' ' . $this->t('ui.terminalserver.freq.status_quit', 'Quit', [], $locale), 'color' => TelnetUtils::ANSI_BLUE];
+
+        $action = $shell->showScrollablePanel(
+            $conn,
+            $state,
+            $title,
+            $lines,
+            [
+                'status_segments' => $statusSegments,
+                'extra_keys' => $downloadAvailable ? ['d' => 'download'] : [],
+                'redraw_fn' => function () use ($row, $locale, $title): array {
+                    return [
+                        'title' => $title,
+                        'lines' => $this->buildRequestDetailLines($row, $locale),
+                        'offset' => 0,
+                    ];
+                },
+            ]
+        );
+
+        if ($action === 'download') {
+            $this->downloadRequestFile($conn, $state, $session, $row, $locale, $shell);
+        }
+    }
+
+    /**
+     * @return string[]
+     */
+    private function buildRequestDetailLines(array $row, string $locale): array
+    {
         [$statusLabel] = $this->statusLabelAndColor((string)($row['status'] ?? 'pending'), $locale);
 
         $lines   = [];
@@ -225,13 +295,15 @@ class FreqHandler
         if (!empty($row['completed_at'])) {
             $lines[] = $this->t('ui.terminalserver.freq.detail_completed', 'Completed: {date}', ['date' => $this->formatDate((string)($row['completed_at']))], $locale);
         }
+        if (!$this->isDownloadable($row) && (string)($row['status'] ?? '') !== 'complete') {
+            $lines[] = '';
+            $lines[] = TelnetUtils::colorize(
+                $this->t('ui.terminalserver.freq.download_not_ready', 'This file has not been received yet.', [], $locale),
+                TelnetUtils::ANSI_DIM
+            );
+        }
 
-        $shell->showText(
-            $conn,
-            $state,
-            $this->t('ui.terminalserver.freq.detail_title', 'File Request', [], $locale),
-            $lines
-        );
+        return $lines;
     }
 
     private function formatDate(string $dateStr): string
@@ -241,6 +313,132 @@ class FreqHandler
         }
         $ts = strtotime($dateStr);
         return $ts !== false ? date('Y-m-d H:i', $ts) : $dateStr;
+    }
+
+    // ===========================================================
+    // DOWNLOAD
+    // ===========================================================
+
+    /**
+     * Fetch the received file for a completed request and offer it via ZMODEM.
+     */
+    private function downloadRequestFile(
+        $conn,
+        array &$state,
+        string $session,
+        array $row,
+        string $locale,
+        TerminalShellInterface $shell
+    ): void {
+        $title = $this->t('ui.terminalserver.freq.detail_title', 'File Request', [], $locale);
+
+        if (!$this->isDownloadable($row)) {
+            $shell->showAlert(
+                $conn,
+                $state,
+                $title,
+                $this->t('ui.terminalserver.freq.download_not_ready', 'This file has not been received yet.', [], $locale),
+                'info'
+            );
+            return;
+        }
+
+        if (!ZmodemTransfer::canDownload()) {
+            $shell->showAlert(
+                $conn,
+                $state,
+                $title,
+                $this->t('ui.terminalserver.files.transfer_unavailable', 'ZMODEM disabled: install lrzsz (sz/rz) on the server to enable transfers.', [], $locale),
+                'error'
+            );
+            return;
+        }
+
+        $fileRecord = $this->fetchFullFileRecord($session, (int)($row['file_id'] ?? 0));
+        if ($fileRecord === null) {
+            $shell->showAlert(
+                $conn,
+                $state,
+                $title,
+                $this->t('ui.terminalserver.files.download_error', 'File not found on server.', [], $locale),
+                'error'
+            );
+            return;
+        }
+
+        $this->downloadFile($conn, $state, $session, $fileRecord, $locale);
+    }
+
+    private function fetchFullFileRecord(string $session, int $fileId): ?array
+    {
+        if ($fileId <= 0) {
+            return null;
+        }
+        $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/files/' . $fileId, null, $session);
+        return $response['data']['file'] ?? null;
+    }
+
+    /**
+     * Initiate a ZMODEM send for a file record that already contains storage_path.
+     *
+     * @param resource $conn
+     * @param array    $fileRecord Full file record (must include storage_path and filename)
+     */
+    private function downloadFile($conn, array &$state, string $session, array $fileRecord, string $locale): void
+    {
+        $name = (string)($fileRecord['filename'] ?? 'file');
+
+        // Resolve the filesystem path — ISO-backed files reconstruct path from mount point + relative path
+        if (($fileRecord['source_type'] ?? '') === 'iso_import' && !empty($fileRecord['iso_rel_path'])) {
+            $mountPoint  = rtrim((string)($fileRecord['iso_mount_point'] ?? ''), '/\\');
+            $storagePath = $mountPoint !== '' ? $mountPoint . '/' . ltrim($fileRecord['iso_rel_path'], '/\\') : '';
+        } else {
+            $storagePath = (string)($fileRecord['storage_path'] ?? '');
+        }
+
+        if ($storagePath === '') {
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.download_error', 'File not found on server.', [], $locale),
+                TelnetUtils::ANSI_RED
+            ));
+            sleep(2);
+            return;
+        }
+
+        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->t('ui.terminalserver.files.download_starting', 'Starting ZMODEM download: {name}', ['name' => $name], $locale),
+            TelnetUtils::ANSI_CYAN
+        ));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->t('ui.terminalserver.files.download_hint', 'Start ZMODEM receive in your terminal now...', [], $locale),
+            TelnetUtils::ANSI_DIM
+        ));
+        sleep(1);
+
+        $this->server->logAction($state['username'] ?? 'unknown', "FREQ: download started {$name}");
+        $ok = ZmodemTransfer::send($conn, $storagePath, $name, !$this->isSsh);
+
+        TelnetUtils::writeLine($conn, '');
+        if ($ok) {
+            $this->server->logAction($state['username'] ?? 'unknown', "FREQ: download complete {$name}");
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.download_done', 'Transfer complete.', [], $locale),
+                TelnetUtils::ANSI_GREEN
+            ));
+        } else {
+            $this->server->logAction($state['username'] ?? 'unknown', "FREQ: download failed/cancelled {$name}");
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.download_failed', 'Transfer failed or was cancelled.', [], $locale),
+                TelnetUtils::ANSI_RED
+            ));
+        }
+
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+            TelnetUtils::ANSI_DIM
+        ));
+        $this->server->readKeyWithIdleCheck($conn, $state);
     }
 
     // ===========================================================

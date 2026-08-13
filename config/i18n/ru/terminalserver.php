@@ -418,6 +418,7 @@ return [
     'ui.terminalserver.freq.delete_failed' => 'Не удалось удалить запрос файла.',
     'ui.terminalserver.freq.confirm_yes' => 'Да',
     'ui.terminalserver.freq.confirm_no' => 'Нет',
+    'ui.terminalserver.freq.download_not_ready' => 'Этот файл еще не получен.',
     'ui.terminalserver.qwk.action_logout' => 'Q) Выход из системы',
 
     // --- Main menu: terminal settings ---

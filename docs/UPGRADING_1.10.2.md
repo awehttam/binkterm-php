@@ -52,7 +52,7 @@ This feature relies on the existing `binkp_scheduler` daemon to retry pending re
 
 ### File Requests in the terminal server (Telnet/SSH)
 
-The Telnet and SSH BBS interfaces now have their own File Requests screen, under **[Files] → File Requests** (default menu key `R`). It offers the same request/list/delete actions as the web page and is controlled by the same `FREQ_ENABLE_REQUESTS_WEB` setting above.
+The Telnet and SSH BBS interfaces now have their own File Requests screen, under **[Files] → File Requests** (default menu key `R`). It offers the same request/list/delete actions as the web page and is controlled by the same `FREQ_ENABLE_REQUESTS_WEB` setting above. Once a request is fulfilled, its file can be downloaded right from the same screen (key `D`) over ZMODEM.
 
 **If your BBS already has a custom main menu key map saved** (i.e. you have ever changed a terminal menu key away from its default in **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**), the new File Requests action will not appear in the terminal menu until you explicitly assign it a key on that same page, or click "Reset to Defaults". A custom key map only shows actions it explicitly lists, so newly added actions are not retroactively included. Sites still running the built-in default key map see the new menu item immediately with no admin action needed.
 

@@ -418,6 +418,7 @@ return [
     'ui.terminalserver.freq.delete_failed'              => 'Failed to delete file request.',
     'ui.terminalserver.freq.confirm_yes'                => 'Yes',
     'ui.terminalserver.freq.confirm_no'                 => 'No',
+    'ui.terminalserver.freq.download_not_ready'         => 'This file has not been received yet.',
     'ui.terminalserver.qwk.action_logout'              => 'Q) Log out',
 
     // --- Main menu: terminal settings ---
