@@ -122,6 +122,15 @@ return [
     'errors.fileareas.create_failed' => 'Échec de la création de la zone de fichiers',
     'errors.fileareas.update_failed' => 'Échec de la mise à jour de la zone de fichiers',
     'errors.fileareas.delete_failed' => 'Échec de la suppression de la zone de fichiers',
+    // Outbound FREQ (file requests)
+    'errors.freq.feature_disabled' => 'Les demandes de fichiers sont désactivées',
+    'errors.freq.node_required' => 'Une adresse de nœud est requise',
+    'errors.freq.filename_required' => 'Un nom de fichier ou un nom magique est requis',
+    'errors.freq.filename_invalid' => 'Le nom de fichier contient des caractères non valides',
+    'errors.freq.invalid_address' => 'Adresse FTN ou nom d\'hôte invalide (zone:réseau/nœud attendu, ou un nom d\'hôte tel que bbs.example.com)',
+    'errors.freq.concurrency_limit' => 'Vous avez déjà le nombre maximum de demandes de fichiers en cours ({max})',
+    'errors.freq.not_found' => 'Demande de fichier introuvable',
+
     'errors.files.feature_disabled' => 'La fonctionnalité des zones de fichiers est désactivée',
     'errors.files.area_id_required' => 'L\'identifiant de la zone de fichiers est requis',
     'errors.files.access_denied' => 'Accès refusé à cette zone de fichiers',

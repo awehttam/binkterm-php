@@ -3885,6 +3885,129 @@ Paginated frequency log entries
 
 ---
 
+### Freq Requests
+
+Outbound FREQ (file request) submission and tracking. Lets a logged-in user request a file from a remote FTN node, either via a `.req` file (default) or live-session `M_GET`. Backed by `freq_requests_outbound` / `FreqRequestTracker`; fulfilled files are routed to the user's private file area. See `docs/proposals/OutboundFreqImplementation.md`. Gated by `FREQ_ENABLE_REQUESTS_WEB` (default enabled, returns 404 when disabled).
+
+| Method | Path | Auth | Summary |
+|--------|------|------|---------|
+| `POST` | [`/freq/requests`](#post-freqrequests) | Yes | Queue a new outbound FREQ request. |
+| `GET` | [`/freq/requests`](#get-freqrequests) | Yes | List the current user's FREQ requests. |
+| `GET` | [`/freq/requests/{id}`](#get-freqrequestsid) | Yes | Get a single FREQ request's status. |
+| `DELETE` | [`/freq/requests/{id}`](#delete-freqrequestsid) | Yes | Delete a FREQ request's tracking row. |
+
+#### `POST /freq/requests`
+
+**Requires authentication**
+
+Validates the node address and filename, enforces the per-user concurrency cap (`FREQ_MAX_CONCURRENT_PER_USER`, default 2 pending requests), inserts a `freq_requests_outbound` row, and triggers the admin daemon to spawn the request in the background (`scripts/freq_getfile.php`).
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `node` | string | Yes | FTN address of the remote node (e.g. `227:1/200` or `227:1/200@fidonet`), or an internet hostname/IP (e.g. `bbs.example.com` or `bbs.example.com:24554`) to connect to directly for a node with no nodelist/binkp_zone entry |
+| `filename` | string | Yes | Filename or magic name to request, e.g. `ALLFILES` |
+| `mode` | string | No | `req` (default, Bark `.req` file) or `mget` (live-session `M_GET`) |
+| `password` | string\|null | No | Area password required by the remote node |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success indicator |
+| `request` | object | The newly created row |
+| `request.id` | integer | Request ID |
+| `request.node_address` | string | Normalized FTN address, or the hostname/IP given (unchanged) if `node` was not an FTN address |
+| `request.requested_files` | string | JSON-encoded array of requested filenames |
+| `request.mode` | string | `req` or `mget` |
+| `request.status` | string | `pending` / `complete` / `failed` |
+| `request.file_id` | integer\|null | `files.id` of the routed response file once fulfilled — lets the UI link the filename to the file viewer |
+| `request.attempts` | integer | Number of send attempts so far |
+| `request.last_attempt_at` | string\|null | ISO 8601 timestamp of the last attempt |
+| `request.created_at` | string | ISO 8601 timestamp the request was queued |
+| `request.completed_at` | string\|null | ISO 8601 timestamp the request was fulfilled |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 404 | Feature disabled (`FREQ_ENABLE_REQUESTS_WEB=false`) |
+| 422 | Missing/invalid `node` or `filename` |
+| 429 | Per-user concurrency cap reached |
+
+---
+
+#### `GET /freq/requests`
+
+**Requires authentication**
+
+Lists the current user's own FREQ requests, most recent first. Pass `?all=1` as an admin to list every user's requests.
+
+**Query Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `all` | string | No | Admin only — set to see all users' requests instead of just your own |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `requests` | array | Matching `freq_requests_outbound` rows (same shape as `request` above) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 404 | Feature disabled (`FREQ_ENABLE_REQUESTS_WEB=false`) |
+
+---
+
+#### `GET /freq/requests/{id}`
+
+**Requires authentication**
+
+Fetches a single FREQ request row for status polling. Only the requesting user (or an admin) may view it.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `request` | object | The matching row (same shape as in `POST /freq/requests`) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 404 | Not found, not owned by the requesting user, or feature disabled |
+
+---
+
+#### `DELETE /freq/requests/{id}`
+
+**Requires authentication**
+
+Deletes a FREQ request's tracking row. Only the requesting user (or an admin) may delete it. Does **not** delete the routed response file, if one was already received — that stays in the user's private file area, managed like any other file. Safe to call on a `pending` row: any in-flight `freq_getfile.php` process or scheduled retry for it will simply find no matching row on its next attempt/completion update.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Operation success indicator |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Authentication required |
+| 404 | Not found, not owned by the requesting user, or feature disabled |
+
+---
+
 ### I18n
 
 | Method | Path | Auth | Summary |

@@ -64,6 +64,37 @@ class AdminDaemonClient
         return $this->sendCommand('binkp_poll_sync', ['upstream' => $upstream]);
     }
 
+    /**
+     * Spawn an outbound FREQ attempt (initial send or retry) in the background.
+     *
+     * @param string   $node       FTN address of the remote node (no @domain)
+     * @param string[] $filenames  Filenames / magic names to request
+     * @param string   $mode       'req' (Bark .req file, default) or 'mget' (M_GET)
+     * @param int      $requestId  Existing freq_requests_outbound row to attach to
+     * @param string   $username   User the received file(s) should be routed to
+     * @param string|null $password Area password required by the remote node
+     */
+    public function freqRequest(
+        string $node,
+        array $filenames,
+        string $mode,
+        int $requestId,
+        string $username,
+        ?string $password = null
+    ): array {
+        $params = [
+            'node' => $node,
+            'filenames' => $filenames,
+            'mode' => $mode,
+            'request_id' => $requestId,
+            'username' => $username,
+        ];
+        if ($password !== null && $password !== '') {
+            $params['password'] = $password;
+        }
+        return $this->sendCommand('freq_request', $params);
+    }
+
     public function binkpAuthTest(string $domain): array
     {
         return $this->sendCommand('binkp_auth_test', ['domain' => $domain]);
