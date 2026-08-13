@@ -127,18 +127,28 @@ class FreqRequestTracker
     /**
      * Mark a request as complete.
      *
-     * @param int      $id     Record ID returned by recordRequest()
-     * @param int|null $fileId files.id of the routed response file, if known
-     *                         (lets the UI link the filename to the file viewer)
+     * @param int         $id               Record ID returned by recordRequest()
+     * @param int|null    $fileId           files.id of the routed response file, if known
+     *                                      (lets the UI link the filename to the file viewer)
+     * @param string|null $resolvedFilename When set, overwrites requested_files with this
+     *                                      single actual filename — used when the request was
+     *                                      made by magic name (e.g. ALLFILES) so the remote's
+     *                                      expanded/real filename is recorded and displayed
+     *                                      instead of the magic name that was requested.
      */
-    public function markComplete(int $id, ?int $fileId = null): void
+    public function markComplete(int $id, ?int $fileId = null, ?string $resolvedFilename = null): void
     {
         $stmt = $this->db->prepare("
             UPDATE freq_requests_outbound
-            SET status = 'complete', completed_at = NOW(), file_id = COALESCE(?, file_id)
+            SET status = 'complete', completed_at = NOW(), file_id = COALESCE(?, file_id),
+                requested_files = COALESCE(?, requested_files)
             WHERE id = ?
         ");
-        $stmt->execute([$fileId, $id]);
+        $stmt->execute([
+            $fileId,
+            $resolvedFilename !== null ? json_encode([$resolvedFilename]) : null,
+            $id,
+        ]);
     }
 
     /**

@@ -164,7 +164,7 @@ return [
     'errors.freq.feature_disabled' => 'File requests are disabled',
     'errors.freq.node_required' => 'A node address is required',
     'errors.freq.filename_required' => 'A filename or magic name is required',
-    'errors.freq.invalid_address' => 'Invalid FTN address format (expected zone:net/node)',
+    'errors.freq.invalid_address' => 'Invalid FTN address or hostname (expected zone:net/node, or a hostname such as bbs.example.com)',
     'errors.freq.concurrency_limit' => 'You already have the maximum number of file requests in progress ({max})',
     'errors.freq.not_found' => 'File request not found',
 

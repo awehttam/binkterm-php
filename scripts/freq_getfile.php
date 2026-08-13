@@ -22,7 +22,12 @@
  *   php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
  *
  * Arguments:
- *   address           FTN address of the node to request from (e.g. 227:1/200 or 227:1/200@fidonet)
+ *   address           FTN address of the node to request from (e.g. 227:1/200 or 227:1/200@fidonet),
+ *                     OR an internet hostname/IP to connect to directly (e.g. bbs.example.com or
+ *                     bbs.example.com:24554), for nodes with no nodelist/binkp_zone entry (e.g. a
+ *                     PVT node whose hostname was given to you out-of-band). When an FTN address is
+ *                     not used, the given hostname string is also used as the tracking key for
+ *                     routing the response file, in place of a real FTN address.
  *   filename          Filename or magic name to request (e.g. ALLFILES)
  *                     Multiple filenames may be listed to request more than one file.
  *
@@ -58,6 +63,7 @@ use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Database;
 use BinktermPHP\FileAreaManager;
+use BinktermPHP\Freq\FreqAddress;
 use BinktermPHP\Freq\FreqRequestTracker;
 use BinktermPHP\Freq\FreqResponseRouter;
 
@@ -71,7 +77,10 @@ function showUsage(): void
 Usage: php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
 
 Arguments:
-  address           FTN address of the remote node (e.g. 227:1/200 or 227:1/200@fidonet)
+  address           FTN address of the remote node (e.g. 227:1/200 or 227:1/200@fidonet),
+                    OR an internet hostname/IP to connect to directly (e.g.
+                    bbs.example.com or bbs.example.com:24554) for nodes with no
+                    nodelist/binkp_zone entry.
   filename          Filename or magic name to request (e.g. ALLFILES)
                     Multiple filenames may be listed.
 
@@ -94,6 +103,8 @@ Examples:
   php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
   php scripts/freq_getfile.php -g 1:123/456 ALLFILES        (M_GET / live-session FREQ)
   php scripts/freq_getfile.php --request-id=42 -g 1:123/456 ALLFILES
+  php scripts/freq_getfile.php bbs.example.com ALLFILES     (hostname, no FTN address)
+  php scripts/freq_getfile.php bbs.example.com:24554 ALLFILES
 
 USAGE;
 }
@@ -252,11 +263,30 @@ $logFile    = isset($opts['log-file'])
     : \BinktermPHP\Config::getLogPath('freq_getfile.log');
 $noConsole  = isset($opts['no-console']);
 
-try {
-    $address = normalizeAddress($rawAddress);
-} catch (\InvalidArgumentException $e) {
-    fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
-    exit(1);
+if (FreqAddress::isFtnAddress($rawAddress)) {
+    try {
+        $address = normalizeAddress($rawAddress);
+    } catch (\InvalidArgumentException $e) {
+        fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
+        exit(1);
+    }
+} else {
+    // Not an FTN address — treat the argument as an internet hostname (or
+    // "hostname:port"), for nodes with no nodelist/binkp_zone entry (e.g. a
+    // PVT node whose hostname was given out-of-band). Explicit --hostname=/
+    // --port= still take precedence if also given.
+    [$hostFromArg, $portFromArg] = FreqAddress::splitHostPort($rawAddress);
+    if ($hostFromArg === '') {
+        fwrite(STDERR, "Error: '{$rawAddress}' is neither a valid FTN address (zone:net/node) nor a usable hostname.\n");
+        exit(1);
+    }
+    $address = $rawAddress;
+    if ($hostname === null) {
+        $hostname = $hostFromArg;
+    }
+    if ($port === null && $portFromArg !== null) {
+        $port = $portFromArg;
+    }
 }
 
 $logger = new Logger($logFile, $logLevel, !$noConsole);
@@ -337,6 +367,7 @@ try {
                 $inboundPath = BinkpConfig::getInstance()->getInboundPath();
                 $fileManager = new FileAreaManager($db);
                 $lastFileId = null;
+                $lastFilename = null;
                 foreach ($received as $filename) {
                     $fullPath = $inboundPath . '/' . $filename;
                     if (!file_exists($fullPath) || FreqResponseRouter::isInfrastructureFile($filename, $fullPath)) {
@@ -344,13 +375,17 @@ try {
                     }
                     try {
                         $lastFileId = $fileManager->storeFreqIncoming((int)$user['id'], $fullPath, $address);
+                        $lastFilename = $filename;
                         $logger->log('INFO', "Routed '{$filename}' to user {$user['username']} via magic-name fallback (request id={$requestId}, file id={$lastFileId})");
                     } catch (\Exception $e) {
                         $logger->log('WARNING', "Failed to store '{$filename}' via magic-name fallback: " . $e->getMessage());
                     }
                 }
                 if ($lastFileId !== null) {
-                    $tracker->markComplete($requestId, $lastFileId);
+                    // Record the actual filename the remote sent, not the magic
+                    // name (e.g. ALLFILES) that was originally requested, so the
+                    // request is tracked/displayed under its real filename.
+                    $tracker->markComplete($requestId, $lastFileId, $lastFilename);
                 }
             }
 

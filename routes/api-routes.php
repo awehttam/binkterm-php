@@ -13922,12 +13922,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Normalize: strip @domain, validate zone:net/node(.point) format.
-        $address = str_contains($node, '@') ? explode('@', $node, 2)[0] : $node;
-        if (!preg_match('/^\d+:\d+\/\d+(\.\d+)?$/', $address)) {
-            http_response_code(422);
-            apiError('errors.freq.invalid_address', apiLocalizedText('errors.freq.invalid_address', 'Invalid FTN address format (expected zone:net/node)', $user));
-            return;
+        // Accept either an FTN address (zone:net/node, @domain stripped) or a
+        // plain internet hostname/IP (optionally "host:port") for nodes with
+        // no nodelist/binkp_zone entry — mirrors scripts/freq_getfile.php,
+        // which auto-detects which kind of address it was given.
+        if (\BinktermPHP\Freq\FreqAddress::isFtnAddress($node)) {
+            $address = str_contains($node, '@') ? explode('@', $node, 2)[0] : $node;
+        } else {
+            [$hostPart] = \BinktermPHP\Freq\FreqAddress::splitHostPort($node);
+            if ($hostPart === '') {
+                http_response_code(422);
+                apiError('errors.freq.invalid_address', apiLocalizedText('errors.freq.invalid_address', 'Invalid FTN address or hostname', $user));
+                return;
+            }
+            $address = $node;
         }
 
         $db = Database::getInstance()->getPdo();

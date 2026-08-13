@@ -2239,6 +2239,17 @@ class BinkpSession
 
             if ($result->served && $result->filePath !== null) {
                 $this->log("FREQ: serving {$result->servedName} ({$result->fileSize} bytes) to {$callerAddr}", 'INFO');
+                if ($result->isGenerated) {
+                    // Generated listings (e.g. ALLFILES.TXT) live in a temp
+                    // directory, not data/outbound/ — register as an "extra"
+                    // outbound file (same bucket as .req files, see
+                    // addExtraFile()) so handleSentFileConfirmation() finds
+                    // and cleans them up on M_GOT instead of logging a
+                    // spurious "Sent file not found" warning and leaking the
+                    // temp file. Not calling addExtraFile() itself - that
+                    // also queues the file for sendFiles() to send again.
+                    $this->extraOutboundFilesByName[basename($result->filePath)] = $result->filePath;
+                }
                 $this->sendFile($result->filePath);
             } else {
                 $this->log("FREQ: denied '{$filename}' for {$callerAddr}: {$result->denyReason}", 'INFO');

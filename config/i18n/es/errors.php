@@ -164,7 +164,7 @@ return [
     'errors.freq.feature_disabled' => 'Las solicitudes de archivos están deshabilitadas',
     'errors.freq.node_required' => 'Se requiere una dirección de nodo',
     'errors.freq.filename_required' => 'Se requiere un nombre de archivo o nombre mágico',
-    'errors.freq.invalid_address' => 'Formato de dirección FTN no válido (se espera zona:red/nodo)',
+    'errors.freq.invalid_address' => 'Dirección FTN o nombre de host no válido (se espera zona:red/nodo, o un nombre de host como bbs.example.com)',
     'errors.freq.concurrency_limit' => 'Ya tiene el número máximo de solicitudes de archivo en curso ({max})',
     'errors.freq.not_found' => 'Solicitud de archivo no encontrada',
 

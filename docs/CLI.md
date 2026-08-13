@@ -707,7 +707,16 @@ queued for that node are also sent during the session.
 
 ## Outbound FREQ (File Request)
 
-Requests one or more files from a remote binkp node. Two modes are supported:
+Requests one or more files from a remote binkp node. The target may be given as
+an FTN address (`227:1/200` or `227:1/200@fidonet`), resolved via the nodelist/
+binkp_zone DNS as usual, **or** as a plain internet hostname/IP
+(`bbs.example.com` or `bbs.example.com:24554`) to connect to directly — useful
+for a node with no nodelist/binkp_zone entry (e.g. a `PVT`-flagged node whose
+hostname was given to you out-of-band). When a hostname is used instead of an
+FTN address, that hostname string is also used as the tracking key for routing
+the response file back to the requesting user.
+
+Two modes are supported:
 
 - **Default (.req file)** — builds a Bark-style `.req` file (FTS-0008) and
   sends it to the remote node as a regular file transfer. The remote FREQ
@@ -741,6 +750,10 @@ php scripts/freq_getfile.php -g 1:123/456 ALLFILES
 
 # Override hostname and port
 php scripts/freq_getfile.php --hostname=bbs.example.com --port=24554 1:123/456 ALLFILES
+
+# Connect directly by hostname, no FTN address needed
+php scripts/freq_getfile.php bbs.example.com ALLFILES
+php scripts/freq_getfile.php bbs.example.com:24554 ALLFILES
 ```
 
 Options:

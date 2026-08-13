@@ -3906,7 +3906,7 @@ Validates the node address and filename, enforces the per-user concurrency cap (
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `node` | string | Yes | FTN address of the remote node, e.g. `227:1/200` or `227:1/200@fidonet` |
+| `node` | string | Yes | FTN address of the remote node (e.g. `227:1/200` or `227:1/200@fidonet`), or an internet hostname/IP (e.g. `bbs.example.com` or `bbs.example.com:24554`) to connect to directly for a node with no nodelist/binkp_zone entry |
 | `filename` | string | Yes | Filename or magic name to request, e.g. `ALLFILES` |
 | `mode` | string | No | `req` (default, Bark `.req` file) or `mget` (live-session `M_GET`) |
 | `password` | string\|null | No | Area password required by the remote node |
@@ -3918,7 +3918,7 @@ Validates the node address and filename, enforces the per-user concurrency cap (
 | `success` | boolean | Operation success indicator |
 | `request` | object | The newly created row |
 | `request.id` | integer | Request ID |
-| `request.node_address` | string | Normalized FTN address |
+| `request.node_address` | string | Normalized FTN address, or the hostname/IP given (unchanged) if `node` was not an FTN address |
 | `request.requested_files` | string | JSON-encoded array of requested filenames |
 | `request.mode` | string | `req` or `mget` |
 | `request.status` | string | `pending` / `complete` / `failed` |

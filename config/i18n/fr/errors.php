@@ -126,7 +126,7 @@ return [
     'errors.freq.feature_disabled' => 'Les demandes de fichiers sont désactivées',
     'errors.freq.node_required' => 'Une adresse de nœud est requise',
     'errors.freq.filename_required' => 'Un nom de fichier ou un nom magique est requis',
-    'errors.freq.invalid_address' => 'Format d\'adresse FTN invalide (zone:réseau/nœud attendu)',
+    'errors.freq.invalid_address' => 'Adresse FTN ou nom d\'hôte invalide (zone:réseau/nœud attendu, ou un nom d\'hôte tel que bbs.example.com)',
     'errors.freq.concurrency_limit' => 'Vous avez déjà le nombre maximum de demandes de fichiers en cours ({max})',
     'errors.freq.not_found' => 'Demande de fichier introuvable',
 

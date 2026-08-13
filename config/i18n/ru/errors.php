@@ -159,7 +159,7 @@ return [
     'errors.freq.feature_disabled' => 'Запросы файлов отключены',
     'errors.freq.node_required' => 'Требуется адрес узла',
     'errors.freq.filename_required' => 'Требуется имя файла или волшебное имя',
-    'errors.freq.invalid_address' => 'Неверный формат FTN-адреса (ожидается zone:net/node)',
+    'errors.freq.invalid_address' => 'Неверный FTN-адрес или имя хоста (ожидается zone:net/node или имя хоста, например bbs.example.com)',
     'errors.freq.concurrency_limit' => 'У вас уже максимальное количество активных запросов файлов ({max})',
     'errors.freq.not_found' => 'Запрос файла не найден',
 
