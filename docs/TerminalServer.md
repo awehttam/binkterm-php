@@ -289,6 +289,7 @@ Every action in the terminal main menu can be bound to a different single letter
 | P | Polls |
 | D | Door Games |
 | F | Files |
+| R | File Requests |
 | T | Settings |
 | I | Interests |
 | W | Who's Online |

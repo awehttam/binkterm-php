@@ -635,6 +635,7 @@ return [
     'ui.admin.appearance.term_menu_keys.action.polls' => 'Polls',
     'ui.admin.appearance.term_menu_keys.action.doors' => 'Door Games',
     'ui.admin.appearance.term_menu_keys.action.files' => 'Files',
+    'ui.admin.appearance.term_menu_keys.action.freqrequests' => 'File Requests',
     'ui.admin.appearance.term_menu_keys.action.settings' => 'Settings',
     'ui.admin.appearance.term_menu_keys.action.interests' => 'Interests',
     'ui.admin.appearance.term_menu_keys.action.whosonline' => 'Who\'s Online',

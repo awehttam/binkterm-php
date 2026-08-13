@@ -5387,6 +5387,7 @@ return [
     'ui.admin.appearance.term_menu_keys.action.polls' => 'Polls',
     'ui.admin.appearance.term_menu_keys.action.doors' => 'Juegos door',
     'ui.admin.appearance.term_menu_keys.action.files' => 'Archivos',
+    'ui.admin.appearance.term_menu_keys.action.freqrequests' => 'Solicitudes de archivos',
     'ui.admin.appearance.term_menu_keys.action.settings' => 'Configuracion',
     'ui.admin.appearance.term_menu_keys.action.interests' => 'Intereses',
     'ui.admin.appearance.term_menu_keys.action.whosonline' => 'Quien esta en linea',

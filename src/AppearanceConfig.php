@@ -47,6 +47,7 @@ class AppearanceConfig
         'polls'      => 'p',
         'doors'      => 'd',
         'files'      => 'f',
+        'freqrequests' => 'r',
         'settings'   => 't',
         'interests'  => 'i',
         'whosonline' => 'w',

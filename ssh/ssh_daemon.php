@@ -25,6 +25,7 @@ require_once __DIR__ . '/../telnet/src/PollsHandler.php';
 require_once __DIR__ . '/../telnet/src/DoorHandler.php';
 require_once __DIR__ . '/../telnet/src/ZmodemTransfer.php';
 require_once __DIR__ . '/../telnet/src/FileHandler.php';
+require_once __DIR__ . '/../telnet/src/FreqHandler.php';
 require_once __DIR__ . '/../telnet/src/TerminalSettingsHandler.php';
 require_once __DIR__ . '/../telnet/src/AnsiFormField.php';
 require_once __DIR__ . '/../telnet/src/AnsiSelectField.php';

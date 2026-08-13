@@ -642,6 +642,7 @@ return [
     'ui.admin.appearance.term_menu_keys.action.polls' => 'Опросы',
     'ui.admin.appearance.term_menu_keys.action.doors' => 'Door-игры',
     'ui.admin.appearance.term_menu_keys.action.files' => 'Файлы',
+    'ui.admin.appearance.term_menu_keys.action.freqrequests' => 'Запросы файлов',
     'ui.admin.appearance.term_menu_keys.action.settings' => 'Настройки',
     'ui.admin.appearance.term_menu_keys.action.interests' => 'Интересы',
     'ui.admin.appearance.term_menu_keys.action.whosonline' => 'Кто онлайн',

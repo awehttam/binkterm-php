@@ -121,6 +121,12 @@ Submitting spawns the same `scripts/freq_getfile.php` flow used by the CLI, via 
 
 This is enabled by default; set `FREQ_ENABLE_REQUESTS_WEB=false` to hide the page and disable the API. See [Configuration reference](#configuration-reference) for the per-user concurrency limit and retry settings.
 
+### Terminal server (telnet/SSH)
+
+The Telnet and SSH BBS interfaces expose the same feature under **[Files] → File Requests** (default menu key `R`, configurable in **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**). `telnet/src/FreqHandler.php` lists the logged-in user's own requests, and lets them submit a new request (with an address-book lookup for the node, `?`) or delete a tracking entry — it is a thin client of the same `/api/freq/requests` endpoints listed above, so behavior and the `FREQ_ENABLE_REQUESTS_WEB` gate are identical to the web page. The menu item itself is hidden when `FREQ_ENABLE_REQUESTS_WEB=false`.
+
+If the BBS already has a **custom** main menu key map saved (i.e. any key was ever changed from the defaults), File Requests will not appear until the sysop explicitly assigns it a key on that same admin page — a custom map only shows actions it explicitly lists, so newly added actions aren't retroactively included. Sites still running the built-in defaults (no custom map saved) see it immediately with no admin action needed.
+
 ### CLI: scripts/freq_getfile.php
 
 ```
