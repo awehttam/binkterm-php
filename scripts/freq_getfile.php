@@ -190,14 +190,18 @@ function buildReqFileContents(array $filenames, ?string $password): string
  * Most BinkP mailers (binkd etc.) recognise incoming .req files regardless
  * of name, but using the address-based name is the conventional approach.
  *
- * @param string $address FTN address (zone:net/node or zone:net/node.point)
- * @return string Filename such as "007B01C8.REQ"
+ * @param string $address FTN address (zone:net/node or zone:net/node.point),
+ *                        or an internet hostname when no FTN address is known
+ * @return string 8.3-compatible filename such as "007B01C8.REQ"
  */
 function reqFilenameForAddress(string $address): string
 {
     // Parse zone:net/node(.point)
     if (!preg_match('/^(\d+):(\d+)\/(\d+)/', $address, $m)) {
-        return 'FREQ' . uniqid() . '.REQ';
+        // No FTN address to derive net/node from (e.g. a hostname target) —
+        // still needs to be 8.3-compatible, so use 8 random hex digits
+        // rather than uniqid()'s 13-character string.
+        return strtoupper(substr(bin2hex(random_bytes(4)), 0, 8)) . '.REQ';
     }
     $net  = (int)$m[2];
     $node = (int)$m[3];
