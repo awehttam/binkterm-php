@@ -13921,6 +13921,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             apiError('errors.freq.filename_required', apiLocalizedText('errors.freq.filename_required', 'A filename or magic name is required', $user));
             return;
         }
+        // Reject characters that would let the filename break out of its single
+        // line in the generated .req file (FTS-0008) — a CR/LF would let the
+        // requester inject extra .req lines (e.g. an "!password" line or
+        // additional filename requests) into the session sent to the remote.
+        if (preg_match('/[\r\n]/', $filename)) {
+            http_response_code(422);
+            apiError('errors.freq.filename_invalid', apiLocalizedText('errors.freq.filename_invalid', 'Filename contains invalid characters', $user));
+            return;
+        }
 
         // Accept either an FTN address (zone:net/node, @domain stripped) or a
         // plain internet hostname/IP (optionally "host:port") for nodes with

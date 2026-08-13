@@ -164,6 +164,7 @@ return [
     'errors.freq.feature_disabled' => 'Dateianfragen sind deaktiviert',
     'errors.freq.node_required' => 'Eine Knotenadresse ist erforderlich',
     'errors.freq.filename_required' => 'Ein Dateiname oder Magic-Name ist erforderlich',
+    'errors.freq.filename_invalid' => 'Der Dateiname enthält ungültige Zeichen',
     'errors.freq.invalid_address' => 'Ungültige FTN-Adresse oder Hostname (erwartet: Zone:Netz/Knoten oder ein Hostname wie bbs.example.com)',
     'errors.freq.concurrency_limit' => 'Sie haben bereits die maximale Anzahl laufender Dateianfragen ({max})',
     'errors.freq.not_found' => 'Dateianfrage nicht gefunden',
