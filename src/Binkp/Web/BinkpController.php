@@ -1168,6 +1168,7 @@ class BinkpController
             'mrc_daemon.log'      => \BinktermPHP\Config::getLogPath('mrc_daemon.log'),
             'packets.log'         => \BinktermPHP\Config::getLogPath('packets.log'),
             'crashmail.log'       => \BinktermPHP\Config::getLogPath('crashmail.log'),
+            'freq_getfile.log'    => \BinktermPHP\Config::getLogPath('freq_getfile.log'),
         ];
 
         if ($preferredLogFile !== null && isset($allLogFiles[$preferredLogFile])) {
