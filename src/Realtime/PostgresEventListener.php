@@ -133,17 +133,32 @@ class PostgresEventListener implements EventListenerInterface
         }
 
         $connStr = sprintf(
-            'host=%s port=%s dbname=%s user=%s password=%s',
-            $this->databaseConfig['host'],
-            $this->databaseConfig['port'],
-            $this->databaseConfig['database'],
-            $this->databaseConfig['username'],
-            $this->databaseConfig['password']
+            "host='%s' port='%s' dbname='%s' user='%s' password='%s'",
+            addcslashes((string)$this->databaseConfig['host'], "'\\"),
+            addcslashes((string)$this->databaseConfig['port'], "'\\"),
+            addcslashes((string)$this->databaseConfig['database'], "'\\"),
+            addcslashes((string)$this->databaseConfig['username'], "'\\"),
+            addcslashes((string)$this->databaseConfig['password'], "'\\")
         );
+
+        $ssl = $this->databaseConfig['ssl'] ?? [];
+        if (!empty($ssl['enabled'])) {
+            $connStr .= " sslmode=require";
+            if (!empty($ssl['ca_cert'])) {
+                $connStr .= " sslrootcert='" . addcslashes((string)$ssl['ca_cert'], "'\\") . "'";
+            }
+            if (!empty($ssl['client_cert'])) {
+                $connStr .= " sslcert='" . addcslashes((string)$ssl['client_cert'], "'\\") . "'";
+            }
+            if (!empty($ssl['client_key'])) {
+                $connStr .= " sslkey='" . addcslashes((string)$ssl['client_key'], "'\\") . "'";
+            }
+        }
 
         $connection = @pg_connect($connStr);
         if (!is_resource($connection)) {
-            $this->logger->error('PostgreSQL event listener: pg_connect failed');
+            $error = function_exists('pg_last_error') ? @pg_last_error() : null;
+            $this->logger->error('PostgreSQL event listener: pg_connect failed', $error ? ['error' => $error] : []);
             return false;
         }
 
