@@ -15,6 +15,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **AI Bots**: Fixed a bug that prevented the AI bot daemon from starting on PHP 8.1 and later.
 - **Files**: Added a "File Requests" page where any logged-in user can request a file from another FidoNet node and have it delivered automatically to their private file area. The same feature is now also available from the Telnet/SSH terminal server, under **[Files] → File Requests**.
+- **Files**: The **Allow FREQ** toggle in the file area editor is no longer hidden behind the experimental netmail FREQ flag and is available by default.
 - **Auto Feed**: Reduced RSS/Atom feed-polling log noise — per-item body-source messages now log at `debug` instead of `info`.
 
 ---
@@ -55,6 +56,14 @@ This feature relies on the existing `binkp_scheduler` daemon to retry pending re
 The Telnet and SSH BBS interfaces now have their own File Requests screen, under **[Files] → File Requests** (default menu key `R`). It offers the same request/list/delete actions as the web page and is controlled by the same `FREQ_ENABLE_REQUESTS_WEB` setting above. Once a request is fulfilled, its file can be downloaded right from the same screen (key `D`) over ZMODEM.
 
 **If your BBS already has a custom main menu key map saved** (i.e. you have ever changed a terminal menu key away from its default in **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**), the new File Requests action will not appear in the terminal menu until you explicitly assign it a key on that same page, or click "Reset to Defaults". A custom key map only shows actions it explicitly lists, so newly added actions are not retroactively included. Sites still running the built-in default key map see the new menu item immediately with no admin action needed.
+
+### File area "Allow FREQ" toggle no longer tied to the experimental netmail flag
+
+The **Allow FREQ** and **FREQ Password** fields in **Admin → Area Management → File Areas** were previously hidden, and force-disabled on save, unless `ENABLE_FREQ_EXPERIMENTAL=true` was set in `.env`. That flag was only ever meant to gate the older, admin-only "Request ALLFILES" netmail button on nodelist pages, not inbound FREQ serving on a file area — the two are unrelated mechanisms. The file area toggle is now always shown and available.
+
+This toggle controls whether all approved files in that area can be served to any FidoNet node that FREQs them via `.req`/`M_GET`, independent of both the experimental netmail flag above and the outbound File Requests feature described earlier in this section. An optional FREQ password can be set to require remote nodes to supply it in their `M_GET` command; leave it blank for open access. See **[Enabling FREQ on a File Area](FileAreas.md#enabling-freq-on-a-file-area)** for details.
+
+If you had previously set `ENABLE_FREQ_EXPERIMENTAL=true` solely to expose this file-area toggle, you may now remove that setting unless you still want the netmail ALLFILES button on nodelist pages.
 
 ---
 
