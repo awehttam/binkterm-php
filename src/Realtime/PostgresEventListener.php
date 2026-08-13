@@ -15,8 +15,17 @@ class PostgresEventListener implements EventListenerInterface
     private Logger $logger;
     private ?string $channel = null;
 
-    /** @var resource|null */
+    /** @var resource|\PgSql\Connection|null */
     private $connection = null;
+
+    /**
+     * PHP 8.1+ returns opaque objects (PgSql\Connection, Socket) from these
+     * pgsql/sockets APIs instead of resources; accept either representation.
+     */
+    private static function isValidHandle(mixed $value, string $objectClass): bool
+    {
+        return is_resource($value) || $value instanceof $objectClass;
+    }
 
     /**
      * @param array<string, mixed> $databaseConfig
@@ -59,7 +68,7 @@ class PostgresEventListener implements EventListenerInterface
         }
 
         $socket = pg_socket($this->connection);
-        if (!is_resource($socket)) {
+        if (!self::isValidHandle($socket, \Socket::class)) {
             return [];
         }
 
@@ -90,7 +99,7 @@ class PostgresEventListener implements EventListenerInterface
      */
     public function isHealthy(): bool
     {
-        return is_resource($this->connection)
+        return self::isValidHandle($this->connection, \PgSql\Connection::class)
             && pg_connection_status($this->connection) === PGSQL_CONNECTION_OK;
     }
 
@@ -114,7 +123,7 @@ class PostgresEventListener implements EventListenerInterface
      */
     public function close(): void
     {
-        if (is_resource($this->connection)) {
+        if (self::isValidHandle($this->connection, \PgSql\Connection::class)) {
             pg_close($this->connection);
         }
 
@@ -166,7 +175,7 @@ class PostgresEventListener implements EventListenerInterface
             restore_error_handler();
         }
 
-        if (!is_resource($connection)) {
+        if (!self::isValidHandle($connection, \PgSql\Connection::class)) {
             $this->logger->error('PostgreSQL event listener: pg_connect failed', [
                 'host' => $this->databaseConfig['host'],
                 'port' => $this->databaseConfig['port'],
@@ -183,7 +192,7 @@ class PostgresEventListener implements EventListenerInterface
 
     private function issueListen(string $channel): bool
     {
-        if (!is_resource($this->connection)) {
+        if (!self::isValidHandle($this->connection, \PgSql\Connection::class)) {
             return false;
         }
 
