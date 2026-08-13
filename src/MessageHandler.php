@@ -5910,12 +5910,15 @@ class MessageHandler
         }
 
         // Threaded pagination groups messages by thread (root + replies). That's a poor
-        // fit for "unread"/"read": a thread can mix read and unread messages, and readers
-        // expect the Unread tab to show just the unread messages, not whole conversations
-        // with already-read messages mixed in. Delegate to the flat (non-threaded) query,
-        // which filters per-message and is also far cheaper than reasoning about read
-        // state across an entire thread tree.
-        if (($filter === 'unread' || $filter === 'read') && $userId) {
+        // fit for "unread"/"read"/"saved": a thread can mix read/unread or saved/unsaved
+        // messages, and readers expect those tabs to show just the matching messages, not
+        // whole conversations with non-matching messages mixed in. It's also a correctness
+        // issue for "saved" specifically: below, only thread *roots* are matched against the
+        // filter and then children are pulled in unconditionally, so a saved reply whose
+        // thread root isn't saved would never appear at all. Delegate to the flat
+        // (non-threaded) query, which filters per-message and is also far cheaper than
+        // reasoning about read/saved state across an entire thread tree.
+        if (($filter === 'unread' || $filter === 'read' || $filter === 'saved') && $userId) {
             return $this->getEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter, false, false, $sort);
         }
 
