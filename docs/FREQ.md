@@ -6,22 +6,22 @@ FidoNet FREQ (File Request) is a protocol that lets one node request specific fi
 
 ## Table of Contents
 
-1. [Serving FREQ (inbound requests)](#serving-freq-inbound-requests)
-   - [Enabling FREQ on a file area](#enabling-freq-on-a-file-area)
-   - [FREQ passwords](#freq-passwords)
-   - [Shared file links](#shared-file-links)
-   - [Magic names](#magic-names)
-   - [How requests are resolved](#how-requests-are-resolved)
-   - [Denial reasons](#denial-reasons)
-2. [Requesting files (outbound)](#requesting-files-outbound)
-   - [Web interface](#web-interface)
-   - [CLI: scripts/freq_getfile.php](#cli-scriptsfreq_getfilephp)
-   - [Bark .req file mode](#bark-req-file-mode)
-   - [binkp M_GET mode](#binkp-m_get-mode)
-   - [Automatic retry](#automatic-retry)
-3. [FREQ response routing](#freq-response-routing)
-4. [Admin interface](#admin-interface)
-5. [Configuration reference](#configuration-reference)
+- [Serving FREQ (inbound requests)](#serving-freq-inbound-requests)
+  - [Enabling FREQ on a file area](#enabling-freq-on-a-file-area)
+  - [FREQ passwords](#freq-passwords)
+  - [Shared file links](#shared-file-links)
+  - [Magic names](#magic-names)
+  - [How requests are resolved](#how-requests-are-resolved)
+  - [Denial reasons](#denial-reasons)
+- [Requesting files (outbound)](#requesting-files-outbound)
+  - [Web interface](#web-interface)
+  - [CLI: scripts/freq_getfile.php](#cli-scriptsfreq_getfilephp)
+  - [Bark .req file mode](#bark-req-file-mode)
+  - [binkp M_GET mode](#binkp-m_get-mode)
+  - [Automatic retry](#automatic-retry)
+- [FREQ response routing](#freq-response-routing)
+- [Admin interface](#admin-interface)
+- [Configuration reference](#configuration-reference)
 
 ---
 
