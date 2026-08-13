@@ -14,9 +14,11 @@ FidoNet FREQ (File Request) is a protocol that lets one node request specific fi
    - [How requests are resolved](#how-requests-are-resolved)
    - [Denial reasons](#denial-reasons)
 2. [Requesting files (outbound)](#requesting-files-outbound)
+   - [Web interface](#web-interface)
+   - [CLI: scripts/freq_getfile.php](#cli-scriptsfreq_getfilephp)
    - [Bark .req file mode](#bark-req-file-mode)
    - [binkp M_GET mode](#binkp-m_get-mode)
-   - [Picking up files asynchronously](#picking-up-files-asynchronously)
+   - [Automatic retry](#automatic-retry)
 3. [FREQ response routing](#freq-response-routing)
 4. [Admin interface](#admin-interface)
 5. [Configuration reference](#configuration-reference)
@@ -100,7 +102,26 @@ All attempts (served and denied) are logged to the `freq_log` database table and
 
 ## Requesting files (outbound)
 
-Use `scripts/freq_getfile.php` to request files from a remote node.
+BinktermPHP can request files from any binkp-reachable remote node, either from the web interface or via CLI. The target can be given as an FTN address (`zone:net/node`, optionally with an `@domain` or `.point` suffix) or, for nodes with no nodelist/binkp_zone entry, as a plain internet hostname or IP (optionally `host:port`, e.g. `bbs.example.com:24554`). `src/Freq/FreqAddress.php` auto-detects which kind was given and is shared by both the CLI and the web API so they accept the same address syntax.
+
+Every request — whether submitted via the web or the CLI — is recorded in the `freq_requests_outbound` table by `FreqRequestTracker` before the session opens. This allows a FREQ response that arrives asynchronously (in a later session) to be routed to the correct requesting user.
+
+### Web interface
+
+Any logged-in user can submit a request under **Files → File Requests** (`/file-requests`), backed by:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/freq/requests` | Submit a new request (`node`, `filename`, `mode`: `req` or `mget`, optional `password`) |
+| `GET /api/freq/requests` | List the current user's requests (admins can pass `?all=1` to see everyone's) |
+| `GET /api/freq/requests/{id}` | Fetch a single request's status |
+| `DELETE /api/freq/requests/{id}` | Remove a tracking entry (does not delete a file that was already received) |
+
+Submitting spawns the same `scripts/freq_getfile.php` flow used by the CLI, via the admin daemon (`AdminDaemonClient::freqRequest()`), so behavior is identical either way. A request's status is `pending` until a matching file is routed (`complete`) or its attempts are exhausted (`failed`).
+
+This is enabled by default; set `FREQ_ENABLE_REQUESTS_WEB=false` to hide the page and disable the API. See [Configuration reference](#configuration-reference) for the per-user concurrency limit and retry settings.
+
+### CLI: scripts/freq_getfile.php
 
 ```
 php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
@@ -143,22 +164,16 @@ php scripts/freq_getfile.php -g 1:123/456 ALLFILES
 | `--password=PASS` | Area password required by the remote node |
 | `--hostname=HOST` | Override hostname; skip nodelist/DNS lookup |
 | `--port=PORT` | Override port (default 24554) |
+| `--request-id=ID` | Attach this run to an existing `freq_requests_outbound` row instead of creating a new one (used internally by the web API and the scheduled retry job) |
 | `--log-level=LVL` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default `INFO`) |
 | `--log-file=FILE` | Log file path (default: `data/logs/freq_getfile.log`) |
 | `--no-console` | Suppress console output |
 
-Every request is recorded in the `freq_requests_outbound` table by `FreqRequestTracker` before the session opens. This allows asynchronous FREQ responses (files arriving in a later session) to be correctly routed to the requesting user.
+### Automatic retry
 
-### Picking up files asynchronously
+A `.req`-mode request often isn't fulfilled during its initial session — the remote may process the `.req` and answer in a later session instead. `Scheduler::runScheduledFreqRetries()`, run periodically by the `binkp_scheduler` daemon, picks up any `pending` `freq_requests_outbound` row that is due for another attempt and re-runs `freq_getfile.php` against it (via `--request-id`), up to `FREQ_MAX_ATTEMPTS` attempts with at least `FREQ_POLL_INTERVAL` seconds between attempts. Once the cap is reached without a match, the row is marked `failed` instead of being retried indefinitely.
 
-If the remote cannot reach you (no inbound binkp port), the remote will queue the files and wait for you to poll. Use `scripts/freq_pickup.php` to open an outbound session and collect them:
-
-```
-php scripts/freq_pickup.php 1:123/456
-php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com
-```
-
-This simply opens a binkp session; any files the remote has queued for your address are transferred normally and `FreqResponseRouter` routes them on receipt.
+If the remote cannot reach you at all (no inbound binkp port), it will still queue the file and wait for you to poll — the retry loop above, which opens outbound sessions to the node on each attempt, is what picks it up.
 
 ---
 
@@ -191,6 +206,10 @@ When `ENABLE_FREQ_EXPERIMENTAL=true` is set in `.env`, a **Request ALLFILES** bu
 | Setting | Default | Description |
 |---|---|---|
 | `ENABLE_FREQ_EXPERIMENTAL` | `false` | Set to `true` to show the FREQ request button on nodelist node pages (admin only) |
+| `FREQ_ENABLE_REQUESTS_WEB` | `true` | Set to `false` to hide the File Requests page and disable its API entirely |
+| `FREQ_MAX_CONCURRENT_PER_USER` | `2` | Maximum number of requests a single user may have in progress at once |
+| `FREQ_MAX_ATTEMPTS` | `5` | Number of retry attempts before an unfulfilled request is marked `failed` |
+| `FREQ_POLL_INTERVAL` | `300` | Seconds between automatic retry attempts for a pending request |
 
 File area FREQ settings are configured per-area in **Admin → File Areas**:
 
@@ -205,8 +224,8 @@ File area FREQ settings are configured per-area in **Admin → File Areas**:
 |---|---|
 | `src/Freq/FreqResolver.php` | Resolves inbound FREQ requests (M_GET, .req, netmail) |
 | `src/Freq/FreqResult.php` | Result value object returned by the resolver |
-| `src/Freq/FreqRequestTracker.php` | Tracks outbound FREQ requests for response routing |
+| `src/Freq/FreqAddress.php` | Parses outbound FREQ target addresses (FTN address or hostname); shared by the CLI and web API |
+| `src/Freq/FreqRequestTracker.php` | Tracks outbound FREQ requests for response routing and retry |
 | `src/Freq/FreqResponseRouter.php` | Routes received files to requesting users |
 | `src/Freq/MagicFileListGenerator.php` | Generates ALLFILES.TXT and per-area listings |
 | `scripts/freq_getfile.php` | CLI tool for requesting files from a remote node |
-| `scripts/freq_pickup.php` | CLI tool for collecting asynchronously queued FREQ responses |
