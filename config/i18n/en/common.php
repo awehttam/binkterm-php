@@ -3266,7 +3266,7 @@ return [
 
     // File Requests Page (outbound FREQ)
     'ui.file_requests.title' => 'File Requests',
-    'ui.file_requests.description' => 'Request a file from another FidoNet node. The file will arrive in your private file area once fulfilled.',
+    'ui.file_requests.description' => 'Request a file from another FTN node. The file will arrive in your private file area once fulfilled.',
     'ui.file_requests.new_request' => 'New Request',
     'ui.file_requests.node_label' => 'Node Address or Hostname',
     'ui.file_requests.node_placeholder' => 'e.g. 227:1/200, 227:1/200@fidonet, or bbs.example.com',
