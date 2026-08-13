@@ -1600,6 +1600,18 @@ class BinkdProcessor
             return;
         }
 
+        // SEEN-BY and PATH are supposed to stay in sync, but not every
+        // upstream tosser/gateway keeps them that way - some write PATH
+        // without a matching SEEN-BY entry for less-common nets. Relying on
+        // SEEN-BY alone can then relay a message straight back to a link
+        // that already touched it, which real tossers reject as a loop
+        // (their own address already present in the incoming PATH).
+        $rawPath = \BinktermPHP\Echomail\EchomailSeenBy::parsePath($bottomKludgeText);
+        if (\BinktermPHP\Echomail\EchomailSeenBy::pathContains($rawPath, $uplinkAddress)) {
+            // Uplink's address is already in PATH - it has already handled this message.
+            return;
+        }
+
         if ($messageHandler->spoolOutboundEchomail($messageId, $echoareaTag, $domain)) {
             $messageHandler->flushImmediateOutboundPolls();
         }
