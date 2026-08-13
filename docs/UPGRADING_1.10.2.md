@@ -13,8 +13,6 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
-<!-- Content is added incrementally as changes are made during this release cycle. -->
-
 - **AI Bots**: Fixed a bug that prevented the AI bot daemon from starting on PHP 8.1 and later.
 - **Files**: Added a "File Requests" page where any logged-in user can request a file from another FidoNet node and have it delivered automatically to their private file area.
 
