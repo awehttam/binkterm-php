@@ -1562,7 +1562,16 @@ class BinkdProcessor
             }
 
             try {
-                $this->relayEchomailToUplinkIfNeeded($newId, $echoareaTag, $domain, $message['origAddr'], $bottomKludgeText);
+                $packetSenderAddr = '';
+                if ($packetInfo !== null) {
+                    $packetOrigZone = (int)($packetInfo['origZone'] ?? 0);
+                    $packetOrigNet  = (int)($packetInfo['origNet']  ?? 0);
+                    $packetOrigNode = (int)($packetInfo['origNode'] ?? 0);
+                    if ($packetOrigZone > 0 && ($packetOrigNet > 0 || $packetOrigNode > 0)) {
+                        $packetSenderAddr = $packetOrigZone . ':' . $packetOrigNet . '/' . $packetOrigNode;
+                    }
+                }
+                $this->relayEchomailToUplinkIfNeeded($newId, $echoareaTag, $domain, $message['origAddr'], $packetSenderAddr, $bottomKludgeText);
             } catch (\Throwable $e) {
                 $this->log("[BINKD] Uplink relay failed for echomail #{$newId}: " . $e->getMessage());
             }
@@ -1579,7 +1588,7 @@ class BinkdProcessor
      * would only ever be distributed to other downlinks, never forwarded up
      * to the real network - only half of real FTN hub relay behavior.
      */
-    private function relayEchomailToUplinkIfNeeded(int $messageId, string $echoareaTag, string $domain, string $origAddr, string $bottomKludgeText): void
+    private function relayEchomailToUplinkIfNeeded(int $messageId, string $echoareaTag, string $domain, string $origAddr, string $packetSenderAddr, string $bottomKludgeText): void
     {
         $messageHandler = new \BinktermPHP\MessageHandler();
         $uplinkAddress = $messageHandler->getEchoareaUplink($echoareaTag, $domain);
@@ -1587,23 +1596,47 @@ class BinkdProcessor
             return;
         }
 
-        $origParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts(trim($origAddr));
         $uplinkParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts($uplinkAddress);
+
+        // Guard 1: message-header author address. This is the ORIGINAL
+        // poster's address, baked into the message body - it stays constant
+        // as the message hops across the network, so it only matches the
+        // uplink when the uplink itself authored the message (rare). Cheap
+        // to check and worth keeping, but it is not a general "did this come
+        // from our uplink" test - see Guard 2 for that.
+        $origParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts(trim($origAddr));
         if ($origAddr !== '' && $origParts['net'] === $uplinkParts['net'] && $origParts['node'] === $uplinkParts['node']) {
             // Received directly from this uplink - don't send it straight back.
             return;
         }
 
+        // Guard 2: packet-header sender address. Unlike $origAddr (Guard 1),
+        // $packetSenderAddr comes from the .pkt file's own header, which
+        // every tosser rewrites fresh at each hop to identify who is
+        // physically handing over THIS packet. That makes it the reliable
+        // way to tell "we just received this from our own uplink" - a boss
+        // commonly omits or strips SEEN-BY/PATH on point-bound links (points
+        // aren't expected to relay further), which would otherwise leave
+        // Guards 3/4 below with nothing to catch the bounce-back on.
+        $packetSenderParts = \BinktermPHP\Echomail\EchomailSeenBy::parseFtnAddressParts(trim($packetSenderAddr));
+        if ($packetSenderAddr !== '' && $packetSenderParts['net'] === $uplinkParts['net'] && $packetSenderParts['node'] === $uplinkParts['node']) {
+            // This packet was handed to us directly by the uplink - don't send it straight back.
+            return;
+        }
+
+        // Guard 3: SEEN-BY. Standard FTN loop prevention - if the uplink's
+        // net/node is already listed as having seen this message (via some
+        // other path), it doesn't need us to send it again.
         $rawSeenBy = \BinktermPHP\Echomail\EchomailSeenBy::parseSeenBy($bottomKludgeText);
         if (\BinktermPHP\Echomail\EchomailSeenBy::seenByContains($rawSeenBy, $uplinkAddress)) {
             // Uplink already has a copy via some other path.
             return;
         }
 
-        // SEEN-BY and PATH are supposed to stay in sync, but not every
-        // upstream tosser/gateway keeps them that way - some write PATH
-        // without a matching SEEN-BY entry for less-common nets. Relying on
-        // SEEN-BY alone can then relay a message straight back to a link
+        // Guard 4: PATH. SEEN-BY and PATH are supposed to stay in sync, but
+        // not every upstream tosser/gateway keeps them that way - some write
+        // PATH without a matching SEEN-BY entry for less-common nets. Relying
+        // on SEEN-BY alone can then relay a message straight back to a link
         // that already touched it, which real tossers reject as a loop
         // (their own address already present in the incoming PATH).
         $rawPath = \BinktermPHP\Echomail\EchomailSeenBy::parsePath($bottomKludgeText);
