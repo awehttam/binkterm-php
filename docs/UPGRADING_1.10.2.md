@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [AI Bots](#ai-bots)
 - [Files](#files)
+- [Echomail](#echomail)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -17,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Files**: Added a "File Requests" page where any logged-in user can request a file from another FidoNet node and have it delivered automatically to their private file area. The same feature is now also available from the Telnet/SSH terminal server, under **[Files] → File Requests**.
 - **Files**: The **Allow FREQ** toggle in the file area editor is no longer hidden behind the experimental netmail FREQ flag and is available by default.
 - **Auto Feed**: Reduced RSS/Atom feed-polling log noise — per-item body-source messages now log at `debug` instead of `info`.
+- **Echomail**: Fixed a suspected echomail loop that could occur when this system is configured as a point using an uplink.
 
 ---
 
@@ -64,6 +66,16 @@ The **Allow FREQ** and **FREQ Password** fields in **Admin → Area Management �
 This toggle controls whether all approved files in that area can be served to any FidoNet node that FREQs them via `.req`/`M_GET`, independent of both the experimental netmail flag above and the outbound File Requests feature described earlier in this section. An optional FREQ password can be set to require remote nodes to supply it in their `M_GET` command; leave it blank for open access. See **[Enabling FREQ on a File Area](FileAreas.md#enabling-freq-on-a-file-area)** for details.
 
 If you had previously set `ENABLE_FREQ_EXPERIMENTAL=true` solely to expose this file-area toggle, you may now remove that setting unless you still want the netmail ALLFILES button on nodelist pages.
+
+---
+
+## Echomail
+
+### Fixed a suspected relay loop for point systems
+
+When this system is set up as a point (using an uplink/boss rather than acting as a hub), incoming echomail could in some cases be relayed straight back to the uplink that had just sent it, instead of only being distributed locally. The relay logic previously decided whether a message needed to go back to the uplink using the message's original author address and its SEEN-BY/PATH tracking lines, but some upstream systems don't include SEEN-BY/PATH entries on point-bound links, and the author address alone isn't a reliable way to detect "this just came from our own uplink." The relay logic now also checks the immediate sender of the inbound packet itself, so mail received from the uplink is recognized and is no longer bounced back to it.
+
+If your upstream has previously reported echomail loops or duplicate/rejected traffic involving your system, this should no longer occur after upgrading.
 
 ---
 
