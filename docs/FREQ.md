@@ -68,6 +68,8 @@ The following magic names are supported and resolve dynamically:
 
 Magic name resolution is case-insensitive. The generated listings use a FILES.BBS-compatible format with filename, size, upload date, and description.
 
+`ALLFILES.TXT` additionally starts with a header identifying the BBS: system name, sysop name, location, and web address (from **Admin → BinkP → System Configuration** and `SITE_URL`). Per-area listings (requesting a specific `<AREA TAG>`) do not include this header.
+
 Magic names do not require a password and cannot be subject to size or timestamp filters.
 
 ### How requests are resolved
