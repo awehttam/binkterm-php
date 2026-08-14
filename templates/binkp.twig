@@ -72,6 +72,9 @@
             <button class="nav-link" id="hub-outbound-tab" data-bs-toggle="tab" data-bs-target="#hub-outbound" type="button" role="tab">{{ t('ui.binkp.hub_outbound_tab') }}</button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" id="freq-requests-tab" data-bs-toggle="tab" data-bs-target="#freq-requests" type="button" role="tab" onclick="onFreqRequestsTabOpen()">{{ t('ui.binkp.freq_requests_tab') }}</button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="kept-packets-tab" data-bs-toggle="tab" data-bs-target="#kept-packets" type="button" role="tab"{% if license_valid %} onclick="onKeptPacketsTabOpen()"{% endif %}>
                 {{ t('ui.binkp.kept_packets_tab') }}{% if not license_valid %} <i class="fas fa-lock ms-1 text-warning small"></i>{% endif %}
             </button>
@@ -261,6 +264,39 @@
                             <tr><td colspan="7">{{ t('ui.common.loading') }}</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- FREQ Requests Tab -->
+        <div class="tab-pane fade" id="freq-requests" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">{{ t('ui.binkp.freq_requests_heading') }}</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="loadFreqRequestsAdmin()">
+                    <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
+                </button>
+            </div>
+            <div class="card">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0 align-middle">
+                            <thead>
+                                <tr>
+                                    <th>{{ t('ui.file_requests.col_node') }}</th>
+                                    <th>{{ t('ui.file_requests.col_filename') }}</th>
+                                    <th>{{ t('ui.binkp.freq_requests.col_requester') }}</th>
+                                    <th>{{ t('ui.file_requests.col_mode') }}</th>
+                                    <th>{{ t('ui.file_requests.col_status') }}</th>
+                                    <th>{{ t('ui.file_requests.col_attempts') }}</th>
+                                    <th>{{ t('ui.file_requests.col_submitted') }}</th>
+                                    <th class="text-end">{{ t('ui.file_requests.col_actions') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="freq-requests-admin-rows">
+                                <tr><td colspan="8">{{ t('ui.common.loading') }}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1301,6 +1337,88 @@ function filterLogs() {
 function clearLogSearch() {
     document.getElementById('logSearch').value = '';
     filterLogs();
+}
+
+// ── FREQ Requests (admin, entire outbound queue) ───────────────────────────
+
+let _freqRequestsAdminLoaded = false;
+
+function onFreqRequestsTabOpen() {
+    if (!_freqRequestsAdminLoaded) {
+        loadFreqRequestsAdmin();
+    }
+}
+
+function escapeHtmlFreq(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+}
+
+function renderFreqRequestsAdminRow(row) {
+    const files = (function() {
+        try { return JSON.parse(row.requested_files).join(', '); } catch (e) { return row.requested_files; }
+    })();
+    const badgeMap = { pending: 'bg-warning text-dark', complete: 'bg-success', failed: 'bg-danger' };
+    const labelMap = {
+        pending: '{{ t('ui.file_requests.status_pending')|e('js') }}',
+        complete: '{{ t('ui.file_requests.status_complete')|e('js') }}',
+        failed: '{{ t('ui.file_requests.status_failed')|e('js') }}'
+    };
+    const badge = badgeMap[row.status] || 'bg-secondary';
+    const label = labelMap[row.status] || row.status;
+    const submitted = row.created_at ? new Date(row.created_at).toLocaleString() : '';
+    const requester = row.username ? escapeHtmlFreq(row.username) : '#' + escapeHtmlFreq(row.user_id);
+    return '<tr>' +
+        '<td>' + escapeHtmlFreq(row.node_address) + '</td>' +
+        '<td>' + escapeHtmlFreq(files) + '</td>' +
+        '<td>' + requester + '</td>' +
+        '<td>' + escapeHtmlFreq((row.mode || '').toUpperCase()) + '</td>' +
+        '<td><span class="badge ' + badge + '">' + escapeHtmlFreq(label) + '</span></td>' +
+        '<td>' + escapeHtmlFreq(row.attempts) + '</td>' +
+        '<td>' + escapeHtmlFreq(submitted) + '</td>' +
+        '<td class="text-end">' +
+            '<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteFreqRequestAdmin(' + parseInt(row.id, 10) + ')" title="{{ t('ui.file_requests.delete')|e('js') }}">' +
+                '<i class="fas fa-trash"></i>' +
+            '</button>' +
+        '</td>' +
+        '</tr>';
+}
+
+function loadFreqRequestsAdmin() {
+    const body = document.getElementById('freq-requests-admin-rows');
+    fetch('/api/freq/requests?all=1')
+        .then(r => r.json())
+        .then(data => {
+            _freqRequestsAdminLoaded = true;
+            const rows = data.requests || [];
+            if (rows.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" class="text-center text-muted p-4">{{ t('ui.binkp.freq_requests.empty')|e('js') }}</td></tr>';
+                return;
+            }
+            body.innerHTML = rows.map(renderFreqRequestsAdminRow).join('');
+        })
+        .catch(() => {
+            body.innerHTML = '<tr><td colspan="8" class="text-center text-danger p-4">{{ t('ui.binkp.freq_requests.load_failed')|e('js') }}</td></tr>';
+        });
+}
+
+function deleteFreqRequestAdmin(id) {
+    if (!confirm('{{ t('ui.file_requests.delete_confirm')|e('js') }}')) {
+        return;
+    }
+    fetch('/api/freq/requests/' + id, { method: 'DELETE' })
+        .then(r => r.json().then(data => ({ ok: r.ok, data: data })))
+        .then(function(result) {
+            if (result.ok && result.data.success) {
+                loadFreqRequestsAdmin();
+            } else {
+                alert((window.getApiErrorMessage ? window.getApiErrorMessage(result.data, '') : '') || '{{ t('ui.file_requests.delete_failed')|e('js') }}');
+            }
+        })
+        .catch(function() {
+            alert('{{ t('ui.file_requests.delete_failed')|e('js') }}');
+        });
 }
 
 // ── Kept Packets ─────────────────────────────────────────────────────────────

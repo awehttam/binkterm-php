@@ -13991,7 +13991,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         if ($isAdmin && !empty($_GET['all'])) {
-            $stmt = $db->query("SELECT * FROM freq_requests_outbound ORDER BY created_at DESC LIMIT 200");
+            $stmt = $db->query("
+                SELECT fr.*, u.username
+                FROM freq_requests_outbound fr
+                LEFT JOIN users u ON u.id = fr.user_id
+                ORDER BY fr.created_at DESC LIMIT 200
+            ");
         } else {
             $stmt = $db->prepare("SELECT * FROM freq_requests_outbound WHERE user_id = ? ORDER BY created_at DESC LIMIT 200");
             $stmt->execute([$userId]);
