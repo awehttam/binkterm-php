@@ -136,6 +136,7 @@ class BinkpClient
             $stream = $this->socketToStream($socket);
             $session = new BinkpSession($stream, true, $this->config);
             $session->setLogger($this->logger);
+            $session->setDialedAddress($address);
             $sessionLogger = new \BinktermPHP\Binkp\SessionLogger();
             $sessionLogger->startSession($address, $peerIp, 'secure', false, getmypid(), basename((string)$this->logger->getLogFile()));
             $session->setSessionLogger($sessionLogger);
@@ -264,6 +265,7 @@ class BinkpClient
             $stream = $this->socketToStream($socket);
             $session = new BinkpSession($stream, true, $this->config);
             $session->setLogger($this->logger);
+            $session->setDialedAddress($address);
             $sessionLogger = new \BinktermPHP\Binkp\SessionLogger();
             $sessionLogger->startSession($address, $peerIp, 'secure', false, getmypid(), basename((string)$this->logger->getLogFile()));
             $session->setSessionLogger($sessionLogger);

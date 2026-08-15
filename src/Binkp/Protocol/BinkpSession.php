@@ -37,6 +37,8 @@ class BinkpSession
     private $localAddress;
     private $remoteAddress;
     private $remoteAddressWithDomain;
+    /** @var string|null The address we actually dialed, for originator sessions */
+    private $dialedAddress = null;
     /** @var string[] All AKAs advertised by the remote node */
     private array $remoteAkas = [];
     private $password;
@@ -145,6 +147,26 @@ class BinkpSession
     {
         $this->uplinkPassword = $password;
         $this->log("setUplinkPassword: length=" . strlen($password), 'DEBUG');
+    }
+
+    /**
+     * Record the address we actually dialed for an originator session. When set,
+     * this is preferred over AKA-matching the remote's M_ADR against known
+     * uplinks/hub nodes, since we already know who we intended to call — the
+     * remote may advertise several AKAs of its own, and one of those AKAs
+     * coincidentally matching a different known node should not relabel the
+     * session under that identity.
+     *
+     * Ignored for values that aren't an FTN address (e.g. a bare hostname used
+     * to dial a node with no nodelist/binkp_zone entry) — in that case we still
+     * don't know the remote's real FTN identity ourselves, so AKA-matching
+     * against its M_ADR remains the best available source for it.
+     */
+    public function setDialedAddress(string $address): void
+    {
+        if (\BinktermPHP\Freq\FreqAddress::isFtnAddress($address)) {
+            $this->dialedAddress = $address;
+        }
     }
 
     /**
@@ -729,8 +751,16 @@ class BinkpSession
                 if (substr($fallbackAddress, -2) === '.0') {
                     $fallbackAddress = substr($fallbackAddress, 0, -2);
                 }
-                $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
-                $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
+                if ($this->isOriginator && !empty($this->dialedAddress)) {
+                    // We already know who we called - don't relabel the session
+                    // under a different AKA the remote happens to also advertise
+                    // and that happens to match a known uplink/hub node.
+                    $this->remoteAddress = $this->dialedAddress;
+                    $this->remoteAddressWithDomain = $this->dialedAddress;
+                } else {
+                    $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
+                    $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
+                }
                 $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
                 if ($this->sessionLogger && !empty($this->remoteAddress)) {
                     $this->sessionLogger->setRemoteAddress($this->remoteAddress);
