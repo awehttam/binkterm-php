@@ -211,9 +211,7 @@ Displays all FREQ serving activity: requesting node address, filename requested,
 
 **Nodelist node view** — `/nodelist/view/<address>`
 
-When `ENABLE_FREQ_EXPERIMENTAL=true` is set in `.env`, a **Request ALLFILES** button appears on the node detail page for admin users. This sends an ALLFILES FREQ request as a netmail `is_freq` message to the selected node, rather than a `.req`/`M_GET` request.
-
-This is an older, admin-only mechanism kept mainly for backward compatibility — netmail-based FREQ is a less common convention among FTN systems than `.req`/`M_GET`, so a remote node is more likely to support and correctly answer the [web File Requests page](#web-interface) or `scripts/freq_getfile.php` than a netmail FREQ. Sysops setting up outbound FREQ for the first time should use those instead; leave `ENABLE_FREQ_EXPERIMENTAL` off unless you specifically need to FREQ a node that only understands netmail-based FREQ.
+Logged-in users see a **Request File** button on the node detail page (when `FREQ_ENABLE_REQUESTS_WEB` is enabled). It links to the [web File Requests page](#web-interface) with that node's address pre-filled, so the request is sent via `.req`/`M_GET` rather than netmail.
 
 ---
 
@@ -221,7 +219,7 @@ This is an older, admin-only mechanism kept mainly for backward compatibility �
 
 | Setting | Default | Description |
 |---|---|---|
-| `ENABLE_FREQ_EXPERIMENTAL` | `false` | Set to `true` to show the older netmail-based FREQ button on nodelist node pages (admin only). Prefer `.req`/`M_GET` via the [web File Requests page](#web-interface) or `freq_getfile.php` instead — see [Admin interface](#admin-interface) |
+| `ENABLE_FREQ_EXPERIMENTAL` | `false` | Set to `true` to show the older netmail-based FREQ (`is_freq`) option in the netmail compose form. Prefer `.req`/`M_GET` via the [web File Requests page](#web-interface) or `freq_getfile.php` instead |
 | `FREQ_ENABLE_REQUESTS_WEB` | `true` | Set to `false` to hide the File Requests page and disable its API entirely |
 | `FREQ_MAX_CONCURRENT_PER_USER` | `2` | Maximum number of requests a single user may have in progress at once |
 | `FREQ_MAX_ATTEMPTS` | `5` | Number of retry attempts before an unfulfilled request is marked `failed` |

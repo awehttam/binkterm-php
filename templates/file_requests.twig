@@ -233,6 +233,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Refresh periodically so pending -> complete/failed transitions show up
     // without a manual page reload.
     setInterval(loadFreqRequests, 15000);
+
+    // Arriving from a nodelist "Request File" link pre-fills and opens the
+    // new-request modal with that node's address.
+    const prefillNode = new URLSearchParams(window.location.search).get('node');
+    if (prefillNode) {
+        showNewFreqRequestModal();
+        document.getElementById('freqReqNode').value = prefillNode;
+    }
 });
 </script>
 {% endblock %}

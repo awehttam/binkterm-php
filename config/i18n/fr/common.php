@@ -4806,7 +4806,6 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.netmail.saved_items.removed' => 'Message retire des elements enregistres',
 
     // Nodelist
-    'ui.nodelist.freq_not_advertised' => 'Ce nœud n\'annonce pas l\'indicateur FREQ. Une demande sera quand même envoyée, mais le nœud ne prend peut-être pas en charge les demandes de fichiers.',
     'ui.nodelist.index.flag_filter_any' => 'N\'importe quel indicateur',
     'ui.nodelist.index.flag_filter_label' => 'Indicateurs',
     'ui.nodelist.map_loading' => 'Chargement des données cartographiques…',
@@ -4815,20 +4814,6 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.nodelist.map_send_netmail' => 'Envoyer un netmail',
     'ui.nodelist.no_coordinates' => 'Emplacement non géocodé. Exécutez scripts/geocode_nodelist.php pour renseigner les coordonnées.',
     'ui.nodelist.request_allfiles' => 'Demander un fichier',
-    'ui.nodelist.request_allfiles_body' => 'Envoie un FREQ ALLFILES à ce nœud. Il inclura sa liste de fichiers lors de la prochaine session binkp avec vous.',
-    'ui.nodelist.request_allfiles_crashmail' => 'Envoyer en crashmail (connexion directe au nœud)',
-    'ui.nodelist.request_allfiles_crashmail_help' => 'Livre la demande directement à ce nœud plutôt que de la router via votre lien montant.',
-    'ui.nodelist.request_allfiles_failed' => 'Échec de l\'envoi de la demande ALLFILES.',
-    'ui.nodelist.request_allfiles_filename' => 'Fichier à demander',
-    'ui.nodelist.request_allfiles_filename_placeholder' => 'ex. README.TXT',
-    'ui.nodelist.request_allfiles_password' => 'Mot de passe (facultatif)',
-    'ui.nodelist.request_allfiles_password_help' => 'Fournissez un mot de passe si le système distant en requiert un pour servir les listes de fichiers.',
-    'ui.nodelist.request_allfiles_sent' => 'Demande ALLFILES en file d\'attente. La liste de fichiers arrivera lors de la prochaine session binkp.',
-    'ui.nodelist.request_allfiles_title' => 'Demander la liste de fichiers à {node}',
-    'ui.nodelist.request_allfiles_to' => 'Envoyer à',
-    'ui.nodelist.request_allfiles_to_other' => 'Autre...',
-    'ui.nodelist.request_allfiles_to_other_placeholder' => 'Saisir le nom du service',
-    'ui.nodelist.send_request' => 'Envoyer la demande',
     'ui.nodelist.tab_list' => 'Liste',
     'ui.nodelist.tab_map' => 'Carte',
 

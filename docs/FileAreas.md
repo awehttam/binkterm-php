@@ -1032,7 +1032,7 @@ To request a file:
 
 A user may have at most `FREQ_MAX_CONCURRENT_PER_USER` (default 2) requests in progress at once. Old request rows (any status) can be deleted from the File Requests page — this only removes the tracking entry, not the file itself if one was already received.
 
-This is a separate mechanism from the admin-only "Request ALLFILES" netmail-based FREQ still available on individual nodelist entries (gated by `ENABLE_FREQ_EXPERIMENTAL`), which sends a FILE_REQUEST netmail rather than a `.req`/`M_GET` request.
+The **Request File** button on an individual nodelist entry links here with that node's address pre-filled.
 
 ### FREQ Log
 
