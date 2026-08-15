@@ -715,18 +715,25 @@ class BinkpSession
                 // Trim whitespace first to handle leading/trailing spaces
                 $addresses = array_values(array_filter(explode(' ', trim($addressData)), 'strlen'));
 
-                // Try to find a matching address among our uplinks or hub nodes/points
+                // Normalize each advertised address (strip @domain and the .0
+                // boss-node point suffix) while keeping the with-domain form
+                // alongside it, then pick which one to use in priority order:
+                //   1. the address we dialed (originator sessions only) - the
+                //      remote must actually claim it among its AKAs, otherwise
+                //      we fall through rather than mislabel a wrong-number session
+                //   2. an AKA matching a known uplink or hub node/point
+                //   3. the first advertised address (fallback)
+                $dialedAddressMatch = null;
+                $dialedAddressWithDomain = null;
                 $matchedAddress = null;
                 $matchedAddressWithDomain = null;
                 $hubNodeManager = new \BinktermPHP\Hub\HubNodeManager();
                 foreach ($addresses as $addr) {
                     $addr = trim($addr);
                     $addrWithDomain = $addr;
-                    $domain = null;
 
                     if (strpos($addr, '@') !== false) {
-                        list($addrOnly, $domain) = explode('@', $addr, 2);
-                        $addr = $addrOnly;
+                        $addr = explode('@', $addr, 2)[0];
                     }
 
                     // Strip .0 point suffix - it represents the boss node, not a real point
@@ -734,10 +741,24 @@ class BinkpSession
                         $addr = substr($addr, 0, -2);
                     }
 
-                    if (!empty($addr) && ($this->config->getUplinkByAddress($addr) || $hubNodeManager->getByAddress($addr))) {
+                    if (empty($addr)) {
+                        continue;
+                    }
+
+                    if (
+                        $dialedAddressMatch === null && $this->isOriginator
+                        && !empty($this->dialedAddress) && $addr === $this->dialedAddress
+                    ) {
+                        $dialedAddressMatch = $addr;
+                        $dialedAddressWithDomain = $addrWithDomain;
+                    }
+
+                    if (
+                        $matchedAddress === null
+                        && ($this->config->getUplinkByAddress($addr) || $hubNodeManager->getByAddress($addr))
+                    ) {
                         $matchedAddress = $addr;
                         $matchedAddressWithDomain = $addrWithDomain;
-                        break;
                     }
                 }
 
@@ -751,16 +772,8 @@ class BinkpSession
                 if (substr($fallbackAddress, -2) === '.0') {
                     $fallbackAddress = substr($fallbackAddress, 0, -2);
                 }
-                if ($this->isOriginator && !empty($this->dialedAddress)) {
-                    // We already know who we called - don't relabel the session
-                    // under a different AKA the remote happens to also advertise
-                    // and that happens to match a known uplink/hub node.
-                    $this->remoteAddress = $this->dialedAddress;
-                    $this->remoteAddressWithDomain = $this->dialedAddress;
-                } else {
-                    $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
-                    $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
-                }
+                $this->remoteAddress = $dialedAddressMatch ?: ($matchedAddress ?: $fallbackAddress);
+                $this->remoteAddressWithDomain = $dialedAddressWithDomain ?: ($matchedAddressWithDomain ?: $fallbackAddressWithDomain);
                 $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
                 if ($this->sessionLogger && !empty($this->remoteAddress)) {
                     $this->sessionLogger->setRemoteAddress($this->remoteAddress);
