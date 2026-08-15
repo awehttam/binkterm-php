@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [AI Bots](#ai-bots)
 - [Files](#files)
 - [Echomail](#echomail)
+- [Media](#media)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -19,6 +20,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Files**: The **Allow FREQ** toggle in the file area editor is no longer hidden behind the experimental netmail FREQ flag and is available by default.
 - **Auto Feed**: Reduced RSS/Atom feed-polling log noise — per-item body-source messages now log at `debug` instead of `info`.
 - **Echomail**: Fixed a suspected echomail loop that could occur when this system is configured as a point using an uplink.
+- **Media**: The inline media renderer now recognizes TikTok short/share links (`vm.tiktok.com/...`, `vt.tiktok.com/...`, `tiktok.com/t/...`), not just the full `tiktok.com/@user/video/id` form.
 
 ---
 
@@ -76,6 +78,14 @@ If you had previously set `ENABLE_FREQ_EXPERIMENTAL=true` solely to expose this 
 When this system is set up as a point (using an uplink/boss rather than acting as a hub), incoming echomail could in some cases be relayed straight back to the uplink that had just sent it, instead of only being distributed locally. The relay logic previously decided whether a message needed to go back to the uplink using the message's original author address and its SEEN-BY/PATH tracking lines, but some upstream systems don't include SEEN-BY/PATH entries on point-bound links, and the author address alone isn't a reliable way to detect "this just came from our own uplink." The relay logic now also checks the immediate sender of the inbound packet itself, so mail received from the uplink is recognized and is no longer bounced back to it.
 
 If your upstream has previously reported echomail loops or duplicate/rejected traffic involving your system, this should no longer occur after upgrading.
+
+---
+
+## Media
+
+### TikTok short and share links now embed inline
+
+The inline media renderer's TikTok matcher previously only recognized the full `tiktok.com/@user/video/{id}` URL form. Short links (`vm.tiktok.com/{id}`, `vt.tiktok.com/{id}`) and the `tiktok.com/t/{id}` share form pasted into a message are now recognized and embedded the same way, using TikTok's oEmbed endpoint to resolve the link.
 
 ---
 
