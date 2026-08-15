@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Files](#files)
 - [Echomail](#echomail)
 - [Media](#media)
+- [Activity Tracking](#activity-tracking)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -21,6 +22,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Auto Feed**: Reduced RSS/Atom feed-polling log noise — per-item body-source messages now log at `debug` instead of `info`.
 - **Echomail**: Fixed a suspected echomail loop that could occur when this system is configured as a point using an uplink.
 - **Media**: The inline media renderer now recognizes TikTok short/share links (`vm.tiktok.com/...`, `vt.tiktok.com/...`, `tiktok.com/t/...`), not just the full `tiktok.com/@user/video/id` form.
+- **Activity Tracking**: JS-DOS browser door launches, C64 door launches, Telnet/SSH ZMODEM file transfers, FTP file downloads, and Packet BBS netmail/echomail sends are now recorded in the admin activity log; these were previously missed.
 
 ---
 
@@ -86,6 +88,22 @@ If your upstream has previously reported echomail loops or duplicate/rejected tr
 ### TikTok short and share links now embed inline
 
 The inline media renderer's TikTok matcher previously only recognized the full `tiktok.com/@user/video/{id}` URL form. Short links (`vm.tiktok.com/{id}`, `vt.tiktok.com/{id}`) and the `tiktok.com/t/{id}` share form pasted into a message are now recognized and embedded the same way, using TikTok's oEmbed endpoint to resolve the link.
+
+---
+
+## Activity Tracking
+
+### Several user activities were missing from the admin activity log
+
+The admin **Activity Stats** page (**Admin → Activity Stats**) is built from events recorded by `ActivityTracker` at the point where each user activity happens. Four activity paths bypassed the code that records these events because they don't go through the same request handling as their web-interface equivalents, so they were silently missing from the stats:
+
+- Launching a JS-DOS browser door (`/games/jsdos/...`) did not record a webdoor-play event.
+- Launching a C64 door did not record a webdoor-play event — the C64 engine renders the emulator and embeds the program data directly in the page response and makes no separate API call, so it never reached the code path that records the event.
+- Downloading or uploading a file over the Telnet/SSH terminal server via ZMODEM did not record a file-download or file-upload event.
+- Downloading a file over FTP did not record a file-download event (FTP uploads were already recorded correctly).
+- Sending netmail or posting echomail through the Packet BBS gateway (mesh radio interface) did not record a netmail-sent or echomail-sent event.
+
+All four now record events consistently with their web-interface equivalents. This only affects the accuracy of the admin activity statistics; it does not change any user-facing behavior.
 
 ---
 

@@ -307,6 +307,15 @@ class FtpVirtualFilesystem
             return null;
         }
 
+        if (!$this->isAnonymousUser($user)) {
+            ActivityTracker::track(
+                (int)$user['id'],
+                ActivityTracker::TYPE_FILE_DOWNLOAD,
+                (int)($fileContext['file']['id'] ?? 0) ?: null,
+                (string)($fileContext['file']['filename'] ?? '')
+            );
+        }
+
         return [
             'stream' => $stream,
             'size' => (int)($fileContext['file']['filesize'] ?? 0),

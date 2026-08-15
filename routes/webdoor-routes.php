@@ -606,6 +606,8 @@ SimpleRouter::post('/api/jsdoor/session', function() {
         $userDataJson = json_encode(['mode' => $requestedMode]);
         $stmt->execute([$sessionId, $userId, $entry['id'], $expiresAt, $userDataJson]);
 
+        ActivityTracker::track($userId, ActivityTracker::TYPE_WEBDOOR_PLAY, null, $entry['id']);
+
         echo json_encode([
             'success'    => true,
             'session_id' => $sessionId,

@@ -15,6 +15,7 @@
 
 namespace BinktermPHP\PacketBbs;
 
+use BinktermPHP\ActivityTracker;
 use BinktermPHP\BbsConfig;
 use BinktermPHP\Auth;
 use BinktermPHP\Binkp\Config\BinkpConfig;
@@ -525,6 +526,7 @@ class PacketBbsGateway
                 if ($id === false) {
                     return 'Send failed.';
                 }
+                ActivityTracker::track((int)$session['user_id'], ActivityTracker::TYPE_NETMAIL_SEND, null, $meta['to_address'] ?? null);
                 return sprintf('Sent #%d.', $id);
             }
 
@@ -541,6 +543,7 @@ class PacketBbsGateway
                 if ($id === false) {
                     return 'Post failed.';
                 }
+                ActivityTracker::track((int)$session['user_id'], ActivityTracker::TYPE_ECHOMAIL_SEND, null, $meta['tag'] ?? null);
                 $state = $this->setCurrentAreaInState($state, [
                     'tag' => (string)($meta['tag'] ?? ''),
                     'domain' => (string)($meta['domain'] ?? ''),
