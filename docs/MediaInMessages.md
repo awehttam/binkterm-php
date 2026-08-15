@@ -79,7 +79,7 @@ Platform embeds are resolved by the server-side `MediaLinkResolver` (`src/Media/
 | Rumble | oEmbed (server-side) |
 | SoundCloud | oEmbed (server-side) |
 | Twitter / X | oEmbed (server-side) |
-| TikTok | oEmbed (server-side) |
+| TikTok | oEmbed (server-side); supports `tiktok.com/@{user}/video/{id}`, `tiktok.com/t/{id}`, and short links (`vm.tiktok.com/{id}`, `vt.tiktok.com/{id}`) |
 | ReverbNation | oEmbed (server-side) |
 | Bastyon | Server-side proxy resolution |
 

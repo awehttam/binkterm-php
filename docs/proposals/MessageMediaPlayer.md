@@ -186,7 +186,7 @@ Extend `media-player.js` with client-side oEmbed resolution. The browser fetches
 |---|---|---|---|
 | SoundCloud | `soundcloud.com/` | `soundcloud.com/oembed` | Yes |
 | Twitter/X | `twitter.com/`, `x.com/` | `publish.twitter.com/oembed` | Yes |
-| TikTok | `tiktok.com/@{user}/video/{id}` | `tiktok.com/oembed` | Yes |
+| TikTok | `tiktok.com/@{user}/video/{id}`, `tiktok.com/t/{id}`, `vm.tiktok.com/{id}`, `vt.tiktok.com/{id}` | `tiktok.com/oembed` | Yes |
 | Minds | `minds.com/newsfeed/{id}` | Minds oEmbed API | Uncertain — falls back to server proxy |
 | Bastyon | `bastyon.com/` | Direct iframe (no oEmbed) | N/A |
 | ReverbNation | `reverbnation.com/` | ReverbNation oEmbed | Uncertain — falls back to server proxy |
