@@ -6,7 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [AI Bots](#ai-bots)
-- [Files](#files)
+- [File REQuests](#file-requests)
 - [Echomail](#echomail)
 - [Media](#media)
 - [Activity Tracking](#activity-tracking)
@@ -39,7 +39,7 @@ If you have previously seen the AI bot daemon fail to start with this error, res
 
 ---
 
-## Files
+## File REQuests
 
 ### Outbound file requests (FREQ), now optionally available to all users
 
