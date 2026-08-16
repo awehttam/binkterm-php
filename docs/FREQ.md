@@ -2,6 +2,8 @@
 
 FidoNet FREQ (File Request) is a protocol that lets one node request specific files from another node over a binkp session. BinktermPHP supports FREQ in both directions: serving files to remote nodes that request them, and requesting files from remote nodes.
 
+Three FREQ transports are supported: Bark (`.req`) file requests, the most commonly used method; binkp `M_GET` (live-session FREQ per FSP-1011); and, experimentally, when explicitly enabled, legacy netmail-based requests.
+
 ---
 
 ## Table of Contents
