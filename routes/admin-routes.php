@@ -6944,61 +6944,50 @@ PROMPT;
             $byType[(int)$row['activity_type_id']] = (int)$row['cnt'];
         }
 
-        // Returning users: "a user who comes back more than N times in a
-        // month" is evaluated per calendar month as distinct active DAYS,
-        // not login events specifically — this app uses a long-lived auth
-        // cookie (see CLAUDE.md), so most return visits never fire a fresh
-        // TYPE_LOGIN event at all, which made a login-count-based metric
-        // wildly undercount obviously-active users. Any tracked activity
-        // (echomail, chat, files, doors, etc.) on a given day counts as one
-        // "visit" that day. Pull every (user, month, distinct day) touched
-        // by the selected period and do the bucketing/averaging in PHP,
-        // since it needs a month-by-month breakdown rather than a single
-        // aggregate.
+        // Returning users: users active on more than N distinct days within
+        // the selected period (matches the page's own period filter — 7d,
+        // 30d, 90d, or all — the same window every other stat on this page
+        // uses). Not login events specifically — this app uses a long-lived
+        // auth cookie (see CLAUDE.md), so most return visits never fire a
+        // fresh TYPE_LOGIN event at all, which made a login-count-based
+        // metric wildly undercount obviously-active users. Any tracked
+        // activity (echomail, chat, files, doors, etc.) on a given day
+        // counts as one "visit" that day.
+        //
+        // Earlier version bucketed this by calendar month and only showed
+        // the latest month, which could split a user's genuinely-recent
+        // activity across a month boundary and make them vanish from the
+        // list entirely even though they clearly returned multiple times
+        // within the selected window. Counting distinct days across the
+        // whole selected period avoids that.
         $returningUsersActiveDaysThreshold = 1;
-        $returningMonthlyStmt = $db->query("
-            SELECT DATE_TRUNC('month', ual.created_at) AS month, ual.user_id, u.username,
-                   COUNT(DISTINCT DATE(ual.created_at)) AS active_days
+        $returningUsersCountStmt = $db->query("
+            SELECT COUNT(*) AS cnt
+            FROM (
+                SELECT ual.user_id
+                FROM user_activity_log ual
+                WHERE ual.user_id IS NOT NULL
+                  {$dateFilter}{$adminFilter}
+                GROUP BY ual.user_id
+                HAVING COUNT(DISTINCT DATE(ual.created_at)) > {$returningUsersActiveDaysThreshold}
+            ) returning_user_ids
+        ");
+        $returningUsersCount = (int)$returningUsersCountStmt->fetchColumn();
+
+        $returningUsersStmt = $db->query("
+            SELECT u.username, COUNT(DISTINCT DATE(ual.created_at)) AS active_days
             FROM user_activity_log ual
             LEFT JOIN users u ON u.id = ual.user_id
             WHERE ual.user_id IS NOT NULL
               {$dateFilter}{$adminFilter}
-            GROUP BY month, ual.user_id, u.username
+            GROUP BY ual.user_id, u.username
+            HAVING COUNT(DISTINCT DATE(ual.created_at)) > {$returningUsersActiveDaysThreshold}
+            ORDER BY active_days DESC
+            LIMIT 50
         ");
-        $monthlyRows = $returningMonthlyStmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        $monthsTouched = [];       // month => true, for every month with any activity
-        $returningByMonth = [];    // month => count of users with more active days than the threshold that month
-        $latestMonth = null;
-        $latestMonthUsers = [];    // users who qualified in the most recent month
-        foreach ($monthlyRows as $row) {
-            $month = substr((string)$row['month'], 0, 7); // 'YYYY-MM'
-            $activeDays = (int)$row['active_days'];
-            $monthsTouched[$month] = true;
-            if ($latestMonth === null || $month > $latestMonth) {
-                $latestMonth = $month;
-            }
-            if ($activeDays > $returningUsersActiveDaysThreshold) {
-                $returningByMonth[$month] = ($returningByMonth[$month] ?? 0) + 1;
-            }
-        }
-        // Second pass, now that $latestMonth is known, to collect that
-        // month's qualifying users for the display list.
-        foreach ($monthlyRows as $row) {
-            $month = substr((string)$row['month'], 0, 7);
-            $activeDays = (int)$row['active_days'];
-            if ($month === $latestMonth && $activeDays > $returningUsersActiveDaysThreshold) {
-                $latestMonthUsers[] = ['username' => $row['username'], 'count' => $activeDays];
-            }
-        }
-        usort($latestMonthUsers, fn($a, $b) => $b['count'] <=> $a['count']);
-        $latestMonthUsers = array_slice($latestMonthUsers, 0, 50);
-
-        $numMonthsTouched = count($monthsTouched);
-        $returningUsersAverage = $numMonthsTouched > 0
-            ? round(array_sum($returningByMonth) / $numMonthsTouched, 1)
-            : 0.0;
-        $returningUsersLatestMonthCount = $latestMonth !== null ? ($returningByMonth[$latestMonth] ?? 0) : 0;
+        $returningUsers = $returningUsersStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($returningUsers as &$row) { $row['count'] = (int)$row['active_days']; unset($row['active_days']); }
+        unset($row);
 
         // Login breakdown by source (object_name: 'web', 'telnet', 'ssh', etc.)
         $loginSourceStmt = $db->query("
@@ -7214,11 +7203,8 @@ PROMPT;
                     'netmail_reads'  => $byType[3] ?? 0,
                     'netmail_sends'  => $byType[4] ?? 0,
                 ],
-                'login_by_source'                 => $loginBySource,
-                'returning_users_average'         => $returningUsersAverage,
-                'returning_users_months'          => $numMonthsTouched,
-                'returning_users_latest_month'    => $latestMonth,
-                'returning_users_latest_count'    => $returningUsersLatestMonthCount,
+                'login_by_source'       => $loginBySource,
+                'returning_users_count' => $returningUsersCount,
             ],
             'popular_echoareas'     => $popularEchoareas,
             'popular_webdoors'      => $popularWebdoors,
@@ -7228,7 +7214,7 @@ PROMPT;
             'top_nodelist_searches' => $topNodelistSearches,
             'top_nodes'             => $topNodes,
             'top_users'             => $topUsers,
-            'returning_users'       => $latestMonthUsers,
+            'returning_users'       => $returningUsers,
             'popular_interests'     => $popularInterests,
             'hourly'                => $hourly,
             'daily'                 => $daily,
