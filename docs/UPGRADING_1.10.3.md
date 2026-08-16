@@ -23,6 +23,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Viewing the public BBS Directory list, viewing an individual BBS's detail page, and submitting a new BBS listing now record activity log entries (`bbs_directory_view` / `bbs_directory_entry_view` / `bbs_directory_submit`) for logged-in users, shown as a new "BBS Directory" row in **Admin → Activity Stats**.
 - Entering a local chat room now records a `chat_room_enter` entry, alongside the existing chat-message-sent tracking.
 - Uploading or generating a PGP key, and changing your primary key or deleting a key, now record activity log entries (`pgp_key_upload` / `pgp_key_generate` / `pgp_key_primary` / `pgp_key_delete`), shown as a new "PGP" row in **Admin → Activity Stats**.
+- **Admin → Activity Stats → Top Users** now has a "Returning Users" list showing which users were active on more than one day within the currently selected period, with a count at the top.
 
 ## FREQ
 
@@ -40,6 +41,10 @@ Several gaps in `user_activity_log` coverage are fixed in this release:
 - Uploading an existing PGP public key or generating a managed keypair, and changing your primary key or deleting a key, are now tracked (`pgp_key_upload`, `pgp_key_generate`, `pgp_key_primary`, `pgp_key_delete`; new category `pgp`). Looking up or viewing another user's PGP key is not tracked.
 
 None of these change any user-facing behavior; they only affect what shows up in a user's activity history and in **Admin → Activity Stats**.
+
+### Returning Users (Admin → Activity Stats)
+
+The **Top Users** tab now has a **Returning Users** card above the existing "Most Active Users" list. It shows a count and a list of users who were active on more than one distinct day within whatever period is currently selected on the page (7 days, 30 days, 90 days, or all time) — not a count of login events specifically. This app authenticates via a long-lived cookie, so a user can return many times without ever generating a fresh login event; the metric instead counts distinct calendar days with any tracked activity (echomail, chat, files, doors, etc.), which reflects real return visits regardless of how login/cookie auth behaves. This is purely a read of existing `user_activity_log` data — no new activity types or schema changes are involved.
 
 ## Upgrade Instructions
 
