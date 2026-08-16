@@ -17,9 +17,9 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Summary of Changes
 
 - **AI Bots**: Fixed a bug that prevented the AI bot daemon from starting on PHP 8.1 and later.
-- **Files**: Added a "File Requests" page where any logged-in user can request a file from another FidoNet node and have it delivered automatically to their private file area. The same feature is now also available from the Telnet/SSH terminal server, under **[Files] → File Requests**.
+- **Files**: Added a "File Requests" page where users can request a file from another FidoNet node and have it delivered automatically to their private file area, open to all users, sysops only, or nobody depending on configuration. The same feature is now also available from the Telnet/SSH terminal server, under **[Files] → File Requests**. **Disabled by default** — read [Outbound file requests (FREQ), now optionally available to all users](#outbound-file-requests-freq-now-optionally-available-to-all-users) below before enabling it.
 - **Files**: The **Allow FREQ** toggle in the file area editor is no longer hidden behind the experimental netmail FREQ flag and is available by default.
-- **Files**: When a remote node declines an outbound file request and bounces a netmail explaining why instead of sending the file, that netmail is now delivered directly to the requesting user (instead of only Sysop) and the request is marked failed immediately instead of being retried.
+- **Files**: When a remote node declines an outbound file request, the request is now marked failed immediately instead of being retried against a remote that has already declined it.
 - **Auto Feed**: Reduced RSS/Atom feed-polling log noise — per-item body-source messages now log at `debug` instead of `info`.
 - **Echomail**: Fixed a suspected echomail loop that could occur when this system is configured as a point using an uplink.
 - **Media**: The inline media renderer now recognizes TikTok short/share links (`vm.tiktok.com/...`, `vt.tiktok.com/...`, `tiktok.com/t/...`), not just the full `tiktok.com/@user/video/id` form.
@@ -41,26 +41,28 @@ If you have previously seen the AI bot daemon fail to start with this error, res
 
 ## Files
 
-### Outbound file requests (FREQ) now available to all users
+### Outbound file requests (FREQ), now optionally available to all users
 
-Any logged-in user can now request a file from another FidoNet node directly from the web interface, under **Files → File Requests**. Enter the remote node's address and the filename or magic name to request (e.g. `ALLFILES`, `ALLFILES`), choose whether to send the request as a classic `.req` file (the default, and the most broadly compatible option) or as a live-session `M_GET` request, and submit. Once the remote fulfils the request, the file is delivered to the requesting user's private file area and the File Requests page links directly to it.
+Users can now request a file from another FidoNet node directly from the web interface, under **Files → File Requests**. Enter the remote node's address and the filename or magic name to request (e.g. `ALLFILES`), choose whether to send the request as a classic `.req` file (the default, and the most broadly compatible option) or as a live-session `M_GET` request, and submit. Once the remote fulfils the request, the file is delivered to the requesting user's private file area and the File Requests page links directly to it.
 
-A request that isn't fulfilled on the first attempt is retried automatically in the background, and requests that never succeed are eventually marked failed rather than retrying indefinitely. Users can delete their own request entries at any time; this only removes the tracking entry, not a file that was already received.
+A request that isn't fulfilled on the first attempt is retried automatically in the background. A request the remote has explicitly declined (see below) or that never succeeds after `FREQ_MAX_ATTEMPTS` is marked failed rather than retrying indefinitely. Users can delete their own request entries at any time; this only removes the tracking entry, not a file that was already received.
 
-This feature is on by default and is controlled by the following optional `.env` settings:
+**This feature is disabled by default.** Read the note below before deciding whether to turn it on, then enable it with the following optional `.env` settings:
 
 | Variable | Default | Description |
 |---|---|---|
-| `FREQ_ENABLE_REQUESTS_WEB` | `true` | Set to `false` to hide the File Requests page and disable its API entirely |
+| `FREQ_ENABLE_INTERFACE` | `false` | `true` opens the File Requests page and its API to any logged-in user; `sysop` restricts it to admin accounts only; `false` disables it entirely |
 | `FREQ_MAX_CONCURRENT_PER_USER` | `2` | Maximum number of requests a single user may have in progress at once |
 | `FREQ_MAX_ATTEMPTS` | `5` | Number of retry attempts before an unfulfilled request is marked failed |
 | `FREQ_POLL_INTERVAL` | `300` | Seconds between automatic retry attempts for a pending request |
 
 This feature relies on the existing `binkp_scheduler` daemon to retry pending requests, so make sure it is running (see [Upgrade Instructions](#upgrade-instructions) below — restarting daemons after upgrading picks this up automatically).
 
+**Why it defaults off:** requesting a file from a remote node opens an outbound binkp session to whatever address a user supplies, on your Sysop credentials if that address happens to be a configured uplink. Nothing about this feature is unsafe by itself, but it's new surface area, and it's worth reading how declined requests are handled (next section) before deciding whether to open it up to everyone, restrict it to admins via `FREQ_ENABLE_INTERFACE=sysop`, or leave it off.
+
 ### File Requests in the terminal server (Telnet/SSH)
 
-The Telnet and SSH BBS interfaces now have their own File Requests screen, under **[Files] → File Requests** (default menu key `R`). It offers the same request/list/delete actions as the web page and is controlled by the same `FREQ_ENABLE_REQUESTS_WEB` setting above. Once a request is fulfilled, its file can be downloaded right from the same screen (key `D`) over ZMODEM.
+The Telnet and SSH BBS interfaces now have their own File Requests screen, under **[Files] → File Requests** (default menu key `R`). It offers the same request/list/delete actions as the web page and is controlled by the same `FREQ_ENABLE_INTERFACE` setting above. Once a request is fulfilled, its file can be downloaded right from the same screen (key `D`) over ZMODEM.
 
 **If your BBS already has a custom main menu key map saved** (i.e. you have ever changed a terminal menu key away from its default in **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**), the new File Requests action will not appear in the terminal menu until you explicitly assign it a key on that same page, or click "Reset to Defaults". A custom key map only shows actions it explicitly lists, so newly added actions are not retroactively included. Sites still running the built-in default key map see the new menu item immediately with no admin action needed.
 
@@ -72,11 +74,13 @@ This toggle controls whether all approved files in that area can be served to an
 
 If you had previously set `ENABLE_FREQ_EXPERIMENTAL=true` solely to expose this file-area toggle, you may now remove that setting unless you still want the netmail ALLFILES button on nodelist pages.
 
-### Declined file requests are now redelivered to the requestor instead of retried
+### Declined file requests now fail immediately instead of retrying
 
-Some remote FREQ handlers decline a request by sending back a netmail explaining why (file not found, access denied, etc.) instead of the requested file. Previously, that netmail was only visible to the Sysop, and the original request kept being retried in the background until it exhausted `FREQ_MAX_ATTEMPTS` and was marked failed on its own.
+Some remote FREQ handlers decline a request (file not found, access denied, etc.) by sending back a netmail explaining why, instead of the requested file. Previously, `freq_getfile.php` had no way to tell this apart from "the remote just hasn't gotten to it yet," so the request kept being retried in the background every `FREQ_POLL_INTERVAL` until it exhausted `FREQ_MAX_ATTEMPTS`.
 
-The bounce netmail is now delivered directly to the user who made the request instead of Sysop, and the request is marked failed immediately rather than being retried further. In the rare case where the remote bundles other content (e.g. echomail) into the same packet as the bounce, that packet is left in place for normal processing as before, and the bounce netmail is delivered to both the requestor and Sysop.
+A session that receives only FidoNet infrastructure files (a `.pkt`, etc.) and nothing matching the requested filename is now recognized as a decline, and the request is marked `failed` right away instead of continuing to retry against a remote that has already said no.
+
+**This does not change where the bounce netmail itself goes.** It is deliberately left completely alone — not inspected, redirected, or copied — and is delivered by the normal packet-processing path exactly as before, typically to Sysop. A `.pkt` arriving in the same session as a FREQ response could just as easily be unrelated mail the remote had queued for you regardless of the FREQ (particularly if that node is also one of your uplinks), and there's no reliable way to distinguish the two from the packet alone. Guessing wrong would mean exposing Sysop's mail to whichever user happened to have a request pending to that node, so this update intentionally does not attempt it. A user whose request fails only sees the status change to `failed` — not why.
 
 ---
 

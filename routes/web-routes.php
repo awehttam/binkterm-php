@@ -1617,7 +1617,7 @@ SimpleRouter::get('/files/{tag}', function($tag) {
 SimpleRouter::get('/file-requests', function() {
     $user = RouteHelper::requireAuth();
 
-    if (\BinktermPHP\Config::env('FREQ_ENABLE_REQUESTS_WEB', 'true') !== 'true') {
+    if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor(!empty($user['is_admin']))) {
         http_response_code(404);
         $template = new Template();
         $template->renderResponse('error.twig', [

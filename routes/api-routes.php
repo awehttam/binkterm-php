@@ -13896,14 +13896,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/freq/requests', function() {
         header('Content-Type: application/json');
 
-        if (Config::env('FREQ_ENABLE_REQUESTS_WEB', 'true') !== 'true') {
-            http_response_code(404);
-            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled'));
-            return;
-        }
-
         $user = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id']);
+
+        if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor(!empty($user['is_admin']))) {
+            http_response_code(404);
+            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled', $user));
+            return;
+        }
 
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $node = trim((string)($input['node'] ?? ''));
@@ -13978,15 +13978,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::get('/freq/requests', function() {
         header('Content-Type: application/json');
 
-        if (Config::env('FREQ_ENABLE_REQUESTS_WEB', 'true') !== 'true') {
-            http_response_code(404);
-            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled'));
-            return;
-        }
-
         $user = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id']);
         $isAdmin = !empty($user['is_admin']);
+
+        if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor($isAdmin)) {
+            http_response_code(404);
+            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled', $user));
+            return;
+        }
 
         $db = Database::getInstance()->getPdo();
 
@@ -14010,15 +14010,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::get('/freq/requests/{id}', function($id) {
         header('Content-Type: application/json');
 
-        if (Config::env('FREQ_ENABLE_REQUESTS_WEB', 'true') !== 'true') {
-            http_response_code(404);
-            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled'));
-            return;
-        }
-
         $user = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id']);
         $isAdmin = !empty($user['is_admin']);
+
+        if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor($isAdmin)) {
+            http_response_code(404);
+            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled', $user));
+            return;
+        }
 
         $db = Database::getInstance()->getPdo();
         $tracker = new \BinktermPHP\Freq\FreqRequestTracker($db);
@@ -14036,15 +14036,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::delete('/freq/requests/{id}', function($id) {
         header('Content-Type: application/json');
 
-        if (Config::env('FREQ_ENABLE_REQUESTS_WEB', 'true') !== 'true') {
-            http_response_code(404);
-            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled'));
-            return;
-        }
-
         $user = RouteHelper::requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id']);
         $isAdmin = !empty($user['is_admin']);
+
+        if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor($isAdmin)) {
+            http_response_code(404);
+            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled', $user));
+            return;
+        }
 
         $db = Database::getInstance()->getPdo();
         $tracker = new \BinktermPHP\Freq\FreqRequestTracker($db);

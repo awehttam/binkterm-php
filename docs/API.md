@@ -3887,7 +3887,7 @@ Paginated frequency log entries
 
 ### Freq Requests
 
-Outbound FREQ (file request) submission and tracking. Lets a logged-in user request a file from a remote FTN node, either via a `.req` file (default) or live-session `M_GET`. Backed by `freq_requests_outbound` / `FreqRequestTracker`; fulfilled files are routed to the user's private file area. See `docs/proposals/OutboundFreqImplementation.md`. Gated by `FREQ_ENABLE_REQUESTS_WEB` (default enabled, returns 404 when disabled).
+Outbound FREQ (file request) submission and tracking. Lets a logged-in user request a file from a remote FTN node, either via a `.req` file (default) or live-session `M_GET`. Backed by `freq_requests_outbound` / `FreqRequestTracker`; fulfilled files are routed to the user's private file area. See `docs/proposals/OutboundFreqImplementation.md` and `docs/FREQ.md`. Gated by `FREQ_ENABLE_INTERFACE` (`BinktermPHP\Freq\FreqWebAccess::isEnabledFor()`): default `false` (disabled), `true` (any logged-in user), or `sysop` (admin accounts only) — returns 404 for callers the current setting doesn't cover.
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
@@ -3933,7 +3933,7 @@ Validates the node address and filename, enforces the per-user concurrency cap (
 | Status | Description |
 |--------|-------------|
 | 401 | Authentication required |
-| 404 | Feature disabled (`FREQ_ENABLE_REQUESTS_WEB=false`) |
+| 404 | Feature disabled (`FREQ_ENABLE_INTERFACE=false`) |
 | 422 | Missing/invalid `node` or `filename` |
 | 429 | Per-user concurrency cap reached |
 
@@ -3962,7 +3962,7 @@ Lists the current user's own FREQ requests, most recent first. Pass `?all=1` as 
 | Status | Description |
 |--------|-------------|
 | 401 | Authentication required |
-| 404 | Feature disabled (`FREQ_ENABLE_REQUESTS_WEB=false`) |
+| 404 | Feature disabled (`FREQ_ENABLE_INTERFACE=false`) |
 
 ---
 

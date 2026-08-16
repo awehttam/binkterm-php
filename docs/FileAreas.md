@@ -1020,7 +1020,7 @@ FILE_ATTACH netmail using one of two methods:
 
 ### Requesting Files from Other Nodes (Outbound FREQ)
 
-Everything above covers *serving* files to remote nodes that FREQ this BBS. The reverse — requesting a file *from* another node — is available to any logged-in user under **Files → File Requests** (`/file-requests`), gated by `FREQ_ENABLE_REQUESTS_WEB` (enabled by default).
+Everything above covers *serving* files to remote nodes that FREQ this BBS. The reverse — requesting a file *from* another node — is available to any logged-in user under **Files → File Requests** (`/file-requests`), gated by `FREQ_ENABLE_INTERFACE` (disabled by default — see `docs/FREQ.md` for what to consider before enabling it).
 
 To request a file:
 

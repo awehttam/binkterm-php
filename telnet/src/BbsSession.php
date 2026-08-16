@@ -485,7 +485,7 @@ class BbsSession
             $showPolls      = BbsConfig::isFeatureEnabled('voting_booth');
             $showDoors      = BbsConfig::isFeatureEnabled('webdoors');
             $showFiles      = \BinktermPHP\FileAreaManager::isFeatureEnabled();
-            $showFreq       = Config::env('FREQ_ENABLE_REQUESTS_WEB', 'true') === 'true';
+            $showFreq       = \BinktermPHP\Freq\FreqWebAccess::isEnabledFor(!empty($state['is_admin']));
             $showInterests  = Config::env('ENABLE_INTERESTS') === 'true';
             $showQwk        = BbsConfig::isFeatureEnabled('qwk');
             $showBbsList    = BbsConfig::isFeatureEnabled('bbs_directory');

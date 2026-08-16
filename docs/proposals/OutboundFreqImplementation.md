@@ -29,7 +29,7 @@ The use case driving this proposal: a user sees a node in the nodelist that adve
 ## Scope
 
 ### In scope
-- Feature flag `FREQ_ENABLE_REQUESTS_WEB`, default **true**, gating the nav entry and the API
+- Feature flag `FREQ_ENABLE_INTERFACE`, default **true**, gating the nav entry and the API
 - Admin daemon command to trigger a FREQ attempt (initial or retry) in the background so a web request isn't held open for the duration of a binkp session
 - API endpoint to queue a request (mode-aware: `.req` or `M_GET`) and to list/poll request status
 - "File Requests" entry under the Files menu, available to **any logged-in user** (not admin-gated)
@@ -50,8 +50,8 @@ The use case driving this proposal: a user sees a node in the nodelist that adve
 
 ### 1. Feature flag and config
 
-Add `FREQ_ENABLE_REQUESTS_WEB` following the existing `ENABLE_FREQ_EXPERIMENTAL` pattern:
-- `Config::env('FREQ_ENABLE_REQUESTS_WEB', 'true') === 'true'` as the check, default true
+Add `FREQ_ENABLE_INTERFACE` following the existing `ENABLE_FREQ_EXPERIMENTAL` pattern:
+- `Config::env('FREQ_ENABLE_INTERFACE', 'true') === 'true'` as the check, default true
 - Exposed as a Twig global (see `src/Template.php:237` for the analogous `freq_experimental_enabled` global) so `templates/base.twig` and `templates/shells/web/base.twig` can gate the nav entry
 - Checked server-side in the new API route(s) as well, not just the UI
 
@@ -88,7 +88,7 @@ Pending FREQ requests (`freq_requests_outbound.status = 'pending'`) need to be r
 **Routes:** `routes/api-routes.php`, following the conventions already used by `POST /messages/send` and `POST /binkp/poll` (auth check → validate/parse JSON body → call service → `apiError()`/JSON success response).
 
 - `POST /api/freq/requests`
-  - Auth: any logged-in user (`RouteHelper::requireAuth()`), gated by `FREQ_ENABLE_REQUESTS_WEB`
+  - Auth: any logged-in user (`RouteHelper::requireAuth()`), gated by `FREQ_ENABLE_INTERFACE`
   - Payload: `{ "node": "227:1/200@fidonet", "filename": "ALLFILES", "mode": "req", "password": null }` (`mode` one of `"req"` (default) / `"mget"`)
   - Validates `node` (strip `@domain`, `zone:net/node` format) and `filename`
   - Counts the current user's rows in `freq_requests_outbound` with `status = 'pending'`; if the count is `>= FREQ_MAX_CONCURRENT_PER_USER`, return 429/422 with a clear error rather than queuing
@@ -105,7 +105,7 @@ Pending FREQ requests (`freq_requests_outbound.status = 'pending'`) need to be r
 
 **Files:** `templates/base.twig`, `templates/shells/web/base.twig` (both must be updated per `templates/CLAUDE.md`), plus a new template for the page itself (e.g. `templates/files/requests.twig`).
 
-- Nav: add a "File Requests" entry under the Files dropdown (see the existing Files menu structure in `templates/base.twig` around the `bbs_feature_enabled('file_areas')` block), visible to any logged-in user, gated by the `FREQ_ENABLE_REQUESTS_WEB` Twig global
+- Nav: add a "File Requests" entry under the Files dropdown (see the existing Files menu structure in `templates/base.twig` around the `bbs_feature_enabled('file_areas')` block), visible to any logged-in user, gated by the `FREQ_ENABLE_INTERFACE` Twig global
 - Page: lists the user's requests (node, filename, mode, status, submitted time) with a "New Request" action
 - New Request dialog: node address, filename/magic name, optional password, and a mode selector (radio or select) defaulting to **`.req`**, with `M_GET` as the alternative and brief inline guidance that `M_GET` should only be chosen if the remote node is known to support live-session FREQ
 - Status polling and AJAX conventions should follow the existing ALLFILES modal in `templates/nodelist/view.twig` (`errorBox`/`window.getApiErrorMessage`/`showSuccess()` helpers, spinner-disable-button pattern) for consistency
@@ -150,7 +150,7 @@ These were originally open questions; resolved as follows.
 ## Implementation Order
 
 1. Migration (timestamp ID, e.g. `v20260812000000_freq_requests_outbound_retry_columns.sql` — generate via `php scripts/migration.php create`): `last_attempt_at` / `attempts` columns and a `failed` status value on `freq_requests_outbound`, plus the corresponding `FreqRequestTracker` methods (`recordAttempt()`, `markFailed()`, retry-eligibility/attempts-exhausted queries, per-user pending count)
-2. Feature flag and config (`FREQ_ENABLE_REQUESTS_WEB`, `FREQ_POLL_INTERVAL`, `FREQ_MAX_ATTEMPTS`, `FREQ_MAX_CONCURRENT_PER_USER`) + Twig global
+2. Feature flag and config (`FREQ_ENABLE_INTERFACE`, `FREQ_POLL_INTERVAL`, `FREQ_MAX_ATTEMPTS`, `FREQ_MAX_CONCURRENT_PER_USER`) + Twig global
 3. Admin daemon command (`freq_request`), supporting both initial send (`--request-id=` from a row the API already inserted) and scheduler-driven retry
 4. `binkp_scheduler` retry loop (`runScheduledFreqRetries()`), including the attempts-cap → `failed` transition
 5. API endpoints (`POST /api/freq/requests` with the concurrency check, `GET /api/freq/requests`, `GET /api/freq/requests/{id}`)

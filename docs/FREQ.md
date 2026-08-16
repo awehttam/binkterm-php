@@ -14,6 +14,7 @@ FidoNet FREQ (File Request) is a protocol that lets one node request specific fi
   - [How requests are resolved](#how-requests-are-resolved)
   - [Denial reasons](#denial-reasons)
 - [Requesting files (outbound)](#requesting-files-outbound)
+  - [When a remote declines the request](#when-a-remote-declines-the-request)
   - [Web interface](#web-interface)
   - [CLI: scripts/freq_getfile.php](#cli-scriptsfreq_getfilephp)
   - [Bark .req file mode](#bark-req-file-mode)
@@ -108,6 +109,12 @@ BinktermPHP can request files from any binkp-reachable remote node, either from 
 
 Every request — whether submitted via the web or the CLI — is recorded in the `freq_requests_outbound` table by `FreqRequestTracker` before the session opens. This allows a FREQ response that arrives asynchronously (in a later session) to be routed to the correct requesting user.
 
+### When a remote declines the request
+
+Some remote FREQ handlers respond to a declined request (file not found, no access, etc.) by sending back a netmail explaining why, instead of — or in addition to — the requested file. `scripts/freq_getfile.php` detects this case: if a session receives only FidoNet infrastructure files (a `.pkt`, `.tic`, etc.) and no file matching the request, the request is marked `failed` immediately instead of being retried against a remote that has already declined it.
+
+The bounce netmail itself is deliberately **not** inspected, redirected, or copied anywhere by this feature. A `.pkt` received in the same session could just as easily be unrelated mail this node happened to have queued for the sysop (e.g. if it's also a configured uplink) — there is no reliable way to tell the two apart from the packet alone, and guessing risks exposing private mail to whichever user happens to have an outstanding request to that node. The `.pkt` is left untouched for `scripts/process_packets.php` to deliver exactly as it always has, normally to the sysop. Requesting users are not notified of *why* a request failed beyond its status changing to `failed` in the File Requests list.
+
 ### Web interface
 
 Any logged-in user can submit a request under **Files → File Requests** (`/file-requests`), backed by:
@@ -121,11 +128,11 @@ Any logged-in user can submit a request under **Files → File Requests** (`/fil
 
 Submitting spawns the same `scripts/freq_getfile.php` flow used by the CLI, via the admin daemon (`AdminDaemonClient::freqRequest()`), so behavior is identical either way. A request's status is `pending` until a matching file is routed (`complete`) or its attempts are exhausted (`failed`).
 
-This is enabled by default; set `FREQ_ENABLE_REQUESTS_WEB=false` to hide the page and disable the API. See [Configuration reference](#configuration-reference) for the per-user concurrency limit and retry settings.
+This is **disabled by default**. Set `FREQ_ENABLE_INTERFACE=true` to make it available to any logged-in user, or `FREQ_ENABLE_INTERFACE=sysop` to restrict it to admin accounts only. It defaults off so a sysop opts in deliberately, after reading [When a remote declines the request](#when-a-remote-declines-the-request) above and deciding whether that behavior — and who should be allowed to trigger it — is acceptable for their site. See [Configuration reference](#configuration-reference) for the per-user concurrency limit and retry settings.
 
 ### Terminal server (telnet/SSH)
 
-The Telnet and SSH BBS interfaces expose the same feature under **[Files] → File Requests** (default menu key `R`, configurable in **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**). `telnet/src/FreqHandler.php` lists the logged-in user's own requests, and lets them submit a new request (with an address-book lookup for the node, `?`) or delete a tracking entry — it is a thin client of the same `/api/freq/requests` endpoints listed above, so behavior and the `FREQ_ENABLE_REQUESTS_WEB` gate are identical to the web page. The menu item itself is hidden when `FREQ_ENABLE_REQUESTS_WEB=false`.
+The Telnet and SSH BBS interfaces expose the same feature under **[Files] → File Requests** (default menu key `R`, configurable in **Admin → BBS Settings → Appearance → Terminal Server → Main Menu Keys**). `telnet/src/FreqHandler.php` lists the logged-in user's own requests, and lets them submit a new request (with an address-book lookup for the node, `?`) or delete a tracking entry — it is a thin client of the same `/api/freq/requests` endpoints listed above, so behavior and the `FREQ_ENABLE_INTERFACE` gate are identical to the web page. The menu item itself is hidden when `FREQ_ENABLE_INTERFACE=false`.
 
 Once a request completes, the received file is available right from the same screen — a `[DL]` marker appears next to fulfilled requests in the list, and pressing `D` (from the list or the request's detail view) downloads it over ZMODEM, the same way file downloads work elsewhere in the terminal server's Files area.
 
@@ -211,7 +218,7 @@ Displays all FREQ serving activity: requesting node address, filename requested,
 
 **Nodelist node view** — `/nodelist/view/<address>`
 
-Logged-in users see a **Request File** button on the node detail page (when `FREQ_ENABLE_REQUESTS_WEB` is enabled). It links to the [web File Requests page](#web-interface) with that node's address pre-filled, so the request is sent via `.req`/`M_GET` rather than netmail.
+Logged-in users see a **Request File** button on the node detail page (when `FREQ_ENABLE_INTERFACE` is enabled). It links to the [web File Requests page](#web-interface) with that node's address pre-filled, so the request is sent via `.req`/`M_GET` rather than netmail.
 
 ---
 
@@ -220,7 +227,7 @@ Logged-in users see a **Request File** button on the node detail page (when `FRE
 | Setting | Default | Description |
 |---|---|---|
 | `ENABLE_FREQ_EXPERIMENTAL` | `false` | Set to `true` to show the older netmail-based FREQ (`is_freq`) option in the netmail compose form. Prefer `.req`/`M_GET` via the [web File Requests page](#web-interface) or `freq_getfile.php` instead |
-| `FREQ_ENABLE_REQUESTS_WEB` | `true` | Set to `false` to hide the File Requests page and disable its API entirely |
+| `FREQ_ENABLE_INTERFACE` | `false` | `true` shows the File Requests page and enables its API for any logged-in user; `sysop` restricts it to admin accounts; `false` disables it entirely. See [When a remote declines the request](#when-a-remote-declines-the-request) before enabling |
 | `FREQ_MAX_CONCURRENT_PER_USER` | `2` | Maximum number of requests a single user may have in progress at once |
 | `FREQ_MAX_ATTEMPTS` | `5` | Number of retry attempts before an unfulfilled request is marked `failed` |
 | `FREQ_POLL_INTERVAL` | `300` | Seconds between automatic retry attempts for a pending request |
