@@ -371,7 +371,8 @@
             echoViews + echoSends, echoViews, echoSends,
             netReads + netSends, netReads, netSends,
             byCategory.file || 0, byCategory.door || 0,
-            byCategory.nodelist || 0, byCategory.chat || 0, byCategory.auth || 0,
+            byCategory.nodelist || 0, byCategory.bbs_directory || 0, byCategory.chat || 0,
+            byCategory.pgp || 0, byCategory.auth || 0,
             ...Object.values(loginBySource),
         ];
         const maxCat = Math.max(...allVals);
@@ -409,7 +410,9 @@
             plainRow(uiT('ui.admin.activity_stats.files', 'Files'), byCategory.file || 0) +
             plainRow(uiT('ui.admin.activity_stats.doors', 'Doors'), byCategory.door || 0) +
             plainRow(uiT('ui.admin.activity_stats.nodelist', 'Nodelist'), byCategory.nodelist || 0) +
+            plainRow(uiT('ui.admin.activity_stats.bbs_directory', 'BBS Directory'), byCategory.bbs_directory || 0) +
             plainRow(uiT('ui.admin.activity_stats.chat', 'Chat'), byCategory.chat || 0) +
+            plainRow(uiT('ui.admin.activity_stats.pgp', 'PGP'), byCategory.pgp || 0) +
             groupRow(uiT('ui.admin.activity_stats.auth', 'Auth'), byCategory.auth || 0) +
             Object.entries(loginBySource).map(([src, cnt]) =>
                 subRow(escapeHtml(src.charAt(0).toUpperCase() + src.slice(1)), cnt, 'bg-info')

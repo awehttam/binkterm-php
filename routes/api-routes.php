@@ -1367,6 +1367,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         unset($row);
 
+        if ($roomId && !$beforeId) {
+            // No before_id means this is a room switch or initial page-load
+            // restore, not pagination (loadOlderMessages() always sets
+            // before_id) — the one signal that the user actually entered
+            // this room, as opposed to scrolling up for older history.
+            $roomName = $rows[0]['room_name'] ?? null;
+            ActivityTracker::track($userId, ActivityTracker::TYPE_CHAT_ROOM_ENTER, $roomId, $roomName);
+        }
+
         echo json_encode(['messages' => $rows, 'has_more' => $hasMore]);
     });
 
@@ -9875,6 +9884,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $service = new PgpKeyService();
             $key = $service->uploadPublicKey($userId, $armoredPublicKey, $label);
+            ActivityTracker::track($userId, ActivityTracker::TYPE_PGP_KEY_UPLOAD, null, $key['fingerprint'] ?? null);
             echo json_encode([
                 'success' => true,
                 'message_code' => 'ui.settings.pgp.upload_success',
@@ -9911,6 +9921,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $service = new PgpKeyService();
             $key = $service->storeManagedKeyPair($userId, $armoredPublicKey, $encryptedPrivateKey, $label);
+            ActivityTracker::track($userId, ActivityTracker::TYPE_PGP_KEY_GENERATE, null, $key['fingerprint'] ?? null);
             echo json_encode([
                 'success' => true,
                 'message_code' => 'ui.settings.pgp.generate_success',
@@ -9933,11 +9944,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $service = new PgpKeyService();
-            $changed = $service->setPrimaryKey((int)($user['user_id'] ?? $user['id'] ?? 0), (string)$fingerprint);
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $changed = $service->setPrimaryKey($userId, (string)$fingerprint);
             if (!$changed) {
                 apiError('errors.pgp.key_not_found', apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found', $user), 404);
             }
 
+            ActivityTracker::track($userId, ActivityTracker::TYPE_PGP_KEY_PRIMARY, null, $fingerprint);
             echo json_encode([
                 'success' => true,
                 'message_code' => 'ui.settings.pgp.primary_updated'
@@ -9957,11 +9970,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $service = new PgpKeyService();
-            $deleted = $service->deleteKey((int)($user['user_id'] ?? $user['id'] ?? 0), (string)$fingerprint);
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $deleted = $service->deleteKey($userId, (string)$fingerprint);
             if (!$deleted) {
                 apiError('errors.pgp.key_not_found', apiLocalizedText('errors.pgp.key_not_found', 'PGP key not found', $user), 404);
             }
 
+            ActivityTracker::track($userId, ActivityTracker::TYPE_PGP_KEY_DELETE, null, $fingerprint);
             echo json_encode([
                 'success' => true,
                 'message_code' => 'ui.settings.pgp.delete_success'
@@ -13958,6 +13973,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $requestId = $tracker->recordRequest($address, [$filename], $userId, $mode);
+
+        ActivityTracker::track($userId, ActivityTracker::TYPE_FREQ_REQUEST, $requestId, $address, ['filename' => $filename, 'mode' => $mode]);
 
         try {
             $client = new \BinktermPHP\Admin\AdminDaemonClient();

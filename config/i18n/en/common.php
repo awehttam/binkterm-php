@@ -2303,6 +2303,8 @@ return [
     'ui.admin.activity_stats.read' => 'Read',
     'ui.admin.activity_stats.doors' => 'Doors',
     'ui.admin.activity_stats.nodelist' => 'Nodelist',
+    'ui.admin.activity_stats.bbs_directory' => 'BBS Directory',
+    'ui.admin.activity_stats.pgp' => 'PGP',
     'ui.admin.activity_stats.chat' => 'Chat',
     'ui.admin.activity_stats.auth' => 'Auth',
     'ui.admin.activity_stats.anonymous' => '(anon)',

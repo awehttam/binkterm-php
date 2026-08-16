@@ -2283,6 +2283,8 @@ return [
     'ui.admin.activity_stats.read' => 'Letti',
     'ui.admin.activity_stats.doors' => 'Door',
     'ui.admin.activity_stats.nodelist' => 'Nodelist',
+    'ui.admin.activity_stats.bbs_directory' => 'Elenco BBS',
+    'ui.admin.activity_stats.pgp' => 'PGP',
     'ui.admin.activity_stats.chat' => 'Chat',
     'ui.admin.activity_stats.auth' => 'Auth',
     'ui.admin.activity_stats.anonymous' => '(anon)',

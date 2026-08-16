@@ -2317,6 +2317,8 @@ return [
     'ui.admin.activity_stats.read' => 'Прочитано',
     'ui.admin.activity_stats.doors' => 'Двери',
     'ui.admin.activity_stats.nodelist' => 'Список узлов',
+    'ui.admin.activity_stats.bbs_directory' => 'Каталог BBS',
+    'ui.admin.activity_stats.pgp' => 'PGP',
     'ui.admin.activity_stats.chat' => 'Чат',
     'ui.admin.activity_stats.auth' => 'Аутентификация',
     'ui.admin.activity_stats.anonymous' => '(анонимно)',

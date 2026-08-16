@@ -1,6 +1,7 @@
 <?php
 
 // Web routes
+use BinktermPHP\ActivityTracker;
 use BinktermPHP\AppearanceConfig;
 use BinktermPHP\Auth;
 use BinktermPHP\Advertising;
@@ -2140,6 +2141,13 @@ SimpleRouter::get('/bbs-directory', function() {
         return;
     }
 
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    if ($user) {
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        ActivityTracker::track($userId, ActivityTracker::TYPE_BBS_DIRECTORY_VIEW);
+    }
+
     $db        = \BinktermPHP\Database::getInstance()->getPdo();
     $directory = new \BinktermPHP\BbsDirectory($db);
     $entries   = $directory->getActiveEntries();
@@ -2180,6 +2188,13 @@ $renderBbsDirectoryEntry = function($id) {
     $entry['public_path'] = bbsDirectoryEntryPath($entry);
     $entry['public_url'] = \BinktermPHP\Config::getSiteUrl() . $entry['public_path'];
 
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    if ($user) {
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        ActivityTracker::track($userId, ActivityTracker::TYPE_BBS_DIRECTORY_ENTRY_VIEW, (int)$entry['id'], $entry['name'] ?? null);
+    }
+
     $template = new Template();
     $template->renderResponse('bbs_directory_entry.twig', ['entry' => $entry]);
 };
@@ -2218,6 +2233,8 @@ SimpleRouter::post('/api/bbs-directory/submit', function() {
     try {
         $id = $directory->createPendingEntry($input, $userId);
         echo json_encode(['success' => true, 'id' => $id]);
+
+        ActivityTracker::track($userId, ActivityTracker::TYPE_BBS_DIRECTORY_SUBMIT, (int)$id, $input['name'] ?? null);
 
         // Notify the sysop that a new BBS listing is awaiting approval
         $bbsName    = $input['name'] ?? 'Unknown';

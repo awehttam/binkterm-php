@@ -2011,6 +2011,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.activity_stats.read' => 'Lus',
     'ui.admin.activity_stats.doors' => 'Portes',
     'ui.admin.activity_stats.nodelist' => 'Liste des nœuds',
+    'ui.admin.activity_stats.bbs_directory' => 'Annuaire des BBS',
+    'ui.admin.activity_stats.pgp' => 'PGP',
     'ui.admin.activity_stats.chat' => 'Chat',
     'ui.admin.activity_stats.auth' => 'Auth',
     'ui.admin.activity_stats.anonymous' => '(anon)',

@@ -2336,6 +2336,8 @@ return [
     'ui.admin.activity_stats.read' => 'Leidos',
     'ui.admin.activity_stats.doors' => 'Doors',
     'ui.admin.activity_stats.nodelist' => 'Nodelist',
+    'ui.admin.activity_stats.bbs_directory' => 'Directorio de BBS',
+    'ui.admin.activity_stats.pgp' => 'PGP',
     'ui.admin.activity_stats.chat' => 'Chat',
     'ui.admin.activity_stats.auth' => 'Autenticacion',
     'ui.admin.activity_stats.anonymous' => '(anon)',
