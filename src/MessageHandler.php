@@ -663,7 +663,7 @@ class MessageHandler
         $subscriptionManager = new EchoareaSubscriptionManager();
         $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
 
-        if (empty($subscribedEchoareas)) {
+        if (empty($subscribedEchoareas) && $filter !== 'saved') {
             return [
                 'messages' => [],
                 'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0],
@@ -735,9 +735,17 @@ class MessageHandler
             $filterParams[] = $p;
         }
 
-        // Create IN clause for subscribed echoareas
-        $echoareaIds = array_column($subscribedEchoareas, 'id');
-        $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
+        // Saved messages are an explicit user action, so show them regardless of
+        // current subscription state instead of restricting to subscribed echoareas.
+        if ($filter === 'saved') {
+            $areaScopeClause = "1=1";
+            $areaScopeParams = [];
+        } else {
+            $echoareaIds = array_column($subscribedEchoareas, 'id');
+            $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
+            $areaScopeClause = "em.echoarea_id IN ($placeholders)";
+            $areaScopeParams = $echoareaIds;
+        }
 
         $dateField = $this->getEchomailDateField();
 
@@ -766,7 +774,7 @@ class MessageHandler
             JOIN echoareas ea ON em.echoarea_id = ea.id
             {$readJoinSql}
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-            WHERE em.echoarea_id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            WHERE {$areaScopeClause} AND ea.is_active = TRUE{$filterClause}
             ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
@@ -776,7 +784,7 @@ class MessageHandler
             $params[] = $userId;
         }
         $params[] = $userId;
-        $params = array_merge($params, $echoareaIds);
+        $params = array_merge($params, $areaScopeParams);
         foreach ($filterParams as $param) {
             $params[] = $param;
         }
@@ -785,7 +793,7 @@ class MessageHandler
         }
         $params[] = $limit;
         $params[] = $offset;
-        
+
         $stmt->execute($params);
         $messages = $stmt->fetchAll();
 
@@ -807,17 +815,17 @@ class MessageHandler
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id{$countJoinSql}
-            WHERE em.echoarea_id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            WHERE {$areaScopeClause} AND ea.is_active = TRUE{$filterClause}
         ");
 
-        $countParams = array_merge($countParams, $echoareaIds);
+        $countParams = array_merge($countParams, $areaScopeParams);
         foreach ($filterParams as $param) {
             $countParams[] = $param;
         }
         foreach ($ignoreFilter['params'] as $param) {
             $countParams[] = $param;
         }
-        
+
         $countStmt->execute($countParams);
         $total = $countStmt->fetch()['total'];
 
@@ -5665,8 +5673,8 @@ class MessageHandler
             $subscriptionManager = new EchoareaSubscriptionManager();
             $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
         }
-        
-        if (empty($subscribedEchoareas)) {
+
+        if (empty($subscribedEchoareas) && $filter !== 'saved') {
             return [
                 'messages' => [],
                 'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0],
@@ -5733,9 +5741,17 @@ class MessageHandler
             $filterParams[] = $p;
         }
 
-        // Create IN clause for subscribed echoareas
-        $echoareaIds = array_column($subscribedEchoareas, 'id');
-        $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
+        // Saved messages are an explicit user action, so show them regardless of
+        // current subscription state instead of restricting to subscribed echoareas.
+        if ($filter === 'saved') {
+            $areaScopeClause = "1=1";
+            $areaScopeParams = [];
+        } else {
+            $echoareaIds = array_column($subscribedEchoareas, 'id');
+            $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
+            $areaScopeClause = "em.echoarea_id IN ($placeholders)";
+            $areaScopeParams = $echoareaIds;
+        }
 
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
@@ -5766,7 +5782,7 @@ class MessageHandler
             JOIN echoareas ea ON em.echoarea_id = ea.id
             {$readJoinSql}
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-            WHERE em.echoarea_id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            WHERE {$areaScopeClause} AND ea.is_active = TRUE{$filterClause}
             ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
@@ -5776,7 +5792,7 @@ class MessageHandler
             $params[] = $userId;
         }
         $params[] = $userId;
-        $params = array_merge($params, $echoareaIds);
+        $params = array_merge($params, $areaScopeParams);
         foreach ($filterParams as $param) {
             $params[] = $param;
         }
@@ -5818,7 +5834,7 @@ class MessageHandler
             JOIN echoareas ea ON em.echoarea_id = ea.id
             {$readJoinSql}
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-            WHERE em.echoarea_id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            WHERE {$areaScopeClause} AND ea.is_active = TRUE{$filterClause}
         ");
 
         $countParams = [];
@@ -5826,7 +5842,7 @@ class MessageHandler
             $countParams[] = $userId;
         }
         $countParams[] = $userId;
-        $countParams = array_merge($countParams, $echoareaIds);
+        $countParams = array_merge($countParams, $areaScopeParams);
         foreach ($filterParams as $param) {
             $countParams[] = $param;
         }
@@ -5894,12 +5910,15 @@ class MessageHandler
         }
 
         // Threaded pagination groups messages by thread (root + replies). That's a poor
-        // fit for "unread"/"read": a thread can mix read and unread messages, and readers
-        // expect the Unread tab to show just the unread messages, not whole conversations
-        // with already-read messages mixed in. Delegate to the flat (non-threaded) query,
-        // which filters per-message and is also far cheaper than reasoning about read
-        // state across an entire thread tree.
-        if (($filter === 'unread' || $filter === 'read') && $userId) {
+        // fit for "unread"/"read"/"saved": a thread can mix read/unread or saved/unsaved
+        // messages, and readers expect those tabs to show just the matching messages, not
+        // whole conversations with non-matching messages mixed in. It's also a correctness
+        // issue for "saved" specifically: below, only thread *roots* are matched against the
+        // filter and then children are pulled in unconditionally, so a saved reply whose
+        // thread root isn't saved would never appear at all. Delegate to the flat
+        // (non-threaded) query, which filters per-message and is also far cheaper than
+        // reasoning about read/saved state across an entire thread tree.
+        if (($filter === 'unread' || $filter === 'read' || $filter === 'saved') && $userId) {
             return $this->getEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter, false, false, $sort);
         }
 

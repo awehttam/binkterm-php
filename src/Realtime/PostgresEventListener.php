@@ -15,8 +15,17 @@ class PostgresEventListener implements EventListenerInterface
     private Logger $logger;
     private ?string $channel = null;
 
-    /** @var resource|null */
+    /** @var resource|\PgSql\Connection|null */
     private $connection = null;
+
+    /**
+     * PHP 8.1+ returns opaque objects (PgSql\Connection, Socket) from these
+     * pgsql/sockets APIs instead of resources; accept either representation.
+     */
+    private static function isValidHandle(mixed $value, string $objectClass): bool
+    {
+        return is_resource($value) || $value instanceof $objectClass;
+    }
 
     /**
      * @param array<string, mixed> $databaseConfig
@@ -59,7 +68,7 @@ class PostgresEventListener implements EventListenerInterface
         }
 
         $socket = pg_socket($this->connection);
-        if (!is_resource($socket)) {
+        if (!self::isValidHandle($socket, \Socket::class)) {
             return [];
         }
 
@@ -90,7 +99,7 @@ class PostgresEventListener implements EventListenerInterface
      */
     public function isHealthy(): bool
     {
-        return is_resource($this->connection)
+        return self::isValidHandle($this->connection, \PgSql\Connection::class)
             && pg_connection_status($this->connection) === PGSQL_CONNECTION_OK;
     }
 
@@ -114,7 +123,7 @@ class PostgresEventListener implements EventListenerInterface
      */
     public function close(): void
     {
-        if (is_resource($this->connection)) {
+        if (self::isValidHandle($this->connection, \PgSql\Connection::class)) {
             pg_close($this->connection);
         }
 
@@ -133,17 +142,47 @@ class PostgresEventListener implements EventListenerInterface
         }
 
         $connStr = sprintf(
-            'host=%s port=%s dbname=%s user=%s password=%s',
-            $this->databaseConfig['host'],
-            $this->databaseConfig['port'],
-            $this->databaseConfig['database'],
-            $this->databaseConfig['username'],
-            $this->databaseConfig['password']
+            "host='%s' port='%s' dbname='%s' user='%s' password='%s'",
+            addcslashes((string)$this->databaseConfig['host'], "'\\"),
+            addcslashes((string)$this->databaseConfig['port'], "'\\"),
+            addcslashes((string)$this->databaseConfig['database'], "'\\"),
+            addcslashes((string)$this->databaseConfig['username'], "'\\"),
+            addcslashes((string)$this->databaseConfig['password'], "'\\")
         );
 
-        $connection = @pg_connect($connStr);
-        if (!is_resource($connection)) {
-            $this->logger->error('PostgreSQL event listener: pg_connect failed');
+        $ssl = $this->databaseConfig['ssl'] ?? [];
+        if (!empty($ssl['enabled'])) {
+            $connStr .= " sslmode=require";
+            if (!empty($ssl['ca_cert'])) {
+                $connStr .= " sslrootcert='" . addcslashes((string)$ssl['ca_cert'], "'\\") . "'";
+            }
+            if (!empty($ssl['client_cert'])) {
+                $connStr .= " sslcert='" . addcslashes((string)$ssl['client_cert'], "'\\") . "'";
+            }
+            if (!empty($ssl['client_key'])) {
+                $connStr .= " sslkey='" . addcslashes((string)$ssl['client_key'], "'\\") . "'";
+            }
+        }
+
+        $phpWarning = null;
+        set_error_handler(function (int $errno, string $errstr) use (&$phpWarning): bool {
+            $phpWarning = $errstr;
+            return true;
+        });
+        try {
+            $connection = pg_connect($connStr);
+        } finally {
+            restore_error_handler();
+        }
+
+        if (!self::isValidHandle($connection, \PgSql\Connection::class)) {
+            $this->logger->error('PostgreSQL event listener: pg_connect failed', [
+                'host' => $this->databaseConfig['host'],
+                'port' => $this->databaseConfig['port'],
+                'dbname' => $this->databaseConfig['database'],
+                'ssl_enabled' => !empty($ssl['enabled']),
+                'warning' => $phpWarning,
+            ]);
             return false;
         }
 
@@ -153,7 +192,7 @@ class PostgresEventListener implements EventListenerInterface
 
     private function issueListen(string $channel): bool
     {
-        if (!is_resource($this->connection)) {
+        if (!self::isValidHandle($this->connection, \PgSql\Connection::class)) {
             return false;
         }
 

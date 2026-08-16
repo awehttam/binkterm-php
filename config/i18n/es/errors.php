@@ -160,6 +160,15 @@ return [
     'errors.fileareas.update_failed' => 'No se pudo actualizar el area de archivos',
     'errors.fileareas.delete_failed' => 'No se pudo eliminar el area de archivos',
 
+    // Outbound FREQ (file requests)
+    'errors.freq.feature_disabled' => 'Las solicitudes de archivos están deshabilitadas',
+    'errors.freq.node_required' => 'Se requiere una dirección de nodo',
+    'errors.freq.filename_required' => 'Se requiere un nombre de archivo o nombre mágico',
+    'errors.freq.filename_invalid' => 'El nombre de archivo contiene caracteres no válidos',
+    'errors.freq.invalid_address' => 'Dirección FTN o nombre de host no válido (se espera zona:red/nodo, o un nombre de host como bbs.example.com)',
+    'errors.freq.concurrency_limit' => 'Ya tiene el número máximo de solicitudes de archivo en curso ({max})',
+    'errors.freq.not_found' => 'Solicitud de archivo no encontrada',
+
     // Files
     'errors.files.feature_disabled' => 'La funcion de areas de archivos esta deshabilitada',
     'errors.files.area_id_required' => 'Se requiere el ID del area de archivos',

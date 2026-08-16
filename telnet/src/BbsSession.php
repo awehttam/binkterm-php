@@ -414,6 +414,7 @@ class BbsSession
         $pollsHandler         = new PollsHandler($this, $this->apiBase);
         $doorHandler          = new DoorHandler($this, $this->apiBase);
         $fileHandler          = new FileHandler($this, $this->apiBase, $this->isSsh);
+        $freqHandler          = new FreqHandler($this, $this->apiBase, $this->isSsh);
         $interestsHandler     = new InterestsHandler($this, $this->apiBase);
         $qwkHandler           = new QwkMenuHandler($this, $this->apiBase, $this->isSsh);
         $bbsListHandler       = new BbsListHandler($this, $this->apiBase);
@@ -473,6 +474,7 @@ class BbsSession
                 'polls'   => 'p', 'doors'    => 'd', 'files'    => 'f', 'settings'  => 't',
                 'interests' => 'i', 'whosonline' => 'w', 'qwk' => 'k',
                 'bbslist' => 'b', 'nodelist'  => 'l', 'localchat' => 'c', 'quit' => 'q',
+                'freqrequests' => 'r',
             ];
         // Computes active menu items, key→action map, and section arrays from current state.
         // Called by both $renderMainMenu (TUI) and the LineShell chooseFromList path.
@@ -483,6 +485,7 @@ class BbsSession
             $showPolls      = BbsConfig::isFeatureEnabled('voting_booth');
             $showDoors      = BbsConfig::isFeatureEnabled('webdoors');
             $showFiles      = \BinktermPHP\FileAreaManager::isFeatureEnabled();
+            $showFreq       = \BinktermPHP\Freq\FreqWebAccess::isEnabledFor(!empty($state['is_admin']));
             $showInterests  = Config::env('ENABLE_INTERESTS') === 'true';
             $showQwk        = BbsConfig::isFeatureEnabled('qwk');
             $showBbsList    = BbsConfig::isFeatureEnabled('bbs_directory');
@@ -498,6 +501,7 @@ class BbsSession
             $pollsOption      = $showPolls     && isset($menuKeys['polls'])     ? $menuKeys['polls']     : null;
             $doorsOption      = $showDoors     && isset($menuKeys['doors'])     ? $menuKeys['doors']     : null;
             $filesOption      = $showFiles     && isset($menuKeys['files'])     ? $menuKeys['files']     : null;
+            $freqOption       = $showFreq      && isset($menuKeys['freqrequests']) ? $menuKeys['freqrequests'] : null;
             $interestsOption  = $showInterests && isset($menuKeys['interests']) ? $menuKeys['interests'] : null;
             $qwkOption        = $showQwk       && isset($menuKeys['qwk'])       ? $menuKeys['qwk']       : null;
             $bbsListOption    = $showBbsList   && isset($menuKeys['bbslist'])   ? $menuKeys['bbslist']   : null;
@@ -517,6 +521,7 @@ class BbsSession
             $lblPolls      = $norm($this->t('ui.terminalserver.server.menu.polls',      'P) Polls', [], $locale), 'P');
             $lblDoors      = $norm($this->t('ui.terminalserver.server.menu.doors',      'D) Door Games', [], $locale), 'D');
             $lblFiles      = $norm($this->t('ui.terminalserver.server.menu.files',      'F) Files', [], $locale), 'F');
+            $lblFreq       = $norm($this->t('ui.terminalserver.server.menu.freqrequests', 'R) File Requests', [], $locale), 'R');
             $lblBbsList    = $norm($this->t('ui.terminalserver.server.menu.bbs_list',   'B) BBS Directory', [], $locale), 'B');
             $lblNodelist   = $norm($this->t('ui.terminalserver.server.menu.nodelist',   'L) Node List', [], $locale), 'L');
             $lblSettings   = $norm($this->t('ui.terminalserver.server.menu.settings',   'T) Settings', [], $locale), 'T');
@@ -541,7 +546,9 @@ class BbsSession
             if ($bbsListOption !== null)   $exploreItems[] = [strtoupper($bbsListOption), $lblBbsList];
             if ($nodelistOption !== null)  $exploreItems[] = [strtoupper($nodelistOption), $lblNodelist];
 
-            $filesItems = $filesOption !== null ? [[strtoupper($filesOption), $lblFiles]] : [];
+            $filesItems = [];
+            if ($filesOption !== null) $filesItems[] = [strtoupper($filesOption), $lblFiles];
+            if ($freqOption !== null)  $filesItems[] = [strtoupper($freqOption), $lblFreq];
             $settingsItems = [];
             if ($settingsKey !== null)     $settingsItems[] = [strtoupper($settingsKey), $lblSettings];
             if ($interestsOption !== null) $settingsItems[] = [strtoupper($interestsOption), $lblInterests];
@@ -554,6 +561,7 @@ class BbsSession
                 'polls'      => $pollsOption,   'localchat'  => $localchatKey,
                 'interests'  => $interestsOption,'qwk'       => $qwkOption,
                 'doors'      => $doorsOption,   'files'      => $filesOption,
+                'freqrequests' => $freqOption,
                 'bbslist'    => $bbsListOption, 'nodelist'   => $nodelistOption,
                 'whosonline' => $whosOnlineOption,'settings' => $settingsKey,
                 'quit'       => $quitKey,
@@ -578,6 +586,7 @@ class BbsSession
                 'bbslist'    => [$bbsListOption, $lblBbsList],
                 'nodelist'   => [$nodelistOption, $lblNodelist],
                 'files'      => [$filesOption, $lblFiles],
+                'freqrequests' => [$freqOption, $lblFreq],
                 'settings'   => [$settingsKey, $lblSettings],
                 'interests'  => [$interestsOption, $lblInterests],
             ] as $_action => [$_key, $_label]) {
@@ -880,6 +889,9 @@ class BbsSession
             } elseif ($action === 'files') {
                 $this->log("Menu: {$username} -> Files");
                 $fileHandler->show($conn, $state, $session);
+            } elseif ($action === 'freqrequests') {
+                $this->log("Menu: {$username} -> File Requests");
+                $freqHandler->show($conn, $state, $session);
             } elseif ($action === 'bbslist') {
                 $this->log("Menu: {$username} -> BBS Directory");
                 $bbsListHandler->show($conn, $state, $session);

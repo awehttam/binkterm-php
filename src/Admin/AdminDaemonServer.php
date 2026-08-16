@@ -337,6 +337,39 @@ class AdminDaemonServer
                     $this->logger->info("Spawned background binkp_poll for {$upstream}");
                     $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
                     break;
+                case 'freq_request':
+                    $node = $data['node'] ?? null;
+                    $filenames = $data['filenames'] ?? null;
+                    $requestId = $data['request_id'] ?? null;
+                    $username = $data['username'] ?? null;
+                    if (!$node || empty($filenames) || !is_array($filenames) || !$requestId || !$username) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_params']);
+                        break;
+                    }
+                    $mode = ($data['mode'] ?? 'req') === 'mget' ? 'mget' : 'req';
+                    $cmd = [PHP_BINARY, 'scripts/freq_getfile.php', '--no-console'];
+                    if ($mode === 'mget') {
+                        $cmd[] = '-g';
+                    }
+                    $cmd[] = '--user=' . $username;
+                    $cmd[] = '--request-id=' . (int)$requestId;
+                    if (!empty($data['password'])) {
+                        $cmd[] = '--password=' . $data['password'];
+                    }
+                    if (!empty($data['hostname'])) {
+                        $cmd[] = '--hostname=' . $data['hostname'];
+                    }
+                    $cmd[] = $node;
+                    foreach ($filenames as $filename) {
+                        $cmd[] = $filename;
+                    }
+                    // Spawn in background, same reasoning as binkp_poll: the web
+                    // request that queued this FREQ should not block on the
+                    // outbound binkp session completing.
+                    $this->spawnFreqRequest($cmd);
+                    $this->logger->info("Spawned background freq_request id={$requestId} for {$node} (mode={$mode})");
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
+                    break;
                 case 'binkp_poll_sync':
                     // Synchronous poll — runs binkp_poll.php and waits for it to finish.
                     // Used by the admin terminal so the result is visible immediately.
@@ -1262,6 +1295,43 @@ class AdminDaemonServer
         // Fallback for environments without pcntl.
         $escaped = implode(' ', array_map('escapeshellarg', $command));
         exec("nohup {$escaped} > /dev/null 2>&1 &");
+    }
+
+    /**
+     * Spawn a FREQ request in the background. Unlike spawnCommand()'s use for
+     * binkp_poll — where skipping the spawn on Windows is a safe no-op
+     * because the outbound packet is already spooled to disk for the next
+     * scheduled poll — a FREQ request has no other execution path: the
+     * freq_getfile.php invocation *is* the entire operation. spawnCommand()
+     * intentionally no-ops on Windows, so it can't be reused here without the
+     * request silently never running.
+     *
+     * On Windows, spawns via proc_open with file-redirected descriptors and
+     * deliberately never calls proc_close() on the returned handle, which
+     * leaves the child running detached — the same pattern already used for
+     * launching DOSBox-X (see DoorSessionManager::launchDosbox()).
+     */
+    private function spawnFreqRequest(array $command): void
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $this->spawnCommand($command);
+            return;
+        }
+
+        $logFile = \BinktermPHP\Config::getLogPath('binkp_poll.log');
+        $descriptorSpec = [
+            0 => ['file', 'NUL', 'r'],
+            1 => ['file', $logFile, 'a'],
+            2 => ['file', $logFile, 'a'],
+        ];
+        $cwd = dirname(dirname(__DIR__)); // project root (src/Admin -> src -> root)
+        $process = @proc_open($command, $descriptorSpec, $pipes, $cwd, null, ['bypass_shell' => true]);
+        if (!is_resource($process)) {
+            $this->logger->error('spawnFreqRequest: proc_open failed on Windows');
+        }
+        // Deliberately not calling proc_close() — that would block until the
+        // child exits. Dropping the handle here leaves the process running
+        // detached from this daemon.
     }
 
     private function writeResponse($client, array $payload): void

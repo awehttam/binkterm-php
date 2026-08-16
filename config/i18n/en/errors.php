@@ -160,6 +160,15 @@ return [
     'errors.fileareas.update_failed' => 'Failed to update file area',
     'errors.fileareas.delete_failed' => 'Failed to delete file area',
 
+    // Outbound FREQ (file requests)
+    'errors.freq.feature_disabled' => 'File requests are disabled',
+    'errors.freq.node_required' => 'A node address is required',
+    'errors.freq.filename_required' => 'A filename or magic name is required',
+    'errors.freq.filename_invalid' => 'Filename contains invalid characters',
+    'errors.freq.invalid_address' => 'Invalid FTN address or hostname (expected zone:net/node, or a hostname such as bbs.example.com)',
+    'errors.freq.concurrency_limit' => 'You already have the maximum number of file requests in progress ({max})',
+    'errors.freq.not_found' => 'File request not found',
+
     // Files
     'errors.files.feature_disabled' => 'File areas feature is disabled',
     'errors.files.area_id_required' => 'File area ID is required',

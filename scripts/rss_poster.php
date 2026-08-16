@@ -541,7 +541,7 @@ function parseRssFeed($xml) {
                 $body = $dcDescription;
                 $bodyField = 'dc:description';
             }
-            getServerLogger()->info("Auto Feed: RSS 2.0 item body source: {$bodyField}");
+            getServerLogger()->debug("Auto Feed: RSS 2.0 item body source: {$bodyField}");
             $articles[] = [
                 'guid' => (string)($item->guid ?? $item->link),
                 'title' => (string)$item->title,
@@ -566,7 +566,7 @@ function parseRssFeed($xml) {
                 $body = $dcDescription;
                 $bodyField = 'dc:description';
             }
-            getServerLogger()->info("Auto Feed: RSS 1.0 item body source: {$bodyField}");
+            getServerLogger()->debug("Auto Feed: RSS 1.0 item body source: {$bodyField}");
             $articles[] = [
                 'guid' => (string)($item->guid ?? $item->link),
                 'title' => (string)$item->title,
@@ -591,7 +591,7 @@ function parseRssFeed($xml) {
                 $body = (string)($entry->summary ?? '');
                 $bodyField = 'summary';
             }
-            getServerLogger()->info("Auto Feed: Atom entry body source: {$bodyField}");
+            getServerLogger()->debug("Auto Feed: Atom entry body source: {$bodyField}");
             $articles[] = [
                 'guid' => (string)($entry->id ?? $link),
                 'title' => (string)$entry->title,

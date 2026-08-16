@@ -149,6 +149,9 @@ if (!empty($c64Config['prg_path'])) {
 $loadAddressJs = json_encode($loadAddress);
 $prgDataJs     = json_encode($prgData);
 $prgNameJs     = json_encode($prgName);
+
+$c64UserId = $user['user_id'] ?? $user['id'] ?? null;
+\BinktermPHP\ActivityTracker::track($c64UserId, \BinktermPHP\ActivityTracker::TYPE_WEBDOOR_PLAY, null, $doorId);
 ?>
 <!DOCTYPE html>
 <html lang="en">

@@ -196,7 +196,6 @@
                             </div>
                             {% endif %}
 
-                            {% if freq_experimental_enabled %}
                             <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" id="fileareaFreqEnabled" name="freq_enabled">
                                 <label class="form-check-label" for="fileareaFreqEnabled">
@@ -209,7 +208,6 @@
                                 <input type="text" class="form-control form-control-sm" id="fileareaFreqPassword" name="freq_password" placeholder="{{ t('ui.fileareas.freq_password_placeholder', {}, locale, ['common']) }}">
                                 <div class="form-text">{{ t('ui.fileareas.freq_password_help', {}, 'Leave blank for open access') }}</div>
                             </div>
-                            {% endif %}
 
                             <div class="mb-3">
                                 <label class="form-label">{{ t('ui.fileareas.area_type', {}, locale, ['common']) }}</label>

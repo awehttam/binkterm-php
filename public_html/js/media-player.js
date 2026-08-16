@@ -68,7 +68,7 @@
         },
         {
             name: 'tiktok',
-            pattern: /tiktok\.com\/@[^\/]+\/video\//i,
+            pattern: /tiktok\.com\/(?:@[^\/]+\/video\/|t\/[a-zA-Z0-9]+)|(?:vm|vt)\.tiktok\.com\/[a-zA-Z0-9]+/i,
             endpoint: function(url) { return 'https://www.tiktok.com/oembed?url=' + encodeURIComponent(url); }
         },
         {

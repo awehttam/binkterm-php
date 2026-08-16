@@ -1614,6 +1614,23 @@ SimpleRouter::get('/files/{tag}', function($tag) {
     ]);
 });
 
+SimpleRouter::get('/file-requests', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor(!empty($user['is_admin']))) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.not_found'
+        ]);
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('file_requests.twig', []);
+});
+
 SimpleRouter::get('/public-files', function() {
     if (!\BinktermPHP\BbsConfig::isFeatureEnabled('file_areas') ||
         !\BinktermPHP\BbsConfig::isFeatureEnabled('public_files_index')) {

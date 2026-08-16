@@ -2,6 +2,8 @@
 
 namespace BinktermPHP\Freq;
 
+use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Config;
 use BinktermPHP\Database;
 
 /**
@@ -36,7 +38,7 @@ class MagicFileListGenerator
             return null;
         }
 
-        $lines = [];
+        $lines = $this->buildHeader();
         $lines[] = 'File Areas - Generated ' . date('Y-m-d H:i:s T');
         $lines[] = str_repeat('-', 72);
 
@@ -78,6 +80,24 @@ class MagicFileListGenerator
 
         $content = implode("\r\n", $areaLines) . "\r\n";
         return $this->writeTempFile(strtoupper($tag) . '.TXT', $content);
+    }
+
+    /**
+     * @return string[] BBS identification header lines for the top of ALLFILES.TXT
+     */
+    private function buildHeader(): array
+    {
+        $binkpConfig = BinkpConfig::getInstance();
+
+        $lines   = [];
+        $lines[] = $binkpConfig->getSystemName();
+        $lines[] = 'Sysop: ' . $binkpConfig->getSystemSysop();
+        $lines[] = 'Location: ' . $binkpConfig->getSystemLocation();
+        $lines[] = 'Web: ' . Config::getSiteUrl();
+        $lines[] = str_repeat('=', 72);
+        $lines[] = '';
+
+        return $lines;
     }
 
     /**

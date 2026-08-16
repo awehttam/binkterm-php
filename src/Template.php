@@ -235,6 +235,7 @@ class Template
         $this->twig->addGlobal('ftp_host', $ftpHost);
         $this->twig->addGlobal('ftp_port', $ftpPort);
         $this->twig->addGlobal('freq_experimental_enabled', Config::env('ENABLE_FREQ_EXPERIMENTAL', 'false') === 'true');
+        $this->twig->addGlobal('freq_requests_web_enabled', \BinktermPHP\Freq\FreqWebAccess::isEnabledFor(!empty($currentUser['is_admin'])));
         $interestsEnabled = Config::env('ENABLE_INTERESTS', 'true') === 'true';
         $this->twig->addGlobal('interests_enabled', $interestsEnabled);
         $hasActiveInterests = false;

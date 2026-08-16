@@ -2,6 +2,7 @@
 
 namespace BinktermPHP\TelnetServer;
 
+use BinktermPHP\ActivityTracker;
 use BinktermPHP\FileAreaManager;
 
 /**
@@ -910,6 +911,8 @@ class FileHandler
         TelnetUtils::writeLine($conn, '');
         if ($ok) {
             $this->server->logAction($state['username'] ?? 'unknown', "Files: download complete {$name}");
+            $userId = isset($state['user_id']) ? (int)$state['user_id'] : null;
+            ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_DOWNLOAD, (int)($fileRecord['id'] ?? 0) ?: null, $name);
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
                 $this->t('ui.terminalserver.files.download_done', 'Transfer complete.', [], $locale),
                 TelnetUtils::ANSI_GREEN
@@ -1010,6 +1013,7 @@ class FileHandler
             $fileId  = $manager->uploadFileFromPath($areaId, $destPath, $shortDesc, '', $username, $userId);
 
             $uploadedName = basename($destPath);
+            ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_UPLOAD, $fileId, $uploadedName, ['file_area_id' => $areaId]);
             $this->server->logAction($state['username'] ?? 'unknown', "Files: upload complete to area " . ($area['tag'] ?? '') . " file_id={$fileId}");
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(

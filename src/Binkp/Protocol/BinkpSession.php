@@ -37,6 +37,8 @@ class BinkpSession
     private $localAddress;
     private $remoteAddress;
     private $remoteAddressWithDomain;
+    /** @var string|null The address we actually dialed, for originator sessions */
+    private $dialedAddress = null;
     /** @var string[] All AKAs advertised by the remote node */
     private array $remoteAkas = [];
     private $password;
@@ -85,6 +87,15 @@ class BinkpSession
     // session rather than an error.
     private bool $haveSentEob = false;
     private bool $haveReceivedEob = false;
+    // Number of times we've auto-replied to an incoming M_EOB with our own.
+    // Capped (see processTransferFrame's M_EOB case) so that two peers both
+    // running this "always reply" policy — e.g. two BinktermPHP nodes talking
+    // to each other — can't bounce M_EOB back and forth indefinitely. A real
+    // binkd peer only ever needs at most two replies from us (its real batch,
+    // then its one normally-empty follow-up batch), so capping here doesn't
+    // affect binkd interop.
+    private int $eobRepliesSent = 0;
+    private const MAX_EOB_AUTO_REPLIES = 2;
 
     public function __construct($socket, $isOriginator = false, $config = null)
     {
@@ -136,6 +147,26 @@ class BinkpSession
     {
         $this->uplinkPassword = $password;
         $this->log("setUplinkPassword: length=" . strlen($password), 'DEBUG');
+    }
+
+    /**
+     * Record the address we actually dialed for an originator session. When set,
+     * this is preferred over AKA-matching the remote's M_ADR against known
+     * uplinks/hub nodes, since we already know who we intended to call — the
+     * remote may advertise several AKAs of its own, and one of those AKAs
+     * coincidentally matching a different known node should not relabel the
+     * session under that identity.
+     *
+     * Ignored for values that aren't an FTN address (e.g. a bare hostname used
+     * to dial a node with no nodelist/binkp_zone entry) — in that case we still
+     * don't know the remote's real FTN identity ourselves, so AKA-matching
+     * against its M_ADR remains the best available source for it.
+     */
+    public function setDialedAddress(string $address): void
+    {
+        if (\BinktermPHP\Freq\FreqAddress::isFtnAddress($address)) {
+            $this->dialedAddress = $address;
+        }
     }
 
     /**
@@ -684,18 +715,25 @@ class BinkpSession
                 // Trim whitespace first to handle leading/trailing spaces
                 $addresses = array_values(array_filter(explode(' ', trim($addressData)), 'strlen'));
 
-                // Try to find a matching address among our uplinks or hub nodes/points
+                // Normalize each advertised address (strip @domain and the .0
+                // boss-node point suffix) while keeping the with-domain form
+                // alongside it, then pick which one to use in priority order:
+                //   1. the address we dialed (originator sessions only) - the
+                //      remote must actually claim it among its AKAs, otherwise
+                //      we fall through rather than mislabel a wrong-number session
+                //   2. an AKA matching a known uplink or hub node/point
+                //   3. the first advertised address (fallback)
+                $dialedAddressMatch = null;
+                $dialedAddressWithDomain = null;
                 $matchedAddress = null;
                 $matchedAddressWithDomain = null;
                 $hubNodeManager = new \BinktermPHP\Hub\HubNodeManager();
                 foreach ($addresses as $addr) {
                     $addr = trim($addr);
                     $addrWithDomain = $addr;
-                    $domain = null;
 
                     if (strpos($addr, '@') !== false) {
-                        list($addrOnly, $domain) = explode('@', $addr, 2);
-                        $addr = $addrOnly;
+                        $addr = explode('@', $addr, 2)[0];
                     }
 
                     // Strip .0 point suffix - it represents the boss node, not a real point
@@ -703,10 +741,24 @@ class BinkpSession
                         $addr = substr($addr, 0, -2);
                     }
 
-                    if (!empty($addr) && ($this->config->getUplinkByAddress($addr) || $hubNodeManager->getByAddress($addr))) {
+                    if (empty($addr)) {
+                        continue;
+                    }
+
+                    if (
+                        $dialedAddressMatch === null && $this->isOriginator
+                        && !empty($this->dialedAddress) && $addr === $this->dialedAddress
+                    ) {
+                        $dialedAddressMatch = $addr;
+                        $dialedAddressWithDomain = $addrWithDomain;
+                    }
+
+                    if (
+                        $matchedAddress === null
+                        && ($this->config->getUplinkByAddress($addr) || $hubNodeManager->getByAddress($addr))
+                    ) {
                         $matchedAddress = $addr;
                         $matchedAddressWithDomain = $addrWithDomain;
-                        break;
                     }
                 }
 
@@ -720,8 +772,8 @@ class BinkpSession
                 if (substr($fallbackAddress, -2) === '.0') {
                     $fallbackAddress = substr($fallbackAddress, 0, -2);
                 }
-                $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
-                $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
+                $this->remoteAddress = $dialedAddressMatch ?: ($matchedAddress ?: $fallbackAddress);
+                $this->remoteAddressWithDomain = $dialedAddressWithDomain ?: ($matchedAddressWithDomain ?: $fallbackAddressWithDomain);
                 $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
                 if ($this->sessionLogger && !empty($this->remoteAddress)) {
                     $this->sessionLogger->setRemoteAddress($this->remoteAddress);
@@ -842,17 +894,28 @@ class BinkpSession
                 case BinkpFrame::M_EOB:
                     $this->log("Received M_EOB (current state: {$this->state})", 'DEBUG');
                     $this->haveReceivedEob = true;
-                    // Always answer an incoming EOB with our own, even if we've already
+                    // Answer an incoming EOB with our own, even if we've already
                     // exchanged EOB earlier in this session. We do not terminate here:
                     // binkd only closes once ITS OWN batch bookkeeping is satisfied for
                     // an EOB round, which for any batch with real traffic in it means a
-                    // second, normally-empty round-trip after the first. Replying every
-                    // time (instead of once) satisfies that without us needing to
-                    // replicate binkd's internal batch/message counting. Termination is
-                    // driven by the EOB wait loop noticing the peer close the connection
-                    // (the normal, expected end of session) or, as a fallback for peers
-                    // that expect us to hang up first, an idle timeout.
-                    $this->sendEOB();
+                    // second, normally-empty round-trip after the first. Replying
+                    // (instead of once) satisfies that without us needing to replicate
+                    // binkd's internal batch/message counting. Termination is driven by
+                    // the EOB wait loop noticing the peer close the connection (the
+                    // normal, expected end of session) or, as a fallback for peers that
+                    // expect us to hang up first, an idle timeout.
+                    //
+                    // Replies are capped (MAX_EOB_AUTO_REPLIES) because a peer running
+                    // this same "always reply" policy — e.g. another BinktermPHP node —
+                    // would otherwise bounce M_EOB back and forth with us forever. A real
+                    // binkd peer never needs more than two replies from us, so the cap is
+                    // transparent to normal binkd interop.
+                    if ($this->eobRepliesSent < self::MAX_EOB_AUTO_REPLIES) {
+                        $this->sendEOB();
+                        $this->eobRepliesSent++;
+                    } else {
+                        $this->log("Not replying to M_EOB — already sent {$this->eobRepliesSent} auto-replies this session", 'DEBUG');
+                    }
                     $this->state = self::STATE_EOB_RECEIVED;
                     break;
 
@@ -2219,6 +2282,17 @@ class BinkpSession
 
             if ($result->served && $result->filePath !== null) {
                 $this->log("FREQ: serving {$result->servedName} ({$result->fileSize} bytes) to {$callerAddr}", 'INFO');
+                if ($result->isGenerated) {
+                    // Generated listings (e.g. ALLFILES.TXT) live in a temp
+                    // directory, not data/outbound/ — register as an "extra"
+                    // outbound file (same bucket as .req files, see
+                    // addExtraFile()) so handleSentFileConfirmation() finds
+                    // and cleans them up on M_GOT instead of logging a
+                    // spurious "Sent file not found" warning and leaking the
+                    // temp file. Not calling addExtraFile() itself - that
+                    // also queues the file for sendFiles() to send again.
+                    $this->extraOutboundFilesByName[basename($result->filePath)] = $result->filePath;
+                }
                 $this->sendFile($result->filePath);
             } else {
                 $this->log("FREQ: denied '{$filename}' for {$callerAddr}: {$result->denyReason}", 'INFO');

@@ -13887,6 +13887,184 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     /**
+     * Outbound FREQ web requests — lets any logged-in user queue a file
+     * request against a remote FTN node (via .req or M_GET), backed by the
+     * existing freq_getfile.php / FreqRequestTracker / FreqResponseRouter
+     * pipeline. See docs/proposals/OutboundFreqImplementation.md.
+     */
+
+    SimpleRouter::post('/freq/requests', function() {
+        header('Content-Type: application/json');
+
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+
+        if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor(!empty($user['is_admin']))) {
+            http_response_code(404);
+            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled', $user));
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $node = trim((string)($input['node'] ?? ''));
+        $filename = trim((string)($input['filename'] ?? ''));
+        $mode = ($input['mode'] ?? 'req') === 'mget' ? 'mget' : 'req';
+        $password = isset($input['password']) && $input['password'] !== '' ? (string)$input['password'] : null;
+
+        if ($node === '') {
+            http_response_code(422);
+            apiError('errors.freq.node_required', apiLocalizedText('errors.freq.node_required', 'A node address is required', $user));
+            return;
+        }
+        if ($filename === '') {
+            http_response_code(422);
+            apiError('errors.freq.filename_required', apiLocalizedText('errors.freq.filename_required', 'A filename or magic name is required', $user));
+            return;
+        }
+        // Reject characters that would let the filename break out of its single
+        // line in the generated .req file (FTS-0008) — a CR/LF would let the
+        // requester inject extra .req lines (e.g. an "!password" line or
+        // additional filename requests) into the session sent to the remote.
+        if (preg_match('/[\r\n]/', $filename)) {
+            http_response_code(422);
+            apiError('errors.freq.filename_invalid', apiLocalizedText('errors.freq.filename_invalid', 'Filename contains invalid characters', $user));
+            return;
+        }
+
+        // Accept either an FTN address (zone:net/node, @domain stripped) or a
+        // plain internet hostname/IP (optionally "host:port") for nodes with
+        // no nodelist/binkp_zone entry — mirrors scripts/freq_getfile.php,
+        // which auto-detects which kind of address it was given.
+        if (\BinktermPHP\Freq\FreqAddress::isFtnAddress($node)) {
+            $address = str_contains($node, '@') ? explode('@', $node, 2)[0] : $node;
+        } else {
+            [$hostPart] = \BinktermPHP\Freq\FreqAddress::splitHostPort($node);
+            if ($hostPart === '') {
+                http_response_code(422);
+                apiError('errors.freq.invalid_address', apiLocalizedText('errors.freq.invalid_address', 'Invalid FTN address or hostname', $user));
+                return;
+            }
+            $address = $node;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $tracker = new \BinktermPHP\Freq\FreqRequestTracker($db);
+
+        $maxConcurrent = (int)Config::env('FREQ_MAX_CONCURRENT_PER_USER', 2);
+        if ($tracker->countPendingForUser($userId) >= $maxConcurrent) {
+            http_response_code(429);
+            apiError('errors.freq.concurrency_limit', apiLocalizedText('errors.freq.concurrency_limit', 'You already have the maximum number of file requests in progress', $user, ['max' => $maxConcurrent]));
+            return;
+        }
+
+        $requestId = $tracker->recordRequest($address, [$filename], $userId, $mode);
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $client->freqRequest($address, [$filename], $mode, $requestId, (string)$user['username'], $password);
+        } catch (\Exception $e) {
+            // The row is already recorded as pending; the scheduler's retry
+            // loop will pick it up on its next pass even if the immediate
+            // spawn failed (e.g. admin daemon briefly unavailable).
+        }
+
+        $row = $tracker->find($requestId);
+        echo json_encode([
+            'success' => true,
+            'request' => $row,
+        ]);
+    });
+
+    SimpleRouter::get('/freq/requests', function() {
+        header('Content-Type: application/json');
+
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        $isAdmin = !empty($user['is_admin']);
+
+        if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor($isAdmin)) {
+            http_response_code(404);
+            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled', $user));
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+
+        if ($isAdmin && !empty($_GET['all'])) {
+            $stmt = $db->query("
+                SELECT fr.*, u.username
+                FROM freq_requests_outbound fr
+                LEFT JOIN users u ON u.id = fr.user_id
+                ORDER BY fr.created_at DESC LIMIT 200
+            ");
+        } else {
+            $stmt = $db->prepare("SELECT * FROM freq_requests_outbound WHERE user_id = ? ORDER BY created_at DESC LIMIT 200");
+            $stmt->execute([$userId]);
+        }
+
+        echo json_encode([
+            'requests' => $stmt->fetchAll(\PDO::FETCH_ASSOC),
+        ]);
+    });
+
+    SimpleRouter::get('/freq/requests/{id}', function($id) {
+        header('Content-Type: application/json');
+
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        $isAdmin = !empty($user['is_admin']);
+
+        if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor($isAdmin)) {
+            http_response_code(404);
+            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled', $user));
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $tracker = new \BinktermPHP\Freq\FreqRequestTracker($db);
+        $row = $tracker->find((int)$id);
+
+        if (!$row || (!$isAdmin && (int)$row['user_id'] !== $userId)) {
+            http_response_code(404);
+            apiError('errors.freq.not_found', apiLocalizedText('errors.freq.not_found', 'File request not found', $user));
+            return;
+        }
+
+        echo json_encode(['request' => $row]);
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::delete('/freq/requests/{id}', function($id) {
+        header('Content-Type: application/json');
+
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id']);
+        $isAdmin = !empty($user['is_admin']);
+
+        if (!\BinktermPHP\Freq\FreqWebAccess::isEnabledFor($isAdmin)) {
+            http_response_code(404);
+            apiError('errors.freq.feature_disabled', apiLocalizedText('errors.freq.feature_disabled', 'File requests are disabled', $user));
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $tracker = new \BinktermPHP\Freq\FreqRequestTracker($db);
+        $row = $tracker->find((int)$id);
+
+        if (!$row || (!$isAdmin && (int)$row['user_id'] !== $userId)) {
+            http_response_code(404);
+            apiError('errors.freq.not_found', apiLocalizedText('errors.freq.not_found', 'File request not found', $user));
+            return;
+        }
+
+        // Deleting the tracking row does not touch the routed response file
+        // (if any) — that stays in the user's private file area, managed
+        // through Files like any other file.
+        $tracker->delete((int)$id);
+
+        echo json_encode(['success' => true]);
+    })->where(['id' => '[0-9]+']);
+
+    /**
      * GET /api/meshcore/node/{id}/qr.svg
      *
      * Returns an SVG QR code encoding the MeshCore contact-add deep-link for the node.

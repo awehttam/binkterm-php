@@ -222,10 +222,10 @@
                                     <i class="fas fa-sign-in-alt"></i> {{ t('ui.nodelist.login_to_send_netmail') }}
                                 </a>
                                 {% endif %}
-                                {% if freq_experimental_enabled and user and user.is_admin %}
-                                <button class="btn btn-info" onclick="showAllfilesModal()">
+                                {% if freq_requests_web_enabled and user %}
+                                <a href="/file-requests?node={{ node.full_address|url_encode }}" class="btn btn-info">
                                     <i class="fas fa-file-download"></i> {{ t('ui.nodelist.request_allfiles') }}
-                                </button>
+                                </a>
                                 {% endif %}
                             </div>
                         </div>
@@ -340,74 +340,6 @@
 </script>
 {% endif %}
 
-{% if freq_experimental_enabled and user and user.is_admin %}
-<!-- ALLFILES FREQ Modal -->
-<div class="modal fade" id="allfilesModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">{{ t('ui.nodelist.request_allfiles_title', {'node': node.full_address}) }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>{{ t('ui.nodelist.request_allfiles_body') }}</p>
-                {% if not (node.flags and node.flags['FREQ'] is defined) %}
-                <div class="alert alert-warning py-2 small">
-                    <i class="fas fa-exclamation-triangle me-1"></i>{{ t('ui.nodelist.freq_not_advertised') }}
-                </div>
-                {% endif %}
-                <div class="mb-3">
-                    <label for="allfilesFilename" class="form-label">{{ t('ui.nodelist.request_allfiles_filename') }}</label>
-                    <select class="form-select" id="allfilesFilename" onchange="toggleAllfilesFilenameOther()">
-                        <option value="ALLFILES">ALLFILES</option>
-                        <option value="FILES">FILES</option>
-                        <option value="FILELIST">FILELIST</option>
-                        <option value="NODELIST">NODELIST</option>
-                        <option value="NODEDIFF">NODEDIFF</option>
-                        <option value="">{{ t('ui.nodelist.request_allfiles_to_other') }}</option>
-                    </select>
-                    <input type="text" class="form-control mt-2 d-none" id="allfilesFilenameOther" placeholder="{{ t('ui.nodelist.request_allfiles_filename_placeholder') }}" autocomplete="off">
-                </div>
-                <div class="mb-3">
-                    <label for="allfilesToName" class="form-label">{{ t('ui.nodelist.request_allfiles_to') }}</label>
-                    <select class="form-select" id="allfilesToName" onchange="toggleAllfilesToNameOther()">
-                        <option value="AllFix">AllFix</option>
-                        <option value="FileFix">FileFix</option>
-                        <option value="FileMgr">FileMgr</option>
-                        <option value="FileReq">FileReq</option>
-                        <option value="Files">Files</option>
-                        <option value="Sysop">Sysop</option>
-                        <option value="">{{ t('ui.nodelist.request_allfiles_to_other') }}</option>
-                    </select>
-                    <input type="text" class="form-control mt-2 d-none" id="allfilesToNameOther" placeholder="{{ t('ui.nodelist.request_allfiles_to_other_placeholder') }}" autocomplete="off">
-                </div>
-                <div class="mb-3">
-                    <label for="allfilesPassword" class="form-label">{{ t('ui.nodelist.request_allfiles_password') }}</label>
-                    <input type="text" class="form-control" id="allfilesPassword" autocomplete="off">
-                    <div class="form-text">{{ t('ui.nodelist.request_allfiles_password_help') }}</div>
-                </div>
-                <div class="mb-3">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="allfilesCrashmail" checked>
-                        <label class="form-check-label" for="allfilesCrashmail">
-                            {{ t('ui.nodelist.request_allfiles_crashmail') }}
-                        </label>
-                    </div>
-                    <div class="form-text">{{ t('ui.nodelist.request_allfiles_crashmail_help') }}</div>
-                </div>
-                <div id="allfilesError" class="alert alert-danger d-none"></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
-                <button type="button" class="btn btn-info" id="allfilesSendBtn" onclick="sendAllfilesFreq()">
-                    <i class="fas fa-file-download"></i> {{ t('ui.nodelist.send_request') }}
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
 <!-- Context Menu for Host Links -->
 <div id="hostContextMenu" class="context-menu" style="display: none; position: absolute; z-index: 9999;">
     <ul class="list-unstyled mb-0">
@@ -491,91 +423,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Remove port number if present (e.g., "example.com:24554" -> "example.com")
         return hostname.split(':')[0];
     }
-
-    // ALLFILES FREQ functions
-    window.showAllfilesModal = function() {
-        document.getElementById('allfilesFilename').value = 'ALLFILES';
-        document.getElementById('allfilesFilenameOther').value = '';
-        document.getElementById('allfilesFilenameOther').classList.add('d-none');
-        document.getElementById('allfilesToName').value = 'FileFix';
-        document.getElementById('allfilesToNameOther').value = '';
-        document.getElementById('allfilesToNameOther').classList.add('d-none');
-        document.getElementById('allfilesPassword').value = '';
-        document.getElementById('allfilesCrashmail').checked = true;
-        document.getElementById('allfilesError').classList.add('d-none');
-        document.getElementById('allfilesSendBtn').disabled = false;
-        new bootstrap.Modal(document.getElementById('allfilesModal')).show();
-    };
-
-    window.toggleAllfilesFilenameOther = function() {
-        const sel = document.getElementById('allfilesFilename');
-        const other = document.getElementById('allfilesFilenameOther');
-        if (sel.value === '') {
-            other.classList.remove('d-none');
-            other.focus();
-        } else {
-            other.classList.add('d-none');
-        }
-    };
-
-    window.toggleAllfilesToNameOther = function() {
-        const sel = document.getElementById('allfilesToName');
-        const other = document.getElementById('allfilesToNameOther');
-        if (sel.value === '') {
-            other.classList.remove('d-none');
-            other.focus();
-        } else {
-            other.classList.add('d-none');
-        }
-    };
-
-    window.sendAllfilesFreq = function() {
-        const filenameSel = document.getElementById('allfilesFilename');
-        const filename = (filenameSel.value === '' ? document.getElementById('allfilesFilenameOther').value.trim() : filenameSel.value) || 'ALLFILES';
-        const toNameSel = document.getElementById('allfilesToName');
-        const toName = (toNameSel.value === '' ? document.getElementById('allfilesToNameOther').value.trim() : toNameSel.value) || 'FileFix';
-        const password = document.getElementById('allfilesPassword').value.trim();
-        const crashmail = document.getElementById('allfilesCrashmail').checked;
-        const btn = document.getElementById('allfilesSendBtn');
-        const errorBox = document.getElementById('allfilesError');
-
-        btn.disabled = true;
-        errorBox.classList.add('d-none');
-
-        const subject = password ? filename + ' ' + password : filename;
-
-        fetch('/api/messages/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                type: 'netmail',
-                to_address: '{{ node.full_address|e('js') }}',
-                to_name: toName,
-                subject: subject,
-                message_text: '',
-                is_freq: true,
-                crashmail: crashmail
-            })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                bootstrap.Modal.getInstance(document.getElementById('allfilesModal')).hide();
-                if (window.showSuccess) {
-                    showSuccess('{{ t('ui.nodelist.request_allfiles_sent')|e('js') }}');
-                }
-            } else {
-                errorBox.textContent = (window.getApiErrorMessage ? window.getApiErrorMessage(data, '') : '') || data.error || '{{ t('ui.nodelist.request_allfiles_failed')|e('js') }}';
-                errorBox.classList.remove('d-none');
-                btn.disabled = false;
-            }
-        })
-        .catch(() => {
-            errorBox.textContent = '{{ t('ui.nodelist.request_allfiles_failed')|e('js') }}';
-            errorBox.classList.remove('d-none');
-            btn.disabled = false;
-        });
-    };
 
     // Handle menu item clicks
     menuHttp.addEventListener('click', function(e) {
