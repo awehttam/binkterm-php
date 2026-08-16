@@ -58,7 +58,17 @@ A request that isn't fulfilled on the first attempt is retried automatically in 
 
 This feature relies on the existing `binkp_scheduler` daemon to retry pending requests, so make sure it is running (see [Upgrade Instructions](#upgrade-instructions) below — restarting daemons after upgrading picks this up automatically).
 
-**Why it defaults off:** requesting a file from a remote node opens an outbound binkp session to whatever address a user supplies, on your Sysop credentials if that address happens to be a configured uplink. Nothing about this feature is unsafe by itself, but it's new surface area, and it's worth reading how declined requests are handled (next section) before deciding whether to open it up to everyone, restrict it to admins via `FREQ_ENABLE_INTERFACE=sysop`, or leave it off.
+**Why it defaults off:** requesting a file from a remote node opens an outbound binkp session to whatever address a user supplies, on your Sysop credentials if that address happens to be a configured uplink. Nothing about this feature is unsafe by itself, but it's new surface area, and it's worth reading the warning below before deciding whether to open it up to everyone, restrict it to admins via `FREQ_ENABLE_INTERFACE=sysop`, or leave it off.
+
+> ⚠️ **A theoretical, unproven risk to weigh before enabling this:**
+>
+> A remote node can deliver `.pkt` files during a FREQ session that have nothing to do with the request itself — this is more likely if that node is also one of your uplinks or downlinks, since it may have other mail queued for you regardless of the FREQ.
+>
+> `freq_getfile.php` has no way to distinguish an unrelated packet like that from a report the remote's own FREQ handler generated specifically for this request (e.g. a "file not found" bounce, see [Declined file requests now fail immediately instead of retrying](#declined-file-requests-now-fail-immediately-instead-of-retrying) below).
+>
+> Because the two can't be told apart, we don't act specially on any `.pkt` received during a FREQ session — including redirecting the remote's own FREQ report to the requesting user, which is otherwise exactly what we'd want to do. Everything is left for the normal packet-processing path to handle exactly as it always has, typically delivered to Sysop.
+>
+> We have not observed this actually causing a problem in practice, and it may never come up — but the safe default costs a declined request going unexplained to the user, in exchange for zero risk of exposing unrelated mail to the wrong person. Whether that trade-off is worth it is a judgment call for each sysop to make when deciding whether to enable this feature at all.
 
 ### File Requests in the terminal server (Telnet/SSH)
 
@@ -80,9 +90,7 @@ Some remote FREQ handlers decline a request (file not found, access denied, etc.
 
 A session that receives only FidoNet infrastructure files (a `.pkt`, etc.) and nothing matching the requested filename is now recognized as a decline, and the request is marked `failed` right away instead of continuing to retry against a remote that has already said no.
 
-**This does not change where the bounce netmail itself goes.** It is deliberately left completely alone — not inspected, redirected, or copied — and is delivered by the normal packet-processing path exactly as before, typically to Sysop. A user whose request fails only sees the status change to `failed` — not why.
-
-> ⚠️ **Why we don't redirect it — a theoretical, unproven risk:** A `.pkt` arriving in the same session as a FREQ response could, in principle, just as easily be unrelated mail the remote had queued for you regardless of the FREQ — particularly if that node is also one of your uplinks — and there's no reliable way to distinguish the two from the packet alone. We have not observed this actually happening, and it may never come up in practice. But if it did, guessing wrong and redirecting that mail would mean exposing Sysop's mail to whichever user happened to have a request pending to that node. Given the two options — a declined request going unexplained to the user, versus a hypothetical chance of a privacy leak — we chose the former as the safe default. Whether the underlying feature is worth enabling at all, given this trade-off, is a judgment call for each sysop to make.
+**This does not change where the bounce netmail itself goes.** It is deliberately left completely alone — not inspected, redirected, or copied — and is delivered by the normal packet-processing path exactly as before, typically to Sysop. A user whose request fails only sees the status change to `failed` — not why. See the warning in [Outbound file requests (FREQ), now optionally available to all users](#outbound-file-requests-freq-now-optionally-available-to-all-users) above for why this is left alone rather than redirected.
 
 ---
 

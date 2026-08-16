@@ -115,7 +115,15 @@ Some remote FREQ handlers respond to a declined request (file not found, no acce
 
 The bounce netmail itself is deliberately **not** inspected, redirected, or copied anywhere by this feature. It is left untouched for `scripts/process_packets.php` to deliver exactly as it always has, normally to the sysop. Requesting users are not notified of *why* a request failed beyond its status changing to `failed` in the File Requests list.
 
-> ⚠️ **Why we don't redirect it — a theoretical, unproven risk:** A `.pkt` received in the same session could, in principle, just as easily be unrelated mail this node happened to have queued for the sysop regardless of the FREQ — particularly if it's also a configured uplink — and there is no reliable way to tell the two apart from the packet alone. This has not been observed happening in practice, and it may never come up. But if it did, guessing wrong would mean exposing the sysop's mail to whichever user happens to have an outstanding request to that node. Given the two options — a declined request going unexplained to the user, versus a hypothetical chance of a privacy leak — we chose the former as the safe default. Whether the feature is worth enabling at all, given this trade-off, is a judgment call for each sysop to make (see [Configuration reference](#configuration-reference) below).
+> ⚠️ **A theoretical, unproven risk to weigh before enabling this:**
+>
+> A remote node can deliver `.pkt` files during a FREQ session that have nothing to do with the request itself — this is more likely if that node is also one of your uplinks or downlinks, since it may have other mail queued for you regardless of the FREQ.
+>
+> `freq_getfile.php` has no way to distinguish an unrelated packet like that from a report the remote's own FREQ handler generated specifically for this request (e.g. the decline bounce above).
+>
+> Because the two can't be told apart, we don't act specially on any `.pkt` received during a FREQ session — including redirecting the remote's own FREQ report to the requesting user, which is otherwise exactly what we'd want to do. Everything is left for the normal packet-processing path to handle exactly as it always has, typically delivered to the sysop.
+>
+> We have not observed this actually causing a problem in practice, and it may never come up — but the safe default costs a declined request going unexplained to the user, in exchange for zero risk of exposing unrelated mail to the wrong person. Whether that trade-off is worth it is a judgment call for each sysop to make when deciding whether to enable this feature at all (see [Configuration reference](#configuration-reference) below).
 
 ### Web interface
 
