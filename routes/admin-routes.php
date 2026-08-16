@@ -6955,7 +6955,7 @@ PROMPT;
         // by the selected period and do the bucketing/averaging in PHP,
         // since it needs a month-by-month breakdown rather than a single
         // aggregate.
-        $returningUsersActiveDaysThreshold = 2;
+        $returningUsersActiveDaysThreshold = 1;
         $returningMonthlyStmt = $db->query("
             SELECT DATE_TRUNC('month', ual.created_at) AS month, ual.user_id, u.username,
                    COUNT(DISTINCT DATE(ual.created_at)) AS active_days

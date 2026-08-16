@@ -487,12 +487,12 @@
         const avgEl = document.getElementById('returning-users-average');
         if (avgEl) {
             avgEl.innerHTML = `<span class="h4 mb-0 fw-bold">${returningAvg.toLocaleString()}</span> ` +
-                `<span class="text-muted small">${escapeHtml(uiT('ui.admin.activity_stats.returning_users_avg_label', 'avg. returning users/month (active on >2 days/month), based on {months} month(s) in this period', { months: returningMonths.toLocaleString() }))}</span>`;
+                `<span class="text-muted small">${escapeHtml(uiT('ui.admin.activity_stats.returning_users_avg_label', 'avg. returning users/month (active on >1 day/month), based on {months} month(s) in this period', { months: returningMonths.toLocaleString() }))}</span>`;
         }
         const summaryEl = document.getElementById('returning-users-summary');
         if (summaryEl) {
             summaryEl.textContent = latestMonth
-                ? uiT('ui.admin.activity_stats.returning_users_latest', '{count} users were active on more than 2 days in {month}', { count: latestCount.toLocaleString(), month: latestMonthLabel })
+                ? uiT('ui.admin.activity_stats.returning_users_latest', '{count} users were active on more than 1 day in {month}', { count: latestCount.toLocaleString(), month: latestMonthLabel })
                 : uiT('ui.admin.activity_stats.no_data_for_period', 'No data for this period');
         }
         const loginsHeader = document.getElementById('returning-users-logins-header');
