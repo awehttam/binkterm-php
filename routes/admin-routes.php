@@ -6945,34 +6945,39 @@ PROMPT;
         }
 
         // Returning users: "a user who comes back more than 3 times in a
-        // month" is evaluated per calendar month, not prorated by window
-        // length — a fixed >3 logins within that specific month. Pull every
-        // (user, month, login count) row touched by the selected period and
-        // do the bucketing/averaging in PHP, since it needs a month-by-month
-        // breakdown rather than a single aggregate.
+        // month" is evaluated per calendar month as distinct active DAYS,
+        // not login events specifically — this app uses a long-lived auth
+        // cookie (see CLAUDE.md), so most return visits never fire a fresh
+        // TYPE_LOGIN event at all, which made a login-count-based metric
+        // wildly undercount obviously-active users. Any tracked activity
+        // (echomail, chat, files, doors, etc.) on a given day counts as one
+        // "visit" that day. Pull every (user, month, distinct day) touched
+        // by the selected period and do the bucketing/averaging in PHP,
+        // since it needs a month-by-month breakdown rather than a single
+        // aggregate.
         $returningMonthlyStmt = $db->query("
-            SELECT DATE_TRUNC('month', ual.created_at) AS month, ual.user_id, u.username, COUNT(*) AS logins
+            SELECT DATE_TRUNC('month', ual.created_at) AS month, ual.user_id, u.username,
+                   COUNT(DISTINCT DATE(ual.created_at)) AS active_days
             FROM user_activity_log ual
             LEFT JOIN users u ON u.id = ual.user_id
-            WHERE ual.activity_type_id = 13
-              AND ual.user_id IS NOT NULL
+            WHERE ual.user_id IS NOT NULL
               {$dateFilter}{$adminFilter}
             GROUP BY month, ual.user_id, u.username
         ");
         $monthlyRows = $returningMonthlyStmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        $monthsTouched = [];       // month => true, for every month with any login activity
-        $returningByMonth = [];    // month => count of users with >3 logins that month
+        $monthsTouched = [];       // month => true, for every month with any activity
+        $returningByMonth = [];    // month => count of users with >3 active days that month
         $latestMonth = null;
         $latestMonthUsers = [];    // users who qualified in the most recent month
         foreach ($monthlyRows as $row) {
             $month = substr((string)$row['month'], 0, 7); // 'YYYY-MM'
-            $logins = (int)$row['logins'];
+            $activeDays = (int)$row['active_days'];
             $monthsTouched[$month] = true;
             if ($latestMonth === null || $month > $latestMonth) {
                 $latestMonth = $month;
             }
-            if ($logins > 3) {
+            if ($activeDays > 3) {
                 $returningByMonth[$month] = ($returningByMonth[$month] ?? 0) + 1;
             }
         }
@@ -6980,9 +6985,9 @@ PROMPT;
         // month's qualifying users for the display list.
         foreach ($monthlyRows as $row) {
             $month = substr((string)$row['month'], 0, 7);
-            $logins = (int)$row['logins'];
-            if ($month === $latestMonth && $logins > 3) {
-                $latestMonthUsers[] = ['username' => $row['username'], 'count' => $logins];
+            $activeDays = (int)$row['active_days'];
+            if ($month === $latestMonth && $activeDays > 3) {
+                $latestMonthUsers[] = ['username' => $row['username'], 'count' => $activeDays];
             }
         }
         usort($latestMonthUsers, fn($a, $b) => $b['count'] <=> $a['count']);
