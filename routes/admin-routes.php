@@ -6944,7 +6944,7 @@ PROMPT;
             $byType[(int)$row['activity_type_id']] = (int)$row['cnt'];
         }
 
-        // Returning users: "a user who comes back more than 3 times in a
+        // Returning users: "a user who comes back more than N times in a
         // month" is evaluated per calendar month as distinct active DAYS,
         // not login events specifically — this app uses a long-lived auth
         // cookie (see CLAUDE.md), so most return visits never fire a fresh
@@ -6955,6 +6955,7 @@ PROMPT;
         // by the selected period and do the bucketing/averaging in PHP,
         // since it needs a month-by-month breakdown rather than a single
         // aggregate.
+        $returningUsersActiveDaysThreshold = 2;
         $returningMonthlyStmt = $db->query("
             SELECT DATE_TRUNC('month', ual.created_at) AS month, ual.user_id, u.username,
                    COUNT(DISTINCT DATE(ual.created_at)) AS active_days
@@ -6967,7 +6968,7 @@ PROMPT;
         $monthlyRows = $returningMonthlyStmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $monthsTouched = [];       // month => true, for every month with any activity
-        $returningByMonth = [];    // month => count of users with >3 active days that month
+        $returningByMonth = [];    // month => count of users with more active days than the threshold that month
         $latestMonth = null;
         $latestMonthUsers = [];    // users who qualified in the most recent month
         foreach ($monthlyRows as $row) {
@@ -6977,7 +6978,7 @@ PROMPT;
             if ($latestMonth === null || $month > $latestMonth) {
                 $latestMonth = $month;
             }
-            if ($activeDays > 3) {
+            if ($activeDays > $returningUsersActiveDaysThreshold) {
                 $returningByMonth[$month] = ($returningByMonth[$month] ?? 0) + 1;
             }
         }
@@ -6986,7 +6987,7 @@ PROMPT;
         foreach ($monthlyRows as $row) {
             $month = substr((string)$row['month'], 0, 7);
             $activeDays = (int)$row['active_days'];
-            if ($month === $latestMonth && $activeDays > 3) {
+            if ($month === $latestMonth && $activeDays > $returningUsersActiveDaysThreshold) {
                 $latestMonthUsers[] = ['username' => $row['username'], 'count' => $activeDays];
             }
         }
