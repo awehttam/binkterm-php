@@ -345,6 +345,55 @@ class BinkdProcessor
         return ['imported' => $imported, 'failed' => $failed];
     }
 
+    /**
+     * Read-only peek at a .pkt file's netmail messages, without storing anything
+     * or otherwise mutating any state. Used by scripts/freq_getfile.php to inspect
+     * a bounce/response packet received in place of the requested file, so it can
+     * be re-delivered to the FREQ requestor. Does not consume or move the file —
+     * normal packet processing (e.g. scripts/process_packets.php) is unaffected
+     * and will still process the file from data/inbound/ as usual.
+     *
+     * @return array<int, array{fromName:string, origAddr:string, subject:string, text:string}>
+     */
+    public function peekPacketNetmail(string $filename): array
+    {
+        $packetName = basename($filename);
+        $handle = fopen($filename, 'rb');
+        if (!$handle) {
+            throw new \RuntimeException("Cannot open packet file: $filename");
+        }
+
+        $header = fread($handle, 58);
+        if (strlen($header) < 58) {
+            fclose($handle);
+            throw new \RuntimeException("Packet header too short in $packetName");
+        }
+
+        $packetInfo = $this->parsePacketHeader($header);
+        $packetInfo['packet_name'] = $packetName;
+
+        $messages = [];
+        while (!feof($handle)) {
+            $message = $this->readMessage($handle, $packetInfo);
+            if (!$message) {
+                continue;
+            }
+            if (!$this->isNetmailMessage($message, true)) {
+                continue;
+            }
+            $messages[] = [
+                'fromName' => $message['fromName'],
+                'origAddr' => $message['origAddr'],
+                'subject'  => $message['subject'],
+                'text'     => $message['text'],
+            ];
+        }
+
+        fclose($handle);
+
+        return $messages;
+    }
+
     private function parsePacketHeader($header)
     {
         // Basic FTS-0001 packet header parsing (58 bytes)

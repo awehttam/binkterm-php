@@ -393,6 +393,67 @@ try {
                 }
             }
 
+            // If the request is still pending after the above, no actual FREQ
+            // response file arrived — only FidoNet infrastructure files. If one
+            // of those is a .pkt, the remote's FREQ handler most likely bounced
+            // the request (file not found, no access, etc.) as a netmail rather
+            // than fulfilling it. Peek at that netmail (read-only — the .pkt is
+            // left untouched in data/inbound/ so normal packet processing via
+            // scripts/process_packets.php still delivers it as usual, typically
+            // to Sysop) and redeliver a copy directly to the FREQ requestor, then
+            // fail the request immediately instead of retrying a FREQ that the
+            // remote has already explicitly declined.
+            $row = $tracker->find($requestId);
+            if ($row && $row['status'] === 'pending') {
+                $inboundPath = BinkpConfig::getInstance()->getInboundPath();
+                foreach ($received as $filename) {
+                    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+                    if ($ext !== 'pkt') {
+                        continue;
+                    }
+                    $fullPath = $inboundPath . '/' . $filename;
+                    if (!file_exists($fullPath)) {
+                        continue;
+                    }
+                    try {
+                        $processor = new \BinktermPHP\BinkdProcessor();
+                        $bounceMessages = $processor->peekPacketNetmail($fullPath);
+                    } catch (\Exception $e) {
+                        $logger->log('WARNING', "Failed to inspect bounce packet '{$filename}': " . $e->getMessage());
+                        continue;
+                    }
+
+                    foreach ($bounceMessages as $bounceMessage) {
+                        $noteText = "The FTN node {$address} did not fulfil this FREQ. "
+                            . "It returned the following message instead of the requested file(s):\n\n"
+                            . $bounceMessage['text'];
+                        $stmt = $db->prepare("
+                            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, is_read, is_sent)
+                            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, NOW(), :attributes, FALSE, FALSE)
+                        ");
+                        $stmt->execute([
+                            ':user_id'      => (int)$user['id'],
+                            ':from_address' => $bounceMessage['origAddr'] ?: $address,
+                            ':to_address'   => $address,
+                            ':from_name'    => $bounceMessage['fromName'] ?: 'FREQ',
+                            ':to_name'      => $user['username'],
+                            ':subject'      => 'FREQ failed: ' . $bounceMessage['subject'],
+                            ':message_text' => $noteText,
+                            ':attributes'   => \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL,
+                        ]);
+                        $logger->log('INFO', "Redelivered FREQ bounce from '{$filename}' to user {$user['username']}");
+                    }
+
+                    if (!empty($bounceMessages)) {
+                        $tracker->markFailed($requestId);
+                        $logger->log('WARNING', "FREQ request id={$requestId} bounced by {$address} (packet '{$filename}') — marked failed, not retrying");
+                        $exitCode = 1;
+                        echo "FREQ was declined by the remote (see delivered netmail) — request marked failed.\n";
+                        break;
+                    }
+                }
+            }
+
             echo "Session complete — received " . count($received) . " file(s).\n";
         }
     }
