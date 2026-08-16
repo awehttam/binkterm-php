@@ -2295,6 +2295,8 @@ return [
     'ui.admin.activity_stats.files' => 'Files',
     'ui.admin.activity_stats.door_plays' => 'Door Plays',
     'ui.admin.activity_stats.logins' => 'Logins',
+    'ui.admin.activity_stats.returning_users' => 'Returning Users',
+    'ui.admin.activity_stats.returning_users_count' => '{count} users logged in more than {threshold} times this period',
     'ui.admin.activity_stats.total' => 'Total',
     'ui.admin.activity_stats.views_sent' => 'Views: {views} - Sent: {sent}',
     'ui.admin.activity_stats.read_sent' => 'Read: {read} - Sent: {sent}',

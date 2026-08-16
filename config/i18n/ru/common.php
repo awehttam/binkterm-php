@@ -2309,6 +2309,8 @@ return [
     'ui.admin.activity_stats.files' => 'Файлы',
     'ui.admin.activity_stats.door_plays' => 'Запуски дверей',
     'ui.admin.activity_stats.logins' => 'Входы в систему',
+    'ui.admin.activity_stats.returning_users' => 'Постоянные пользователи',
+    'ui.admin.activity_stats.returning_users_count' => '{count} пользователей входили более {threshold} раз за этот период',
     'ui.admin.activity_stats.total' => 'Всего',
     'ui.admin.activity_stats.views_sent' => 'Просмотры: {views} — Отправлено: {sent}',
     'ui.admin.activity_stats.read_sent' => 'Прочитано: {read} — Отправлено: {sent}',

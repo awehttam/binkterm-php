@@ -2003,6 +2003,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.activity_stats.files' => 'Fichiers',
     'ui.admin.activity_stats.door_plays' => 'Parties de portes',
     'ui.admin.activity_stats.logins' => 'Connexions',
+    'ui.admin.activity_stats.returning_users' => 'Utilisateurs récurrents',
+    'ui.admin.activity_stats.returning_users_count' => '{count} utilisateurs se sont connectés plus de {threshold} fois sur cette période',
     'ui.admin.activity_stats.total' => 'Total',
     'ui.admin.activity_stats.views_sent' => 'Vues : {views} - Envoyés : {sent}',
     'ui.admin.activity_stats.read_sent' => 'Lus : {read} - Envoyés : {sent}',

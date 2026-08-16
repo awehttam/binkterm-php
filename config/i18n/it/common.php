@@ -2275,6 +2275,8 @@ return [
     'ui.admin.activity_stats.files' => 'File',
     'ui.admin.activity_stats.door_plays' => 'Partite door',
     'ui.admin.activity_stats.logins' => 'Accessi',
+    'ui.admin.activity_stats.returning_users' => 'Utenti di ritorno',
+    'ui.admin.activity_stats.returning_users_count' => '{count} utenti hanno effettuato l\'accesso piu di {threshold} volte in questo periodo',
     'ui.admin.activity_stats.total' => 'Totale',
     'ui.admin.activity_stats.views_sent' => 'Visualizzazioni: {views} - Inviati: {sent}',
     'ui.admin.activity_stats.read_sent' => 'Letti: {read} - Inviati: {sent}',

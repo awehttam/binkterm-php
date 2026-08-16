@@ -2328,6 +2328,8 @@ return [
     'ui.admin.activity_stats.files' => 'Archivos',
     'ui.admin.activity_stats.door_plays' => 'Partidas de doors',
     'ui.admin.activity_stats.logins' => 'Inicios de sesion',
+    'ui.admin.activity_stats.returning_users' => 'Usuarios recurrentes',
+    'ui.admin.activity_stats.returning_users_count' => '{count} usuarios iniciaron sesion mas de {threshold} veces en este periodo',
     'ui.admin.activity_stats.total' => 'Total',
     'ui.admin.activity_stats.views_sent' => 'Vistas: {views} - Enviados: {sent}',
     'ui.admin.activity_stats.read_sent' => 'Leidos: {read} - Enviados: {sent}',
