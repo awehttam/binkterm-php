@@ -350,12 +350,18 @@ class BinkdProcessor
      * or otherwise mutating any state. Used by scripts/freq_getfile.php to inspect
      * a bounce/response packet received in place of the requested file, so it can
      * be re-delivered to the FREQ requestor. Does not consume or move the file —
-     * normal packet processing (e.g. scripts/process_packets.php) is unaffected
-     * and will still process the file from data/inbound/ as usual.
+     * call retireHandledPacket() afterwards if the caller has fully handled the
+     * packet itself and it should be removed from data/inbound/ before the normal
+     * scripts/process_packets.php pass reaches it.
      *
+     * @param  bool  &$hasOtherMessages Set to true if the packet contains any message
+     *                                  that is NOT netmail (e.g. echomail) alongside the
+     *                                  netmail returned here — a signal to the caller that
+     *                                  it must not treat itself as having fully handled the
+     *                                  packet (e.g. must not retireHandledPacket() it).
      * @return array<int, array{fromName:string, origAddr:string, subject:string, text:string}>
      */
-    public function peekPacketNetmail(string $filename): array
+    public function peekPacketNetmail(string $filename, bool &$hasOtherMessages = false): array
     {
         $packetName = basename($filename);
         $handle = fopen($filename, 'rb');
@@ -373,12 +379,14 @@ class BinkdProcessor
         $packetInfo['packet_name'] = $packetName;
 
         $messages = [];
+        $hasOtherMessages = false;
         while (!feof($handle)) {
             $message = $this->readMessage($handle, $packetInfo);
             if (!$message) {
                 continue;
             }
             if (!$this->isNetmailMessage($message, true)) {
+                $hasOtherMessages = true;
                 continue;
             }
             $messages[] = [
@@ -392,6 +400,22 @@ class BinkdProcessor
         fclose($handle);
 
         return $messages;
+    }
+
+    /**
+     * Remove a packet file from data/inbound/ that a caller has fully handled
+     * itself outside of processInboundPackets() (e.g. a FREQ bounce redelivered
+     * by scripts/freq_getfile.php via peekPacketNetmail()), so the next
+     * scripts/process_packets.php pass does not also deliver it through the
+     * normal netmail routing.
+     *
+     * Uses the same preserve-processed-packets setting as normal packet
+     * processing: moves the file to the processed-packets archive directory if
+     * configured to keep them, otherwise deletes it.
+     */
+    public function retireHandledPacket(string $filename): void
+    {
+        $this->handleProcessedPacket($filename);
     }
 
     private function parsePacketHeader($header)

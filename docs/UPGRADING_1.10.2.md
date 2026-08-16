@@ -19,6 +19,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **AI Bots**: Fixed a bug that prevented the AI bot daemon from starting on PHP 8.1 and later.
 - **Files**: Added a "File Requests" page where any logged-in user can request a file from another FidoNet node and have it delivered automatically to their private file area. The same feature is now also available from the Telnet/SSH terminal server, under **[Files] → File Requests**.
 - **Files**: The **Allow FREQ** toggle in the file area editor is no longer hidden behind the experimental netmail FREQ flag and is available by default.
+- **Files**: When a remote node declines an outbound file request and bounces a netmail explaining why instead of sending the file, that netmail is now delivered directly to the requesting user (instead of only Sysop) and the request is marked failed immediately instead of being retried.
 - **Auto Feed**: Reduced RSS/Atom feed-polling log noise — per-item body-source messages now log at `debug` instead of `info`.
 - **Echomail**: Fixed a suspected echomail loop that could occur when this system is configured as a point using an uplink.
 - **Media**: The inline media renderer now recognizes TikTok short/share links (`vm.tiktok.com/...`, `vt.tiktok.com/...`, `tiktok.com/t/...`), not just the full `tiktok.com/@user/video/id` form.
@@ -70,6 +71,12 @@ The **Allow FREQ** and **FREQ Password** fields in **Admin → Area Management �
 This toggle controls whether all approved files in that area can be served to any FidoNet node that FREQs them via `.req`/`M_GET`, independent of both the experimental netmail flag above and the outbound File Requests feature described earlier in this section. An optional FREQ password can be set to require remote nodes to supply it in their `M_GET` command; leave it blank for open access. See **[Enabling FREQ on a File Area](FileAreas.md#enabling-freq-on-a-file-area)** for details.
 
 If you had previously set `ENABLE_FREQ_EXPERIMENTAL=true` solely to expose this file-area toggle, you may now remove that setting unless you still want the netmail ALLFILES button on nodelist pages.
+
+### Declined file requests are now redelivered to the requestor instead of retried
+
+Some remote FREQ handlers decline a request by sending back a netmail explaining why (file not found, access denied, etc.) instead of the requested file. Previously, that netmail was only visible to the Sysop, and the original request kept being retried in the background until it exhausted `FREQ_MAX_ATTEMPTS` and was marked failed on its own.
+
+The bounce netmail is now delivered directly to the user who made the request instead of Sysop, and the request is marked failed immediately rather than being retried further. In the rare case where the remote bundles other content (e.g. echomail) into the same packet as the bounce, that packet is left in place for normal processing as before, and the bounce netmail is delivered to both the requestor and Sysop.
 
 ---
 
