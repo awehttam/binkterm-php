@@ -156,6 +156,8 @@ If the BBS already has a **custom** main menu key map saved (i.e. any key was ev
 php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
 ```
 
+By FTN convention, FREQ is anonymous at the binkp session level, even when `<address>` matches one of our own configured uplinks: no uplink/hub-node session password or CRAM-MD5 is used automatically. Pass `--authenticated` to opt into using that uplink's real session credentials instead. This is independent of `--password`, which supplies the FREQ *area* password carried inside the `.req`/`M_GET` request itself.
+
 ### Bark .req file mode
 
 The default mode. A `.req` file is built in memory, written to a temp directory, and attached to the outbound binkp session. The remote processes the `.req` on receipt and queues the requested files for delivery. The remote may send them in the same session or in a subsequent session when it polls you.
@@ -193,6 +195,7 @@ php scripts/freq_getfile.php -g 1:123/456 ALLFILES
 | `--password=PASS` | Area password required by the remote node |
 | `--hostname=HOST` | Override hostname; skip nodelist/DNS lookup |
 | `--port=PORT` | Override port (default 24554) |
+| `--authenticated` | Use the configured uplink's real session password/CRAM-MD5 when `<address>` matches one of our uplinks, instead of connecting anonymously (the default for FREQ) |
 | `--request-id=ID` | Attach this run to an existing `freq_requests_outbound` row instead of creating a new one (used internally by the web API and the scheduled retry job) |
 | `--log-level=LVL` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default `INFO`) |
 | `--log-file=FILE` | Log file path (default: `data/logs/freq_getfile.log`) |

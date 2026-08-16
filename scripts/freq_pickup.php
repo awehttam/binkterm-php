@@ -16,6 +16,11 @@
  *   php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com
  *   php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com --port=24554
  *   php scripts/freq_pickup.php 1:123/456 --password=secret
+ *
+ * By FTN convention, FREQ pickup is anonymous at the binkp session level by
+ * default, even if the address matches one of our configured uplinks: no
+ * uplink/hub-node session password or CRAM-MD5 is used unless --authenticated
+ * is given. --password sends a literal session password regardless.
  */
 
 chdir(__DIR__ . '/../');
@@ -62,6 +67,9 @@ function showUsage(): void
     echo "  --hostname=HOST   Hostname or IP to connect to (auto-resolved from nodelist if omitted)\n";
     echo "  --port=PORT       Port number (default: 24554)\n";
     echo "  --password=PASS   Session password (default: none)\n";
+    echo "  --authenticated   Use the configured uplink's real session password/CRAM-MD5\n";
+    echo "                    when the address matches one of our uplinks, instead of\n";
+    echo "                    connecting anonymously (the default for FREQ)\n";
     echo "  --log-level=LVL   DEBUG, INFO, WARNING, ERROR (default: INFO)\n";
     echo "  --help            Show this help\n";
     echo "\n";
@@ -85,7 +93,8 @@ if (isset($opts['help']) || empty($positional)) {
 $address  = $positional[0];
 $hostname = $opts['hostname'] ?? null;
 $port     = isset($opts['port']) ? (int)$opts['port'] : 24554;
-$password = $opts['password'] ?? '';
+$password = $opts['password'] ?? null;
+$authenticated = isset($opts['authenticated']);
 $logLevel = $opts['log-level'] ?? 'INFO';
 
 // Validate FTN address format
@@ -138,7 +147,7 @@ try {
     // will collect any files the remote has queued for our address.
     // ------------------------------------------------------------------
     $client = new BinkpClient($config, $logger);
-    $result = $client->connect($address, $hostname, $port, $password);
+    $result = $client->connect($address, $hostname, $port, $password, !$authenticated);
 
     echo "\n";
     if ($result['success']) {

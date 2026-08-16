@@ -695,10 +695,13 @@ php scripts/freq_pickup.php 1:123/456 --hostname=bbs.example.com --port=24554 --
 php scripts/freq_pickup.php 1:123/456 --log-level=DEBUG
 ```
 
+By FTN convention, FREQ pickup connects anonymously by default, even if the address matches one of our configured uplinks — no uplink/hub-node session password or CRAM-MD5 is used automatically. Pass `--authenticated` to opt into that uplink's real session credentials instead.
+
 Options:
 - `--hostname=HOST` — Hostname or IP to connect to (auto-resolved from nodelist if omitted)
 - `--port=PORT` — Port number (default: `24554`)
 - `--password=PASS` — Session password
+- `--authenticated` — Use the configured uplink's real session password/CRAM-MD5 when the address matches one of our uplinks, instead of connecting anonymously (the default for FREQ)
 - `--log-level=LVL` — `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default: `INFO`)
 
 The script resolves your local address from the same network as the destination

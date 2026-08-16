@@ -12,6 +12,12 @@
  * Use this only when connecting to another BinktermPHP node or a system
  * known to support binkp M_GET FREQ natively.
  *
+ * By FTN convention, FREQ sessions are always anonymous at the binkp session
+ * level, even if the target address happens to match one of our configured
+ * uplinks: no uplink/hub-node session password or CRAM-MD5 is used unless
+ * --authenticated is given. Any area-level password (--password) is carried
+ * inside the .req file / M_GET request itself, independent of session auth.
+ *
  * Received files that are not FidoNet infrastructure files (.pkt, .tic,
  * day-of-week bundles, etc.) are assumed to be the FREQ response and are
  * moved into the requesting user's private file area under an "incoming"
@@ -90,6 +96,9 @@ Options:
   --password=PASS   Area password required by the remote node
   --hostname=HOST   Override hostname (bypass nodelist/DNS lookup)
   --port=PORT       Override port (default 24554)
+  --authenticated   Use the configured uplink's real session password/CRAM-MD5
+                    when the target address matches one of our uplinks, instead
+                    of connecting anonymously (the default for FREQ)
   --request-id=ID   Attach to an existing freq_requests_outbound row instead
                     of inserting a new one (used by the web API / scheduler)
   --log-level=LVL   DEBUG, INFO, WARNING, ERROR (default INFO)
@@ -260,6 +269,7 @@ $username   = isset($opts['user'])      ? (string)$opts['user']      : null;
 $password   = isset($opts['password'])  ? (string)$opts['password']  : null;
 $hostname   = isset($opts['hostname'])  ? (string)$opts['hostname']  : null;
 $port       = isset($opts['port'])      ? (int)$opts['port']         : null;
+$authenticated = isset($opts['authenticated']);
 $requestId  = isset($opts['request-id']) ? (int)$opts['request-id']  : null;
 $logLevel   = isset($opts['log-level']) ? strtoupper((string)$opts['log-level']) : 'INFO';
 $logFile    = isset($opts['log-file'])
@@ -337,7 +347,7 @@ try {
     // "attempts" always reflects real connection attempts.
     $tracker->recordAttempt($requestId);
 
-    $result = $client->connect($address, $hostname, $port);
+    $result = $client->connect($address, $hostname, $port, null, !$authenticated);
 
     if (!$result['success']) {
         $error = $result['error'] ?? 'unknown error';
