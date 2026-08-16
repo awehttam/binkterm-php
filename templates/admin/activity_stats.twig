@@ -213,9 +213,10 @@
                 <div class="card shadow-sm mb-4">
                     <div class="card-header"><strong>{{ t('ui.admin.activity_stats.returning_users') }}</strong></div>
                     <div class="card-body p-0">
-                        <div class="px-3 pt-3 pb-2 text-muted small" id="returning-users-summary"></div>
+                        <div class="px-3 pt-3 pb-1" id="returning-users-average"></div>
+                        <div class="px-3 pb-2 text-muted small" id="returning-users-summary"></div>
                         <table class="table table-sm table-hover mb-0">
-                            <thead><tr><th>{{ t('ui.admin.activity_stats.user') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.logins') }}</th><th style="width:35%"></th></tr></thead>
+                            <thead><tr><th>{{ t('ui.admin.activity_stats.user') }}</th><th class="text-end" id="returning-users-logins-header">{{ t('ui.admin.activity_stats.logins') }}</th><th style="width:35%"></th></tr></thead>
                             <tbody id="returning-users-rows"></tbody>
                         </table>
                     </div>
@@ -280,6 +281,13 @@
         const parts = dateStr.split('-');
         const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
         return localDate.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function formatMonthLabel(monthStr) {
+        if (!monthStr) return '';
+        const parts = monthStr.split('-');
+        const localDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
+        return localDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
     }
 
     function getTzAbbr(timezone) {
@@ -470,11 +478,28 @@
 
         const returningUsers = data.returning_users || [];
         const returningSummary = data.summary || {};
-        const returningUsersCount = returningSummary.returning_users_count || 0;
-        const returningUsersThreshold = returningSummary.returning_users_threshold || 3;
+        const returningAvg = returningSummary.returning_users_average || 0;
+        const returningMonths = returningSummary.returning_users_months || 0;
+        const latestMonth = returningSummary.returning_users_latest_month || null;
+        const latestCount = returningSummary.returning_users_latest_count || 0;
+        const latestMonthLabel = formatMonthLabel(latestMonth);
+
+        const avgEl = document.getElementById('returning-users-average');
+        if (avgEl) {
+            avgEl.innerHTML = `<span class="h4 mb-0 fw-bold">${returningAvg.toLocaleString()}</span> ` +
+                `<span class="text-muted small">${escapeHtml(uiT('ui.admin.activity_stats.returning_users_avg_label', 'avg. returning users/month (>3 logins/month), based on {months} month(s) in this period', { months: returningMonths.toLocaleString() }))}</span>`;
+        }
         const summaryEl = document.getElementById('returning-users-summary');
         if (summaryEl) {
-            summaryEl.textContent = uiT('ui.admin.activity_stats.returning_users_count', '{count} users logged in more than {threshold} times this period', { count: returningUsersCount.toLocaleString(), threshold: returningUsersThreshold.toLocaleString() });
+            summaryEl.textContent = latestMonth
+                ? uiT('ui.admin.activity_stats.returning_users_latest', '{count} users returned more than 3 times in {month}', { count: latestCount.toLocaleString(), month: latestMonthLabel })
+                : uiT('ui.admin.activity_stats.no_data_for_period', 'No data for this period');
+        }
+        const loginsHeader = document.getElementById('returning-users-logins-header');
+        if (loginsHeader) {
+            loginsHeader.textContent = latestMonth
+                ? uiT('ui.admin.activity_stats.logins_in_month', 'Logins in {month}', { month: latestMonthLabel })
+                : uiT('ui.admin.activity_stats.logins', 'Logins');
         }
         renderRows('returning-users-rows', returningUsers, r => r.username || uiT('ui.admin.activity_stats.anonymous', '(anon)'), r => r.count, 'bg-primary');
     }
