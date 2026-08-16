@@ -156,7 +156,9 @@ If the BBS already has a **custom** main menu key map saved (i.e. any key was ev
 php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
 ```
 
-By FTN convention, FREQ is anonymous at the binkp session level, even when `<address>` matches one of our own configured uplinks: no uplink/hub-node session password or CRAM-MD5 is used automatically. Pass `--authenticated` to opt into using that uplink's real session credentials instead. This is independent of `--password`, which supplies the FREQ *area* password carried inside the `.req`/`M_GET` request itself.
+By FTN convention, FREQ defaults to anonymous at the binkp session level, even when `<address>` matches one of our own configured uplinks: no uplink/hub-node session password or CRAM-MD5 is used automatically. Pass `--authenticated` to opt into using that uplink's real session credentials for a single run, or set `FREQ_AUTHENTICATE_UPLINKS=true` in `.env` to make that the default everywhere (including the web/terminal File Requests UI, which shells out to this script) — `--anonymous` forces an anonymous session regardless of that setting. This is independent of `--password`, which supplies the FREQ *area* password carried inside the `.req`/`M_GET` request itself.
+
+Leave `FREQ_AUTHENTICATE_UPLINKS` at its default (`false`) unless you specifically need it. Enabling it means anyone allowed to submit FREQs (see [`FREQ_ENABLE_INTERFACE`](#web-interface)) can request files "as the BBS" against a configured uplink, potentially reaching file areas that uplink gates by node address rather than by BinktermPHP user permissions.
 
 ### Bark .req file mode
 
@@ -195,7 +197,8 @@ php scripts/freq_getfile.php -g 1:123/456 ALLFILES
 | `--password=PASS` | Area password required by the remote node |
 | `--hostname=HOST` | Override hostname; skip nodelist/DNS lookup |
 | `--port=PORT` | Override port (default 24554) |
-| `--authenticated` | Use the configured uplink's real session password/CRAM-MD5 when `<address>` matches one of our uplinks, instead of connecting anonymously (the default for FREQ) |
+| `--authenticated` | Use the configured uplink's real session password/CRAM-MD5 when `<address>` matches one of our uplinks, instead of connecting anonymously. Overrides `FREQ_AUTHENTICATE_UPLINKS` for this run |
+| `--anonymous` | Force an anonymous session even if `FREQ_AUTHENTICATE_UPLINKS=true` |
 | `--request-id=ID` | Attach this run to an existing `freq_requests_outbound` row instead of creating a new one (used internally by the web API and the scheduled retry job) |
 | `--log-level=LVL` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default `INFO`) |
 | `--log-file=FILE` | Log file path (default: `data/logs/freq_getfile.log`) |
@@ -246,6 +249,7 @@ Logged-in users see a **Request File** button on the node detail page (when `FRE
 | `FREQ_MAX_CONCURRENT_PER_USER` | `2` | Maximum number of requests a single user may have in progress at once |
 | `FREQ_MAX_ATTEMPTS` | `5` | Number of retry attempts before an unfulfilled request is marked `failed` |
 | `FREQ_POLL_INTERVAL` | `300` | Seconds between automatic retry attempts for a pending request |
+| `FREQ_AUTHENTICATE_UPLINKS` | `false` | `true` makes outbound FREQ automatically use a matching configured uplink's real session password/CRAM-MD5 instead of connecting anonymously. See [CLI: scripts/freq_getfile.php](#cli-scriptsfreq_getfilephp) before enabling |
 
 File area FREQ settings are configured per-area in **Admin → File Areas**:
 

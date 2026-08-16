@@ -20,7 +20,8 @@
  * By FTN convention, FREQ pickup is anonymous at the binkp session level by
  * default, even if the address matches one of our configured uplinks: no
  * uplink/hub-node session password or CRAM-MD5 is used unless --authenticated
- * is given. --password sends a literal session password regardless.
+ * is given, or FREQ_AUTHENTICATE_UPLINKS=true in .env. --password sends a
+ * literal session password regardless.
  */
 
 chdir(__DIR__ . '/../');
@@ -31,6 +32,7 @@ require_once __DIR__ . '/../src/functions.php';
 use BinktermPHP\Binkp\Protocol\BinkpClient;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Freq\FreqAuthPolicy;
 use BinktermPHP\Nodelist\NodelistManager;
 
 // ---------------------------------------------------------------------------
@@ -69,7 +71,8 @@ function showUsage(): void
     echo "  --password=PASS   Session password (default: none)\n";
     echo "  --authenticated   Use the configured uplink's real session password/CRAM-MD5\n";
     echo "                    when the address matches one of our uplinks, instead of\n";
-    echo "                    connecting anonymously (the default for FREQ)\n";
+    echo "                    connecting anonymously. Overrides FREQ_AUTHENTICATE_UPLINKS.\n";
+    echo "  --anonymous       Force an anonymous session even if FREQ_AUTHENTICATE_UPLINKS=true.\n";
     echo "  --log-level=LVL   DEBUG, INFO, WARNING, ERROR (default: INFO)\n";
     echo "  --help            Show this help\n";
     echo "\n";
@@ -94,7 +97,7 @@ $address  = $positional[0];
 $hostname = $opts['hostname'] ?? null;
 $port     = isset($opts['port']) ? (int)$opts['port'] : 24554;
 $password = $opts['password'] ?? null;
-$authenticated = isset($opts['authenticated']);
+$forceAnonymous = FreqAuthPolicy::forceAnonymous($opts);
 $logLevel = $opts['log-level'] ?? 'INFO';
 
 // Validate FTN address format
@@ -147,7 +150,7 @@ try {
     // will collect any files the remote has queued for our address.
     // ------------------------------------------------------------------
     $client = new BinkpClient($config, $logger);
-    $result = $client->connect($address, $hostname, $port, $password, !$authenticated);
+    $result = $client->connect($address, $hostname, $port, $password, $forceAnonymous);
 
     echo "\n";
     if ($result['success']) {
