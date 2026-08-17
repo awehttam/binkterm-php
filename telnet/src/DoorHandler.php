@@ -541,16 +541,19 @@ class DoorHandler
             return;
         }
 
-        // Disable SyncTERM/CTerm physical key press/release event reporting
-        // (CSI=1h / CSI=1l, per the CTerm manual) first, before anything else.
-        // Doors that need real key-up events for movement (e.g. SyncDOOM) enable
-        // this so keystrokes arrive as ESC[=<evdev-code>K (press) / ...k (release)
-        // instead of normal characters. Left enabled after the door exits, every
-        // subsequent keystroke keeps arriving in that format and gets silently
-        // discarded elsewhere as terminal chatter, making the BBS menu look
-        // completely unresponsive to input. Harmless no-op on terminals that
-        // don't implement this CTerm extension.
-        TelnetUtils::safeWrite($conn, "\033[=1l");
+        // Disable SyncTERM/CTerm physical key event reporting AND restore normal
+        // translated key input, first, before anything else. Per the CTerm manual:
+        // CSI=1h enables physical key press/release reports (keystrokes arrive as
+        // ESC[=<evdev-code>K / ...k instead of normal characters); CSI=2h
+        // separately suppresses normal translated key input, which the manual
+        // notes can be left enabled *alongside* CSI=1h. A door that needs real
+        // key-up events for movement (e.g. SyncDOOM) can enable both together.
+        // Disabling only CSI=1 (as an earlier version of this fix did) leaves
+        // translated input suppressed, so no keystrokes reach the server at all
+        // afterward -- not even the discarded chatter that let earlier read loops
+        // register *something* was pressed. Both must be turned off. Harmless
+        // no-op on terminals that don't implement this CTerm extension.
+        TelnetUtils::safeWrite($conn, "\033[=1l\033[=2l");
 
         // End any still-open synchronized-output batch (DECSET 2026) next. Frame-based doors (e.g. SyncDOOM) commonly wrap each
         // rendered frame in a begin/end pair so the terminal paints it atomically;
