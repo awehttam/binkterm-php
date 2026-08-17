@@ -484,11 +484,12 @@ class Auth
             FROM caller_first cf
             JOIN users u ON u.id = cf.user_id AND u.is_active = TRUE
             LEFT JOIN user_sessions s ON s.user_id = u.id
+                AND s.last_activity >= (SELECT ts FROM today_start)
             LEFT JOIN user_activity_log al ON al.user_id = u.id
                 AND al.activity_type_id = :type2
                 AND al.created_at >= (SELECT ts FROM today_start)
             GROUP BY u.id, u.username, cf.first_seen
-            ORDER BY cf.first_seen ASC
+            ORDER BY COALESCE(MAX(s.last_activity), MAX(al.created_at)) ASC
         ");
         $stmt->execute([
             ':tz_name'  => $timezone,
