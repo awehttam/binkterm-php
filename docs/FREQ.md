@@ -113,7 +113,7 @@ Every request — whether submitted via the web or the CLI — is recorded in th
 
 ### When a remote declines the request
 
-Some remote FREQ handlers respond to a declined request (file not found, no access, etc.) by sending back a netmail explaining why, instead of — or in addition to — the requested file. `scripts/freq_getfile.php` detects this case: if a session receives only FidoNet infrastructure files (a `.pkt`, `.tic`, etc.) and no file matching the request, the request is marked `failed` immediately instead of being retried against a remote that has already declined it.
+Some remote FREQ handlers respond to a declined request (file not found, no access, etc.) by sending back a netmail explaining why, instead of — or in addition to — the requested file. `scripts/freq_getfile.php` detects this case: if a session receives a `.pkt` and no file matching the request, the request is marked `failed` immediately instead of being retried against a remote that has already declined it. A session that receives only other infrastructure files (e.g. a `.tic` with no `.pkt`) does not trigger this and is left `pending` for the normal retry loop.
 
 The bounce netmail itself is deliberately **not** inspected, redirected, or copied anywhere by this feature. It is left untouched for `scripts/process_packets.php` to deliver exactly as it always has, normally to the sysop. Requesting users are not notified of *why* a request failed beyond its status changing to `failed` in the File Requests list.
 
