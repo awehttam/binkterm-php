@@ -3434,14 +3434,8 @@ class BbsSession
     {
         if (!is_resource($conn) || feof($conn)) { return null; }
 
-        if (!empty($state['pushback'])) {
-            $char = $state['pushback'][0];
-            $state['pushback'] = substr($state['pushback'], 1);
-            return $char;
-        }
-
-        $char = fread($conn, 1);
-        if ($char === false || $char === '') { return null; }
+        $char = $this->nextByte($conn, $state);
+        if ($char === null) { return null; }
 
         $byte = ord($char);
 
@@ -3455,29 +3449,29 @@ class BbsSession
 
         // Handle TELNET IAC sequences
         if ($byte === self::IAC) {
-            $cmd = fread($conn, 1);
-            if ($cmd === false) { return null; }
+            $cmd = $this->nextByte($conn, $state);
+            if ($cmd === null) { return null; }
             $cmdByte = ord($cmd);
             if ($cmdByte === self::IAC) { return chr(self::IAC); }
             if (in_array($cmdByte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
-                $opt = fread($conn, 1); // consume option byte
-                if ($opt !== false && $cmdByte === self::WILL && ord($opt) === self::OPT_TTYPE) {
+                $opt = $this->nextByte($conn, $state); // consume option byte
+                if ($opt !== null && $cmdByte === self::WILL && ord($opt) === self::OPT_TTYPE) {
                     $this->requestTerminalType($conn);
                 }
                 return $this->readRawChar($conn, $state); // skip negotiation; return next real char
             }
             if ($cmdByte === self::SB) {
-                $optByte = fread($conn, 1);
-                $sbOpt = $optByte === false ? null : ord($optByte);
+                $optByte = $this->nextByte($conn, $state);
+                $sbOpt = $optByte === null ? null : ord($optByte);
                 $sbData = '';
                 // Consume subnegotiation until IAC SE
                 while (true) {
-                    $b = fread($conn, 1);
-                    if ($b === false) { break; }
+                    $b = $this->nextByte($conn, $state);
+                    if ($b === null) { break; }
                     if (ord($b) === self::IAC) {
-                        $next = fread($conn, 1);
-                        if ($next !== false && ord($next) === self::SE) { break; }
-                        if ($next !== false && ord($next) === self::IAC) {
+                        $next = $this->nextByte($conn, $state);
+                        if ($next !== null && ord($next) === self::SE) { break; }
+                        if ($next !== null && ord($next) === self::IAC) {
                             $sbData .= chr(self::IAC);
                             continue;
                         }
@@ -3499,10 +3493,13 @@ class BbsSession
                 // If no more data is waiting right now, return immediately rather than
                 // blocking on the next fread. Key-wait loops that check for state changes
                 // (cols/rows) will detect the update on the next iteration without needing
-                // the user to press a key.
-                $rr = [$conn]; $rw = $rex = null;
-                if (@stream_select($rr, $rw, $rex, 0, 0) < 1) {
-                    return "\x00";
+                // the user to press a key. Already-buffered pushback bytes count as
+                // "waiting" too, since they don't require a socket read to consume.
+                if (($state['pushback'] ?? '') === '') {
+                    $rr = [$conn]; $rw = $rex = null;
+                    if (@stream_select($rr, $rw, $rex, 0, 0) < 1) {
+                        return "\x00";
+                    }
                 }
                 return $this->readRawChar($conn, $state); // more data available — read next char
             }
@@ -3512,22 +3509,16 @@ class BbsSession
 
         // ANSI escape sequences (arrow keys, etc.)
         if ($byte === 27) {
-            // Use a non-blocking peek (50 ms) before each follow-up fread so that a
+            // Use a non-blocking peek (50 ms) before each follow-up read so that a
             // standalone ESC keypress (0x1B with no following bytes) does not block the
-            // session indefinitely on a blocking socket.
-            $r = [$conn]; $w = $ex = null;
-            if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
-                return chr(27);  // standalone ESC — nothing followed within 50 ms
-            }
-            $next1 = fread($conn, 1);
-            if ($next1 === false || $next1 === '') { return chr(27); }
+            // session indefinitely on a blocking socket. Bytes already sitting in the
+            // pushback buffer (e.g. leftover terminal-response bytes from capability
+            // probing) are consumed immediately without waiting.
+            $next1 = $this->nextByte($conn, $state, 50000);
+            if ($next1 === null) { return chr(27); }
             if ($next1 === '[') {
-                $r = [$conn]; $w = $ex = null;
-                if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
-                    return chr(27);
-                }
-                $next2 = fread($conn, 1);
-                if ($next2 === false) { return chr(27); }
+                $next2 = $this->nextByte($conn, $state, 50000);
+                if ($next2 === null) { return chr(27); }
                 // '<' handles SGR mouse reports (ESC[<b;x;yM / ...m), mode 1006 — the
                 // default extended mouse-tracking format. Without it here, a mouse
                 // report falls through to the generic ESC[<char> return below, which
@@ -3536,13 +3527,8 @@ class BbsSession
                 if ($next2 === '?' || $next2 === '>' || $next2 === '=' || $next2 === '<') {
                     $seq = $next2;
                     while (true) {
-                        $r = [$conn]; $w = $ex = null;
-                        if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
-                            return "\x00";
-                        }
-
-                        $next = fread($conn, 1);
-                        if ($next === false || $next === '') {
+                        $next = $this->nextByte($conn, $state, 50000);
+                        if ($next === null) {
                             return "\x00";
                         }
 
@@ -3557,13 +3543,8 @@ class BbsSession
                 if (ctype_digit($next2)) {
                     $seq = $next2;
                     while (true) {
-                        $r = [$conn]; $w = $ex = null;
-                        if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
-                            return chr(27) . '[' . $next2;
-                        }
-
-                        $next = fread($conn, 1);
-                        if ($next === false || $next === '') {
+                        $next = $this->nextByte($conn, $state, 50000);
+                        if ($next === null) {
                             return chr(27) . '[' . $next2;
                         }
 
@@ -3585,11 +3566,45 @@ class BbsSession
                 }
                 return chr(27) . '[' . $next2;
             }
-            $state['pushback'] = ($state['pushback'] ?? '') . $next1;
+            // Preserve ordering: put the unconsumed byte back at the front of
+            // pushback, since it may itself have come from pushback ahead of
+            // other still-buffered bytes.
+            $state['pushback'] = $next1 . ($state['pushback'] ?? '');
             return chr(27);
         }
 
         return chr($byte);
+    }
+
+    /**
+     * Read the next raw byte, preferring any already-buffered pushback bytes
+     * over the socket. This lets ESC/IAC sequence parsing in readRawChar()
+     * apply uniformly regardless of whether a byte was pushed back earlier
+     * (e.g. leftover terminal-response bytes from capability probing) or is
+     * fresh off the wire — otherwise pushback bytes bypass CSI recognition
+     * entirely and leak into the input stream as literal characters.
+     *
+     * @param int|null $waitUsec Microseconds to wait for a fresh socket byte
+     *                           (used for escape-sequence continuation bytes);
+     *                           null blocks on fread() for the first byte of a read.
+     */
+    private function nextByte($conn, array &$state, ?int $waitUsec = null): ?string
+    {
+        if (($state['pushback'] ?? '') !== '') {
+            $char = $state['pushback'][0];
+            $state['pushback'] = substr($state['pushback'], 1);
+            return $char;
+        }
+        if (!is_resource($conn) || feof($conn)) { return null; }
+        if ($waitUsec !== null) {
+            $r = [$conn]; $w = $ex = null;
+            if (@stream_select($r, $w, $ex, 0, $waitUsec) < 1) {
+                return null;
+            }
+        }
+        $char = fread($conn, 1);
+        if ($char === false || $char === '') { return null; }
+        return $char;
     }
 
     // ===== TERMINAL TITLE =====
