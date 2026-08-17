@@ -3538,13 +3538,11 @@ class BbsSession
                     while (true) {
                         $r = [$conn]; $w = $ex = null;
                         if (@stream_select($r, $w, $ex, 0, 50000) < 1) {
-                            $this->log("KeyReadDiscard: timeout, seq=ESC[{$seq}");
                             return "\x00";
                         }
 
                         $next = fread($conn, 1);
                         if ($next === false || $next === '') {
-                            $this->log("KeyReadDiscard: fread-empty, seq=ESC[{$seq}");
                             return "\x00";
                         }
 
@@ -3552,7 +3550,6 @@ class BbsSession
                         if (preg_match('/^[0-9;?<>=]*[A-Za-z~]$/', $seq)) {
                             // Terminal-generated CSI responses such as DA/CPR
                             // are protocol chatter, not user input.
-                            $this->log("KeyReadDiscard: matched, seq=ESC[{$seq}");
                             return "\x00";
                         }
                     }
@@ -3578,12 +3575,10 @@ class BbsSession
                         if (preg_match('/^[0-9;]*[A-Za-z]$/', $seq)) {
                             // Device reports like CPR (ESC[row;colR) are not
                             // keypresses and should not enter the input stream.
-                            $this->log("KeyReadDiscard: digit-branch matched, seq=ESC[{$seq}");
                             return "\x00";
                         }
 
                         if (!preg_match('/^[0-9;]+$/', $seq)) {
-                            $this->log("KeyReadDiscard: digit-branch unexpected char, seq=ESC[{$seq}");
                             return "\x00";
                         }
                     }

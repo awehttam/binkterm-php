@@ -164,7 +164,6 @@ class DoorHandler
         $this->server->safeWrite($conn, chr(255) . chr(254) . chr(1)); // IAC DONT ECHO
 
         $this->relayLoop($conn, $state, $wsSock);
-        $this->server->logInfo("DoorExitDrain: relayLoop returned for \"{$doorName}\", starting terminal reset");
 
         // Send WebSocket close frame and release the socket
         $this->wsSendClose($wsSock);
@@ -466,14 +465,6 @@ class DoorHandler
         $timeoutSec = intdiv($idleMicros, 1_000_000);
         $timeoutUsec = $idleMicros % 1_000_000;
 
-        // TEMPORARY diagnostic capture: dump anything actually drained to
-        // telnetd.log so an unresponsive-menu-after-door report can be
-        // correlated with real bytes instead of guessing. Remove once the
-        // root cause is confirmed.
-        $captured = '';
-        $chunks = 0;
-        $started = microtime(true);
-
         try {
             while (true) {
                 $read = [$conn];
@@ -491,11 +482,6 @@ class DoorHandler
                     continue;
                 }
 
-                $chunks++;
-                if (strlen($captured) < 2048) {
-                    $captured .= $raw;
-                }
-
                 // Reuse the door input parser so NAWS updates are still applied
                 // while all buffered keystrokes are discarded.
                 $this->processTelnetInput($raw, $state);
@@ -506,22 +492,6 @@ class DoorHandler
             }
         } finally {
             stream_set_blocking($conn, $previousBlocking);
-        }
-
-        if ($captured !== '') {
-            $elapsedMs = (int)round((microtime(true) - $started) * 1000);
-            $hex = bin2hex(substr($captured, 0, 2048));
-            $printable = preg_replace('/[^\x20-\x7E]/', '.', substr($captured, 0, 2048)) ?? '';
-            $this->server->logInfo(sprintf(
-                'DoorExitDrain: window=%dms/%dms chunks=%d bytes=%d elapsed=%dms hex=%s printable=%s',
-                intdiv($idleMicros, 1000),
-                intdiv($maxTotalMicros, 1000),
-                $chunks,
-                strlen($captured),
-                $elapsedMs,
-                $hex,
-                $printable
-            ));
         }
     }
 

@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Activity Log](#activity-log)
 - [Dashboard](#dashboard)
 - [Doors](#doors)
+- [Terminal Server](#terminal-server)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -32,6 +33,14 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - DOS Doors and Native Doors now support a `hide_from_web` config option that hides a door from the web games list and blocks its web player page, while leaving it fully playable over telnet/SSH.
 - Fixed the Native Door manifest AI autofill failing with "Missing assistant content in OpenRouter API response" when the `openrouter/auto` route picked a reasoning model that spent its whole token budget on hidden reasoning before producing an answer.
+- A Native Door's `launch_command` can now use a `{homedir}` placeholder for a per-user, per-door private directory (for save games and per-user config), created automatically before launch.
+- A Native Door's `launch_command`/`executable` no longer needs a `./` prefix — a bare executable name (e.g. `syncdoom` instead of `./syncdoom`) is now resolved against the door's own directory.
+- Fixed `DOOR32.SYS` reporting comm type `2` (telnet/socket) for Native Doors; it's now `0` (local/stdio), matching how native doors actually run (over a PTY, not a socket).
+
+### Terminal Server
+
+- Fixed box-drawing borders rendering as garbled text (mojibake) for CP437-charset users in the Shoutbox, file listings, and FREQ browser scrollable panels.
+- Fixed the main BBS menu becoming completely unresponsive to keystrokes after exiting a door that enables SyncTERM/CTerm physical key-event reporting for movement controls (e.g. SyncDOOM). Also hardened door-session cleanup against several related terminal-state leaks: mouse tracking left on, an unflushed synchronized-output batch, and a gap in escape-sequence parsing for SGR-format mouse reports.
 
 ## FREQ
 
@@ -82,6 +91,30 @@ This is useful for doors that only make sense in a real terminal session, or tha
 The AI-assisted "autofill" button when adding a Native Door could fail with a 500 error and `Missing assistant content in OpenRouter API response` logged to `server.log`. This happened when the OpenRouter provider is configured with the `openrouter/auto` model: OpenRouter would sometimes route the request to a hybrid reasoning model that spent its entire token budget on hidden reasoning tokens, leaving no room for the actual answer.
 
 The OpenRouter provider now asks routed models to skip reasoning where supported, falls back to any reasoning-field text if the model still returns one, and gives the autofill request a larger token budget. Failures that do still occur are now logged with the response's `finish_reason` and message body for easier diagnosis.
+
+### Native Door Launch Improvements
+
+Three related fixes and improvements for Native Doors (`config/nativedoors.json`, `native-doors/doors/*/nativedoor.json`):
+
+- **`{homedir}` placeholder**: `launch_command` can now include a `{homedir}` token, which resolves to a private, per-user, per-door directory (`native-doors/homes/<user_id>/<door_id>/`) — created automatically before the door launches if it doesn't already exist. It's also available as the `DOOR_HOME` environment variable. Use this for doors that keep their own save games or per-user config files, such as `-home` in SyncDOOM.
+- **Bare executable names now work**: previously, a manifest's `executable`/`launch_command` had to reference the door binary as `./mydoor` — a bare `mydoor` only worked if it happened to be on the bridge process's `$PATH`. Bare names are now resolved against the door's own directory first, so `./` is no longer required. Existing manifests using `./mydoor` are unaffected.
+- **`DOOR32.SYS` comm type corrected**: line 1 of the generated `DOOR32.SYS` drop file now correctly reports comm type `0` (local/stdio) instead of `2` (telnet/socket). Native doors are spawned over a PTY, not a telnet socket, so a door that branches its behavior on this field was previously being told the wrong transport.
+
+## Terminal Server
+
+### CP437 Box-Drawing Mojibake
+
+Users with their terminal charset set to CP437 could see garbled characters (mojibake) instead of proper box-drawing borders in the Shoutbox, file area listings, and the FREQ browser — specifically the top/bottom border and the vertical side bars of each scrollable panel, while the horizontal divider lines rendered correctly. The panel renderer was sending those particular glyphs as raw UTF-8 bytes regardless of the client's charset setting instead of converting them to CP437 first. All panel borders are now converted consistently.
+
+### Main Menu Unresponsive After Exiting a Door
+
+Players of doors with real-time movement controls (SyncDOOM being the example that surfaced this) could find the main BBS menu completely unresponsive to keystrokes after quitting the door, on a SyncTERM-family client. The root cause: SyncTERM implements a non-standard CTerm terminal extension that lets a door request *physical* key press/release event reports (`CSI=1h`) instead of normal translated characters, and separately suppress translated input entirely (`CSI=2h`) — useful for a door that needs real key-up events for movement. SyncDOOM enables both for its controls, but nothing turned them back off when the door exited, so every subsequent keystroke kept arriving in that alternate format (or not at all) instead of as normal characters. The terminal server now explicitly disables both modes (`CSI=1l` / `CSI=2l`) as the first step of returning from any door session.
+
+While tracking this down, three related terminal-state gaps that could compound the same class of problem were also fixed:
+
+- **Mouse tracking left on**: a door that enables xterm-style mouse reporting for gameplay (e.g. SyncDOOM's mouse-look) could leave it active after exit, so subsequent clicks/movement arrived as mouse escape sequences instead of keystrokes. Mouse tracking and bracketed paste mode are now explicitly disabled when returning from a door.
+- **Unflushed synchronized-output batch**: a frame-based door can wrap each rendered frame in a synchronized-output begin/end pair (`DECSET 2026`) so the terminal paints it atomically; exiting between the begin and its matching end can leave a supporting terminal holding every subsequent write in an unflushed buffer. The end sequence is now sent unconditionally on door exit (harmless no-op on terminals that don't support the mode).
+- **SGR mouse reports mis-parsed**: the terminal server's key reader didn't recognize the `ESC[<...` prefix used by SGR-format mouse reports (mode 1006, the modern default), so a stray one landing after a door exited could desync the byte stream for the reads that followed. It's now recognized and discarded like other terminal-generated reports.
 
 ## Upgrade Instructions
 
