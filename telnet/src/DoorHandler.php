@@ -183,9 +183,12 @@ class DoorHandler
         $this->resetTerminalAfterDoor($conn);
 
         // Door sessions can also leave buffered keystrokes or trailing TELNET
-        // chatter queued on the client socket. Drain anything already readable
-        // now so the next termserver screen does not consume phantom input.
-        $this->drainPendingInput($conn, $state);
+        // chatter queued on the client socket, or straggling replies to a
+        // request the door itself made right before exiting (see the docblock
+        // on drainPendingInput()). Wait up to 250ms of quiet, capped at 1.5s
+        // total, so those stragglers are absorbed instead of confusing the
+        // next termserver screen.
+        $this->drainPendingInput($conn, $state, 250000, 1500000);
 
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, '');
@@ -428,15 +431,27 @@ class DoorHandler
     }
 
     /**
-     * Discard any telnet-side input that is already queued without blocking.
+     * Discard any telnet-side input that is already queued, or arrives shortly
+     * after, without blocking the session indefinitely.
      *
      * After a DOS door exits, some clients leave trailing keypresses or protocol
      * bytes readable on the socket. If we do not clear them here, the next BBS
      * menu or submenu can immediately consume them and appear to auto-exit.
      *
+     * Some doors also have their own in-flight request/response chatter with the
+     * client that is still outstanding at exit — e.g. SyncDOOM asks the terminal
+     * to confirm each rendered frame and paces itself on that round-trip, so a
+     * player quitting on a laggy link can leave several confirmations still in
+     * transit. Those replies land on the socket a beat after the door is gone
+     * and, undrained, get misread as garbage keystrokes by the next screen,
+     * which is what makes the following menu look unresponsive. $idleMicros
+     * keeps this call open (bounded by $maxTotalMicros) for a short quiet
+     * window after the door exits so those stragglers get absorbed too; leave
+     * both at 0 for the original instantaneous, single-pass drain.
+     *
      * @param resource $conn
      */
-    private function drainPendingInput($conn, array &$state): void
+    private function drainPendingInput($conn, array &$state, int $idleMicros = 0, int $maxTotalMicros = 0): void
     {
         if (!is_resource($conn)) {
             return;
@@ -446,11 +461,15 @@ class DoorHandler
         $previousBlocking = (bool)($meta['blocked'] ?? true);
         stream_set_blocking($conn, false);
 
+        $deadline = $maxTotalMicros > 0 ? microtime(true) + ($maxTotalMicros / 1_000_000) : null;
+        $timeoutSec = intdiv($idleMicros, 1_000_000);
+        $timeoutUsec = $idleMicros % 1_000_000;
+
         try {
             while (true) {
                 $read = [$conn];
                 $write = $except = null;
-                $ready = @stream_select($read, $write, $except, 0, 0);
+                $ready = @stream_select($read, $write, $except, $timeoutSec, $timeoutUsec);
                 if ($ready === false || $ready === 0) {
                     break;
                 }
@@ -466,6 +485,10 @@ class DoorHandler
                 // Reuse the door input parser so NAWS updates are still applied
                 // while all buffered keystrokes are discarded.
                 $this->processTelnetInput($raw, $state);
+
+                if ($deadline !== null && microtime(true) >= $deadline) {
+                    break;
+                }
             }
         } finally {
             stream_set_blocking($conn, $previousBlocking);
