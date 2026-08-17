@@ -269,7 +269,7 @@ The classic 52-line format compatible with most traditional BBS door games. Writ
 
 ### DOOR32.SYS
 
-An 11-line format designed for modern doors running over telnet/socket connections. Written to `DOOR32.SYS`. Use this for doors that expect a socket-style connection rather than a serial/FOSSIL interface.
+An 11-line format designed for modern doors, as an alternative to DOOR.SYS's serial/FOSSIL-oriented fields. Written to `DOOR32.SYS`. Native doors are spawned over a PTY (stdio), not a telnet socket, so comm type is `0` (local/stdio) here — not the `2` (telnet/socket) a real telnet-gatewayed door would see.
 
 ```json
 "dropfile_format": "DOOR32.SYS"
@@ -279,7 +279,7 @@ The DOOR32.SYS fields are:
 
 | Line | Field | Value |
 |------|-------|-------|
-| 1 | Comm type | `2` (telnet/socket) |
+| 1 | Comm type | `0` (local/stdio) |
 | 2 | Comm handle | `0` |
 | 3 | Baud rate | `0` |
 | 4 | BBS name | From user data |
