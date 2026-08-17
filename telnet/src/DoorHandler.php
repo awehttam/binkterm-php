@@ -494,6 +494,13 @@ class DoorHandler
         // Leave alternate screen buffers before we clear/redraw the normal BBS UI.
         TelnetUtils::safeWrite($conn, "\033[?1049l\033[?1048l\033[?1047l");
 
+        // Turn off xterm-mouse reporting and bracketed paste. Some doors (e.g.
+        // SyncDOOM's steer/follow mouse-look) enable these for gameplay; if a
+        // client like SyncTERM is left with mouse tracking on, subsequent
+        // clicks/movement are swallowed as mouse escape sequences instead of
+        // reaching the next BBS menu.
+        TelnetUtils::safeWrite($conn, "\033[?1000l\033[?1002l\033[?1003l\033[?1005l\033[?1006l\033[?1015l\033[?2004l");
+
         // DECSTR soft reset plus a few explicit "normal mode" toggles that doors
         // commonly disturb.
         TelnetUtils::safeWrite($conn, "\033[!p");
