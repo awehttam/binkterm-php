@@ -541,8 +541,18 @@ class DoorHandler
             return;
         }
 
-        // End any still-open synchronized-output batch (DECSET 2026) first, before
-        // anything else. Frame-based doors (e.g. SyncDOOM) commonly wrap each
+        // Disable SyncTERM/CTerm physical key press/release event reporting
+        // (CSI=1h / CSI=1l, per the CTerm manual) first, before anything else.
+        // Doors that need real key-up events for movement (e.g. SyncDOOM) enable
+        // this so keystrokes arrive as ESC[=<evdev-code>K (press) / ...k (release)
+        // instead of normal characters. Left enabled after the door exits, every
+        // subsequent keystroke keeps arriving in that format and gets silently
+        // discarded elsewhere as terminal chatter, making the BBS menu look
+        // completely unresponsive to input. Harmless no-op on terminals that
+        // don't implement this CTerm extension.
+        TelnetUtils::safeWrite($conn, "\033[=1l");
+
+        // End any still-open synchronized-output batch (DECSET 2026) next. Frame-based doors (e.g. SyncDOOM) commonly wrap each
         // rendered frame in a begin/end pair so the terminal paints it atomically;
         // if the door exits between the begin and the matching end, a terminal
         // that supports this mode holds every subsequent write in an unflushed
