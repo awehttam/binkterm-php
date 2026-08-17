@@ -597,11 +597,17 @@ class NativeAdapter extends EmulatorAdapter {
         const dropfileName = dropfileFormat === 'DOOR32.SYS' ? 'DOOR32.SYS' : 'DOOR.SYS';
         const dropfileFull = path.join(dropPath, dropfileName);
 
+        // Per-user, per-door private directory for doors that keep their own state
+        // (save games, per-user config overlays, etc.), e.g. SyncDOOM's "-home".
+        // Created on demand — a door should never have to check for its own existence.
+        const homeDir = path.join(this.basePath, 'native-doors', 'homes', String(sessionData.user_id || 'guest'), door_id);
+        fs.mkdirSync(homeDir, { recursive: true });
+
         // Determine output encoding (cp437 for legacy DOS-style doors, utf8 for modern)
         this.outputEncoding = (manifest.door && manifest.door.output_encoding) || 'utf8';
         const ptyEncoding = this.outputEncoding === 'cp437' ? 'binary' : 'utf8';
 
-        // Build launch command - replace {node}, {dropfile}, and {user_number} placeholders
+        // Build launch command - replace {node}, {dropfile}, {user_number}, and {homedir} placeholders
         // On Windows, prefer launch_command_windows (e.g. WSL via wsl.exe) over the Linux bash command
         const isWindows = process.platform === 'win32';
         let launchCmd = (isWindows && manifest.door.launch_command_windows)
@@ -610,6 +616,7 @@ class NativeAdapter extends EmulatorAdapter {
         launchCmd = launchCmd.replace(/\{node\}/g, String(node_number));
         launchCmd = launchCmd.replace(/\{dropfile\}/g, dropfileFull);
         launchCmd = launchCmd.replace(/\{user_number\}/g, String(sessionData.user_id || ''));
+        launchCmd = launchCmd.replace(/\{homedir\}/g, homeDir);
 
         // Resolve ${VAR:-default} environment variable references in the launch command.
         // This lets manifest commands reference .env variables without shell interpretation.
@@ -678,6 +685,7 @@ class NativeAdapter extends EmulatorAdapter {
             DOOR_NODE: String(node_number),
             DOOR_BBS_NAME: userData.bbs_name || 'BinktermPHP BBS',
             DOOR_DROPFILE: dropfileFull,
+            DOOR_HOME: homeDir,
             DOOR_ANSI: '1',
             TERM: 'xterm-256color'
         };

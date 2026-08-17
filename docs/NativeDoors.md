@@ -188,7 +188,7 @@ The door will now appear in the `/games` game library.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `executable` | string | Yes | Filename of the main executable relative to the door directory |
-| `launch_command` | string | No | Full command to run. Supports `{node}`, `{dropfile}`, and `{user_number}` placeholders (see below). Defaults to `executable` |
+| `launch_command` | string | No | Full command to run. Supports `{node}`, `{dropfile}`, `{user_number}`, and `{homedir}` placeholders (see below). Defaults to `executable` |
 | `dropfile_format` | string | No | Drop file format. `"DOOR.SYS"` (default) or `"DOOR32.SYS"` |
 | `output_encoding` | string | No | Character encoding of the door's output. `"utf8"` (default) or `"cp437"`. Use `"cp437"` for legacy DOS-style doors that output CP437 box-drawing and ANSI art |
 | `max_nodes` | integer | No | Maximum simultaneous sessions. Defaults to `10` |
@@ -204,6 +204,7 @@ The `launch_command` string may contain the following placeholders, which are su
 | `{node}` | Node number (e.g. `1`) |
 | `{dropfile}` | Full path to the DOOR.SYS file (e.g. `/srv/bbs/native-doors/drops/NODE1/DOOR.SYS`) |
 | `{user_number}` | BBS user ID (numeric) |
+| `{homedir}` | Full path to the user's private per-door home directory (e.g. `/srv/bbs/native-doors/homes/42/mydoor`), for doors that keep their own state — save games, per-user config overlays, etc. Created automatically before launch if it does not already exist. Also available as the `DOOR_HOME` environment variable |
 
 **Examples:**
 
@@ -211,6 +212,7 @@ The `launch_command` string may contain the following placeholders, which are su
 "launch_command": "/bin/bash mydoor.sh"
 "launch_command": "./mydoor --node {node} --dropfile {dropfile}"
 "launch_command": "cmd.exe /c mydoor.bat"
+"launch_command": "./mydoor --node {node} --dropfile {dropfile} -home {homedir}"
 ```
 
 If `launch_command` is omitted, `executable` is used directly as the command with no arguments.
