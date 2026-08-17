@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [FREQ](#freq)
 - [Activity Log](#activity-log)
+- [Dashboard](#dashboard)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -21,6 +22,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Outbound FREQ, Viewing the public BBS Directory list and individual BBS detail page, entering local chat room, uploading/generating a PGP key or changing a primary key are now recorded events.
 - **Admin → Activity Stats → Top Users** now has a "Returning Users" list showing which users were active on more than one day within the currently selected period, with a count at the top.
+
+### Dashboard
+
+- The admin-only **Today's Callers** widget now lists callers in chronological order by their actual last-call time, and no longer shows a stale last-call time or incorrect online status from a session left over from a previous day.
 
 ## FREQ
 
@@ -46,6 +51,15 @@ None of these change any user-facing behavior; they only affect what shows up in
 ### Returning Users (Admin → Activity Stats)
 
 The **Top Users** tab now has a **Returning Users** card above the existing "Most Active Users" list. It shows a count and a list of users who were active on more than one distinct day within whatever period is currently selected on the page (7 days, 30 days, 90 days, or all time) — not a count of login events specifically. This app authenticates via a long-lived cookie, so a user can return many times without ever generating a fresh login event; the metric instead counts distinct calendar days with any tracked activity (echomail, chat, files, doors, etc.), which reflects real return visits regardless of how login/cookie auth behaves. This is purely a read of existing `user_activity_log` data — no new activity types or schema changes are involved.
+
+## Dashboard
+
+The **Today's Callers** widget on the admin dashboard had two bugs that are fixed in this release:
+
+- Callers were listed in the order they first logged in that day, rather than by their most recent activity — a caller who logged in early but then remained active later in the day could appear above someone who called in after them.
+- The last-call time and "online now" indicator were pulled from any session belonging to the user, including a still-valid session left over from a previous day (for example a long-lived "remember me" cookie). This could show a stale last-call time, or mark a user as online based on a session that wasn't actually active today.
+
+Both are now scoped correctly to today's activity, and the list is sorted by actual last-call time.
 
 ## Upgrade Instructions
 
