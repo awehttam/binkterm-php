@@ -511,6 +511,15 @@ class DoorHandler
             return;
         }
 
+        // End any still-open synchronized-output batch (DECSET 2026) first, before
+        // anything else. Frame-based doors (e.g. SyncDOOM) commonly wrap each
+        // rendered frame in a begin/end pair so the terminal paints it atomically;
+        // if the door exits between the begin and the matching end, a terminal
+        // that supports this mode holds every subsequent write in an unflushed
+        // buffer forever, making the client look completely frozen. Unsupported
+        // on a given terminal, this is a harmless no-op private-mode reset.
+        TelnetUtils::safeWrite($conn, "\033[?2026l");
+
         // End any stray DCS/sixel payload still being parsed.
         TelnetUtils::safeWrite($conn, "\033\\");
 
