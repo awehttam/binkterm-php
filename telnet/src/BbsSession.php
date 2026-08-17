@@ -3528,7 +3528,12 @@ class BbsSession
                 }
                 $next2 = fread($conn, 1);
                 if ($next2 === false) { return chr(27); }
-                if ($next2 === '?' || $next2 === '>' || $next2 === '=') {
+                // '<' handles SGR mouse reports (ESC[<b;x;yM / ...m), mode 1006 — the
+                // default extended mouse-tracking format. Without it here, a mouse
+                // report falls through to the generic ESC[<char> return below, which
+                // only consumes 3 bytes and leaves the rest of the report queued on
+                // the socket to desync whatever the next read interprets as a keypress.
+                if ($next2 === '?' || $next2 === '>' || $next2 === '=' || $next2 === '<') {
                     $seq = $next2;
                     while (true) {
                         $r = [$conn]; $w = $ex = null;
