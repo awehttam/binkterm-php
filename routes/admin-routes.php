@@ -4275,7 +4275,7 @@ PROMPT;
                     systemPrompt: $systemPrompt,
                     userPrompt: $userPrompt,
                     temperature: 0.1,
-                    maxOutputTokens: 512,
+                    maxOutputTokens: 1024,
                     timeoutSeconds: 30,
                     userId: (int)($user['user_id'] ?? $user['id'] ?? 0) ?: null,
                 );

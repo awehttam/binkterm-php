@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [FREQ](#freq)
 - [Activity Log](#activity-log)
 - [Dashboard](#dashboard)
+- [Doors](#doors)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -26,6 +27,11 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Dashboard
 
 - The admin-only **Today's Callers** widget now lists callers in chronological order by their actual last-call time, and no longer shows a stale last-call time or incorrect online status from a session left over from a previous day.
+
+### Doors
+
+- DOS Doors and Native Doors now support a `hide_from_web` config option that hides a door from the web games list and blocks its web player page, while leaving it fully playable over telnet/SSH.
+- Fixed the Native Door manifest AI autofill failing with "Missing assistant content in OpenRouter API response" when the `openrouter/auto` route picked a reasoning model that spent its whole token budget on hidden reasoning before producing an answer.
 
 ## FREQ
 
@@ -60,6 +66,22 @@ The **Today's Callers** widget on the admin dashboard had two bugs that are fixe
 - The last-call time and "online now" indicator were pulled from any session belonging to the user, including a still-valid session left over from a previous day (for example a long-lived "remember me" cookie). This could show a stale last-call time, or mark a user as online based on a session that wasn't actually active today.
 
 Both are now scoped correctly to today's activity, and the list is sorted by actual last-call time.
+
+## Doors
+
+DOS Doors and Native Doors can now be restricted to the terminal server only. Each door's runtime config (`config/dosdoors.json` or `config/nativedoors.json`) supports a new `hide_from_web` boolean, defaulting to `false`. When set to `true` on a door:
+
+- The door is omitted from the web games list at `/games`.
+- Its web player page (`/games/dosdoors/{doorid}` or `/games/nativedoors/{doorid}`) returns a 404.
+- It remains fully playable over telnet/SSH via **[Files] → Door Games**, unaffected by this setting.
+
+This is useful for doors that only make sense in a real terminal session, or that a sysop wants to keep off the web games page for any other reason. Set it through **Admin → DOS Doors** or **Admin → Native Doors** — each door's entry in the config editor now has a globe toggle button, and a "Telnet/SSH only" badge appears on doors with it enabled.
+
+### Native Door AI Autofill Fix
+
+The AI-assisted "autofill" button when adding a Native Door could fail with a 500 error and `Missing assistant content in OpenRouter API response` logged to `server.log`. This happened when the OpenRouter provider is configured with the `openrouter/auto` model: OpenRouter would sometimes route the request to a hybrid reasoning model that spent its entire token budget on hidden reasoning tokens, leaving no room for the actual answer.
+
+The OpenRouter provider now asks routed models to skip reasoning where supported, falls back to any reasoning-field text if the model still returns one, and gives the autofill request a larger token budget. Failures that do still occur are now logged with the response's `finish_reason` and message body for easier diagnosis.
 
 ## Upgrade Instructions
 
