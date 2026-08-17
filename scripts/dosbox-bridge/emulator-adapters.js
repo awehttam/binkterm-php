@@ -644,17 +644,24 @@ class NativeAdapter extends EmulatorAdapter {
         const args = argv;
         const doorDir = path.join(this.basePath, 'native-doors', 'doors', door_id);
 
-        // On Windows, node-pty doesn't search PATH reliably — resolve bare command
-        // names to absolute paths using `where.exe`. Skip if the command already
-        // contains a path separator (absolute or relative path).
-        if (isWindows && !cmd.includes('/') && !cmd.includes('\\')) {
-            try {
-                const whereResult = require('child_process').spawnSync('where', [cmd], { encoding: 'utf8' });
-                if (whereResult.status === 0) {
-                    cmd = whereResult.stdout.split(/\r?\n/)[0].trim();
+        // A bare command name (no path separator) is not resolved against `cwd`
+        // by node-pty/execvp — only against PATH. Since a door's executable
+        // normally lives alongside its manifest, check the door's own directory
+        // first so a manifest can say "syncdoom" instead of "./syncdoom". Fall
+        // back to a PATH search (Windows only, via `where.exe`) if it's not there.
+        if (!cmd.includes('/') && !cmd.includes('\\')) {
+            const localPath = path.join(doorDir, cmd);
+            if (fs.existsSync(localPath)) {
+                cmd = localPath;
+            } else if (isWindows) {
+                try {
+                    const whereResult = require('child_process').spawnSync('where', [cmd], { encoding: 'utf8' });
+                    if (whereResult.status === 0) {
+                        cmd = whereResult.stdout.split(/\r?\n/)[0].trim();
+                    }
+                } catch (e) {
+                    slog.warn(`[${this.getName()}] Could not resolve path for '${cmd}':`, e.message);
                 }
-            } catch (e) {
-                slog.warn(`[${this.getName()}] Could not resolve path for '${cmd}':`, e.message);
             }
         }
 
