@@ -41,6 +41,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Fixed box-drawing borders rendering as garbled text (mojibake) for CP437-charset users in the Shoutbox, file listings, and FREQ browser scrollable panels.
 - Fixed the main BBS menu becoming completely unresponsive to keystrokes after exiting a door that enables SyncTERM/CTerm physical key-event reporting for movement controls (e.g. SyncDOOM). Also hardened door-session cleanup against several related terminal-state leaks: mouse tracking left on, an unflushed synchronized-output batch, and a gap in escape-sequence parsing for SGR-format mouse reports.
+- Fixed a description-text wrapping bug in selectable list menus (door lists and anything else built on `chooseFromList()`) where a full-width item description could run 2 columns past the terminal's right edge and clip or wrap oddly.
 
 ## FREQ
 
@@ -115,6 +116,10 @@ While tracking this down, three related terminal-state gaps that could compound 
 - **Mouse tracking left on**: a door that enables xterm-style mouse reporting for gameplay (e.g. SyncDOOM's mouse-look) could leave it active after exit, so subsequent clicks/movement arrived as mouse escape sequences instead of keystrokes. Mouse tracking and bracketed paste mode are now explicitly disabled when returning from a door.
 - **Unflushed synchronized-output batch**: a frame-based door can wrap each rendered frame in a synchronized-output begin/end pair (`DECSET 2026`) so the terminal paints it atomically; exiting between the begin and its matching end can leave a supporting terminal holding every subsequent write in an unflushed buffer. The end sequence is now sent unconditionally on door exit (harmless no-op on terminals that don't support the mode).
 - **SGR mouse reports mis-parsed**: the terminal server's key reader didn't recognize the `ESC[<...` prefix used by SGR-format mouse reports (mode 1006, the modern default), so a stray one landing after a door exited could desync the byte stream for the reads that followed. It's now recognized and discarded like other terminal-generated reports.
+
+### Description Text Clipping in Selectable Lists
+
+Any menu built on the terminal server's selectable-list widget (`chooseFromList()`) — door lists most visibly, since door descriptions tend to run long — could show an item's description text running 2 columns past the right edge of the terminal, clipping or wrapping oddly depending on the client. The description text was word-wrapped assuming a narrower on-screen indent than the renderer actually uses for continuation lines, so a full-width line ended up 2 columns too wide. Descriptions now wrap to the correct width and stay within the terminal.
 
 ## Upgrade Instructions
 
