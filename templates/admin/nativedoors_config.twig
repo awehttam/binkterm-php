@@ -118,6 +118,10 @@
                             <td>Maximum concurrent guest sessions for this door (default: 2). Only applies when <code>allow_anonymous</code> is true.</td>
                         </tr>
                         <tr>
+                            <td class="text-nowrap"><code>hide_from_web</code></td>
+                            <td>{{ t('ui.admin.nativedoors_config.option_hide_from_web_help', {}, locale, ['common']) }}</td>
+                        </tr>
+                        <tr>
                             <td class="text-nowrap"><code>terminal_size</code></td>
                             <td>
                                 Canvas and initial BBS terminal dimensions for PubTerm. Preset values:
@@ -280,6 +284,7 @@ function renderDoorsList() {
         const doorConfig = currentConfig[door.id] || {};
         const enabled = doorConfig.enabled || false;
         const cost = doorConfig.credit_cost || 0;
+        const hideFromWeb = doorConfig.hide_from_web || false;
 
         const statusClass = enabled ? 'success' : 'secondary';
         const statusIcon = enabled ? 'fa-check-circle' : 'fa-circle';
@@ -305,7 +310,7 @@ function renderDoorsList() {
                             <span class="badge bg-secondary">${escHtml(door.id)}</span>
                             ${cost > 0 ? `<span class="badge bg-info">${cost} ${uiT('ui.admin.nativedoors_config.credits', 'credits')}</span>` : '<span class="badge bg-success">' + uiT('ui.admin.nativedoors_config.free', 'Free') + '</span>'}
                             ${platformBadge}
-
+                            ${hideFromWeb ? `<span class="badge bg-warning text-dark">${uiT('ui.admin.nativedoors_config.telnet_only', 'Telnet/SSH only')}</span>` : ''}
 
                         </div>
                     </div>
@@ -315,6 +320,12 @@ function renderDoorsList() {
                                 data-enable="${!enabled}"
                                 title="${enabled ? uiT('ui.admin.nativedoors_config.disable', 'Disable') : uiT('ui.admin.nativedoors_config.enable', 'Enable')}">
                             <i class="fas fa-power-off"></i>
+                        </button>
+                        <button class="btn btn-outline-${hideFromWeb ? 'warning' : 'secondary'} toggle-hide-web-btn"
+                                data-door-id="${escHtml(door.id)}"
+                                data-hide="${!hideFromWeb}"
+                                title="${hideFromWeb ? uiT('ui.admin.nativedoors_config.show_on_web', 'Show on web') : uiT('ui.admin.nativedoors_config.hide_from_web', 'Hide from web (telnet/SSH only)')}">
+                            <i class="fas fa-globe"></i>
                         </button>
                         <a href="/admin/doors/native/${escHtml(door.id)}/manifest" class="btn btn-outline-info" title="${uiT('ui.admin.door_manifest_editor.heading', 'Door Manifest Editor')}">
                             <i class="fas fa-file-code"></i>
@@ -331,6 +342,12 @@ function renderDoorsList() {
     container.querySelectorAll('.toggle-door-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             toggleDoor(this.dataset.doorId, this.dataset.enable === 'true');
+        });
+    });
+
+    container.querySelectorAll('.toggle-hide-web-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            toggleHideFromWeb(this.dataset.doorId, this.dataset.hide === 'true');
         });
     });
 }
@@ -355,6 +372,37 @@ function toggleDoor(doorId, enable) {
             };
         } else {
             config[doorId].enabled = enable;
+        }
+
+        editor.value = JSON.stringify(config, null, 4);
+        updateJsonStatus();
+        renderDoorsList();
+    } catch (e) {
+        showEditorAlert('danger', uiT('ui.admin.nativedoors_config.invalid_json_toggle', 'Invalid JSON - cannot toggle door'));
+    }
+}
+
+function toggleHideFromWeb(doorId, hide) {
+    try {
+        const editor = document.getElementById('configEditor');
+        let config = JSON.parse(editor.value || '{}');
+
+        if (Array.isArray(config)) {
+            config = {};
+        }
+
+        if (!config[doorId]) {
+            config[doorId] = {
+                enabled: false,
+                credit_cost: 0,
+                max_time_minutes: 30,
+                max_concurrent_sessions: 10,
+                allow_anonymous: false,
+                guest_max_sessions: 2,
+                hide_from_web: hide
+            };
+        } else {
+            config[doorId].hide_from_web = hide;
         }
 
         editor.value = JSON.stringify(config, null, 4);

@@ -655,6 +655,12 @@ If you need longer sessions, you can register Doorway with the original sharewar
 - Use for doors that expect DOOR.SYS in their own directory
 - Example: BRE expects DOOR.SYS in `\DOORS\BRE\` not `\DROPS\NODE1\`
 
+**config.hide_from_web** (boolean, default: `false`):
+- When `true`, hides this door from the web games list and blocks its `/games/dosdoors/{doorid}` web player page (`404`)
+- The door remains launchable over telnet/SSH via **[Files] → Door Games** (`telnet/src/DoorHandler.php`), since that path calls `POST /api/door/launch` directly rather than going through the web listing/player route
+- Set via **Admin → DOS Doors** (or directly in `config/dosdoors.json`); use for doors that only make sense in a terminal (e.g. FOSSIL/ANSI-only games) or that a sysop wants restricted to the terminal server
+- Example: `"config": { "enabled": true, "hide_from_web": true }`
+
 **fossil_required** (boolean, default: `true`):
 - Controls whether the FOSSIL driver (BNU.COM) is loaded before launching the door
 - `true`: Load FOSSIL driver (required for most DOS doors)

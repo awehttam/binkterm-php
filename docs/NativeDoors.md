@@ -370,6 +370,7 @@ All supported keys per door entry:
 | `allow_anonymous` | boolean | `false` | Allow unauthenticated guest access (requires `credit_cost: 0`) |
 | `guest_max_sessions` | integer | `2` | Maximum concurrent guest sessions when `allow_anonymous` is true |
 | `terminal_size` | string | `"80x25"` | Initial PTY and canvas dimensions. Accepted values: `"80x25"`, `"132x24"`, `"132x43"`, `"132x50"`, or `"autofit"`. See [Terminal Settings](#terminal-settings) |
+| `hide_from_web` | boolean | `false` | When `true`, hides this door from the web games list and blocks its `/games/nativedoors/{doorid}` web player page (`404`). The door remains launchable over telnet/SSH via **[Files] → Door Games** (`telnet/src/DoorHandler.php`), since that path calls `POST /api/door/launch` directly rather than going through the web listing/player route. Use this for doors that only make sense in a terminal (e.g. FOSSIL/ANSI-only games) or that a sysop wants restricted to the terminal server. |
 
 ---
 

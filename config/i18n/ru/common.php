@@ -1692,12 +1692,16 @@ return [
     'ui.admin.dosdoors_config.option_max_time_help' => 'Максимальное время игры за сеанс',
     'ui.admin.dosdoors_config.option_cpu_cycles_help' => 'Скорость процессора DOSBox (10 000 = типичное значение)',
     'ui.admin.dosdoors_config.option_max_concurrent_help' => 'Максимальное количество одновременных игроков',
+    'ui.admin.dosdoors_config.option_hide_from_web_help' => 'Если true, скрывает эту дверь из веб-списка игр и блокирует её веб-страницу; доступна через telnet/SSH',
     'ui.admin.dosdoors_config.no_doors_found_prefix' => 'Двери не найдены. Установите двери в',
     'ui.admin.dosdoors_config.no_description' => 'Описание отсутствует',
     'ui.admin.dosdoors_config.credits' => 'кредиты',
     'ui.admin.dosdoors_config.free' => 'Бесплатно',
     'ui.admin.dosdoors_config.disable' => 'Отключить',
     'ui.admin.dosdoors_config.enable' => 'Включить',
+    'ui.admin.dosdoors_config.telnet_only' => 'Только telnet/SSH',
+    'ui.admin.dosdoors_config.show_on_web' => 'Показать в веб',
+    'ui.admin.dosdoors_config.hide_from_web' => 'Скрыть из веб (только telnet/SSH)',
 
     // Admin Native Doors Config
     'ui.admin.nativedoors_config.load_config_failed' => 'Не удалось загрузить конфигурацию',
@@ -1738,12 +1742,16 @@ return [
     'ui.admin.nativedoors_config.option_credit_cost_help' => 'Кредиты, необходимые для игры (0 = бесплатно)',
     'ui.admin.nativedoors_config.option_max_time_help' => 'Максимальное время игры за сеанс',
     'ui.admin.nativedoors_config.option_max_concurrent_help' => 'Максимальное количество одновременных игроков',
+    'ui.admin.nativedoors_config.option_hide_from_web_help' => 'Если true, скрывает эту дверь из веб-списка игр и блокирует её веб-страницу; доступна через telnet/SSH',
     'ui.admin.nativedoors_config.no_doors_found_prefix' => 'Двери не найдены. Установите двери в',
     'ui.admin.nativedoors_config.no_description' => 'Описание отсутствует',
     'ui.admin.nativedoors_config.credits' => 'кредиты',
     'ui.admin.nativedoors_config.free' => 'Бесплатно',
     'ui.admin.nativedoors_config.disable' => 'Отключить',
     'ui.admin.nativedoors_config.enable' => 'Включить',
+    'ui.admin.nativedoors_config.telnet_only' => 'Только telnet/SSH',
+    'ui.admin.nativedoors_config.show_on_web' => 'Показать в веб',
+    'ui.admin.nativedoors_config.hide_from_web' => 'Скрыть из веб (только telnet/SSH)',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Не удалось загрузить конфигурацию web-дверей',

@@ -1672,12 +1672,16 @@ return [
     'ui.admin.dosdoors_config.option_max_time_help' => 'Maximum play time per session',
     'ui.admin.dosdoors_config.option_cpu_cycles_help' => 'DOSBox CPU speed (10000 = typical)',
     'ui.admin.dosdoors_config.option_max_concurrent_help' => 'Maximum simultaneous players',
+    'ui.admin.dosdoors_config.option_hide_from_web_help' => 'When true, hides this door from the web games list and blocks its web player page; still playable over telnet/SSH',
     'ui.admin.dosdoors_config.no_doors_found_prefix' => 'No doors found. Install doors in',
     'ui.admin.dosdoors_config.no_description' => 'No description',
     'ui.admin.dosdoors_config.credits' => 'credits',
     'ui.admin.dosdoors_config.free' => 'Free',
     'ui.admin.dosdoors_config.disable' => 'Disable',
     'ui.admin.dosdoors_config.enable' => 'Enable',
+    'ui.admin.dosdoors_config.telnet_only' => 'Telnet/SSH only',
+    'ui.admin.dosdoors_config.show_on_web' => 'Show on web',
+    'ui.admin.dosdoors_config.hide_from_web' => 'Hide from web (telnet/SSH only)',
 
     // Admin Native Doors Config
     'ui.admin.nativedoors_config.load_config_failed' => 'Failed to load config',
@@ -1718,12 +1722,16 @@ return [
     'ui.admin.nativedoors_config.option_credit_cost_help' => 'Credits required to play (0 = free)',
     'ui.admin.nativedoors_config.option_max_time_help' => 'Maximum play time per session',
     'ui.admin.nativedoors_config.option_max_concurrent_help' => 'Maximum simultaneous players',
+    'ui.admin.nativedoors_config.option_hide_from_web_help' => 'When true, hides this door from the web games list and blocks its web player page; still playable over telnet/SSH',
     'ui.admin.nativedoors_config.no_doors_found_prefix' => 'No doors found. Install doors in',
     'ui.admin.nativedoors_config.no_description' => 'No description',
     'ui.admin.nativedoors_config.credits' => 'credits',
     'ui.admin.nativedoors_config.free' => 'Free',
     'ui.admin.nativedoors_config.disable' => 'Disable',
     'ui.admin.nativedoors_config.enable' => 'Enable',
+    'ui.admin.nativedoors_config.telnet_only' => 'Telnet/SSH only',
+    'ui.admin.nativedoors_config.show_on_web' => 'Show on web',
+    'ui.admin.nativedoors_config.hide_from_web' => 'Hide from web (telnet/SSH only)',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Failed to load webdoors config',
