@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Activity Log](#activity-log)
 - [Dashboard](#dashboard)
 - [Doors](#doors)
+- [Realtime (BinkStream)](#realtime-binkstream)
 - [Terminal Server](#terminal-server)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -36,6 +37,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - A Native Door's `launch_command` can now use a `{homedir}` placeholder for a per-user, per-door private directory (for save games and per-user config), created automatically before launch.
 - A Native Door's `launch_command`/`executable` no longer needs a `./` prefix — a bare executable name (e.g. `syncdoom` instead of `./syncdoom`) is now resolved against the door's own directory.
 - Fixed `DOOR32.SYS` reporting comm type `2` (telnet/socket) for Native Doors; it's now `0` (local/stdio), matching how native doors actually run (over a PTY, not a socket).
+
+### Realtime (BinkStream)
+
+- Fixed the BinkStream SharedWorker repeatedly disconnecting and reconnecting its live WebSocket connection every time a new browser tab was opened or a page was navigated to, even while the WebSocket connection was healthy and other tabs stayed open.
 
 ### Terminal Server
 
@@ -101,6 +106,19 @@ Three related fixes and improvements for Native Doors (`config/nativedoors.json`
 - **`{homedir}` placeholder**: `launch_command` can now include a `{homedir}` token, which resolves to a private, per-user, per-door directory (`native-doors/homes/<user_id>/<door_id>/`) — created automatically before the door launches if it doesn't already exist. It's also available as the `DOOR_HOME` environment variable. Use this for doors that keep their own save games or per-user config files, such as `-home` in SyncDOOM.
 - **Bare executable names now work**: previously, a manifest's `executable`/`launch_command` had to reference the door binary as `./mydoor` — a bare `mydoor` only worked if it happened to be on the bridge process's `$PATH`. Bare names are now resolved against the door's own directory first, so `./` is no longer required. Existing manifests using `./mydoor` are unaffected.
 - **`DOOR32.SYS` comm type corrected**: line 1 of the generated `DOOR32.SYS` drop file now correctly reports comm type `0` (local/stdio) instead of `2` (telnet/socket). Native doors are spawned over a PTY, not a telnet socket, so a door that branches its behavior on this field was previously being told the wrong transport.
+
+## Realtime (BinkStream)
+
+### SharedWorker Reconnect Thrash
+
+When realtime transport mode is set to `auto` (the default), the server decides per page render whether to hand the browser a WebSocket or an SSE connection based on whether the realtime daemon looks available. That availability check used `posix_kill()` to signal the daemon's PID, which returns false not only when the daemon is actually down but also whenever the web server process lacks permission to signal that PID — which is the normal case whenever the daemon runs as a different OS user than PHP. That false negative made the server report "SSE only" on effectively every page render even when the daemon and its WebSocket connection were perfectly healthy.
+
+Because BinkStream's SharedWorker previously adopted whatever transport preference the *most recently connected* tab reported, each new tab or page navigation would push that stale "prefer SSE" hint into the worker and it would tear down an already-live, working WebSocket connection to restart on SSE, then upgrade back to WebSocket a few seconds later — repeating on every subsequent tab or navigation. This is fixed on two levels:
+
+- The daemon-availability check now just confirms the PID file exists with a positive PID in it, rather than relying on `posix_kill()`'s permission-sensitive result.
+- The SharedWorker now only adopts an incoming tab's preferred transport when it doesn't already have a live connection, so a newly-opened tab can no longer disrupt a transport that's already up and working for tabs already attached to the worker.
+
+If your realtime daemon runs under a different system user than your web server, this also means realtime status reporting will now correctly reflect the daemon actually being up.
 
 ## Terminal Server
 
