@@ -42,6 +42,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Fixed box-drawing borders rendering as garbled text (mojibake) for CP437-charset users in the Shoutbox, file listings, and FREQ browser scrollable panels.
 - Fixed the main BBS menu becoming completely unresponsive to keystrokes after exiting a door that enables SyncTERM/CTerm physical key-event reporting for movement controls (e.g. SyncDOOM). Also hardened door-session cleanup against several related terminal-state leaks: mouse tracking left on, an unflushed synchronized-output batch, and a gap in escape-sequence parsing for SGR-format mouse reports.
 - Fixed a description-text wrapping bug in selectable list menus (door lists and anything else built on `chooseFromList()`) where a full-width item description could run 2 columns past the terminal's right edge and clip or wrap oddly.
+- The SSH daemon now also supports the `curve25519-sha256` key exchange algorithm and the `aes256-ctr` cipher, in addition to the `diffie-hellman-group14-sha256`/`aes128-ctr` pair it already supported. Some SSH clients only implement one of these two algorithm sets, so a client whose supported algorithms didn't overlap with the server's previously-fixed offering could fail to connect entirely.
 
 ## FREQ
 
@@ -120,6 +121,14 @@ While tracking this down, three related terminal-state gaps that could compound 
 ### Description Text Clipping in Selectable Lists
 
 Any menu built on the terminal server's selectable-list widget (`chooseFromList()`) — door lists most visibly, since door descriptions tend to run long — could show an item's description text running 2 columns past the right edge of the terminal, clipping or wrapping oddly depending on the client. The description text was word-wrapped assuming a narrower on-screen indent than the renderer actually uses for continuation lines, so a full-width line ended up 2 columns too wide. Descriptions now wrap to the correct width and stay within the terminal.
+
+### SSH Key Exchange and Cipher Algorithm Additions
+
+The built-in SSH daemon previously offered exactly one algorithm per negotiation category: `diffie-hellman-group14-sha256` for key exchange and `aes128-ctr` for encryption. An SSH client is only required to implement a subset of possible algorithms, and a client whose supported set didn't include either of those two had no algorithm in common with the server at all, causing the connection to fail during the handshake before authentication was ever reached.
+
+The daemon now also offers `curve25519-sha256` (with the legacy `curve25519-sha256@libssh.org` name as an alias) for key exchange, and `aes256-ctr` for encryption, alongside the existing `diffie-hellman-group14-sha256`/`aes128-ctr` pair. Each connection negotiates independently per the client's own algorithm preference, so existing clients that only know the older pair continue to work unchanged, while clients that only implement the newer pair can now connect as well. `hmac-sha2-256` remains the only MAC and `rsa-sha2-256` the only host key algorithm, since compatibility testing found no client-side gap in either of those categories. The new Curve25519 key exchange uses PHP's `sodium` extension, which ships enabled by default since PHP 7.2 — no configuration change or additional package install is needed.
+
+See [docs/SSHServer.md](SSHServer.md#supported-algorithms) for the full current algorithm table.
 
 ## Upgrade Instructions
 
