@@ -35,21 +35,21 @@ class Template
 
     private function isRealtimeDaemonAvailable(): bool
     {
+        // Presence of the PID file is treated as "daemon available" rather than
+        // signaling the PID with posix_kill(). posix_kill() returns false (not
+        // just for a dead process but also) whenever the web server process
+        // lacks permission to signal that PID, which is normal when the daemon
+        // runs as a different OS user than PHP — that false negative made this
+        // check report "unavailable" on effectively every page render, forcing
+        // every tab/navigation to start on SSE and immediately reconnect to WS.
         $pidFile = (string)(Config::env('BINKSTREAM_WS_PID_FILE', Config::env('REALTIME_WS_PID_FILE')) ?: (__DIR__ . '/../data/run/realtime_server.pid'));
-        if ($pidFile === '' || !is_file($pidFile)) {
+        if ($pidFile === '') {
             return false;
         }
 
         $pid = (int)trim((string)@file_get_contents($pidFile));
-        if ($pid <= 0) {
-            return false;
-        }
 
-        if (function_exists('posix_kill')) {
-            return @posix_kill($pid, 0);
-        }
-
-        return true;
+        return is_file($pidFile) && $pid > 0;
     }
 
     public function __construct()
