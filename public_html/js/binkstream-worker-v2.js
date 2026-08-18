@@ -17,11 +17,6 @@ const INTENTIONAL_RECONNECT_DELAY_MS = 2500;
 const WS_HANDSHAKE_TIMEOUT_MS = 3500;
 const MIN_WS_RETRY_PROBE_DELAY_MS = 3000;
 const MAX_WS_RETRY_PROBE_DELAY_MS = 30000;
-// How long to keep the transport alive with zero connected ports before
-// actually closing it. A same-tab page navigation disconnects the old
-// page's port before the new page's script has loaded and reconnected, so
-// a brief 0-port gap is normal and shouldn't cost a full reconnect.
-const IDLE_CLOSE_DELAY_MS = 8000;
 
 const ports = new Set();
 const subscribedTypes = new Set();
@@ -38,7 +33,6 @@ let reconnectTimer = null;
 let wsConnectTimer = null;
 let wsRetryProbeTimer = null;
 let wsRetryProbeDelay = MIN_WS_RETRY_PROBE_DELAY_MS;
-let idleCloseTimer = null;
 let lastCursor = '';
 let isInitialized = false;
 let activeTransportMode = 'poll';
@@ -53,7 +47,6 @@ function debugLog() {
 self.onconnect = function (e) {
     const port = e.ports[0];
     ports.add(port);
-    clearIdleCloseTimer();
 
     port.onmessage = function (msg) {
         const data = msg.data || {};
@@ -614,26 +607,9 @@ function forgetPort(port) {
         }
     });
     if (ports.size === 0) {
-        scheduleIdleClose();
+        activeTransportMode = 'poll';
+        closeTransport();
     }
-}
-
-function clearIdleCloseTimer() {
-    if (idleCloseTimer) {
-        clearTimeout(idleCloseTimer);
-        idleCloseTimer = null;
-    }
-}
-
-function scheduleIdleClose() {
-    clearIdleCloseTimer();
-    idleCloseTimer = setTimeout(function () {
-        idleCloseTimer = null;
-        if (ports.size === 0) {
-            activeTransportMode = 'poll';
-            closeTransport();
-        }
-    }, IDLE_CLOSE_DELAY_MS);
 }
 
 function broadcastCursor(cursor) {
