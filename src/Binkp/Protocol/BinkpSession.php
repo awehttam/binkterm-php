@@ -728,6 +728,7 @@ class BinkpSession
                 $matchedAddress = null;
                 $matchedAddressWithDomain = null;
                 $hubNodeManager = new \BinktermPHP\Hub\HubNodeManager();
+                $this->remoteAkas = [];
                 foreach ($addresses as $addr) {
                     $addr = trim($addr);
                     $addrWithDomain = $addr;
@@ -743,6 +744,10 @@ class BinkpSession
 
                     if (empty($addr)) {
                         continue;
+                    }
+
+                    if (!in_array($addr, $this->remoteAkas, true)) {
+                        $this->remoteAkas[] = $addr;
                     }
 
                     if (
@@ -1037,16 +1042,39 @@ class BinkpSession
     }
 
     /**
+     * All AKAs the remote advertised in M_ADR, plus the primary
+     * $this->remoteAddress, deduplicated with the primary address first.
+     * Used so a multi-AKA point (e.g. one point address registered per
+     * network) gets outbound queued under any of its AKAs delivered within
+     * this one session, not just whichever AKA was picked as remoteAddress.
+     *
+     * @return string[]
+     */
+    private function getRemoteAddressCandidates(): array
+    {
+        $candidates = $this->remoteAkas;
+        if (!empty($this->remoteAddress) && !in_array($this->remoteAddress, $candidates, true)) {
+            array_unshift($candidates, $this->remoteAddress);
+        }
+        return $candidates;
+    }
+
+    /**
      * Send any files from freq_outbound that are queued for the remote node.
      * Called at session start for both originator and answerer.
      */
     private function sendFreqFiles(): void
     {
-        $remoteAddr = $this->remoteAddress ?? '';
-        if ($remoteAddr === '' || $remoteAddr === 'unknown') {
-            return;
+        foreach ($this->getRemoteAddressCandidates() as $remoteAddr) {
+            if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+                continue;
+            }
+            $this->sendFreqFilesForAddress($remoteAddr);
         }
+    }
 
+    private function sendFreqFilesForAddress(string $remoteAddr): void
+    {
         try {
             $db = \BinktermPHP\Database::getInstance()->getPdo();
 
@@ -1128,11 +1156,16 @@ class BinkpSession
      */
     private function sendHoldFiles(): void
     {
-        $remoteAddr = $this->remoteAddress ?? '';
-        if ($remoteAddr === '' || $remoteAddr === 'unknown') {
-            return;
+        foreach ($this->getRemoteAddressCandidates() as $remoteAddr) {
+            if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+                continue;
+            }
+            $this->sendHoldFilesForAddress($remoteAddr);
         }
+    }
 
+    private function sendHoldFilesForAddress(string $remoteAddr): void
+    {
         $safe    = preg_replace('/[^a-zA-Z0-9]/', '_', $remoteAddr);
         $holdDir = \BinktermPHP\Config::BINKD_OUTBOUND . '/hold/' . $safe;
 
@@ -1197,20 +1230,42 @@ class BinkpSession
      * chunkHubNodeBundle()/sendHubNodeOutboundBundle()), capped at
      * hub_nodes.max_packet_kb per file rather than one unbounded bundle;
      * TIC rows are always sent individually as their own file pair.
+     *
+     * Iterates every AKA the remote advertised in M_ADR (not just the single
+     * address used for auth/logging), so a multi-AKA point that registered
+     * more than one hub_nodes entry - e.g. one point address per network -
+     * gets outbound for all of them delivered in this one session, instead
+     * of only whichever AKA happened to be picked as $this->remoteAddress.
+     * Each matching hub_nodes id is processed at most once even if the
+     * remote advertised it under more than one AKA string.
      */
     private function sendHubNodeOutbound(): void
     {
-        $remoteAddr = $this->remoteAddress ?? '';
-        if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+        $hubNodeManager = new \BinktermPHP\Hub\HubNodeManager();
+        $seenHubNodeIds = [];
+
+        foreach ($this->getRemoteAddressCandidates() as $remoteAddr) {
+            if ($remoteAddr === '' || $remoteAddr === 'unknown') {
+                continue;
+            }
+
+            $hubNode = $hubNodeManager->getByAddress($remoteAddr);
+            if (!$hubNode || in_array($hubNode['id'], $seenHubNodeIds, true)) {
+                continue;
+            }
+            $seenHubNodeIds[] = $hubNode['id'];
+
+            $this->sendHubNodeOutboundForNode($hubNode, $remoteAddr);
+        }
+    }
+
+    private function sendHubNodeOutboundForNode(array $hubNode, string $remoteAddr): void
+    {
+        if (!$hubNode['enabled'] || $hubNode['hold_mail']) {
             return;
         }
 
         try {
-            $hubNode = (new \BinktermPHP\Hub\HubNodeManager())->getByAddress($remoteAddr);
-            if (!$hubNode || !$hubNode['enabled'] || $hubNode['hold_mail']) {
-                return;
-            }
-
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             // Retry 'failed' rows (e.g. from a session that was interrupted
             // mid-transfer) on the subordinate's next connection, same as
