@@ -4737,7 +4737,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.file_requests.node_placeholder' => 'ex. 227:1/200, 227:1/200@fidonet ou bbs.example.com',
     'ui.file_requests.node_help' => 'Vous pouvez aussi saisir un nom d\'hôte internet (ex. bbs.example.com ou bbs.example.com:24554) pour un nœud sans entrée dans la nodelist.',
     'ui.file_requests.filename_label' => 'Nom de fichier ou nom magique',
-    'ui.file_requests.filename_placeholder' => 'ex. ALLFILES',
+    'ui.file_requests.filename_placeholder' => 'ex. ALLFILES ou FILES',
     'ui.file_requests.password_label' => 'Mot de passe de zone (facultatif)',
     'ui.file_requests.mode_label' => 'Méthode de demande',
     'ui.file_requests.mode_req' => 'Fichier .req (recommandé)',

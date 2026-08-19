@@ -3286,7 +3286,7 @@ return [
     'ui.file_requests.node_placeholder' => 'e.g. 227:1/200, 227:1/200@fidonet, or bbs.example.com',
     'ui.file_requests.node_help' => 'You can also enter an internet hostname (e.g. bbs.example.com or bbs.example.com:24554) for a node with no nodelist entry.',
     'ui.file_requests.filename_label' => 'Filename or Magic Name',
-    'ui.file_requests.filename_placeholder' => 'e.g. ALLFILES',
+    'ui.file_requests.filename_placeholder' => 'e.g. ALLFILES or FILES',
     'ui.file_requests.password_label' => 'Area Password (optional)',
     'ui.file_requests.mode_label' => 'Request Method',
     'ui.file_requests.mode_req' => '.req file (recommended)',

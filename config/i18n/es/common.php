@@ -3268,7 +3268,7 @@ return [
     'ui.file_requests.node_placeholder' => 'p. ej. 227:1/200, 227:1/200@fidonet o bbs.example.com',
     'ui.file_requests.node_help' => 'También puede introducir un nombre de host de internet (p. ej. bbs.example.com o bbs.example.com:24554) para un nodo sin entrada en la nodelist.',
     'ui.file_requests.filename_label' => 'Nombre de archivo o nombre mágico',
-    'ui.file_requests.filename_placeholder' => 'p. ej. ALLFILES',
+    'ui.file_requests.filename_placeholder' => 'p. ej. ALLFILES o FILES',
     'ui.file_requests.password_label' => 'Contraseña del área (opcional)',
     'ui.file_requests.mode_label' => 'Método de solicitud',
     'ui.file_requests.mode_req' => 'Archivo .req (recomendado)',

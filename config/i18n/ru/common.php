@@ -3292,7 +3292,7 @@ return [
     'ui.file_requests.node_placeholder' => 'напр. 227:1/200, 227:1/200@fidonet или bbs.example.com',
     'ui.file_requests.node_help' => 'Вы также можете указать интернет-имя хоста (напр. bbs.example.com или bbs.example.com:24554) для узла без записи в nodelist.',
     'ui.file_requests.filename_label' => 'Имя файла или волшебное имя',
-    'ui.file_requests.filename_placeholder' => 'напр. ALLFILES',
+    'ui.file_requests.filename_placeholder' => 'напр. ALLFILES или FILES',
     'ui.file_requests.password_label' => 'Пароль области (необязательно)',
     'ui.file_requests.mode_label' => 'Метод запроса',
     'ui.file_requests.mode_req' => 'Файл .req (рекомендуется)',
