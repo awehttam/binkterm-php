@@ -64,6 +64,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Fixed a description-text wrapping bug in selectable list menus (door lists and anything else built on `chooseFromList()`) where a full-width item description could run 2 columns past the terminal's right edge and clip or wrap oddly.
 - The SSH daemon now also supports the `curve25519-sha256` key exchange algorithm and the `aes256-ctr` cipher, in addition to the `diffie-hellman-group14-sha256`/`aes128-ctr` pair it already supported. Some SSH clients only implement one of these two algorithm sets, so a client whose supported algorithms didn't overlap with the server's previously-fixed offering could fail to connect entirely.
 - The telnet/SSH pre-login menu has a new **(T) Login and run terminal setup** option, letting a user force the terminal detection wizard to re-run right after login even if terminal settings were already saved, without needing a sysop to clear their saved settings first.
+- Fixed Page Up, Page Down, and End not working in scrollable panels (Shoutbox, message lists, file/FREQ browsers, etc.) for SyncTerm and ZOC users on a CP437-charset terminal.
 
 ## FREQ
 
@@ -187,6 +188,10 @@ See [docs/SSHServer.md](SSHServer.md#supported-algorithms) for the full current 
 ### Re-Running Terminal Setup From the Login Menu
 
 Previously, the terminal detection wizard only ran automatically the first time a user logged in with no saved terminal settings; running it again required a sysop to clear those settings. The telnet/SSH pre-login menu now has a **(T) Login and run terminal setup** option alongside **(L) Login**, which logs the user in as normal and then forces the detection wizard to run regardless of whether settings were already saved — handy for a user whose terminal, client, or connection type has changed since they last set it up.
+
+### Page Up, Page Down, and End Not Working on CP437 Terminals
+
+SyncTerm and ZOC users with their terminal charset set to CP437 could find that Page Up, Page Down, and End did nothing in scrollable panels (Shoutbox, message lists, file and FREQ browsers, and anywhere else using the scrollable-panel widget), while Up/Down/Home worked fine. In that CP437/ANSI-BBS terminal mode, both clients send the legacy ANSI.SYS-style key sequences (`ESC[V`, `ESC[U`, `ESC[K`) for those keys instead of the xterm/vt220 sequences (`ESC[5~`, `ESC[6~`, `ESC[F`) the terminal server's key reader recognized. The key reader now recognizes both forms.
 
 ## Upgrade Instructions
 
