@@ -11473,7 +11473,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $search = $_GET['search'] ?? '';
                 $userId = $user['user_id'] ?? $user['id'] ?? null;
                 $addressBook = new AddressBookController();
-                $entries = $addressBook->searchEntries($userId, $search);
+                $entries = $addressBook->getUserEntries($userId, $search);
 
                 echo json_encode(['success' => true, 'entries' => $entries]);
             } catch (Exception $e) {
