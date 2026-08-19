@@ -833,7 +833,7 @@ function postArticleToEchoareas($db, $messageHandler, $feed, $article, $verbose)
             false,
             null,
             '',
-            'BinktermPHP Auto Feed',
+            'Auto Feed',
             null,
             null,
             (string)($feed['poster_name'] ?? 'Auto Feed')
