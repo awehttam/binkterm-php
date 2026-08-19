@@ -84,7 +84,7 @@ Wait for the message "Initialization complete!" in the logs.
 
 Open your browser to http://localhost (or the configured SITE_URL).
 
-The default admin account must be created through the registration page on first use.
+First Run Setup (see below) creates a default administrator account (`admin` / `admin123`). Log in and change this password immediately from **Admin → Users**.
 
 ## Configuration
 
