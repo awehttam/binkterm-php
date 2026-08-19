@@ -11,6 +11,7 @@ return [
     'ui.terminalserver.server.login_menu.login' => '  (L) Войти в существующую учётную запись',
     'ui.terminalserver.server.login_menu.reset_password' => '  (R) Восстановить забытый пароль',
     'ui.terminalserver.server.login_menu.register' => '  (N) Зарегистрировать новую учётную запись',
+    'ui.terminalserver.server.login_menu.login_setup' => '  (T) Войти и запустить настройку терминала',
     'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) QWK‑передача',
     'ui.terminalserver.server.login_menu.quit' => '  (Q) Выход',
     'ui.terminalserver.server.login_menu.choice' => 'Ваш выбор: ',

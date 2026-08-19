@@ -268,6 +268,7 @@ class BbsSession
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.login',   '  (L) Login to existing account', [], $state['locale']));
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.reset_password', '  (R) Reset lost password', [], $state['locale']));
                 $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.register','  (N) Register new account', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.login_setup', '  (T) Login and run terminal setup', [], $state['locale']));
                 if ($showQwkTransfer) {
                     $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.qwk_transfer', '  (K) QWK transfer', [], $state['locale']));
                 }
@@ -310,7 +311,8 @@ class BbsSession
                 }
 
                 $qwkTransferMode = $showQwkTransfer && $normalizedChoice === 'k';
-                if ($normalizedChoice !== 'l' && !$qwkTransferMode) {
+                $forceTerminalSetup = $normalizedChoice === 't';
+                if ($normalizedChoice !== 'l' && !$qwkTransferMode && !$forceTerminalSetup) {
                     $this->writeLine($conn, $this->colorize(
                         $this->t('ui.terminalserver.server.login_menu.invalid_choice', 'Invalid selection.', [], $state['locale']),
                         self::ANSI_RED
@@ -327,6 +329,7 @@ class BbsSession
 
                     if ($loginResult !== null) {
                         $loginResult['qwk_transfer_mode'] = $qwkTransferMode;
+                        $loginResult['force_terminal_setup'] = $forceTerminalSetup;
                         $this->writeLine($conn, $this->colorize(
                             $this->t('ui.terminalserver.server.login.success', 'Login successful.', [], $state['locale']),
                             self::ANSI_GREEN
@@ -425,8 +428,10 @@ class BbsSession
         $terminalSettingsHandler->loadSettings($conn, $state, $session, $initData['terminal'] ?? null);
         $settingsHandler = new SettingsHandler($this, $this->apiBase);
 
-        // Run first-time detection wizard if no terminal settings have been saved yet
-        if (($state['terminal_charset'] ?? null) === null && empty($state['qwk_transfer_mode'])) {
+        // Run the detection wizard if no terminal settings have been saved yet, or the
+        // user explicitly requested a re-run via the (T) login menu option.
+        $forceTerminalSetup = !empty($loginResult['force_terminal_setup']);
+        if ((($state['terminal_charset'] ?? null) === null || $forceTerminalSetup) && empty($state['qwk_transfer_mode'])) {
             $terminalSettingsHandler->runDetectionWizard($conn, $state, $session);
         }
 
