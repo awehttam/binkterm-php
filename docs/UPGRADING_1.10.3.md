@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [FREQ](#freq)
 - [Activity Log](#activity-log)
+- [Address Book](#address-book)
 - [BinkP](#binkp)
 - [Dashboard](#dashboard)
 - [Doors](#doors)
@@ -27,6 +28,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Outbound FREQ, Viewing the public BBS Directory list and individual BBS detail page, entering local chat room, uploading/generating a PGP key or changing a primary key are now recorded events.
 - **Admin → Activity Stats → Top Users** now has a "Returning Users" list showing which users were active on more than one day within the currently selected period, with a count at the top.
+
+### Address Book
+
+- The address book panel on the Netmail compose page now shows only your own saved contacts, instead of sometimes also listing other BBS users you never added and omitting some of your real entries.
 
 ### BinkP
 
@@ -84,6 +89,12 @@ None of these change any user-facing behavior; they only affect what shows up in
 ### Returning Users (Admin → Activity Stats)
 
 The **Top Users** tab now has a **Returning Users** card above the existing "Most Active Users" list. It shows a count and a list of users who were active on more than one distinct day within whatever period is currently selected on the page (7 days, 30 days, 90 days, or all time) — not a count of login events specifically. This app authenticates via a long-lived cookie, so a user can return many times without ever generating a fresh login event; the metric instead counts distinct calendar days with any tracked activity (echomail, chat, files, doors, etc.), which reflects real return visits regardless of how login/cookie auth behaves. This is purely a read of existing `user_activity_log` data — no new activity types or schema changes are involved.
+
+## Address Book
+
+The address book panel on the Netmail compose page listed entries using the same lookup that powers the "To:" field's autocomplete suggestions. That lookup is designed to suggest matching BBS users when you're still typing a partial name or address, so when the panel loaded with an empty search it matched every active BBS user and filled any unused slots (up to a fixed limit of 10) with accounts that were never added to your address book. Once real entries plus this filler exceeded that limit, some of your actual saved contacts could be left off the list entirely.
+
+The panel now reads directly from your saved address book entries, with no unrelated accounts mixed in and no limit on how many of your own entries are shown.
 
 ## BinkP
 
