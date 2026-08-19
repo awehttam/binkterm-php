@@ -58,6 +58,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - Fixed the main BBS menu becoming completely unresponsive to keystrokes after exiting a door that enables SyncTERM/CTerm physical key-event reporting for movement controls (e.g. SyncDOOM). Also hardened door-session cleanup against several related terminal-state leaks: mouse tracking left on, an unflushed synchronized-output batch, and a gap in escape-sequence parsing for SGR-format mouse reports.
 - Fixed a description-text wrapping bug in selectable list menus (door lists and anything else built on `chooseFromList()`) where a full-width item description could run 2 columns past the terminal's right edge and clip or wrap oddly.
 - The SSH daemon now also supports the `curve25519-sha256` key exchange algorithm and the `aes256-ctr` cipher, in addition to the `diffie-hellman-group14-sha256`/`aes128-ctr` pair it already supported. Some SSH clients only implement one of these two algorithm sets, so a client whose supported algorithms didn't overlap with the server's previously-fixed offering could fail to connect entirely.
+- The telnet/SSH pre-login menu has a new **(T) Login and run terminal setup** option, letting a user force the terminal detection wizard to re-run right after login even if terminal settings were already saved, without needing a sysop to clear their saved settings first.
 
 ## FREQ
 
@@ -171,6 +172,10 @@ The built-in SSH daemon previously offered exactly one algorithm per negotiation
 The daemon now also offers `curve25519-sha256` (with the legacy `curve25519-sha256@libssh.org` name as an alias) for key exchange, and `aes256-ctr` for encryption, alongside the existing `diffie-hellman-group14-sha256`/`aes128-ctr` pair. Each connection negotiates independently per the client's own algorithm preference, so existing clients that only know the older pair continue to work unchanged, while clients that only implement the newer pair can now connect as well. `hmac-sha2-256` remains the only MAC and `rsa-sha2-256` the only host key algorithm, since compatibility testing found no client-side gap in either of those categories. The new Curve25519 key exchange uses PHP's `sodium` extension, which ships enabled by default since PHP 7.2 — no configuration change or additional package install is needed.
 
 See [docs/SSHServer.md](SSHServer.md#supported-algorithms) for the full current algorithm table.
+
+### Re-Running Terminal Setup From the Login Menu
+
+Previously, the terminal detection wizard only ran automatically the first time a user logged in with no saved terminal settings; running it again required a sysop to clear those settings. The telnet/SSH pre-login menu now has a **(T) Login and run terminal setup** option alongside **(L) Login**, which logs the user in as normal and then forces the detection wizard to run regardless of whether settings were already saved — handy for a user whose terminal, client, or connection type has changed since they last set it up.
 
 ## Upgrade Instructions
 
