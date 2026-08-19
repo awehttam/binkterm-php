@@ -10,6 +10,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [BinkP](#binkp)
 - [Dashboard](#dashboard)
 - [Doors](#doors)
+- [Nodelist](#nodelist)
 - [Realtime (BinkStream)](#realtime-binkstream)
 - [Terminal Server](#terminal-server)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -42,6 +43,10 @@ Make sure you have a current backup of your database and files before upgrading.
 - A Native Door's `launch_command` can now use a `{homedir}` placeholder for a per-user, per-door private directory (for save games and per-user config), created automatically before launch.
 - A Native Door's `launch_command`/`executable` no longer needs a `./` prefix — a bare executable name (e.g. `syncdoom` instead of `./syncdoom`) is now resolved against the door's own directory.
 - Fixed `DOOR32.SYS` reporting comm type `2` (telnet/socket) for Native Doors; it's now `0` (local/stdio), matching how native doors actually run (over a PTY, not a socket).
+
+### Nodelist
+
+- The **Nodelist** browse page and node listings are more resilient to unexpected input in the `zone`/`net` filters, returning an empty result instead of an error page.
 
 ### Realtime (BinkStream)
 
@@ -119,6 +124,12 @@ Three related fixes and improvements for Native Doors (`config/nativedoors.json`
 - **`{homedir}` placeholder**: `launch_command` can now include a `{homedir}` token, which resolves to a private, per-user, per-door directory (`native-doors/homes/<user_id>/<door_id>/`) — created automatically before the door launches if it doesn't already exist. It's also available as the `DOOR_HOME` environment variable. Use this for doors that keep their own save games or per-user config files, such as `-home` in SyncDOOM.
 - **Bare executable names now work**: previously, a manifest's `executable`/`launch_command` had to reference the door binary as `./mydoor` — a bare `mydoor` only worked if it happened to be on the bridge process's `$PATH`. Bare names are now resolved against the door's own directory first, so `./` is no longer required. Existing manifests using `./mydoor` are unaffected.
 - **`DOOR32.SYS` comm type corrected**: line 1 of the generated `DOOR32.SYS` drop file now correctly reports comm type `0` (local/stdio) instead of `2` (telnet/socket). Native doors are spawned over a PTY, not a telnet socket, so a door that branches its behavior on this field was previously being told the wrong transport.
+
+## Nodelist
+
+### Sturdier Zone/Net Filtering
+
+The **Nodelist** browse page (and the underlying net-listing lookups it uses) now validates the `zone`/`net` filter values before querying, returning an empty list for a non-numeric value instead of a server error page. This makes the page more robust against odd or unexpected query strings, including ones from automated crawlers probing the URL with unusual values.
 
 ## Realtime (BinkStream)
 
