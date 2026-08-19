@@ -600,7 +600,7 @@ class NativeAdapter extends EmulatorAdapter {
         // Per-user, per-door private directory for doors that keep their own state
         // (save games, per-user config overlays, etc.), e.g. SyncDOOM's "-home".
         // Created on demand — a door should never have to check for its own existence.
-        const homeDir = path.join(this.basePath, 'native-doors', 'homes', String(sessionData.user_id || 'guest'), door_id);
+        const homeDir = path.join(this.basePath, 'data', 'users', String(sessionData.user_id || 'guest'), door_id);
         fs.mkdirSync(homeDir, { recursive: true });
 
         // Determine output encoding (cp437 for legacy DOS-style doors, utf8 for modern)

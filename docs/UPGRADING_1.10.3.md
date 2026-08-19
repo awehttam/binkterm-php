@@ -133,7 +133,7 @@ The OpenRouter provider now asks routed models to skip reasoning where supported
 
 Three related fixes and improvements for Native Doors (`config/nativedoors.json`, `native-doors/doors/*/nativedoor.json`):
 
-- **`{homedir}` placeholder**: `launch_command` can now include a `{homedir}` token, which resolves to a private, per-user, per-door directory (`native-doors/homes/<user_id>/<door_id>/`) — created automatically before the door launches if it doesn't already exist. It's also available as the `DOOR_HOME` environment variable. Use this for doors that keep their own save games or per-user config files, such as `-home` in SyncDOOM.
+- **`{homedir}` placeholder**: `launch_command` can now include a `{homedir}` token, which resolves to a private, per-user, per-door directory (`data/users/<user_id>/<door_id>/`) — created automatically before the door launches if it doesn't already exist. It's also available as the `DOOR_HOME` environment variable. Use this for doors that keep their own save games or per-user config files, such as `-home` in SyncDOOM.
 - **Bare executable names now work**: previously, a manifest's `executable`/`launch_command` had to reference the door binary as `./mydoor` — a bare `mydoor` only worked if it happened to be on the bridge process's `$PATH`. Bare names are now resolved against the door's own directory first, so `./` is no longer required. Existing manifests using `./mydoor` are unaffected.
 - **`DOOR32.SYS` comm type corrected**: line 1 of the generated `DOOR32.SYS` drop file now correctly reports comm type `0` (local/stdio) instead of `2` (telnet/socket). Native doors are spawned over a PTY, not a telnet socket, so a door that branches its behavior on this field was previously being told the wrong transport.
 

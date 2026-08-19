@@ -204,7 +204,7 @@ The `launch_command` string may contain the following placeholders, which are su
 | `{node}` | Node number (e.g. `1`) |
 | `{dropfile}` | Full path to the DOOR.SYS file (e.g. `/srv/bbs/native-doors/drops/NODE1/DOOR.SYS`) |
 | `{user_number}` | BBS user ID (numeric) |
-| `{homedir}` | Full path to the user's private per-door home directory (e.g. `/srv/bbs/native-doors/homes/42/mydoor`), for doors that keep their own state — save games, per-user config overlays, etc. Created automatically before launch if it does not already exist. Also available as the `DOOR_HOME` environment variable |
+| `{homedir}` | Full path to the user's private per-door home directory (e.g. `/srv/bbs/data/users/42/mydoor`), for doors that keep their own state — save games, per-user config overlays, etc. Created automatically before launch if it does not already exist. Also available as the `DOOR_HOME` environment variable |
 
 **Examples:**
 
