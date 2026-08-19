@@ -1042,20 +1042,50 @@ class BinkpSession
     }
 
     /**
-     * All AKAs the remote advertised in M_ADR, plus the primary
-     * $this->remoteAddress, deduplicated with the primary address first.
-     * Used so a multi-AKA point (e.g. one point address registered per
-     * network) gets outbound queued under any of its AKAs delivered within
-     * this one session, not just whichever AKA was picked as remoteAddress.
+     * The primary authenticated $this->remoteAddress, plus any other AKA the
+     * remote advertised in M_ADR that is SAFE to also deliver to in this
+     * session - i.e. a hub_nodes row registered under the same local
+     * hub_nodes.user_id as the address that was actually authenticated.
+     *
+     * M_ADR is sent before authentication and is entirely remote-controlled,
+     * so "the remote merely claimed this address" is not proof of ownership;
+     * only a shared, non-null user_id (both rows self-registered under the
+     * same BinktermPHP account) counts as proof. Password equality between
+     * two hub_nodes rows is deliberately NOT treated as proof - two unrelated
+     * rows were found to have colliding passwords in practice, which is
+     * exactly the cross-delivery scenario this method exists to prevent.
+     * A candidate whose hub_nodes row has no user_id (sysop-assigned, not
+     * self-registered) is never added beyond the primary address.
      *
      * @return string[]
      */
     private function getRemoteAddressCandidates(): array
     {
-        $candidates = $this->remoteAkas;
-        if (!empty($this->remoteAddress) && !in_array($this->remoteAddress, $candidates, true)) {
-            array_unshift($candidates, $this->remoteAddress);
+        $primary = $this->remoteAddress ?? '';
+        if ($primary === '' || $primary === 'unknown') {
+            return [];
         }
+
+        $hubNodeManager = new \BinktermPHP\Hub\HubNodeManager();
+        $primaryHubNode = $hubNodeManager->getByAddress($primary);
+        $primaryUserId = $primaryHubNode['user_id'] ?? null;
+
+        $candidates = [$primary];
+
+        // Only a hub node's own AKAs can be safely fanned out to, and only
+        // when we can prove common ownership via a shared, non-null user_id.
+        if ($primaryHubNode !== null && $primaryUserId !== null) {
+            foreach ($this->remoteAkas as $addr) {
+                if ($addr === $primary || in_array($addr, $candidates, true)) {
+                    continue;
+                }
+                $candidateHubNode = $hubNodeManager->getByAddress($addr);
+                if ($candidateHubNode !== null && ($candidateHubNode['user_id'] ?? null) === $primaryUserId) {
+                    $candidates[] = $addr;
+                }
+            }
+        }
+
         return $candidates;
     }
 
@@ -1231,13 +1261,14 @@ class BinkpSession
      * hub_nodes.max_packet_kb per file rather than one unbounded bundle;
      * TIC rows are always sent individually as their own file pair.
      *
-     * Iterates every AKA the remote advertised in M_ADR (not just the single
-     * address used for auth/logging), so a multi-AKA point that registered
-     * more than one hub_nodes entry - e.g. one point address per network -
-     * gets outbound for all of them delivered in this one session, instead
-     * of only whichever AKA happened to be picked as $this->remoteAddress.
-     * Each matching hub_nodes id is processed at most once even if the
-     * remote advertised it under more than one AKA string.
+     * Iterates the authenticated address plus any other AKA the remote
+     * advertised in M_ADR that getRemoteAddressCandidates() has verified
+     * belongs to the same local user account, so a multi-AKA point that
+     * self-registered more than one hub_nodes entry - e.g. one point address
+     * per network - gets outbound for all of them delivered in this one
+     * session, instead of only whichever AKA happened to be picked as
+     * $this->remoteAddress. Each matching hub_nodes id is processed at most
+     * once even if the remote advertised it under more than one AKA string.
      */
     private function sendHubNodeOutbound(): void
     {
