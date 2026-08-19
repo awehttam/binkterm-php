@@ -50,6 +50,12 @@ class BbsSession
     private const KEY_PGUP   = "\033[5~";
     private const KEY_PGDOWN = "\033[6~";
     private const KEY_SHIFT_TAB = "\033[Z";
+    // Legacy ANSI-BBS/ANSI.SYS key sequences (used by SyncTerm and ZOC in
+    // their classic ANSI-BBS/CP437 terminal mode, per Synchronet's cterm.c
+    // ansi_keys table) instead of the xterm/vt220 sequences above.
+    private const KEY_END_ALT    = "\033[K";
+    private const KEY_PGUP_ALT   = "\033[V";
+    private const KEY_PGDOWN_ALT = "\033[U";
 
     // ===== ANSI COLOR CONSTANTS =====
     private const ANSI_RESET   = "\033[0m";
@@ -1746,9 +1752,9 @@ class BbsSession
         if ($char === self::KEY_LEFT) { return ['LEFT', false, false]; }
         if ($char === self::KEY_RIGHT) { return ['RIGHT', false, false]; }
         if ($char === self::KEY_HOME) { return ['HOME', false, false]; }
-        if ($char === self::KEY_END) { return ['END', false, false]; }
-        if ($char === self::KEY_PGUP) { return ['PGUP', false, false]; }
-        if ($char === self::KEY_PGDOWN) { return ['PGDOWN', false, false]; }
+        if ($char === self::KEY_END || $char === self::KEY_END_ALT) { return ['END', false, false]; }
+        if ($char === self::KEY_PGUP || $char === self::KEY_PGUP_ALT) { return ['PGUP', false, false]; }
+        if ($char === self::KEY_PGDOWN || $char === self::KEY_PGDOWN_ALT) { return ['PGDOWN', false, false]; }
         if ($char === self::KEY_SHIFT_TAB) { return ['SHIFT_TAB', false, false]; }
         if ($char === self::KEY_DELETE) { return ['DELETE', false, false]; }
 
@@ -2782,9 +2788,9 @@ class BbsSession
         if ($char === self::KEY_LEFT)  { return ['LEFT',  false, false]; }
         if ($char === self::KEY_RIGHT) { return ['RIGHT', false, false]; }
         if ($char === self::KEY_HOME)   { return ['HOME',   false, false]; }
-        if ($char === self::KEY_END)    { return ['END',    false, false]; }
-        if ($char === self::KEY_PGUP)   { return ['PGUP',   false, false]; }
-        if ($char === self::KEY_PGDOWN) { return ['PGDOWN', false, false]; }
+        if ($char === self::KEY_END || $char === self::KEY_END_ALT)       { return ['END',    false, false]; }
+        if ($char === self::KEY_PGUP || $char === self::KEY_PGUP_ALT)     { return ['PGUP',   false, false]; }
+        if ($char === self::KEY_PGDOWN || $char === self::KEY_PGDOWN_ALT) { return ['PGDOWN', false, false]; }
         if ($char === self::KEY_SHIFT_TAB) { return ['SHIFT_TAB', false, false]; }
         if ($char === self::KEY_DELETE)    { return ['DELETE',    false, false]; }
 
