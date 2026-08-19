@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [FREQ](#freq)
 - [Activity Log](#activity-log)
+- [BinkP](#binkp)
 - [Dashboard](#dashboard)
 - [Doors](#doors)
 - [Realtime (BinkStream)](#realtime-binkstream)
@@ -25,6 +26,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Outbound FREQ, Viewing the public BBS Directory list and individual BBS detail page, entering local chat room, uploading/generating a PGP key or changing a primary key are now recorded events.
 - **Admin → Activity Stats → Top Users** now has a "Returning Users" list showing which users were active on more than one day within the currently selected period, with a count at the top.
+
+### BinkP
+
+- A subordinate node/point that self-registered more than one `hub_nodes` entry (for example one point address per network) now gets outbound mail, FREQ files, and hold-directory files for all of its own addresses delivered within a single session, instead of only whichever advertised AKA a session happened to authenticate against. Delivery to a secondary AKA is only allowed when that AKA's `hub_nodes` row shares the same account (`user_id`) as the authenticated address, so this never delivers a different subordinate's queued mail just because a connecting system listed that address alongside its own in the BinkP handshake.
 
 ### Dashboard
 
@@ -73,6 +78,14 @@ None of these change any user-facing behavior; they only affect what shows up in
 ### Returning Users (Admin → Activity Stats)
 
 The **Top Users** tab now has a **Returning Users** card above the existing "Most Active Users" list. It shows a count and a list of users who were active on more than one distinct day within whatever period is currently selected on the page (7 days, 30 days, 90 days, or all time) — not a count of login events specifically. This app authenticates via a long-lived cookie, so a user can return many times without ever generating a fresh login event; the metric instead counts distinct calendar days with any tracked activity (echomail, chat, files, doors, etc.), which reflects real return visits regardless of how login/cookie auth behaves. This is purely a read of existing `user_activity_log` data — no new activity types or schema changes are involved.
+
+## BinkP
+
+### Multi-AKA Subordinate Outbound Delivery
+
+A subordinate node/point registered in **Admin → Downlinks** (`hub_nodes`) can advertise more than one FTN address (AKA) during a session's `M_ADR` handshake — for example a point that self-registered a separate point address per echomail network it carries. Previously, `BinkpSession` resolved the whole session down to a single address (the first advertised AKA that matched a known uplink or `hub_nodes` entry) and used only that one address to look up queued `hub_node_outbound` rows, `freq_outbound` rows, and hold-directory files. Mail, FREQ responses, or hold files queued under any of that subordinate's *other* registered addresses sat undelivered until a session happened to authenticate against that specific address instead.
+
+`BinkpSession` now delivers outbound for every AKA the remote advertised, as long as that AKA's `hub_nodes` row is registered under the same account (`hub_nodes.user_id`) as the address the session actually authenticated against. Since `M_ADR` is sent before authentication and is entirely remote-controlled, "the remote listed this address" is not by itself treated as proof of ownership — an AKA whose `hub_nodes` row has no owning account, or belongs to a different account, is never delivered to, even if it was named in the same handshake.
 
 ## Dashboard
 
