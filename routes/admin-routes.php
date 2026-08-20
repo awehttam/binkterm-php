@@ -5087,6 +5087,14 @@ PROMPT;
                     throw new \InvalidArgumentException('username_taken');
                 }
 
+                // Real names are unique across all users (case-insensitive); a bot's
+                // display name becomes its backing user's real_name.
+                $chkName = $db->prepare("SELECT id FROM users WHERE LOWER(real_name) = LOWER(?)");
+                $chkName->execute([$name]);
+                if ($chkName->fetchColumn()) {
+                    throw new \InvalidArgumentException('name_taken');
+                }
+
                 $repo  = new \BinktermPHP\AiBot\AiBotRepository($db);
                 $botId = $repo->createBot(array_merge($input, [
                     'name'     => $name,
@@ -5105,6 +5113,7 @@ PROMPT;
                     'name_invalid'    => ['errors.admin.ai_bots.name_invalid',    'Bot name must be 1–100 characters'],
                     'username_invalid'=> ['errors.admin.ai_bots.username_invalid', 'Username must be 1–50 alphanumeric/underscore characters'],
                     'username_taken'  => ['errors.admin.ai_bots.username_taken',   'Username is already taken'],
+                    'name_taken'      => ['errors.admin.ai_bots.name_taken',       'That bot name is already in use'],
                 ];
                 [$errCode, $fallback] = $map[$code] ?? ['errors.admin.ai_bots.create_failed', 'Failed to create bot'];
                 apiError($errCode, apiLocalizedText($errCode, $fallback));

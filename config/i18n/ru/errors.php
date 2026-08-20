@@ -727,6 +727,7 @@ return [
     'errors.admin.ai_bots.name_invalid' => 'Название бота должно содержать от 1 до 100 символов.',
     'errors.admin.ai_bots.username_invalid' => 'Имя пользователя должно содержать от 1 до 50 буквенно‑цифровых символов или символов подчёркивания.',
     'errors.admin.ai_bots.username_taken' => 'Такое имя пользователя уже занято.',
+    'errors.admin.ai_bots.name_taken' => 'Такое имя бота уже используется.',
     'errors.admin.ai_bots.create_failed' => 'Не удалось создать бота.',
     'errors.admin.ai_bots.update_failed' => 'Не удалось обновить бота.',
     'errors.admin.ai_bots.delete_failed' => 'Не удалось удалить бота.',

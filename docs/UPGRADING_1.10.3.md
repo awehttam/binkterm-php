@@ -5,6 +5,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
+- [Admin](#admin)
 - [FREQ](#freq)
 - [Activity Log](#activity-log)
 - [Address Book](#address-book)
@@ -19,6 +20,10 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
+
+### Admin
+
+- AI bot accounts created from now on have their display name recorded as the backing user's real name; previously it was left blank, which among other things made it impossible to convert a bot's backing account into a regular user later via **Admin → Manage Users** (the Real Name field there is read-only and had nothing to fall back on). Creating a bot whose name collides with an existing user's real name is now rejected with a clear error instead of a server error.
 
 ### FREQ
 
@@ -65,6 +70,16 @@ Make sure you have a current backup of your database and files before upgrading.
 - The SSH daemon now also supports the `curve25519-sha256` key exchange algorithm and the `aes256-ctr` cipher, in addition to the `diffie-hellman-group14-sha256`/`aes128-ctr` pair it already supported. Some SSH clients only implement one of these two algorithm sets, so a client whose supported algorithms didn't overlap with the server's previously-fixed offering could fail to connect entirely.
 - The telnet/SSH pre-login menu has a new **(T) Login and run terminal setup** option, letting a user force the terminal detection wizard to re-run right after login even if terminal settings were already saved, without needing a sysop to clear their saved settings first.
 - Fixed Page Up, Page Down, and End not working in scrollable panels (Shoutbox, message lists, file/FREQ browsers, etc.) for SyncTerm and ZOC users on a CP437-charset terminal.
+
+## Admin
+
+### AI Bot Accounts Now Get a Real Name
+
+When an AI bot is created (**Admin → AI Bots**), its display name is now also recorded as the real name on its backing system user account. Previously that account was created with no real name at all, which had no visible effect in the bot UI itself, but meant the account could never be converted into a regular user later via **Admin → Manage Users** — the Real Name field there is read-only, and with nothing to display it couldn't be filled in, so any save on that account failed with a 400 error.
+
+If a bot's display name would collide with another user's real name (comparison is case-insensitive, matching the existing rule that real names are unique), bot creation is now rejected up front with a clear "that bot name is already in use" error instead of a generic server error.
+
+This only affects bots created from now on. A bot account created before this release still has no real name; it gets backfilled the next time a bot is created reusing that same username (for example, deleting and recreating the bot).
 
 ## FREQ
 
