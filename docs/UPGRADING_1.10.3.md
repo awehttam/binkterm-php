@@ -5,7 +5,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
-- [Admin](#admin)
+- [AI Bot Admin](#ai-bot-admin)
 - [FREQ](#freq)
 - [Activity Log](#activity-log)
 - [Address Book](#address-book)
@@ -21,7 +21,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## Summary of Changes
 
-### Admin
+### AI Bot Admin
 
 - AI bot accounts created from now on have their display name recorded as the backing user's real name; previously it was left blank, which among other things made it impossible to convert a bot's backing account into a regular user later via **Admin → Manage Users** (the Real Name field there is read-only and had nothing to fall back on). Creating a bot whose name collides with an existing user's real name is now rejected with a clear error instead of a server error.
 
@@ -71,7 +71,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The telnet/SSH pre-login menu has a new **(T) Login and run terminal setup** option, letting a user force the terminal detection wizard to re-run right after login even if terminal settings were already saved, without needing a sysop to clear their saved settings first.
 - Fixed Page Up, Page Down, and End not working in scrollable panels (Shoutbox, message lists, file/FREQ browsers, etc.) for SyncTerm and ZOC users on a CP437-charset terminal.
 
-## Admin
+## AI Bot Admin
 
 ### AI Bot Accounts Now Get a Real Name
 
