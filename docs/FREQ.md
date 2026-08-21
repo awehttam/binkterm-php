@@ -103,7 +103,7 @@ This transport is gated behind `ENABLE_FREQ_EXPERIMENTAL` (default `false`) and 
 | `timestamp` | File is not newer than the timestamp requested in M_GET |
 | `not_available` | File record was found but the file is missing or unreadable on disk |
 
-All attempts (served and denied) are logged to the `freq_log` database table and visible in the admin FREQ log (see [Admin interface](#admin-interface)).
+All attempts (served and denied) are logged to the `freq_log` database table and visible in the admin FREQ Server Log (see [Admin interface](#admin-interface)).
 
 ---
 
@@ -224,7 +224,7 @@ Files that do not match any pending request are left in `data/inbound/` for `pro
 
 The BinkP Status page has a **FREQ Requests** tab showing the entire outbound `freq_requests_outbound` queue across all users (backed by `GET /api/freq/requests?all=1`): target node, filename(s), requesting user, mode (`req`/`mget`), status, attempt count, and submission time. Admins can delete any entry from here, same as a user deleting their own from [the web File Requests page](#web-interface).
 
-**FREQ Log** — `/admin/freq-log`
+**FREQ Server Log** — `/admin/freq-log`
 
 Displays all FREQ serving activity: requesting node address, filename requested, whether it was served or denied, denial reason, file size, source (binkp M_GET, .req, or netmail), and session ID. Useful for auditing what remote nodes are requesting and diagnosing why requests are being denied.
 
