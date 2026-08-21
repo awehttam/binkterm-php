@@ -364,8 +364,20 @@ try {
             $logger->log('WARNING', "Session complete but no files were received.");
             echo "Session complete — no files received.\n";
             if ($useGet) {
+                // M_GET is a live-session request per FSP-1011: a compliant
+                // remote responds within the same session (file or decline).
+                // Receiving nothing at all means the remote doesn't support
+                // M_GET FREQ or the file is unavailable — there is no future
+                // session to route an async response from, so this is failed
+                // the same as a decline, not left pending to retry forever.
+                $tracker->markFailed($requestId);
+                $logger->log('WARNING', "FREQ request id={$requestId} for {$address} received no M_GET response — marked failed, not retrying");
+                $exitCode = 1;
                 echo "The remote may not support binkp M_GET FREQ, or the file is unavailable.\n";
             } else {
+                // .req mode may legitimately be fulfilled asynchronously in a
+                // later session, so this stays pending (bounded by the normal
+                // FREQ_MAX_ATTEMPTS retry cap) rather than failing immediately.
                 echo "The remote may process the .req asynchronously — files will be routed on the next session.\n";
             }
         } else {
