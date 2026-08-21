@@ -3417,6 +3417,7 @@ return [
     'ui.binkp.hub_outbound.deleted' => '{count} elemento/i di coda eliminato/i',
     'ui.binkp.freq_requests_tab' => 'Richieste FREQ',
     'ui.binkp.freq_requests_heading' => 'Richieste FREQ in uscita',
+    'ui.binkp.freq_requests.view_log' => 'Visualizza registro FREQ',
     'ui.binkp.freq_requests.col_requester' => 'Richiesto da',
     'ui.binkp.freq_requests.empty' => 'Nessuna richiesta FREQ in coda.',
     'ui.binkp.freq_requests.load_failed' => 'Impossibile caricare le richieste FREQ',

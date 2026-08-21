@@ -3436,6 +3436,7 @@ return [
     'ui.binkp.hub_outbound.deleted' => 'Deleted {count} queue item(s)',
     'ui.binkp.freq_requests_tab' => 'FREQ Requests',
     'ui.binkp.freq_requests_heading' => 'Outbound FREQ Requests',
+    'ui.binkp.freq_requests.view_log' => 'View FREQ Log',
     'ui.binkp.freq_requests.col_requester' => 'Requested By',
     'ui.binkp.freq_requests.empty' => 'No FREQ requests in the queue.',
     'ui.binkp.freq_requests.load_failed' => 'Failed to load FREQ requests',

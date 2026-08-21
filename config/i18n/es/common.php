@@ -3418,6 +3418,7 @@ return [
     'ui.binkp.hub_outbound.deleted' => '{count} elemento(s) de cola eliminado(s)',
     'ui.binkp.freq_requests_tab' => 'Solicitudes FREQ',
     'ui.binkp.freq_requests_heading' => 'Solicitudes FREQ salientes',
+    'ui.binkp.freq_requests.view_log' => 'Ver registro FREQ',
     'ui.binkp.freq_requests.col_requester' => 'Solicitado por',
     'ui.binkp.freq_requests.empty' => 'No hay solicitudes FREQ en la cola.',
     'ui.binkp.freq_requests.load_failed' => 'No se pudieron cargar las solicitudes FREQ',

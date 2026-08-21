@@ -4551,6 +4551,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.binkp.kept_packets_register' => 'S\'enregistrer pour débloquer',
     'ui.binkp.freq_requests_tab' => 'Demandes FREQ',
     'ui.binkp.freq_requests_heading' => 'Demandes FREQ sortantes',
+    'ui.binkp.freq_requests.view_log' => 'Voir le journal FREQ',
     'ui.binkp.freq_requests.col_requester' => 'Demandé par',
     'ui.binkp.freq_requests.empty' => 'Aucune demande FREQ dans la file d\'attente.',
     'ui.binkp.freq_requests.load_failed' => 'Échec du chargement des demandes FREQ',

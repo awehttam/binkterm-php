@@ -3442,6 +3442,7 @@ return [
     'ui.binkp.hub_outbound.deleted' => 'Удалено элементов очереди: {count}',
     'ui.binkp.freq_requests_tab' => 'Запросы FREQ',
     'ui.binkp.freq_requests_heading' => 'Исходящие запросы FREQ',
+    'ui.binkp.freq_requests.view_log' => 'Просмотреть журнал FREQ',
     'ui.binkp.freq_requests.col_requester' => 'Запросил',
     'ui.binkp.freq_requests.empty' => 'В очереди нет запросов FREQ.',
     'ui.binkp.freq_requests.load_failed' => 'Не удалось загрузить запросы FREQ',

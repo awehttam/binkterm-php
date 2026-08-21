@@ -272,9 +272,14 @@
         <div class="tab-pane fade" id="freq-requests" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="mb-0">{{ t('ui.binkp.freq_requests_heading') }}</h5>
-                <button class="btn btn-sm btn-outline-primary" onclick="loadFreqRequestsAdmin()">
-                    <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
-                </button>
+                <div>
+                    <a href="/admin/freq-log" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-file-download"></i> {{ t('ui.binkp.freq_requests.view_log') }}
+                    </a>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadFreqRequestsAdmin()">
+                        <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
+                    </button>
+                </div>
             </div>
             <div class="card">
                 <div class="card-body p-0">
@@ -589,6 +594,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const tabButton = document.getElementById(`${deepLinkTab}-tab`);
         if (tabButton) {
             bootstrap.Tab.getOrCreateInstance(tabButton).show();
+            if (deepLinkTab === 'freq-requests') {
+                onFreqRequestsTabOpen();
+            }
         }
     }
 
