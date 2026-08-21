@@ -1567,6 +1567,7 @@ return [
     'ui.admin.crashmail_queue.cancel_failed_prefix' => 'No se pudo cancelar: ',
     'ui.admin.crashmail_queue.page_title' => 'Cola de crashmail - Admin',
     'ui.admin.crashmail_queue.heading' => 'Cola de crashmail',
+    'ui.admin.freq_log.heading' => 'Registro FREQ',
     'ui.admin.crashmail_queue.attempt_delivery' => 'Intentar entrega',
     'ui.admin.crashmail_queue.back_to_dashboard' => 'Volver al panel',
     'ui.admin.crashmail_queue.pending' => 'Pendiente',

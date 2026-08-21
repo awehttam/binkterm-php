@@ -1534,6 +1534,7 @@ return [
     'ui.admin.crashmail_queue.cancel_failed_prefix' => 'Failed to cancel: ',
     'ui.admin.crashmail_queue.page_title' => 'Crashmail Queue - Admin',
     'ui.admin.crashmail_queue.heading' => 'Crashmail Queue',
+    'ui.admin.freq_log.heading' => 'FREQ Log',
     'ui.admin.crashmail_queue.attempt_delivery' => 'Attempt Delivery',
     'ui.admin.crashmail_queue.back_to_dashboard' => 'Back to Dashboard',
     'ui.admin.crashmail_queue.pending' => 'Pending',

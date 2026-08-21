@@ -1554,6 +1554,7 @@ return [
     'ui.admin.crashmail_queue.cancel_failed_prefix' => 'Не удалось отменить: ',
     'ui.admin.crashmail_queue.page_title' => 'Очередь crashmail — Администратор',
     'ui.admin.crashmail_queue.heading' => 'Очередь crashmail',
+    'ui.admin.freq_log.heading' => 'Журнал FREQ',
     'ui.admin.crashmail_queue.attempt_delivery' => 'Выполнить доставку',
     'ui.admin.crashmail_queue.back_to_dashboard' => 'Вернуться на панель управления',
     'ui.admin.crashmail_queue.pending' => 'Ожидает',

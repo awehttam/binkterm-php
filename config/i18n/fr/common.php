@@ -1284,6 +1284,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.crashmail_queue.cancel_failed_prefix' => 'Échec de l\'annulation : ',
     'ui.admin.crashmail_queue.page_title' => 'File d\'attente Crashmail - Admin',
     'ui.admin.crashmail_queue.heading' => 'File d\'attente Crashmail',
+    'ui.admin.freq_log.heading' => 'Journal FREQ',
     'ui.admin.crashmail_queue.attempt_delivery' => 'Tenter la livraison',
     'ui.admin.crashmail_queue.back_to_dashboard' => 'Retour au tableau de bord',
     'ui.admin.crashmail_queue.pending' => 'En attente',

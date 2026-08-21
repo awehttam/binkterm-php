@@ -1514,6 +1514,7 @@ return [
     'ui.admin.crashmail_queue.cancel_failed_prefix' => 'Annullamento non riuscito: ',
     'ui.admin.crashmail_queue.page_title' => 'Coda crashmail - Admin',
     'ui.admin.crashmail_queue.heading' => 'Coda crashmail',
+    'ui.admin.freq_log.heading' => 'Registro FREQ',
     'ui.admin.crashmail_queue.attempt_delivery' => 'Tenta consegna',
     'ui.admin.crashmail_queue.back_to_dashboard' => 'Torna alla dashboard',
     'ui.admin.crashmail_queue.pending' => 'In sospeso',
