@@ -41,6 +41,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### BinkP
 
 - A subordinate node/point that self-registered more than one `hub_nodes` entry (for example one point address per network) now gets outbound mail, FREQ files, and hold-directory files for all of its own addresses delivered within a single session, instead of only whichever advertised AKA a session happened to authenticate against. Delivery to a secondary AKA is only allowed when that AKA's `hub_nodes` row shares the same account (`user_id`) as the authenticated address, so this never delivers a different subordinate's queued mail just because a connecting system listed that address alongside its own in the BinkP handshake.
+- The Downlink Queue tab on `/binkp` now shows the owning user's username under each self-registered point, both in the per-downlink summary list and the detail view heading.
 
 ### Dashboard
 
@@ -119,6 +120,10 @@ The panel now reads directly from your saved address book entries, with no unrel
 A subordinate node/point registered in **Admin → Downlinks** (`hub_nodes`) can advertise more than one FTN address (AKA) during a session's `M_ADR` handshake — for example a point that self-registered a separate point address per echomail network it carries. Previously, `BinkpSession` resolved the whole session down to a single address (the first advertised AKA that matched a known uplink or `hub_nodes` entry) and used only that one address to look up queued `hub_node_outbound` rows, `freq_outbound` rows, and hold-directory files. Mail, FREQ responses, or hold files queued under any of that subordinate's *other* registered addresses sat undelivered until a session happened to authenticate against that specific address instead.
 
 `BinkpSession` now delivers outbound for every AKA the remote advertised, as long as that AKA's `hub_nodes` row is registered under the same account (`hub_nodes.user_id`) as the address the session actually authenticated against. Since `M_ADR` is sent before authentication and is entirely remote-controlled, "the remote listed this address" is not by itself treated as proof of ownership — an AKA whose `hub_nodes` row has no owning account, or belongs to a different account, is never delivered to, even if it was named in the same handshake.
+
+### Downlink Queue Now Shows the Owning User
+
+The Downlink Queue tab on `/binkp` lists queued outbound packets grouped by downlink address. For a self-registered point (one tied to a local user account via `hub_nodes.user_id`), each row now also shows that account's username, both in the summary list and in the detail view's heading, making it easier to tell at a glance which of your users a given queue backlog belongs to. Downlinks with no owning account (nodes configured directly by the sysop) are unaffected and display as before.
 
 ## Dashboard
 

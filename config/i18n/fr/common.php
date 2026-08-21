@@ -2804,6 +2804,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.binkp.hub_outbound_tab' => 'File des Downlinks',
     'ui.binkp.hub_outbound_heading' => 'File de sortie des Downlinks',
     'ui.binkp.hub_outbound.downlink' => 'Downlink',
+    'ui.binkp.hub_outbound.owner' => 'Propriétaire : {username}',
     'ui.binkp.hub_outbound.type' => 'Type',
     'ui.binkp.hub_outbound.size' => 'Taille',
     'ui.binkp.hub_outbound.attempts' => 'Tentatives',

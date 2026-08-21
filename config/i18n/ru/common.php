@@ -3417,6 +3417,7 @@ return [
     'ui.binkp.hub_outbound_tab' => 'Очередь даунлинков',
     'ui.binkp.hub_outbound_heading' => 'Исходящая очередь даунлинков',
     'ui.binkp.hub_outbound.downlink' => 'Даунлинк',
+    'ui.binkp.hub_outbound.owner' => 'Владелец: {username}',
     'ui.binkp.hub_outbound.type' => 'Тип',
     'ui.binkp.hub_outbound.size' => 'Размер',
     'ui.binkp.hub_outbound.attempts' => 'Попытки',

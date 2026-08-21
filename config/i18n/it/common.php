@@ -3392,6 +3392,7 @@ return [
     'ui.binkp.hub_outbound_tab' => 'Coda Downlink',
     'ui.binkp.hub_outbound_heading' => 'Coda In Uscita Downlink',
     'ui.binkp.hub_outbound.downlink' => 'Downlink',
+    'ui.binkp.hub_outbound.owner' => 'Proprietario: {username}',
     'ui.binkp.hub_outbound.type' => 'Tipo',
     'ui.binkp.hub_outbound.size' => 'Dimensione',
     'ui.binkp.hub_outbound.attempts' => 'Tentativi',

@@ -3411,6 +3411,7 @@ return [
     'ui.binkp.hub_outbound_tab' => 'Downlink Queue',
     'ui.binkp.hub_outbound_heading' => 'Downlink Outbound Queue',
     'ui.binkp.hub_outbound.downlink' => 'Downlink',
+    'ui.binkp.hub_outbound.owner' => 'Owner: {username}',
     'ui.binkp.hub_outbound.type' => 'Type',
     'ui.binkp.hub_outbound.size' => 'Size',
     'ui.binkp.hub_outbound.attempts' => 'Attempts',

@@ -3393,6 +3393,7 @@ return [
     'ui.binkp.hub_outbound_tab' => 'Cola de Downlinks',
     'ui.binkp.hub_outbound_heading' => 'Cola de Salida de Downlinks',
     'ui.binkp.hub_outbound.downlink' => 'Downlink',
+    'ui.binkp.hub_outbound.owner' => 'Propietario: {username}',
     'ui.binkp.hub_outbound.type' => 'Tipo',
     'ui.binkp.hub_outbound.size' => 'Tamano',
     'ui.binkp.hub_outbound.attempts' => 'Intentos',

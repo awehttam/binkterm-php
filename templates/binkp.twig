@@ -1033,7 +1033,7 @@ function renderHubOutboundSummary(rows) {
     const nodes = new Map();
     rows.forEach(row => {
         if (!nodes.has(row.node_address)) {
-            nodes.set(row.node_address, { name: row.node_name || '', pending: 0, failed: 0, held: 0, total: 0 });
+            nodes.set(row.node_address, { name: row.node_name || '', owner: row.owner_username || '', pending: 0, failed: 0, held: 0, total: 0 });
         }
         const stats = nodes.get(row.node_address);
         stats.total++;
@@ -1045,7 +1045,7 @@ function renderHubOutboundSummary(rows) {
     const addresses = Array.from(nodes.keys()).sort();
     tbody.innerHTML = addresses.map(address => {
         const stats = nodes.get(address);
-        const downlink = `<code>${escapeHtml(address)}</code>${stats.name ? `<div class="small text-muted">${escapeHtml(stats.name)}</div>` : ''}`;
+        const downlink = `<code>${escapeHtml(address)}</code>${stats.name ? `<div class="small text-muted">${escapeHtml(stats.name)}</div>` : ''}${stats.owner ? `<div class="small text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.owner', 'Owner: {username}', { username: stats.owner }))}</div>` : ''}`;
         return `<tr class="hub-outbound-summary-row" style="cursor:pointer;" data-node-address="${escapeHtmlAttr(address)}">
             <td>${downlink}</td>
             <td>${stats.pending ? `<span class="badge bg-secondary">${stats.pending}</span>` : '0'}</td>
@@ -1087,7 +1087,10 @@ function showHubOutboundDetail(nodeAddress) {
     document.getElementById('hubOutboundDetailView').style.display = '';
 
     const row = hubOutboundRows.find(r => r.node_address === nodeAddress);
-    const label = row && row.node_name ? `${nodeAddress} - ${row.node_name}` : nodeAddress;
+    let label = row && row.node_name ? `${nodeAddress} - ${row.node_name}` : nodeAddress;
+    if (row && row.owner_username) {
+        label += ` (${uiT('ui.binkp.hub_outbound.owner', 'Owner: {username}', { username: row.owner_username })})`;
+    }
     document.getElementById('hubOutboundDetailHeading').textContent = label;
 
     const filtered = hubOutboundRows.filter(r => r.node_address === nodeAddress);
