@@ -2,7 +2,7 @@
 
 FidoNet FREQ (File Request) is a protocol that lets one node request specific files from another node over a binkp session. BinktermPHP supports FREQ in both directions: serving files to remote nodes that request them, and requesting files from remote nodes.
 
-Three FREQ transports are supported: Bark (`.req`) file requests, the most commonly used method; binkp `M_GET` (live-session FREQ per FSP-1011); and, experimentally, when explicitly enabled, legacy netmail-based requests.
+Three FREQ transports are supported: WaZOO (`.req`) file requests, the most commonly used method; binkp `M_GET` (live-session FREQ per FSP-1011); and, experimentally, when explicitly enabled, legacy netmail-based requests.
 
 ---
 
@@ -19,7 +19,7 @@ Three FREQ transports are supported: Bark (`.req`) file requests, the most commo
   - [When a remote declines the request](#when-a-remote-declines-the-request)
   - [Web interface](#web-interface)
   - [CLI: scripts/freq_getfile.php](#cli-scriptsfreq_getfilephp)
-  - [Bark .req file mode](#bark-req-file-mode)
+  - [WaZOO .req file mode](#wazoo-req-file-mode)
   - [binkp M_GET mode](#binkp-m_get-mode)
   - [Automatic retry](#automatic-retry)
 - [FREQ response routing](#freq-response-routing)
@@ -83,7 +83,7 @@ BinktermPHP accepts FREQ requests through three channels, all handled by `src/Fr
 
 During a binkp session the remote node sends an `M_GET` frame. `BinkpSession` parses it and calls `FreqResolver::resolve()`. If the file is found and all checks pass, it is sent immediately in the same session via `M_FILE`.
 
-**2. Bark `.req` file**
+**2. WaZOO `.req` file**
 
 The remote node transfers a file with a `.REQ` extension (named after its own net/node numbers, e.g. `007B01C8.REQ`). After the inbound files are received, `BinkpSession` detects the `.req` file and processes it through `FreqResolver`. Fulfilled files are queued in the `freq_outbound` table and sent during the same or a subsequent outbound session to that node.
 
@@ -160,7 +160,7 @@ By FTN convention, FREQ defaults to anonymous at the binkp session level, even w
 
 Leave `FREQ_AUTHENTICATE_UPLINKS` at its default (`false`) unless you specifically need it. Enabling it means anyone allowed to submit FREQs (see [`FREQ_ENABLE_INTERFACE`](#web-interface)) can request files "as the BBS" against a configured uplink, potentially reaching file areas that uplink gates by node address rather than by BinktermPHP user permissions.
 
-### Bark .req file mode
+### WaZOO .req file mode
 
 The default mode. A `.req` file is built in memory, written to a temp directory, and attached to the outbound binkp session. The remote processes the `.req` on receipt and queues the requested files for delivery. The remote may send them in the same session or in a subsequent session when it polls you.
 
@@ -176,7 +176,7 @@ With a password:
 php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
 ```
 
-The `.req` file format (FTS-0008) is plain text: an optional `!password` line followed by one filename per line, each terminated with `\r\n`.
+The `.req` file format (FTS-0006) is plain text: an optional `!password` line followed by one filename per line, each terminated with `\r\n`.
 
 The conventional filename is eight uppercase hex digits derived from the remote's net and node numbers (e.g. net=0x007B, node=0x01C8 → `007B01C8.REQ`).
 

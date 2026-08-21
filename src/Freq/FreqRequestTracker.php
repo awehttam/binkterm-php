@@ -23,7 +23,7 @@ class FreqRequestTracker
      * @param string   $nodeAddress    FTN address of the remote node
      * @param string[] $requestedFiles List of filenames / magic names requested
      * @param int      $userId         ID of the user who initiated the request
-     * @param string   $mode           'req' (Bark .req file) or 'mget' (M_GET)
+     * @param string   $mode           'req' (WaZOO .req file) or 'mget' (M_GET)
      * @return int New record ID
      */
     public function recordRequest(string $nodeAddress, array $requestedFiles, int $userId, string $mode = 'req'): int
