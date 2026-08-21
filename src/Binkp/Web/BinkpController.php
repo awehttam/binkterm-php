@@ -319,10 +319,12 @@ class BinkpController
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare("
                 SELECT hno.id, hno.hub_node_id, hn.node_address, hn.name AS node_name, hn.node_type,
+                       u.username AS owner_username,
                        hno.message_type, hno.status, hno.size_bytes, hno.priority, hno.attempts,
                        hno.created_at, hno.next_attempt_at, hno.sent_at, hno.error_message
                 FROM hub_node_outbound hno
                 JOIN hub_nodes hn ON hn.id = hno.hub_node_id
+                LEFT JOIN users u ON u.id = hn.user_id
                 ORDER BY hno.created_at DESC
                 LIMIT ?
             ");

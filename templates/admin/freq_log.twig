@@ -1,11 +1,14 @@
-{% extends getBaseTemplate() %}
+{% extends "base.twig" %}
 
-{% block title %}FREQ Log — Admin{% endblock %}
+{% block title %}FREQ Server Log — Admin{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
-    <div class="d-flex align-items-center mb-3">
-        <h2 class="mb-0"><i class="fas fa-file-download me-2"></i>FREQ Log</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0"><i class="fas fa-file-download me-2"></i>FREQ Server Log</h2>
+        <a href="/binkp?tab=freq-requests" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-list"></i> View Outbound FREQ Requests
+        </a>
     </div>
 
     {# Filters #}
@@ -109,11 +112,31 @@ function renderTable(entries) {
 function renderPager(total, perPage, page) {
     const pages = Math.ceil(total / perPage);
     if (pages <= 1) { $('#freqLogPager').html(''); return; }
+
+    const pageBtn = (n) => `<li class="page-item ${n === page ? 'active' : ''}">
+        <a class="page-link" href="#" onclick="loadFreqLog(${n});return false;">${n}</a></li>`;
+    const ellipsis = '<li class="page-item disabled"><span class="page-link">&hellip;</span></li>';
+
     let html = '<nav><ul class="pagination pagination-sm">';
-    for (let i = 1; i <= pages; i++) {
-        html += `<li class="page-item ${i === page ? 'active' : ''}">
-            <a class="page-link" href="#" onclick="loadFreqLog(${i});return false;">${i}</a></li>`;
+
+    if (page > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="loadFreqLog(${page - 1});return false;">Previous</a></li>`;
     }
+
+    const shown = new Set([1, pages]);
+    for (let i = Math.max(1, page - 2); i <= Math.min(pages, page + 2); i++) shown.add(i);
+
+    let prev = 0;
+    [...shown].sort((a, b) => a - b).forEach(p => {
+        if (prev && p - prev > 1) html += ellipsis;
+        html += pageBtn(p);
+        prev = p;
+    });
+
+    if (page < pages) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="loadFreqLog(${page + 1});return false;">Next</a></li>`;
+    }
+
     html += '</ul></nav>';
     $('#freqLogPager').html(html);
 }

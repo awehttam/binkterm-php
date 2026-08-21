@@ -252,9 +252,13 @@ class NodelistManager
     
     public function getNetsByZone($zone)
     {
+        if (!is_numeric($zone)) {
+            return [];
+        }
+
         $sql = "SELECT DISTINCT net FROM nodelist WHERE zone = ? ORDER BY net";
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([$zone]);
+        $stmt->execute([(int)$zone]);
         
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
@@ -272,9 +276,13 @@ class NodelistManager
 
     public function getNodesByZoneNet($zone, $net)
     {
+        if (!is_numeric($zone) || !is_numeric($net)) {
+            return [];
+        }
+
         $sql = "SELECT * FROM nodelist WHERE zone = ? AND net = ? ORDER BY node, point";
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([$zone, $net]);
+        $stmt->execute([(int)$zone, (int)$net]);
         
         return $this->processNodeResults($stmt->fetchAll());
     }

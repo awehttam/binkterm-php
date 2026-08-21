@@ -90,13 +90,24 @@ self.onconnect = function (e) {
     }
 };
 
+function hasLiveTransport() {
+    return (!!ws && ws.readyState === WebSocket.OPEN) || (!!es && es.readyState === EventSource.OPEN);
+}
+
 function initializeConfig(config) {
     const rawTransportMode = String(config.transportMode || 'sse');
     const rawPreferredTransportMode = String(config.preferredTransportMode || 'sse');
     const mode = String(config.transportMode || 'sse').toLowerCase();
     transportMode = ['auto', 'sse', 'ws'].includes(mode) ? mode : 'sse';
     const preferred = String(config.preferredTransportMode || 'sse').toLowerCase();
-    preferredTransportMode = ['sse', 'ws'].includes(preferred) ? preferred : 'sse';
+    const incomingPreferredTransportMode = ['sse', 'ws'].includes(preferred) ? preferred : 'sse';
+    // Only adopt a newly-connecting tab's preferred transport when nothing is
+    // live yet. A later page render's preference (e.g. a stale/transient
+    // daemon-availability read) must not tear down a transport that is
+    // already up and working for the tabs already attached to this worker.
+    if (!hasLiveTransport()) {
+        preferredTransportMode = incomingPreferredTransportMode;
+    }
     wsUrl = typeof config.wsUrl === 'string' ? config.wsUrl : '';
     csrfToken = typeof config.csrfToken === 'string' ? config.csrfToken : '';
     // Seed the cursor from the client's persisted value if the worker doesn't

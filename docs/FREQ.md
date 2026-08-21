@@ -2,7 +2,7 @@
 
 FidoNet FREQ (File Request) is a protocol that lets one node request specific files from another node over a binkp session. BinktermPHP supports FREQ in both directions: serving files to remote nodes that request them, and requesting files from remote nodes.
 
-Three FREQ transports are supported: Bark (`.req`) file requests, the most commonly used method; binkp `M_GET` (live-session FREQ per FSP-1011); and, experimentally, when explicitly enabled, legacy netmail-based requests.
+Three FREQ transports are supported: WaZOO (`.req`) file requests, the most commonly used method; binkp `M_GET` (live-session FREQ per FSP-1011); and, experimentally, when explicitly enabled, legacy netmail-based requests.
 
 ---
 
@@ -19,7 +19,7 @@ Three FREQ transports are supported: Bark (`.req`) file requests, the most commo
   - [When a remote declines the request](#when-a-remote-declines-the-request)
   - [Web interface](#web-interface)
   - [CLI: scripts/freq_getfile.php](#cli-scriptsfreq_getfilephp)
-  - [Bark .req file mode](#bark-req-file-mode)
+  - [WaZOO .req file mode](#wazoo-req-file-mode)
   - [binkp M_GET mode](#binkp-m_get-mode)
   - [Automatic retry](#automatic-retry)
 - [FREQ response routing](#freq-response-routing)
@@ -83,13 +83,15 @@ BinktermPHP accepts FREQ requests through three channels, all handled by `src/Fr
 
 During a binkp session the remote node sends an `M_GET` frame. `BinkpSession` parses it and calls `FreqResolver::resolve()`. If the file is found and all checks pass, it is sent immediately in the same session via `M_FILE`.
 
-**2. Bark `.req` file**
+**2. WaZOO `.req` file**
 
 The remote node transfers a file with a `.REQ` extension (named after its own net/node numbers, e.g. `007B01C8.REQ`). After the inbound files are received, `BinkpSession` detects the `.req` file and processes it through `FreqResolver`. Fulfilled files are queued in the `freq_outbound` table and sent during the same or a subsequent outbound session to that node.
 
-**3. Netmail FREQ**
+**3. Netmail FREQ (experimental)**
 
 A remote node sends a netmail with `is_freq = true`. The subject line contains one or more space-separated filenames (or magic names). An optional password may appear on the first non-blank, non-kludge line of the message body. `FreqResolver::processNetmailFreq()` resolves each filename and delivers fulfilled files back to the requesting node as netmail FILE_ATTACH messages via `MessageHandler::deliverFreqResponse()`.
+
+This transport is gated behind `ENABLE_FREQ_EXPERIMENTAL` (default `false`) and not recommended. In our own testing we have yet to find a live site that actually responds to a netmail-based FREQ. Use WaZOO `.req` file requests instead — it's the transport almost every FTN mailer actually implements and expects.
 
 ### Denial reasons
 
@@ -101,7 +103,7 @@ A remote node sends a netmail with `is_freq = true`. The subject line contains o
 | `timestamp` | File is not newer than the timestamp requested in M_GET |
 | `not_available` | File record was found but the file is missing or unreadable on disk |
 
-All attempts (served and denied) are logged to the `freq_log` database table and visible in the admin FREQ log (see [Admin interface](#admin-interface)).
+All attempts (served and denied) are logged to the `freq_log` database table and visible in the admin FREQ Server Log (see [Admin interface](#admin-interface)).
 
 ---
 
@@ -113,19 +115,9 @@ Every request — whether submitted via the web or the CLI — is recorded in th
 
 ### When a remote declines the request
 
-Some remote FREQ handlers respond to a declined request (file not found, no access, etc.) by sending back a netmail explaining why, instead of — or in addition to — the requested file. `scripts/freq_getfile.php` detects this case: if a session receives only FidoNet infrastructure files (a `.pkt`, `.tic`, etc.) and no file matching the request, the request is marked `failed` immediately instead of being retried against a remote that has already declined it.
+Some remote FREQ handlers respond to a declined request (file not found, no access, etc.) by sending back a netmail explaining why, instead of — or in addition to — the requested file. `scripts/freq_getfile.php` detects this case: if a session receives a `.pkt` and no file matching the request, the request is marked `failed` immediately instead of being retried against a remote that has already declined it. A session that receives only other infrastructure files (e.g. a `.tic` with no `.pkt`) does not trigger this and is left `pending` for the normal retry loop.
 
 The bounce netmail itself is deliberately **not** inspected, redirected, or copied anywhere by this feature. It is left untouched for `scripts/process_packets.php` to deliver exactly as it always has, normally to the sysop. Requesting users are not notified of *why* a request failed beyond its status changing to `failed` in the File Requests list.
-
-> ⚠️ **A theoretical, unproven risk to weigh before enabling this:**
->
-> A remote node can deliver `.pkt` files during a FREQ session that have nothing to do with the request itself — this is more likely if that node is also one of your uplinks or downlinks, since it may have other mail queued for you regardless of the FREQ.
->
-> `freq_getfile.php` has no way to distinguish an unrelated packet like that from a report the remote's own FREQ handler generated specifically for this request (e.g. the decline bounce above).
->
-> Because the two can't be told apart, we don't act specially on any `.pkt` received during a FREQ session — including redirecting the remote's own FREQ report to the requesting user, which is otherwise exactly what we'd want to do. Everything is left for the normal packet-processing path to handle exactly as it always has, typically delivered to the sysop.
->
-> We have not observed this actually causing a problem in practice, and it may never come up — but the safe default costs a declined request going unexplained to the user, in exchange for zero risk of exposing unrelated mail to the wrong person. Whether that trade-off is worth it is a judgment call for each sysop to make when deciding whether to enable this feature at all (see [Configuration reference](#configuration-reference) below).
 
 ### Web interface
 
@@ -140,7 +132,7 @@ Any logged-in user can submit a request under **Files → File Requests** (`/fil
 
 Submitting spawns the same `scripts/freq_getfile.php` flow used by the CLI, via the admin daemon (`AdminDaemonClient::freqRequest()`), so behavior is identical either way. A request's status is `pending` until a matching file is routed (`complete`) or its attempts are exhausted (`failed`).
 
-This is **disabled by default**. Set `FREQ_ENABLE_INTERFACE=true` to make it available to any logged-in user, or `FREQ_ENABLE_INTERFACE=sysop` to restrict it to admin accounts only. It defaults off so a sysop opts in deliberately, after reading [When a remote declines the request](#when-a-remote-declines-the-request) above and deciding whether that behavior — and who should be allowed to trigger it — is acceptable for their site. See [Configuration reference](#configuration-reference) for the per-user concurrency limit and retry settings.
+This is **disabled by default**. Set `FREQ_ENABLE_INTERFACE=true` to make it available to any logged-in user, or `FREQ_ENABLE_INTERFACE=sysop` to restrict it to admin accounts only. See [Configuration reference](#configuration-reference) for the per-user concurrency limit and retry settings.
 
 ### Terminal server (telnet/SSH)
 
@@ -152,11 +144,17 @@ If the BBS already has a **custom** main menu key map saved (i.e. any key was ev
 
 ### CLI: scripts/freq_getfile.php
 
+`freq_getfile.php` and `scripts/freq_pickup.php` don't normally need to be run by hand — the web/terminal File Requests UI and `binkp_scheduler`'s retry loop already shell out to `freq_getfile.php` as needed. Running either script manually is mainly for special cases: testing a request against a specific host/port, forcing an authenticated session, or picking up files a remote queued for you because it couldn't reach you via crashmail (`freq_pickup.php`).
+
 ```
 php scripts/freq_getfile.php [options] <address> <filename> [filename2 ...]
 ```
 
-### Bark .req file mode
+By FTN convention, FREQ defaults to anonymous at the binkp session level, even when `<address>` matches one of our own configured uplinks: no uplink/hub-node session password or CRAM-MD5 is used automatically. Pass `--authenticated` to opt into using that uplink's real session credentials for a single run, or set `FREQ_AUTHENTICATE_UPLINKS=true` in `.env` to make that the default everywhere (including the web/terminal File Requests UI, which shells out to this script) — `--anonymous` forces an anonymous session regardless of that setting. This is independent of `--password`, which supplies the FREQ *area* password carried inside the `.req`/`M_GET` request itself.
+
+Leave `FREQ_AUTHENTICATE_UPLINKS` at its default (`false`) unless you specifically need it. Enabling it means anyone allowed to submit FREQs (see [`FREQ_ENABLE_INTERFACE`](#web-interface)) can request files "as the BBS" against a configured uplink, potentially reaching file areas that uplink gates by node address rather than by BinktermPHP user permissions.
+
+### WaZOO .req file mode
 
 The default mode. A `.req` file is built in memory, written to a temp directory, and attached to the outbound binkp session. The remote processes the `.req` on receipt and queues the requested files for delivery. The remote may send them in the same session or in a subsequent session when it polls you.
 
@@ -172,7 +170,7 @@ With a password:
 php scripts/freq_getfile.php --password=SECRET 1:123/456 MYFILE.ZIP
 ```
 
-The `.req` file format (FTS-0008) is plain text: an optional `!password` line followed by one filename per line, each terminated with `\r\n`.
+The `.req` file format (FTS-0006) is plain text: an optional `!password` line followed by one filename per line, each terminated with `\r\n`.
 
 The conventional filename is eight uppercase hex digits derived from the remote's net and node numbers (e.g. net=0x007B, node=0x01C8 → `007B01C8.REQ`).
 
@@ -193,6 +191,8 @@ php scripts/freq_getfile.php -g 1:123/456 ALLFILES
 | `--password=PASS` | Area password required by the remote node |
 | `--hostname=HOST` | Override hostname; skip nodelist/DNS lookup |
 | `--port=PORT` | Override port (default 24554) |
+| `--authenticated` | Use the configured uplink's real session password/CRAM-MD5 when `<address>` matches one of our uplinks, instead of connecting anonymously. Overrides `FREQ_AUTHENTICATE_UPLINKS` for this run |
+| `--anonymous` | Force an anonymous session even if `FREQ_AUTHENTICATE_UPLINKS=true` |
 | `--request-id=ID` | Attach this run to an existing `freq_requests_outbound` row instead of creating a new one (used internally by the web API and the scheduled retry job) |
 | `--log-level=LVL` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` (default `INFO`) |
 | `--log-file=FILE` | Log file path (default: `data/logs/freq_getfile.log`) |
@@ -224,7 +224,7 @@ Files that do not match any pending request are left in `data/inbound/` for `pro
 
 The BinkP Status page has a **FREQ Requests** tab showing the entire outbound `freq_requests_outbound` queue across all users (backed by `GET /api/freq/requests?all=1`): target node, filename(s), requesting user, mode (`req`/`mget`), status, attempt count, and submission time. Admins can delete any entry from here, same as a user deleting their own from [the web File Requests page](#web-interface).
 
-**FREQ Log** — `/admin/freq-log`
+**FREQ Server Log** — `/admin/freq-log`
 
 Displays all FREQ serving activity: requesting node address, filename requested, whether it was served or denied, denial reason, file size, source (binkp M_GET, .req, or netmail), and session ID. Useful for auditing what remote nodes are requesting and diagnosing why requests are being denied.
 
@@ -238,11 +238,12 @@ Logged-in users see a **Request File** button on the node detail page (when `FRE
 
 | Setting | Default | Description |
 |---|---|---|
-| `ENABLE_FREQ_EXPERIMENTAL` | `false` | Set to `true` to show the older netmail-based FREQ (`is_freq`) option in the netmail compose form. Prefer `.req`/`M_GET` via the [web File Requests page](#web-interface) or `freq_getfile.php` instead |
+| `ENABLE_FREQ_EXPERIMENTAL` | `false` | Set to `true` to show the older netmail-based FREQ (`is_freq`) option in the netmail compose form. Not recommended — in our testing no live site has ever responded to a netmail FREQ. Prefer `.req`/`M_GET` via the [web File Requests page](#web-interface) or `freq_getfile.php` instead |
 | `FREQ_ENABLE_INTERFACE` | `false` | `true` shows the File Requests page and enables its API for any logged-in user; `sysop` restricts it to admin accounts; `false` disables it entirely. See [When a remote declines the request](#when-a-remote-declines-the-request) before enabling |
 | `FREQ_MAX_CONCURRENT_PER_USER` | `2` | Maximum number of requests a single user may have in progress at once |
 | `FREQ_MAX_ATTEMPTS` | `5` | Number of retry attempts before an unfulfilled request is marked `failed` |
 | `FREQ_POLL_INTERVAL` | `300` | Seconds between automatic retry attempts for a pending request |
+| `FREQ_AUTHENTICATE_UPLINKS` | `false` | `true` makes outbound FREQ automatically use a matching configured uplink's real session password/CRAM-MD5 instead of connecting anonymously. See [CLI: scripts/freq_getfile.php](#cli-scriptsfreq_getfilephp) before enabling |
 
 File area FREQ settings are configured per-area in **Admin → File Areas**:
 

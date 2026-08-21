@@ -150,14 +150,19 @@ class AiBotRepository
 
             if ($existingId !== false) {
                 $userId = (int)$existingId;
+                // Backfill real_name for system users created before this was tracked.
+                $stmt = $this->db->prepare("
+                    UPDATE users SET real_name = ? WHERE id = ? AND real_name IS NULL
+                ");
+                $stmt->execute([$data['name'], $userId]);
             } else {
                 $lockedHash = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
                 $stmt = $this->db->prepare("
-                    INSERT INTO users (username, password_hash, is_active, is_system)
-                    VALUES (?, ?, TRUE, TRUE)
+                    INSERT INTO users (username, password_hash, real_name, is_active, is_system)
+                    VALUES (?, ?, ?, TRUE, TRUE)
                     RETURNING id
                 ");
-                $stmt->execute([$data['username'], $lockedHash]);
+                $stmt->execute([$data['username'], $lockedHash, $data['name']]);
                 $userId = (int)$stmt->fetch(\PDO::FETCH_ASSOC)['id'];
             }
 

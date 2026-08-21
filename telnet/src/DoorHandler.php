@@ -183,9 +183,12 @@ class DoorHandler
         $this->resetTerminalAfterDoor($conn);
 
         // Door sessions can also leave buffered keystrokes or trailing TELNET
-        // chatter queued on the client socket. Drain anything already readable
-        // now so the next termserver screen does not consume phantom input.
-        $this->drainPendingInput($conn, $state);
+        // chatter queued on the client socket, or straggling replies to a
+        // request the door itself made right before exiting (see the docblock
+        // on drainPendingInput()). Wait up to 250ms of quiet, capped at 1.5s
+        // total, so those stragglers are absorbed instead of confusing the
+        // next termserver screen.
+        $this->drainPendingInput($conn, $state, 250000, 1500000);
 
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, '');
@@ -428,15 +431,27 @@ class DoorHandler
     }
 
     /**
-     * Discard any telnet-side input that is already queued without blocking.
+     * Discard any telnet-side input that is already queued, or arrives shortly
+     * after, without blocking the session indefinitely.
      *
      * After a DOS door exits, some clients leave trailing keypresses or protocol
      * bytes readable on the socket. If we do not clear them here, the next BBS
      * menu or submenu can immediately consume them and appear to auto-exit.
      *
+     * Some doors also have their own in-flight request/response chatter with the
+     * client that is still outstanding at exit — e.g. SyncDOOM asks the terminal
+     * to confirm each rendered frame and paces itself on that round-trip, so a
+     * player quitting on a laggy link can leave several confirmations still in
+     * transit. Those replies land on the socket a beat after the door is gone
+     * and, undrained, get misread as garbage keystrokes by the next screen,
+     * which is what makes the following menu look unresponsive. $idleMicros
+     * keeps this call open (bounded by $maxTotalMicros) for a short quiet
+     * window after the door exits so those stragglers get absorbed too; leave
+     * both at 0 for the original instantaneous, single-pass drain.
+     *
      * @param resource $conn
      */
-    private function drainPendingInput($conn, array &$state): void
+    private function drainPendingInput($conn, array &$state, int $idleMicros = 0, int $maxTotalMicros = 0): void
     {
         if (!is_resource($conn)) {
             return;
@@ -446,11 +461,15 @@ class DoorHandler
         $previousBlocking = (bool)($meta['blocked'] ?? true);
         stream_set_blocking($conn, false);
 
+        $deadline = $maxTotalMicros > 0 ? microtime(true) + ($maxTotalMicros / 1_000_000) : null;
+        $timeoutSec = intdiv($idleMicros, 1_000_000);
+        $timeoutUsec = $idleMicros % 1_000_000;
+
         try {
             while (true) {
                 $read = [$conn];
                 $write = $except = null;
-                $ready = @stream_select($read, $write, $except, 0, 0);
+                $ready = @stream_select($read, $write, $except, $timeoutSec, $timeoutUsec);
                 if ($ready === false || $ready === 0) {
                     break;
                 }
@@ -466,6 +485,10 @@ class DoorHandler
                 // Reuse the door input parser so NAWS updates are still applied
                 // while all buffered keystrokes are discarded.
                 $this->processTelnetInput($raw, $state);
+
+                if ($deadline !== null && microtime(true) >= $deadline) {
+                    break;
+                }
             }
         } finally {
             stream_set_blocking($conn, $previousBlocking);
@@ -488,11 +511,40 @@ class DoorHandler
             return;
         }
 
+        // Disable SyncTERM/CTerm physical key event reporting AND restore normal
+        // translated key input, first, before anything else. Per the CTerm manual:
+        // CSI=1h enables physical key press/release reports (keystrokes arrive as
+        // ESC[=<evdev-code>K / ...k instead of normal characters); CSI=2h
+        // separately suppresses normal translated key input, which the manual
+        // notes can be left enabled *alongside* CSI=1h. A door that needs real
+        // key-up events for movement (e.g. SyncDOOM) can enable both together.
+        // Disabling only CSI=1 (as an earlier version of this fix did) leaves
+        // translated input suppressed, so no keystrokes reach the server at all
+        // afterward -- not even the discarded chatter that let earlier read loops
+        // register *something* was pressed. Both must be turned off. Harmless
+        // no-op on terminals that don't implement this CTerm extension.
+        TelnetUtils::safeWrite($conn, "\033[=1l\033[=2l");
+
+        // End any still-open synchronized-output batch (DECSET 2026) next. Frame-based doors (e.g. SyncDOOM) commonly wrap each
+        // rendered frame in a begin/end pair so the terminal paints it atomically;
+        // if the door exits between the begin and the matching end, a terminal
+        // that supports this mode holds every subsequent write in an unflushed
+        // buffer forever, making the client look completely frozen. Unsupported
+        // on a given terminal, this is a harmless no-op private-mode reset.
+        TelnetUtils::safeWrite($conn, "\033[?2026l");
+
         // End any stray DCS/sixel payload still being parsed.
         TelnetUtils::safeWrite($conn, "\033\\");
 
         // Leave alternate screen buffers before we clear/redraw the normal BBS UI.
         TelnetUtils::safeWrite($conn, "\033[?1049l\033[?1048l\033[?1047l");
+
+        // Turn off xterm-mouse reporting and bracketed paste. Some doors (e.g.
+        // SyncDOOM's steer/follow mouse-look) enable these for gameplay; if a
+        // client like SyncTERM is left with mouse tracking on, subsequent
+        // clicks/movement are swallowed as mouse escape sequences instead of
+        // reaching the next BBS menu.
+        TelnetUtils::safeWrite($conn, "\033[?1000l\033[?1002l\033[?1003l\033[?1005l\033[?1006l\033[?1015l\033[?2004l");
 
         // DECSTR soft reset plus a few explicit "normal mode" toggles that doors
         // commonly disturb.

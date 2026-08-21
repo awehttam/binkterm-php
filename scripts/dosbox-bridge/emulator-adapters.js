@@ -597,11 +597,17 @@ class NativeAdapter extends EmulatorAdapter {
         const dropfileName = dropfileFormat === 'DOOR32.SYS' ? 'DOOR32.SYS' : 'DOOR.SYS';
         const dropfileFull = path.join(dropPath, dropfileName);
 
+        // Per-user, per-door private directory for doors that keep their own state
+        // (save games, per-user config overlays, etc.), e.g. SyncDOOM's "-home".
+        // Created on demand — a door should never have to check for its own existence.
+        const homeDir = path.join(this.basePath, 'data', 'users', String(sessionData.user_id || 'guest'), door_id);
+        fs.mkdirSync(homeDir, { recursive: true });
+
         // Determine output encoding (cp437 for legacy DOS-style doors, utf8 for modern)
         this.outputEncoding = (manifest.door && manifest.door.output_encoding) || 'utf8';
         const ptyEncoding = this.outputEncoding === 'cp437' ? 'binary' : 'utf8';
 
-        // Build launch command - replace {node}, {dropfile}, and {user_number} placeholders
+        // Build launch command - replace {node}, {dropfile}, {user_number}, and {homedir} placeholders
         // On Windows, prefer launch_command_windows (e.g. WSL via wsl.exe) over the Linux bash command
         const isWindows = process.platform === 'win32';
         let launchCmd = (isWindows && manifest.door.launch_command_windows)
@@ -610,6 +616,7 @@ class NativeAdapter extends EmulatorAdapter {
         launchCmd = launchCmd.replace(/\{node\}/g, String(node_number));
         launchCmd = launchCmd.replace(/\{dropfile\}/g, dropfileFull);
         launchCmd = launchCmd.replace(/\{user_number\}/g, String(sessionData.user_id || ''));
+        launchCmd = launchCmd.replace(/\{homedir\}/g, homeDir);
 
         // Resolve ${VAR:-default} environment variable references in the launch command.
         // This lets manifest commands reference .env variables without shell interpretation.
@@ -644,17 +651,24 @@ class NativeAdapter extends EmulatorAdapter {
         const args = argv;
         const doorDir = path.join(this.basePath, 'native-doors', 'doors', door_id);
 
-        // On Windows, node-pty doesn't search PATH reliably — resolve bare command
-        // names to absolute paths using `where.exe`. Skip if the command already
-        // contains a path separator (absolute or relative path).
-        if (isWindows && !cmd.includes('/') && !cmd.includes('\\')) {
-            try {
-                const whereResult = require('child_process').spawnSync('where', [cmd], { encoding: 'utf8' });
-                if (whereResult.status === 0) {
-                    cmd = whereResult.stdout.split(/\r?\n/)[0].trim();
+        // A bare command name (no path separator) is not resolved against `cwd`
+        // by node-pty/execvp — only against PATH. Since a door's executable
+        // normally lives alongside its manifest, check the door's own directory
+        // first so a manifest can say "syncdoom" instead of "./syncdoom". Fall
+        // back to a PATH search (Windows only, via `where.exe`) if it's not there.
+        if (!cmd.includes('/') && !cmd.includes('\\')) {
+            const localPath = path.join(doorDir, cmd);
+            if (fs.existsSync(localPath)) {
+                cmd = localPath;
+            } else if (isWindows) {
+                try {
+                    const whereResult = require('child_process').spawnSync('where', [cmd], { encoding: 'utf8' });
+                    if (whereResult.status === 0) {
+                        cmd = whereResult.stdout.split(/\r?\n/)[0].trim();
+                    }
+                } catch (e) {
+                    slog.warn(`[${this.getName()}] Could not resolve path for '${cmd}':`, e.message);
                 }
-            } catch (e) {
-                slog.warn(`[${this.getName()}] Could not resolve path for '${cmd}':`, e.message);
             }
         }
 
@@ -671,6 +685,7 @@ class NativeAdapter extends EmulatorAdapter {
             DOOR_NODE: String(node_number),
             DOOR_BBS_NAME: userData.bbs_name || 'BinktermPHP BBS',
             DOOR_DROPFILE: dropfileFull,
+            DOOR_HOME: homeDir,
             DOOR_ANSI: '1',
             TERM: 'xterm-256color'
         };

@@ -6,6 +6,7 @@ return [
     'ui.terminalserver.server.login_menu.login' => '  (L) Se connecter à un compte existant',
     'ui.terminalserver.server.login_menu.reset_password' => '  (R) Réinitialiser un mot de passe perdu',
     'ui.terminalserver.server.login_menu.register' => '  (N) Créer un nouveau compte',
+    'ui.terminalserver.server.login_menu.login_setup' => '  (T) Se connecter et exécuter la configuration du terminal',
     'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) Transfert QWK',
     'ui.terminalserver.server.login_menu.quit' => '  (Q) Quitter',
     'ui.terminalserver.server.login_menu.choice' => 'Votre choix : ',

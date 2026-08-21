@@ -362,6 +362,7 @@ Before authenticating, users are shown a pre-login menu:
 - **L** — Login to existing account
 - **R** — Reset lost password
 - **N** — Register a new account
+- **T** — Login and run terminal setup (forces the terminal detection wizard to re-run after login, even if settings were already saved)
 - **K** — QWK transfer (only shown when QWK is enabled)
 - **Q** — Quit / disconnect
 
@@ -369,7 +370,7 @@ New users who register while **Require approval for new users** is enabled in **
 
 ### Terminal Detection Wizard
 
-On first login, if the user has no saved terminal settings, the server runs an auto-detection wizard that tests character set support and color capability, then saves the results. This wizard is skipped on subsequent sessions once settings are stored.
+On first login, if the user has no saved terminal settings, the server runs an auto-detection wizard that tests character set support and color capability, then saves the results. This wizard is skipped on subsequent sessions once settings are stored. Users can force it to run again at any time by choosing **T** at the login menu instead of **L**.
 
 The normal terminal settings screen is part of the shared tabbed settings UI, but the detection wizard itself intentionally remains a simple prompt-driven flow across all shells. This keeps first-run terminal detection working even when full shell rendering cannot yet be assumed to work correctly.
 
