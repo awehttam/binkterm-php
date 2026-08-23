@@ -20,7 +20,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ## RLogin Doors
 
-BinktermPHP can now link out to a remote BBS or service over the rlogin protocol (RFC 1282) as a new door type, alongside DOS Doors and Native Doors. This lets users reach a separate system — most commonly a Synchronet BBS — without leaving their BinktermPHP terminal session.
+BinktermPHP can now link out to a remote BBS or service over the rlogin protocol (RFC 1282) as a new door type, alongside DOS Doors and Native Doors. This lets users reach a separate system — such as a Synchronet BBS — without leaving their BinktermPHP terminal session.
 
 Unlike the other door types, RLogin doors have no filesystem footprint — there's no executable or manifest directory, just connection settings. Because of that, RLogin doors are stored directly in a new `rlogin_doors` database table rather than as manifest/config files, and are managed through a dedicated **Admin → RLogin Doors** page with a standard add/edit/delete form — including uploading a custom icon and screenshot for each door, stored directly in the database.
 
