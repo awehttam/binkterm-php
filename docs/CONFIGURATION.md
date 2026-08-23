@@ -534,6 +534,7 @@ A documented example is provided in `config/bbs.json.example`.
 | `config/webdoors.json` | WebDoor game settings and enable/disable | [docs/WebDoors.md](WebDoors.md) |
 | `config/dosdoors.json` | DOS door game drop files and node settings | [docs/DOSDoors.md](DOSDoors.md) |
 | `config/nativedoors.json` | Native Linux/Windows door programs | [docs/NativeDoors.md](NativeDoors.md) |
+| `config/rlogin_synchronet_service.json` | Connection details for the optional Synchronet account-provisioning service (copy from `.example`) | [docs/RLoginDoors.md](RLoginDoors.md) |
 | `config/themes.json` | Appearance system shell assignments | [docs/CUSTOMIZING.md](CUSTOMIZING.md) |
 | `config/weather.json` | Weather report API key and defaults | [docs/Weather.md](Weather.md) |
 | `config/lovlynet.json` | LovlyNet network registration | [docs/LovlyNet.md](LovlyNet.md) |
@@ -558,6 +559,8 @@ A documented example is provided in `config/bbs.json.example`.
 | Admin daemon (TCP fallback) | `9065` | TCP | localhost | `.env` `ADMIN_DAEMON_SOCKET` |
 | PostgreSQL | `5432` | TCP | Internal | `.env` `DB_PORT` |
 | MRC relay (remote) | `5000` / `5001` | TCP / TLS | Outbound | `config/mrc.json` |
+| RLogin door target (remote BBS) | `513` (rlogin default) | TCP | Outbound | Per-door `port` field, **Admin → RLogin Doors** |
+| RLogin Synchronet Service (remote) | `24512` | TCP | Outbound | `config/rlogin_synchronet_service.json` `port` |
 
 **Tips:**
 - Expose only the services you actually run.
