@@ -179,10 +179,15 @@ class BbsSession
             'isSsh'    => $this->isSsh,
         ];
 
-        // Seed terminal size from SSH pty-req if provided
+        // Seed terminal size and TERM type from SSH pty-req if provided. SSH conveys
+        // TERM out-of-band (pty-req) rather than telnet's in-band TTYPE negotiation,
+        // so this is the only way it reaches $state for SSH sessions.
         if ($this->preAuthSession !== null) {
             if (!empty($this->preAuthSession['cols'])) { $state['cols'] = (int)$this->preAuthSession['cols']; }
             if (!empty($this->preAuthSession['rows'])) { $state['rows'] = (int)$this->preAuthSession['rows']; }
+            if (!empty($this->preAuthSession['term_type'])) {
+                $state['terminal_type'] = strtoupper(trim((string)$this->preAuthSession['term_type']));
+            }
             if (array_key_exists('sixel_supported', $this->preAuthSession)) {
                 $this->sixelSupported = (bool)$this->preAuthSession['sixel_supported'];
             }
@@ -398,6 +403,17 @@ class BbsSession
         $userRecord = $auth->validateSession($session);
         $state['is_admin'] = !empty($userRecord['is_admin']);
         $state['user_id']  = (int)($userRecord['user_id'] ?? $userRecord['id'] ?? 0);
+
+        // Persist the negotiated terminal type so other subsystems (e.g. RLogin
+        // door launches from the web UI) can fall back to "whatever client this
+        // user last connected with" when a door doesn't specify its own terminal type.
+        if ($state['user_id'] > 0 && !empty($state['terminal_type'])) {
+            try {
+                (new \BinktermPHP\UserMeta())->setValue($state['user_id'], 'last_terminal_type', $state['terminal_type']);
+            } catch (\Throwable $e) {
+                // Non-critical — never block login on this.
+            }
+        }
 
         $this->clearFailedLogins($peerIp);
 

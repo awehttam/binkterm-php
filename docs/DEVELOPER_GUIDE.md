@@ -28,6 +28,7 @@ FidoNet is a worldwide network of BBSs that exchange mail and files using store-
 - **File Areas**: FTN TIC file distribution with pluggable antivirus scanning (ClamAV, VirusTotal)
 - **WebDoors**: Drop-in game/application system (see `docs/WebDoors.md`)
 - **Native Doors & DOS Doors**: PTY and DOSBox-backed door games (see `docs/Doors.md`)
+- **RLogin Doors**: Connects out to a remote BBS or service over the rlogin protocol (see `docs/RLoginDoors.md`)
 - **Credits System**: Configurable in-world currency (see below)
 - **Webshare**: Share echomail messages via secure links with expiration
 - **Gateway Tokens**: SSO-like authentication for external services
@@ -634,17 +635,18 @@ Several features require additional background daemons or services beyond the co
 
 ### Door Games
 
-BinktermPHP supports three door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
+BinktermPHP supports four door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
 
 | Type | Description | Doc |
 |------|-------------|-----|
 | **WebDoors** | HTML5/JavaScript games in a browser iframe — no extra server-side process required | [WebDoors.md](WebDoors.md) |
 | **Native Doors** | Linux binaries or Windows executables launched via PTY | [NativeDoors.md](NativeDoors.md) |
 | **DOS Doors** | Classic DOS games running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
+| **RLogin Doors** | Connects out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol | [RLoginDoors.md](RLoginDoors.md) |
 
 #### Multiplexing Bridge (Node.js)
 
-Native Doors and DOS Doors both require the multiplexing bridge: `scripts/dosbox-bridge/multiplexing-server.js`. See [Doors.md](Doors.md) for full setup, environment variables, reverse proxy configuration, and service/daemon installation.
+Native Doors, DOS Doors, and RLogin Doors all require the multiplexing bridge: `scripts/dosbox-bridge/multiplexing-server.js`. See [Doors.md](Doors.md) for full setup, environment variables, reverse proxy configuration, and service/daemon installation.
 
 ```bash
 cd scripts/dosbox-bridge

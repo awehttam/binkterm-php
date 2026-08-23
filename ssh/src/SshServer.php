@@ -217,11 +217,13 @@ class SshServer
                 'csrf_token' => $authResult['csrf_token'] ?? null,
                 'cols'       => $authResult['cols'] ?? 80,
                 'rows'       => $authResult['rows'] ?? 24,
+                'term_type'  => $authResult['term_type'] ?? null,
                 'sixel_supported' => !empty($authResult['sixel_supported']),
             ]
             : [
                 'cols' => $authResult['cols'] ?? 80,
                 'rows' => $authResult['rows'] ?? 24,
+                'term_type' => $authResult['term_type'] ?? null,
                 'sixel_supported' => !empty($authResult['sixel_supported']),
             ];
 

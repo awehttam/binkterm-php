@@ -487,8 +487,8 @@ class SessionManager {
         // Update session with path
         session.sessionData.session_path = sessionPath;
 
-        // Generate DOOR.SYS drop file
-        if (sessionData.user_data) {
+        // Generate DOOR.SYS drop file (rlogin doors have no local process, so no drop file)
+        if (sessionData.user_data && emulatorName !== 'Rlogin') {
             let userData = sessionData.user_data;
             if (typeof userData === 'string') {
                 userData = JSON.parse(userData);
@@ -593,8 +593,9 @@ class SessionManager {
 
         session.slog.log(`[${emulatorName}] Launched PID ${result.pid}`);
 
-        if (emulatorName === 'Native') {
-            // Native doors connect immediately via PTY - set up handlers now
+        if (emulatorName === 'Native' || emulatorName === 'Rlogin') {
+            // Native doors connect immediately via PTY, and rlogin doors connect
+            // immediately via outbound TCP - set up handlers now in both cases
             this.setupEmulatorHandlers(session);
         }
         // For DOSBox/DOSEMU: setupEmulatorHandlers will be called in handleEmulatorConnection
@@ -914,6 +915,8 @@ class SessionManager {
                     utf8Data = iconv.decode(data, 'cp437');
                 } else if (emulatorName === 'Native' && session.emulator.outputEncoding === 'cp437') {
                     utf8Data = iconv.decode(Buffer.from(data, 'binary'), 'cp437');
+                } else if (emulatorName === 'Rlogin' && session.emulator.outputEncoding === 'cp437') {
+                    utf8Data = iconv.decode(data, 'cp437');
                 } else {
                     utf8Data = typeof data === 'string' ? data : data.toString('utf8');
                 }
@@ -996,7 +999,7 @@ class SessionManager {
                 let emulatorData;
                 if (emulatorName === 'DOSBox') {
                     emulatorData = iconv.encode(dataStr, 'cp437');
-                } else if (emulatorName === 'Native' && session.emulator.outputEncoding === 'cp437') {
+                } else if ((emulatorName === 'Native' || emulatorName === 'Rlogin') && session.emulator.outputEncoding === 'cp437') {
                     emulatorData = iconv.encode(dataStr, 'cp437');
                 } else {
                     emulatorData = Buffer.from(dataStr, 'utf8');
