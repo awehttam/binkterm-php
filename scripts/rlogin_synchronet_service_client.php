@@ -6,8 +6,7 @@
  *
  * Talks to the companion Synchronet-side services.ini service
  * (binktermphp-synchronet, https://github.com/awehttam/binktermphp-synchronet)
- * via BinktermPHP\RLoginSynchronetServiceClient. See that class for the
- * wire protocol.
+ * via BinktermPHP\Synchronet. See that class for the wire protocol.
  *
  * Usage (as the door's pre_login_command):
  *   php scripts/rlogin_synchronet_service_client.php <user_name> <real_name> <user_number>
@@ -24,7 +23,7 @@
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../src/functions.php';
 
-use BinktermPHP\RLoginSynchronetServiceClient;
+use BinktermPHP\Synchronet;
 
 function fail(string $message): void
 {
@@ -45,7 +44,7 @@ $configPath = defined('BINKTERMPHP_BASEDIR')
     : __DIR__ . '/../config/rlogin_synchronet_service.json';
 
 try {
-    $client = RLoginSynchronetServiceClient::fromConfigFile($configPath);
+    $client = Synchronet::fromConfigFile($configPath);
     $response = $client->provision($userName, $realName !== '' ? $realName : null);
 } catch (\Throwable $e) {
     fail($e->getMessage());

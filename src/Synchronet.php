@@ -1,6 +1,6 @@
 <?php
 /**
- * RLogin Synchronet Service Client
+ * Synchronet Service Client
  *
  * Talks to the companion Synchronet-side services.ini service
  * (binktermphp-synchronet, https://github.com/awehttam/binktermphp-synchronet)
@@ -24,7 +24,7 @@
 
 namespace BinktermPHP;
 
-class RLoginSynchronetServiceClient
+class Synchronet
 {
     private string $host;
     private int $port;
