@@ -136,6 +136,7 @@ SimpleRouter::post('/api/door/launch', function() {
                     'ws_port' => $existingSession['ws_port'],
                     'ws_token' => $existingSession['ws_token'],
                     'ws_url' => $wsUrl,
+                    'door_type' => $existingSession['door_type'] ?? 'dos',
                 ],
                 'message_code' => 'ui.api.door.session_resumed'
             ]);
@@ -318,6 +319,7 @@ SimpleRouter::post('/api/door/launch', function() {
                 'ws_port' => $session['ws_port'],
                 'ws_token' => $session['ws_token'],
                 'ws_url' => $wsUrl,
+                'door_type' => $doorType,
             ]
         ]);
 
