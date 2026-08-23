@@ -174,7 +174,7 @@ php scripts/rlogin_synchronet_service_client.php {user_name} {real_name} {user_n
 
 ### The bundled Synchronet Service client
 
-`scripts/rlogin_synchronet_service_client.php` is the client half of this integration for the **Synchronet with BinktermPHP Service** preset. It reads connection details from `config/rlogin_synchronet_service.json` (a small standalone config file for this script only — unrelated to the door's own database row). Copy the example to get started:
+`scripts/rlogin_synchronet_service_client.php` is the client half of this integration for the **Synchronet with BinktermPHP Service** preset. It's a thin CLI wrapper around `BinktermPHP\RLoginSynchronetServiceClient` (`src/RLoginSynchronetServiceClient.php`), which owns the actual wire protocol and can be reused from other PHP code if needed. It reads connection details from `config/rlogin_synchronet_service.json` (a small standalone config file for this script only — unrelated to the door's own database row). Copy the example to get started:
 
 ```bash
 cp config/rlogin_synchronet_service.json.example config/rlogin_synchronet_service.json
