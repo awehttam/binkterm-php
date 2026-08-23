@@ -1,0 +1,33 @@
+{
+  "type": "nativedoor",
+  "version": "1.0",
+  "game": {
+    "name": "Usurper Reborn",
+    "short_name": "USURPER",
+    "author": "Binary Knight",
+    "version": "1.0.3",
+    "release_year": 2026,
+    "description": "Usurper Reborn fantasy RPG BBS door.",
+    "genre": ["RPG"],
+    "players": "Multiplayer",
+    "icon": "icon.png",
+    "screenshot": null
+  },
+  "door": {
+    "executable": "UsurperReborn",
+    "launch_command": "./UsurperReborn --door32 {dropfile}",
+    "dropfile_format": "DOOR32.SYS",
+    "max_nodes": 10,
+    "ansi_required": true,
+    "time_per_day": 30
+  },
+  "requirements": {
+    "admin_only": false
+  },
+  "config": {
+    "enabled": false,
+    "credit_cost": 0,
+    "max_time_minutes": 30,
+    "max_sessions": 10
+  }
+}
