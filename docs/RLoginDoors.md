@@ -215,6 +215,16 @@ It speaks a one-shot JSON-over-TCP protocol — one connection, one request, one
 
 The script converts that response into the exit-code/JSON contract above (`username` from the response becomes `remote_username`). BinktermPHP ships only the client side — the Synchronet-side `services.ini` service itself lives in the separate [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) repository that a sysop installs on the Synchronet system.
 
+> ⚠️ **Username collisions on a shared user base**
+>
+> `scripts/synchronet_add_user.php` sends the BinktermPHP username to Synchronet as-is — there is no built-in prefixing.
+>
+> If the linked Synchronet system is a dedicated, freshly-installed game server whose only accounts come from this provisioning flow, that's fine. But if it's an existing Synchronet BBS with its own independent user base, a BinktermPHP username can collide with (or shadow) an unrelated existing Synchronet account of the same name.
+>
+> Sysops in that situation should decide on a naming convention up front — for example, prefixing provisioned usernames (`bt_{user_name}`) — and apply it before the username reaches Synchronet, either by wrapping `synchronet_add_user.php` in a small custom script or command that prefixes `{user_name}` before calling it, or by writing an equivalent pre-login command of their own.
+>
+> There's no config flag for this; it's a per-install call because a fresh dedicated instance doesn't need it and a shared instance needs a convention chosen by the sysop, not one BinktermPHP can safely guess.
+
 ### Import from Synchronet
 
 Once `config/rlogin_synchronet_service.json` is configured (including `rlogin_host`/`rlogin_port`), **Admin → RLogin Doors** shows an **Import from Synchronet** button. It calls the same service's `list_doors` action to fetch every installed external program (door) and opens a preview — a checkbox list of candidates (all checked by default; use Select All/None) — before anything is created. Clicking **Import Selected** creates one fully-configured RLogin door per checked candidate — `bbs_type: synchronet_service`, `host`/`port` from `rlogin_host`/`rlogin_port`, Pre-Login Command set to the bundled `scripts/synchronet_add_user.php` invocation, and **Terminal Type set to `xtrn=<code>`**, where `<code>` is Synchronet's internal program code for that door — this is what makes the rlogin handoff land directly in the right door instead of the main menu.
