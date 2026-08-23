@@ -1922,7 +1922,11 @@ class TelnetUtils
 
         $lines = $labelLines;
         if ($detail !== '') {
-            foreach (self::wrapTextLines($detail, max(20, $width - 4)) as $line) {
+            // Detail lines get a 2-space indent here plus the renderer's own
+            // 4-space continuation-row prefix (runSelectableStructuredList), for
+            // a total 6-column indent — must match the label's own reservation
+            // below or wrapped lines overflow the terminal's right edge.
+            foreach (self::wrapTextLines($detail, max(20, $width - 6)) as $line) {
                 $lines[] = '  ' . $line;
             }
         }

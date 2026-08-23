@@ -687,6 +687,7 @@ return [
     'errors.admin.ai_bots.name_invalid'     => 'Le nom du bot doit comporter entre 1 et 100 caracteres.',
     'errors.admin.ai_bots.username_invalid' => 'Le nom d\'utilisateur doit comporter entre 1 et 50 caracteres alphanumeriques ou soulignements.',
     'errors.admin.ai_bots.username_taken'   => 'Ce nom d\'utilisateur est deja pris.',
+    'errors.admin.ai_bots.name_taken'       => 'Ce nom de bot est deja utilise.',
     'errors.admin.ai_bots.create_failed'    => 'Echec de la creation du bot.',
     'errors.admin.ai_bots.update_failed'    => 'Echec de la mise a jour du bot.',
     'errors.admin.ai_bots.delete_failed'    => 'Echec de la suppression du bot.',

@@ -72,8 +72,21 @@ class BinkpClient
         }
     }
     
-    public function connect($address, $hostname = null, $port = null, $password = null)
+    /**
+     * @param bool $forceAnonymous When true, never fall back to a configured
+     *                             uplink's or hub node's stored session
+     *                             password/CRAM-MD5 secret, even if $address
+     *                             matches one exactly. Only a password
+     *                             explicitly passed in via $password is used.
+     *                             Intended for FREQ (scripts/freq_getfile.php,
+     *                             scripts/freq_pickup.php), which by FTN
+     *                             convention should default to an anonymous
+     *                             binkp session rather than silently reusing
+     *                             a real uplink relationship's secret.
+     */
+    public function connect($address, $hostname = null, $port = null, $password = null, bool $forceAnonymous = false)
     {
+        $callerPassword = $password;
         $uplink = $this->config->getUplinkByAddress($address);
 
         if (!$uplink && !$hostname) {
@@ -82,7 +95,7 @@ class BinkpClient
             if ($hubNode && !empty($hubNode['inet_host'])) {
                 $hostname = $hubNode['inet_host'];
                 $port     = $hubNode['port'] ?: 24554;
-                $password = $hubNode['session_password'] ?? '';
+                $password = $forceAnonymous ? ($callerPassword ?? '') : ($hubNode['session_password'] ?? '');
             } else {
                 // Not a hub node either — resolve via nodelist or binkp_zone DNS
                 $resolved = $this->resolveNodeHostname($address);
@@ -94,13 +107,15 @@ class BinkpClient
                 $hostname = $resolved['hostname'];
                 $port     = $resolved['port'];
                 // Anonymous session — no password
-                $password = '';
+                $password = $callerPassword ?? '';
             }
         }
 
         $hostname = $hostname ?: $uplink['hostname'];
         $port = $port ?: ($uplink['port'] ?? 24554);
-        $password = $password !== null ? $password : ($uplink['password'] ?? '');
+        $password = $forceAnonymous
+            ? ($callerPassword ?? '')
+            : ($password !== null ? $password : ($uplink['password'] ?? ''));
 
         $this->log("Connecting to {$hostname}:{$port} ({$address})");
         if ($uplink) {
@@ -159,7 +174,17 @@ class BinkpClient
             // freq_pickup), find the uplink whose network covers the destination so we
             // advertise the correct "me" address rather than the primary/first AKA.
             if ($uplink) {
-                $session->setCurrentUplink($uplink);
+                if ($forceAnonymous) {
+                    // FREQ session: use the uplink only for AKA/domain selection,
+                    // not authentication — never attempt CRAM-MD5 against our own
+                    // uplink automatically just because the FREQ target address
+                    // happens to match it.
+                    $anonUplink = $uplink;
+                    $anonUplink['crypt'] = false;
+                    $session->setCurrentUplink($anonUplink);
+                } else {
+                    $session->setCurrentUplink($uplink);
+                }
             } else {
                 $routedUplink = $this->config->getUplinkForDestination($address);
                 if ($routedUplink) {

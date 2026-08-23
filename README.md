@@ -157,10 +157,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full component diagram,
 
 # Installation
 
-BinktermPHP supports two installation methods:
+BinktermPHP supports three installation methods:
 
 - **Installer (recommended)** - download and run `binkterm-installer.phar` for a guided, automated setup that handles PHP, PostgreSQL, web server configuration, and migrations
 - **Git (for developers)** - clone the repository and run setup scripts for full control over the installation
+- **Docker** - run BinktermPHP in a container; see **[docs/DOCKER.md](docs/DOCKER.md)** for setup instructions
 
 BinktermPHP is intended for a VPS, dedicated server, Raspberry Pi, or similar environment where you control PostgreSQL, background daemons, and multiple network ports. Shared hosting is not recommended.
 

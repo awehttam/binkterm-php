@@ -4275,7 +4275,7 @@ PROMPT;
                     systemPrompt: $systemPrompt,
                     userPrompt: $userPrompt,
                     temperature: 0.1,
-                    maxOutputTokens: 512,
+                    maxOutputTokens: 1024,
                     timeoutSeconds: 30,
                     userId: (int)($user['user_id'] ?? $user['id'] ?? 0) ?: null,
                 );
@@ -5087,6 +5087,14 @@ PROMPT;
                     throw new \InvalidArgumentException('username_taken');
                 }
 
+                // Real names are unique across all users (case-insensitive); a bot's
+                // display name becomes its backing user's real_name.
+                $chkName = $db->prepare("SELECT id FROM users WHERE LOWER(real_name) = LOWER(?)");
+                $chkName->execute([$name]);
+                if ($chkName->fetchColumn()) {
+                    throw new \InvalidArgumentException('name_taken');
+                }
+
                 $repo  = new \BinktermPHP\AiBot\AiBotRepository($db);
                 $botId = $repo->createBot(array_merge($input, [
                     'name'     => $name,
@@ -5105,6 +5113,7 @@ PROMPT;
                     'name_invalid'    => ['errors.admin.ai_bots.name_invalid',    'Bot name must be 1–100 characters'],
                     'username_invalid'=> ['errors.admin.ai_bots.username_invalid', 'Username must be 1–50 alphanumeric/underscore characters'],
                     'username_taken'  => ['errors.admin.ai_bots.username_taken',   'Username is already taken'],
+                    'name_taken'      => ['errors.admin.ai_bots.name_taken',       'That bot name is already in use'],
                 ];
                 [$errCode, $fallback] = $map[$code] ?? ['errors.admin.ai_bots.create_failed', 'Failed to create bot'];
                 apiError($errCode, apiLocalizedText($errCode, $fallback));
@@ -6944,6 +6953,51 @@ PROMPT;
             $byType[(int)$row['activity_type_id']] = (int)$row['cnt'];
         }
 
+        // Returning users: users active on more than N distinct days within
+        // the selected period (matches the page's own period filter — 7d,
+        // 30d, 90d, or all — the same window every other stat on this page
+        // uses). Not login events specifically — this app uses a long-lived
+        // auth cookie (see CLAUDE.md), so most return visits never fire a
+        // fresh TYPE_LOGIN event at all, which made a login-count-based
+        // metric wildly undercount obviously-active users. Any tracked
+        // activity (echomail, chat, files, doors, etc.) on a given day
+        // counts as one "visit" that day.
+        //
+        // Earlier version bucketed this by calendar month and only showed
+        // the latest month, which could split a user's genuinely-recent
+        // activity across a month boundary and make them vanish from the
+        // list entirely even though they clearly returned multiple times
+        // within the selected window. Counting distinct days across the
+        // whole selected period avoids that.
+        $returningUsersActiveDaysThreshold = 1;
+        $returningUsersCountStmt = $db->query("
+            SELECT COUNT(*) AS cnt
+            FROM (
+                SELECT ual.user_id
+                FROM user_activity_log ual
+                WHERE ual.user_id IS NOT NULL
+                  {$dateFilter}{$adminFilter}
+                GROUP BY ual.user_id
+                HAVING COUNT(DISTINCT DATE(ual.created_at)) > {$returningUsersActiveDaysThreshold}
+            ) returning_user_ids
+        ");
+        $returningUsersCount = (int)$returningUsersCountStmt->fetchColumn();
+
+        $returningUsersStmt = $db->query("
+            SELECT u.username, COUNT(DISTINCT DATE(ual.created_at)) AS active_days
+            FROM user_activity_log ual
+            LEFT JOIN users u ON u.id = ual.user_id
+            WHERE ual.user_id IS NOT NULL
+              {$dateFilter}{$adminFilter}
+            GROUP BY ual.user_id, u.username
+            HAVING COUNT(DISTINCT DATE(ual.created_at)) > {$returningUsersActiveDaysThreshold}
+            ORDER BY active_days DESC
+            LIMIT 50
+        ");
+        $returningUsers = $returningUsersStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($returningUsers as &$row) { $row['count'] = (int)$row['active_days']; unset($row['active_days']); }
+        unset($row);
+
         // Login breakdown by source (object_name: 'web', 'telnet', 'ssh', etc.)
         $loginSourceStmt = $db->query("
             SELECT COALESCE(object_name, 'web') AS source, COUNT(*) AS cnt
@@ -7158,7 +7212,8 @@ PROMPT;
                     'netmail_reads'  => $byType[3] ?? 0,
                     'netmail_sends'  => $byType[4] ?? 0,
                 ],
-                'login_by_source' => $loginBySource,
+                'login_by_source'       => $loginBySource,
+                'returning_users_count' => $returningUsersCount,
             ],
             'popular_echoareas'     => $popularEchoareas,
             'popular_webdoors'      => $popularWebdoors,
@@ -7168,6 +7223,7 @@ PROMPT;
             'top_nodelist_searches' => $topNodelistSearches,
             'top_nodes'             => $topNodes,
             'top_users'             => $topUsers,
+            'returning_users'       => $returningUsers,
             'popular_interests'     => $popularInterests,
             'hourly'                => $hourly,
             'daily'                 => $daily,

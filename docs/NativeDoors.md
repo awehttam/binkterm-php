@@ -188,7 +188,7 @@ The door will now appear in the `/games` game library.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `executable` | string | Yes | Filename of the main executable relative to the door directory |
-| `launch_command` | string | No | Full command to run. Supports `{node}`, `{dropfile}`, and `{user_number}` placeholders (see below). Defaults to `executable` |
+| `launch_command` | string | No | Full command to run. Supports `{node}`, `{dropfile}`, `{user_number}`, and `{homedir}` placeholders (see below). Defaults to `executable` |
 | `dropfile_format` | string | No | Drop file format. `"DOOR.SYS"` (default) or `"DOOR32.SYS"` |
 | `output_encoding` | string | No | Character encoding of the door's output. `"utf8"` (default) or `"cp437"`. Use `"cp437"` for legacy DOS-style doors that output CP437 box-drawing and ANSI art |
 | `max_nodes` | integer | No | Maximum simultaneous sessions. Defaults to `10` |
@@ -204,6 +204,7 @@ The `launch_command` string may contain the following placeholders, which are su
 | `{node}` | Node number (e.g. `1`) |
 | `{dropfile}` | Full path to the DOOR.SYS file (e.g. `/srv/bbs/native-doors/drops/NODE1/DOOR.SYS`) |
 | `{user_number}` | BBS user ID (numeric) |
+| `{homedir}` | Full path to the user's private per-door home directory (e.g. `/srv/bbs/data/users/42/mydoor`), for doors that keep their own state — save games, per-user config overlays, etc. Created automatically before launch if it does not already exist. Also available as the `DOOR_HOME` environment variable |
 
 **Examples:**
 
@@ -211,6 +212,7 @@ The `launch_command` string may contain the following placeholders, which are su
 "launch_command": "/bin/bash mydoor.sh"
 "launch_command": "./mydoor --node {node} --dropfile {dropfile}"
 "launch_command": "cmd.exe /c mydoor.bat"
+"launch_command": "./mydoor --node {node} --dropfile {dropfile} -home {homedir}"
 ```
 
 If `launch_command` is omitted, `executable` is used directly as the command with no arguments.
@@ -267,7 +269,7 @@ The classic 52-line format compatible with most traditional BBS door games. Writ
 
 ### DOOR32.SYS
 
-An 11-line format designed for modern doors running over telnet/socket connections. Written to `DOOR32.SYS`. Use this for doors that expect a socket-style connection rather than a serial/FOSSIL interface.
+An 11-line format designed for modern doors, as an alternative to DOOR.SYS's serial/FOSSIL-oriented fields. Written to `DOOR32.SYS`. Native doors are spawned over a PTY (stdio), not a telnet socket, so comm type is `0` (local/stdio) here — not the `2` (telnet/socket) a real telnet-gatewayed door would see.
 
 ```json
 "dropfile_format": "DOOR32.SYS"
@@ -277,7 +279,7 @@ The DOOR32.SYS fields are:
 
 | Line | Field | Value |
 |------|-------|-------|
-| 1 | Comm type | `2` (telnet/socket) |
+| 1 | Comm type | `0` (local/stdio) |
 | 2 | Comm handle | `0` |
 | 3 | Baud rate | `0` |
 | 4 | BBS name | From user data |
@@ -370,6 +372,7 @@ All supported keys per door entry:
 | `allow_anonymous` | boolean | `false` | Allow unauthenticated guest access (requires `credit_cost: 0`) |
 | `guest_max_sessions` | integer | `2` | Maximum concurrent guest sessions when `allow_anonymous` is true |
 | `terminal_size` | string | `"80x25"` | Initial PTY and canvas dimensions. Accepted values: `"80x25"`, `"132x24"`, `"132x43"`, `"132x50"`, or `"autofit"`. See [Terminal Settings](#terminal-settings) |
+| `hide_from_web` | boolean | `false` | When `true`, hides this door from the web games list and blocks its `/games/nativedoors/{doorid}` web player page (`404`). The door remains launchable over telnet/SSH via **[Files] → Door Games** (`telnet/src/DoorHandler.php`), since that path calls `POST /api/door/launch` directly rather than going through the web listing/player route. Use this for doors that only make sense in a terminal (e.g. FOSSIL/ANSI-only games) or that a sysop wants restricted to the terminal server. |
 
 ---
 

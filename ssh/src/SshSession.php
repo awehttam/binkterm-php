@@ -6,11 +6,12 @@ namespace BinktermPHP\SshServer;
  * SshSession — SSH-2 wire protocol handler for a single accepted TCP connection.
  *
  * Implements a minimal but standards-compliant SSH-2 server sufficient to run
- * an interactive BBS session.  Uses only ext-openssl and ext-gmp; no Composer
- * SSH library is required.
+ * an interactive BBS session.  Uses only ext-openssl, ext-gmp and ext-sodium
+ * (bundled with PHP since 7.2); no Composer SSH library is required.
  *
  * Supported algorithms (chosen for maximum client compatibility):
- *   Key exchange  : diffie-hellman-group14-sha256
+ *   Key exchange  : curve25519-sha256, curve25519-sha256@libssh.org,
+ *                   diffie-hellman-group14-sha256
  *   Host key      : rsa-sha2-256 (2048-bit RSA, auto-generated if absent)
  *   Cipher C→S   : aes128-ctr
  *   Cipher S→C   : aes128-ctr
@@ -19,11 +20,16 @@ namespace BinktermPHP\SshServer;
  *   Compression   : none
  *   Auth method   : password (verified via the BBS /api/auth/login endpoint)
  *
+ * curve25519-sha256 is offered first: some clients (e.g. SyncTERM's DeuceSSH
+ * library) only implement modern ECDH/group-exchange KEX methods and do not
+ * support the fixed diffie-hellman-group14-sha256 group at all, so a server
+ * that only offered group14 would have zero KEX overlap with them.
+ *
  * After a successful shell request the caller receives the socket (still in
  * plaintext from its perspective — crypto is transparent) together with the
  * authenticated user data so BbsSession can skip its own login UI.
  *
- * References: RFC 4253, RFC 4252, RFC 4254, RFC 4419, RFC 8332.
+ * References: RFC 4253, RFC 4252, RFC 4254, RFC 4419, RFC 8332, RFC 8731.
  */
 class SshSession
 {
@@ -232,6 +238,25 @@ class SshSession
     // PHASE 2: KEY EXCHANGE
     // =========================================================================
 
+    /** KEX algorithms this server supports, in our preference order. */
+    private const SUPPORTED_KEX_ALGORITHMS = [
+        'curve25519-sha256',
+        'curve25519-sha256@libssh.org',
+        'diffie-hellman-group14-sha256',
+    ];
+
+    /**
+     * Ciphers this server supports, in our preference order.  aes256-ctr is
+     * offered alongside aes128-ctr because some clients (e.g. SyncTERM's
+     * DeuceSSH library) implement aes256-ctr/aes128-cbc but not aes128-ctr —
+     * with only aes128-ctr offered there was zero cipher overlap with them.
+     */
+    private const SUPPORTED_CIPHERS = ['aes256-ctr', 'aes128-ctr'];
+
+    // Negotiated cipher name per direction (set in keyExchange()).
+    private string $cipherC2S = 'aes128-ctr';
+    private string $cipherS2C = 'aes128-ctr';
+
     private function keyExchange(): bool
     {
         // Send our KEXINIT
@@ -244,41 +269,40 @@ class SshSession
         if ($pkt === null || ord($pkt[0]) !== self::MSG_KEXINIT) { return false; }
         $this->clientKexInitPayload = $pkt;
 
-        // Read KEX DH INIT (client sends e = g^x mod p)
+        $lists = $this->parseKexInitNameLists($pkt);
+
+        $negotiatedKex = $this->negotiate($lists[0], self::SUPPORTED_KEX_ALGORITHMS);
+        if ($negotiatedKex === null) {
+            $this->dbg("No matching KEX algorithm with client");
+            $this->sendDisconnect(self::DISCONNECT_PROTOCOL_ERROR, 'No matching key exchange algorithm');
+            return false;
+        }
+        $this->dbg("Negotiated KEX algorithm: {$negotiatedKex}");
+
+        $cipherC2S = $this->negotiate($lists[2], self::SUPPORTED_CIPHERS);
+        $cipherS2C = $this->negotiate($lists[3], self::SUPPORTED_CIPHERS);
+        if ($cipherC2S === null || $cipherS2C === null) {
+            $this->dbg("No matching cipher with client");
+            $this->sendDisconnect(self::DISCONNECT_PROTOCOL_ERROR, 'No matching cipher algorithm');
+            return false;
+        }
+        $this->cipherC2S = $cipherC2S;
+        $this->cipherS2C = $cipherS2C;
+        $this->dbg("Negotiated ciphers: C2S={$cipherC2S} S2C={$cipherS2C}");
+
+        // Read KEX_DH_INIT / KEX_ECDH_INIT (both use message number 30)
         $pkt = $this->recvPacket();
         if ($pkt === null || ord($pkt[0]) !== self::MSG_KEXDH_INIT) { return false; }
 
-        $offset = 1;
-        $e = $this->readMpint($pkt, $offset);  // client's DH public value
-
-        // Generate server DH private value y, compute f = g^y mod p
-        $p  = gmp_init(self::DH_GROUP14_P, 16);
-        $g  = gmp_init(self::DH_GROUP14_G, 10);
-        $y  = gmp_import(random_bytes(32));          // 256-bit random private key
-        $f  = gmp_powm($g, $y, $p);
-        $K  = gmp_powm($e, $y, $p);                 // shared secret
-
-        // Encode K as SSH mpint
-        $kBytes   = $this->mpintEncode($K);
-
-        // Build exchange hash H = SHA-256(V_C || V_S || I_C || I_S || K_S || e || f || K)
-        $H = $this->computeExchangeHash($e, $f, $kBytes);
+        $result = $negotiatedKex === 'diffie-hellman-group14-sha256'
+            ? $this->kexGroup14($pkt)
+            : $this->kexCurve25519($pkt);
+        if ($result === null) { return false; }
+        [$kBytes, $H] = $result;
 
         if ($this->sessionId === '') {
             $this->sessionId = $H;
         }
-
-        // Sign H with host RSA key (rsa-sha2-256)
-        $sig = '';
-        openssl_sign($H, $sig, $this->hostKey, OPENSSL_ALGO_SHA256);
-        $sigBlob = $this->sshString('rsa-sha2-256') . $this->sshString($sig);
-
-        // Send KEXDH_REPLY: host key blob, f, signature
-        $reply  = chr(self::MSG_KEXDH_REPLY);
-        $reply .= $this->sshString($this->hostKeyBlob);
-        $reply .= $this->mpintEncode($f);
-        $reply .= $this->sshString($sigBlob);
-        $this->sendPacket($reply);
 
         // Send NEWKEYS
         $this->sendPacket(chr(self::MSG_NEWKEYS));
@@ -296,6 +320,124 @@ class SshSession
         return true;
     }
 
+    /**
+     * Parse all ten name-lists out of a KEXINIT payload, in wire order:
+     * [kex, host_key, enc_c2s, enc_s2c, mac_c2s, mac_s2c, comp_c2s, comp_s2c,
+     *  lang_c2s, lang_s2c].
+     *
+     * @return array<int,array<int,string>>
+     */
+    private function parseKexInitNameLists(string $payload): array
+    {
+        $offset = 1 + 16;  // skip msg type + 16-byte cookie
+        $lists = [];
+        for ($i = 0; $i < 10; $i++) {
+            $s = $this->readString($payload, $offset);
+            $lists[] = $s === '' ? [] : explode(',', $s);
+        }
+        return $lists;
+    }
+
+    /**
+     * Pick the algorithm to use: the first name in the client's offered list
+     * (its preference order, per RFC 4253 §7.1) that this server also
+     * supports.  Returns null if there is no overlap.
+     *
+     * @param array<int,string> $clientAlgos
+     * @param array<int,string> $supported
+     */
+    private function negotiate(array $clientAlgos, array $supported): ?string
+    {
+        foreach ($clientAlgos as $algo) {
+            if (in_array($algo, $supported, true)) {
+                return $algo;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Diffie-Hellman Group 14 key exchange (RFC 4253 §8).
+     *
+     * @return array{0:string,1:string}|null [kBytes, H] or null on error
+     */
+    private function kexGroup14(string $initPkt): ?array
+    {
+        $offset = 1;
+        $e = $this->readMpint($initPkt, $offset);  // client's DH public value
+
+        // Generate server DH private value y, compute f = g^y mod p
+        $p  = gmp_init(self::DH_GROUP14_P, 16);
+        $g  = gmp_init(self::DH_GROUP14_G, 10);
+        $y  = gmp_import(random_bytes(32));          // 256-bit random private key
+        $f  = gmp_powm($g, $y, $p);
+        $K  = gmp_powm($e, $y, $p);                 // shared secret
+
+        // Encode K as SSH mpint
+        $kBytes = $this->mpintEncode($K);
+
+        // Build exchange hash H = SHA-256(V_C || V_S || I_C || I_S || K_S || e || f || K)
+        $H = $this->computeExchangeHashFfdh($e, $f, $kBytes);
+
+        $this->signAndSendKexReply($this->mpintEncode($f), $H);
+
+        return [$kBytes, $H];
+    }
+
+    /**
+     * Curve25519 ECDH key exchange (RFC 8731).
+     *
+     * @return array{0:string,1:string}|null [kBytes, H] or null on error
+     */
+    private function kexCurve25519(string $initPkt): ?array
+    {
+        $offset = 1;
+        $qC = $this->readString($initPkt, $offset);  // client's ephemeral public key
+        if (strlen($qC) !== 32) { return null; }
+
+        $keypair  = sodium_crypto_box_keypair();
+        $serverSk = sodium_crypto_box_secretkey($keypair);
+        $qS       = sodium_crypto_box_publickey($keypair);
+
+        $shared = sodium_crypto_scalarmult($serverSk, $qC);
+        sodium_memzero($serverSk);
+
+        // Reject a degenerate all-zero shared secret (RFC 8731 §4 — the peer
+        // supplied a low-order point).
+        if ($shared === str_repeat("\x00", 32)) {
+            $this->dbg("curve25519 KEX produced all-zero shared secret, rejecting");
+            return null;
+        }
+
+        $kGmp   = gmp_import($shared, 1, GMP_MSW_FIRST | GMP_BIG_ENDIAN);
+        $kBytes = $this->mpintEncode($kGmp);
+
+        $H = $this->computeExchangeHashEcdh($qC, $qS, $kBytes);
+
+        $this->signAndSendKexReply($this->sshString($qS), $H);
+
+        return [$kBytes, $H];
+    }
+
+    /**
+     * Sign the exchange hash with the RSA host key and send SSH_MSG_KEXDH_REPLY
+     * (shared wire format for both FFDH and ECDH KEX methods).
+     *
+     * @param string $serverPublicValue Already wire-encoded (mpint for FFDH's f, SSH string for ECDH's Q_S)
+     */
+    private function signAndSendKexReply(string $serverPublicValue, string $H): void
+    {
+        $sig = '';
+        openssl_sign($H, $sig, $this->hostKey, OPENSSL_ALGO_SHA256);
+        $sigBlob = $this->sshString('rsa-sha2-256') . $this->sshString($sig);
+
+        $reply  = chr(self::MSG_KEXDH_REPLY);
+        $reply .= $this->sshString($this->hostKeyBlob);
+        $reply .= $serverPublicValue;
+        $reply .= $this->sshString($sigBlob);
+        $this->sendPacket($reply);
+    }
+
     private function buildKexInit(): string
     {
         $pkt  = chr(self::MSG_KEXINIT);
@@ -303,10 +445,10 @@ class SshSession
 
         $nameList = fn(string ...$names) => $this->sshString(implode(',', $names));
 
-        $pkt .= $nameList('diffie-hellman-group14-sha256');  // kex
+        $pkt .= $nameList(...self::SUPPORTED_KEX_ALGORITHMS);  // kex
         $pkt .= $nameList('rsa-sha2-256');                   // server host key
-        $pkt .= $nameList('aes128-ctr');                     // enc C→S
-        $pkt .= $nameList('aes128-ctr');                     // enc S→C
+        $pkt .= $nameList(...self::SUPPORTED_CIPHERS);       // enc C→S
+        $pkt .= $nameList(...self::SUPPORTED_CIPHERS);       // enc S→C
         $pkt .= $nameList('hmac-sha2-256');                  // mac C→S
         $pkt .= $nameList('hmac-sha2-256');                  // mac S→C
         $pkt .= $nameList('none');                           // compress C→S
@@ -318,7 +460,7 @@ class SshSession
         return $pkt;
     }
 
-    private function computeExchangeHash(\GMP $e, \GMP $f, string $kBytes): string
+    private function computeExchangeHashFfdh(\GMP $e, \GMP $f, string $kBytes): string
     {
         $data  = $this->sshString($this->clientVersion);
         $data .= $this->sshString($this->serverVersion);
@@ -327,6 +469,19 @@ class SshSession
         $data .= $this->sshString($this->hostKeyBlob);
         $data .= $this->mpintEncode($e);
         $data .= $this->mpintEncode($f);
+        $data .= $kBytes;
+        return hash('sha256', $data, true);
+    }
+
+    private function computeExchangeHashEcdh(string $qC, string $qS, string $kBytes): string
+    {
+        $data  = $this->sshString($this->clientVersion);
+        $data .= $this->sshString($this->serverVersion);
+        $data .= $this->sshString($this->clientKexInitPayload);
+        $data .= $this->sshString($this->serverKexInitPayload);
+        $data .= $this->sshString($this->hostKeyBlob);
+        $data .= $this->sshString($qC);
+        $data .= $this->sshString($qS);
         $data .= $kBytes;
         return hash('sha256', $data, true);
     }
@@ -344,13 +499,18 @@ class SshSession
 
         $this->ivC2S     = $derive('A', 16);
         $this->ivS2C     = $derive('B', 16);
-        $this->encKeyC2S = $derive('C', 16);
-        $this->encKeyS2C = $derive('D', 16);
+        $this->encKeyC2S = $derive('C', $this->cipherKeyLength($this->cipherC2S));
+        $this->encKeyS2C = $derive('D', $this->cipherKeyLength($this->cipherS2C));
         $this->macKeyC2S = $derive('E', 32);
         $this->macKeyS2C = $derive('F', 32);
 
         $this->ctrC2S = $this->ivC2S;
         $this->ctrS2C = $this->ivS2C;
+    }
+
+    private function cipherKeyLength(string $cipher): int
+    {
+        return $cipher === 'aes256-ctr' ? 32 : 16;
     }
 
     // =========================================================================
@@ -1221,11 +1381,14 @@ class SshSession
 
     private function aesCtrEncrypt(string $data, string $key, string &$counter): string
     {
+        // AES-CTR keystream is generated by ECB-encrypting the counter block;
+        // key length (16 vs 32 bytes) selects AES-128 vs AES-256.
+        $algo = strlen($key) === 32 ? 'aes-256-ecb' : 'aes-128-ecb';
         $out = '';
         $len = strlen($data);
         $i   = 0;
         while ($i < $len) {
-            $keystream = openssl_encrypt($counter, 'aes-128-ecb', $key, OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING);
+            $keystream = openssl_encrypt($counter, $algo, $key, OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING);
             $block     = min(16, $len - $i);
             for ($j = 0; $j < $block; $j++) {
                 $out .= chr(ord($data[$i + $j]) ^ ord($keystream[$j]));

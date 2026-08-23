@@ -695,7 +695,7 @@ class SessionManager {
 
         // DOOR32.SYS 11-line format
         const lines = [
-            '2',                                                    // 1: Comm type (0=local, 1=serial, 2=telnet/socket)
+            '0',                                                    // 1: Comm type (0=local/stdio, 1=serial, 2=telnet/socket)
             '0',                                                    // 2: Comm handle/socket (0 for telnet/PTY)
             '0',                                                    // 3: Baud rate (0 for telnet/socket)
             userData.bbs_name || 'BinktermPHP BBS',                 // 4: BBS software name

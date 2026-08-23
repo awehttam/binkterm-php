@@ -113,6 +113,10 @@
                             <td class="text-nowrap"><code>max_concurrent_sessions</code></td>
                             <td>{{ t('ui.admin.dosdoors_config.option_max_concurrent_help', {}, locale, ['common']) }}</td>
                         </tr>
+                        <tr>
+                            <td class="text-nowrap"><code>hide_from_web</code></td>
+                            <td>{{ t('ui.admin.dosdoors_config.option_hide_from_web_help', {}, locale, ['common']) }}</td>
+                        </tr>
                     </table>
                 </div>
             </div>
@@ -248,6 +252,7 @@ function renderDoorsList() {
         const doorConfig = currentConfig[door.id] || {};
         const enabled = doorConfig.enabled || false;
         const cost = doorConfig.credit_cost || 0;
+        const hideFromWeb = doorConfig.hide_from_web || false;
 
         const statusClass = enabled ? 'success' : 'secondary';
         const statusIcon = enabled ? 'fa-check-circle' : 'fa-circle';
@@ -264,6 +269,7 @@ function renderDoorsList() {
                         <div class="small mt-1">
                             <span class="badge bg-secondary">${door.id}</span>
                             ${cost > 0 ? `<span class="badge bg-info">${cost} ${uiT('ui.admin.dosdoors_config.credits', 'credits')}</span>` : '<span class="badge bg-success">' + uiT('ui.admin.dosdoors_config.free', 'Free') + '</span>'}
+                            ${hideFromWeb ? `<span class="badge bg-warning text-dark">${uiT('ui.admin.dosdoors_config.telnet_only', 'Telnet/SSH only')}</span>` : ''}
                         </div>
                     </div>
                     <div class="btn-group-vertical btn-group-sm">
@@ -271,6 +277,11 @@ function renderDoorsList() {
                                 onclick="toggleDoor('${door.id}', ${!enabled})"
                                 title="${enabled ? uiT('ui.admin.dosdoors_config.disable', 'Disable') : uiT('ui.admin.dosdoors_config.enable', 'Enable')}">
                             <i class="fas fa-power-off"></i>
+                        </button>
+                        <button class="btn btn-outline-${hideFromWeb ? 'warning' : 'secondary'}"
+                                onclick="toggleHideFromWeb('${door.id}', ${!hideFromWeb})"
+                                title="${hideFromWeb ? uiT('ui.admin.dosdoors_config.show_on_web', 'Show on web') : uiT('ui.admin.dosdoors_config.hide_from_web', 'Hide from web (telnet/SSH only)')}">
+                            <i class="fas fa-globe"></i>
                         </button>
                         <a href="/admin/doors/dos/${door.id}/manifest" class="btn btn-outline-info" title="${uiT('ui.admin.door_manifest_editor.heading', 'Door Manifest Editor')}">
                             <i class="fas fa-file-code"></i>
@@ -306,6 +317,36 @@ function toggleDoor(doorId, enable) {
             };
         } else {
             config[doorId].enabled = enable;
+        }
+
+        editor.value = JSON.stringify(config, null, 4);
+        updateJsonStatus();
+        renderDoorsList();
+    } catch (e) {
+        showEditorAlert('danger', uiT('ui.admin.dosdoors_config.invalid_json_toggle', 'Invalid JSON - cannot toggle door'));
+    }
+}
+
+function toggleHideFromWeb(doorId, hide) {
+    try {
+        const editor = document.getElementById('configEditor');
+        let config = JSON.parse(editor.value || '{}');
+
+        if (Array.isArray(config)) {
+            config = {};
+        }
+
+        if (!config[doorId]) {
+            config[doorId] = {
+                enabled: false,
+                credit_cost: 0,
+                max_time_minutes: 30,
+                cpu_cycles: 10000,
+                max_concurrent_sessions: 10,
+                hide_from_web: hide
+            };
+        } else {
+            config[doorId].hide_from_web = hide;
         }
 
         editor.value = JSON.stringify(config, null, 4);

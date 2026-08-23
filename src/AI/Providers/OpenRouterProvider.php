@@ -175,6 +175,11 @@ class OpenRouterProvider implements AiProviderInterface
             'messages' => $messages,
             'temperature' => $request->getTemperature(),
             'max_tokens' => $request->getMaxOutputTokens(),
+            // Some models routed via openrouter/auto are hybrid reasoning models that spend
+            // the max_tokens budget on hidden reasoning tokens before ever emitting content,
+            // leaving message.content empty. Ask OpenRouter to skip reasoning where the
+            // underlying model supports toggling it; unsupported models ignore this field.
+            'reasoning' => ['enabled' => false],
         ];
 
         // Omit response_format: the underlying model selected by openrouter/auto may not
@@ -237,9 +242,10 @@ class OpenRouterProvider implements AiProviderInterface
      */
     private function extractContent(array $body): string
     {
-        $content = $body['choices'][0]['message']['content'] ?? null;
+        $message = is_array($body['choices'][0]['message'] ?? null) ? $body['choices'][0]['message'] : [];
+        $content = $message['content'] ?? null;
 
-        if (is_string($content)) {
+        if (is_string($content) && trim($content) !== '') {
             return $content;
         }
 
@@ -255,7 +261,22 @@ class OpenRouterProvider implements AiProviderInterface
             }
         }
 
-        throw new AiException($this->getName(), 'Missing assistant content in OpenRouter API response.', null, 'invalid_response');
+        // Some reasoning models leave content empty and put their output in the
+        // non-standard "reasoning" field instead, especially when max_tokens was
+        // spent before the model reached its final answer.
+        $reasoning = $message['reasoning'] ?? null;
+        if (is_string($reasoning) && trim($reasoning) !== '') {
+            return $reasoning;
+        }
+
+        $finishReason = $body['choices'][0]['finish_reason'] ?? 'unknown';
+        $this->logger->error('OpenRouter missing assistant content. finish_reason=' . $finishReason . ' message=' . json_encode($message));
+        throw new AiException(
+            $this->getName(),
+            'Missing assistant content in OpenRouter API response (finish_reason=' . $finishReason . ').',
+            null,
+            'invalid_response'
+        );
     }
 
     private function decodeJsonContent(string $content): array

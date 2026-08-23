@@ -726,6 +726,7 @@ return [
     'errors.admin.ai_bots.name_invalid'     => 'Il nome del bot deve contenere 1-100 caratteri.',
     'errors.admin.ai_bots.username_invalid' => 'Il nome utente deve contenere 1-50 caratteri alfanumerici o underscore.',
     'errors.admin.ai_bots.username_taken'   => 'Questo nome utente è già in uso.',
+    'errors.admin.ai_bots.name_taken'       => 'Questo nome del bot è già in uso.',
     'errors.admin.ai_bots.create_failed'    => 'Impossibile creare il bot.',
     'errors.admin.ai_bots.update_failed'    => 'Impossibile aggiornare il bot.',
     'errors.admin.ai_bots.delete_failed'    => 'Impossibile eliminare il bot.',

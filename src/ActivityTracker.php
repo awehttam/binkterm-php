@@ -37,6 +37,15 @@ class ActivityTracker
     const TYPE_NODE_VIEW          = 11;
     const TYPE_CHAT_SEND          = 12;
     const TYPE_LOGIN              = 13;
+    const TYPE_FREQ_REQUEST       = 14;
+    const TYPE_BBS_DIRECTORY_VIEW       = 15;
+    const TYPE_BBS_DIRECTORY_ENTRY_VIEW = 16;
+    const TYPE_BBS_DIRECTORY_SUBMIT     = 17;
+    const TYPE_CHAT_ROOM_ENTER          = 18;
+    const TYPE_PGP_KEY_UPLOAD           = 19;
+    const TYPE_PGP_KEY_GENERATE         = 20;
+    const TYPE_PGP_KEY_PRIMARY          = 21;
+    const TYPE_PGP_KEY_DELETE           = 22;
 
     /**
      * Record an activity event.

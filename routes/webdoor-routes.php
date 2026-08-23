@@ -207,6 +207,10 @@ SimpleRouter::get('/games', function() {
         if (!empty($door['admin_only']) && empty($user['is_admin'])) {
             continue;
         }
+        // Skip doors configured as telnet/SSH-only
+        if (!empty($door['config']['hide_from_web'])) {
+            continue;
+        }
         // Check if door has a custom icon in manifest
         $iconUrl = '/images/dos-door-icon.png'; // Default icon
         if (!empty($door['icon'])) {
@@ -234,6 +238,10 @@ SimpleRouter::get('/games', function() {
     foreach ($nativeDoors as $doorId => $door) {
         // Skip admin-only doors for non-admin users
         if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+            continue;
+        }
+        // Skip doors configured as telnet/SSH-only
+        if (!empty($door['config']['hide_from_web'])) {
             continue;
         }
         $iconUrl = '/images/dos-door-icon.png'; // Default icon
@@ -387,7 +395,7 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
     $doorManager = new DoorManager();
     $door = $doorManager->getDoor($doorid);
 
-    if (!$door || empty($door['config']['enabled'])) {
+    if (!$door || empty($door['config']['enabled']) || !empty($door['config']['hide_from_web'])) {
         http_response_code(404);
         $template = new Template();
         $template->renderResponse('404.twig', [
@@ -432,7 +440,7 @@ SimpleRouter::get('/games/nativedoors/{doorid}', function($doorid) {
     $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
     $door = $nativeDoorManager->getDoor($doorid);
 
-    if (!$door || empty($door['config']['enabled'])) {
+    if (!$door || empty($door['config']['enabled']) || !empty($door['config']['hide_from_web'])) {
         http_response_code(404);
         $template = new Template();
         $template->renderResponse('404.twig', [

@@ -34,8 +34,8 @@ troubleshooting.
 ## Requirements
 
 - PHP 8.2+
-- PHP extensions: `curl`, `openssl`, `gmp`, `pcntl` (Linux/macOS for multiple
-  concurrent connections)
+- PHP extensions: `curl`, `openssl`, `gmp`, `sodium`, `pcntl` (Linux/macOS for
+  multiple concurrent connections)
 - BinktermPHP web API reachable (defaults to `SITE_URL` from `.env`)
 
 ## Starting the Daemon
@@ -153,15 +153,22 @@ daemon.
 
 | Category | Algorithm |
 |----------|-----------|
-| Key exchange | `diffie-hellman-group14-sha256` |
+| Key exchange | `curve25519-sha256`, `curve25519-sha256@libssh.org`, `diffie-hellman-group14-sha256` |
 | Host key | `rsa-sha2-256` |
-| Encryption (both directions) | `aes128-ctr` |
+| Encryption (both directions) | `aes256-ctr`, `aes128-ctr` |
 | MAC (both directions) | `hmac-sha2-256` |
 | Compression | `none` |
 | Auth method | `password` |
 
-These choices favour maximum compatibility with current SSH clients (PuTTY,
-OpenSSH, SyncTERM, ZOC) while using only standard PHP crypto primitives.
+`curve25519-sha256` and `aes256-ctr` are offered alongside the older
+`diffie-hellman-group14-sha256`/`aes128-ctr` pair for compatibility with SSH
+clients that implement only the modern algorithm set and not the older
+one — notably SyncTERM's DeuceSSH library, which supports
+`curve25519-sha256` and `aes256-ctr` but neither
+`diffie-hellman-group14-sha256` nor `aes128-ctr`. These choices favour
+maximum compatibility with current SSH clients (PuTTY, OpenSSH, SyncTERM,
+ZOC) while using only standard PHP crypto primitives (`ext-openssl`,
+`ext-gmp`, and `ext-sodium` for Curve25519).
 
 ## Architecture
 

@@ -210,6 +210,16 @@
 
             <!-- Top Users Tab -->
             <div class="tab-pane fade" id="pane-users" role="tabpanel">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header"><strong>{{ t('ui.admin.activity_stats.returning_users') }}</strong></div>
+                    <div class="card-body p-0">
+                        <div class="px-3 pt-3 pb-2" id="returning-users-summary"></div>
+                        <table class="table table-sm table-hover mb-0">
+                            <thead><tr><th>{{ t('ui.admin.activity_stats.user') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.active_days') }}</th><th style="width:35%"></th></tr></thead>
+                            <tbody id="returning-users-rows"></tbody>
+                        </table>
+                    </div>
+                </div>
                 <div class="card shadow-sm">
                     <div class="card-header"><strong>{{ t('ui.admin.activity_stats.most_active_users') }}</strong></div>
                     <div class="card-body p-0">
@@ -371,7 +381,8 @@
             echoViews + echoSends, echoViews, echoSends,
             netReads + netSends, netReads, netSends,
             byCategory.file || 0, byCategory.door || 0,
-            byCategory.nodelist || 0, byCategory.chat || 0, byCategory.auth || 0,
+            byCategory.nodelist || 0, byCategory.bbs_directory || 0, byCategory.chat || 0,
+            byCategory.pgp || 0, byCategory.auth || 0,
             ...Object.values(loginBySource),
         ];
         const maxCat = Math.max(...allVals);
@@ -409,7 +420,9 @@
             plainRow(uiT('ui.admin.activity_stats.files', 'Files'), byCategory.file || 0) +
             plainRow(uiT('ui.admin.activity_stats.doors', 'Doors'), byCategory.door || 0) +
             plainRow(uiT('ui.admin.activity_stats.nodelist', 'Nodelist'), byCategory.nodelist || 0) +
+            plainRow(uiT('ui.admin.activity_stats.bbs_directory', 'BBS Directory'), byCategory.bbs_directory || 0) +
             plainRow(uiT('ui.admin.activity_stats.chat', 'Chat'), byCategory.chat || 0) +
+            plainRow(uiT('ui.admin.activity_stats.pgp', 'PGP'), byCategory.pgp || 0) +
             groupRow(uiT('ui.admin.activity_stats.auth', 'Auth'), byCategory.auth || 0) +
             Object.entries(loginBySource).map(([src, cnt]) =>
                 subRow(escapeHtml(src.charAt(0).toUpperCase() + src.slice(1)), cnt, 'bg-info')
@@ -454,6 +467,16 @@
 
     function renderUsers(data) {
         renderRows('top-users-rows', data.top_users || [], r => r.username || uiT('ui.admin.activity_stats.anonymous', '(anon)'), r => r.count, 'bg-primary');
+
+        const returningUsers = data.returning_users || [];
+        const returningUsersCount = (data.summary || {}).returning_users_count || 0;
+
+        const summaryEl = document.getElementById('returning-users-summary');
+        if (summaryEl) {
+            summaryEl.innerHTML = `<span class="h4 mb-0 fw-bold">${returningUsersCount.toLocaleString()}</span> ` +
+                `<span class="text-muted small">${escapeHtml(uiT('ui.admin.activity_stats.returning_users_summary_label', 'users active on more than 1 day in this period'))}</span>`;
+        }
+        renderRows('returning-users-rows', returningUsers, r => r.username || uiT('ui.admin.activity_stats.anonymous', '(anon)'), r => r.count, 'bg-primary');
     }
 
     function renderInterests(data) {

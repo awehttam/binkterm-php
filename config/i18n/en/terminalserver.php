@@ -11,6 +11,7 @@ return [
     'ui.terminalserver.server.login_menu.login'        => '  (L) Login to existing account',
     'ui.terminalserver.server.login_menu.reset_password' => '  (R) Reset lost password',
     'ui.terminalserver.server.login_menu.register'     => '  (N) Register new account',
+    'ui.terminalserver.server.login_menu.login_setup'  => '  (T) Login and run terminal setup',
     'ui.terminalserver.server.login_menu.qwk_transfer' => '  (K) QWK transfer',
     'ui.terminalserver.server.login_menu.quit'         => '  (Q) Quit',
     'ui.terminalserver.server.login_menu.choice'       => 'Your choice: ',
