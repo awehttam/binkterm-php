@@ -159,6 +159,7 @@ class NativeDoorManifest
             'players' => $data['game']['players'] ?? null,
             'icon' => $data['game']['icon'] ?? null,
             'screenshot' => $data['game']['screenshot'] ?? null,
+            'experience' => $data['experience'] ?? null,
 
             // Door technical info
             'executable' => $data['door']['executable'],

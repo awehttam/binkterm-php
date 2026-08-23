@@ -28,5 +28,10 @@
     "enabled": false,
     "credit_cost": 0,
     "max_sessions": 10
+  },
+  "experience": {
+    "category": "gateway",
+    "featured": true,
+    "multiplayer": true
   }
 }
