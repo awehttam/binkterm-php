@@ -665,7 +665,7 @@ class NativeAdapter extends EmulatorAdapter {
 
         const env = {
             ...process.env,
-            DOOR_USER_NAME: userData.handle || userData.username || 'Guest',
+            DOOR_USER_NAME: userData.handle || userData.username || userData.real_name || 'Guest',
             DOOR_USER_REAL_NAME: userData.real_name || 'Guest',
             DOOR_USER_NUMBER: String(sessionData.user_id || ''),
             DOOR_NODE: String(node_number),
