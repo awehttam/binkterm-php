@@ -163,37 +163,41 @@
                     </div>
 
                     <h6 class="text-muted">{{ t('ui.admin.door_manifest_editor.section.runtime_defaults', {}, locale, ['common']) }}</h6>
-                    <div class="row g-2 mb-3">
-                        <div class="col-lg-2 col-md-4">
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
                             <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.credit_cost', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" name="credit_cost" value="0">
                         </div>
-                        <div class="col-lg-2 col-md-4">
+                        <div class="col-md-4">
                             <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.max_time_minutes', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" name="max_time_minutes" value="30">
                         </div>
-                        <div class="col-lg-2 col-md-4">
+                        <div class="col-md-4">
                             <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.max_sessions', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" name="max_sessions" value="10">
                         </div>
-                        <div class="col-lg-2 col-md-4">
-                            <div class="form-check mt-4">
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="enabled" id="fieldEnabled">
                                 <label class="form-check-label" for="fieldEnabled">{{ t('ui.admin.door_manifest_editor.enabled_label', {}, locale, ['common']) }}</label>
                             </div>
                         </div>
-                        <div class="col-lg-2 col-md-4">
-                            <div class="form-check mt-4">
+                        <div class="col-md-4">
+                            <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="admin_only" id="fieldAdminOnly">
                                 <label class="form-check-label" for="fieldAdminOnly">{{ t('ui.admin.door_manifest_editor.field.admin_only', {}, locale, ['common']) }}</label>
                             </div>
                         </div>
-                        <div class="col-lg-2 col-md-4">
-                            <div class="form-check mt-4">
+                        <div class="col-md-4">
+                            <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="hide_from_web" id="fieldHideFromWeb">
                                 <label class="form-check-label" for="fieldHideFromWeb">{{ t('ui.admin.rlogindoors_config.hide_from_web', {}, locale, ['common']) }}</label>
                             </div>
                         </div>
+                    </div>
+                    <div class="row g-2 mb-3">
                         <div class="col-md-8">
                             <div class="form-check mt-2">
                                 <input class="form-check-input" type="checkbox" name="allow_anonymous" id="fieldAllowAnonymous">
