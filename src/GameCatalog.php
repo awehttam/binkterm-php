@@ -17,7 +17,7 @@ class GameCatalog
      *
      * @return array
      */
-    public function getEnabledGames(): array
+    public function getEnabledGames(?array $user = null): array
     {
         $games = [];
 
@@ -28,16 +28,28 @@ class GameCatalog
 
         foreach ($sources as $type => $doors) {
             foreach ($doors as $id => $door) {
+                if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+                    continue;
+                }
+
+                if (!empty($door['config']['hide_from_web'])) {
+                    continue;
+                }
+
                 $game = $door;
 
                 $games[$id] = [
                     'id' => $id,
-                    'type' => $type,
+                    'type' => $type . 'door',
                     'name' => $game['name'] ?? $door['name'] ?? $id,
                     'description' => $game['description'] ?? $door['description'] ?? '',
+                    'author' => $door['author'] ?? null,
+                    'version' => $door['game_version'] ?? null,
+                    'path' => $id,
+                    'icon' => $game['icon'] ?? null,
+                    'icon_url' => "/door-assets/{$id}/icon",
                     'players' => $game['players'] ?? null,
                     'genre' => $game['genre'] ?? [],
-                    'icon' => $game['icon'] ?? null,
                     'experience' => $door['experience'] ?? [
                         'category' => 'game',
                         'featured' => false,
