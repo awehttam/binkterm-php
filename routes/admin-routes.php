@@ -4359,78 +4359,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
-        SimpleRouter::post('/rlogin-doors/{doorId}', function(string $doorId) {
-            $user = RouteHelper::requireAdmin();
-            header('Content-Type: application/json');
-
-            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
-
-            if (!$rloginDoorManager->getDoor($doorId)) {
-                http_response_code(404);
-                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
-                return;
-            }
-
-            $fields = rloginDoorFieldsFromRequest($_POST);
-
-            if ($fields['name'] === '' || $fields['host'] === '') {
-                http_response_code(400);
-                apiError('errors.admin.rlogin_doors.name_host_required', apiLocalizedText('errors.admin.rlogin_doors.name_host_required', 'Display name and host are required'), 400);
-                return;
-            }
-
-            try {
-                $icon = !empty($_POST['remove_icon']) ? ['data' => null, 'mime' => null] : rloginDoorUploadedImage('icon');
-                $screenshot = !empty($_POST['remove_screenshot']) ? ['data' => null, 'mime' => null] : rloginDoorUploadedImage('screenshot');
-
-                $success = $rloginDoorManager->updateDoor($doorId, $fields, $icon, $screenshot);
-                if (!$success) {
-                    throw new Exception('Update failed');
-                }
-
-                $syncResult = $rloginDoorManager->syncDoorsToDatabase();
-
-                echo json_encode([
-                    'success' => true,
-                    'message_code' => 'ui.admin.rlogindoors_config.updated_success',
-                    'door' => $rloginDoorManager->getDoor($doorId),
-                    'synced' => $syncResult['synced'],
-                    'sync_errors' => $syncResult['errors']
-                ]);
-            } catch (Exception $e) {
-                http_response_code(400);
-                apiError('errors.admin.rlogin_doors.save_failed', apiLocalizedText('errors.admin.rlogin_doors.save_failed', 'Failed to save rlogin door'), 400);
-            }
-        });
-
-        SimpleRouter::post('/rlogin-doors/{doorId}/delete', function(string $doorId) {
-            $user = RouteHelper::requireAdmin();
-            header('Content-Type: application/json');
-
-            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
-
-            if (!$rloginDoorManager->getDoor($doorId)) {
-                http_response_code(404);
-                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
-                return;
-            }
-
-            try {
-                $success = $rloginDoorManager->deleteDoor($doorId);
-                if (!$success) {
-                    throw new Exception('Delete failed');
-                }
-
-                echo json_encode([
-                    'success' => true,
-                    'message_code' => 'ui.admin.rlogindoors_config.deleted_success',
-                ]);
-            } catch (Exception $e) {
-                http_response_code(500);
-                apiError('errors.admin.rlogin_doors.delete_failed', apiLocalizedText('errors.admin.rlogin_doors.delete_failed', 'Failed to delete rlogin door'), 500);
-            }
-        });
-
+        // NOTE: these two literal routes must stay registered before the
+        // POST /rlogin-doors/{doorId} route below. pecee/simple-router's
+        // {param} syntax accepts "/", "-", or "." as the separator before a
+        // parameter, so "/rlogin-doors/{doorId}" also matches URLs like
+        // "/rlogin-doors-sync" (doorId captured as "sync") -- whichever
+        // route is registered first wins. Registering the literal routes
+        // first avoids that collision entirely.
         SimpleRouter::post('/rlogin-doors-sync', function() {
             $user = RouteHelper::requireAdmin();
             header('Content-Type: application/json');
@@ -4538,6 +4473,78 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'skipped' => $skipped,
                 'errors' => $errors,
             ]);
+        });
+
+        SimpleRouter::post('/rlogin-doors/{doorId}', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+
+            if (!$rloginDoorManager->getDoor($doorId)) {
+                http_response_code(404);
+                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
+                return;
+            }
+
+            $fields = rloginDoorFieldsFromRequest($_POST);
+
+            if ($fields['name'] === '' || $fields['host'] === '') {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.name_host_required', apiLocalizedText('errors.admin.rlogin_doors.name_host_required', 'Display name and host are required'), 400);
+                return;
+            }
+
+            try {
+                $icon = !empty($_POST['remove_icon']) ? ['data' => null, 'mime' => null] : rloginDoorUploadedImage('icon');
+                $screenshot = !empty($_POST['remove_screenshot']) ? ['data' => null, 'mime' => null] : rloginDoorUploadedImage('screenshot');
+
+                $success = $rloginDoorManager->updateDoor($doorId, $fields, $icon, $screenshot);
+                if (!$success) {
+                    throw new Exception('Update failed');
+                }
+
+                $syncResult = $rloginDoorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.rlogindoors_config.updated_success',
+                    'door' => $rloginDoorManager->getDoor($doorId),
+                    'synced' => $syncResult['synced'],
+                    'sync_errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.save_failed', apiLocalizedText('errors.admin.rlogin_doors.save_failed', 'Failed to save rlogin door'), 400);
+            }
+        });
+
+        SimpleRouter::post('/rlogin-doors/{doorId}/delete', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+
+            if (!$rloginDoorManager->getDoor($doorId)) {
+                http_response_code(404);
+                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
+                return;
+            }
+
+            try {
+                $success = $rloginDoorManager->deleteDoor($doorId);
+                if (!$success) {
+                    throw new Exception('Delete failed');
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.rlogindoors_config.deleted_success',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.rlogin_doors.delete_failed', apiLocalizedText('errors.admin.rlogin_doors.delete_failed', 'Failed to delete rlogin door'), 500);
+            }
         });
 
         // Door Manifest Editor API
