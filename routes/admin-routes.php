@@ -4385,11 +4385,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
-        // Import doors from a linked Synchronet system via binktermphp-synchronet's
-        // list_doors action, creating a disabled, fully-configured RLogin door
-        // (Synchronet with BinktermPHP Service defaults) for each one not already
-        // present. Existing door_ids are left untouched.
-        SimpleRouter::post('/rlogin-doors-import-synchronet', function() {
+        // Preview doors available to import from a linked Synchronet system via
+        // binktermphp-synchronet's list_doors action. Read-only -- creates
+        // nothing. Doors that already exist (by slugified door_id) are
+        // excluded from the candidate list entirely; the admin picks which
+        // of the remaining candidates to actually import via the confirm
+        // endpoint below.
+        SimpleRouter::post('/rlogin-doors-import-synchronet-preview', function() {
             $user = RouteHelper::requireAdmin();
             header('Content-Type: application/json');
 
@@ -4405,7 +4407,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             $rawConfig = json_decode((string)file_get_contents($configPath), true);
             $rloginHost = is_array($rawConfig) ? ($rawConfig['rlogin_host'] ?? null) : null;
-            $rloginPort = is_array($rawConfig) ? (int)($rawConfig['rlogin_port'] ?? 513) : 513;
 
             if (empty($rloginHost)) {
                 http_response_code(400);
@@ -4429,12 +4430,74 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
 
             $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $candidates = [];
+            $existingCount = 0;
+
+            foreach ($result['doors'] as $remoteDoor) {
+                $doorId = rloginSlugifyDoorId($remoteDoor['code']);
+
+                if ($rloginDoorManager->getDoor($doorId)) {
+                    $existingCount++;
+                    continue;
+                }
+
+                $candidates[] = [
+                    'code' => $remoteDoor['code'],
+                    'name' => $remoteDoor['name'],
+                    'sec_name' => $remoteDoor['sec_name'] ?? null,
+                    'door_id' => $doorId,
+                ];
+            }
+
+            echo json_encode([
+                'success' => true,
+                'candidates' => $candidates,
+                'existing_count' => $existingCount,
+            ]);
+        });
+
+        // Import the doors the admin selected from the preview above. Creates
+        // a disabled, fully-configured RLogin door (Synchronet with
+        // BinktermPHP Service defaults) for each one; re-checks existence
+        // server-side in case a door was created between preview and confirm.
+        SimpleRouter::post('/rlogin-doors-import-synchronet-confirm', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $configPath = defined('BINKTERMPHP_BASEDIR')
+                ? BINKTERMPHP_BASEDIR . '/config/rlogin_synchronet_service.json'
+                : __DIR__ . '/../config/rlogin_synchronet_service.json';
+
+            $rawConfig = file_exists($configPath) ? json_decode((string)file_get_contents($configPath), true) : null;
+            $rloginHost = is_array($rawConfig) ? ($rawConfig['rlogin_host'] ?? null) : null;
+            $rloginPort = is_array($rawConfig) ? (int)($rawConfig['rlogin_port'] ?? 513) : 513;
+
+            if (empty($rloginHost)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', apiLocalizedText('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', 'rlogin_host is not set in config/rlogin_synchronet_service.json'), 400);
+                return;
+            }
+
+            $payload = json_decode(file_get_contents('php://input'), true);
+            $selected = is_array($payload['doors'] ?? null) ? $payload['doors'] : [];
+
+            if (empty($selected)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.no_doors_selected', apiLocalizedText('errors.admin.rlogin_doors.no_doors_selected', 'No doors were selected to import'), 400);
+                return;
+            }
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
             $imported = [];
             $skipped = [];
             $errors = [];
 
-            foreach ($result['doors'] as $remoteDoor) {
-                $doorId = rloginSlugifyDoorId($remoteDoor['code']);
+            foreach ($selected as $remoteDoor) {
+                if (!is_array($remoteDoor) || empty($remoteDoor['code'])) {
+                    continue;
+                }
+
+                $doorId = rloginSlugifyDoorId((string)$remoteDoor['code']);
 
                 if ($rloginDoorManager->getDoor($doorId)) {
                     $skipped[] = $doorId;
@@ -4442,9 +4505,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
 
                 $fields = [
-                    'name' => $remoteDoor['name'],
-                    'short_name' => $remoteDoor['code'],
-                    'description' => $remoteDoor['sec_name'] ?? '',
+                    'name' => (string)($remoteDoor['name'] ?? $remoteDoor['code']),
+                    'short_name' => (string)$remoteDoor['code'],
+                    'description' => (string)($remoteDoor['sec_name'] ?? ''),
                     'bbs_type' => 'synchronet_service',
                     'host' => $rloginHost,
                     'port' => $rloginPort,

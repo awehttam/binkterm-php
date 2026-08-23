@@ -443,6 +443,7 @@ return [
     'errors.admin.rlogin_doors.synchronet_rlogin_host_missing' => 'rlogin_host is not set in config/rlogin_synchronet_service.json',
     'errors.admin.rlogin_doors.synchronet_unreachable' => 'Could not reach the Synchronet service',
     'errors.admin.rlogin_doors.synchronet_list_failed' => 'Synchronet rejected the list_doors request',
+    'errors.admin.rlogin_doors.no_doors_selected' => 'No doors were selected to import',
     'errors.admin.webdoors_config.load_failed' => 'Failed to load webdoors configuration',
     'errors.admin.webdoors_config.save_failed' => 'Failed to save webdoors configuration',
     'errors.admin.webdoors_config.activate_failed' => 'Failed to activate webdoors configuration',

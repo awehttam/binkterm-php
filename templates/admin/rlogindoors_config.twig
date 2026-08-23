@@ -224,12 +224,42 @@
         </div>
     </div>
 </div>
+
+<!-- Import from Synchronet Preview Modal -->
+<div class="modal fade" id="importPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.rlogindoors_config.import_preview_title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="importPreviewAlert"></div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <p class="mb-0">{{ t('ui.admin.rlogindoors_config.import_preview_intro', {}, locale, ['common']) }}</p>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" id="importSelectAllBtn">{{ t('ui.admin.rlogindoors_config.import_select_all', {}, locale, ['common']) }}</button>
+                        <button type="button" class="btn btn-outline-secondary" id="importSelectNoneBtn">{{ t('ui.admin.rlogindoors_config.import_select_none', {}, locale, ['common']) }}</button>
+                    </div>
+                </div>
+                <div id="importCandidatesList"></div>
+                <div class="text-muted small mt-2" id="importExistingNote"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" id="importConfirmBtn">{{ t('ui.admin.rlogindoors_config.import_selected_btn', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 let doorsState = { doors: [] };
 let doorModal = null;
+let importPreviewModal = null;
+let importCandidates = [];
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -274,22 +304,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     doorModal = new bootstrap.Modal(document.getElementById('doorModal'));
+    importPreviewModal = new bootstrap.Modal(document.getElementById('importPreviewModal'));
 
     document.getElementById('addDoorBtn').addEventListener('click', () => openAddModal());
     document.getElementById('doorForm').addEventListener('submit', onSubmitDoorForm);
     document.getElementById('fieldBbsType').addEventListener('change', applyBbsTypeDefaults);
-    document.getElementById('importSynchronetBtn').addEventListener('click', importFromSynchronet);
+    document.getElementById('importSynchronetBtn').addEventListener('click', openImportPreview);
+    document.getElementById('importSelectAllBtn').addEventListener('click', () => setAllImportCandidates(true));
+    document.getElementById('importSelectNoneBtn').addEventListener('click', () => setAllImportCandidates(false));
+    document.getElementById('importConfirmBtn').addEventListener('click', confirmImportSelected);
 });
 
-function importFromSynchronet() {
+function openImportPreview() {
     const btn = document.getElementById('importSynchronetBtn');
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + uiT('ui.admin.rlogindoors_config.importing', 'Importing...');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + uiT('ui.admin.rlogindoors_config.loading_preview', 'Loading available doors...');
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-    fetch('/admin/api/rlogin-doors-import-synchronet', {
+    fetch('/admin/api/rlogin-doors-import-synchronet-preview', {
         method: 'POST',
         headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
     })
@@ -298,6 +332,82 @@ function importFromSynchronet() {
         if (!data.success) {
             throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.import_failed', 'Import failed')));
         }
+        importCandidates = data.candidates || [];
+        renderImportCandidates(data.existing_count || 0);
+        document.getElementById('importPreviewAlert').innerHTML = '';
+        importPreviewModal.show();
+    })
+    .catch(error => {
+        showAlert('danger', error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+}
+
+function renderImportCandidates(existingCount) {
+    const container = document.getElementById('importCandidatesList');
+
+    if (importCandidates.length === 0) {
+        container.innerHTML = '<div class="text-muted">' + uiT('ui.admin.rlogindoors_config.import_no_candidates', 'No new doors to import — everything is already imported.') + '</div>';
+    } else {
+        let html = '<div class="list-group">';
+        importCandidates.forEach((door, i) => {
+            html += `
+                <label class="list-group-item d-flex align-items-start gap-2">
+                    <input class="form-check-input mt-1 import-candidate-checkbox" type="checkbox" data-index="${i}" checked>
+                    <span>
+                        <strong>${escHtml(door.name)}</strong>
+                        <span class="text-muted small"> (${escHtml(door.code)})</span>
+                        ${door.sec_name ? '<span class="badge bg-secondary ms-1">' + escHtml(door.sec_name) + '</span>' : ''}
+                    </span>
+                </label>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    document.getElementById('importExistingNote').textContent = existingCount > 0
+        ? uiT('ui.admin.rlogindoors_config.import_already_exists_note', '{count} door(s) already imported and not shown here.', { count: existingCount })
+        : '';
+
+    document.getElementById('importConfirmBtn').disabled = importCandidates.length === 0;
+}
+
+function setAllImportCandidates(checked) {
+    document.querySelectorAll('.import-candidate-checkbox').forEach(cb => { cb.checked = checked; });
+}
+
+function confirmImportSelected() {
+    const selected = Array.from(document.querySelectorAll('.import-candidate-checkbox:checked'))
+        .map(cb => importCandidates[parseInt(cb.dataset.index, 10)]);
+
+    if (selected.length === 0) {
+        document.getElementById('importPreviewAlert').innerHTML =
+            '<div class="alert alert-warning">' + uiT('errors.admin.rlogin_doors.no_doors_selected', 'No doors were selected to import') + '</div>';
+        return;
+    }
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const btn = document.getElementById('importConfirmBtn');
+    btn.disabled = true;
+
+    fetch('/admin/api/rlogin-doors-import-synchronet-confirm', {
+        method: 'POST',
+        headers: Object.assign(
+            { 'Content-Type': 'application/json' },
+            csrfToken ? { 'X-CSRF-Token': csrfToken } : {}
+        ),
+        body: JSON.stringify({ doors: selected }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.import_failed', 'Import failed')));
+        }
+        importPreviewModal.hide();
         const imported = (data.imported || []).length;
         const skipped = (data.skipped || []).length;
         showAlert('success', uiT('ui.admin.rlogindoors_config.import_success', 'Imported {imported} door(s), skipped {skipped} already present.', { imported, skipped }));
@@ -307,11 +417,11 @@ function importFromSynchronet() {
         loadDoors();
     })
     .catch(error => {
-        showAlert('danger', error.message);
+        document.getElementById('importPreviewAlert').innerHTML =
+            '<div class="alert alert-danger">' + escHtml(error.message) + '</div>';
     })
     .finally(() => {
         btn.disabled = false;
-        btn.innerHTML = originalHtml;
     });
 }
 

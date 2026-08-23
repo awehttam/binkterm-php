@@ -1775,6 +1775,14 @@ return [
     'ui.admin.rlogindoors_config.importing' => 'Importazione...',
     'ui.admin.rlogindoors_config.import_success' => 'Importate {imported} door, saltate {skipped} gia presenti.',
     'ui.admin.rlogindoors_config.import_failed' => 'Importazione fallita',
+    'ui.admin.rlogindoors_config.import_preview_title' => 'Importa da Synchronet',
+    'ui.admin.rlogindoors_config.import_preview_intro' => 'Seleziona le door da importare:',
+    'ui.admin.rlogindoors_config.import_select_all' => 'Seleziona tutto',
+    'ui.admin.rlogindoors_config.import_select_none' => 'Deseleziona tutto',
+    'ui.admin.rlogindoors_config.import_already_exists_note' => '{count} door gia importate e non mostrate qui.',
+    'ui.admin.rlogindoors_config.import_no_candidates' => 'Nessuna nuova door da importare — tutto e gia stato importato.',
+    'ui.admin.rlogindoors_config.import_selected_btn' => 'Importa selezionate',
+    'ui.admin.rlogindoors_config.loading_preview' => 'Caricamento door disponibili...',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Impossibile caricare la configurazione webdoors',

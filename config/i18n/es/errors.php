@@ -439,6 +439,7 @@ return [
     'errors.admin.rlogin_doors.synchronet_rlogin_host_missing' => 'rlogin_host no esta definido en config/rlogin_synchronet_service.json',
     'errors.admin.rlogin_doors.synchronet_unreachable' => 'No se pudo contactar el servicio Synchronet',
     'errors.admin.rlogin_doors.synchronet_list_failed' => 'Synchronet rechazo la solicitud list_doors',
+    'errors.admin.rlogin_doors.no_doors_selected' => 'No se selecciono ninguna puerta para importar',
     'errors.admin.webdoors_config.load_failed' => 'No se pudo cargar la configuracion de webdoors',
     'errors.admin.webdoors_config.save_failed' => 'No se pudo guardar la configuracion de webdoors',
     'errors.admin.webdoors_config.activate_failed' => 'No se pudo activar la configuracion de webdoors',

@@ -439,6 +439,7 @@ return [
     'errors.admin.rlogin_doors.synchronet_rlogin_host_missing' => 'rlogin_host не задан в config/rlogin_synchronet_service.json',
     'errors.admin.rlogin_doors.synchronet_unreachable' => 'Не удалось подключиться к сервису Synchronet',
     'errors.admin.rlogin_doors.synchronet_list_failed' => 'Synchronet отклонил запрос list_doors',
+    'errors.admin.rlogin_doors.no_doors_selected' => 'Не выбрано ни одной двери для импорта',
     'errors.admin.webdoors_config.load_failed' => 'Не удалось загрузить конфигурацию web‑дверей',
     'errors.admin.webdoors_config.save_failed' => 'Не удалось сохранить конфигурацию web‑дверей',
     'errors.admin.webdoors_config.activate_failed' => 'Не удалось активировать конфигурацию web‑дверей',
