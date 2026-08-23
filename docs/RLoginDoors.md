@@ -187,12 +187,25 @@ cp config/rlogin_synchronet_service.json.example config/rlogin_synchronet_servic
     "port": 24512,
     "secret": "changeme",
     "timeout": 5,
+    "tls": true,
+    "tls_verify_peer": false,
+    "tls_cafile": null,
     "rlogin_host": "127.0.0.1",
     "rlogin_port": 513
 }
 ```
 
 `host`/`port`/`secret`/`timeout` are for the `services.ini` API connection (`secret` must match the `API_KEY` configured in the Synchronet-side `binkterm_sync_service.js`). `rlogin_host`/`rlogin_port` are the Synchronet system's actual **rlogin** listener — almost always the same host but a different port (513 by default) — used only by [Import from Synchronet](#import-from-synchronet) below.
+
+`tls`/`tls_verify_peer`/`tls_cafile` control encryption of the `services.ini` API connection (not the separate rlogin connection, which has no encryption of its own — see [Security Warning](#security-warning)):
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `tls` | `true` | Wrap the connection in TLS. Must match the `Options = TLS` flag on the Synchronet-side `services.ini` section — a TLS client cannot talk to a plaintext-only service, or vice versa. Set to `false` only for a deliberately plaintext setup (e.g. an already-encrypted tunnel between the two hosts). |
+| `tls_verify_peer` | `false` | Verify the server's certificate. Left off by default because this link is typically LAN/localhost between two systems the same sysop controls, using Synchronet's self-signed `ctrl/ssl.cert`. Set to `true` once a CA-signed or otherwise trusted certificate is in place. |
+| `tls_cafile` | `null` | Optional path to a CA bundle (or the server's own certificate, for pinning) used when `tls_verify_peer` is `true`. |
+
+See [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet)'s README for the matching `services.ini` setup.
 
 It speaks a one-shot JSON-over-TCP protocol — one connection, one request, one response, then the connection closes — matching the [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) `services.ini` service. Every request carries an `action` field (`provision` or `list_doors`); omitting it defaults to `provision`.
 
@@ -259,3 +272,8 @@ The pre-login command runs on the server with the same privileges as the web pro
 - Confirm `config/rlogin_synchronet_service.json` exists with `host`/`port`/`secret` matching the Synchronet-side `services.ini` section and `API_KEY`
 - Confirm `rlogin_host` is set in that file (the import is refused without it)
 - If the request reaches the service but returns `success:false`, check the Synchronet Services server log — `list_doors` enumerates `xtrn_area.sec_list`, which needs verifying against your Synchronet version if it comes back empty (see the note in `binkterm_sync_service.js`)
+
+**Pre-login command or Import from Synchronet fails with a connection error after enabling TLS**
+- Confirm `tls` in `config/rlogin_synchronet_service.json` matches the `Options = TLS` flag on the Synchronet-side `services.ini` section — both sides must agree, a plaintext client cannot reach a TLS-only service and a TLS client cannot reach a plaintext one
+- Confirm the Synchronet system has a valid `ctrl/ssl.cert` configured (self-signed is fine with the default `tls_verify_peer: false`)
+- If `tls_verify_peer` is `true`, confirm `tls_cafile` (if set) points at a CA bundle or certificate that actually validates the server's certificate

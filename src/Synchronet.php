@@ -12,6 +12,18 @@
  * closes). Every request carries an "action" field ("provision" or
  * "list_doors"); it may be omitted, defaulting to "provision".
  *
+ * The connection is wrapped in TLS by default (controlled by the "tls" key
+ * in the config file / constructor arg -- omit it, or set it explicitly to
+ * true, to stay on TLS; set it to false only for a deliberately plaintext
+ * setup). This matches the Synchronet-side `Options = TLS` flag on the
+ * `services.ini` section -- both sides must agree, since a TLS client
+ * talking to a plaintext-only service (or vice versa) will simply fail to
+ * connect. Peer certificate verification defaults to off
+ * ("tls_verify_peer": false) since this service typically runs on a
+ * LAN/localhost link between two systems the same sysop controls, using a
+ * self-signed certificate; set "tls_verify_peer": true (and optionally
+ * "tls_cafile") once a CA-signed or pinned certificate is in place.
+ *
  *   Request (one line of JSON), provision:
  *     {"action":"provision","api_key":"<shared secret>","username":"...","real_name":"...","location":"..."}
  *
@@ -38,13 +50,26 @@ class Synchronet
     private int $port;
     private string $secret;
     private float $timeout;
+    private bool $tls;
+    private bool $tlsVerifyPeer;
+    private ?string $tlsCafile;
 
-    public function __construct(string $host, int $port, string $secret, float $timeout = 5.0)
-    {
+    public function __construct(
+        string $host,
+        int $port,
+        string $secret,
+        float $timeout = 5.0,
+        bool $tls = true,
+        bool $tlsVerifyPeer = false,
+        ?string $tlsCafile = null
+    ) {
         $this->host = $host;
         $this->port = $port;
         $this->secret = $secret;
         $this->timeout = $timeout;
+        $this->tls = $tls;
+        $this->tlsVerifyPeer = $tlsVerifyPeer;
+        $this->tlsCafile = $tlsCafile;
     }
 
     /**
@@ -69,7 +94,10 @@ class Synchronet
             (string)$config['host'],
             (int)$config['port'],
             (string)($config['secret'] ?? ''),
-            (float)($config['timeout'] ?? 5)
+            (float)($config['timeout'] ?? 5),
+            (bool)($config['tls'] ?? true),
+            !empty($config['tls_verify_peer']),
+            !empty($config['tls_cafile']) ? (string)$config['tls_cafile'] : null
         );
     }
 
@@ -146,8 +174,25 @@ class Synchronet
      */
     private function sendRequest(array $payload): array
     {
-        $target = "tcp://{$this->host}:{$this->port}";
-        $socket = @stream_socket_client($target, $errno, $errstr, $this->timeout);
+        $scheme = $this->tls ? 'tls' : 'tcp';
+        $target = "{$scheme}://{$this->host}:{$this->port}";
+
+        $context = null;
+        if ($this->tls) {
+            $sslOptions = [
+                'verify_peer' => $this->tlsVerifyPeer,
+                'verify_peer_name' => $this->tlsVerifyPeer,
+                'allow_self_signed' => !$this->tlsVerifyPeer,
+            ];
+            if ($this->tlsCafile !== null) {
+                $sslOptions['cafile'] = $this->tlsCafile;
+            }
+            $context = stream_context_create(['ssl' => $sslOptions]);
+        }
+
+        $socket = $context !== null
+            ? @stream_socket_client($target, $errno, $errstr, $this->timeout, STREAM_CLIENT_CONNECT, $context)
+            : @stream_socket_client($target, $errno, $errstr, $this->timeout);
         if ($socket === false) {
             throw new \RuntimeException("Could not connect to {$this->host}:{$this->port} - $errstr ($errno)");
         }
