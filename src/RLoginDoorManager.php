@@ -582,6 +582,7 @@ class RLoginDoorManager
         $stdout = '';
         $stderr = '';
         $start = time();
+        $exitCode = null;
 
         while (true) {
             $status = proc_get_status($process);
@@ -590,6 +591,14 @@ class RLoginDoorManager
             $stderr .= stream_get_contents($pipes[2]);
 
             if (!$status['running']) {
+                // proc_get_status() only reports the real exit code on the
+                // first call after the child has exited; every subsequent
+                // call (including the one proc_close() makes internally)
+                // returns -1 because the kernel has already reaped the
+                // child and PHP's cached value was consumed here. Capture
+                // it from this status snapshot rather than from proc_close()'s
+                // return value.
+                $exitCode = $status['exitcode'];
                 break;
             }
 
@@ -608,7 +617,7 @@ class RLoginDoorManager
         $stderr .= stream_get_contents($pipes[2]);
         fclose($pipes[1]);
         fclose($pipes[2]);
-        $exitCode = proc_close($process);
+        proc_close($process);
 
         if ($exitCode !== 0) {
             $error = trim($stderr) !== '' ? trim($stderr) : "pre_login_command exited with status $exitCode";
