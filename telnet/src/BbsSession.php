@@ -2137,6 +2137,8 @@ class BbsSession
             return;
         }
 
+        TelnetUtils::showScreenIfExists("l33test-logo.ans", $this, $conn);
+
         if (TelnetUtils::showScreenIfExists("login.ans", $this, $conn)) {
             return;
         }
