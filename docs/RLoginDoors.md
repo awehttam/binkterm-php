@@ -152,7 +152,7 @@ The command template supports CLI placeholders, substituted before execution:
 Example:
 
 ```
-/usr/local/bin/provision-synchronet-user.sh {user_name} {real_name} {user_number}
+php scripts/rlogin_synchronet_service_client.php {user_name} {real_name} {user_number}
 ```
 
 ### Output contract
