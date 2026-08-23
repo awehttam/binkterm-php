@@ -9,7 +9,7 @@
  * via BinktermPHP\Synchronet. See that class for the wire protocol.
  *
  * Usage (as the door's pre_login_command):
- *   php scripts/rlogin_synchronet_service_client.php <user_name> <real_name> <user_number>
+ *   php scripts/synchronet_service.php <user_name> <real_name> <user_number>
  *
  * Reads the target service host/port/shared secret from
  * config/rlogin_synchronet_service.json (copy config/rlogin_synchronet_service.json.example

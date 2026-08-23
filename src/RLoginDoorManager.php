@@ -561,7 +561,7 @@ class RLoginDoorManager
         $cmdLine = implode(' ', $cmdArgs);
 
         // Run from the project root so relative paths in pre_login_command
-        // (e.g. "php scripts/rlogin_synchronet_service_client.php ...") resolve
+        // (e.g. "php scripts/synchronet_service.php ...") resolve
         // the same way they would from a terminal, regardless of what cwd the
         // web server process itself happens to run with.
         $cwd = defined('BINKTERMPHP_BASEDIR') ? BINKTERMPHP_BASEDIR : __DIR__ . '/..';

@@ -1223,7 +1223,7 @@ php scripts/admin_client.php binkp-poll 1:153/149
 Reference `pre_login_command` helper for RLogin doors configured with the **Synchronet with BinktermPHP Service** BBS type (see [RLoginDoors.md](RLoginDoors.md)). Called automatically by the door launch flow — not normally run manually. It connects to the companion [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) `services.ini` service over a one-shot JSON-over-TCP protocol to provision or sync the remote account before the rlogin connection is made.
 
 ```bash
-php scripts/rlogin_synchronet_service_client.php <user_name> <real_name> <user_number>
+php scripts/synchronet_service.php <user_name> <real_name> <user_number>
 ```
 
 Reads connection details from `config/rlogin_synchronet_service.json` (copy `config/rlogin_synchronet_service.json.example` to get started):

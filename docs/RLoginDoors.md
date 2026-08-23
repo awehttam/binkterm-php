@@ -120,7 +120,7 @@ The BBS Type field is a UI convenience — every preset uses the exact same unde
 |---|---|---|
 | **Plain RLogin** | No pre-login command | Connects directly via rlogin with the configured username. Use this for any generic rlogin-accessible system where the sysop manages accounts out of band, or the remote system auto-creates accounts on first rlogin. |
 | **Synchronet** | No pre-login command, left blank for the sysop to fill in | For sysops with their own account-provisioning approach who don't want the bundled Service integration. |
-| **Synchronet with BinktermPHP Service** | Pre-Login Command prefilled to invoke `scripts/rlogin_synchronet_service_client.php` | Automatic account creation/sync — the "batteries included" option. **Requires installing [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) on the Synchronet system first** (`services.ini` service, MIT licensed). BinktermPHP only ships the *client* side of this call (the script above); without the Synchronet-side service installed and running, this preset's Pre-Login Command will fail and block every launch. See [Pre-Login Command](#pre-login-command) for the wire protocol. |
+| **Synchronet with BinktermPHP Service** | Pre-Login Command prefilled to invoke `scripts/synchronet_service.php` | Automatic account creation/sync — the "batteries included" option. **Requires installing [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) on the Synchronet system first** (`services.ini` service, MIT licensed). BinktermPHP only ships the *client* side of this call (the script above); without the Synchronet-side service installed and running, this preset's Pre-Login Command will fail and block every launch. See [Pre-Login Command](#pre-login-command) for the wire protocol. |
 
 Terminal Type is also where Synchronet-specific routing lives: Synchronet's door server reads the client's reported terminal type to decide what to launch. Setting Terminal Type to something like `xtrn=LORD` (instead of a real terminal type) tells Synchronet to launch a specific door/xtrn program directly rather than dropping the user at the main menu. This is a Synchronet-side convention, not part of RFC 1282 itself — consult your Synchronet configuration for the exact `xtrn` codes it expects.
 
@@ -152,7 +152,7 @@ The command template supports CLI placeholders, substituted before execution:
 Example:
 
 ```
-php scripts/rlogin_synchronet_service_client.php {user_name} {real_name} {user_number}
+php scripts/synchronet_service.php {user_name} {real_name} {user_number}
 ```
 
 ### Output contract
@@ -174,7 +174,7 @@ php scripts/rlogin_synchronet_service_client.php {user_name} {real_name} {user_n
 
 ### The bundled Synchronet Service client
 
-`scripts/rlogin_synchronet_service_client.php` is the client half of this integration for the **Synchronet with BinktermPHP Service** preset. It's a thin CLI wrapper around `BinktermPHP\Synchronet` (`src/Synchronet.php`), which owns the actual wire protocol and can be reused from other PHP code if needed. It reads connection details from `config/rlogin_synchronet_service.json` (a small standalone config file for this script only — unrelated to the door's own database row). Copy the example to get started:
+`scripts/synchronet_service.php` is the client half of this integration for the **Synchronet with BinktermPHP Service** preset. It's a thin CLI wrapper around `BinktermPHP\Synchronet` (`src/Synchronet.php`), which owns the actual wire protocol and can be reused from other PHP code if needed. It reads connection details from `config/rlogin_synchronet_service.json` (a small standalone config file for this script only — unrelated to the door's own database row). Copy the example to get started:
 
 ```bash
 cp config/rlogin_synchronet_service.json.example config/rlogin_synchronet_service.json
