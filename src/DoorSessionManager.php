@@ -73,7 +73,7 @@ class DoorSessionManager
      * @param int $userId User ID
      * @param string $doorName Door game name (e.g., 'lord')
      * @param array $userData User data for drop file
-     * @param string $doorType Door type: 'dos' or 'native'
+     * @param string $doorType Door type: 'dos', 'native', or 'rlogin'
      * @return array Session information
      * @throws Exception If session cannot be started
      */
@@ -89,6 +89,8 @@ class DoorSessionManager
         // Get door information from manifest to get the display name
         if ($doorType === 'native') {
             $doorManager = new NativeDoorManager();
+        } elseif ($doorType === 'rlogin') {
+            $doorManager = new RLoginDoorManager();
         } else {
             $doorManager = new DoorManager();
         }

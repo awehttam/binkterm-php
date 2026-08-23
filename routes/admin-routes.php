@@ -115,6 +115,110 @@ if (!function_exists('apiLocalizedText')) {
     }
 }
 
+if (!function_exists('rloginDoorFieldsFromRequest')) {
+    /**
+     * Build the fields array RLoginDoorManager::createDoor()/updateDoor() expect
+     * from a raw $_POST payload (admin CRUD form submission).
+     */
+    function rloginDoorFieldsFromRequest(array $post): array
+    {
+        $genreRaw = trim((string)($post['genre'] ?? ''));
+        $genre = $genreRaw === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $genreRaw))));
+
+        return [
+            'name' => trim((string)($post['name'] ?? '')),
+            'short_name' => trim((string)($post['short_name'] ?? '')),
+            'author' => trim((string)($post['author'] ?? '')),
+            'game_version' => trim((string)($post['game_version'] ?? '')),
+            'release_year' => $post['release_year'] ?? '',
+            'description' => trim((string)($post['description'] ?? '')),
+            'genre' => $genre,
+            'players' => trim((string)($post['players'] ?? '')),
+            'bbs_type' => (string)($post['bbs_type'] ?? 'plain_rlogin'),
+            'host' => trim((string)($post['host'] ?? '')),
+            'port' => $post['port'] ?? '',
+            'client_username' => trim((string)($post['client_username'] ?? '')),
+            'server_username' => trim((string)($post['server_username'] ?? '')),
+            'terminal_type' => trim((string)($post['terminal_type'] ?? '')),
+            'terminal_speed' => $post['terminal_speed'] ?? '',
+            'output_encoding' => (string)($post['output_encoding'] ?? 'utf8'),
+            'pre_login_command' => (string)($post['pre_login_command'] ?? ''),
+            'pre_login_timeout' => $post['pre_login_timeout'] ?? '',
+            'admin_only' => !empty($post['admin_only']),
+            'enabled' => !empty($post['enabled']),
+            'credit_cost' => $post['credit_cost'] ?? '',
+            'max_time_minutes' => $post['max_time_minutes'] ?? '',
+            'max_sessions' => $post['max_sessions'] ?? '',
+            'allow_anonymous' => !empty($post['allow_anonymous']),
+            'guest_max_sessions' => $post['guest_max_sessions'] ?? '',
+            'hide_from_web' => !empty($post['hide_from_web']),
+        ];
+    }
+}
+
+if (!function_exists('rloginDoorUploadedImage')) {
+    /**
+     * Read an uploaded image file ($_FILES[$fieldName]) into a
+     * ['data' => binary, 'mime' => string] pair, or null if no file was
+     * uploaded for this field.
+     */
+    function rloginDoorUploadedImage(string $fieldName): ?array
+    {
+        if (empty($_FILES[$fieldName]) || ($_FILES[$fieldName]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+
+        if ($_FILES[$fieldName]['error'] !== UPLOAD_ERR_OK) {
+            throw new Exception("Upload failed for $fieldName");
+        }
+
+        $allowedMimes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'];
+        $tmpPath = $_FILES[$fieldName]['tmp_name'];
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $tmpPath);
+        finfo_close($finfo);
+
+        if (!in_array($mime, $allowedMimes, true)) {
+            throw new Exception("Unsupported image type for $fieldName: $mime");
+        }
+
+        $data = file_get_contents($tmpPath);
+        if ($data === false) {
+            throw new Exception("Failed to read uploaded file for $fieldName");
+        }
+
+        return ['data' => $data, 'mime' => $mime];
+    }
+}
+
+if (!function_exists('rloginSlugifyDoorId')) {
+    /**
+     * Turn a Synchronet xtrn program code into a valid RLoginDoorManager door_id.
+     */
+    function rloginSlugifyDoorId(string $code): string
+    {
+        $slug = strtolower(trim($code));
+        $slug = preg_replace('/[^a-z0-9_-]+/', '_', $slug);
+        $slug = trim($slug, '_-');
+        return $slug !== '' ? $slug : 'door';
+    }
+}
+
+if (!function_exists('rloginIsImportableSynchronetCategory')) {
+    /**
+     * The Import from Synchronet preview only offers doors from the "Games"
+     * and "Main" xtrn sections -- sysop/operator utilities (and anything
+     * else) are never worth rlogin-handing a regular user into and are
+     * excluded from the candidate list entirely.
+     */
+    function rloginIsImportableSynchronetCategory(?string $secName): bool
+    {
+        $normalized = strtolower(trim((string)$secName));
+        return $normalized === 'main' || str_starts_with($normalized, 'game');
+    }
+}
+
 if (!function_exists('userIdExists')) {
     function userIdExists(int $userId): bool
     {
@@ -439,6 +543,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/jsdosdoors_config.twig');
+    });
+
+    // RLogin Doors config page
+    SimpleRouter::get('/rlogin-doors', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/rlogindoors_config.twig');
     });
 
     // Door Manifest Editor page
@@ -4152,6 +4264,367 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.native_doors.sync_failed', apiLocalizedText('errors.admin.native_doors.sync_failed', 'Failed to sync native doors'), 500);
+            }
+        });
+
+        // RLogin Doors API endpoints — DB-backed CRUD (no manifest files: rlogin
+        // doors have no filesystem footprint, so there is no directory-scanning
+        // "discover doors" flow and no generic manifest editor for this type).
+        SimpleRouter::get('/rlogin-doors', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            header('Cache-Control: no-store');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $allDoors = $rloginDoorManager->getAllDoors();
+
+            $doors = [];
+            foreach ($allDoors as $doorId => $door) {
+                $doors[] = [
+                    'id' => $doorId,
+                    'name' => $door['name'],
+                    'short_name' => $door['short_name'] ?? $door['name'],
+                    'author' => $door['author'] ?? 'Unknown',
+                    'description' => $door['description'] ?? '',
+                    'host' => $door['host'] ?? '',
+                    'port' => $door['port'] ?? 513,
+                    'bbs_type' => $door['bbs_type'] ?? 'plain_rlogin',
+                    'icon_url' => !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null,
+                    'config' => $door['config'] ?? []
+                ];
+            }
+
+            echo json_encode([
+                'success' => true,
+                'doors' => $doors,
+            ]);
+        });
+
+        SimpleRouter::get('/rlogin-doors/{doorId}', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            header('Cache-Control: no-store');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $door = $rloginDoorManager->getDoor($doorId);
+
+            if (!$door) {
+                http_response_code(404);
+                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
+                return;
+            }
+
+            $door['id'] = $doorId;
+            $door['icon_url'] = !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null;
+            $door['screenshot_url'] = !empty($door['screenshot']) ? "/door-assets/{$doorId}/screenshot" : null;
+
+            echo json_encode(['success' => true, 'door' => $door]);
+        });
+
+        SimpleRouter::post('/rlogin-doors', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $doorId = trim((string)($_POST['door_id'] ?? ''));
+
+            if (!\BinktermPHP\RLoginDoorManager::isValidDoorId($doorId)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.invalid_door_id', apiLocalizedText('errors.admin.rlogin_doors.invalid_door_id', 'Door ID must contain only letters, numbers, hyphens, and underscores'), 400);
+                return;
+            }
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+
+            if ($rloginDoorManager->getDoor($doorId)) {
+                http_response_code(409);
+                apiError('errors.admin.rlogin_doors.already_exists', apiLocalizedText('errors.admin.rlogin_doors.already_exists', 'A door with this ID already exists'), 409);
+                return;
+            }
+
+            $fields = rloginDoorFieldsFromRequest($_POST);
+
+            if ($fields['name'] === '' || $fields['host'] === '') {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.name_host_required', apiLocalizedText('errors.admin.rlogin_doors.name_host_required', 'Display name and host are required'), 400);
+                return;
+            }
+
+            try {
+                $icon = rloginDoorUploadedImage('icon');
+                $screenshot = rloginDoorUploadedImage('screenshot');
+
+                $success = $rloginDoorManager->createDoor($doorId, $fields, $icon, $screenshot);
+                if (!$success) {
+                    throw new Exception('Insert failed');
+                }
+
+                $syncResult = $rloginDoorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.rlogindoors_config.created_success',
+                    'door' => $rloginDoorManager->getDoor($doorId),
+                    'synced' => $syncResult['synced'],
+                    'sync_errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.save_failed', apiLocalizedText('errors.admin.rlogin_doors.save_failed', 'Failed to save rlogin door'), 400);
+            }
+        });
+
+        // NOTE: these two literal routes must stay registered before the
+        // POST /rlogin-doors/{doorId} route below. pecee/simple-router's
+        // {param} syntax accepts "/", "-", or "." as the separator before a
+        // parameter, so "/rlogin-doors/{doorId}" also matches URLs like
+        // "/rlogin-doors-sync" (doorId captured as "sync") -- whichever
+        // route is registered first wins. Registering the literal routes
+        // first avoids that collision entirely.
+        SimpleRouter::post('/rlogin-doors-sync', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+                $syncResult = $rloginDoorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'synced' => $syncResult['synced'],
+                    'errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.rlogin_doors.sync_failed', apiLocalizedText('errors.admin.rlogin_doors.sync_failed', 'Failed to sync rlogin doors'), 500);
+            }
+        });
+
+        // Preview doors available to import from a linked Synchronet system via
+        // binktermphp-synchronet's list_doors action. Read-only -- creates
+        // nothing. Doors that already exist (by slugified door_id) are
+        // excluded from the candidate list entirely; the admin picks which
+        // of the remaining candidates to actually import via the confirm
+        // endpoint below.
+        SimpleRouter::post('/rlogin-doors-import-synchronet-preview', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $configPath = defined('BINKTERMPHP_BASEDIR')
+                ? BINKTERMPHP_BASEDIR . '/config/rlogin_synchronet_service.json'
+                : __DIR__ . '/../config/rlogin_synchronet_service.json';
+
+            if (!file_exists($configPath)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.synchronet_not_configured', apiLocalizedText('errors.admin.rlogin_doors.synchronet_not_configured', 'config/rlogin_synchronet_service.json is not configured yet'), 400);
+                return;
+            }
+
+            $rawConfig = json_decode((string)file_get_contents($configPath), true);
+            $rloginHost = is_array($rawConfig) ? ($rawConfig['rlogin_host'] ?? null) : null;
+
+            if (empty($rloginHost)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', apiLocalizedText('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', 'rlogin_host is not set in config/rlogin_synchronet_service.json'), 400);
+                return;
+            }
+
+            try {
+                $client = \BinktermPHP\Synchronet::fromConfigFile($configPath);
+                $result = $client->listDoors();
+            } catch (Exception $e) {
+                http_response_code(502);
+                apiError('errors.admin.rlogin_doors.synchronet_unreachable', apiLocalizedText('errors.admin.rlogin_doors.synchronet_unreachable', 'Could not reach the Synchronet service') . ': ' . $e->getMessage(), 502);
+                return;
+            }
+
+            if (empty($result['success'])) {
+                http_response_code(502);
+                apiError('errors.admin.rlogin_doors.synchronet_list_failed', $result['error'] ?? apiLocalizedText('errors.admin.rlogin_doors.synchronet_list_failed', 'Synchronet rejected the list_doors request'), 502);
+                return;
+            }
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $candidates = [];
+            $existingCount = 0;
+
+            foreach ($result['doors'] as $remoteDoor) {
+                if (!rloginIsImportableSynchronetCategory($remoteDoor['sec_name'] ?? null)) {
+                    continue;
+                }
+
+                $doorId = rloginSlugifyDoorId($remoteDoor['code']);
+
+                if ($rloginDoorManager->getDoor($doorId)) {
+                    $existingCount++;
+                    continue;
+                }
+
+                $candidates[] = [
+                    'code' => $remoteDoor['code'],
+                    'name' => $remoteDoor['name'],
+                    'sec_name' => $remoteDoor['sec_name'] ?? null,
+                    'door_id' => $doorId,
+                ];
+            }
+
+            echo json_encode([
+                'success' => true,
+                'candidates' => $candidates,
+                'existing_count' => $existingCount,
+            ]);
+        });
+
+        // Import the doors the admin selected from the preview above. Creates
+        // a disabled, fully-configured RLogin door (Synchronet with
+        // BinktermPHP Service defaults) for each one; re-checks existence
+        // server-side in case a door was created between preview and confirm.
+        SimpleRouter::post('/rlogin-doors-import-synchronet-confirm', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $configPath = defined('BINKTERMPHP_BASEDIR')
+                ? BINKTERMPHP_BASEDIR . '/config/rlogin_synchronet_service.json'
+                : __DIR__ . '/../config/rlogin_synchronet_service.json';
+
+            $rawConfig = file_exists($configPath) ? json_decode((string)file_get_contents($configPath), true) : null;
+            $rloginHost = is_array($rawConfig) ? ($rawConfig['rlogin_host'] ?? null) : null;
+            $rloginPort = is_array($rawConfig) ? (int)($rawConfig['rlogin_port'] ?? 513) : 513;
+
+            if (empty($rloginHost)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', apiLocalizedText('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', 'rlogin_host is not set in config/rlogin_synchronet_service.json'), 400);
+                return;
+            }
+
+            $payload = json_decode(file_get_contents('php://input'), true);
+            $selected = is_array($payload['doors'] ?? null) ? $payload['doors'] : [];
+
+            if (empty($selected)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.no_doors_selected', apiLocalizedText('errors.admin.rlogin_doors.no_doors_selected', 'No doors were selected to import'), 400);
+                return;
+            }
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $imported = [];
+            $skipped = [];
+            $errors = [];
+
+            foreach ($selected as $remoteDoor) {
+                if (!is_array($remoteDoor) || empty($remoteDoor['code'])) {
+                    continue;
+                }
+
+                $doorId = rloginSlugifyDoorId((string)$remoteDoor['code']);
+
+                if ($rloginDoorManager->getDoor($doorId)) {
+                    $skipped[] = $doorId;
+                    continue;
+                }
+
+                $fields = [
+                    'name' => (string)($remoteDoor['name'] ?? $remoteDoor['code']),
+                    'short_name' => (string)$remoteDoor['code'],
+                    'description' => (string)($remoteDoor['sec_name'] ?? ''),
+                    'bbs_type' => 'synchronet_service',
+                    'host' => $rloginHost,
+                    'port' => $rloginPort,
+                    'client_username' => '{user_name}',
+                    'server_username' => '{user_name}',
+                    'terminal_type' => 'xtrn=' . $remoteDoor['code'],
+                    'pre_login_command' => 'php scripts/synchronet_add_user.php {user_name} {real_name} {user_number}',
+                    'pre_login_timeout' => 10,
+                    'enabled' => false,
+                ];
+
+                if ($rloginDoorManager->createDoor($doorId, $fields, null, null)) {
+                    $imported[] = $doorId;
+                } else {
+                    $errors[] = "Failed to import '$doorId'";
+                }
+            }
+
+            if (!empty($imported)) {
+                $rloginDoorManager->syncDoorsToDatabase();
+            }
+
+            echo json_encode([
+                'success' => true,
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ]);
+        });
+
+        SimpleRouter::post('/rlogin-doors/{doorId}', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+
+            if (!$rloginDoorManager->getDoor($doorId)) {
+                http_response_code(404);
+                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
+                return;
+            }
+
+            $fields = rloginDoorFieldsFromRequest($_POST);
+
+            if ($fields['name'] === '' || $fields['host'] === '') {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.name_host_required', apiLocalizedText('errors.admin.rlogin_doors.name_host_required', 'Display name and host are required'), 400);
+                return;
+            }
+
+            try {
+                $icon = !empty($_POST['remove_icon']) ? ['data' => null, 'mime' => null] : rloginDoorUploadedImage('icon');
+                $screenshot = !empty($_POST['remove_screenshot']) ? ['data' => null, 'mime' => null] : rloginDoorUploadedImage('screenshot');
+
+                $success = $rloginDoorManager->updateDoor($doorId, $fields, $icon, $screenshot);
+                if (!$success) {
+                    throw new Exception('Update failed');
+                }
+
+                $syncResult = $rloginDoorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.rlogindoors_config.updated_success',
+                    'door' => $rloginDoorManager->getDoor($doorId),
+                    'synced' => $syncResult['synced'],
+                    'sync_errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.save_failed', apiLocalizedText('errors.admin.rlogin_doors.save_failed', 'Failed to save rlogin door'), 400);
+            }
+        });
+
+        SimpleRouter::post('/rlogin-doors/{doorId}/delete', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+
+            if (!$rloginDoorManager->getDoor($doorId)) {
+                http_response_code(404);
+                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
+                return;
+            }
+
+            try {
+                $success = $rloginDoorManager->deleteDoor($doorId);
+                if (!$success) {
+                    throw new Exception('Delete failed');
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.rlogindoors_config.deleted_success',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.rlogin_doors.delete_failed', apiLocalizedText('errors.admin.rlogin_doors.delete_failed', 'Failed to delete rlogin door'), 500);
             }
         });
 

@@ -5,6 +5,7 @@ namespace BinktermPHP\TelnetServer;
 use BinktermPHP\Config;
 use BinktermPHP\DoorManager;
 use BinktermPHP\NativeDoorManager;
+use BinktermPHP\RLoginDoorManager;
 
 /**
  * DoorHandler - DOS door game access via telnet
@@ -44,9 +45,10 @@ class DoorHandler
         $shell = TerminalShellFactory::create($this->server, $state);
         $dosDoors = (new DoorManager())->getEnabledDoors();
         $nativeDoors = (new NativeDoorManager())->getEnabledDoors();
+        $rloginDoors = (new RLoginDoorManager())->getEnabledDoors();
 
-        // Merge both lists; native doors take precedence on ID collision
-        $allDoors = array_merge($dosDoors, $nativeDoors);
+        // Merge all lists; later entries take precedence on ID collision
+        $allDoors = array_merge($dosDoors, $nativeDoors, $rloginDoors);
 
         // Hide admin-only doors from non-admin users
         if (empty($state['is_admin'])) {

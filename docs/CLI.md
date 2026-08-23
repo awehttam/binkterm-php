@@ -39,6 +39,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Rebuild Echomail Message Text](#rebuild-echomail-message-text)
 - [Auto Feed Poster](#auto-feed-poster)
 - [Import BBS List](#import-bbs-list)
+- [RLogin Synchronet Service Client](#rlogin-synchronet-service-client)
 
 ## Message Posting Tool
 Post netmail or echomail from command line:
@@ -1216,3 +1217,28 @@ Sends commands to the running admin daemon from the command line.
 php scripts/admin_client.php process-packets
 php scripts/admin_client.php binkp-poll 1:153/149
 ```
+
+## RLogin Synchronet Service Client
+
+Reference `pre_login_command` helper for RLogin doors configured with the **Synchronet with BinktermPHP Service** BBS type (see [RLoginDoors.md](RLoginDoors.md)). Called automatically by the door launch flow — not normally run manually. It connects to the companion [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) `services.ini` service over a one-shot JSON-over-TCP protocol to provision or sync the remote account before the rlogin connection is made.
+
+```bash
+php scripts/synchronet_add_user.php <user_name> <real_name> <user_number>
+```
+
+Reads connection details from `config/rlogin_synchronet_service.json` (copy `config/rlogin_synchronet_service.json.example` to get started):
+
+```json
+{
+    "host": "127.0.0.1",
+    "port": 24512,
+    "secret": "changeme",
+    "timeout": 5,
+    "rlogin_host": "127.0.0.1",
+    "rlogin_port": 513
+}
+```
+
+`rlogin_host`/`rlogin_port` are only used by the **Import from Synchronet** admin feature (see [RLoginDoors.md](RLoginDoors.md)), not by this script itself.
+
+On success it prints `{"remote_username":"..."}` to stdout and exits `0`. On failure it prints an error to stderr and exits `1`, which aborts the door launch.

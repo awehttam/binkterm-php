@@ -159,6 +159,7 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 | `chat_messages` | Local shoutbox and MRC chat history |
 | `mrc_rooms` / `mrc_messages` / `mrc_users` | MRC multi-relay chat state |
 | `dosbox_doors` / `door_sessions` | Door game definitions and active session tracking |
+| `rlogin_doors` | RLogin door definitions (host/port, rlogin handshake fields, pre-login command, icon/screenshot blobs) — synced into `dosbox_doors` (`door_type='rlogin'`) for shared session tracking |
 | `webdoor_sessions` | WebDoor session tokens |
 | `fileareas` | File area definitions (tag, domain, description, path) |
 | `shared_files` | Files shared via the webshare system |
