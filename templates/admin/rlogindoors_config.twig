@@ -282,7 +282,7 @@ function apiError(payload, fallback) {
 const BBS_TYPE_PRELOGIN_DEFAULTS = {
     plain_rlogin: '',
     synchronet: '',
-    synchronet_service: 'php scripts/synchronet_service.php {user_name} {real_name} {user_number}',
+    synchronet_service: 'php scripts/synchronet_add_user.php {user_name} {real_name} {user_number}',
 };
 
 function applyBbsTypeDefaults() {

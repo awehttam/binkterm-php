@@ -4514,7 +4514,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'client_username' => '{user_name}',
                     'server_username' => '{user_name}',
                     'terminal_type' => 'xtrn=' . $remoteDoor['code'],
-                    'pre_login_command' => 'php scripts/synchronet_service.php {user_name} {real_name} {user_number}',
+                    'pre_login_command' => 'php scripts/synchronet_add_user.php {user_name} {real_name} {user_number}',
                     'pre_login_timeout' => 10,
                     'enabled' => false,
                 ];
