@@ -199,68 +199,24 @@ SimpleRouter::get('/games', function() {
         }
     }
 
-    // Get DOS Doors
-    $doorManager = new DoorManager();
-    $dosDoors = $doorManager->getEnabledDoors();
-    foreach ($dosDoors as $doorId => $door) {
-        // Skip admin-only doors for non-admin users
-        if (!empty($door['admin_only']) && empty($user['is_admin'])) {
-            continue;
-        }
-        // Skip doors configured as telnet/SSH-only
-        if (!empty($door['config']['hide_from_web'])) {
-            continue;
-        }
-        // Check if door has a custom icon in manifest
-        $iconUrl = '/images/dos-door-icon.png'; // Default icon
-        if (!empty($door['icon'])) {
-            // Use asset endpoint (manifest declares the actual filename)
-            $iconUrl = "/door-assets/{$doorId}/icon";
-        }
+    // DEBUG TRACE
+    file_put_contents(
+        __DIR__ . '/../data/logs/games-debug.log',
+        date('c') . " reached catalog\n",
+        FILE_APPEND
+    );
 
-        $games[] = [
-            'id' => $doorId,
-            'name' => $door['name'],
-            'description' => $door['description'] ?? '',
-            'author' => $door['author'] ?? null,
-            'version' => $door['game_version'] ?? null,
-            'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
-            'icon_url' => $iconUrl,
-            'type' => 'dosdoor',
-            'genre' => $door['genre'] ?? [],
-            'players' => $door['players'] ?? null
-        ];
-    }
+    // Get DOS and Native Doors from unified catalog
+    $catalog = new \BinktermPHP\GameCatalog();
 
-    // Get Native Doors
-    $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
-    $nativeDoors = $nativeDoorManager->getEnabledDoors();
-    foreach ($nativeDoors as $doorId => $door) {
-        // Skip admin-only doors for non-admin users
-        if (!empty($door['admin_only']) && empty($user['is_admin'])) {
-            continue;
-        }
-        // Skip doors configured as telnet/SSH-only
-        if (!empty($door['config']['hide_from_web'])) {
-            continue;
-        }
-        $iconUrl = '/images/dos-door-icon.png'; // Default icon
-        if (!empty($door['icon'])) {
-            $iconUrl = "/door-assets/{$doorId}/icon";
-        }
+    file_put_contents(
+        __DIR__ . '/../data/logs/games-debug.log',
+        date('c') . " catalog created\n",
+        FILE_APPEND
+    );
 
-        $games[] = [
-            'id' => $doorId,
-            'name' => $door['name'],
-            'description' => $door['description'] ?? '',
-            'author' => $door['author'] ?? null,
-            'version' => $door['game_version'] ?? null,
-            'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
-            'icon_url' => $iconUrl,
-            'type' => 'nativedoor',
-            'genre' => $door['genre'] ?? [],
-            'players' => $door['players'] ?? null
-        ];
+    foreach ($catalog->getEnabledGames($user) as $game) {
+        $games[] = $game;
     }
 
     // Get JS-DOS Doors
