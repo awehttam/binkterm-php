@@ -205,6 +205,20 @@ if (!function_exists('rloginSlugifyDoorId')) {
     }
 }
 
+if (!function_exists('rloginIsImportableSynchronetCategory')) {
+    /**
+     * The Import from Synchronet preview only offers doors from the "Games"
+     * and "Main" xtrn sections -- sysop/operator utilities (and anything
+     * else) are never worth rlogin-handing a regular user into and are
+     * excluded from the candidate list entirely.
+     */
+    function rloginIsImportableSynchronetCategory(?string $secName): bool
+    {
+        $normalized = strtolower(trim((string)$secName));
+        return $normalized === 'main' || str_starts_with($normalized, 'game');
+    }
+}
+
 if (!function_exists('userIdExists')) {
     function userIdExists(int $userId): bool
     {
@@ -4434,6 +4448,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $existingCount = 0;
 
             foreach ($result['doors'] as $remoteDoor) {
+                if (!rloginIsImportableSynchronetCategory($remoteDoor['sec_name'] ?? null)) {
+                    continue;
+                }
+
                 $doorId = rloginSlugifyDoorId($remoteDoor['code']);
 
                 if ($rloginDoorManager->getDoor($doorId)) {

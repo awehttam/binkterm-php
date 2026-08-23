@@ -204,9 +204,11 @@ The script converts that response into the exit-code/JSON contract above (`usern
 
 ### Import from Synchronet
 
-Once `config/rlogin_synchronet_service.json` is configured (including `rlogin_host`/`rlogin_port`), **Admin → RLogin Doors** shows an **Import from Synchronet** button. It calls the same service's `list_doors` action to fetch every installed external program (door), and creates one fully-configured RLogin door per result — `bbs_type: synchronet_service`, `host`/`port` from `rlogin_host`/`rlogin_port`, Pre-Login Command set to the bundled `scripts/synchronet_add_user.php` invocation, and **Terminal Type set to `xtrn=<code>`**, where `<code>` is Synchronet's internal program code for that door — this is what makes the rlogin handoff land directly in the right door instead of the main menu.
+Once `config/rlogin_synchronet_service.json` is configured (including `rlogin_host`/`rlogin_port`), **Admin → RLogin Doors** shows an **Import from Synchronet** button. It calls the same service's `list_doors` action to fetch every installed external program (door) and opens a preview — a checkbox list of candidates (all checked by default; use Select All/None) — before anything is created. Clicking **Import Selected** creates one fully-configured RLogin door per checked candidate — `bbs_type: synchronet_service`, `host`/`port` from `rlogin_host`/`rlogin_port`, Pre-Login Command set to the bundled `scripts/synchronet_add_user.php` invocation, and **Terminal Type set to `xtrn=<code>`**, where `<code>` is Synchronet's internal program code for that door — this is what makes the rlogin handoff land directly in the right door instead of the main menu.
 
-Imported doors are created **disabled**, so review credit cost / admin-only / etc. before enabling each one. Re-running the import only adds doors that don't already exist by door ID (the door's Synchronet program code, slugified) — it never touches or overwrites a door you've already imported or created manually.
+The candidate list only ever includes doors from Synchronet's **Games** and **Main** xtrn sections (matched case-insensitively; anything named `Operator`, `Utilities`, or any other section is never offered) — sysop/operator-only utilities aren't something a regular user should be rlogin-handed into. On top of that, a door whose slugified door_id already exists is excluded from the list entirely, so re-running the import only ever shows genuinely new doors; it never touches or overwrites a door you've already imported or created manually.
+
+Imported doors are created **disabled**, so review credit cost / admin-only / etc. before enabling each one.
 
 ---
 
