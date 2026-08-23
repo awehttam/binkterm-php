@@ -1,0 +1,148 @@
+{
+    "id": "wolf3d",
+    "name": "Wolfenstein 3D",
+    "version": "1.4",
+    "author": "'id Software",
+    "description": "Wolfenstein 3D!",
+    "icon": "icon-v2.png",
+    "emulator": "jsdos",
+    "emulator_config": {
+        "cpu_cycles": "fixed 3000",
+        "memory_mb": 16,
+        "machine": "vga",
+        "output": "openglnb",
+        "scaler": "normal3x forced",
+        "autolock": true,
+        "game_files": [
+            {
+                "asset_path": "assets/AUDIOHED.WL1",
+                "dos_path": "C:/WOLF3D/AUDIOHED.WL1"
+            },
+            {
+                "asset_path": "assets/AUDIOT.WL1",
+                "dos_path": "C:/WOLF3D/AUDIOT.WL1"
+            },
+            {
+                "asset_path": "assets/GAMEMAPS.WL1",
+                "dos_path": "C:/WOLF3D/GAMEMAPS.WL1"
+            },
+            {
+                "asset_path": "assets/MAPHEAD.WL1",
+                "dos_path": "C:/WOLF3D/MAPHEAD.WL1"
+            },
+            {
+                "asset_path": "assets/VGADICT.WL1",
+                "dos_path": "C:/WOLF3D/VGADICT.WL1"
+            },
+            {
+                "asset_path": "assets/VGAGRAPH.WL1",
+                "dos_path": "C:/WOLF3D/VGAGRAPH.WL1"
+            },
+            {
+                "asset_path": "assets/VGAHEAD.WL1",
+                "dos_path": "C:/WOLF3D/VGAHEAD.WL1"
+            },
+            {
+                "asset_path": "assets/VSWAP.WL1",
+                "dos_path": "C:/WOLF3D/VSWAP.WL1"
+            },
+            {
+                "asset_path": "assets/WOLF3D.EXE",
+                "dos_path": "C:/WOLF3D/WOLF3D.EXE"
+            }
+        ],
+        "autoexec": [
+            "C:",
+            "cd WOLF3D",
+            "SET BLASTER=A220 I7 D1 T4",
+            "WOLF3D.EXE"
+        ]
+    },
+    "modes": {
+        "config": {
+            "label": "Admin Setup",
+            "description": "Admin-only configuration mode. Launches to a DOS prompt so you can run setup utilities and create or update shared defaults.",
+            "admin_only": true,
+            "keep_open": true,
+            "emulator_config": {
+                "cpu_cycles": "fixed 3000",
+                "memory_mb": 16,
+                "machine": "vga",
+                "output": "surface",
+                "autolock": true,
+                "game_files": [
+                    {
+                        "asset_path": "assets/AUDIOHED.WL1",
+                        "dos_path": "C:/WOLF3D/AUDIOHED.WL1",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/AUDIOT.WL1",
+                        "dos_path": "C:/WOLF3D/AUDIOT.WL1",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/GAMEMAPS.WL1",
+                        "dos_path": "C:/WOLF3D/GAMEMAPS.WL1",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/MAPHEAD.WL1",
+                        "dos_path": "C:/WOLF3D/MAPHEAD.WL1",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/VGADICT.WL1",
+                        "dos_path": "C:/WOLF3D/VGADICT.WL1",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/VGAGRAPH.WL1",
+                        "dos_path": "C:/WOLF3D/VGAGRAPH.WL1",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/VGAHEAD.WL1",
+                        "dos_path": "C:/WOLF3D/VGAHEAD.WL1",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/VSWAP.WL1",
+                        "dos_path": "C:/WOLF3D/VSWAP.WL1",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/WOLF3D.EXE",
+                        "dos_path": "C:/WOLF3D/WOLF3D.EXE",
+                        "optional": true
+                    }
+                ],
+                "autoexec": [
+                    "C:",
+                    "cd WOLF3D",
+                    "SET BLASTER=A220 I7 D1 T4"
+                ]
+            },
+            "saves": {
+                "enabled": true,
+                "scope": "shared",
+                "save_paths": [
+                    "C:/WOLF3D/DEFAULT.CFG"
+                ],
+                "max_size_kb": 512
+            }
+        }
+    },
+    "credits": {
+        "session_cost": 0
+    },
+    "saves": {
+        "enabled": true,
+        "scope": "user",
+        "save_paths": [
+            "C:/WOLF3D/*.SAV",
+            "C:/WOLF3D/*.CFG"
+        ],
+        "max_size_kb": 512
+    }
+}

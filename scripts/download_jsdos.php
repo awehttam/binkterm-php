@@ -26,8 +26,8 @@ $files = [
     'js-dos.js',
     'wdosbox.js',
     'wdosbox.wasm.js',
+    'dosbox-emterp.js',
 ];
-
 foreach ($files as $file) {
     $url     = "$cdnBase/$file";
     $destPath = "$baseDir/$file";

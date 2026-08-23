@@ -4,7 +4,7 @@
     "version": "1.9",
     "author": "id Software",
     "description": "The classic first-person shooter. Fight through the demon-infested UAC base.",
-    "icon": "icon.png",
+    "icon": "icon-v2.png",
     "emulator": "jsdos",
     "emulator_config": {
         "cpu_cycles": "max 90%",
