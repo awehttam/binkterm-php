@@ -127,12 +127,12 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.client_username', {}, locale, ['common']) }}</label>
-                            <input type="text" class="form-control" name="client_username" value="{user_name}">
+                            <input type="text" class="form-control" name="client_username" placeholder="{user_name}">
                             <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.client_username_help', {}, locale, ['common']) }}</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.server_username', {}, locale, ['common']) }}</label>
-                            <input type="text" class="form-control" name="server_username" value="{user_name}">
+                            <input type="text" class="form-control" name="server_username" placeholder="{user_name}">
                             <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.server_username_help', {}, locale, ['common']) }}</div>
                         </div>
                         <div class="col-md-4">
@@ -410,8 +410,8 @@ function openEditModal(doorId) {
             form.elements['bbs_type'].value = door.bbs_type || 'plain_rlogin';
             form.elements['host'].value = door.host || '';
             form.elements['port'].value = door.port || 513;
-            form.elements['client_username'].value = door.client_username || '{user_name}';
-            form.elements['server_username'].value = door.server_username || '{user_name}';
+            form.elements['client_username'].value = door.client_username || '';
+            form.elements['server_username'].value = door.server_username || '';
             form.elements['terminal_type'].value = door.terminal_type || '';
             form.elements['terminal_speed'].value = door.terminal_speed || 38400;
             form.elements['output_encoding'].value = door.output_encoding || 'utf8';

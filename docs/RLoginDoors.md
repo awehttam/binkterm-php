@@ -98,8 +98,8 @@ The door will now appear in the `/games` game library, tagged with an **RLOGIN**
 | BBS Type | UI preset (`Plain RLogin`, `Synchronet`, `Synchronet with BinktermPHP Service`) that only affects the form's suggested defaults — see [BBS Type Presets](#bbs-type-presets). Not stored as separate behavior; the runtime is driven entirely by the fields below. |
 | Host | Hostname or IP address of the remote rlogin-accessible system. Required. |
 | Port | TCP port. Defaults to `513` (the standard rlogin port). |
-| Client Username | Local (`rlogin -l`) username sent to the remote host. Supports `{user_name}`, `{real_name}`, `{user_number}` placeholders. Defaults to `{user_name}`. |
-| Server Username | Remote username the rlogin handshake requests. Same placeholders. Defaults to `{user_name}`. |
+| Client Username | Local (`rlogin -l`) username sent to the remote host. Supports `{user_name}`, `{real_name}`, `{user_number}` placeholders. `{user_name}` is shown as a placeholder hint in the admin form, but the field itself has no default — leave it blank to send an empty username field, if the remote rlogin daemon accepts that. |
+| Server Username | Remote username the rlogin handshake requests. Same placeholders, same blank-is-valid behavior as Client Username. |
 | Terminal Type | Sent as the rlogin terminal type field. Leave blank to use the connecting user's own established terminal type (their last-known TERM from a telnet/SSH session), falling back to `xterm-256color` when nothing is known — e.g. for a web-originated launch, where there's no negotiated terminal type to inherit. On Synchronet this field doubles as a routing signal — see below. |
 | Terminal Speed | Sent alongside the terminal type as `type/speed`. Defaults to `38400`. |
 | Output Encoding | `UTF-8` (default) or `CP437 (DOS)` for legacy CP437-only remote systems. |

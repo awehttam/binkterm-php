@@ -851,8 +851,12 @@ class RloginAdapter extends EmulatorAdapter {
             return result;
         };
 
-        const clientUsername = substitute(doorCfg.client_username || '{user_name}');
-        const serverUsername = substitute(doorCfg.server_username || '{user_name}');
+        // Blank is a deliberate, valid choice for these two fields (some
+        // rlogin daemons accept an empty username field) -- unlike the other
+        // fields, an empty client/server username is not defaulted to
+        // {user_name} here.
+        const clientUsername = substitute(doorCfg.client_username || '');
+        const serverUsername = substitute(doorCfg.server_username || '');
         // doorCfg.terminal_type is null when the sysop left it blank, meaning
         // "use the connecting user's own terminal type" - PHP already resolved
         // that (from their last telnet/SSH TERM, or xterm-256color for web

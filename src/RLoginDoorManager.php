@@ -340,8 +340,11 @@ class RLoginDoorManager
             'bbs_type' => $bbsType,
             'host' => (string)($fields['host'] ?? ''),
             'port' => isset($fields['port']) && $fields['port'] !== '' ? (int)$fields['port'] : 513,
-            'client_username' => !empty($fields['client_username']) ? (string)$fields['client_username'] : '{user_name}',
-            'server_username' => !empty($fields['server_username']) ? (string)$fields['server_username'] : '{user_name}',
+            // Blank is a deliberate, valid choice here (some rlogin daemons
+            // accept an empty username field) -- unlike the other text
+            // fields above, an empty value is not replaced with a default.
+            'client_username' => isset($fields['client_username']) ? (string)$fields['client_username'] : '',
+            'server_username' => isset($fields['server_username']) ? (string)$fields['server_username'] : '',
             // Blank means "use the connecting user's own established terminal type,
             // falling back to xterm-256color" — resolved at launch time, not here.
             'terminal_type' => !empty($fields['terminal_type']) ? (string)$fields['terminal_type'] : null,
