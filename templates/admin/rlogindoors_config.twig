@@ -152,8 +152,8 @@
                         <div class="col-md-4">
                             <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.output_encoding', {}, locale, ['common']) }}</label>
                             <select class="form-select" name="output_encoding">
+                                <option value="cp437" selected>{{ t('ui.admin.door_manifest_editor.encoding.cp437', {}, locale, ['common']) }}</option>
                                 <option value="utf8">{{ t('ui.admin.door_manifest_editor.encoding.utf8', {}, locale, ['common']) }}</option>
-                                <option value="cp437">{{ t('ui.admin.door_manifest_editor.encoding.cp437', {}, locale, ['common']) }}</option>
                             </select>
                         </div>
                         <div class="col-md-9">
@@ -564,7 +564,7 @@ function openEditModal(doorId) {
             form.elements['server_username'].value = door.server_username || '';
             form.elements['terminal_type'].value = door.terminal_type || '';
             form.elements['terminal_speed'].value = door.terminal_speed || 38400;
-            form.elements['output_encoding'].value = door.output_encoding || 'utf8';
+            form.elements['output_encoding'].value = door.output_encoding || 'cp437';
             form.elements['pre_login_command'].value = door.pre_login_command || '';
             form.elements['pre_login_timeout'].value = door.pre_login_timeout || 10;
             form.elements['admin_only'].checked = !!door.admin_only;

@@ -318,9 +318,9 @@ class RLoginDoorManager
             $bbsType = 'plain_rlogin';
         }
 
-        $encoding = $fields['output_encoding'] ?? 'utf8';
+        $encoding = $fields['output_encoding'] ?? 'cp437';
         if (!in_array($encoding, self::VALID_ENCODINGS, true)) {
-            $encoding = 'utf8';
+            $encoding = 'cp437';
         }
 
         $genre = $fields['genre'] ?? [];
