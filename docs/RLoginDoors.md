@@ -17,7 +17,7 @@
 
 ---
 
-RLogin doors connect out from BinktermPHP to a remote BBS or service — most commonly a linked Synchronet system — over the rlogin protocol (RFC 1282), instead of running a local process the way DOS Doors and Native Doors do. This lets users reach games, message bases, or other features on a separate BBS without leaving their BinktermPHP terminal session.
+RLogin doors connect out from BinktermPHP to a remote BBS or service — such as a linked Synchronet system — over the rlogin protocol (RFC 1282), instead of running a local process the way DOS Doors and Native Doors do. This lets users reach games, message bases, or other features on a separate BBS without leaving their BinktermPHP terminal session.
 
 ## Multiplexing Bridge Setup
 
