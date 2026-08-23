@@ -289,6 +289,7 @@ class TelnetUtils
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'BinktermPHP-Telnet/1.10.2');
 
             if (in_array($method, ['POST', 'PUT', 'DELETE', 'PATCH'], true)) {
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);

@@ -198,12 +198,12 @@ class TuiShell implements TerminalShellInterface
             $bl = $chars['bl'] ?? '+';
             $br = $chars['br'] ?? '+';
             $hz = $chars['h_bold'] ?? ($chars['h'] ?? '-');
-            $vt = $chars['v'] ?? '|';
+            $vt = $this->server->encodeForTerminal($chars['v'] ?? '|');
             $lTee = $chars['l_tee'] ?? '+';
             $rTee = $chars['r_tee'] ?? '+';
 
-            $topBorder = $tl . str_repeat($hz, $boxWidth - 2) . $tr;
-            $bottomBorder = $bl . str_repeat($hz, $boxWidth - 2) . $br;
+            $topBorder = $this->server->encodeForTerminal($tl . str_repeat($hz, $boxWidth - 2) . $tr);
+            $bottomBorder = $this->server->encodeForTerminal($bl . str_repeat($hz, $boxWidth - 2) . $br);
             $frameColor = (string)($scheme['border'] ?? (TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD));
             $dividerColor = (string)($scheme['divider'] ?? TelnetUtils::ANSI_BLUE);
             $titleBarColor = (string)($scheme['title_bar'] ?? (TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
@@ -257,8 +257,8 @@ class TuiShell implements TerminalShellInterface
                 . $this->server->colorizeForTerminal($vt, $frameColor);
             TelnetUtils::safeWrite($conn, "\033[" . ($startRow + 1) . ';' . $startCol . 'H' . $titleLineOut . TelnetUtils::ANSI_RESET);
 
-            $divider = $lTee . str_repeat($hz, $boxWidth - 2) . $rTee;
-            TelnetUtils::safeWrite($conn, "\033[" . ($startRow + 2) . ';' . $startCol . 'H' . $this->server->colorizeForTerminal($this->server->encodeForTerminal($divider), $dividerColor) . TelnetUtils::ANSI_RESET);
+            $divider = $this->server->encodeForTerminal($lTee . str_repeat($hz, $boxWidth - 2) . $rTee);
+            TelnetUtils::safeWrite($conn, "\033[" . ($startRow + 2) . ';' . $startCol . 'H' . $this->server->colorizeForTerminal($divider, $dividerColor) . TelnetUtils::ANSI_RESET);
 
             for ($i = 0; $i < $bodyHeight; $i++) {
                 $line = $visibleLines[$i] ?? '';
@@ -270,7 +270,7 @@ class TuiShell implements TerminalShellInterface
                 );
             }
 
-            TelnetUtils::safeWrite($conn, "\033[" . ($startRow + $bodyHeight + 3) . ';' . $startCol . 'H' . $this->server->colorizeForTerminal($this->server->encodeForTerminal($divider), $dividerColor) . TelnetUtils::ANSI_RESET);
+            TelnetUtils::safeWrite($conn, "\033[" . ($startRow + $bodyHeight + 3) . ';' . $startCol . 'H' . $this->server->colorizeForTerminal($divider, $dividerColor) . TelnetUtils::ANSI_RESET);
             TelnetUtils::safeWrite(
                 $conn,
                 "\033[" . ($startRow + $bodyHeight + 4) . ';' . $startCol . 'H' . $frameColor . $vt . $bodyColor . ' ' . $statusLine . ' ' . $frameColor . $vt . TelnetUtils::ANSI_RESET

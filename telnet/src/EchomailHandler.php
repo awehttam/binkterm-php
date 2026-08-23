@@ -48,6 +48,19 @@ class EchomailHandler
      */
     public function showEchoareas($conn, array &$state, string $session): void
     {
+        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+        if (TelnetUtils::showScreenIfExists('echomail.ans', $this->server, $conn)) {
+            TelnetUtils::safeWrite($conn, "\r\n" . TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to continue...', [], $state['locale']),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            while (true) {
+                $key = $this->server->readKeyWithIdleCheck($conn, $state);
+                if ($key !== '') {
+                    break;
+                }
+            }
+        }
         $savedState      = $this->loadSavedListState($session);
         $page            = $savedState['areas_page'];
         $perPage         = MailUtils::getMessagesPerPage($state);

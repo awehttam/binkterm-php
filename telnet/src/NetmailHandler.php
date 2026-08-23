@@ -52,6 +52,19 @@ class NetmailHandler
     {
         $this->server->logAction($state['username'] ?? 'unknown', "Netmail: read message list");
         $shell = TerminalShellFactory::create($this->server, $state);
+        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+        if (TelnetUtils::showScreenIfExists('netmail.ans', $this->server, $conn)) {
+            TelnetUtils::safeWrite($conn, "\r\n" . TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to continue...', [], $state['locale']),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            while (true) {
+                $key = $this->server->readKeyWithIdleCheck($conn, $state);
+                if ($key !== '') {
+                    break;
+                }
+            }
+        }
         $savedState = $this->loadSavedListState($session);
         $page          = $savedState['page'];
         $perPage       = MailUtils::getMessagesPerPage($state);

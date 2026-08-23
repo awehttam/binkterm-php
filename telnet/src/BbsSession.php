@@ -2662,11 +2662,9 @@ class BbsSession
         $username = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.login.username_prompt', 'Username: ', [], $state['locale']), true);
         if ($username === null) { return null; }
         $attemptedUsername = $username;
-
         $password = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.login.password_prompt', 'Password: ', [], $state['locale']), false);
         if ($password === null) { return null; }
         $this->writeLine($conn, '');
-
         $transport = $this->isSsh ? 'ssh' : 'telnet';
         try {
             $result = $this->apiRequest('POST', '/api/auth/login', [
@@ -3621,6 +3619,7 @@ class BbsSession
                 CURLOPT_CUSTOMREQUEST  => $method,
                 CURLOPT_TIMEOUT        => 10,
                 CURLOPT_HEADER         => false,
+                CURLOPT_USERAGENT      => 'BinktermPHP-Telnet/1.10.2',
             ]);
 
             $headers = ['Accept: application/json'];

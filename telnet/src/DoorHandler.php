@@ -42,6 +42,20 @@ class DoorHandler
     public function show($conn, array &$state, string $session): void
     {
         $shell = TerminalShellFactory::create($this->server, $state);
+        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+        if (TelnetUtils::showScreenIfExists('doors.ans', $this->server, $conn)) {
+            TelnetUtils::safeWrite($conn, "\r\n" . TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to continue...', [], $state['locale']),
+                TelnetUtils::ANSI_YELLOW
+            ));
+
+            while (true) {
+                $key = $this->server->readKeyWithIdleCheck($conn, $state);
+                if ($key !== '') {
+                    break;
+                }
+            }
+        }
         $dosDoors = (new DoorManager())->getEnabledDoors();
         $nativeDoors = (new NativeDoorManager())->getEnabledDoors();
 
@@ -773,6 +787,7 @@ class DoorHandler
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_COOKIE         => 'binktermphp_session=' . $session,
             CURLOPT_TIMEOUT        => 15,
+            CURLOPT_USERAGENT      => 'BinktermPHP-Telnet/1.10.2',
         ]);
 
         $response = curl_exec($ch);
@@ -806,6 +821,7 @@ class DoorHandler
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_COOKIE         => 'binktermphp_session=' . $session,
             CURLOPT_TIMEOUT        => 5,
+            CURLOPT_USERAGENT      => 'BinktermPHP-Telnet/1.10.2',
         ]);
         curl_exec($ch);
         curl_close($ch);
