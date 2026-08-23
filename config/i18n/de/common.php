@@ -1776,6 +1776,10 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.rlogindoors_config.delete_failed' => 'Failed to delete door',
     'ui.admin.rlogindoors_config.load_door_failed' => 'Failed to load door',
     'ui.admin.rlogindoors_config.no_doors_yet' => 'Noch keine RLogin-Doors. Klicken Sie auf "Door hinzufügen", um eine zu erstellen.',
+    'ui.admin.rlogindoors_config.import_from_synchronet' => 'Von Synchronet importieren',
+    'ui.admin.rlogindoors_config.importing' => 'Wird importiert...',
+    'ui.admin.rlogindoors_config.import_success' => '{imported} Door(s) importiert, {skipped} bereits vorhanden übersprungen.',
+    'ui.admin.rlogindoors_config.import_failed' => 'Import fehlgeschlagen',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'webdoors config konnten nicht geladen werden',

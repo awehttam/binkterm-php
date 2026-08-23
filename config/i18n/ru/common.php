@@ -1811,6 +1811,10 @@ return [
     'ui.admin.rlogindoors_config.delete_failed' => 'Не удалось удалить дверь',
     'ui.admin.rlogindoors_config.load_door_failed' => 'Не удалось загрузить дверь',
     'ui.admin.rlogindoors_config.no_doors_yet' => 'RLogin-двери ещё не созданы. Нажмите "Добавить дверь", чтобы создать.',
+    'ui.admin.rlogindoors_config.import_from_synchronet' => 'Импортировать из Synchronet',
+    'ui.admin.rlogindoors_config.importing' => 'Импорт...',
+    'ui.admin.rlogindoors_config.import_success' => 'Импортировано дверей: {imported}, пропущено (уже существуют): {skipped}.',
+    'ui.admin.rlogindoors_config.import_failed' => 'Ошибка импорта',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Не удалось загрузить конфигурацию web-дверей',

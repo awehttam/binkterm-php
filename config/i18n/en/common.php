@@ -1791,6 +1791,10 @@ return [
     'ui.admin.rlogindoors_config.delete_failed' => 'Failed to delete door',
     'ui.admin.rlogindoors_config.load_door_failed' => 'Failed to load door',
     'ui.admin.rlogindoors_config.no_doors_yet' => 'No RLogin doors yet. Click Add Door to create one.',
+    'ui.admin.rlogindoors_config.import_from_synchronet' => 'Import from Synchronet',
+    'ui.admin.rlogindoors_config.importing' => 'Importing...',
+    'ui.admin.rlogindoors_config.import_success' => 'Imported {imported} door(s), skipped {skipped} already present.',
+    'ui.admin.rlogindoors_config.import_failed' => 'Import failed',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Failed to load webdoors config',

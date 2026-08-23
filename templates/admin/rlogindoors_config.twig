@@ -6,9 +6,14 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <h1 class="h2">{{ t('ui.admin.rlogindoors_config.heading', {}, locale, ['common']) }}</h1>
-        <button type="button" class="btn btn-primary" id="addDoorBtn">
-            <i class="fas fa-plus"></i> {{ t('ui.admin.rlogindoors_config.add_door', {}, locale, ['common']) }}
-        </button>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary" id="importSynchronetBtn">
+                <i class="fas fa-cloud-arrow-down"></i> {{ t('ui.admin.rlogindoors_config.import_from_synchronet', {}, locale, ['common']) }}
+            </button>
+            <button type="button" class="btn btn-primary" id="addDoorBtn">
+                <i class="fas fa-plus"></i> {{ t('ui.admin.rlogindoors_config.add_door', {}, locale, ['common']) }}
+            </button>
+        </div>
     </div>
 
     <div class="alert alert-info">
@@ -273,7 +278,42 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('addDoorBtn').addEventListener('click', () => openAddModal());
     document.getElementById('doorForm').addEventListener('submit', onSubmitDoorForm);
     document.getElementById('fieldBbsType').addEventListener('change', applyBbsTypeDefaults);
+    document.getElementById('importSynchronetBtn').addEventListener('click', importFromSynchronet);
 });
+
+function importFromSynchronet() {
+    const btn = document.getElementById('importSynchronetBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + uiT('ui.admin.rlogindoors_config.importing', 'Importing...');
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    fetch('/admin/api/rlogin-doors-import-synchronet', {
+        method: 'POST',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.import_failed', 'Import failed')));
+        }
+        const imported = (data.imported || []).length;
+        const skipped = (data.skipped || []).length;
+        showAlert('success', uiT('ui.admin.rlogindoors_config.import_success', 'Imported {imported} door(s), skipped {skipped} already present.', { imported, skipped }));
+        if ((data.errors || []).length > 0) {
+            showAlert('warning', data.errors.join('; '));
+        }
+        loadDoors();
+    })
+    .catch(error => {
+        showAlert('danger', error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+}
 
 function loadDoors() {
     fetch('/admin/api/rlogin-doors', { cache: 'no-store' })

@@ -10,6 +10,7 @@
 - [Door Fields](#door-fields)
 - [BBS Type Presets](#bbs-type-presets)
 - [Pre-Login Command](#pre-login-command)
+- [Import from Synchronet](#import-from-synchronet)
 - [Icons and Screenshots](#icons-and-screenshots)
 - [Security Warning](#security-warning)
 - [Limitations](#limitations)
@@ -174,7 +175,7 @@ php scripts/synchronet_service.php {user_name} {real_name} {user_number}
 
 ### The bundled Synchronet Service client
 
-`scripts/synchronet_service.php` is the client half of this integration for the **Synchronet with BinktermPHP Service** preset. It's a thin CLI wrapper around `BinktermPHP\Synchronet` (`src/Synchronet.php`), which owns the actual wire protocol and can be reused from other PHP code if needed. It reads connection details from `config/rlogin_synchronet_service.json` (a small standalone config file for this script only — unrelated to the door's own database row). Copy the example to get started:
+`scripts/synchronet_service.php` is the client half of this integration for the **Synchronet with BinktermPHP Service** preset. It's a thin CLI wrapper around `BinktermPHP\Synchronet` (`src/Synchronet.php`), which owns the actual wire protocol and can be reused from other PHP code if needed (including the door import feature below). It reads connection details from `config/rlogin_synchronet_service.json` (a small standalone config file for this script only — unrelated to the door's own database row). Copy the example to get started:
 
 ```bash
 cp config/rlogin_synchronet_service.json.example config/rlogin_synchronet_service.json
@@ -185,19 +186,27 @@ cp config/rlogin_synchronet_service.json.example config/rlogin_synchronet_servic
     "host": "127.0.0.1",
     "port": 24512,
     "secret": "changeme",
-    "timeout": 5
+    "timeout": 5,
+    "rlogin_host": "127.0.0.1",
+    "rlogin_port": 513
 }
 ```
 
-`secret` must match the `API_KEY` configured in the Synchronet-side `binktermphp-api.js` service.
+`host`/`port`/`secret`/`timeout` are for the `services.ini` API connection (`secret` must match the `API_KEY` configured in the Synchronet-side `binkterm_sync_service.js`). `rlogin_host`/`rlogin_port` are the Synchronet system's actual **rlogin** listener — almost always the same host but a different port (513 by default) — used only by [Import from Synchronet](#import-from-synchronet) below.
 
-It speaks a one-shot JSON-over-TCP protocol — one connection, one request, one response, then the connection closes — matching the [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) `services.ini` service:
+It speaks a one-shot JSON-over-TCP protocol — one connection, one request, one response, then the connection closes — matching the [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) `services.ini` service. Every request carries an `action` field (`provision` or `list_doors`); omitting it defaults to `provision`.
 
-- **Request** (one line of JSON): `{"api_key":"<secret>","username":"{user_name}","real_name":"{real_name}"}`
+- **Request** (one line of JSON): `{"action":"provision","api_key":"<secret>","username":"{user_name}","real_name":"{real_name}"}`
 - **Response** (one line of JSON), success: `{"success":true,"username":"...","user_number":42,"created":true}`
 - **Response**, failure: `{"success":false,"error":"reason"}`
 
-The script converts that response into the exit-code/JSON contract above (`username` from the response becomes `remote_username`). BinktermPHP ships only this client script — the Synchronet-side `services.ini` service itself lives in the separate [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) repository that a sysop installs on the Synchronet system.
+The script converts that response into the exit-code/JSON contract above (`username` from the response becomes `remote_username`). BinktermPHP ships only the client side — the Synchronet-side `services.ini` service itself lives in the separate [binktermphp-synchronet](https://github.com/awehttam/binktermphp-synchronet) repository that a sysop installs on the Synchronet system.
+
+### Import from Synchronet
+
+Once `config/rlogin_synchronet_service.json` is configured (including `rlogin_host`/`rlogin_port`), **Admin → RLogin Doors** shows an **Import from Synchronet** button. It calls the same service's `list_doors` action to fetch every installed external program (door), and creates one fully-configured RLogin door per result — `bbs_type: synchronet_service`, `host`/`port` from `rlogin_host`/`rlogin_port`, Pre-Login Command set to the bundled `scripts/synchronet_service.php` invocation, and **Terminal Type set to `xtrn=<code>`**, where `<code>` is Synchronet's internal program code for that door — this is what makes the rlogin handoff land directly in the right door instead of the main menu.
+
+Imported doors are created **disabled**, so review credit cost / admin-only / etc. before enabling each one. Re-running the import only adds doors that don't already exist by door ID (the door's Synchronet program code, slugified) — it never touches or overwrites a door you've already imported or created manually.
 
 ---
 
@@ -243,3 +252,8 @@ The pre-login command runs on the server with the same privileges as the web pro
 
 **Session does not clean up after exit**
 - The bridge closes the TCP connection when the user disconnects; if the remote system holds the socket open past that, check the remote system's own idle/timeout handling
+
+**Import from Synchronet fails or returns no doors**
+- Confirm `config/rlogin_synchronet_service.json` exists with `host`/`port`/`secret` matching the Synchronet-side `services.ini` section and `API_KEY`
+- Confirm `rlogin_host` is set in that file (the import is refused without it)
+- If the request reaches the service but returns `success:false`, check the Synchronet Services server log — `list_doors` enumerates `xtrn_area.sec_list`, which needs verifying against your Synchronet version if it comes back empty (see the note in `binkterm_sync_service.js`)

@@ -1771,6 +1771,10 @@ return [
     'ui.admin.rlogindoors_config.delete_failed' => 'Impossibile eliminare la door',
     'ui.admin.rlogindoors_config.load_door_failed' => 'Impossibile caricare la door',
     'ui.admin.rlogindoors_config.no_doors_yet' => 'Nessuna door RLogin ancora. Fai clic su Aggiungi door per crearne una.',
+    'ui.admin.rlogindoors_config.import_from_synchronet' => 'Importa da Synchronet',
+    'ui.admin.rlogindoors_config.importing' => 'Importazione...',
+    'ui.admin.rlogindoors_config.import_success' => 'Importate {imported} door, saltate {skipped} gia presenti.',
+    'ui.admin.rlogindoors_config.import_failed' => 'Importazione fallita',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Impossibile caricare la configurazione webdoors',

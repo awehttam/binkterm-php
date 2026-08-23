@@ -1824,6 +1824,10 @@ return [
     'ui.admin.rlogindoors_config.delete_failed' => 'No se pudo eliminar la puerta',
     'ui.admin.rlogindoors_config.load_door_failed' => 'No se pudo cargar la puerta',
     'ui.admin.rlogindoors_config.no_doors_yet' => 'Aun no hay puertas RLogin. Haga clic en Anadir puerta para crear una.',
+    'ui.admin.rlogindoors_config.import_from_synchronet' => 'Importar desde Synchronet',
+    'ui.admin.rlogindoors_config.importing' => 'Importando...',
+    'ui.admin.rlogindoors_config.import_success' => 'Se importaron {imported} puerta(s), se omitieron {skipped} ya existentes.',
+    'ui.admin.rlogindoors_config.import_failed' => 'Error al importar',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'No se pudo cargar la configuracion de webdoors',

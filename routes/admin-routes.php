@@ -192,6 +192,19 @@ if (!function_exists('rloginDoorUploadedImage')) {
     }
 }
 
+if (!function_exists('rloginSlugifyDoorId')) {
+    /**
+     * Turn a Synchronet xtrn program code into a valid RLoginDoorManager door_id.
+     */
+    function rloginSlugifyDoorId(string $code): string
+    {
+        $slug = strtolower(trim($code));
+        $slug = preg_replace('/[^a-z0-9_-]+/', '_', $slug);
+        $slug = trim($slug, '_-');
+        return $slug !== '' ? $slug : 'door';
+    }
+}
+
 if (!function_exists('userIdExists')) {
     function userIdExists(int $userId): bool
     {
@@ -4435,6 +4448,96 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(500);
                 apiError('errors.admin.rlogin_doors.sync_failed', apiLocalizedText('errors.admin.rlogin_doors.sync_failed', 'Failed to sync rlogin doors'), 500);
             }
+        });
+
+        // Import doors from a linked Synchronet system via binktermphp-synchronet's
+        // list_doors action, creating a disabled, fully-configured RLogin door
+        // (Synchronet with BinktermPHP Service defaults) for each one not already
+        // present. Existing door_ids are left untouched.
+        SimpleRouter::post('/rlogin-doors-import-synchronet', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $configPath = defined('BINKTERMPHP_BASEDIR')
+                ? BINKTERMPHP_BASEDIR . '/config/rlogin_synchronet_service.json'
+                : __DIR__ . '/../config/rlogin_synchronet_service.json';
+
+            if (!file_exists($configPath)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.synchronet_not_configured', apiLocalizedText('errors.admin.rlogin_doors.synchronet_not_configured', 'config/rlogin_synchronet_service.json is not configured yet'), 400);
+                return;
+            }
+
+            $rawConfig = json_decode((string)file_get_contents($configPath), true);
+            $rloginHost = is_array($rawConfig) ? ($rawConfig['rlogin_host'] ?? null) : null;
+            $rloginPort = is_array($rawConfig) ? (int)($rawConfig['rlogin_port'] ?? 513) : 513;
+
+            if (empty($rloginHost)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', apiLocalizedText('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', 'rlogin_host is not set in config/rlogin_synchronet_service.json'), 400);
+                return;
+            }
+
+            try {
+                $client = \BinktermPHP\Synchronet::fromConfigFile($configPath);
+                $result = $client->listDoors();
+            } catch (Exception $e) {
+                http_response_code(502);
+                apiError('errors.admin.rlogin_doors.synchronet_unreachable', apiLocalizedText('errors.admin.rlogin_doors.synchronet_unreachable', 'Could not reach the Synchronet service') . ': ' . $e->getMessage(), 502);
+                return;
+            }
+
+            if (empty($result['success'])) {
+                http_response_code(502);
+                apiError('errors.admin.rlogin_doors.synchronet_list_failed', $result['error'] ?? apiLocalizedText('errors.admin.rlogin_doors.synchronet_list_failed', 'Synchronet rejected the list_doors request'), 502);
+                return;
+            }
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $imported = [];
+            $skipped = [];
+            $errors = [];
+
+            foreach ($result['doors'] as $remoteDoor) {
+                $doorId = rloginSlugifyDoorId($remoteDoor['code']);
+
+                if ($rloginDoorManager->getDoor($doorId)) {
+                    $skipped[] = $doorId;
+                    continue;
+                }
+
+                $fields = [
+                    'name' => $remoteDoor['name'],
+                    'short_name' => $remoteDoor['code'],
+                    'description' => $remoteDoor['sec_name'] ?? '',
+                    'bbs_type' => 'synchronet_service',
+                    'host' => $rloginHost,
+                    'port' => $rloginPort,
+                    'client_username' => '{user_name}',
+                    'server_username' => '{user_name}',
+                    'terminal_type' => 'xtrn=' . $remoteDoor['code'],
+                    'pre_login_command' => 'php scripts/synchronet_service.php {user_name} {real_name} {user_number}',
+                    'pre_login_timeout' => 10,
+                    'enabled' => false,
+                ];
+
+                if ($rloginDoorManager->createDoor($doorId, $fields, null, null)) {
+                    $imported[] = $doorId;
+                } else {
+                    $errors[] = "Failed to import '$doorId'";
+                }
+            }
+
+            if (!empty($imported)) {
+                $rloginDoorManager->syncDoorsToDatabase();
+            }
+
+            echo json_encode([
+                'success' => true,
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ]);
         });
 
         // Door Manifest Editor API
