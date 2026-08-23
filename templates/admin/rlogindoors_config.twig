@@ -276,7 +276,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadDoors() {
-    fetch('/admin/api/rlogin-doors')
+    fetch('/admin/api/rlogin-doors', { cache: 'no-store' })
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
@@ -388,7 +388,7 @@ function openEditModal(doorId) {
     resetForm();
     document.getElementById('doorModalTitle').textContent = uiT('ui.admin.rlogindoors_config.edit_door', 'Edit Door');
 
-    fetch('/admin/api/rlogin-doors/' + encodeURIComponent(doorId))
+    fetch('/admin/api/rlogin-doors/' + encodeURIComponent(doorId), { cache: 'no-store' })
         .then(response => response.json())
         .then(data => {
             if (!data.success) {

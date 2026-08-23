@@ -4246,6 +4246,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         SimpleRouter::get('/rlogin-doors', function() {
             $user = RouteHelper::requireAdmin();
             header('Content-Type: application/json');
+            header('Cache-Control: no-store');
 
             $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
             $allDoors = $rloginDoorManager->getAllDoors();
@@ -4275,6 +4276,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         SimpleRouter::get('/rlogin-doors/{doorId}', function(string $doorId) {
             $user = RouteHelper::requireAdmin();
             header('Content-Type: application/json');
+            header('Cache-Control: no-store');
 
             $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
             $door = $rloginDoorManager->getDoor($doorId);
