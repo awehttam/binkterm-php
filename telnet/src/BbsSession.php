@@ -2137,16 +2137,7 @@ class BbsSession
             return;
         }
 
-        if (TelnetUtils::showScreenIfExists("l33test-logo.ans", $this, $conn)) {
-            $this->safeWrite($conn, "\r\nPress any key to continue...");
-
-            while (true) {
-                $key = $this->readKeyWithIdleCheck($conn, $state);
-                if ($key !== null && $key !== '') {
-                    break;
-                }
-            }
-        }
+        TelnetUtils::showScreenIfExists("l33test-logo.ans", $this, $conn);
 
         if (TelnetUtils::showScreenIfExists("login.ans", $this, $conn)) {
             return;
