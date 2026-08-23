@@ -522,16 +522,27 @@ class RLoginDoorManager
             return ['ok' => true, 'overrides' => [], 'error' => null];
         }
 
-        $command = strtr($template, [
+        // Tokenize the template BEFORE substituting placeholders, not after.
+        // Placeholder values (usernames, real names) are arbitrary user data
+        // that may contain quote characters — e.g. a real name of "G'ould
+        // Master". Substituting first and tokenizing second would let a
+        // stray quote in that data be misread as shell-style quoting syntax
+        // by tokenizeCommand(), silently merging/mangling arguments. Tokenizing
+        // the sysop-authored template first means placeholder values are only
+        // ever inserted as literal token content.
+        $rawTokens = $this->tokenizeCommand($template);
+        if (empty($rawTokens)) {
+            return ['ok' => false, 'overrides' => [], 'error' => 'pre_login_command could not be parsed'];
+        }
+
+        $substitutions = [
             '{user_name}' => $placeholders['user_name'] ?? '',
             '{real_name}' => $placeholders['real_name'] ?? '',
             '{user_number}' => $placeholders['user_number'] ?? '',
-        ]);
-
-        $tokens = $this->tokenizeCommand($command);
-        if (empty($tokens)) {
-            return ['ok' => false, 'overrides' => [], 'error' => 'pre_login_command could not be parsed'];
-        }
+        ];
+        $tokens = array_map(static function ($token) use ($substitutions) {
+            return strtr($token, $substitutions);
+        }, $rawTokens);
 
         $timeout = (int)($door['pre_login_timeout'] ?? 10);
         if ($timeout <= 0) {
