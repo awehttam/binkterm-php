@@ -48,9 +48,19 @@ class SvgIconSanitizer
         }
         $raw = substr($raw, $start, $end - $start + strlen('</svg>'));
 
+        // LLMs occasionally emit a bare "&" (e.g. in text content) that isn't
+        // a valid XML entity reference, which would otherwise fail the parse.
+        $raw = preg_replace('/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)/', '&amp;', $raw) ?? $raw;
+
         $previous = libxml_use_internal_errors(true);
         $doc = new \DOMDocument();
         $loaded = $doc->loadXML($raw, LIBXML_NONET);
+        if (!$loaded) {
+            // Best-effort recovery for otherwise-minor malformations (e.g. an
+            // element opened without a matching close/self-close tag).
+            $doc = new \DOMDocument();
+            $loaded = $doc->loadXML($raw, LIBXML_NONET | LIBXML_RECOVER);
+        }
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 

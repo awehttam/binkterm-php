@@ -4620,6 +4620,8 @@ Rules:
 - Do not reference any external file, URL, or image. Do not use <image>, <script>, <foreignObject>, or any event handler attribute.
 - Favor a flat, geometric, retro-BBS/terminal aesthetic with a small, deliberate color palette (3-5 colors) that reads clearly at small sizes.
 - The icon should visually evoke the game's genre and theme, not display the literal title text unless it fits naturally as a small monogram.
+- Keep it simple: at most ~20 shape elements total. The whole response must fit well within the output limit — always finish with a closing </svg> tag, never truncate mid-element.
+- Every element must be well-formed XML: self-close empty elements with "/>" (e.g. <rect .../>) or give them a matching closing tag, and always double-quote attribute values.
 PROMPT;
 
             $userPrompt = "Design an icon for this door game:\n\n{$details}";
@@ -4630,7 +4632,7 @@ PROMPT;
                     systemPrompt: $systemPrompt,
                     userPrompt: $userPrompt,
                     temperature: 0.9,
-                    maxOutputTokens: 1500,
+                    maxOutputTokens: 3000,
                     timeoutSeconds: 45,
                     userId: (int)($user['user_id'] ?? $user['id'] ?? 0) ?: null,
                 );
@@ -4639,6 +4641,11 @@ PROMPT;
                 $svg = \BinktermPHP\AI\SvgIconSanitizer::sanitize($response->getContent());
 
                 if ($svg === null) {
+                    getServerLogger()->error('RLogin door AI icon generation produced unusable SVG', [
+                        'finish_reason' => $response->getFinishReason(),
+                        'content_length' => strlen($response->getContent()),
+                        'content_preview' => substr($response->getContent(), 0, 2000),
+                    ]);
                     http_response_code(500);
                     apiError('errors.admin.rlogin_doors.icon_gen_failed', apiLocalizedText('errors.admin.rlogin_doors.icon_gen_failed', 'AI icon generation failed'), 500);
                     return;
