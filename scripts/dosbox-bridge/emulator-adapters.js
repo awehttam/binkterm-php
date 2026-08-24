@@ -607,15 +607,26 @@ class NativeAdapter extends EmulatorAdapter {
         this.outputEncoding = (manifest.door && manifest.door.output_encoding) || 'utf8';
         const ptyEncoding = this.outputEncoding === 'cp437' ? 'binary' : 'utf8';
 
-        // Build launch command - replace {node}, {dropfile}, {user_number}, and {homedir} placeholders
+        // Parse user data for environment variables and launch placeholders.
+        const userData = typeof sessionData.user_data === 'string'
+            ? JSON.parse(sessionData.user_data)
+            : (sessionData.user_data || {});
+
+        // Build launch command - replace generic native-door placeholders.
         // On Windows, prefer launch_command_windows (e.g. WSL via wsl.exe) over the Linux bash command
         const isWindows = process.platform === 'win32';
         let launchCmd = (isWindows && manifest.door.launch_command_windows)
             ? manifest.door.launch_command_windows
             : (manifest.door.launch_command || manifest.door.executable);
+
+        const userName = userData.handle || userData.username || userData.real_name || 'Guest';
+        const userRealName = userData.real_name || 'Guest';
+
         launchCmd = launchCmd.replace(/\{node\}/g, String(node_number));
         launchCmd = launchCmd.replace(/\{dropfile\}/g, dropfileFull);
         launchCmd = launchCmd.replace(/\{user_number\}/g, String(sessionData.user_id || ''));
+        launchCmd = launchCmd.replace(/\{user_name\}/g, userName);
+        launchCmd = launchCmd.replace(/\{user_real_name\}/g, userRealName);
         launchCmd = launchCmd.replace(/\{homedir\}/g, homeDir);
 
         // Resolve ${VAR:-default} environment variable references in the launch command.
@@ -672,10 +683,6 @@ class NativeAdapter extends EmulatorAdapter {
             }
         }
 
-        // Parse user data for environment variables
-        const userData = typeof sessionData.user_data === 'string'
-            ? JSON.parse(sessionData.user_data)
-            : (sessionData.user_data || {});
 
         const env = {
             ...process.env,
