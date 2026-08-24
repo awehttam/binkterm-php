@@ -212,6 +212,12 @@ class DoorHandler
         $this->server->safeWrite($conn, chr(255) . chr(251) . chr(1)); // IAC WILL ECHO
         $this->server->safeWrite($conn, chr(255) . chr(254) . chr(1)); // IAC DONT ECHO
 
+        // Modern/raw experiences should inherit the caller's actual terminal
+        // geometry rather than the native adapter's configured/default PTY size.
+        if ($terminalMode === 'raw') {
+            $this->sendTerminalResize($wsSock, $state);
+        }
+
         $this->relayLoop($conn, $state, $wsSock, $terminalMode);
 
         // Send WebSocket close frame and release the socket
@@ -306,7 +312,19 @@ class DoorHandler
                         if ($terminalMode === 'raw') {
                             // Modern terminal mode: remove Telnet protocol framing and
                             // capture NAWS, but preserve ANSI/xterm and UTF-8 payload.
+                            $oldCols = (int)($state['cols'] ?? 0);
+                            $oldRows = (int)($state['rows'] ?? 0);
+
                             $processed = $this->processRawTelnetInput($raw, $state);
+
+                            $newCols = (int)($state['cols'] ?? 0);
+                            $newRows = (int)($state['rows'] ?? 0);
+
+                            if ($newCols > 0 && $newRows > 0
+                                && ($newCols !== $oldCols || $newRows !== $oldRows)) {
+                                $this->sendTerminalResize($wsSock, $state);
+                            }
+
                             if ($processed !== '') {
                                 $this->wsSend($wsSock, $processed);
                             }
@@ -358,8 +376,15 @@ class DoorHandler
                             }
 
                             if ($terminalMode === 'raw') {
-                                // Modern terminal output is already UTF-8/ANSI.
-                                $this->server->safeWrite($conn, $result['payload']);
+                                // Raw experiences speak modern UTF-8/ANSI, but the
+                                // connected BBS terminal may still be CP437 or ASCII.
+                                // Preserve control/ANSI bytes while transcoding printable
+                                // UTF-8 characters for the caller's configured charset.
+                                $output = $this->encodeRawTerminalOutput($result['payload']);
+
+                                if ($output !== '') {
+                                    $this->server->safeWrite($conn, $output);
+                                }
                             } else {
                                 // Legacy door output is presented to the Telnet
                                 // client using the traditional CP437 path.
@@ -837,6 +862,145 @@ class DoorHandler
      * @param resource $sock
      * @param string   $payload UTF-8 text payload
      */
+    /**
+     * Forward terminal dimensions to the bridge for PTY-backed raw experiences.
+     */
+    /**
+     * Encode a modern UTF-8/ANSI terminal stream for the connected BBS client.
+     *
+     * ANSI/control sequences are preserved byte-for-byte. Printable UTF-8 text
+     * spans are passed through BbsSession::encodeForTerminal(), allowing the
+     * session's utf8/cp437/ascii setting to remain authoritative.
+     */
+    private function encodeRawTerminalOutput(string $data): string
+    {
+        if ($data === '') {
+            return '';
+        }
+
+        $charset = method_exists($this->server, 'getTerminalCharset')
+            ? $this->server->getTerminalCharset()
+            : 'utf8';
+
+        if ($charset === 'utf8') {
+            return $data;
+        }
+
+        $encodeText = function (string $text): string {
+            if ($text === '') {
+                return '';
+            }
+
+            if (method_exists($this->server, 'encodeForTerminal')) {
+                return $this->server->encodeForTerminal($text);
+            }
+
+            return $text;
+        };
+
+        $out = '';
+        $text = '';
+        $len = strlen($data);
+        $i = 0;
+
+        $flushText = function () use (&$text, &$out, $encodeText): void {
+            if ($text !== '') {
+                $out .= $encodeText($text);
+                $text = '';
+            }
+        };
+
+        while ($i < $len) {
+            $byte = ord($data[$i]);
+
+            // ESC introduces ANSI/VT control sequences. Preserve them exactly.
+            if ($byte === 0x1B) {
+                $flushText();
+
+                $start = $i++;
+                if ($i >= $len) {
+                    $out .= substr($data, $start, 1);
+                    break;
+                }
+
+                $next = ord($data[$i]);
+
+                // CSI: ESC [ ... final-byte
+                if ($next === 0x5B) {
+                    $i++;
+
+                    while ($i < $len) {
+                        $b = ord($data[$i++]);
+
+                        // ANSI final byte range.
+                        if ($b >= 0x40 && $b <= 0x7E) {
+                            break;
+                        }
+                    }
+
+                    $out .= substr($data, $start, $i - $start);
+                    continue;
+                }
+
+                // OSC: ESC ] ... BEL or ST (ESC \)
+                if ($next === 0x5D) {
+                    $i++;
+
+                    while ($i < $len) {
+                        $b = ord($data[$i++]);
+
+                        if ($b === 0x07) {
+                            break;
+                        }
+
+                        if ($b === 0x1B && $i < $len && ord($data[$i]) === 0x5C) {
+                            $i++;
+                            break;
+                        }
+                    }
+
+                    $out .= substr($data, $start, $i - $start);
+                    continue;
+                }
+
+                // Other two-byte ESC forms.
+                $i++;
+                $out .= substr($data, $start, $i - $start);
+                continue;
+            }
+
+            // C0 controls and DEL are transport/control bytes, not text.
+            if ($byte < 0x20 || $byte === 0x7F) {
+                $flushText();
+                $out .= $data[$i++];
+                continue;
+            }
+
+            // Printable UTF-8 byte. Accumulate until the next control sequence.
+            $text .= $data[$i++];
+        }
+
+        $flushText();
+
+        return $out;
+    }
+
+    private function sendTerminalResize($wsSock, array $state): void
+    {
+        $cols = max(20, min(500, (int)($state['cols'] ?? 80)));
+        $rows = max(5, min(200, (int)($state['rows'] ?? 25)));
+
+        $payload = json_encode([
+            'type' => 'resize',
+            'cols' => $cols,
+            'rows' => $rows,
+        ]);
+
+        if ($payload !== false) {
+            $this->wsSend($wsSock, $payload);
+        }
+    }
+
     private function wsSend($sock, string $payload): void
     {
         if (!is_resource($sock)) {
