@@ -12,6 +12,7 @@
 - [Pre-Login Command](#pre-login-command)
 - [Import from Synchronet](#import-from-synchronet)
 - [Icons and Screenshots](#icons-and-screenshots)
+  - [Generating an Icon with AI](#generating-an-icon-with-ai)
 - [Security Warning](#security-warning)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
@@ -242,6 +243,14 @@ Imported doors are created **disabled**, so review credit cost / admin-only / et
 Because RLogin doors have no directory on disk, icon and screenshot images are uploaded through **Admin → RLogin Doors** and stored as binary data (`BYTEA`) directly in the `rlogin_doors` row, alongside a stored MIME type. Accepted formats: PNG, JPEG, GIF, WebP, SVG.
 
 They're served publicly at `/door-assets/{doorId}/icon` and `/door-assets/{doorId}/screenshot`, the same URL pattern used by the other door types — the route detects that a door ID belongs to an RLogin door and streams the image straight from the database instead of reading a file. To replace an image, upload a new one on the **Edit** form; to remove one entirely without replacing it, check **Remove image** and save.
+
+### Generating an Icon with AI
+
+If no suitable icon image is on hand, the **Generate with AI** button next to the Icon field can produce one on the spot. It sends the door's Name, Short Name, Genre, and Description fields (Name is required; the others improve the result) to whichever text-generation provider is configured under **Admin → AI Settings**, asking it to design a small flat/geometric icon as raw SVG artwork — no separate image-generation API or API key is needed beyond an existing text provider.
+
+The response is run through a strict sanitizer (`BinktermPHP\AI\SvgIconSanitizer`) before it's shown or accepted: only a fixed allowlist of SVG shape/gradient tags and attributes survives, and anything that could reference an external URL or execute script (`<script>`, event-handler attributes, external `href`/`xlink:href`/`url(...)` references) is stripped. This matters because, unlike a raster upload, an SVG is served back with `Content-Type: image/svg+xml` and would otherwise execute as a mini HTML document if a user opened the asset URL directly.
+
+The generated icon is loaded into the same file input used for manual uploads and previewed immediately, but nothing is saved until the door form itself is submitted — click **Generate with AI** again for a different result, or **Choose File** to use an uploaded image instead. If generation fails (no AI provider configured, or the model's output couldn't be sanitized into valid SVG), an error is shown in the modal and the existing icon, if any, is left untouched.
 
 ---
 
