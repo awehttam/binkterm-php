@@ -1926,7 +1926,6 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.door_manifest_editor.field.time_per_day' => 'Zeit pro Tag (Min)',
     'ui.admin.door_manifest_editor.field.time_per_day_help' => 'Maximale Minuten, die ein Benutzer pro Tag spielen kann.',
     'ui.admin.door_manifest_editor.field.req_dosbox' => 'Erfordert DOSBox',
-    'ui.admin.door_manifest_editor.field.req_fossil' => 'Erfordert FOSSIL-Treiber',
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Ausführbare Datei',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Pfad zur Binärdatei oder zum Skript relativ zum Door-Verzeichnis.',

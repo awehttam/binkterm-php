@@ -1974,7 +1974,6 @@ return [
     'ui.admin.door_manifest_editor.field.time_per_day' => 'Tiempo por dia (min)',
     'ui.admin.door_manifest_editor.field.time_per_day_help' => 'Minutos maximos que un usuario puede jugar por dia.',
     'ui.admin.door_manifest_editor.field.req_dosbox' => 'Requiere DOSBox',
-    'ui.admin.door_manifest_editor.field.req_fossil' => 'Requiere controlador FOSSIL',
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Ejecutable',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Ruta al binario o script relativa al directorio de la puerta.',

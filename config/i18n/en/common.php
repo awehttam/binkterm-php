@@ -1941,7 +1941,6 @@ return [
     'ui.admin.door_manifest_editor.field.time_per_day' => 'Time Per Day (min)',
     'ui.admin.door_manifest_editor.field.time_per_day_help' => 'Maximum minutes a user can play per day.',
     'ui.admin.door_manifest_editor.field.req_dosbox' => 'Requires DOSBox',
-    'ui.admin.door_manifest_editor.field.req_fossil' => 'Requires FOSSIL Driver',
     // Native-specific
     'ui.admin.door_manifest_editor.field.native_executable' => 'Executable',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Path to the binary or script relative to the door directory.',

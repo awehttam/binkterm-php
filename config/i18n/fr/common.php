@@ -1683,7 +1683,6 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.door_manifest_editor.field.time_per_day' => 'Temps par jour (min)',
     'ui.admin.door_manifest_editor.field.time_per_day_help' => 'Minutes maximum qu\'un utilisateur peut jouer par jour.',
     'ui.admin.door_manifest_editor.field.req_dosbox' => 'Nécessite DOSBox',
-    'ui.admin.door_manifest_editor.field.req_fossil' => 'Nécessite un pilote FOSSIL',
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Exécutable',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Chemin vers le binaire ou le script relatif au répertoire de la porte.',

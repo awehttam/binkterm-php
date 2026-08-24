@@ -362,7 +362,7 @@ class DOSEMUAdapter extends EmulatorAdapter {
         }
 
         // Build DOSEMU command
-        const doorScript = this.generateDoorScript(session_id, door_id, node_number, session_path);
+        const doorScript = this.generateDoorScript(session_id, door_id, node_number, session_path, sessionData);
 
         const args = [
             '-f', configPath,  // Use our config file
@@ -515,7 +515,7 @@ $_sound = "0"
         return configPath;
     }
 
-    generateDoorScript(sessionId, doorId, nodeNumber, sessionPath) {
+    generateDoorScript(sessionId, doorId, nodeNumber, sessionPath, sessionData) {
         const door_id = doorId;
         const node_number = nodeNumber;
 

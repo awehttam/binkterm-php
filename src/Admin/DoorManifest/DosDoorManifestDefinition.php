@@ -70,7 +70,6 @@ class DosDoorManifestDefinition implements DoorManifestTypeDefinition
             ],
             'requirements' => [
                 'dosbox'       => true,
-                'fossil_driver' => true,
                 'admin_only'   => false,
             ],
             'config' => [
@@ -272,13 +271,6 @@ class DosDoorManifestDefinition implements DoorManifestTypeDefinition
                     [
                         'path'      => 'requirements.dosbox',
                         'label_key' => 'ui.admin.door_manifest_editor.field.req_dosbox',
-                        'type'      => 'checkbox',
-                        'required'  => false,
-                        'default'   => true,
-                    ],
-                    [
-                        'path'      => 'requirements.fossil_driver',
-                        'label_key' => 'ui.admin.door_manifest_editor.field.req_fossil',
                         'type'      => 'checkbox',
                         'required'  => false,
                         'default'   => true,

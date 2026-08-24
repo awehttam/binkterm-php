@@ -1921,7 +1921,6 @@ return [
     'ui.admin.door_manifest_editor.field.time_per_day' => 'Tempo al giorno (min)',
     'ui.admin.door_manifest_editor.field.time_per_day_help' => 'Minuti massimi che un utente puo\' giocare al giorno.',
     'ui.admin.door_manifest_editor.field.req_dosbox' => 'Richiede DOSBox',
-    'ui.admin.door_manifest_editor.field.req_fossil' => 'Richiede driver FOSSIL',
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Eseguibile',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Percorso al binario o script relativo alla directory della porta.',

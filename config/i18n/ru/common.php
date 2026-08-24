@@ -1961,7 +1961,6 @@ return [
     'ui.admin.door_manifest_editor.field.time_per_day' => 'Время в день (мин)',
     'ui.admin.door_manifest_editor.field.time_per_day_help' => 'Максимальное время игры в минутах в день.',
     'ui.admin.door_manifest_editor.field.req_dosbox' => 'Требуется DOSBox',
-    'ui.admin.door_manifest_editor.field.req_fossil' => 'Требуется драйвер FOSSIL',
 
     'ui.admin.door_manifest_editor.field.native_executable' => 'Исполняемый файл',
     'ui.admin.door_manifest_editor.field.native_executable_help' => 'Путь к бинарному файлу или скрипту относительно директории двери.',
