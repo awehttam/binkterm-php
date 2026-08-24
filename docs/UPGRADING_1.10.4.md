@@ -32,6 +32,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - The DOSBox/DOSEMU multiplexing server now logs the generated `[autoexec]` config section (DOSBox) or launch batch script (DOSEMU) to the console/log each time a door session is launched, to make door launch problems easier to diagnose from server logs.
 - Fixed a crash in the DOSEMU adapter when a door's `launch_command` used the `{user_number}` placeholder.
 - Removed a duplicate, non-functional "Requires FOSSIL Driver" checkbox from the **Requirements** section of the DOS door manifest editor. The **Requires FOSSIL Driver** checkbox in the door info section is the one that actually controls whether the FOSSIL driver is loaded at launch; the removed checkbox never had any effect.
+- Fixed the **CPU Cycles** field in the DOS door manifest editor having no effect — the DOSBox multiplexing server now applies a door's configured cycle count to its generated `dosbox.conf` instead of always using the template's default value.
 
 ---
 
@@ -58,6 +59,8 @@ The DOSBox/DOSEMU multiplexing server (`scripts/dosbox-bridge/`) now writes the 
 The DOSEMU adapter also had a bug fixed where launching a door whose manifest `launch_command` contained the `{user_number}` placeholder would crash with a `ReferenceError` instead of substituting the user's ID.
 
 In the DOS door manifest editor (**Admin → DOS Doors**), the **Requirements** section previously had two checkboxes related to the FOSSIL driver: "Requires FOSSIL Driver" in the door info section (which actually controls whether the FOSSIL driver is loaded during door launch) and a second, identically-labeled checkbox in the Requirements section that had no effect on runtime behavior. The non-functional duplicate has been removed. Existing manifests are unaffected; the remaining "Requires FOSSIL Driver" checkbox in the door info section continues to work as before.
+
+The **CPU Cycles** field on the **Runtime Defaults** section of the manifest editor was previously stored but never applied — every door session used the same fixed `cycles=` value from the active DOSBox config template regardless of what was set per-door. The DOSBox multiplexing server now substitutes a door's configured CPU cycle count into its generated `dosbox.conf` at launch time, so raising or lowering the value for a specific door now actually changes its emulated CPU speed. Leave the field unset (or at its default) to keep using the template's value.
 
 ## Upgrade Instructions
 

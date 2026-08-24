@@ -255,6 +255,12 @@ class DOSBoxAdapter extends EmulatorAdapter {
         const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'DOORS', door_id.toUpperCase(), 'dosdoor.jsn');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
+        // Apply the manifest's configured CPU cycles (defaults to the template's value if unset)
+        const cpuCycles = manifest.config && manifest.config.cpu_cycles;
+        if (cpuCycles) {
+            config = config.replace(/cycles=\d+/, `cycles=${cpuCycles}`);
+        }
+
         // Build door launch command
         const doorDir = manifest.door.directory.replace('dosbox-bridge/dos', '').replace(/\//g, '\\');
 
