@@ -530,7 +530,7 @@ class BbsSession
             $lblShoutbox   = $norm($this->t('ui.terminalserver.server.menu.shoutbox',   'S) Shoutbox', [], $locale), 'S');
             $lblBulletins  = $norm($this->t('ui.terminalserver.server.menu.bulletins',  'U) Bulletins', [], $locale), 'U');
             $lblPolls      = $norm($this->t('ui.terminalserver.server.menu.polls',      'P) Polls', [], $locale), 'P');
-            $lblDoors      = $norm($this->t('ui.terminalserver.server.menu.doors',      'D) Door Games', [], $locale), 'D');
+            $lblDoors      = $norm($this->t('ui.terminalserver.server.menu.doors',      'D) Games & Experiences', [], $locale), 'D');
             $lblFiles      = $norm($this->t('ui.terminalserver.server.menu.files',      'F) Files', [], $locale), 'F');
             $lblFreq       = $norm($this->t('ui.terminalserver.server.menu.freqrequests', 'R) File Requests', [], $locale), 'R');
             $lblBbsList    = $norm($this->t('ui.terminalserver.server.menu.bbs_list',   'B) BBS Directory', [], $locale), 'B');

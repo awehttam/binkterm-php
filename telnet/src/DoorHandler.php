@@ -67,8 +67,8 @@ class DoorHandler
             $shell->showText(
                 $conn,
                 $state,
-                $this->server->t('ui.terminalserver.doors.title', 'Door Games', [], $state['locale']),
-                [$this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale'])]
+                $this->server->t('ui.terminalserver.doors.title', 'Games & Experiences', [], $state['locale']),
+                [$this->server->t('ui.terminalserver.doors.no_doors', 'No games or experiences are currently available.', [], $state['locale'])]
             );
             return;
         }
@@ -126,11 +126,11 @@ class DoorHandler
             $selected = $shell->chooseFromList(
                 $conn,
                 $state,
-                $this->server->t('ui.terminalserver.doors.title', 'Door Games', [], $state['locale']),
+                $this->server->t('ui.terminalserver.doors.title', 'Games & Experiences', [], $state['locale']),
                 $items,
                 [
-                    'prompt' => $this->server->t('ui.terminalserver.doors.enter_choice', 'Select a door or Q to return: ', [], $state['locale']),
-                    'empty_message' => $this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale']),
+                    'prompt' => $this->server->t('ui.terminalserver.doors.enter_choice', 'Select an experience or Q to return: ', [], $state['locale']),
+                    'empty_message' => $this->server->t('ui.terminalserver.doors.no_doors', 'No games or experiences are currently available.', [], $state['locale']),
                 ]
             );
             if ($selected === null) {
