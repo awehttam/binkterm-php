@@ -23,7 +23,7 @@
     },
     "door": {
         "executable": "ssh",
-        "launch_command": "ssh -tt -i /var/www/html/data/portal/late/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/var/www/html/data/portal/late/known_hosts -o LogLevel=ERROR -o SetEnv=LATE_LAUNCH=greendragon -o SetEnv=LATE_USER_ID={user_number} -o SetEnv=LATE_USERNAME={user_name} -o SetEnv='LATE_REAL_NAME={user_real_name}' -o SetEnv=LATE_NODE={node} -p 2222 portal@late-ssh",
+        "launch_command": "ssh -tt -i /var/www/html/data/portal/late/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/var/www/html/data/portal/late/known_hosts -o LogLevel=ERROR -o \"SetEnv=LATE_LAUNCH=greendragon BINKTERM_USER_ID={user_number} BINKTERM_USERNAME={user_name} 'BINKTERM_DISPLAY_NAME={user_real_name}' LATE_NODE={node}\" -p 2222 portal@late-ssh",
         "dropfile_format": "DOOR.SYS",
         "output_encoding": "utf8",
         "terminal_mode": "raw",
