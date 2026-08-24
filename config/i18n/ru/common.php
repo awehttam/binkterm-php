@@ -1758,7 +1758,6 @@ return [
     // Admin RLogin Doors Config
     'ui.admin.rlogindoors_config.page_title' => 'RLogin Doors Config',
     'ui.admin.rlogindoors_config.heading' => 'Настройка RLogin-дверей',
-    'ui.admin.rlogindoors_config.info_text_1' => 'RLogin doors connect out to a remote BBS or service over the rlogin protocol. Configuration is stored in',
     'ui.admin.rlogindoors_config.info_text_2' => 'Doors are discovered by scanning',
     'ui.admin.rlogindoors_config.info_text_3' => 'for',
     'ui.admin.rlogindoors_config.info_text_4' => 'manifests.',
@@ -1911,7 +1910,6 @@ return [
     'ui.admin.door_manifest_editor.unmanaged_notice' => 'Этот манифест не управляется через web. Удалите или измените поле "managed" на "web", чтобы включить редактирование.',
     'ui.admin.door_manifest_editor.native_security_notice' => 'Предупреждение: Нативные двери запускают бинарные файлы хоста напрямую. Устанавливайте только нативные двери из проверенных источников.',
     'ui.admin.door_manifest_editor.public_html_notice' => 'Ресурсы этого типа двери доступны публично из public_html/. Загружённые файлы могут быть скачаны кем угодно.',
-    'ui.admin.door_manifest_editor.rlogin_security_notice' => 'Warning: the pre-login command runs on the server with the same privileges as the web process. Only point it at scripts you trust.',
 
     'ui.admin.door_manifest_editor.section.overview' => 'Обзор',
     'ui.admin.door_manifest_editor.section.game_info' => 'Информация об игре',

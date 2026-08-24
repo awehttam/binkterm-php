@@ -1482,7 +1482,6 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     // Admin RLogin Doors Config
     'ui.admin.rlogindoors_config.page_title' => 'RLogin Doors Config',
     'ui.admin.rlogindoors_config.heading' => 'Configuration des portes RLogin',
-    'ui.admin.rlogindoors_config.info_text_1' => 'RLogin doors connect out to a remote BBS or service over the rlogin protocol. Configuration is stored in',
     'ui.admin.rlogindoors_config.info_text_2' => 'Doors are discovered by scanning',
     'ui.admin.rlogindoors_config.info_text_3' => 'for',
     'ui.admin.rlogindoors_config.info_text_4' => 'manifests.',
@@ -1633,7 +1632,6 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.door_manifest_editor.unmanaged_notice' => 'Ce manifeste n\'est pas géré par le web. Supprimez ou modifiez le champ "managed" en "web" pour activer l\'édition.',
     'ui.admin.door_manifest_editor.native_security_notice' => 'Avertissement : Les portes natives exécutent des binaires de l\'hôte directement. N\'installez que des portes natives provenant de sources fiables.',
     'ui.admin.door_manifest_editor.public_html_notice' => 'Les ressources de ce type de porte sont servies publiquement depuis public_html/. Les fichiers téléversés peuvent être téléchargés par n\'importe qui.',
-    'ui.admin.door_manifest_editor.rlogin_security_notice' => 'Warning: the pre-login command runs on the server with the same privileges as the web process. Only point it at scripts you trust.',
 
     'ui.admin.door_manifest_editor.section.overview' => 'Vue d\'ensemble',
     'ui.admin.door_manifest_editor.section.game_info' => 'Informations sur le jeu',

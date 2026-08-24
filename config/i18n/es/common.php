@@ -1771,7 +1771,6 @@ return [
     // Admin RLogin Doors Config
     'ui.admin.rlogindoors_config.page_title' => 'RLogin Doors Config',
     'ui.admin.rlogindoors_config.heading' => 'Configuracion de RLogin Doors',
-    'ui.admin.rlogindoors_config.info_text_1' => 'RLogin doors connect out to a remote BBS or service over the rlogin protocol. Configuration is stored in',
     'ui.admin.rlogindoors_config.info_text_2' => 'Doors are discovered by scanning',
     'ui.admin.rlogindoors_config.info_text_3' => 'for',
     'ui.admin.rlogindoors_config.info_text_4' => 'manifests.',
@@ -1924,7 +1923,6 @@ return [
     'ui.admin.door_manifest_editor.unmanaged_notice' => 'Este manifiesto no es gestionado por web. Elimine o cambie el campo "managed" a "web" para habilitar la edicion.',
     'ui.admin.door_manifest_editor.native_security_notice' => 'Advertencia: Las puertas nativas ejecutan binarios del host directamente. Instale solo puertas nativas de fuentes confiables.',
     'ui.admin.door_manifest_editor.public_html_notice' => 'Los recursos de este tipo de puerta se sirven publicamente desde public_html/. Cualquier archivo subido puede ser descargado por cualquiera.',
-    'ui.admin.door_manifest_editor.rlogin_security_notice' => 'Warning: the pre-login command runs on the server with the same privileges as the web process. Only point it at scripts you trust.',
 
     'ui.admin.door_manifest_editor.section.overview' => 'Resumen',
     'ui.admin.door_manifest_editor.section.game_info' => 'Informacion del juego',

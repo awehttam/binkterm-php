@@ -1738,7 +1738,6 @@ return [
     // Admin RLogin Doors Config
     'ui.admin.rlogindoors_config.page_title' => 'RLogin Doors Config',
     'ui.admin.rlogindoors_config.heading' => 'RLogin Doors Configuration',
-    'ui.admin.rlogindoors_config.info_text_1' => 'RLogin doors connect out to a remote BBS or service over the rlogin protocol. Configuration is stored in',
     'ui.admin.rlogindoors_config.info_text_2' => 'Doors are discovered by scanning',
     'ui.admin.rlogindoors_config.info_text_3' => 'for',
     'ui.admin.rlogindoors_config.info_text_4' => 'manifests.',
@@ -1891,7 +1890,6 @@ return [
     'ui.admin.door_manifest_editor.unmanaged_notice' => 'This manifest is not web-managed. Remove or change the "managed" field to "web" to enable editing.',
     'ui.admin.door_manifest_editor.native_security_notice' => 'Warning: Native doors run host binaries directly. Only install native doors from trusted sources.',
     'ui.admin.door_manifest_editor.public_html_notice' => 'Assets for this door type are served publicly from public_html/. Uploaded files may be downloadable by anyone.',
-    'ui.admin.door_manifest_editor.rlogin_security_notice' => 'Warning: the pre-login command runs on the server with the same privileges as the web process. Only point it at scripts you trust.',
     // Sections
     'ui.admin.door_manifest_editor.section.overview' => 'Overview',
     'ui.admin.door_manifest_editor.section.game_info' => 'Game Info',
