@@ -205,7 +205,7 @@ class BbsSession
                 $this->ansiColorEnabled = true;
                 TelnetUtils::setAnsiColorEnabled(true);
                 if ($this->debug) { $this->log('TLS startup: ANSI enabled; charset deferred to saved settings'); }
-                $this->probeSixelSupport($conn, $state);
+                // Defer active Sixel probing until after the login banner.
             } else {
                 // Probe ANSI support before showing the banner by doing the TTYPE
                 // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
@@ -217,7 +217,7 @@ class BbsSession
                     $this->ansiColorEnabled = true;
                     TelnetUtils::setAnsiColorEnabled(true);
                     if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
-                    $this->probeSixelSupport($conn, $state);
+                    // Defer active Sixel probing until after the login banner.
                 } else {
                     if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
                 }

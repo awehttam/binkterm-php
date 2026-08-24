@@ -4010,6 +4010,14 @@ class TelnetUtils
         if ($screenFile !== null && is_file($screenFile)) {
             $content = @file_get_contents($screenFile);
             if ($content !== false && $content !== '') {
+                // ANSI art commonly carries a SAUCE metadata record after a DOS
+                // EOF marker (0x1A).  That metadata is not terminal data and must
+                // never be transmitted to the client.
+                $dosEof = strpos($content, "\x1A");
+                if ($dosEof !== false) {
+                    $content = substr($content, 0, $dosEof);
+                }
+
                 $content = str_replace("\r\n", "\n", $content);
                 $content = str_replace("\n", "\r\n", $content);
                 $server->safeWrite($conn, $content . "\r\n");
