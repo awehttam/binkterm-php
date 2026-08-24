@@ -286,6 +286,12 @@ class DOSBoxAdapter extends EmulatorAdapter {
         const configPath = path.join(sessionPath, 'dosbox.conf');
         fs.writeFileSync(configPath, config);
 
+        // Log the generated [autoexec] section for diagnostics
+        const slog = this.slog || console;
+        const autoexecIndex = config.indexOf('[autoexec]');
+        const autoexecSection = autoexecIndex !== -1 ? config.slice(autoexecIndex) : config;
+        slog.log(`[${this.getName()}] ${autoexecSection}`);
+
         return configPath;
     }
 
@@ -541,6 +547,10 @@ ${launchCmd}
         // Put script in dosbox-bridge/dos so DOSEMU finds it as C:\launch.bat
         const scriptPath = path.join(this.basePath, 'dosbox-bridge', 'dos', `launch-${sessionId}.bat`);
         fs.writeFileSync(scriptPath, scriptContent);
+
+        // Log the generated launch script for diagnostics
+        const slog = this.slog || console;
+        slog.log(`[${this.getName()}] Generated launch script:\n${scriptContent}`);
 
         // Return DOS path for DOSEMU
         return `C:\\launch-${sessionId}.bat`;
