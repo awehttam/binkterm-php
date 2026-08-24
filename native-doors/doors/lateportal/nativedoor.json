@@ -2,21 +2,22 @@
     "type": "nativedoor",
     "version": "1.0",
     "game": {
-        "name": "late.sh",
-        "short_name": "LATE",
+        "name": "Lateania",
+        "short_name": "LATEANIA",
         "author": "late.sh",
-        "version": "prototype",
+        "version": "late.sh",
         "release_year": 2026,
-        "description": "Enter the late.sh clubhouse and connected experiences.",
+        "description": "A persistent multiplayer fantasy world supplied by late.sh.",
         "genre": [
-            "Portal"
+            "RPG",
+            "Multiplayer"
         ],
         "players": "Multiplayer",
         "icon": null,
         "screenshot": null
     },
     "experience": {
-        "category": "portal",
+        "category": "game",
         "featured": true,
         "multiplayer": true
     },
