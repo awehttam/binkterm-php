@@ -1783,6 +1783,10 @@ return [
     'ui.admin.rlogindoors_config.import_by' => 'Di {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Importa selezionate',
     'ui.admin.rlogindoors_config.loading_preview' => 'Caricamento door disponibili...',
+    'ui.admin.rlogindoors_config.generate_icon_ai' => 'Genera con AI',
+    'ui.admin.rlogindoors_config.generate_icon_loading' => 'Generazione icona in corso...',
+    'ui.admin.rlogindoors_config.generate_icon_success' => 'Icona generata con AI. Verifica e salva.',
+    'ui.admin.rlogindoors_config.generate_icon_failed' => 'Generazione dell\'icona AI non riuscita',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Impossibile caricare la configurazione webdoors',

@@ -1788,6 +1788,10 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.rlogindoors_config.import_by' => 'Von {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Ausgewählte importieren',
     'ui.admin.rlogindoors_config.loading_preview' => 'Verfügbare Doors werden geladen...',
+    'ui.admin.rlogindoors_config.generate_icon_ai' => 'Mit KI erzeugen',
+    'ui.admin.rlogindoors_config.generate_icon_loading' => 'Symbol wird erzeugt...',
+    'ui.admin.rlogindoors_config.generate_icon_success' => 'KI-Symbol erzeugt. Bitte prüfen und speichern.',
+    'ui.admin.rlogindoors_config.generate_icon_failed' => 'KI-Symbolerzeugung fehlgeschlagen',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'webdoors config konnten nicht geladen werden',

@@ -1803,6 +1803,10 @@ return [
     'ui.admin.rlogindoors_config.import_by' => 'By {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Import Selected',
     'ui.admin.rlogindoors_config.loading_preview' => 'Loading available doors...',
+    'ui.admin.rlogindoors_config.generate_icon_ai' => 'Generate with AI',
+    'ui.admin.rlogindoors_config.generate_icon_loading' => 'Generating icon...',
+    'ui.admin.rlogindoors_config.generate_icon_success' => 'AI icon generated. Review and save.',
+    'ui.admin.rlogindoors_config.generate_icon_failed' => 'AI icon generation failed',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Failed to load webdoors config',

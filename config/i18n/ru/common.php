@@ -1823,6 +1823,10 @@ return [
     'ui.admin.rlogindoors_config.import_by' => 'Автор: {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Импортировать выбранные',
     'ui.admin.rlogindoors_config.loading_preview' => 'Загрузка доступных дверей...',
+    'ui.admin.rlogindoors_config.generate_icon_ai' => 'Создать с помощью ИИ',
+    'ui.admin.rlogindoors_config.generate_icon_loading' => 'Создание значка...',
+    'ui.admin.rlogindoors_config.generate_icon_success' => 'Значок создан с помощью ИИ. Проверьте и сохраните.',
+    'ui.admin.rlogindoors_config.generate_icon_failed' => 'Не удалось создать значок с помощью ИИ',
 
     // Admin Webdoors Config
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Не удалось загрузить конфигурацию web-дверей',

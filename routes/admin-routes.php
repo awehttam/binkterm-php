@@ -4569,6 +4569,92 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             ]);
         });
 
+        // NOTE: must stay registered before POST /rlogin-doors/{doorId} below —
+        // see the pecee/simple-router {param} separator note above the
+        // rlogin-doors-sync route.
+        SimpleRouter::post('/rlogin-doors-generate-icon', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($input)) {
+                $input = [];
+            }
+
+            $name = trim((string)($input['name'] ?? ''));
+            if ($name === '') {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.icon_gen_name_required', apiLocalizedText('errors.admin.rlogin_doors.icon_gen_name_required', 'Enter a game name before generating an icon'), 400);
+                return;
+            }
+
+            $aiService = \BinktermPHP\AI\AiService::create();
+            if (empty($aiService->getConfiguredProviders())) {
+                http_response_code(503);
+                apiError('errors.admin.rlogin_doors.icon_gen_no_provider', apiLocalizedText('errors.admin.rlogin_doors.icon_gen_no_provider', 'No AI provider is configured'), 503);
+                return;
+            }
+
+            $shortName = trim((string)($input['short_name'] ?? ''));
+            $genre = trim((string)($input['genre'] ?? ''));
+            $description = trim((string)($input['description'] ?? ''));
+
+            $details = "Game name: {$name}";
+            if ($shortName !== '') {
+                $details .= "\nShort name: {$shortName}";
+            }
+            if ($genre !== '') {
+                $details .= "\nGenre: {$genre}";
+            }
+            if ($description !== '') {
+                $details .= "\nDescription: {$description}";
+            }
+
+            $systemPrompt = <<<'PROMPT'
+You design small square icon artwork for a BBS door game launcher, as raw SVG markup.
+
+Rules:
+- Output ONLY a single <svg>...</svg> element. No markdown fences, no explanation, no XML declaration.
+- Use viewBox="0 0 128 128" and no width/height attributes.
+- Build the icon from basic shapes (path, rect, circle, ellipse, polygon, line, text) and gradients defined inline in <defs>.
+- Do not reference any external file, URL, or image. Do not use <image>, <script>, <foreignObject>, or any event handler attribute.
+- Favor a flat, geometric, retro-BBS/terminal aesthetic with a small, deliberate color palette (3-5 colors) that reads clearly at small sizes.
+- The icon should visually evoke the game's genre and theme, not display the literal title text unless it fits naturally as a small monogram.
+PROMPT;
+
+            $userPrompt = "Design an icon for this door game:\n\n{$details}";
+
+            try {
+                $request = new \BinktermPHP\AI\AiRequest(
+                    feature: 'rlogin_door_icon_gen',
+                    systemPrompt: $systemPrompt,
+                    userPrompt: $userPrompt,
+                    temperature: 0.9,
+                    maxOutputTokens: 1500,
+                    timeoutSeconds: 45,
+                    userId: (int)($user['user_id'] ?? $user['id'] ?? 0) ?: null,
+                );
+
+                $response = $aiService->generateText($request);
+                $svg = \BinktermPHP\AI\SvgIconSanitizer::sanitize($response->getContent());
+
+                if ($svg === null) {
+                    http_response_code(500);
+                    apiError('errors.admin.rlogin_doors.icon_gen_failed', apiLocalizedText('errors.admin.rlogin_doors.icon_gen_failed', 'AI icon generation failed'), 500);
+                    return;
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'svg' => $svg,
+                ]);
+            } catch (\Throwable $e) {
+                getServerLogger()->error('RLogin door AI icon generation failed', ['error' => $e->getMessage()]);
+                http_response_code(500);
+                apiError('errors.admin.rlogin_doors.icon_gen_failed', apiLocalizedText('errors.admin.rlogin_doors.icon_gen_failed', 'AI icon generation failed'), 500);
+            }
+        });
+
         SimpleRouter::post('/rlogin-doors/{doorId}', function(string $doorId) {
             $user = RouteHelper::requireAdmin();
             header('Content-Type: application/json');

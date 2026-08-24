@@ -85,10 +85,23 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_icon', {}, locale, ['common']) }}</label>
-                            <input type="file" class="form-control" name="icon" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml">
-                            <div class="form-check mt-1" id="removeIconWrap" style="display:none;">
-                                <input class="form-check-input" type="checkbox" name="remove_icon" id="fieldRemoveIcon">
-                                <label class="form-check-label" for="fieldRemoveIcon">{{ t('ui.admin.rlogindoors_config.remove_image', {}, locale, ['common']) }}</label>
+                            <div class="d-flex align-items-start gap-2">
+                                <div id="iconPreviewWrap" class="border rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width:56px;height:56px;overflow:hidden;">
+                                    <i class="fas fa-image text-muted" id="iconPreviewPlaceholder"></i>
+                                    <img id="iconPreviewImg" alt="" style="display:none;max-width:100%;max-height:100%;object-fit:contain;">
+                                </div>
+                                <div class="flex-grow-1">
+                                    <input type="file" class="form-control" name="icon" id="fieldIcon" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml">
+                                    <div class="d-flex align-items-center flex-wrap gap-2 mt-1">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="generateIconBtn">
+                                            <i class="fas fa-wand-magic-sparkles"></i> {{ t('ui.admin.rlogindoors_config.generate_icon_ai', {}, locale, ['common']) }}
+                                        </button>
+                                        <div class="form-check mb-0" id="removeIconWrap" style="display:none;">
+                                            <input class="form-check-input" type="checkbox" name="remove_icon" id="fieldRemoveIcon">
+                                            <label class="form-check-label" for="fieldRemoveIcon">{{ t('ui.admin.rlogindoors_config.remove_image', {}, locale, ['common']) }}</label>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -299,6 +312,13 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('addDoorBtn').addEventListener('click', () => openAddModal());
     document.getElementById('doorForm').addEventListener('submit', onSubmitDoorForm);
     document.getElementById('fieldBbsType').addEventListener('change', applyBbsTypeDefaults);
+    document.getElementById('fieldIcon').addEventListener('change', onIconFileSelected);
+    document.getElementById('generateIconBtn').addEventListener('click', generateIconWithAi);
+    document.getElementById('fieldRemoveIcon').addEventListener('change', function() {
+        if (this.checked) {
+            clearIconPreview();
+        }
+    });
     document.getElementById('importSynchronetBtn').addEventListener('click', openImportPreview);
     document.getElementById('importSelectAllBtn').addEventListener('click', () => setAllImportCandidates(true));
     document.getElementById('importSelectNoneBtn').addEventListener('click', () => setAllImportCandidates(false));
@@ -510,6 +530,89 @@ function renderDoorsList() {
     });
 }
 
+function setIconPreviewUrl(url) {
+    const img = document.getElementById('iconPreviewImg');
+    const placeholder = document.getElementById('iconPreviewPlaceholder');
+    img.src = url;
+    img.style.display = '';
+    placeholder.style.display = 'none';
+}
+
+function clearIconPreview() {
+    const img = document.getElementById('iconPreviewImg');
+    const placeholder = document.getElementById('iconPreviewPlaceholder');
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    placeholder.style.display = '';
+}
+
+function onIconFileSelected() {
+    const fieldRemoveIcon = document.getElementById('fieldRemoveIcon');
+    if (fieldRemoveIcon) {
+        fieldRemoveIcon.checked = false;
+    }
+
+    const file = document.getElementById('fieldIcon').files[0];
+    if (!file) {
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setIconPreviewUrl(reader.result);
+    reader.readAsDataURL(file);
+}
+
+function generateIconWithAi() {
+    const form = document.getElementById('doorForm');
+    const name = form.elements['name'].value.trim();
+    const shortName = form.elements['short_name'].value.trim();
+    const genre = form.elements['genre'].value.trim();
+    const description = form.elements['description'].value.trim();
+
+    const btn = document.getElementById('generateIconBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + uiT('ui.admin.rlogindoors_config.generate_icon_loading', 'Generating icon...');
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    fetch('/admin/api/rlogin-doors-generate-icon', {
+        method: 'POST',
+        headers: Object.assign(
+            { 'Content-Type': 'application/json' },
+            csrfToken ? { 'X-CSRF-Token': csrfToken } : {}
+        ),
+        body: JSON.stringify({ name, short_name: shortName, genre, description }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.generate_icon_failed', 'AI icon generation failed')));
+        }
+
+        const blob = new Blob([data.svg], { type: 'image/svg+xml' });
+        const file = new File([blob], 'ai-generated-icon.svg', { type: 'image/svg+xml' });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        document.getElementById('fieldIcon').files = dataTransfer.files;
+
+        const fieldRemoveIcon = document.getElementById('fieldRemoveIcon');
+        if (fieldRemoveIcon) {
+            fieldRemoveIcon.checked = false;
+        }
+
+        setIconPreviewUrl(URL.createObjectURL(blob));
+        showModalAlert('success', uiT('ui.admin.rlogindoors_config.generate_icon_success', 'AI icon generated. Review and save.'));
+    })
+    .catch(error => {
+        showModalAlert('danger', error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+}
+
 function resetForm() {
     const form = document.getElementById('doorForm');
     form.reset();
@@ -518,6 +621,7 @@ function resetForm() {
     document.getElementById('removeIconWrap').style.display = 'none';
     document.getElementById('removeScreenshotWrap').style.display = 'none';
     document.getElementById('modalAlert').innerHTML = '';
+    clearIconPreview();
 }
 
 function openAddModal() {
@@ -572,6 +676,7 @@ function openEditModal(doorId) {
 
             if (door.icon_url) {
                 document.getElementById('removeIconWrap').style.display = '';
+                setIconPreviewUrl(door.icon_url);
             }
             if (door.screenshot_url) {
                 document.getElementById('removeScreenshotWrap').style.display = '';
