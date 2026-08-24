@@ -17,7 +17,7 @@ class GameCatalog
      *
      * @return array
      */
-    public function getEnabledGames(?array $user = null): array
+    public function getEnabledGames(?array $user = null, string $surface = 'web'): array
     {
         $games = [];
 
@@ -32,7 +32,9 @@ class GameCatalog
                     continue;
                 }
 
-                if (!empty($door['config']['hide_from_web'])) {
+                // Web may hide terminal-only doors; terminal access intentionally
+                // continues to expose them.
+                if ($surface === 'web' && !empty($door['config']['hide_from_web'])) {
                     continue;
                 }
 

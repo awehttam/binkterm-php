@@ -3,8 +3,7 @@
 namespace BinktermPHP\TelnetServer;
 
 use BinktermPHP\Config;
-use BinktermPHP\DoorManager;
-use BinktermPHP\NativeDoorManager;
+use BinktermPHP\GameCatalog;
 
 /**
  * DoorHandler - DOS door game access via telnet
@@ -56,16 +55,13 @@ class DoorHandler
                 }
             }
         }
-        $dosDoors = (new DoorManager())->getEnabledDoors();
-        $nativeDoors = (new NativeDoorManager())->getEnabledDoors();
-
-        // Merge both lists; native doors take precedence on ID collision
-        $allDoors = array_merge($dosDoors, $nativeDoors);
-
-        // Hide admin-only doors from non-admin users
-        if (empty($state['is_admin'])) {
-            $allDoors = array_filter($allDoors, fn($door) => empty($door['admin_only']));
-        }
+        // Use the unified game catalog for terminal-visible experiences.
+        // Unlike the web surface, terminal includes doors marked hide_from_web.
+        $catalog = new GameCatalog();
+        $allDoors = $catalog->getEnabledGames(
+            ['is_admin' => !empty($state['is_admin'])],
+            'terminal'
+        );
 
         if (empty($allDoors)) {
             $shell->showText(
@@ -77,10 +73,11 @@ class DoorHandler
             return;
         }
 
-        // Convert associative array to indexed list, preserving door IDs
+        // Convert associative catalog entries to the indexed list expected
+        // by the terminal chooser, preserving game IDs.
         $doorList = [];
-        foreach ($allDoors as $doorId => $door) {
-            $doorList[] = ['id' => $doorId, 'data' => $door];
+        foreach ($allDoors as $doorId => $game) {
+            $doorList[] = ['id' => $doorId, 'data' => $game];
         }
 
         while (true) {
@@ -89,7 +86,7 @@ class DoorHandler
                 $door = $entry['data'];
                 $name = $door['name'] ?? $entry['id'];
                 $desc = trim((string)($door['description'] ?? ''));
-                $creditCost = (int)($door['config']['credit_cost'] ?? 0);
+                $creditCost = (int)($door['source']['config']['credit_cost'] ?? 0);
 
                 $items[] = [
                     'label' => trim($name . ($creditCost > 0 ? " [{$creditCost} credits]" : '')),
