@@ -7,6 +7,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Summary of Changes](#summary-of-changes)
 - [RLogin Doors](#rlogin-doors)
 - [Networks](#networks)
+- [Dashboard](#dashboard)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -21,6 +22,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - Removed **DixieNet** from the built-in FTN networks list, as the network is defunct.
 
+### Dashboard
+
+- Fixed the unread netmail and echomail counts on the dashboard not updating in real time; they previously only refreshed on a 30-second poll instead of reacting to BinkStream events like the messaging menu badges do.
+
 ---
 
 ## RLogin Doors
@@ -34,6 +39,10 @@ Each RLogin door is configured with a target host/port, an rlogin username/termi
 ## Networks
 
 DixieNet has been removed from the built-in list of FTN networks under **Admin → Networks**, as the network is defunct. If your system has an active binkp uplink, echo area, or file area still configured against the `dixienet` network, the row is left in place automatically.
+
+## Dashboard
+
+The unread netmail and echomail counts shown on the dashboard now update in real time as new mail arrives, the same way the messaging menu badges in the navigation bar already did. Previously, the dashboard counts only refreshed on a 30-second poll, so a new message could take up to 30 seconds to show up there even though the nav bar badge lit up immediately.
 
 ## Upgrade Instructions
 
