@@ -1983,6 +1983,7 @@ return [
     'ui.admin.door_manifest_editor.field.jsdos_memory_mb' => 'Memory (MB)',
     'ui.admin.door_manifest_editor.field.jsdos_machine' => 'Machine Type',
     'ui.admin.door_manifest_editor.field.cpu_cycles' => 'CPU Cycles',
+    'ui.admin.door_manifest_editor.field.cpu_cycles_help' => 'DOSBox CPU speed (10000 = typical).',
     'ui.admin.door_manifest_editor.field.jsdos_cpu_cycles_help' => 'DOSBox CPU cycles setting. Use "auto" or a number.',
     'ui.admin.door_manifest_editor.field.jsdos_game_files' => 'Game File Mappings',
     'ui.admin.door_manifest_editor.field.jsdos_game_files_help' => 'Map host assets to DOS virtual paths.',

@@ -1725,6 +1725,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.door_manifest_editor.field.jsdos_memory_mb' => 'Mémoire (Mo)',
     'ui.admin.door_manifest_editor.field.jsdos_machine' => 'Type de machine',
     'ui.admin.door_manifest_editor.field.cpu_cycles' => 'Cycles CPU',
+    'ui.admin.door_manifest_editor.field.cpu_cycles_help' => 'Vitesse CPU DOSBox (10000 = typique).',
     'ui.admin.door_manifest_editor.field.jsdos_cpu_cycles_help' => 'Paramètre de cycles CPU de DOSBox. Utilisez "auto" ou un nombre.',
     'ui.admin.door_manifest_editor.field.jsdos_game_files' => 'Correspondances de fichiers de jeu',
     'ui.admin.door_manifest_editor.field.jsdos_game_files_help' => 'Mapper les ressources de l\'hôte sur des chemins DOS virtuels.',

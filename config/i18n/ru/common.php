@@ -2003,6 +2003,7 @@ return [
     'ui.admin.door_manifest_editor.field.jsdos_memory_mb' => 'Память (МБ)',
     'ui.admin.door_manifest_editor.field.jsdos_machine' => 'Тип машины',
     'ui.admin.door_manifest_editor.field.cpu_cycles' => 'Циклы ЦП',
+    'ui.admin.door_manifest_editor.field.cpu_cycles_help' => 'Скорость ЦП DOSBox (10000 = типичное значение).',
     'ui.admin.door_manifest_editor.field.jsdos_cpu_cycles_help' => 'Настройка циклов ЦП DOSBox. Используйте "auto" или число.',
     'ui.admin.door_manifest_editor.field.jsdos_game_files' => 'Маппинг файлов игры',
     'ui.admin.door_manifest_editor.field.jsdos_game_files_help' => 'Сопоставление ресурсов хоста с виртуальными путями DOS.',

@@ -2016,6 +2016,7 @@ return [
     'ui.admin.door_manifest_editor.field.jsdos_memory_mb' => 'Memoria (MB)',
     'ui.admin.door_manifest_editor.field.jsdos_machine' => 'Tipo de maquina',
     'ui.admin.door_manifest_editor.field.cpu_cycles' => 'Ciclos de CPU',
+    'ui.admin.door_manifest_editor.field.cpu_cycles_help' => 'Velocidad de CPU de DOSBox (10000 = tipico).',
     'ui.admin.door_manifest_editor.field.jsdos_cpu_cycles_help' => 'Configuracion de ciclos de CPU de DOSBox. Use "auto" o un numero.',
     'ui.admin.door_manifest_editor.field.jsdos_game_files' => 'Asignaciones de archivos del juego',
     'ui.admin.door_manifest_editor.field.jsdos_game_files_help' => 'Mapear recursos del host a rutas virtuales de DOS.',
