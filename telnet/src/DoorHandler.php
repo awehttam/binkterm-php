@@ -139,8 +139,9 @@ class DoorHandler
 
             $entry = $doorList[$selected];
             $doorName = $entry['data']['name'] ?? $entry['id'];
+            $terminalMode = (string)($entry['data']['source']['terminal_mode'] ?? 'doorway');
             $this->server->logAction($state['username'] ?? 'unknown', "Doors: launched \"{$doorName}\"");
-            $this->launchDoor($conn, $state, $session, $entry['id'], $doorName);
+            $this->launchDoor($conn, $state, $session, $entry['id'], $doorName, $terminalMode);
             // Return to the door menu so users can launch another door or back out explicitly.
             continue;
         }
@@ -155,8 +156,16 @@ class DoorHandler
      * @param string $session Auth session cookie value
      * @param string $doorId Door identifier (e.g. "lord")
      * @param string $doorName Human-readable door name for display
+     * @param string $terminalMode Terminal input mode: doorway (legacy) or raw
      */
-    private function launchDoor($conn, array &$state, string $session, string $doorId, string $doorName): void
+    private function launchDoor(
+        $conn,
+        array &$state,
+        string $session,
+        string $doorId,
+        string $doorName,
+        string $terminalMode = 'doorway'
+    ): void
     {
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.launching', 'Launching {name}...', ['name' => $doorName], $state['locale']), TelnetUtils::ANSI_CYAN));
@@ -203,7 +212,7 @@ class DoorHandler
         $this->server->safeWrite($conn, chr(255) . chr(251) . chr(1)); // IAC WILL ECHO
         $this->server->safeWrite($conn, chr(255) . chr(254) . chr(1)); // IAC DONT ECHO
 
-        $this->relayLoop($conn, $state, $wsSock);
+        $this->relayLoop($conn, $state, $wsSock, $terminalMode);
 
         // Send WebSocket close frame and release the socket
         $this->wsSendClose($wsSock);
@@ -248,8 +257,14 @@ class DoorHandler
      * @param resource $conn Telnet client socket
      * @param array $state Terminal state (updated by NAWS sequences)
      * @param resource $wsSock WebSocket TCP socket
+     * @param string $terminalMode Terminal input mode: doorway (legacy) or raw
      */
-    private function relayLoop($conn, array &$state, $wsSock): void
+    private function relayLoop(
+        $conn,
+        array &$state,
+        $wsSock,
+        string $terminalMode = 'doorway'
+    ): void
     {
         $connMeta = stream_get_meta_data($conn);
         $wsMeta = stream_get_meta_data($wsSock);
@@ -288,17 +303,28 @@ class DoorHandler
                             continue;
                         }
 
-                        // Strip IAC commands (capture NAWS resizes) and convert ANSI escape
-                        // sequences to Doorway protocol scan codes understood by DOS door games
-                        $processed = $this->processTelnetInput($raw, $state);
-                        if ($processed === '') {
-                            continue;
-                        }
+                        if ($terminalMode === 'raw') {
+                            // Modern terminal mode: remove Telnet protocol framing and
+                            // capture NAWS, but preserve ANSI/xterm and UTF-8 payload.
+                            $processed = $this->processRawTelnetInput($raw, $state);
+                            if ($processed !== '') {
+                                $this->wsSend($wsSock, $processed);
+                            }
+                        } else {
+                            // Legacy door mode: convert terminal keys to Doorway scan
+                            // codes and translate the CP437 client stream to UTF-8.
+                            $processed = $this->processTelnetInput($raw, $state);
+                            if ($processed === '') {
+                                continue;
+                            }
 
-                        // Convert CP437 → UTF-8 before sending as WebSocket text frame
-                        $utf8 = function_exists('iconv') ? iconv('CP437', 'UTF-8//IGNORE', $processed) : $processed;
-                        if ($utf8 !== '' && $utf8 !== false) {
-                            $this->wsSend($wsSock, $utf8);
+                            $utf8 = function_exists('iconv')
+                                ? iconv('CP437', 'UTF-8//IGNORE', $processed)
+                                : $processed;
+
+                            if ($utf8 !== '' && $utf8 !== false) {
+                                $this->wsSend($wsSock, $utf8);
+                            }
                         }
                     } else {
                         // --- Bridge → telnet client ---
@@ -331,13 +357,19 @@ class DoorHandler
                                 continue;
                             }
 
-                            // Convert UTF-8 → CP437 for the telnet client
-                            $cp437 = function_exists('iconv')
-                                ? iconv('UTF-8', 'CP437//IGNORE', $result['payload'])
-                                : $result['payload'];
+                            if ($terminalMode === 'raw') {
+                                // Modern terminal output is already UTF-8/ANSI.
+                                $this->server->safeWrite($conn, $result['payload']);
+                            } else {
+                                // Legacy door output is presented to the Telnet
+                                // client using the traditional CP437 path.
+                                $cp437 = function_exists('iconv')
+                                    ? iconv('UTF-8', 'CP437//IGNORE', $result['payload'])
+                                    : $result['payload'];
 
-                            if ($cp437 !== '' && $cp437 !== false) {
-                                $this->server->safeWrite($conn, $cp437);
+                                if ($cp437 !== '' && $cp437 !== false) {
+                                    $this->server->safeWrite($conn, $cp437);
+                                }
                             }
                         }
                     }
@@ -351,6 +383,105 @@ class DoorHandler
                 stream_set_blocking($wsSock, $wsWasBlocking);
             }
         }
+    }
+
+    /**
+     * Strip Telnet protocol framing while preserving modern terminal payload.
+     *
+     * Unlike processTelnetInput(), this does not translate ANSI escape
+     * sequences to Doorway scan codes, remap DEL, or perform character-set
+     * conversion. NAWS is still consumed so terminal dimensions remain known.
+     *
+     * @param string $data Raw bytes from the Telnet client
+     * @param array $state Terminal state (cols/rows updated if NAWS seen)
+     * @return string Raw terminal payload ready for the bridge
+     */
+    private function processRawTelnetInput(string $data, array &$state): string
+    {
+        $out = '';
+        $len = strlen($data);
+        $i = 0;
+
+        while ($i < $len) {
+            $byte = ord($data[$i]);
+
+            // Telnet IAC (0xFF) command sequence.
+            if ($byte === 255) {
+                $i++;
+                if ($i >= $len) {
+                    break;
+                }
+
+                $cmd = ord($data[$i++]);
+
+                // Escaped IAC means a literal 0xFF data byte.
+                if ($cmd === 255) {
+                    $out .= chr(255);
+                    continue;
+                }
+
+                // WILL/WONT/DO/DONT consume their option byte.
+                if ($cmd >= 251 && $cmd <= 254) {
+                    if ($i < $len) {
+                        $i++;
+                    }
+                    continue;
+                }
+
+                // Subnegotiation: consume through IAC SE.
+                if ($cmd === 250) {
+                    $opt = ($i < $len) ? ord($data[$i++]) : null;
+                    $sbData = '';
+
+                    while ($i < $len) {
+                        $b = ord($data[$i++]);
+
+                        if ($b === 255 && $i < $len && ord($data[$i]) === 240) {
+                            $i++;
+                            break;
+                        }
+
+                        $sbData .= chr($b);
+                    }
+
+                    // NAWS (option 31): retain terminal dimensions.
+                    if ($opt === 31 && strlen($sbData) >= 4) {
+                        $w = (ord($sbData[0]) << 8) + ord($sbData[1]);
+                        $h = (ord($sbData[2]) << 8) + ord($sbData[3]);
+
+                        if ($w > 0) {
+                            $state['cols'] = $w;
+                        }
+                        if ($h > 0) {
+                            $state['rows'] = $h;
+                        }
+                    }
+
+                    continue;
+                }
+
+                // Other Telnet commands contain no application payload.
+                continue;
+            }
+
+            // Decode Telnet NVT Enter framing while preserving a normal CR
+            // for the downstream terminal application.
+            if ($byte === 13) {
+                $i++;
+                $out .= chr(13);
+
+                if ($i < $len && (ord($data[$i]) === 10 || ord($data[$i]) === 0)) {
+                    $i++;
+                }
+
+                continue;
+            }
+
+            // Everything else is modern terminal payload and passes unchanged.
+            $out .= $data[$i++];
+        }
+
+        return $out;
     }
 
     /**
