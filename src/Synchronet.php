@@ -34,7 +34,12 @@
  *     {"action":"list_doors","api_key":"<shared secret>"}
  *
  *   Response, list_doors success:
- *     {"success":true,"doors":[{"code":"...","name":"...","sec_code":"...","sec_name":"..."}]}
+ *     {"success":true,"doors":[{"code":"...","name":"...","sec_code":"...","sec_name":"...","description":"...","author":"...","categories":["..."]}]}
+ *
+ *   "description", "author", and "categories" are best-effort -- the
+ *   Synchronet-side service opportunistically reads them from the door's
+ *   install-xtrn.ini (see binkterm_sync_service.js) and omits any that
+ *   aren't available.
  *
  *   Response, any action, failure:
  *     {"success":false,"error":"reason"}
@@ -135,7 +140,8 @@ class Synchronet
      * List installed external programs (doors) on the remote Synchronet system.
      *
      * @return array{success: bool, doors: array, error: ?string} `doors` is a
-     *   list of ['code' => string, 'name' => string, 'sec_code' => ?string, 'sec_name' => ?string]
+     *   list of ['code' => string, 'name' => string, 'sec_code' => ?string, 'sec_name' => ?string,
+     *   'description' => ?string, 'author' => ?string, 'categories' => string[]]
      * @throws \RuntimeException On connection or protocol transport failure
      */
     public function listDoors(): array
@@ -148,11 +154,17 @@ class Synchronet
                 if (!is_array($door) || empty($door['code'])) {
                     continue;
                 }
+                $categories = is_array($door['categories'] ?? null)
+                    ? array_values(array_filter(array_map('strval', $door['categories'])))
+                    : [];
                 $doors[] = [
                     'code' => (string)$door['code'],
                     'name' => isset($door['name']) ? (string)$door['name'] : (string)$door['code'],
                     'sec_code' => isset($door['sec_code']) ? (string)$door['sec_code'] : null,
                     'sec_name' => isset($door['sec_name']) ? (string)$door['sec_name'] : null,
+                    'description' => !empty($door['description']) ? (string)$door['description'] : null,
+                    'author' => !empty($door['author']) ? (string)$door['author'] : null,
+                    'categories' => $categories,
                 ];
             }
         }

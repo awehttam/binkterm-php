@@ -1780,6 +1780,7 @@ return [
     'ui.admin.rlogindoors_config.import_select_none' => 'Deseleziona tutto',
     'ui.admin.rlogindoors_config.import_already_exists_note' => '{count} door gia importate e non mostrate qui.',
     'ui.admin.rlogindoors_config.import_no_candidates' => 'Nessuna nuova door da importare — tutto e gia stato importato.',
+    'ui.admin.rlogindoors_config.import_by' => 'Di {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Importa selezionate',
     'ui.admin.rlogindoors_config.loading_preview' => 'Caricamento door disponibili...',
 

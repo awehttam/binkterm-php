@@ -1833,6 +1833,7 @@ return [
     'ui.admin.rlogindoors_config.import_select_none' => 'Deseleccionar todo',
     'ui.admin.rlogindoors_config.import_already_exists_note' => '{count} puerta(s) ya importada(s) y no mostradas aqui.',
     'ui.admin.rlogindoors_config.import_no_candidates' => 'No hay puertas nuevas para importar — todo ya esta importado.',
+    'ui.admin.rlogindoors_config.import_by' => 'Por {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Importar seleccionadas',
     'ui.admin.rlogindoors_config.loading_preview' => 'Cargando puertas disponibles...',
 

@@ -4464,6 +4464,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'name' => $remoteDoor['name'],
                     'sec_name' => $remoteDoor['sec_name'] ?? null,
                     'door_id' => $doorId,
+                    'description' => $remoteDoor['description'] ?? null,
+                    'author' => $remoteDoor['author'] ?? null,
+                    'categories' => $remoteDoor['categories'] ?? [],
                 ];
             }
 
@@ -4522,10 +4525,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     continue;
                 }
 
+                $description = !empty($remoteDoor['description'])
+                    ? (string)$remoteDoor['description']
+                    : (string)($remoteDoor['sec_name'] ?? '');
+                $categories = is_array($remoteDoor['categories'] ?? null)
+                    ? array_values(array_filter(array_map('strval', $remoteDoor['categories'])))
+                    : [];
+
                 $fields = [
                     'name' => (string)($remoteDoor['name'] ?? $remoteDoor['code']),
                     'short_name' => (string)$remoteDoor['code'],
-                    'description' => (string)($remoteDoor['sec_name'] ?? ''),
+                    'author' => !empty($remoteDoor['author']) ? (string)$remoteDoor['author'] : null,
+                    'description' => $description,
+                    'genre' => $categories,
                     'bbs_type' => 'synchronet_service',
                     'host' => $rloginHost,
                     'port' => $rloginPort,

@@ -1800,6 +1800,7 @@ return [
     'ui.admin.rlogindoors_config.import_select_none' => 'Select None',
     'ui.admin.rlogindoors_config.import_already_exists_note' => '{count} door(s) already imported and not shown here.',
     'ui.admin.rlogindoors_config.import_no_candidates' => 'No new doors to import — everything is already imported.',
+    'ui.admin.rlogindoors_config.import_by' => 'By {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Import Selected',
     'ui.admin.rlogindoors_config.loading_preview' => 'Loading available doors...',
 

@@ -1544,6 +1544,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.rlogindoors_config.import_select_none' => 'Tout désélectionner',
     'ui.admin.rlogindoors_config.import_already_exists_note' => '{count} porte(s) déjà importée(s) et non affichée(s) ici.',
     'ui.admin.rlogindoors_config.import_no_candidates' => 'Aucune nouvelle porte à importer — tout est déjà importé.',
+    'ui.admin.rlogindoors_config.import_by' => 'Par {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Importer la sélection',
     'ui.admin.rlogindoors_config.loading_preview' => 'Chargement des portes disponibles...',
     'ui.admin.webdoors_config.load_webdoors_failed' => 'Échec du chargement de la configuration des webdoors',

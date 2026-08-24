@@ -1785,6 +1785,7 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.rlogindoors_config.import_select_none' => 'Keine auswählen',
     'ui.admin.rlogindoors_config.import_already_exists_note' => '{count} Door(s) bereits importiert und hier nicht angezeigt.',
     'ui.admin.rlogindoors_config.import_no_candidates' => 'Keine neuen Doors zum Importieren — alle sind bereits importiert.',
+    'ui.admin.rlogindoors_config.import_by' => 'Von {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Ausgewählte importieren',
     'ui.admin.rlogindoors_config.loading_preview' => 'Verfügbare Doors werden geladen...',
 

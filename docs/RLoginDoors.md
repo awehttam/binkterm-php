@@ -233,6 +233,8 @@ The candidate list only ever includes doors from Synchronet's **Games** and **Ma
 
 Imported doors are created **disabled**, so review credit cost / admin-only / etc. before enabling each one.
 
+**Description and author.** Synchronet's own external-program record (`xtrn.ini`) has no description or author field, so the Synchronet-side service instead makes a best-effort read of the door's `install-xtrn.ini` — the file most doors were installed from via `exec/install-xtrn.js` — for its `Desc:`, `By:`, `Cats:`, and `Subs:` header lines, and returns them alongside the door listing. When present, they're shown in the import preview and carried into the created door's Description/Author/Genre fields; when the file is missing (a door installed by hand, or with the file since removed), those fields are simply left blank for the sysop to fill in after import.
+
 ---
 
 ## Icons and Screenshots

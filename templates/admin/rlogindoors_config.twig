@@ -351,6 +351,8 @@ function renderImportCandidates(existingCount) {
                         <strong>${escHtml(door.name)}</strong>
                         <span class="text-muted small"> (${escHtml(door.code)})</span>
                         ${door.sec_name ? '<span class="badge bg-secondary ms-1">' + escHtml(door.sec_name) + '</span>' : ''}
+                        ${door.author ? '<span class="text-muted small d-block">' + uiT('ui.admin.rlogindoors_config.import_by', 'By {author}', { author: escHtml(door.author) }) + '</span>' : ''}
+                        ${door.description ? '<span class="text-muted small d-block">' + escHtml(door.description) + '</span>' : ''}
                     </span>
                 </label>
             `;

@@ -1820,6 +1820,7 @@ return [
     'ui.admin.rlogindoors_config.import_select_none' => 'Снять выбор',
     'ui.admin.rlogindoors_config.import_already_exists_note' => '{count} дверь(и) уже импортированы и не показаны здесь.',
     'ui.admin.rlogindoors_config.import_no_candidates' => 'Нет новых дверей для импорта — всё уже импортировано.',
+    'ui.admin.rlogindoors_config.import_by' => 'Автор: {author}',
     'ui.admin.rlogindoors_config.import_selected_btn' => 'Импортировать выбранные',
     'ui.admin.rlogindoors_config.loading_preview' => 'Загрузка доступных дверей...',
 
