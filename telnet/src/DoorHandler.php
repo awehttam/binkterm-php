@@ -88,9 +88,38 @@ class DoorHandler
                 $desc = trim((string)($door['description'] ?? ''));
                 $creditCost = (int)($door['source']['config']['credit_cost'] ?? 0);
 
+                $experience = $door['experience'] ?? [];
+                $category = strtolower((string)($experience['category'] ?? 'game'));
+                $categoryLabel = match ($category) {
+                    'gateway' => 'Gateway',
+                    'game' => 'Game',
+                    default => ucfirst($category),
+                };
+
+                $meta = [$categoryLabel];
+
+                $genre = $door['genre'] ?? [];
+                if (is_array($genre) && !empty($genre)) {
+                    $meta[] = implode('/', $genre);
+                }
+
+                // Multiplayer is useful metadata for actual games. Gateway
+                // descriptions already make their multiplayer purpose clear.
+                if ($category === 'game' && !empty($experience['multiplayer'])) {
+                    $meta[] = 'Multiplayer';
+                }
+
+                $detailParts = [];
+                if ($desc !== '') {
+                    $detailParts[] = $desc;
+                }
+                if (!empty($meta)) {
+                    $detailParts[] = '[' . implode(' / ', $meta) . ']';
+                }
+
                 $items[] = [
                     'label' => trim($name . ($creditCost > 0 ? " [{$creditCost} credits]" : '')),
-                    'detail' => $desc,
+                    'detail' => implode(' ', $detailParts),
                 ];
             }
 
