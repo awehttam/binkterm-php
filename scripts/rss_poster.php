@@ -21,6 +21,12 @@ require_once __DIR__ . '/../src/functions.php';
 use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
 
+// --- Usenet / NNTP settings ---
+define('USENET_NNTP_HOST', (string)Config::env('USENET_NNTP_HOST', 'news.eternal-september.org'));
+define('USENET_NNTP_PORT', (int)Config::env('USENET_NNTP_PORT', '119'));
+define('USENET_NNTP_USER', (string)Config::env('USENET_NNTP_USER', ''));
+define('USENET_NNTP_PASS', (string)Config::env('USENET_NNTP_PASS', ''));
+
 // Parse command line arguments
 $options = getopt('', ['feed-id:', 'force', 'verbose', 'help']);
 
@@ -219,6 +225,11 @@ function fetchArticlesForFeed($feed) {
         return fetchBlueskyFeed($feed['feed_url'], $requestLimit);
     }
 
+    if ($sourceType === 'usenet') {
+        $requestLimit = min(50, max(5, (int)($feed['max_articles_per_check'] ?? 10) * 2));
+        return fetchUsenetFeed($feed['feed_url'], $requestLimit);
+    }
+
     $xml = fetchRssFeed($feed['feed_url']);
     return parseRssFeed($xml);
 }
@@ -237,6 +248,197 @@ function getFeedSourceType($feed) {
     }
 
     return isBlueskyProfileUrl((string)$feed['feed_url']) ? 'bluesky' : 'rss';
+}
+
+/**
+ * Fetch recent articles from a Usenet newsgroup via NNTP.
+ *
+ * feed_url is expected to hold the bare newsgroup name (e.g. "alt.folklore.computers").
+ * Connects fresh each check (no persistent connection) using a shared account
+ * configured via the USENET_NNTP_* constants above.
+ *
+ * @param string $newsgroup Newsgroup name
+ * @param int $limit Maximum number of most-recent articles to fetch
+ * @return array Normalized article records, newest first
+ * @throws Exception on connect, auth, or protocol failure
+ */
+function fetchUsenetFeed($newsgroup, $limit = 10) {
+    $newsgroup = trim($newsgroup);
+    if ($newsgroup === '') {
+        throw new Exception('Empty newsgroup name in feed_url');
+    }
+
+    // Resolve to an IPv4 address explicitly before connecting. fsockopen() with the
+    // bare hostname has been observed to fail with "Network is unreachable" in this
+    // environment even though the host resolves to a single A record and connects
+    // fine via a raw IPv4 socket - resolving first sidesteps whatever address-family
+    // handling causes that mismatch.
+    $resolvedIp = gethostbyname(USENET_NNTP_HOST);
+    if ($resolvedIp === USENET_NNTP_HOST) {
+        // gethostbyname() returns the input unchanged on resolution failure
+        throw new Exception("DNS resolution failed for " . USENET_NNTP_HOST);
+    }
+
+    $sock = @fsockopen($resolvedIp, USENET_NNTP_PORT, $errno, $errstr, 30);
+    if (!$sock) {
+        throw new Exception("NNTP connect failed to " . USENET_NNTP_HOST . " ($resolvedIp): $errstr ($errno)");
+    }
+    stream_set_timeout($sock, 30);
+
+    try {
+        $greeting = nntpReadLine($sock);
+        if (!preg_match('/^20[01]/', $greeting)) {
+            throw new Exception("Unexpected NNTP greeting: $greeting");
+        }
+
+        nntpWrite($sock, "AUTHINFO USER " . USENET_NNTP_USER);
+        $resp = nntpReadLine($sock);
+        if (strpos($resp, '381') === 0) {
+            nntpWrite($sock, "AUTHINFO PASS " . USENET_NNTP_PASS);
+            $resp = nntpReadLine($sock);
+        }
+        if (strpos($resp, '281') !== 0) {
+            throw new Exception("NNTP authentication failed: $resp");
+        }
+
+        nntpWrite($sock, "GROUP $newsgroup");
+        $resp = nntpReadLine($sock);
+        if (!preg_match('/^211\s+(\d+)\s+(\d+)\s+(\d+)/', $resp, $m)) {
+            throw new Exception("NNTP GROUP command failed for '$newsgroup': $resp");
+        }
+        $low = (int)$m[2];
+        $high = (int)$m[3];
+
+        $articles = [];
+        $start = max($low, $high - $limit + 1);
+
+        for ($num = $high; $num >= $start; $num--) {
+            nntpWrite($sock, "ARTICLE $num");
+            $resp = nntpReadLine($sock);
+            if (strpos($resp, '220') !== 0) {
+                // Article number missing/expired on this server - skip, not fatal
+                continue;
+            }
+            $rawLines = nntpReadMultiline($sock);
+            $article = parseUsenetArticle($rawLines);
+            if ($article !== null) {
+                $articles[] = $article;
+            }
+        }
+
+        nntpWrite($sock, "QUIT");
+    } finally {
+        fclose($sock);
+    }
+
+    // Already newest-first (descending article numbers), matching RSS ordering convention
+    return $articles;
+}
+
+/**
+ * Write a single NNTP command line (CRLF terminated).
+ *
+ * @param resource $sock Open socket
+ * @param string $line Command without line ending
+ */
+function nntpWrite($sock, $line) {
+    fwrite($sock, $line . "\r\n");
+}
+
+/**
+ * Read a single CRLF-terminated line from the NNTP socket.
+ *
+ * @param resource $sock Open socket
+ * @return string Line with line ending stripped
+ * @throws Exception if the connection closes unexpectedly
+ */
+function nntpReadLine($sock) {
+    $line = fgets($sock, 8192);
+    if ($line === false) {
+        throw new Exception('NNTP connection closed unexpectedly');
+    }
+    return rtrim($line, "\r\n");
+}
+
+/**
+ * Read a dot-terminated multiline NNTP response body (e.g. after ARTICLE),
+ * undoing dot-stuffing per RFC 3977.
+ *
+ * @param resource $sock Open socket
+ * @return array Lines of the response, excluding the terminating "." line
+ * @throws Exception if the connection closes unexpectedly
+ */
+function nntpReadMultiline($sock) {
+    $lines = [];
+    while (true) {
+        $line = fgets($sock, 8192);
+        if ($line === false) {
+            throw new Exception('NNTP connection closed unexpectedly during multiline read');
+        }
+        $trimmed = rtrim($line, "\r\n");
+        if ($trimmed === '.') {
+            break;
+        }
+        if (isset($trimmed[0]) && $trimmed[0] === '.' && isset($trimmed[1]) && $trimmed[1] === '.') {
+            $trimmed = substr($trimmed, 1);
+        }
+        $lines[] = $trimmed;
+    }
+    return $lines;
+}
+
+/**
+ * Parse a raw NNTP ARTICLE response (headers + blank line + body) into the
+ * common article structure used by the rest of the poster.
+ *
+ * @param array $lines Raw article lines (headers, blank separator, body)
+ * @return array|null Normalized article, or null if unparseable (no Message-ID)
+ */
+function parseUsenetArticle(array $lines) {
+    $headers = [];
+    $bodyStart = null;
+    $lastHeaderKey = null;
+
+    foreach ($lines as $i => $line) {
+        if ($line === '') {
+            $bodyStart = $i + 1;
+            break;
+        }
+        if (preg_match('/^([A-Za-z0-9-]+):\s*(.*)$/', $line, $m)) {
+            $key = strtolower($m[1]);
+            $headers[$key] = $m[2];
+            $lastHeaderKey = $key;
+        } elseif ($lastHeaderKey !== null && preg_match('/^\s+/', $line)) {
+            // RFC 5322 header continuation (folded header)
+            $headers[$lastHeaderKey] .= ' ' . trim($line);
+        }
+    }
+
+    if ($bodyStart === null) {
+        return null; // no blank line found - malformed article, skip
+    }
+
+    $messageId = trim($headers['message-id'] ?? '');
+    if ($messageId === '') {
+        return null; // no reliable dedup key - skip
+    }
+
+    $body = implode("\n", array_slice($lines, $bodyStart));
+
+    // Usenet headers use RFC 2047 MIME encoded-words for non-ASCII text
+    // (e.g. "=?UTF-8?B?...?="); decode before use.
+    $subject = mb_decode_mimeheader(trim($headers['subject'] ?? '(no subject)'));
+    $from = mb_decode_mimeheader(trim($headers['from'] ?? ''));
+
+    return [
+        'guid' => $messageId,
+        'title' => $subject,
+        'link' => '',
+        'description' => $body,
+        'pubDate' => trim($headers['date'] ?? ''),
+        'author' => $from,
+        'sourceType' => 'usenet'
+    ];
 }
 
 /**
@@ -905,7 +1107,7 @@ function formatArticleMessage($article) {
         $body .= str_repeat('=', min(strlen($article['title']), 79)) . "\n\n";
     }
 
-    if (($article['sourceType'] ?? '') === 'bluesky' && !empty($article['author'])) {
+    if (in_array(($article['sourceType'] ?? ''), ['bluesky', 'usenet'], true) && !empty($article['author'])) {
         $body .= "Posted by: " . $article['author'] . "\n\n";
     }
 
@@ -1009,6 +1211,9 @@ Examples:
 Configuration:
   Feeds are configured via the Admin -> Auto Feed web interface.
   Feeds are stored in the auto_feed_sources database table.
+  Usenet feeds: set source_type='usenet' and feed_url to the bare
+  newsgroup name (e.g. 'alt.folklore.computers'). NNTP credentials
+  are configured via constants at the top of this script.
 
 Cron Example:
   */30 * * * * cd /path/to/binktest && php scripts/rss_poster.php >> data/logs/auto_feed.log 2>&1
