@@ -13,7 +13,6 @@
 - [Import from Synchronet](#import-from-synchronet)
 - [Icons and Screenshots](#icons-and-screenshots)
   - [Generating an Icon with AI](#generating-an-icon-with-ai)
-- [Security Warning](#security-warning)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
 
@@ -141,6 +140,10 @@ This only applies when Terminal Type is blank. Setting an explicit value (includ
 
 A pre-login command is a server-side helper that BinktermPHP runs — in PHP, as part of `POST /api/door/launch`, before the door session is created — so a remote account can be guaranteed to exist (and optionally kept in sync) by the time the rlogin connection is made.
 
+> ⚠️ **Security Warning: only point Pre-Login Command at scripts you trust.**
+>
+> The pre-login command runs on the server with the same privileges as the web process — the same trust level Native Doors' local executables run at. A malicious or buggy pre-login script can read/write any file the web server user can access, including `.env`, `config/binkp.json`, and the database, and can make outbound network connections. It runs on **every** door launch attempt, not just once, so treat it with the same care as any other server-side code path that executes on user action.
+
 ### Input
 
 The command template supports CLI placeholders, substituted before execution:
@@ -198,7 +201,7 @@ cp config/rlogin_synchronet_service.json.example config/rlogin_synchronet_servic
 
 `host`/`port`/`secret`/`timeout` are for the `services.ini` API connection (`secret` must match the `API_KEY` configured in the Synchronet-side `binkterm_sync_service.js`). `rlogin_host`/`rlogin_port` are the Synchronet system's actual **rlogin** listener — almost always the same host but a different port (513 by default) — used only by [Import from Synchronet](#import-from-synchronet) below.
 
-`tls`/`tls_verify_peer`/`tls_cafile` control encryption of the `services.ini` API connection (not the separate rlogin connection, which has no encryption of its own — see [Security Warning](#security-warning)):
+`tls`/`tls_verify_peer`/`tls_cafile` control encryption of the `services.ini` API connection (not the separate rlogin connection, which has no encryption of its own — see the security warning above):
 
 | Field | Default | Meaning |
 |-------|---------|---------|
@@ -251,14 +254,6 @@ If no suitable icon image is on hand, the **Generate with AI** button next to th
 The response is run through a strict sanitizer (`BinktermPHP\AI\SvgIconSanitizer`) before it's shown or accepted: only a fixed allowlist of SVG shape/gradient tags and attributes survives, and anything that could reference an external URL or execute script (`<script>`, event-handler attributes, external `href`/`xlink:href`/`url(...)` references) is stripped. This matters because, unlike a raster upload, an SVG is served back with `Content-Type: image/svg+xml` and would otherwise execute as a mini HTML document if a user opened the asset URL directly.
 
 The generated icon is loaded into the same file input used for manual uploads and previewed immediately, but nothing is saved until the door form itself is submitted — click **Generate with AI** again for a different result, or **Choose File** to use an uploaded image instead. If generation fails (no AI provider configured, or the model's output couldn't be sanitized into valid SVG), an error is shown in the modal and the existing icon, if any, is left untouched.
-
----
-
-## Security Warning
-
-> **Only point Pre-Login Command at scripts you trust.**
-
-The pre-login command runs on the server with the same privileges as the web process — the same trust level Native Doors' local executables run at. A malicious or buggy pre-login script can read/write any file the web server user can access, including `.env`, `config/binkp.json`, and the database, and can make outbound network connections. It runs on **every** door launch attempt, not just once, so treat it with the same care as any other server-side code path that executes on user action.
 
 ---
 
