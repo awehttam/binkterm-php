@@ -3,3 +3,7 @@ logs/
 *.db-shm
 *.db-wal
 *.pdb
+
+# Runtime-generated game state
+SCORES/*
+!SCORES/.gitkeep
