@@ -8742,7 +8742,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         $auth = new Auth();
 
-        $auth->updateSessionActivity($sessionId, (string)$activity);
+        $auth->updateSessionActivity($sessionId, (string)$activity, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
         echo json_encode(['success' => true]);
     });
 

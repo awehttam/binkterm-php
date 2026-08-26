@@ -9,6 +9,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Networks](#networks)
 - [Dashboard](#dashboard)
 - [DOS Doors](#dos-doors)
+- [Sessions](#sessions)
+- [Logging](#logging)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -33,6 +35,14 @@ Make sure you have a current backup of your database and files before upgrading.
 - Fixed a crash in the DOSEMU adapter when a door's `launch_command` used the `{user_number}` placeholder.
 - Removed a duplicate, non-functional "Requires FOSSIL Driver" checkbox from the **Requirements** section of the DOS door manifest editor. The **Requires FOSSIL Driver** checkbox in the door info section is the one that actually controls whether the FOSSIL driver is loaded at launch; the removed checkbox never had any effect.
 - Fixed the **CPU Cycles** field in the DOS door manifest editor having no effect — the DOSBox multiplexing server now applies a door's configured cycle count to its generated `dosbox.conf` instead of always using the template's default value.
+
+### Sessions
+
+- Fixed a user session's stored IP address going stale for the lifetime of the session instead of tracking the client's current address.
+
+### Logging
+
+- The `[BINKD]` "Storing echomail" log line now includes the echo area (`Area: AREANAME@domain`), making it possible to tell which area a stored message landed in without cross-referencing other log lines.
 
 ---
 
@@ -61,6 +71,16 @@ The DOSEMU adapter also had a bug fixed where launching a door whose manifest `l
 In the DOS door manifest editor (**Admin → DOS Doors**), the **Requirements** section previously had two checkboxes related to the FOSSIL driver: "Requires FOSSIL Driver" in the door info section (which actually controls whether the FOSSIL driver is loaded during door launch) and a second, identically-labeled checkbox in the Requirements section that had no effect on runtime behavior. The non-functional duplicate has been removed. Existing manifests are unaffected; the remaining "Requires FOSSIL Driver" checkbox in the door info section continues to work as before.
 
 The **CPU Cycles** field on the **Runtime Defaults** section of the manifest editor was previously stored but never applied — every door session used the same fixed `cycles=` value from the active DOSBox config template regardless of what was set per-door. The DOSBox multiplexing server now substitutes a door's configured CPU cycle count into its generated `dosbox.conf` at launch time, so raising or lowering the value for a specific door now actually changes its emulated CPU speed. Leave the field unset (or at its default) to keep using the template's value.
+
+## Sessions
+
+A logged-in session's stored IP address was previously recorded only once, at login, and never updated afterward. If a client's IP address changed during a session — for example a mobile device roaming between networks, or a user reconnecting through a different network path — the address shown for that session would remain frozen at whatever it was when the session began.
+
+Web sessions now refresh their stored IP address automatically as the session is used, so it reflects the client's current connection. This affects anywhere a session's IP is displayed to sysops, including `scripts/binktop.php`, `scripts/who.php`, and the online sessions list on the **Admin → Users** page.
+
+## Logging
+
+The `[BINKD]` log line written when an incoming echomail message is stored now includes the echo area it was stored in, in the format `Area: AREANAME@domain`. Previously the line included the MSGID, author, packet sender, and subject, but not the area, making it harder to tell where a given message landed when scanning server logs.
 
 ## Upgrade Instructions
 

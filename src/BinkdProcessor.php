@@ -1480,7 +1480,8 @@ class BinkdProcessor
                   ", Packet sender: " . $message['origAddr'] .
                   ", Using: " . $fromAddress .
                   ($replyToId ? ", Reply to ID: " . $replyToId : "").
-                    ', Subject: '.$message['subject']
+                    ', Subject: '.$message['subject'].
+                    ', Area: '.$echoareaTag.'@'.$domain
         );
 
         if ($this->receivedDateOverride !== null) {

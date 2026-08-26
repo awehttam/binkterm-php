@@ -92,7 +92,7 @@ class Auth
         $stmt->execute([$sessionId]);
     }
 
-    public function validateSession($sessionId)
+    public function validateSession($sessionId, ?string $ipAddress = null)
     {
         $stmt = $this->db->prepare('
             SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.manage_hub_point, u.password_hash, u.created_at, u.last_login, u.location, u.about_me, u.fidonet_address
@@ -103,29 +103,44 @@ class Auth
         $stmt->execute([$sessionId]);
         $user = $stmt->fetch();
 
-        // Update last_activity for online tracking
+        // Update last_activity (and ip_address, if known) for online tracking
         if ($user) {
-            $this->updateLastActivity($sessionId);
+            $this->updateLastActivity($sessionId, $ipAddress);
         }
 
         return $user;
     }
 
     /**
-     * Update session last_activity timestamp
+     * Update session last_activity timestamp, and ip_address if the caller knows
+     * the current connection's address (a session's IP can otherwise go stale for
+     * the lifetime of the session, e.g. a mobile client roaming between networks).
      */
-    private function updateLastActivity($sessionId)
+    private function updateLastActivity($sessionId, ?string $ipAddress = null)
     {
+        if ($ipAddress !== null && $ipAddress !== '') {
+            $stmt = $this->db->prepare('UPDATE user_sessions SET last_activity = NOW(), ip_address = ? WHERE session_id = ?');
+            $stmt->execute([$ipAddress, $sessionId]);
+            return;
+        }
+
         $stmt = $this->db->prepare('UPDATE user_sessions SET last_activity = NOW() WHERE session_id = ?');
         $stmt->execute([$sessionId]);
     }
 
-    public function updateSessionActivity(string $sessionId, string $activity): void
+    public function updateSessionActivity(string $sessionId, string $activity, ?string $ipAddress = null): void
     {
         $activity = trim($activity);
         if ($activity === '') {
             return;
         }
+
+        if ($ipAddress !== null && $ipAddress !== '') {
+            $stmt = $this->db->prepare('UPDATE user_sessions SET last_activity = NOW(), activity = ?, ip_address = ? WHERE session_id = ?');
+            $stmt->execute([mb_substr($activity, 0, 255), $ipAddress, $sessionId]);
+            return;
+        }
+
         $stmt = $this->db->prepare('UPDATE user_sessions SET last_activity = NOW(), activity = ? WHERE session_id = ?');
         $stmt->execute([mb_substr($activity, 0, 255), $sessionId]);
     }
@@ -184,7 +199,7 @@ class Auth
     {
         $sessionId = $_COOKIE['binktermphp_session'] ?? null;
         if ($sessionId) {
-            $user = $this->validateSession($sessionId);
+            $user = $this->validateSession($sessionId, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
             if ($user) {
                 $userId = $user['user_id'] ?? $user['id'] ?? null;
                 if ($userId) {
