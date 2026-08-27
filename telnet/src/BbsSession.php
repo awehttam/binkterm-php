@@ -162,6 +162,14 @@ class BbsSession
         stream_set_timeout($conn, 300);
         stream_set_write_buffer($conn, 0); // Disable write buffering so banner/prompts are sent immediately
 
+        // Make every API call for this session carry the real end-user address
+        // (the daemon proxies all API traffic through the server). See
+        // Auth::resolveClientIp(). Set here — one forked process per connection.
+        TelnetUtils::setClientContext(
+            $this->peerIp,
+            trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'))
+        );
+
         $state = [
             'telnet_mode' => null,
             'input_echo'  => true,

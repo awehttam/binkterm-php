@@ -829,7 +829,7 @@ class DoorHandler
      */
     private function callDoorLaunchApi(string $session, string $doorId, ?string $csrfToken = null): array
     {
-        $headers = ['Content-Type: application/x-www-form-urlencoded'];
+        $headers = array_merge(['Content-Type: application/x-www-form-urlencoded'], TelnetUtils::clientContextHeaders());
         if ($csrfToken !== null) {
             $headers[] = 'X-CSRF-Token: ' . $csrfToken;
         }
@@ -862,7 +862,7 @@ class DoorHandler
      */
     private function callDoorEndApi(string $session, string $sessionId, ?string $csrfToken = null): void
     {
-        $headers = ['Content-Type: application/x-www-form-urlencoded'];
+        $headers = array_merge(['Content-Type: application/x-www-form-urlencoded'], TelnetUtils::clientContextHeaders());
         if ($csrfToken !== null) {
             $headers[] = 'X-CSRF-Token: ' . $csrfToken;
         }

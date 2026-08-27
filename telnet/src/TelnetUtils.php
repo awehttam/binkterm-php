@@ -82,6 +82,45 @@ class TelnetUtils
     private static bool $ansiColorEnabled = true;
 
     /**
+     * Per-process client context for API calls. The daemon forks one process per
+     * connection, so these statics are effectively per-session. Set once at
+     * session start so every {@see apiRequest()} tells the web side the real
+     * end-user address (see Auth::resolveClientIp()).
+     */
+    private static ?string $clientIp = null;
+    private static ?string $clientToken = null;
+
+    /**
+     * Record the connecting user's real IP and the shared terminal secret so
+     * subsequent apiRequest() calls carry X-Binkterm-Client-IP / -Client-Token.
+     */
+    public static function setClientContext(?string $clientIp, ?string $clientToken): void
+    {
+        self::$clientIp = ($clientIp !== null && $clientIp !== '' && filter_var($clientIp, FILTER_VALIDATE_IP) !== false)
+            ? $clientIp
+            : null;
+        self::$clientToken = ($clientToken !== null && $clientToken !== '') ? $clientToken : null;
+    }
+
+    /**
+     * The X-Binkterm-Client-IP / -Client-Token header lines for the current
+     * session, or an empty array when no client context is set. For callers
+     * that build their own curl requests instead of using {@see apiRequest()}.
+     *
+     * @return string[]
+     */
+    public static function clientContextHeaders(): array
+    {
+        if (self::$clientIp === null || self::$clientToken === null) {
+            return [];
+        }
+        return [
+            'X-Binkterm-Client-IP: ' . self::$clientIp,
+            'X-Binkterm-Client-Token: ' . self::$clientToken,
+        ];
+    }
+
+    /**
      * Return the canonical default style profile used by terminal widgets.
      *
      * The returned array contains ANSI color scheme keys for every widget type
@@ -285,6 +324,13 @@ class TelnetUtils
                 'Pragma: no-cache',
                 'Expires: 0',
             ];
+
+            // Tell the web side the real end-user address — the daemon proxies
+            // all API traffic through the server. See Auth::resolveClientIp().
+            if (self::$clientIp !== null && self::$clientToken !== null) {
+                $headers[] = 'X-Binkterm-Client-IP: ' . self::$clientIp;
+                $headers[] = 'X-Binkterm-Client-Token: ' . self::$clientToken;
+            }
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
