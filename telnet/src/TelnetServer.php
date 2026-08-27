@@ -123,6 +123,15 @@ class TelnetServer
             'trim',
             explode(',', (string)Config::env('TELNET_TRUSTED_PROXIES', '127.0.0.1,::1'))
         )));
+        // Always trust loopback and the daemon's own bind address: a connection
+        // from there to ourselves is inherently local (the PubTerm forwarder
+        // dials whichever address this daemon listens on).
+        foreach (['127.0.0.1', '::1', $this->host] as $implicit) {
+            if ($implicit !== '' && $implicit !== '0.0.0.0' && $implicit !== '::'
+                && !in_array($implicit, $this->trustedProxies, true)) {
+                $this->trustedProxies[] = $implicit;
+            }
+        }
         $this->proxyHeaderTimeout = max(1, (int)Config::env('TELNET_PROXY_HEADER_TIMEOUT', '2'));
     }
 

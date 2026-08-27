@@ -626,13 +626,20 @@ class NativeAdapter extends EmulatorAdapter {
             return {};
         }
 
-        // Always dial the terminal server over loopback: the forwarder is local,
-        // the daemon binds 0.0.0.0 by default, and a loopback source address is
-        // trusted by TELNET_TRUSTED_PROXIES out of the box (no extra config).
-        // PUBTERM_HOST is only consulted for the non-forwarded fallback/Windows
-        // path in pubterm.sh.
-        const targetHost = '127.0.0.1';
-        const targetPort = parseInt(process.env.PUBTERM_PORT, 10) || 2323;
+        // Dial whichever address the terminal daemon listens on. It shares this
+        // .env, so TELNET_BIND_HOST tells us: a wildcard bind means loopback is
+        // reachable; a specific external IP means we must use that (the daemon
+        // now implicitly trusts its own bind address as a proxy source, so no
+        // TELNET_TRUSTED_PROXIES entry is needed for the common single-host
+        // setup). PUBTERM_PROXY_TARGET overrides this for unusual topologies;
+        // PUBTERM_HOST is only for the non-forwarded fallback / Windows path.
+        let targetHost = process.env.PUBTERM_PROXY_TARGET
+            || process.env.TELNET_BIND_HOST
+            || '127.0.0.1';
+        if (targetHost === '0.0.0.0' || targetHost === '::' || targetHost === '') {
+            targetHost = '127.0.0.1';
+        }
+        const targetPort = parseInt(process.env.PUBTERM_PORT || process.env.TELNET_PORT, 10) || 2323;
         const isV6 = net.isIP(clientIp) === 6;
         const proxyLine = `PROXY ${isV6 ? 'TCP6' : 'TCP4'} ${clientIp} ${isV6 ? '::1' : '127.0.0.1'} 0 ${targetPort}\r\n`;
 
