@@ -45,25 +45,11 @@ class Auth
         $remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
 
         $claimed = trim((string)($_SERVER['HTTP_X_BINKTERM_CLIENT_IP'] ?? ''));
-
-        // Opt-in verbose tracing: set TERMINAL_CLIENT_IP_DEBUG=true in .env to log
-        // every call (path, REMOTE_ADDR, header presence) to server.log.
-        if (filter_var(Config::env('TERMINAL_CLIENT_IP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN)) {
-            $tokenSeen = ($_SERVER['HTTP_X_BINKTERM_CLIENT_TOKEN'] ?? $_SERVER['HTTP_X_BINKTERM_REGISTRATION_TOKEN'] ?? '') !== '';
-            self::logClientIpDebug(sprintf(
-                'trace: path=%s remote=%s claimed=%s token_header=%s',
-                $_SERVER['REQUEST_URI'] ?? '?',
-                $remote !== '' ? $remote : '(none)',
-                $claimed !== '' ? $claimed : '(none)',
-                $tokenSeen ? 'present' : 'absent'
-            ));
-        }
-
         if ($claimed === '') {
             return $remote;
         }
         if (filter_var($claimed, FILTER_VALIDATE_IP) === false) {
-            self::logClientIpDebug("X-Binkterm-Client-IP '{$claimed}' is not a valid IP; using {$remote}");
+            self::logClientIpRejected("X-Binkterm-Client-IP '{$claimed}' is not a valid IP; using {$remote}");
             return $remote;
         }
 
@@ -75,15 +61,15 @@ class Auth
         ));
 
         if ($secret === '') {
-            self::logClientIpDebug("X-Binkterm-Client-IP {$claimed} present but TERMINAL_REGISTRATION_SECRET is empty; using {$remote}");
+            self::logClientIpRejected("X-Binkterm-Client-IP {$claimed} present but TERMINAL_REGISTRATION_SECRET is empty; using {$remote}");
             return $remote;
         }
         if ($token === '') {
-            self::logClientIpDebug("X-Binkterm-Client-IP {$claimed} present but no client token header; using {$remote}");
+            self::logClientIpRejected("X-Binkterm-Client-IP {$claimed} present but no client token header; using {$remote}");
             return $remote;
         }
         if (!hash_equals($secret, $token)) {
-            self::logClientIpDebug("X-Binkterm-Client-IP {$claimed} rejected: client token does not match TERMINAL_REGISTRATION_SECRET; using {$remote}");
+            self::logClientIpRejected("X-Binkterm-Client-IP {$claimed} rejected: client token does not match TERMINAL_REGISTRATION_SECRET; using {$remote}");
             return $remote;
         }
 
@@ -95,7 +81,7 @@ class Auth
      * terminal client IP header was present but could not be honoured, so it is
      * silent for ordinary web traffic and for the working case.
      */
-    private static function logClientIpDebug(string $message): void
+    private static function logClientIpRejected(string $message): void
     {
         try {
             getServerLogger()->warning('[resolveClientIp] ' . $message);
