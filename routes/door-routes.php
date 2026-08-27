@@ -9,6 +9,7 @@ use BinktermPHP\ActivityTracker;
 use BinktermPHP\DoorSessionManager;
 use BinktermPHP\DoorManager;
 use BinktermPHP\NativeDoorManager;
+use BinktermPHP\RLoginDoorManager;
 use BinktermPHP\Database;
 use BinktermPHP\I18n\LocaleResolver;
 use BinktermPHP\I18n\Translator;
@@ -135,20 +136,32 @@ SimpleRouter::post('/api/door/launch', function() {
                     'ws_port' => $existingSession['ws_port'],
                     'ws_token' => $existingSession['ws_token'],
                     'ws_url' => $wsUrl,
+                    'door_type' => $existingSession['door_type'] ?? 'dos',
                 ],
                 'message_code' => 'ui.api.door.session_resumed'
             ]);
             return;
         }
 
-        // Determine door type: check native doors first, then DOS doors
+        // Determine door type: check rlogin doors, then native doors, then DOS doors
         $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
         $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
         $doorManager = new \BinktermPHP\DoorManager();
 
-        $nativeDoor = $nativeDoorManager->getDoor($doorName);
-        $doorType = $nativeDoor ? 'native' : 'dos';
-        $activeDoorManager = $nativeDoor ? $nativeDoorManager : $doorManager;
+        $rloginDoor = $rloginDoorManager->getDoor($doorName);
+        $nativeDoor = $rloginDoor ? null : $nativeDoorManager->getDoor($doorName);
+
+        if ($rloginDoor) {
+            $doorType = 'rlogin';
+            $activeDoorManager = $rloginDoorManager;
+        } elseif ($nativeDoor) {
+            $doorType = 'native';
+            $activeDoorManager = $nativeDoorManager;
+        } else {
+            $doorType = 'dos';
+            $activeDoorManager = $doorManager;
+        }
 
         getDoorLogger()->info("DOSDOOR: [API] Door '$doorName' detected as type: $doorType");
 
@@ -176,46 +189,53 @@ SimpleRouter::post('/api/door/launch', function() {
         }
 
         // Check credits requirement
-        $configFile = $doorType === 'native'
-            ? __DIR__ . '/../config/nativedoors.json'
-            : __DIR__ . '/../config/dosdoors.json';
+        if ($doorType === 'rlogin') {
+            // RLogin doors are DB-backed, not file-backed — reuse the door already fetched above
+            $doorConfig = $rloginDoor['config'] ?? null;
+        } else {
+            $configFile = $doorType === 'native'
+                ? __DIR__ . '/../config/nativedoors.json'
+                : __DIR__ . '/../config/dosdoors.json';
+            $doorConfig = null;
+            if (file_exists($configFile)) {
+                $doorConfigs = json_decode(file_get_contents($configFile), true);
+                $doorConfig = $doorConfigs[$doorName] ?? null;
+            }
+        }
 
-        if (file_exists($configFile)) {
-            $doorConfigs = json_decode(file_get_contents($configFile), true);
-            $doorConfig = $doorConfigs[$doorName] ?? null;
+        if ($doorConfig && isset($doorConfig['credit_cost']) && $doorConfig['credit_cost'] > 0) {
+            $creditCost = (int)$doorConfig['credit_cost'];
 
-            if ($doorConfig && isset($doorConfig['credit_cost']) && $doorConfig['credit_cost'] > 0) {
-                $creditCost = (int)$doorConfig['credit_cost'];
+            // Check if credits system is enabled
+            $userCredit = new \BinktermPHP\UserCredit($userId);
+            if ($userCredit->isEnabled()) {
+                $currentBalance = $userCredit->getBalance();
 
-                // Check if credits system is enabled
-                $userCredit = new \BinktermPHP\UserCredit($userId);
-                if ($userCredit->isEnabled()) {
-                    $currentBalance = $userCredit->getBalance();
-
-                    if ($currentBalance < $creditCost) {
-                        getDoorLogger()->warning("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
-                        doorApiError('errors.door.insufficient_credits_detail', 'Insufficient credits', 402, [
-                            'required' => $creditCost,
-                            'balance' => $currentBalance
-                        ]);
-                        return;
-                    }
-
-                    // Deduct credits
-                    if (!$userCredit->deductCredits($creditCost, 'dosdoor_launch', "Launched door: $doorName")) {
-                        getDoorLogger()->error("DOSDOOR: [API] Failed to deduct credits for $doorName");
-                        throw new \Exception("Failed to process credit payment. Please try again.");
-                    }
-
-                    getDoorLogger()->info("DOSDOOR: [API] Deducted $creditCost credits for $doorName - New balance: " . $userCredit->getBalance());
+                if ($currentBalance < $creditCost) {
+                    getDoorLogger()->warning("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
+                    doorApiError('errors.door.insufficient_credits_detail', 'Insufficient credits', 402, [
+                        'required' => $creditCost,
+                        'balance' => $currentBalance
+                    ]);
+                    return;
                 }
+
+                // Deduct credits
+                $creditReason = $doorType === 'rlogin' ? 'rlogindoor_launch' : 'dosdoor_launch';
+                if (!$userCredit->deductCredits($creditCost, $creditReason, "Launched door: $doorName")) {
+                    getDoorLogger()->error("DOSDOOR: [API] Failed to deduct credits for $doorName");
+                    throw new \Exception("Failed to process credit payment. Please try again.");
+                }
+
+                getDoorLogger()->info("DOSDOOR: [API] Deducted $creditCost credits for $doorName - New balance: " . $userCredit->getBalance());
             }
         }
 
         // Check door's max_nodes limit (per-door concurrency limit)
         $doorManifest = $activeDoorManager->getDoor($doorName);
-        if ($doorManifest && isset($doorManifest['max_nodes'])) {
-            $maxNodes = (int)$doorManifest['max_nodes'];
+        $maxNodesLimit = $doorManifest['max_nodes'] ?? ($doorManifest['config']['max_sessions'] ?? null);
+        if ($doorManifest && $maxNodesLimit !== null) {
+            $maxNodes = (int)$maxNodesLimit;
 
             // Count active sessions for this specific door
             $stmt = $db->prepare("
@@ -237,6 +257,42 @@ SimpleRouter::post('/api/door/launch', function() {
             }
 
             getDoorLogger()->info("DOSDOOR: [API] Door '$doorName' capacity check passed - Active: $activeSessions, Max: $maxNodes");
+        }
+
+        // For rlogin doors, run the pre-login provisioning command (if configured)
+        // before creating the session. A non-zero exit aborts the launch.
+        if ($doorType === 'rlogin') {
+            $preLoginResult = $rloginDoorManager->runPreLoginCommand($rloginDoor, [
+                'user_name' => $user['username'] ?? '',
+                'real_name' => $user['real_name'] ?? ($user['username'] ?? ''),
+                'user_number' => (string)$userId,
+            ]);
+
+            if (!$preLoginResult['ok']) {
+                getDoorLogger()->warning("DOSDOOR: [API] pre_login_command failed for '$doorName': " . ($preLoginResult['error'] ?? 'unknown error'));
+                doorApiError('errors.door.prelogin_failed', 'The remote system rejected the login request. Please contact the sysop.', 502);
+                return;
+            }
+
+            if (!empty($preLoginResult['overrides']['remote_username'])) {
+                $userData['rlogin_remote_username'] = $preLoginResult['overrides']['remote_username'];
+            }
+            if (!empty($preLoginResult['overrides']['otp'])) {
+                $userData['rlogin_otp'] = $preLoginResult['overrides']['otp'];
+            }
+
+            // Resolve the effective terminal type: the door's own setting if
+            // configured, else the user's last-known telnet/SSH terminal type,
+            // else xterm-256color (there's nothing to inherit for a web launch).
+            if (empty($rloginDoor['terminal_type'])) {
+                $lastTerminalType = null;
+                try {
+                    $lastTerminalType = (new \BinktermPHP\UserMeta())->getValue($userId, 'last_terminal_type');
+                } catch (\Throwable $e) {
+                    // Fall through to the default below.
+                }
+                $userData['rlogin_terminal_type'] = $lastTerminalType ?: 'xterm-256color';
+            }
         }
 
         // Start new session
@@ -263,10 +319,12 @@ SimpleRouter::post('/api/door/launch', function() {
                 'ws_port' => $session['ws_port'],
                 'ws_token' => $session['ws_token'],
                 'ws_url' => $wsUrl,
+                'door_type' => $doorType,
             ]
         ]);
 
     } catch (Exception $e) {
+        getDoorLogger()->error("DOSDOOR: [API] Launch failed for '$doorName': " . $e->getMessage());
         doorApiError('errors.door.launch_failed', 'Failed to start door session', 500);
     }
 });
@@ -580,7 +638,28 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
         return;
     }
 
-    // Load door manifest — check native doors first, then DOS doors
+    // RLogin doors have no filesystem footprint — icon/screenshot are stored
+    // as BYTEA blobs in the rlogin_doors table, served directly here.
+    $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+    if ($rloginDoorManager->getDoor($doorid)) {
+        $blob = $asset === 'icon'
+            ? $rloginDoorManager->getIconBlob($doorid)
+            : $rloginDoorManager->getScreenshotBlob($doorid);
+
+        if (!$blob) {
+            http_response_code(404);
+            echo doorLocalizedText('errors.door.asset.not_defined', 'Asset not defined in manifest');
+            return;
+        }
+
+        header('Content-Type: ' . $blob['mime']);
+        header('Content-Length: ' . strlen($blob['data']));
+        header('Cache-Control: public, max-age=86400');
+        echo $blob['data'];
+        return;
+    }
+
+    // Load door manifest — check native doors, then DOS doors
     $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
     $door = $nativeDoorManager->getDoor($doorid);
 

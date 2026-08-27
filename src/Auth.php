@@ -25,6 +25,71 @@ class Auth
         $this->db = Database::getInstance()->getPdo();
     }
 
+    /**
+     * Resolve the effective client IP for the current request.
+     *
+     * Normally this is `$_SERVER['REMOTE_ADDR']`. The first-party terminal
+     * daemons (telnet / SSH) proxy every user's API traffic through the server
+     * itself, so without this their session IP would always be recorded as the
+     * server's address. They send the real end-user address in the
+     * `X-Binkterm-Client-IP` header, authenticated with the shared
+     * `TERMINAL_REGISTRATION_SECRET` (also accepted under the legacy
+     * `X-Binkterm-Registration-Token` header name). The header is honoured only
+     * when that token matches.
+     *
+     * Change `TERMINAL_REGISTRATION_SECRET` from its default: anything that can
+     * present the token can set its own recorded session IP.
+     */
+    public static function resolveClientIp(): string
+    {
+        $remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+
+        $claimed = trim((string)($_SERVER['HTTP_X_BINKTERM_CLIENT_IP'] ?? ''));
+        if ($claimed === '') {
+            return $remote;
+        }
+        if (filter_var($claimed, FILTER_VALIDATE_IP) === false) {
+            self::logClientIpRejected("X-Binkterm-Client-IP '{$claimed}' is not a valid IP; using {$remote}");
+            return $remote;
+        }
+
+        $secret = trim((string)Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+        $token  = trim((string)(
+            $_SERVER['HTTP_X_BINKTERM_CLIENT_TOKEN']
+            ?? $_SERVER['HTTP_X_BINKTERM_REGISTRATION_TOKEN']
+            ?? ''
+        ));
+
+        if ($secret === '') {
+            self::logClientIpRejected("X-Binkterm-Client-IP {$claimed} present but TERMINAL_REGISTRATION_SECRET is empty; using {$remote}");
+            return $remote;
+        }
+        if ($token === '') {
+            self::logClientIpRejected("X-Binkterm-Client-IP {$claimed} present but no client token header; using {$remote}");
+            return $remote;
+        }
+        if (!hash_equals($secret, $token)) {
+            self::logClientIpRejected("X-Binkterm-Client-IP {$claimed} rejected: client token does not match TERMINAL_REGISTRATION_SECRET; using {$remote}");
+            return $remote;
+        }
+
+        return $claimed;
+    }
+
+    /**
+     * Diagnostic logging for {@see resolveClientIp()}. Only fires when a
+     * terminal client IP header was present but could not be honoured, so it is
+     * silent for ordinary web traffic and for the working case.
+     */
+    private static function logClientIpRejected(string $message): void
+    {
+        try {
+            getServerLogger()->warning('[resolveClientIp] ' . $message);
+        } catch (\Throwable $e) {
+            // Logging must never break authentication.
+        }
+    }
+
     public function login($username, $password, string $service = 'web')
     {
         $user = $this->authenticateCredentials($username, $password);
@@ -92,7 +157,7 @@ class Auth
         $stmt->execute([$sessionId]);
     }
 
-    public function validateSession($sessionId)
+    public function validateSession($sessionId, ?string $ipAddress = null)
     {
         $stmt = $this->db->prepare('
             SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.manage_hub_point, u.password_hash, u.created_at, u.last_login, u.location, u.about_me, u.fidonet_address
@@ -103,29 +168,44 @@ class Auth
         $stmt->execute([$sessionId]);
         $user = $stmt->fetch();
 
-        // Update last_activity for online tracking
+        // Update last_activity (and ip_address, if known) for online tracking
         if ($user) {
-            $this->updateLastActivity($sessionId);
+            $this->updateLastActivity($sessionId, $ipAddress);
         }
 
         return $user;
     }
 
     /**
-     * Update session last_activity timestamp
+     * Update session last_activity timestamp, and ip_address if the caller knows
+     * the current connection's address (a session's IP can otherwise go stale for
+     * the lifetime of the session, e.g. a mobile client roaming between networks).
      */
-    private function updateLastActivity($sessionId)
+    private function updateLastActivity($sessionId, ?string $ipAddress = null)
     {
+        if ($ipAddress !== null && $ipAddress !== '') {
+            $stmt = $this->db->prepare('UPDATE user_sessions SET last_activity = NOW(), ip_address = ? WHERE session_id = ?');
+            $stmt->execute([$ipAddress, $sessionId]);
+            return;
+        }
+
         $stmt = $this->db->prepare('UPDATE user_sessions SET last_activity = NOW() WHERE session_id = ?');
         $stmt->execute([$sessionId]);
     }
 
-    public function updateSessionActivity(string $sessionId, string $activity): void
+    public function updateSessionActivity(string $sessionId, string $activity, ?string $ipAddress = null): void
     {
         $activity = trim($activity);
         if ($activity === '') {
             return;
         }
+
+        if ($ipAddress !== null && $ipAddress !== '') {
+            $stmt = $this->db->prepare('UPDATE user_sessions SET last_activity = NOW(), activity = ?, ip_address = ? WHERE session_id = ?');
+            $stmt->execute([mb_substr($activity, 0, 255), $ipAddress, $sessionId]);
+            return;
+        }
+
         $stmt = $this->db->prepare('UPDATE user_sessions SET last_activity = NOW(), activity = ? WHERE session_id = ?');
         $stmt->execute([mb_substr($activity, 0, 255), $sessionId]);
     }
@@ -135,7 +215,7 @@ class Auth
         return $this->createSessionForConnection(
             (int)$userId,
             $service,
-            (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+            self::resolveClientIp(),
             (string)($_SERVER['HTTP_USER_AGENT'] ?? '')
         );
     }
@@ -184,7 +264,7 @@ class Auth
     {
         $sessionId = $_COOKIE['binktermphp_session'] ?? null;
         if ($sessionId) {
-            $user = $this->validateSession($sessionId);
+            $user = $this->validateSession($sessionId, self::resolveClientIp());
             if ($user) {
                 $userId = $user['user_id'] ?? $user['id'] ?? null;
                 if ($userId) {

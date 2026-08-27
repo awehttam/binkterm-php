@@ -6,11 +6,12 @@ BinktermPHP supports three types of door games, each suited to different use cas
 |------|-------------|-----|
 | **DOS Doors** | Classic DOS games (LORD, TradeWars, etc.) running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
 | **Native Doors** | Linux/Windows binaries or scripts running via PTY | [NativeDoors.md](NativeDoors.md) |
+| **RLogin Doors** | Connects out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol | [RLoginDoors.md](RLoginDoors.md) |
 | **WebDoors** | Browser-based HTML5/PHP games embedded in an iframe | [WebDoors.md](WebDoors.md) |
 | **JS-DOS Doors** | 3D/graphical DOS games running in the browser via js-dos (DOSBox WASM) | [JSDOSDoors.md](JSDOSDoors.md) |
 | **C64 Doors** | Commodore 64 PRG/D64/ROM programs running in the jsc64 emulator | [C64Doors.md](C64Doors.md) |
 
-C64 Doors, WebDoors, and JS-DOS Doors run entirely in the browser and require no additional server-side components. DOS Doors and Native Doors both require the **multiplexing bridge** described below.
+C64 Doors, WebDoors, and JS-DOS Doors run entirely in the browser and require no additional server-side components. DOS Doors, Native Doors, and RLogin Doors all require the **multiplexing bridge** described below.
 
 ## Table of Contents
 
@@ -392,6 +393,7 @@ SSLProxyEngine on
 
 - [DOS Doors](DOSDoors.md) — Setup, DOSBox configuration, adding door games, drop file format, troubleshooting
 - [Native Doors](NativeDoors.md) — Manifest format, environment variables, platform notes, test doors
+- [RLogin Doors](RLoginDoors.md) — Database-backed door fields, BBS Type presets, pre-login command contract
 - [WebDoors](WebDoors.md) — Manifest format, iframe integration, BBS API, credits system
 - [JS-DOS Doors](JSDOSDoors.md) — Browser-side DOS game emulation, manifest format, save state sync, multiplayer
 - [C64 Doors](C64Doors.md) — PRG/D64/ROM support, shared engine, configuration reference

@@ -677,6 +677,16 @@ $(document).ready(function() {
         loadDashboardData();
     }, 30000);
 
+    // Real-time refresh via BinkStream — mirrors the debounced refresh notifier.js
+    // uses for the messaging menu icons, so the dashboard counts stay in sync too.
+    if (window.BinkStream) {
+        let dashboardStatsRefreshTimer = null;
+        window.BinkStream.on('dashboard_stats', function() {
+            clearTimeout(dashboardStatsRefreshTimer);
+            dashboardStatsRefreshTimer = setTimeout(loadDashboardData, 2000);
+        });
+    }
+
     if (Array.isArray(dashboardAds) && dashboardAds.length > 1) {
         setInterval(function() {
             if (document.hidden) {

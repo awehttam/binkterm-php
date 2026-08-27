@@ -162,6 +162,14 @@ class BbsSession
         stream_set_timeout($conn, 300);
         stream_set_write_buffer($conn, 0); // Disable write buffering so banner/prompts are sent immediately
 
+        // Make every API call for this session carry the real end-user address
+        // (the daemon proxies all API traffic through the server). See
+        // Auth::resolveClientIp(). Set here — one forked process per connection.
+        TelnetUtils::setClientContext(
+            $this->peerIp,
+            trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'))
+        );
+
         $state = [
             'telnet_mode' => null,
             'input_echo'  => true,
@@ -179,10 +187,15 @@ class BbsSession
             'isSsh'    => $this->isSsh,
         ];
 
-        // Seed terminal size from SSH pty-req if provided
+        // Seed terminal size and TERM type from SSH pty-req if provided. SSH conveys
+        // TERM out-of-band (pty-req) rather than telnet's in-band TTYPE negotiation,
+        // so this is the only way it reaches $state for SSH sessions.
         if ($this->preAuthSession !== null) {
             if (!empty($this->preAuthSession['cols'])) { $state['cols'] = (int)$this->preAuthSession['cols']; }
             if (!empty($this->preAuthSession['rows'])) { $state['rows'] = (int)$this->preAuthSession['rows']; }
+            if (!empty($this->preAuthSession['term_type'])) {
+                $state['terminal_type'] = strtoupper(trim((string)$this->preAuthSession['term_type']));
+            }
             if (array_key_exists('sixel_supported', $this->preAuthSession)) {
                 $this->sixelSupported = (bool)$this->preAuthSession['sixel_supported'];
             }
@@ -395,9 +408,27 @@ class BbsSession
         }
 
         $auth       = new \BinktermPHP\Auth();
-        $userRecord = $auth->validateSession($session);
+        // Pass the real peer IP so the freshly created session records the user's
+        // address rather than the server's (the daemon's API calls all originate
+        // from the server). $this->peerIp is already the true client for PubTerm
+        // sessions via the PROXY header.
+        $userRecord = $auth->validateSession(
+            $session,
+            ($peerIp !== null && filter_var($peerIp, FILTER_VALIDATE_IP) !== false) ? $peerIp : null
+        );
         $state['is_admin'] = !empty($userRecord['is_admin']);
         $state['user_id']  = (int)($userRecord['user_id'] ?? $userRecord['id'] ?? 0);
+
+        // Persist the negotiated terminal type so other subsystems (e.g. RLogin
+        // door launches from the web UI) can fall back to "whatever client this
+        // user last connected with" when a door doesn't specify its own terminal type.
+        if ($state['user_id'] > 0 && !empty($state['terminal_type'])) {
+            try {
+                (new \BinktermPHP\UserMeta())->setValue($state['user_id'], 'last_terminal_type', $state['terminal_type']);
+            } catch (\Throwable $e) {
+                // Non-critical — never block login on this.
+            }
+        }
 
         $this->clearFailedLogins($peerIp);
 
@@ -3659,19 +3690,25 @@ class BbsSession
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
                 $headers[] = 'Content-Type: application/json';
             }
+
+            // The daemon proxies every user's API traffic through the server, so
+            // tell the web side the real end-user address (authenticated with the
+            // shared terminal secret) on every request. This keeps the session's
+            // recorded IP — and registration screening — pointed at the user, not
+            // the server. See Auth::resolveClientIp().
+            $terminalSecret = trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+            if ($terminalSecret !== ''
+                && $this->peerIp !== null
+                && filter_var($this->peerIp, FILTER_VALIDATE_IP) !== false) {
+                $headers[] = 'X-Binkterm-Client-IP: ' . $this->peerIp;
+                $headers[] = 'X-Binkterm-Client-Token: ' . $terminalSecret;
+            }
+
             if ($path === '/api/register') {
                 $terminalSource = $this->isSsh ? 'ssh' : 'telnet';
                 $headers[] = 'X-Binkterm-Registration-Source: ' . $terminalSource;
-                if ($this->peerIp !== null && filter_var($this->peerIp, FILTER_VALIDATE_IP) !== false) {
-                    $headers[] = 'X-Binkterm-Client-IP: ' . $this->peerIp;
-                }
-
-                $registrationSecret = trim((string) Config::env(
-                    'TERMINAL_REGISTRATION_SECRET',
-                    'Chang3Me'
-                ));
-                if ($registrationSecret !== '') {
-                    $headers[] = 'X-Binkterm-Registration-Token: ' . $registrationSecret;
+                if ($terminalSecret !== '') {
+                    $headers[] = 'X-Binkterm-Registration-Token: ' . $terminalSecret;
                 }
             }
             if ($session) {

@@ -529,7 +529,62 @@ function renderSourceBadge(source) {
     const s = (source || 'web').toLowerCase();
     if (s === 'telnet') return '<span class="badge bg-info">telnet</span>';
     if (s === 'ssh')    return '<span class="badge bg-secondary">ssh</span>';
-    return '<span class="badge bg-light text-dark">web</span>';
+    return '<span class="badge bg-primary">web</span>';
+}
+
+// Returns null when screening never ran for this registration (risk_flags is
+// SQL NULL / absent), or an array (possibly empty) when it did.
+function parseRiskFlags(raw) {
+    if (raw === null || raw === undefined) return null;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+        if (raw.trim() === '') return null;
+        try { const v = JSON.parse(raw); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+    }
+    return null;
+}
+
+function renderRiskBadge(user) {
+    const flags = parseRiskFlags(user.risk_flags);
+    if (flags === null) {
+        return `<span class="badge bg-secondary" title="${uiT('ui.admin_users.risk_not_screened_help', 'This registration predates registration screening being enabled, or screening was off at the time.')}">${uiT('ui.admin_users.risk_not_screened', 'not screened')}</span>`;
+    }
+    const score = parseInt(user.risk_score, 10) || 0;
+    if (score === 0 && flags.length === 0) {
+        return `<span class="badge bg-success" title="${uiT('ui.admin_users.risk_no_signals', 'No signals')}">${uiT('ui.admin_users.risk_clean', 'clean')}</span>`;
+    }
+    const sfr = user.screening_forced_review;
+    const forced = sfr === true || sfr === 't' || sfr === 'true' || sfr === '1' || sfr === 1;
+    const cls = forced ? 'bg-danger' : (score >= 20 ? 'bg-warning text-dark' : 'bg-secondary');
+    const types = flags.map(f => escapeHtml(f.type)).join(', ');
+    const title = types ? types : uiT('ui.admin_users.risk_no_signals', 'No signals');
+    let out = `<span class="badge ${cls}" title="${title}">${score}</span>`;
+    if (forced) {
+        out += ` <span class="badge bg-secondary">${uiT('ui.admin_users.risk_held', 'held')}</span>`;
+    }
+    return out;
+}
+
+function renderRiskDetail(user) {
+    const flags = parseRiskFlags(user.risk_flags);
+    if (flags === null) {
+        return `
+            <p class="mt-3"><strong>${uiT('ui.admin_users.risk_screening', 'Risk screening:')}</strong></p>
+            <p class="small text-muted">${uiT('ui.admin_users.risk_not_screened_help', 'This registration predates registration screening being enabled, or screening was off at the time.')}</p>
+        `;
+    }
+    const score = parseInt(user.risk_score, 10) || 0;
+    let rows = flags.map(f =>
+        `<li><code>${escapeHtml(f.type)}</code> (+${parseInt(f.weight, 10) || 0}) &mdash; ${escapeHtml(f.detail || '')}</li>`
+    ).join('');
+    if (!rows) {
+        rows = `<li class="text-muted">${uiT('ui.admin_users.risk_no_signals', 'No signals')}</li>`;
+    }
+    return `
+        <p class="mt-3"><strong>${uiT('ui.admin_users.risk_screening', 'Risk screening:')}</strong>
+            ${uiT('ui.admin_users.risk_score', 'Score')}: <strong>${score}</strong></p>
+        <ul class="small">${rows}</ul>
+    `;
 }
 
 function renderPendingUsers(users) {
@@ -556,12 +611,13 @@ function renderPendingUsers(users) {
                 <th>${uiT('ui.admin_users.source', 'Source')}</th>
                 <th>${uiT('ui.admin_users.requested', 'Requested')}</th>
                 <th>${uiT('ui.common.ip_address', 'IP Address')}</th>
+                <th>${uiT('ui.admin_users.risk', 'Risk')}</th>
                 <th>${uiT('ui.common.actions', 'Actions')}</th>
             </tr>
         </thead>
         <tbody>
     `;
-    
+
     users.forEach(user => {
         const requestedDate = new Date(user.requested_at).toLocaleString();
         html += `
@@ -572,6 +628,7 @@ function renderPendingUsers(users) {
                 <td>${renderSourceBadge(user.registration_source)}</td>
                 <td>${requestedDate}</td>
                 <td><code>${escapeHtml(user.ip_address || '')}</code></td>
+                <td>${renderRiskBadge(user)}</td>
                 <td>
                     <button class="btn btn-sm btn-info me-1" onclick="viewUser(${user.id})">
                         <i class="fas fa-eye"></i> ${uiT('ui.common.view', 'View')}
@@ -616,6 +673,7 @@ function renderRegistrationHistory(users) {
                 <th>${uiT('ui.admin_users.reviewed', 'Reviewed')}</th>
                 <th>${uiT('ui.admin_users.reviewed_by', 'Reviewed By')}</th>
                 <th>${uiT('ui.admin_users.created_account', 'Created Account:')}</th>
+                <th>${uiT('ui.admin_users.risk', 'Risk')}</th>
                 <th>${uiT('ui.common.actions', 'Actions')}</th>
             </tr>
         </thead>
@@ -638,6 +696,7 @@ function renderRegistrationHistory(users) {
                 <td>${reviewedDate}</td>
                 <td>${escapeHtml(user.reviewed_by_username || uiT('ui.admin_users.not_available', 'Not available'))}</td>
                 <td>${createdAccount}</td>
+                <td>${renderRiskBadge(user)}</td>
                 <td>
                     <button class="btn btn-sm btn-info" onclick="viewUser(${user.id})">
                         <i class="fas fa-eye"></i> ${uiT('ui.common.view', 'View')}
@@ -794,6 +853,7 @@ function viewUser(userId) {
                             </div>
                             <p class="mt-2"><strong>${uiT('ui.admin_users.user_agent', 'User Agent:')}</strong></p>
                             <small class="text-muted">${escapeHtml(user.user_agent || uiT('ui.admin_users.not_available', 'Not available'))}</small>
+                            ${renderRiskDetail(user)}
                         </div>
                     </div>
                 `;

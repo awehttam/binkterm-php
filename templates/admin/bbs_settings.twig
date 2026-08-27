@@ -366,6 +366,117 @@
                 </div>
             </div>
         </div>
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.screening.title', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body">
+                    <div id="bbsScreeningAlert"></div>
+                    <p class="text-muted small">{{ t('ui.admin.bbs_settings.screening.intro', {}, locale, ['common']) }}</p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="bbsScreeningEnabled">
+                                <label class="form-check-label" for="bbsScreeningEnabled">{{ t('ui.admin.bbs_settings.screening.enabled', {}, locale, ['common']) }}</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="bbsScreeningMode">{{ t('ui.admin.bbs_settings.screening.mode', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="bbsScreeningMode">
+                                <option value="enforce">{{ t('ui.admin.bbs_settings.screening.mode_enforce', {}, locale, ['common']) }}</option>
+                                <option value="observe">{{ t('ui.admin.bbs_settings.screening.mode_observe', {}, locale, ['common']) }}</option>
+                            </select>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.screening.mode_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label" for="bbsScreeningThreshold">{{ t('ui.admin.bbs_settings.screening.threshold', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningThreshold" min="0" max="1000" step="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label" for="bbsScreeningDnsTimeout">{{ t('ui.admin.bbs_settings.screening.dns_timeout_ms', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningDnsTimeout" min="100" max="5000" step="50">
+                        </div>
+                    </div>
+                    <hr>
+                    <h6 class="mb-2">{{ t('ui.admin.bbs_settings.screening.signal_rbl', {}, locale, ['common']) }}</h6>
+                    <div class="row g-3 align-items-end mb-2">
+                        <div class="col-auto">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="bbsScreeningRblEnabled">
+                                <label class="form-check-label" for="bbsScreeningRblEnabled">{{ t('ui.admin.bbs_settings.screening.signal_enabled', {}, locale, ['common']) }}</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label" for="bbsScreeningRblWeight">{{ t('ui.admin.bbs_settings.screening.weight', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningRblWeight" min="0" max="1000" step="1">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsScreeningRblZones">{{ t('ui.admin.bbs_settings.screening.rbl_zones', {}, locale, ['common']) }}</label>
+                        <textarea class="form-control font-monospace" id="bbsScreeningRblZones" rows="4" wrap="off" spellcheck="false"></textarea>
+                        <small class="text-muted">{{ t('ui.admin.bbs_settings.screening.rbl_zones_help', {}, locale, ['common']) }}</small>
+                    </div>
+                    <hr>
+                    <h6 class="mb-2">{{ t('ui.admin.bbs_settings.screening.signal_velocity', {}, locale, ['common']) }}</h6>
+                    <div class="row g-3 align-items-end mb-2">
+                        <div class="col-auto">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="bbsScreeningVelocityEnabled">
+                                <label class="form-check-label" for="bbsScreeningVelocityEnabled">{{ t('ui.admin.bbs_settings.screening.signal_enabled', {}, locale, ['common']) }}</label>
+                            </div>
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <label class="form-label" for="bbsScreeningVelocityWeight">{{ t('ui.admin.bbs_settings.screening.weight', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningVelocityWeight" min="0" max="1000" step="1">
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <label class="form-label" for="bbsScreeningVelocityWindow">{{ t('ui.admin.bbs_settings.screening.velocity_window_hours', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningVelocityWindow" min="1" max="720" step="1">
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <label class="form-label" for="bbsScreeningVelocitySubnet">{{ t('ui.admin.bbs_settings.screening.velocity_subnet_prefix', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningVelocitySubnet" min="1" max="128" step="1">
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <label class="form-label" for="bbsScreeningVelocityCount">{{ t('ui.admin.bbs_settings.screening.velocity_count_threshold', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningVelocityCount" min="1" max="1000" step="1">
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <h6 class="mb-2">{{ t('ui.admin.bbs_settings.screening.signal_tor', {}, locale, ['common']) }}</h6>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="bbsScreeningTorEnabled">
+                                <label class="form-check-label" for="bbsScreeningTorEnabled">{{ t('ui.admin.bbs_settings.screening.signal_enabled', {}, locale, ['common']) }}</label>
+                            </div>
+                            <label class="form-label" for="bbsScreeningTorWeight">{{ t('ui.admin.bbs_settings.screening.weight', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningTorWeight" min="0" max="1000" step="1">
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="mb-2">{{ t('ui.admin.bbs_settings.screening.signal_email_mx', {}, locale, ['common']) }}</h6>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="bbsScreeningMxEnabled">
+                                <label class="form-check-label" for="bbsScreeningMxEnabled">{{ t('ui.admin.bbs_settings.screening.signal_enabled', {}, locale, ['common']) }}</label>
+                            </div>
+                            <label class="form-label" for="bbsScreeningMxWeight">{{ t('ui.admin.bbs_settings.screening.weight', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningMxWeight" min="0" max="1000" step="1">
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="mb-2">{{ t('ui.admin.bbs_settings.screening.signal_disposable', {}, locale, ['common']) }}</h6>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="bbsScreeningDisposableEnabled">
+                                <label class="form-check-label" for="bbsScreeningDisposableEnabled">{{ t('ui.admin.bbs_settings.screening.signal_enabled', {}, locale, ['common']) }}</label>
+                            </div>
+                            <label class="form-label" for="bbsScreeningDisposableWeight">{{ t('ui.admin.bbs_settings.screening.weight', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" id="bbsScreeningDisposableWeight" min="0" max="1000" step="1">
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary mt-3" onclick="saveBbsScreening()">{{ t('ui.admin.bbs_settings.screening.save', {}, locale, ['common']) }}</button>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
@@ -387,6 +498,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadBbsSystem();
         loadAdminUsers('bbsSystemSysop');
         loadBbsTaglines();
+        loadBbsScreening();
         document.getElementById('bbsPgp')?.addEventListener('change', syncPgpManagedKeysToggle);
     });
 });
@@ -598,6 +710,133 @@ function saveBbsPacketBbs() {
         })
         .catch(error => {
             showBbsPacketBbsAlert(error.message || uiT('ui.admin.bbs_settings.packet_bbs.save_failed', 'Failed to save Packet BBS settings.'), 'danger');
+        });
+}
+
+function screeningZonesToText(zones) {
+    if (!Array.isArray(zones)) return '';
+    return zones.map(function(z) {
+        const host = (z && z.zone) ? String(z.zone) : '';
+        if (!host) return '';
+        const weight = (z.weight === 0 || z.weight) ? z.weight : 25;
+        let codes = Array.isArray(z.accept_codes) ? z.accept_codes.join(',') : '*';
+        if (!codes) codes = '*';
+        return host + ' ' + weight + ' ' + codes;
+    }).filter(Boolean).join('\n');
+}
+
+function screeningTextToZones(text) {
+    return String(text || '').split(/\r?\n/).map(function(line) {
+        line = line.trim();
+        if (!line || line[0] === '#') return null;
+        const parts = line.split(/\s+/);
+        const zone = { zone: parts[0].toLowerCase() };
+        if (parts[1] !== undefined && parts[1] !== '') zone.weight = parseInt(parts[1], 10) || 0;
+        if (parts[2] !== undefined && parts[2] !== '') {
+            zone.accept_codes = parts[2].split(',').map(function(c) { return c.trim(); }).filter(Boolean);
+        }
+        return zone;
+    }).filter(Boolean);
+}
+
+function loadBbsScreening() {
+    fetch('/admin/api/bbs-settings')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.screening.load_failed', 'Failed to load screening settings.')));
+            }
+            const s = data.config?.registration_screening || {};
+            const sig = s.signals || {};
+            const num = function(id, v, dflt) {
+                const el = document.getElementById(id);
+                const n = parseInt(v, 10);
+                el.value = Number.isNaN(n) ? dflt : n;
+            };
+            document.getElementById('bbsScreeningEnabled').checked = !!s.enabled;
+            document.getElementById('bbsScreeningMode').value = (s.mode === 'observe') ? 'observe' : 'enforce';
+            num('bbsScreeningThreshold', s.threshold, 30);
+            num('bbsScreeningDnsTimeout', s.dns_timeout_ms, 750);
+
+            document.getElementById('bbsScreeningRblEnabled').checked = sig.rbl ? !!sig.rbl.enabled : true;
+            num('bbsScreeningRblWeight', sig.rbl && sig.rbl.weight, 25);
+            document.getElementById('bbsScreeningRblZones').value = screeningZonesToText(sig.rbl && sig.rbl.zones);
+
+            document.getElementById('bbsScreeningVelocityEnabled').checked = sig.velocity ? !!sig.velocity.enabled : true;
+            num('bbsScreeningVelocityWeight', sig.velocity && sig.velocity.weight, 20);
+            num('bbsScreeningVelocityWindow', sig.velocity && sig.velocity.window_hours, 24);
+            num('bbsScreeningVelocitySubnet', sig.velocity && sig.velocity.subnet_prefix, 24);
+            num('bbsScreeningVelocityCount', sig.velocity && sig.velocity.count_threshold, 3);
+
+            document.getElementById('bbsScreeningTorEnabled').checked = sig.tor_exit ? !!sig.tor_exit.enabled : true;
+            num('bbsScreeningTorWeight', sig.tor_exit && sig.tor_exit.weight, 15);
+
+            document.getElementById('bbsScreeningMxEnabled').checked = sig.email_mx ? !!sig.email_mx.enabled : true;
+            num('bbsScreeningMxWeight', sig.email_mx && sig.email_mx.weight, 10);
+
+            document.getElementById('bbsScreeningDisposableEnabled').checked = sig.disposable_email ? !!sig.disposable_email.enabled : false;
+            num('bbsScreeningDisposableWeight', sig.disposable_email && sig.disposable_email.weight, 15);
+        })
+        .catch(error => {
+            showBbsScreeningAlert(error.message || uiT('ui.admin.bbs_settings.screening.load_failed', 'Failed to load screening settings.'), 'danger');
+        });
+}
+
+function saveBbsScreening() {
+    const intVal = id => parseInt(document.getElementById(id).value, 10);
+    const registration_screening = {
+        enabled: document.getElementById('bbsScreeningEnabled').checked,
+        mode: document.getElementById('bbsScreeningMode').value,
+        threshold: intVal('bbsScreeningThreshold') || 0,
+        dns_timeout_ms: intVal('bbsScreeningDnsTimeout') || 750,
+        signals: {
+            rbl: {
+                enabled: document.getElementById('bbsScreeningRblEnabled').checked,
+                weight: intVal('bbsScreeningRblWeight') || 0,
+                zones: screeningTextToZones(document.getElementById('bbsScreeningRblZones').value)
+            },
+            velocity: {
+                enabled: document.getElementById('bbsScreeningVelocityEnabled').checked,
+                weight: intVal('bbsScreeningVelocityWeight') || 0,
+                window_hours: intVal('bbsScreeningVelocityWindow') || 24,
+                subnet_prefix: intVal('bbsScreeningVelocitySubnet') || 24,
+                count_threshold: intVal('bbsScreeningVelocityCount') || 3
+            },
+            tor_exit: {
+                enabled: document.getElementById('bbsScreeningTorEnabled').checked,
+                weight: intVal('bbsScreeningTorWeight') || 0
+            },
+            email_mx: {
+                enabled: document.getElementById('bbsScreeningMxEnabled').checked,
+                weight: intVal('bbsScreeningMxWeight') || 0
+            },
+            disposable_email: {
+                enabled: document.getElementById('bbsScreeningDisposableEnabled').checked,
+                weight: intVal('bbsScreeningDisposableWeight') || 0
+            }
+        }
+    };
+
+    fetch('/admin/api/bbs-settings')
+        .then(response => response.json())
+        .then(currentData => {
+            const config = Object.assign({}, currentData.config || {}, { registration_screening });
+            return fetch('/admin/api/bbs-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config })
+            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.screening.save_failed', 'Failed to save screening settings.')));
+            }
+            showBbsScreeningAlert(uiT('ui.admin.bbs_settings.screening.saved_success', 'Registration screening settings saved.'), 'success');
+            loadBbsScreening();
+        })
+        .catch(error => {
+            showBbsScreeningAlert(error.message || uiT('ui.admin.bbs_settings.screening.save_failed', 'Failed to save screening settings.'), 'danger');
         });
 }
 
@@ -943,6 +1182,16 @@ function showBbsTaglinesAlert(message, type) {
 
 function showBbsSystemAlert(message, type) {
     const container = document.getElementById('bbsSystemAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showBbsScreeningAlert(message, type) {
+    const container = document.getElementById('bbsScreeningAlert');
     container.innerHTML = `
         <div class="alert alert-${type} alert-dismissible fade show" role="alert">
             ${message}

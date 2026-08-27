@@ -883,6 +883,8 @@ set TEMP=C:\TEMP
 set FOSSIL=ENABLED
 ```
 
+A door's **CPU Cycles** field in the manifest editor (**Admin → DOS Doors**), or `config.cpu_cycles` in `dosdoor.jsn`, overrides the template's `cycles=` value for that door only. Leave it unset to use whatever the active DOSBox config template specifies.
+
 ### Disconnect Behavior Modes
 
 The door system uses a **two-stage timeout process** when users disconnect:

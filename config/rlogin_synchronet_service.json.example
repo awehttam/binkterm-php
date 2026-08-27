@@ -1,0 +1,11 @@
+{
+    "host": "127.0.0.1",
+    "port": 24512,
+    "secret": "changeme",
+    "timeout": 5,
+    "tls": true,
+    "tls_verify_peer": false,
+    "tls_cafile": null,
+    "rlogin_host": "127.0.0.1",
+    "rlogin_port": 513
+}

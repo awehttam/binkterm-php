@@ -115,6 +115,7 @@ BinktermPHP runs in any modern browser across different features and themes.
 ### Doors & Games
 - **DOS Doors** — classic door games via DOSBox-X (headless, no display required)
 - **Native Doors** — Linux/Windows programs via PTY
+- **RLogin Doors** — connect out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol
 - **WebDoors** — HTML5/JavaScript games embedded in the browser, with credit integration and a full SDK
 - **JS-DOS Doors** — browser-side DOS emulation via js-dos/DOSBox WASM (no server process)
 - **C64 Doors** — Commodore 64 emulated door games
@@ -226,6 +227,7 @@ These features are disabled by default and require additional setup:
 |---------|---------------|
 | DOS Doors (DOSBox-X) | [docs/DOSDoors.md](docs/DOSDoors.md) |
 | Native Doors (PTY) | [docs/NativeDoors.md](docs/NativeDoors.md) |
+| RLogin Doors (remote BBS via rlogin) | [docs/RLoginDoors.md](docs/RLoginDoors.md) |
 | WebDoors (HTML5 games) | [docs/WebDoors.md](docs/WebDoors.md) |
 | JS-DOS Doors (browser WASM) | [docs/JSDOSDoors.md](docs/JSDOSDoors.md) |
 | C64 Doors (emulated) | [docs/C64Doors.md](docs/C64Doors.md) |

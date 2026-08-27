@@ -24,6 +24,10 @@ use BinktermPHP\Crashmail\CrashmailService;
 use BinktermPHP\Database;
 use BinktermPHP\Freq\FreqRequestTracker;
 use BinktermPHP\Hub\HubNodeManager;
+use BinktermPHP\BbsConfig;
+use BinktermPHP\Net\TorExitListUpdater;
+use BinktermPHP\Net\DisposableEmailListUpdater;
+use BinktermPHP\ScreeningListRefresh;
 
 class Scheduler
 {
@@ -532,6 +536,7 @@ class Scheduler
                 $this->runScheduledCrashmailPoll();
                 $this->runScheduledHubNodePush();
                 $this->runScheduledFreqRetries();
+                $this->runScheduledScreeningListRefresh();
                 $this->processAdvertisingCampaigns();
                 
             } catch (\Exception $e) {
@@ -713,6 +718,85 @@ class Scheduler
             }
         } catch (\Throwable $e) {
             $this->log("FREQ retry check error: " . $e->getMessage(), 'ERROR');
+        }
+    }
+
+    /**
+     * Public entry point for the screening list refresh, so `binkp_scheduler.php
+     * --once` (typically run from cron instead of the long-lived daemon) also
+     * keeps the Tor exit list current.
+     */
+    public function runScreeningListRefreshOnce(): void
+    {
+        $this->runScheduledScreeningListRefresh();
+    }
+
+    /**
+     * Refresh the registration-screening cache lists (Tor exit list, disposable
+     * email domain list) on a fixed interval each, gated by screening_list_refresh
+     * so the work runs at most once per window regardless of the daemon tick.
+     *
+     * Each list only runs when registration screening is enabled and the signal
+     * it feeds is turned on. A list is also refreshed immediately whenever its
+     * cache table is found empty, so it populates on first start rather than
+     * waiting a full interval.
+     */
+    private function runScheduledScreeningListRefresh(): void
+    {
+        $screening = BbsConfig::getRegistrationScreeningConfig();
+        if (empty($screening['enabled'])) {
+            return;
+        }
+
+        $lists = [
+            [
+                'signal' => 'tor_exit',
+                'label' => 'Tor exit node list',
+                'updater' => TorExitListUpdater::class,
+                'interval_hours' => (int)Config::env('SCREENING_TOR_REFRESH_HOURS', 6),
+            ],
+            [
+                'signal' => 'disposable_email',
+                'label' => 'disposable email domain list',
+                'updater' => DisposableEmailListUpdater::class,
+                'interval_hours' => (int)Config::env('SCREENING_DISPOSABLE_REFRESH_HOURS', 24),
+            ],
+        ];
+
+        foreach ($lists as $list) {
+            try {
+                if (empty($screening['signals'][$list['signal']]['enabled'])) {
+                    continue;
+                }
+
+                $updaterClass = $list['updater'];
+                $listName = $updaterClass::LIST_NAME;
+                $cacheEmpty = (int)$this->db->query("SELECT COUNT(*) FROM {$listName}")->fetchColumn() === 0;
+
+                if (!ScreeningListRefresh::isDue($this->db, $listName, max(1, $list['interval_hours']), $cacheEmpty)) {
+                    $this->log("Screening {$list['label']} refresh not due", 'DEBUG');
+                    continue;
+                }
+
+                $this->log("Refreshing {$list['label']}...");
+                $updater = new $updaterClass($this->db, function (string $m): void {
+                    $this->log('  ' . $m, 'DEBUG');
+                });
+                $result = $updater->run();
+
+                if ($result['status'] === 'ok') {
+                    $this->log(sprintf(
+                        'Screening %s refreshed: %d cached, %d pruned',
+                        $list['label'],
+                        $result['total'],
+                        $result['pruned']
+                    ));
+                } else {
+                    $this->log("Screening {$list['label']} refresh failed: " . ($result['error'] ?? 'unknown'), 'ERROR');
+                }
+            } catch (\Throwable $e) {
+                $this->log("Screening {$list['label']} refresh error: " . $e->getMessage(), 'ERROR');
+            }
         }
     }
 

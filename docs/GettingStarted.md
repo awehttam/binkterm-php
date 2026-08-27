@@ -77,6 +77,8 @@ By default, new self-registrations require admin approval before the account is 
 
 To create an account directly without waiting for a registration, use **Admin → Users → Add User**.
 
+**Registration screening** (**Admin → BBS Settings → Registration Screening**) is an optional layer on top of the approval setting. When enabled, it scores each signup from IP and email risk signals (DNSBL listing, Tor exit node, missing email MX, repeated attempts from one subnet). In *observe* mode it just records a risk score and flag list on the pending registration for you to see; in *enforce* mode a score at or above the threshold holds that signup for manual review even when approval is otherwise disabled. It ships turned off. See [CONFIGURATION.md](CONFIGURATION.md#registration-screening) for the full option list.
+
 Also review the **Echomail Moderation Threshold** setting in **Admin → BBS Settings → Features**. This controls how many approved networked echomail posts a new user must accumulate before their posts are transmitted upstream without manual review. New users can always post to local-only areas regardless of this setting. Set it to `0` to disable moderation entirely and let all new users post freely; a value of `1` or higher holds each new user's networked posts for your approval until they reach that post count. The default is `0` (disabled).
 
 Save your settings. The BBS name and sysop fields take effect immediately for new outgoing mail.

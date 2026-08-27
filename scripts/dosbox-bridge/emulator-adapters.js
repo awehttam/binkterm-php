@@ -8,6 +8,24 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const pty = require('node-pty');
+const { Client } = require('pg');
+
+/**
+ * Build a pg connection config from process.env. Mirrors the DB_CONFIG
+ * construction in multiplexing-server.js exactly. Read lazily (inside a
+ * function, not at module load time) since this module is required before
+ * multiplexing-server.js calls dotenv.config().
+ */
+function buildDbConfig() {
+    return {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT) || 5432,
+        database: process.env.DB_NAME || 'binktest',
+        user: process.env.DB_USER || 'binktest',
+        password: process.env.DB_PASS || 'binktest',
+        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
+    };
+}
 
 /**
  * Base Emulator Adapter
@@ -237,6 +255,12 @@ class DOSBoxAdapter extends EmulatorAdapter {
         const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'DOORS', door_id.toUpperCase(), 'dosdoor.jsn');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
+        // Apply the manifest's configured CPU cycles (defaults to the template's value if unset)
+        const cpuCycles = manifest.config && manifest.config.cpu_cycles;
+        if (cpuCycles) {
+            config = config.replace(/cycles=\d+/, `cycles=${cpuCycles}`);
+        }
+
         // Build door launch command
         const doorDir = manifest.door.directory.replace('dosbox-bridge/dos', '').replace(/\//g, '\\');
 
@@ -267,6 +291,12 @@ class DOSBoxAdapter extends EmulatorAdapter {
         // Write session-specific config
         const configPath = path.join(sessionPath, 'dosbox.conf');
         fs.writeFileSync(configPath, config);
+
+        // Log the generated [autoexec] section for diagnostics
+        const slog = this.slog || console;
+        const autoexecIndex = config.indexOf('[autoexec]');
+        const autoexecSection = autoexecIndex !== -1 ? config.slice(autoexecIndex) : config;
+        slog.log(`[${this.getName()}] ${autoexecSection}`);
 
         return configPath;
     }
@@ -338,7 +368,7 @@ class DOSEMUAdapter extends EmulatorAdapter {
         }
 
         // Build DOSEMU command
-        const doorScript = this.generateDoorScript(session_id, door_id, node_number, session_path);
+        const doorScript = this.generateDoorScript(session_id, door_id, node_number, session_path, sessionData);
 
         const args = [
             '-f', configPath,  // Use our config file
@@ -491,7 +521,7 @@ $_sound = "0"
         return configPath;
     }
 
-    generateDoorScript(sessionId, doorId, nodeNumber, sessionPath) {
+    generateDoorScript(sessionId, doorId, nodeNumber, sessionPath, sessionData) {
         const door_id = doorId;
         const node_number = nodeNumber;
 
@@ -523,6 +553,10 @@ ${launchCmd}
         // Put script in dosbox-bridge/dos so DOSEMU finds it as C:\launch.bat
         const scriptPath = path.join(this.basePath, 'dosbox-bridge', 'dos', `launch-${sessionId}.bat`);
         fs.writeFileSync(scriptPath, scriptContent);
+
+        // Log the generated launch script for diagnostics
+        const slog = this.slog || console;
+        slog.log(`[${this.getName()}] Generated launch script:\n${scriptContent}`);
 
         // Return DOS path for DOSEMU
         return `C:\\launch-${sessionId}.bat`;
@@ -570,10 +604,75 @@ class NativeAdapter extends EmulatorAdapter {
         super(basePath);
         this.ptyProcess = null;
         this.outputEncoding = 'utf8';
+        this.proxyForwarder = null;
     }
 
     getName() {
         return 'Native';
+    }
+
+    /**
+     * For the pubterm door only: create a single-use loopback TCP forwarder that
+     * writes a PROXY protocol v1 header (naming the real browser-side client) to
+     * the terminal server, then splices the two sockets. Returns an env override
+     * ({ PUBTERM_HOST, PUBTERM_PORT }) pointing the door at the forwarder, or an
+     * empty object when no forwarding is needed/possible.
+     */
+    async _setupPubtermProxyForwarder(doorId, clientIp, slog) {
+        // The Windows launch path (plink) resolves ${PUBTERM_*} from process.env,
+        // not the door env, so the override would not take effect there.
+        if (doorId !== 'pubterm' || process.platform === 'win32'
+            || !clientIp || net.isIP(clientIp) === 0) {
+            return {};
+        }
+
+        // Dial whichever address the terminal daemon listens on. It shares this
+        // .env, so TELNET_BIND_HOST tells us: a wildcard bind means loopback is
+        // reachable; a specific external IP means we must use that (the daemon
+        // now implicitly trusts its own bind address as a proxy source, so no
+        // TELNET_TRUSTED_PROXIES entry is needed for the common single-host
+        // setup). The daemon's --host arg defaults to TELNET_BIND_HOST, so set
+        // that in .env if the daemon binds a specific address. PUBTERM_HOST is
+        // only for the non-forwarded fallback / Windows path.
+        let targetHost = process.env.TELNET_BIND_HOST
+            || '127.0.0.1';
+        if (targetHost === '0.0.0.0' || targetHost === '::' || targetHost === '') {
+            targetHost = '127.0.0.1';
+        }
+        const targetPort = parseInt(process.env.PUBTERM_PORT || process.env.TELNET_PORT, 10) || 2323;
+        const isV6 = net.isIP(clientIp) === 6;
+        const proxyLine = `PROXY ${isV6 ? 'TCP6' : 'TCP4'} ${clientIp} ${isV6 ? '::1' : '127.0.0.1'} 0 ${targetPort}\r\n`;
+
+        const server = net.createServer((client) => {
+            // Only the first connection is expected — stop listening immediately.
+            try { server.close(); } catch (_) {}
+
+            const upstream = net.connect(targetPort, targetHost, () => {
+                upstream.write(proxyLine);
+                client.pipe(upstream);
+                upstream.pipe(client);
+            });
+            const bail = () => { try { client.destroy(); } catch (_) {} try { upstream.destroy(); } catch (_) {} };
+            client.on('error', bail);
+            upstream.on('error', bail);
+            client.on('close', () => { try { upstream.end(); } catch (_) {} });
+            upstream.on('close', () => { try { client.end(); } catch (_) {} });
+        });
+
+        try {
+            await new Promise((resolve, reject) => {
+                server.once('error', reject);
+                server.listen(0, '127.0.0.1', resolve);
+            });
+        } catch (e) {
+            slog.warn(`[${this.getName()}] PubTerm PROXY forwarder failed to start: ${e.message}`);
+            return {};
+        }
+
+        this.proxyForwarder = server;
+        const port = server.address().port;
+        slog.log(`[${this.getName()}] PubTerm PROXY forwarder 127.0.0.1:${port} -> ${targetHost}:${targetPort} (client ${clientIp})`);
+        return { PUBTERM_HOST: '127.0.0.1', PUBTERM_PORT: String(port) };
     }
 
     async launch(session, sessionData) {
@@ -677,6 +776,17 @@ class NativeAdapter extends EmulatorAdapter {
             ? JSON.parse(sessionData.user_data)
             : (sessionData.user_data || {});
 
+        // Real originating (browser-side) client IP, resolved from X-Forwarded-For
+        // by the multiplexing server.
+        const clientIp = (session && session.clientIp) ? String(session.clientIp) : '';
+
+        // PubTerm relays into the local terminal server, which would otherwise see
+        // 127.0.0.1 for every browser visitor. Stand up a per-session loopback
+        // forwarder that prepends a HAProxy PROXY v1 header naming the real client,
+        // and point the door at it. The door keeps using the ordinary telnet
+        // client, so TELNET option negotiation is unaffected.
+        const proxyEnvOverride = await this._setupPubtermProxyForwarder(door_id, clientIp, slog);
+
         const env = {
             ...process.env,
             DOOR_USER_NAME: userData.handle || userData.username || 'Guest',
@@ -687,7 +797,9 @@ class NativeAdapter extends EmulatorAdapter {
             DOOR_DROPFILE: dropfileFull,
             DOOR_HOME: homeDir,
             DOOR_ANSI: '1',
-            TERM: 'xterm-256color'
+            DOOR_CLIENT_IP: clientIp,
+            TERM: 'xterm-256color',
+            ...proxyEnvOverride
         };
 
         slog.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir} (output_encoding=${this.outputEncoding})`);
@@ -753,6 +865,10 @@ class NativeAdapter extends EmulatorAdapter {
 
     close() {
         const slog = this.slog || console;
+        if (this.proxyForwarder) {
+            try { this.proxyForwarder.close(); } catch (_) {}
+            this.proxyForwarder = null;
+        }
         if (this.ptyProcess) {
             slog.log(`[${this.getName()}] Killing PTY process`);
             this.ptyProcess.kill();
@@ -762,16 +878,201 @@ class NativeAdapter extends EmulatorAdapter {
 }
 
 /**
+ * RLogin Adapter
+ *
+ * Connects out to a remote host over the rlogin protocol (RFC 1282) instead
+ * of spawning a local process. There is no PTY and no local PID — the
+ * "connection" is a plain outbound TCP socket, so this adapter is structurally
+ * closer to DOSBoxAdapter's socket plumbing than to NativeAdapter's PTY, even
+ * though it plugs into the bridge the same way NativeAdapter does (immediate
+ * connect, no TCP listener/port pool).
+ */
+class RloginAdapter extends EmulatorAdapter {
+    constructor(basePath) {
+        super(basePath);
+        this.socket = null;
+        this.outputEncoding = 'utf8';
+        this.handshakeAcked = false;
+        this.pendingData = [];
+        this.dataCallback = null;
+    }
+
+    getName() {
+        return 'Rlogin';
+    }
+
+    async launch(session, sessionData) {
+        const { session_id, door_id } = sessionData;
+        const slog = this.slog || console;
+
+        slog.log(`[${this.getName()}] Launching door '${door_id}' for session ${session_id}`);
+
+        // RLogin doors have no filesystem footprint - the door definition
+        // lives entirely in Postgres (rlogin_doors table), not a manifest file.
+        const dbClient = new Client(buildDbConfig());
+        let doorCfg;
+        try {
+            await dbClient.connect();
+            const result = await dbClient.query('SELECT * FROM rlogin_doors WHERE door_id = $1', [door_id]);
+            if (result.rows.length === 0) {
+                throw new Error(`RLogin door '${door_id}' not found in rlogin_doors table`);
+            }
+            doorCfg = result.rows[0];
+        } finally {
+            await dbClient.end();
+        }
+
+        const host = doorCfg.host;
+        const port = parseInt(doorCfg.port, 10) || 513;
+        if (!host) {
+            throw new Error(`RLogin door '${door_id}' has no host configured`);
+        }
+
+        this.outputEncoding = doorCfg.output_encoding || 'utf8';
+
+        // Parse user data and any pre-login overrides for placeholder substitution
+        const userData = typeof sessionData.user_data === 'string'
+            ? JSON.parse(sessionData.user_data)
+            : (sessionData.user_data || {});
+
+        const placeholders = {
+            '{user_name}': userData.rlogin_remote_username || userData.handle || userData.username || userData.real_name || 'guest',
+            '{real_name}': userData.real_name || 'Guest',
+            '{user_number}': String(sessionData.user_id || ''),
+        };
+
+        const substitute = (template) => {
+            let result = String(template || '');
+            for (const [key, value] of Object.entries(placeholders)) {
+                result = result.split(key).join(value);
+            }
+            return result;
+        };
+
+        // Blank is a deliberate, valid choice for these two fields (some
+        // rlogin daemons accept an empty username field) -- unlike the other
+        // fields, an empty client/server username is not defaulted to
+        // {user_name} here.
+        const clientUsername = substitute(doorCfg.client_username || '');
+        const serverUsername = substitute(doorCfg.server_username || '');
+        // doorCfg.terminal_type is null when the sysop left it blank, meaning
+        // "use the connecting user's own terminal type" - PHP already resolved
+        // that (from their last telnet/SSH TERM, or xterm-256color for web
+        // launches with nothing to inherit) into user_data before this session
+        // was created.
+        const terminalType = doorCfg.terminal_type || userData.rlogin_terminal_type || 'xterm-256color';
+        const terminalSpeed = parseInt(doorCfg.terminal_speed, 10) || 38400;
+        const termString = `${terminalType}/${terminalSpeed}`;
+
+        slog.log(`[${this.getName()}] Connecting to ${host}:${port} as client='${clientUsername}' server='${serverUsername}' term='${termString}'`);
+
+        return new Promise((resolve, reject) => {
+            const socket = net.connect({ host, port }, () => {
+                slog.log(`[${this.getName()}] TCP connected, sending rlogin handshake`);
+                // RFC 1282 handshake: \0 clientUsername \0 serverUsername \0 term/speed \0
+                const handshake = Buffer.concat([
+                    Buffer.from([0]),
+                    Buffer.from(clientUsername, 'utf8'),
+                    Buffer.from([0]),
+                    Buffer.from(serverUsername, 'utf8'),
+                    Buffer.from([0]),
+                    Buffer.from(termString, 'utf8'),
+                    Buffer.from([0]),
+                ]);
+                socket.write(handshake);
+            });
+
+            socket.setNoDelay(true);
+            this.socket = socket;
+
+            const onFirstData = (chunk) => {
+                // The server acks the handshake with a single 0x00 byte before the
+                // session stream begins. It may arrive alone or prefixed to the
+                // first real data — strip at most one leading null byte, once.
+                if (!this.handshakeAcked) {
+                    this.handshakeAcked = true;
+                    if (chunk.length > 0 && chunk[0] === 0) {
+                        chunk = chunk.slice(1);
+                    }
+                    resolve({ process: this.socket, pid: null });
+                }
+                if (chunk.length > 0) {
+                    if (this.dataCallback) {
+                        this.dataCallback(chunk);
+                    } else {
+                        this.pendingData.push(chunk);
+                    }
+                }
+            };
+
+            socket.on('data', onFirstData);
+
+            socket.on('error', (err) => {
+                slog.error(`[${this.getName()}] Socket error: ${err.message}`);
+                if (!this.handshakeAcked) {
+                    reject(err);
+                }
+                if (this.exitCallback) {
+                    this.exitCallback(1, null);
+                }
+            });
+
+            socket.on('close', () => {
+                slog.log(`[${this.getName()}] Connection closed`);
+                if (this.exitCallback) {
+                    this.exitCallback(0, null);
+                }
+            });
+        });
+    }
+
+    onData(callback) {
+        this.dataCallback = callback;
+        if (this.pendingData.length > 0) {
+            const queued = this.pendingData;
+            this.pendingData = [];
+            queued.forEach(chunk => callback(chunk));
+        }
+    }
+
+    write(data) {
+        if (this.socket && !this.socket.destroyed) {
+            this.socket.write(data);
+        }
+    }
+
+    resize(cols, rows) {
+        // No-op: RFC 1282 has no standard live-resize mechanism. Only the
+        // initial terminal_type/terminal_speed sent at handshake time applies.
+    }
+
+    close() {
+        const slog = this.slog || console;
+        if (this.socket) {
+            slog.log(`[${this.getName()}] Closing socket`);
+            this.socket.destroy();
+            this.socket = null;
+        }
+    }
+}
+
+/**
  * Factory function to select appropriate emulator
  *
  * @param {string} basePath - Base path for BinktermPHP
- * @param {string} [doorType='dos'] - Door type: 'dos' or 'native'
+ * @param {string} [doorType='dos'] - Door type: 'dos', 'native', or 'rlogin'
  */
 function createEmulatorAdapter(basePath, doorType) {
     // Native Linux doors use PTY directly - no emulator needed
     if (doorType === 'native') {
         console.log('[EMULATOR] Door type: native, using NativeAdapter');
         return new NativeAdapter(basePath);
+    }
+
+    // RLogin doors connect out to a remote host - no local process/emulator
+    if (doorType === 'rlogin') {
+        console.log('[EMULATOR] Door type: rlogin, using RloginAdapter');
+        return new RloginAdapter(basePath);
     }
 
     // DOS doors: check environment variable for emulator preference
@@ -805,5 +1106,6 @@ module.exports = {
     DOSBoxAdapter,
     DOSEMUAdapter,
     NativeAdapter,
+    RloginAdapter,
     createEmulatorAdapter
 };

@@ -212,6 +212,10 @@ if (empty($doorId)) {
         let wsPort = null;
         let wsToken = null;
         const doorId = <?php echo json_encode($doorId); ?>;
+        // Native doors (e.g. PubTerm) run real ANSI programs over a PTY and expect
+        // standard xterm escape sequences for navigation keys. Only DOS doors
+        // driven through the Doorway protocol want \x00 + IBM PC scan codes.
+        const DOOR_IS_NATIVE = <?php echo json_encode(!empty($doorIsNativeTerminal)); ?>;
         const I18N = <?php echo json_encode([
             'statusPrefix' => $t('ui.dosdoor_player.status_prefix', 'Status:'),
             'statusDisconnected' => $t('ui.dosdoor_player.status_disconnected', 'Disconnected'),
@@ -325,6 +329,14 @@ if (empty($doorId)) {
             // for navigation/function keys, not ANSI escape sequences.
             term.attachCustomKeyEventHandler((e) => {
                 if (e.type !== 'keydown') return true;
+
+                // Native doors get raw xterm sequences — no Doorway remapping.
+                if (DOOR_IS_NATIVE) {
+                    if (e.ctrlKey && !e.altKey && e.key.length === 1) {
+                        e.preventDefault();
+                    }
+                    return true;
+                }
 
                 // Extended key Doorway Protocol scan codes (no modifier)
                 const doorwayKeys = {
@@ -586,6 +598,7 @@ if (empty($doorId)) {
         // attachCustomKeyEventHandler is too late on Windows; Alt is consumed first
         // Uses Doorway Protocol: \x00 + IBM PC scan code (standard for DOS BBS programs)
         document.addEventListener('keydown', function(e) {
+            if (DOOR_IS_NATIVE) return;
             if (!e.altKey || e.ctrlKey || !term || !socket || socket.readyState !== WebSocket.OPEN) return;
 
             // IBM PC scan codes for Alt+letter (Doorway Protocol)

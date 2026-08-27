@@ -28,6 +28,7 @@ FidoNet is a worldwide network of BBSs that exchange mail and files using store-
 - **File Areas**: FTN TIC file distribution with pluggable antivirus scanning (ClamAV, VirusTotal)
 - **WebDoors**: Drop-in game/application system (see `docs/WebDoors.md`)
 - **Native Doors & DOS Doors**: PTY and DOSBox-backed door games (see `docs/Doors.md`)
+- **RLogin Doors**: Connects out to a remote BBS or service over the rlogin protocol (see `docs/RLoginDoors.md`)
 - **Credits System**: Configurable in-world currency (see below)
 - **Webshare**: Share echomail messages via secure links with expiration
 - **Gateway Tokens**: SSO-like authentication for external services
@@ -92,7 +93,7 @@ All daemons write PID files to `data/run/` and logs to `data/logs/`. Use `restar
 |--------|--------|---------|----------|
 | Admin Daemon | `scripts/admin_daemon.php` | Logging relay, config writes, post-session triggers. Other daemons depend on it for structured logging. | Yes |
 | Binkp Server | `scripts/binkp_server.php` | Accepts incoming binkp connections from uplinks | If receiving mail |
-| Binkp Scheduler | `scripts/binkp_scheduler.php` | Schedules automatic uplink polling | If polling uplinks |
+| Binkp Scheduler | `scripts/binkp_scheduler.php` | Schedules automatic uplink polling; also runs the registration-screening cache list refreshes (Tor exit list, disposable email list) | If polling uplinks |
 | Realtime Server | `scripts/realtime_server.php` | WebSocket server for BinkStream; browsers fall back to SSE if not running | Optional |
 | Telnet Daemon | `scripts/telnet_daemon.php` | Telnet BBS terminal interface | Optional |
 | SSH Daemon | `ssh/ssh_daemon.php` | SSH-2 BBS terminal interface | Optional |
@@ -634,17 +635,18 @@ Several features require additional background daemons or services beyond the co
 
 ### Door Games
 
-BinktermPHP supports three door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
+BinktermPHP supports four door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
 
 | Type | Description | Doc |
 |------|-------------|-----|
 | **WebDoors** | HTML5/JavaScript games in a browser iframe — no extra server-side process required | [WebDoors.md](WebDoors.md) |
 | **Native Doors** | Linux binaries or Windows executables launched via PTY | [NativeDoors.md](NativeDoors.md) |
 | **DOS Doors** | Classic DOS games running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
+| **RLogin Doors** | Connects out to a remote BBS or service (e.g. Synchronet) over the rlogin protocol | [RLoginDoors.md](RLoginDoors.md) |
 
 #### Multiplexing Bridge (Node.js)
 
-Native Doors and DOS Doors both require the multiplexing bridge: `scripts/dosbox-bridge/multiplexing-server.js`. See [Doors.md](Doors.md) for full setup, environment variables, reverse proxy configuration, and service/daemon installation.
+Native Doors, DOS Doors, and RLogin Doors all require the multiplexing bridge: `scripts/dosbox-bridge/multiplexing-server.js`. See [Doors.md](Doors.md) for full setup, environment variables, reverse proxy configuration, and service/daemon installation.
 
 ```bash
 cd scripts/dosbox-bridge
@@ -703,8 +705,10 @@ Maintenance and scheduling scripts typically run via cron or the admin daemon's 
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/binkp_scheduler.php` | Schedules automatic uplink polling |
+| `scripts/binkp_scheduler.php` | Schedules automatic uplink polling; also refreshes the registration-screening cache lists (Tor exit list every 6h, disposable email list every 24h) |
 | `scripts/binkp_poll.php` | Polls a single uplink on demand |
+| `scripts/update_tor_exit_list.php` | Downloads/caches the Tor exit node list for registration screening (run manually or by `binkp_scheduler.php`) |
+| `scripts/update_disposable_email_list.php` | Downloads/caches the disposable email domain list for registration screening (run manually or by `binkp_scheduler.php`) |
 | `scripts/echomail_maintenance.php` | Prunes old messages per area retention settings |
 | `scripts/chat_cleanup.php` | Removes expired MRC chat history |
 | `scripts/logrotate.php` | Rotates application log files |

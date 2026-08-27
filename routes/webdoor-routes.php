@@ -263,6 +263,37 @@ SimpleRouter::get('/games', function() {
         ];
     }
 
+    // Get RLogin Doors
+    $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+    $rloginDoors = $rloginDoorManager->getEnabledDoors();
+    foreach ($rloginDoors as $doorId => $door) {
+        // Skip admin-only doors for non-admin users
+        if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+            continue;
+        }
+        // Skip doors configured as telnet/SSH-only
+        if (!empty($door['config']['hide_from_web'])) {
+            continue;
+        }
+        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        if (!empty($door['icon'])) {
+            $iconUrl = "/door-assets/{$doorId}/icon";
+        }
+
+        $games[] = [
+            'id' => $doorId,
+            'name' => $door['name'],
+            'description' => $door['description'] ?? '',
+            'author' => $door['author'] ?? null,
+            'version' => $door['game_version'] ?? null,
+            'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
+            'icon_url' => $iconUrl,
+            'type' => 'rlogindoor',
+            'genre' => $door['genre'] ?? [],
+            'players' => $door['players'] ?? null
+        ];
+    }
+
     // Get JS-DOS Doors
     if (JsdosDoorConfig::isConfigPresent()) {
         foreach (JsdosDoorManifest::listManifests() as $entry) {
@@ -417,6 +448,7 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
 
     // Include the DOS door player
     $doorId = $doorid; // For the player script
+    $doorIsNativeTerminal = false; // DOS doors use the Doorway protocol for nav keys
     require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
 });
 
@@ -462,7 +494,52 @@ SimpleRouter::get('/games/nativedoors/{doorid}', function($doorid) {
 
     // Reuse the DOS door terminal player (same WebSocket protocol)
     $doorId = $doorid;
+    $doorIsNativeTerminal = true; // Native doors expect raw xterm/ANSI key sequences
     require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
+});
+
+// GET /games/rlogindoors/{doorid} - Play an rlogin door
+SimpleRouter::get('/games/rlogindoors/{doorid}', function($doorid) {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+    if (GameConfig::isGameSystemEnabled() == false) {
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_code' => 'ui.webdoors.errors.system_disabled'
+        ]);
+        exit;
+    }
+
+    // Verify door exists and is enabled
+    $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+    $door = $rloginDoorManager->getDoor($doorid);
+
+    if (!$door || empty($door['config']['enabled']) || !empty($door['config']['hide_from_web'])) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig', [
+            'requested_url' => "/games/rlogindoors/{$doorid}"
+        ]);
+        return;
+    }
+
+    // Block admin-only doors for non-admins
+    if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.webdoors.errors.admin_only'
+        ]);
+        return;
+    }
+
+    $doorId = $doorid;
+    require __DIR__ . '/../public_html/webdoors/rlogindoors/index.php';
 });
 
 // GET /games/jsdos/{gameId} - JS-DOS door player (or coming-soon for custom emulators)
@@ -923,6 +1000,31 @@ SimpleRouter::get('/games/{game}', function($game) {
             'door' => $nativeDoor,
             'door_id' => $game,
             'player_url' => "/games/nativedoors/{$game}"
+        ]);
+        return;
+    }
+
+    // Check if this is an rlogin door
+    $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+    $rloginDoor = $rloginDoorManager->getDoor($game);
+
+    if ($rloginDoor && !empty($rloginDoor['config']['enabled'])) {
+        // Block admin-only doors for non-admins
+        if (!empty($rloginDoor['admin_only']) && empty($user['is_admin'])) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('error.twig', [
+                'error_title_code' => 'ui.error.access_error',
+                'error_code' => 'ui.webdoors.errors.admin_only'
+            ]);
+            return;
+        }
+
+        $template = new Template();
+        $template->renderResponse('dosdoor_play.twig', [
+            'door' => $rloginDoor,
+            'door_id' => $game,
+            'player_url' => "/games/rlogindoors/{$game}"
         ]);
         return;
     }

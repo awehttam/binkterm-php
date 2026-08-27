@@ -1,0 +1,774 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.rlogindoors_config.page_title', {}, locale, ['common']) }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.rlogindoors_config.heading', {}, locale, ['common']) }}</h1>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary" id="importSynchronetBtn">
+                <i class="fas fa-cloud-arrow-down"></i> {{ t('ui.admin.rlogindoors_config.import_from_synchronet', {}, locale, ['common']) }}
+            </button>
+            <button type="button" class="btn btn-primary" id="addDoorBtn">
+                <i class="fas fa-plus"></i> {{ t('ui.admin.rlogindoors_config.add_door', {}, locale, ['common']) }}
+            </button>
+        </div>
+    </div>
+
+    <div id="statusAlert"></div>
+
+    <div class="card shadow">
+        <div class="card-header">
+            <h6 class="mb-0">{{ t('ui.admin.rlogindoors_config.installed_doors', {}, locale, ['common']) }}</h6>
+        </div>
+        <div class="card-body" id="doorsList">
+            <div class="text-center text-muted">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
+                </div>
+                {{ t('ui.admin.rlogindoors_config.loading_doors', {}, locale, ['common']) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Door Modal -->
+<div class="modal fade" id="doorModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <form id="doorForm" enctype="multipart/form-data" style="display: contents;">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="doorModalTitle">{{ t('ui.admin.rlogindoors_config.add_door', {}, locale, ['common']) }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalAlert"></div>
+
+                    <input type="hidden" name="existing_door_id" id="fieldExistingDoorId" value="">
+
+                    <h6 class="text-muted">{{ t('ui.admin.door_manifest_editor.section.game_info', {}, locale, ['common']) }}</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">{{ t('ui.admin.rlogindoors_config.door_id_label', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="door_id" id="fieldDoorId" pattern="[A-Za-z0-9_-]+" required>
+                            <div class="form-text">{{ t('ui.admin.rlogindoors_config.door_id_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_name', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_short_name', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="short_name">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_author', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="author">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_version', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="game_version">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_release_year', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" name="release_year">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_genre', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="genre" placeholder="RPG, Strategy">
+                            <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.tags_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_description', {}, locale, ['common']) }}</label>
+                            <textarea class="form-control" name="description" rows="1"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_icon', {}, locale, ['common']) }}</label>
+                            <div class="d-flex align-items-start gap-2">
+                                <div id="iconPreviewWrap" class="border rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width:56px;height:56px;overflow:hidden;">
+                                    <i class="fas fa-image text-muted" id="iconPreviewPlaceholder"></i>
+                                    <img id="iconPreviewImg" alt="" style="display:none;max-width:100%;max-height:100%;object-fit:contain;">
+                                </div>
+                                <div class="flex-grow-1">
+                                    <input type="file" class="form-control" name="icon" id="fieldIcon" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml">
+                                    <div class="d-flex align-items-center flex-wrap gap-2 mt-1">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="generateIconBtn">
+                                            <i class="fas fa-wand-magic-sparkles"></i> {{ t('ui.admin.rlogindoors_config.generate_icon_ai', {}, locale, ['common']) }}
+                                        </button>
+                                        <div class="form-check mb-0" id="removeIconWrap" style="display:none;">
+                                            <input class="form-check-input" type="checkbox" name="remove_icon" id="fieldRemoveIcon">
+                                            <label class="form-check-label" for="fieldRemoveIcon">{{ t('ui.admin.rlogindoors_config.remove_image', {}, locale, ['common']) }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.game_screenshot', {}, locale, ['common']) }}</label>
+                            <input type="file" class="form-control" name="screenshot" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml">
+                            <div class="form-check mt-1" id="removeScreenshotWrap" style="display:none;">
+                                <input class="form-check-input" type="checkbox" name="remove_screenshot" id="fieldRemoveScreenshot">
+                                <label class="form-check-label" for="fieldRemoveScreenshot">{{ t('ui.admin.rlogindoors_config.remove_image', {}, locale, ['common']) }}</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted">{{ t('ui.admin.door_manifest_editor.section.door_setup', {}, locale, ['common']) }}</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.bbs_type', {}, locale, ['common']) }}</label>
+                            <select class="form-select" name="bbs_type" id="fieldBbsType">
+                                <option value="plain_rlogin">{{ t('ui.admin.door_manifest_editor.bbs_type.plain_rlogin', {}, locale, ['common']) }}</option>
+                                <option value="synchronet">{{ t('ui.admin.door_manifest_editor.bbs_type.synchronet', {}, locale, ['common']) }}</option>
+                                <option value="synchronet_service">{{ t('ui.admin.door_manifest_editor.bbs_type.synchronet_service', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.bbs_type_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.rlogin_host', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="host" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.rlogin_port', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" name="port" value="513">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.client_username', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="client_username" placeholder="{user_name}">
+                            <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.client_username_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.server_username', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="server_username" placeholder="{user_name}">
+                            <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.server_username_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.terminal_type', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" name="terminal_type" placeholder="xterm-256color">
+                            <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.terminal_type_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.terminal_speed', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" name="terminal_speed" value="38400">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.output_encoding', {}, locale, ['common']) }}</label>
+                            <select class="form-select" name="output_encoding">
+                                <option value="cp437" selected>{{ t('ui.admin.door_manifest_editor.encoding.cp437', {}, locale, ['common']) }}</option>
+                                <option value="utf8">{{ t('ui.admin.door_manifest_editor.encoding.utf8', {}, locale, ['common']) }}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-9">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.pre_login_command', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control font-monospace" name="pre_login_command" id="fieldPreLoginCommand">
+                            <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.pre_login_command_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.pre_login_timeout', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" name="pre_login_timeout" value="10">
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted">{{ t('ui.admin.door_manifest_editor.section.runtime_defaults', {}, locale, ['common']) }}</h6>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.credit_cost', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" name="credit_cost" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.max_time_minutes', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" name="max_time_minutes" value="30">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.max_sessions', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" name="max_sessions" value="10">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="enabled" id="fieldEnabled">
+                                <label class="form-check-label" for="fieldEnabled">{{ t('ui.admin.door_manifest_editor.enabled_label', {}, locale, ['common']) }}</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="admin_only" id="fieldAdminOnly">
+                                <label class="form-check-label" for="fieldAdminOnly">{{ t('ui.admin.door_manifest_editor.field.admin_only', {}, locale, ['common']) }}</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="hide_from_web" id="fieldHideFromWeb">
+                                <label class="form-check-label" for="fieldHideFromWeb">{{ t('ui.admin.rlogindoors_config.hide_from_web', {}, locale, ['common']) }}</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-8">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" name="allow_anonymous" id="fieldAllowAnonymous">
+                                <label class="form-check-label" for="fieldAllowAnonymous">{{ t('ui.admin.door_manifest_editor.field.allow_anonymous', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-text">{{ t('ui.admin.door_manifest_editor.field.allow_anonymous_help', {}, locale, ['common']) }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.admin.door_manifest_editor.field.guest_max_sessions', {}, locale, ['common']) }}</label>
+                            <input type="number" class="form-control" name="guest_max_sessions" value="2">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                    <button type="submit" class="btn btn-primary" id="doorSaveBtn">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import from Synchronet Preview Modal -->
+<div class="modal fade" id="importPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.rlogindoors_config.import_preview_title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="importPreviewAlert"></div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <p class="mb-0">{{ t('ui.admin.rlogindoors_config.import_preview_intro', {}, locale, ['common']) }}</p>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" id="importSelectAllBtn">{{ t('ui.admin.rlogindoors_config.import_select_all', {}, locale, ['common']) }}</button>
+                        <button type="button" class="btn btn-outline-secondary" id="importSelectNoneBtn">{{ t('ui.admin.rlogindoors_config.import_select_none', {}, locale, ['common']) }}</button>
+                    </div>
+                </div>
+                <div id="importCandidatesList"></div>
+                <div class="text-muted small mt-2" id="importExistingNote"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" id="importConfirmBtn">{{ t('ui.admin.rlogindoors_config.import_selected_btn', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let doorsState = { doors: [] };
+let doorModal = null;
+let importPreviewModal = null;
+let importCandidates = [];
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+// Pre-Login Command defaults per BBS Type preset. Selecting a preset only
+// fills the field when it's currently empty or still holds another preset's
+// default — a value the sysop has actually typed themselves is never
+// overwritten by switching the dropdown.
+const BBS_TYPE_PRELOGIN_DEFAULTS = {
+    plain_rlogin: '',
+    synchronet: '',
+    synchronet_service: 'php scripts/synchronet_add_user.php {user_name} {real_name} {user_number}',
+};
+
+function applyBbsTypeDefaults() {
+    const bbsTypeField = document.getElementById('fieldBbsType');
+    const preLoginField = document.getElementById('fieldPreLoginCommand');
+    const newDefault = BBS_TYPE_PRELOGIN_DEFAULTS[bbsTypeField.value] ?? '';
+
+    const currentValue = preLoginField.value;
+    const isKnownDefault = Object.values(BBS_TYPE_PRELOGIN_DEFAULTS).includes(currentValue);
+
+    if (currentValue === '' || isKnownDefault) {
+        preLoginField.value = newDefault;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadDoors();
+    });
+
+    doorModal = new bootstrap.Modal(document.getElementById('doorModal'));
+    importPreviewModal = new bootstrap.Modal(document.getElementById('importPreviewModal'));
+
+    document.getElementById('addDoorBtn').addEventListener('click', () => openAddModal());
+    document.getElementById('doorForm').addEventListener('submit', onSubmitDoorForm);
+    document.getElementById('fieldBbsType').addEventListener('change', applyBbsTypeDefaults);
+    document.getElementById('fieldIcon').addEventListener('change', onIconFileSelected);
+    document.getElementById('generateIconBtn').addEventListener('click', generateIconWithAi);
+    document.getElementById('fieldRemoveIcon').addEventListener('change', function() {
+        if (this.checked) {
+            clearIconPreview();
+        }
+    });
+    document.getElementById('importSynchronetBtn').addEventListener('click', openImportPreview);
+    document.getElementById('importSelectAllBtn').addEventListener('click', () => setAllImportCandidates(true));
+    document.getElementById('importSelectNoneBtn').addEventListener('click', () => setAllImportCandidates(false));
+    document.getElementById('importConfirmBtn').addEventListener('click', confirmImportSelected);
+});
+
+function openImportPreview() {
+    const btn = document.getElementById('importSynchronetBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + uiT('ui.admin.rlogindoors_config.loading_preview', 'Loading available doors...');
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    fetch('/admin/api/rlogin-doors-import-synchronet-preview', {
+        method: 'POST',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.import_failed', 'Import failed')));
+        }
+        importCandidates = data.candidates || [];
+        renderImportCandidates(data.existing_count || 0);
+        document.getElementById('importPreviewAlert').innerHTML = '';
+        importPreviewModal.show();
+    })
+    .catch(error => {
+        showAlert('danger', error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+}
+
+function renderImportCandidates(existingCount) {
+    const container = document.getElementById('importCandidatesList');
+
+    if (importCandidates.length === 0) {
+        container.innerHTML = '<div class="text-muted">' + uiT('ui.admin.rlogindoors_config.import_no_candidates', 'No new doors to import — everything is already imported.') + '</div>';
+    } else {
+        let html = '<div class="list-group">';
+        importCandidates.forEach((door, i) => {
+            html += `
+                <label class="list-group-item d-flex align-items-start gap-2">
+                    <input class="form-check-input mt-1 import-candidate-checkbox" type="checkbox" data-index="${i}" checked>
+                    <span>
+                        <strong>${escHtml(door.name)}</strong>
+                        <span class="text-muted small"> (${escHtml(door.code)})</span>
+                        ${door.sec_name ? '<span class="badge bg-secondary ms-1">' + escHtml(door.sec_name) + '</span>' : ''}
+                        ${door.author ? '<span class="text-muted small d-block">' + uiT('ui.admin.rlogindoors_config.import_by', 'By {author}', { author: escHtml(door.author) }) + '</span>' : ''}
+                        ${door.description ? '<span class="text-muted small d-block">' + escHtml(door.description) + '</span>' : ''}
+                    </span>
+                </label>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    document.getElementById('importExistingNote').textContent = existingCount > 0
+        ? uiT('ui.admin.rlogindoors_config.import_already_exists_note', '{count} door(s) already imported and not shown here.', { count: existingCount })
+        : '';
+
+    document.getElementById('importConfirmBtn').disabled = importCandidates.length === 0;
+}
+
+function setAllImportCandidates(checked) {
+    document.querySelectorAll('.import-candidate-checkbox').forEach(cb => { cb.checked = checked; });
+}
+
+function confirmImportSelected() {
+    const selected = Array.from(document.querySelectorAll('.import-candidate-checkbox:checked'))
+        .map(cb => importCandidates[parseInt(cb.dataset.index, 10)]);
+
+    if (selected.length === 0) {
+        document.getElementById('importPreviewAlert').innerHTML =
+            '<div class="alert alert-warning">' + uiT('errors.admin.rlogin_doors.no_doors_selected', 'No doors were selected to import') + '</div>';
+        return;
+    }
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const btn = document.getElementById('importConfirmBtn');
+    btn.disabled = true;
+
+    fetch('/admin/api/rlogin-doors-import-synchronet-confirm', {
+        method: 'POST',
+        headers: Object.assign(
+            { 'Content-Type': 'application/json' },
+            csrfToken ? { 'X-CSRF-Token': csrfToken } : {}
+        ),
+        body: JSON.stringify({ doors: selected }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.import_failed', 'Import failed')));
+        }
+        importPreviewModal.hide();
+        const imported = (data.imported || []).length;
+        const skipped = (data.skipped || []).length;
+        showAlert('success', uiT('ui.admin.rlogindoors_config.import_success', 'Imported {imported} door(s), skipped {skipped} already present.', { imported, skipped }));
+        if ((data.errors || []).length > 0) {
+            showAlert('warning', data.errors.join('; '));
+        }
+        loadDoors();
+    })
+    .catch(error => {
+        document.getElementById('importPreviewAlert').innerHTML =
+            '<div class="alert alert-danger">' + escHtml(error.message) + '</div>';
+    })
+    .finally(() => {
+        btn.disabled = false;
+    });
+}
+
+function loadDoors() {
+    fetch('/admin/api/rlogin-doors', { cache: 'no-store' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.load_doors_failed', 'Failed to load doors')));
+            }
+            doorsState.doors = data.doors || [];
+            renderDoorsList();
+        })
+        .catch(error => {
+            showAlert('danger', uiT('ui.admin.rlogindoors_config.load_doors_error_prefix', 'Error loading available doors: ') + error.message);
+        });
+}
+
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function renderDoorsList() {
+    const container = document.getElementById('doorsList');
+
+    if (doorsState.doors.length === 0) {
+        container.innerHTML = '<div class="text-muted">' + uiT('ui.admin.rlogindoors_config.no_doors_yet', 'No RLogin doors yet. Click Add Door to create one.') + '</div>';
+        return;
+    }
+
+    let html = '<div class="list-group list-group-flush">';
+
+    doorsState.doors.forEach(door => {
+        const cfg = door.config || {};
+        const enabled = !!cfg.enabled;
+        const cost = cfg.credit_cost || 0;
+        const hideFromWeb = !!cfg.hide_from_web;
+        const statusClass = enabled ? 'success' : 'secondary';
+        const statusIcon = enabled ? 'fa-check-circle' : 'fa-circle';
+        const iconHtml = door.icon_url
+            ? `<img src="${escHtml(door.icon_url)}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:4px;">`
+            : '<i class="fas fa-right-to-bracket text-muted" style="width:32px;font-size:1.5rem;"></i>';
+
+        html += `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="d-flex gap-2 flex-grow-1">
+                        ${iconHtml}
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <i class="fas ${statusIcon} text-${statusClass}"></i>
+                                <strong>${escHtml(door.name)}</strong>
+                            </div>
+                            <div class="small text-muted">${escHtml(door.description || uiT('ui.admin.rlogindoors_config.no_description', 'No description'))}</div>
+                            <div class="small text-muted">${escHtml(door.host)}:${escHtml(String(door.port))}</div>
+                            <div class="small mt-1">
+                                <span class="badge bg-secondary">${escHtml(door.id)}</span>
+                                ${cost > 0 ? `<span class="badge bg-info">${cost} ${uiT('ui.admin.rlogindoors_config.credits', 'credits')}</span>` : '<span class="badge bg-success">' + uiT('ui.admin.rlogindoors_config.free', 'Free') + '</span>'}
+                                ${hideFromWeb ? `<span class="badge bg-warning text-dark">${uiT('ui.admin.rlogindoors_config.telnet_only', 'Telnet/SSH only')}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="btn-group-vertical btn-group-sm">
+                        <button class="btn btn-outline-primary edit-door-btn" data-door-id="${escHtml(door.id)}" title="${uiT('ui.common.edit', 'Edit')}">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="btn btn-outline-danger delete-door-btn" data-door-id="${escHtml(door.id)}" title="${uiT('ui.common.delete', 'Delete')}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    container.querySelectorAll('.edit-door-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            openEditModal(this.dataset.doorId);
+        });
+    });
+
+    container.querySelectorAll('.delete-door-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            deleteDoor(this.dataset.doorId);
+        });
+    });
+}
+
+function setIconPreviewUrl(url) {
+    const img = document.getElementById('iconPreviewImg');
+    const placeholder = document.getElementById('iconPreviewPlaceholder');
+    img.src = url;
+    img.style.display = '';
+    placeholder.style.display = 'none';
+}
+
+function clearIconPreview() {
+    const img = document.getElementById('iconPreviewImg');
+    const placeholder = document.getElementById('iconPreviewPlaceholder');
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    placeholder.style.display = '';
+}
+
+function onIconFileSelected() {
+    const fieldRemoveIcon = document.getElementById('fieldRemoveIcon');
+    if (fieldRemoveIcon) {
+        fieldRemoveIcon.checked = false;
+    }
+
+    const file = document.getElementById('fieldIcon').files[0];
+    if (!file) {
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setIconPreviewUrl(reader.result);
+    reader.readAsDataURL(file);
+}
+
+function generateIconWithAi() {
+    const form = document.getElementById('doorForm');
+    const name = form.elements['name'].value.trim();
+    const shortName = form.elements['short_name'].value.trim();
+    const genre = form.elements['genre'].value.trim();
+    const description = form.elements['description'].value.trim();
+
+    const btn = document.getElementById('generateIconBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + uiT('ui.admin.rlogindoors_config.generate_icon_loading', 'Generating icon...');
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    fetch('/admin/api/rlogin-doors-generate-icon', {
+        method: 'POST',
+        headers: Object.assign(
+            { 'Content-Type': 'application/json' },
+            csrfToken ? { 'X-CSRF-Token': csrfToken } : {}
+        ),
+        body: JSON.stringify({ name, short_name: shortName, genre, description }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.generate_icon_failed', 'AI icon generation failed')));
+        }
+
+        const blob = new Blob([data.svg], { type: 'image/svg+xml' });
+        const file = new File([blob], 'ai-generated-icon.svg', { type: 'image/svg+xml' });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        document.getElementById('fieldIcon').files = dataTransfer.files;
+
+        const fieldRemoveIcon = document.getElementById('fieldRemoveIcon');
+        if (fieldRemoveIcon) {
+            fieldRemoveIcon.checked = false;
+        }
+
+        setIconPreviewUrl(URL.createObjectURL(blob));
+        showModalAlert('success', uiT('ui.admin.rlogindoors_config.generate_icon_success', 'AI icon generated. Review and save.'));
+    })
+    .catch(error => {
+        showModalAlert('danger', error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+}
+
+function resetForm() {
+    const form = document.getElementById('doorForm');
+    form.reset();
+    document.getElementById('fieldDoorId').disabled = false;
+    document.getElementById('fieldExistingDoorId').value = '';
+    document.getElementById('removeIconWrap').style.display = 'none';
+    document.getElementById('removeScreenshotWrap').style.display = 'none';
+    document.getElementById('modalAlert').innerHTML = '';
+    clearIconPreview();
+}
+
+function openAddModal() {
+    resetForm();
+    document.getElementById('doorModalTitle').textContent = uiT('ui.admin.rlogindoors_config.add_door', 'Add Door');
+    doorModal.show();
+}
+
+function openEditModal(doorId) {
+    resetForm();
+    document.getElementById('doorModalTitle').textContent = uiT('ui.admin.rlogindoors_config.edit_door', 'Edit Door');
+
+    fetch('/admin/api/rlogin-doors/' + encodeURIComponent(doorId), { cache: 'no-store' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.load_door_failed', 'Failed to load door')));
+            }
+            const door = data.door;
+            const form = document.getElementById('doorForm');
+
+            form.elements['door_id'].value = door.id;
+            form.elements['door_id'].disabled = true;
+            document.getElementById('fieldExistingDoorId').value = door.id;
+            form.elements['name'].value = door.name || '';
+            form.elements['short_name'].value = door.short_name || '';
+            form.elements['author'].value = door.author || '';
+            form.elements['game_version'].value = door.game_version || '';
+            form.elements['release_year'].value = door.release_year || '';
+            form.elements['genre'].value = (door.genre || []).join(', ');
+            form.elements['description'].value = door.description || '';
+            form.elements['bbs_type'].value = door.bbs_type || 'plain_rlogin';
+            form.elements['host'].value = door.host || '';
+            form.elements['port'].value = door.port || 513;
+            form.elements['client_username'].value = door.client_username || '';
+            form.elements['server_username'].value = door.server_username || '';
+            form.elements['terminal_type'].value = door.terminal_type || '';
+            form.elements['terminal_speed'].value = door.terminal_speed || 38400;
+            form.elements['output_encoding'].value = door.output_encoding || 'cp437';
+            form.elements['pre_login_command'].value = door.pre_login_command || '';
+            form.elements['pre_login_timeout'].value = door.pre_login_timeout || 10;
+            form.elements['admin_only'].checked = !!door.admin_only;
+
+            const cfg = door.config || {};
+            form.elements['enabled'].checked = !!cfg.enabled;
+            form.elements['credit_cost'].value = cfg.credit_cost || 0;
+            form.elements['max_time_minutes'].value = cfg.max_time_minutes || 30;
+            form.elements['max_sessions'].value = cfg.max_sessions || 10;
+            form.elements['allow_anonymous'].checked = !!cfg.allow_anonymous;
+            form.elements['guest_max_sessions'].value = cfg.guest_max_sessions || 2;
+            form.elements['hide_from_web'].checked = !!cfg.hide_from_web;
+
+            if (door.icon_url) {
+                document.getElementById('removeIconWrap').style.display = '';
+                setIconPreviewUrl(door.icon_url);
+            }
+            if (door.screenshot_url) {
+                document.getElementById('removeScreenshotWrap').style.display = '';
+            }
+
+            doorModal.show();
+        })
+        .catch(error => {
+            showAlert('danger', error.message);
+        });
+}
+
+function onSubmitDoorForm(event) {
+    event.preventDefault();
+
+    const form = document.getElementById('doorForm');
+    const existingDoorId = document.getElementById('fieldExistingDoorId').value;
+    const isEdit = existingDoorId !== '';
+    const formData = new FormData(form);
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const url = isEdit ? '/admin/api/rlogin-doors/' + encodeURIComponent(existingDoorId) : '/admin/api/rlogin-doors';
+
+    document.getElementById('doorSaveBtn').disabled = true;
+
+    fetch(url, {
+        method: 'POST',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.save_failed', 'Save failed')));
+        }
+        doorModal.hide();
+        const successMessage = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.rlogindoors_config.saved_success', 'Configuration saved successfully!'))
+            : uiT('ui.admin.rlogindoors_config.saved_success', 'Configuration saved successfully!');
+        showAlert('success', successMessage);
+        loadDoors();
+    })
+    .catch(error => {
+        showModalAlert('danger', error.message);
+    })
+    .finally(() => {
+        document.getElementById('doorSaveBtn').disabled = false;
+    });
+}
+
+function deleteDoor(doorId) {
+    if (!confirm(uiT('ui.admin.rlogindoors_config.confirm_delete', 'Are you sure you want to delete this door? This cannot be undone.'))) {
+        return;
+    }
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    fetch('/admin/api/rlogin-doors/' + encodeURIComponent(doorId) + '/delete', {
+        method: 'POST',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.rlogindoors_config.delete_failed', 'Failed to delete door')));
+        }
+        showAlert('success', uiT('ui.admin.rlogindoors_config.deleted_success', 'Door deleted successfully.'));
+        loadDoors();
+    })
+    .catch(error => {
+        showAlert('danger', error.message);
+    });
+}
+
+function showAlert(type, message) {
+    const alert = document.getElementById('statusAlert');
+    alert.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showModalAlert(type, message) {
+    const alert = document.getElementById('modalAlert');
+    alert.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+</script>
+{% endblock %}

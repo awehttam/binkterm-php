@@ -13,6 +13,7 @@ PubTerm supports anonymous (guest) access, making it the primary entry point for
 - [Configuration](#configuration)
 - [Terminal Size](#terminal-size)
 - [Environment Variables](#environment-variables)
+- [Real Client IP Forwarding](#real-client-ip-forwarding)
 - [Guest Access](#guest-access)
 - [Known Limitations](#known-limitations)
 - [Troubleshooting](#troubleshooting)
@@ -99,10 +100,53 @@ PubTerm reads the following variables from `.env`. All have sensible defaults an
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PUBTERM_HOST` | `127.0.0.1` | Hostname or IP of the BBS telnet server |
+| `PUBTERM_HOST` | `127.0.0.1` | Hostname or IP of the BBS telnet server. Used only for the Windows path and the fallback below — the normal Linux path connects through the IP-forwarding relay instead |
 | `PUBTERM_PORT` | `2323` | Port of the BBS telnet server |
 | `PUBTERM_TELNET_BIN` | `telnet` | Path to the telnet binary (Linux/macOS). Override if telnet is not on `PATH` |
 | `PUBTERM_PLINK_BIN` | `plink` | Path to PuTTY's `plink.exe` (Windows only). Override if plink is not on `PATH` |
+
+---
+
+## Real Client IP Forwarding
+
+PubTerm connects a browser visitor's terminal session to the local telnet
+server. Because that connection originates on the server itself, the telnet
+daemon would see `127.0.0.1` (or the server's own IP) for every PubTerm user
+instead of the visitor's real address. That would defeat per-IP connection rate
+limiting, new-user registration screening, and audit logging for anyone who
+arrives through PubTerm.
+
+To prevent this, the multiplexing bridge starts a short-lived per-session
+loopback relay for each PubTerm connection. The relay connects to the telnet
+daemon, sends a HAProxy **PROXY protocol v1** header naming the real client, and
+then splices the two connections together. PubTerm itself still uses the ordinary
+system `telnet` client, so terminal option negotiation is unaffected.
+
+The telnet daemon honours the PROXY header only from trusted source addresses,
+and it automatically trusts loopback and its own bind address. **On a standard
+single-host install this works with no configuration** — the relay reaches the
+daemon over loopback or its bind address, both of which are trusted by default.
+
+When the relay reaches the daemon from some other address, add that address to
+`TELNET_TRUSTED_PROXIES` in `.env` and restart the telnet daemon. See
+[TelnetServer.md](TelnetServer.md#proxied-connections-proxy-protocol) for the
+trust rules and the relevant `.env` variables.
+
+The relay dials the telnet daemon at `TELNET_BIND_HOST` (falling back to loopback
+when that is a wildcard such as `0.0.0.0`). The daemon's own `--host` argument
+defaults to `TELNET_BIND_HOST`, so if the daemon binds a specific address, set
+`TELNET_BIND_HOST` in `.env` to match and the relay will reach it.
+
+A successful connection logs, in `data/logs/telnetd.log`:
+
+```
+PROXY header from <relay-ip>: real client <visitor-ip>
+Connection #N from <visitor-ip> (via bridge)
+```
+
+**Windows:** the Windows launch path uses PuTTY's `plink` and does not forward the
+client IP; PubTerm sessions on a Windows host are attributed to the loopback
+address.
 
 ---
 
@@ -129,6 +173,10 @@ The BBS does correctly handle mid-session NAWS when it arrives — the limitatio
 
 **Workaround:** set `terminal_size` to a fixed size that matches your BBS layout (e.g. `"132x43"`). The BBS will render correctly at that size for all users regardless of their browser window dimensions.
 
+### Client IP forwarding on Windows
+
+The Windows launch path uses PuTTY's `plink` instead of the loopback relay and does not send a PROXY header, so PubTerm sessions on a Windows host are attributed to the loopback address rather than the visitor's real IP. See [Real Client IP Forwarding](#real-client-ip-forwarding).
+
 ---
 
 ## Troubleshooting
@@ -140,6 +188,12 @@ The BBS does correctly handle mid-session NAWS when it arrives — the limitatio
 **"telnet command not found" error on connect**
 - Install the telnet client: `sudo apt install telnet` (Debian/Ubuntu) or `sudo dnf install telnet` (RHEL).
 - Or set `PUBTERM_TELNET_BIN` in `.env` to the full path of your telnet binary.
+
+**`telnetd.log` shows `127.0.0.1` or the server's own IP for PubTerm users**
+- The bridge log should show a `PubTerm PROXY forwarder ... -> <host>:<port>` line at connect time. If it does not, the bridge is running old code — restart it.
+- `telnetd.log` should show `PROXY header from <ip>: real client <visitor-ip>`. If instead it says `No PROXY header from trusted source <ip>`, the telnet daemon is running old code — restart it.
+- If it shows neither line, `<ip>` (the address the relay connects from) is not trusted. Confirm `TELNET_BIND_HOST` in `.env` matches the daemon's actual bind address, or add the relay's address to `TELNET_TRUSTED_PROXIES`, then restart the daemon.
+- See [Real Client IP Forwarding](#real-client-ip-forwarding).
 
 **Guest sessions hit the concurrency limit immediately**
 - Increase `guest_max_sessions` in the admin config, or check for stale sessions in the database (`door_sessions` table where `ended_at IS NULL` and `expires_at < NOW()`).

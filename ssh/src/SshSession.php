@@ -120,6 +120,9 @@ class SshSession
     private int $termRows = 24;
     private bool $shellStarted = false;
 
+    /** TERM string reported by the client's pty-req, if any (e.g. "xterm-256color"). */
+    private ?string $termType = null;
+
     /** Pending resize from a window-change channel request, not yet consumed. */
     private ?array $pendingResize = null;
 
@@ -196,6 +199,7 @@ class SshSession
             return array_merge($authResult, [
                 'cols' => $this->termCols,
                 'rows' => $this->termRows,
+                'term_type' => $this->termType,
                 'sixel_supported' => $this->sixelSupported,
             ]);
         } catch (\Throwable $e) {
@@ -898,7 +902,7 @@ class SshSession
 
         if ($reqType === 'pty-req') {
             // term, cols, rows, px-width, px-height, terminal-modes
-            $this->readString($pkt, $offset);          // term (ignored)
+            $this->termType = $this->readString($pkt, $offset);
             $this->termCols = $this->unpackUint32($pkt, $offset);
             $this->termRows = $this->unpackUint32($pkt, $offset);
             $this->unpackUint32($pkt, $offset);        // px width
@@ -1192,6 +1196,18 @@ class SshSession
     public function getPeerWindowSize(): int
     {
         return $this->peerWindowSize;
+    }
+
+    /**
+     * Return the TERM string reported by the client's pty-req (e.g. "xterm-256color"),
+     * or null if no pty-req has been received yet. SSH conveys this out-of-band from
+     * the plain-socket byte stream, unlike telnet's in-band TTYPE negotiation, so
+     * BbsSession can't detect it itself — the daemon entrypoint seeds BbsSession's
+     * $state['terminal_type'] with this value after the channel is established.
+     */
+    public function getTermType(): ?string
+    {
+        return $this->termType;
     }
 
     /**

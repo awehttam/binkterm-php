@@ -228,7 +228,9 @@ try {
             $totalCount = count($campaignResults);
             $logger->info("Processed {$totalCount} ad campaign posts ({$successCount} successful, {$failureCount} failed)");
         }
-        
+
+        $scheduler->runScreeningListRefreshOnce();
+
         exit(0);
     }
     

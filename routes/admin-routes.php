@@ -115,12 +115,255 @@ if (!function_exists('apiLocalizedText')) {
     }
 }
 
+if (!function_exists('rloginDoorFieldsFromRequest')) {
+    /**
+     * Build the fields array RLoginDoorManager::createDoor()/updateDoor() expect
+     * from a raw $_POST payload (admin CRUD form submission).
+     */
+    function rloginDoorFieldsFromRequest(array $post): array
+    {
+        $genreRaw = trim((string)($post['genre'] ?? ''));
+        $genre = $genreRaw === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $genreRaw))));
+
+        return [
+            'name' => trim((string)($post['name'] ?? '')),
+            'short_name' => trim((string)($post['short_name'] ?? '')),
+            'author' => trim((string)($post['author'] ?? '')),
+            'game_version' => trim((string)($post['game_version'] ?? '')),
+            'release_year' => $post['release_year'] ?? '',
+            'description' => trim((string)($post['description'] ?? '')),
+            'genre' => $genre,
+            'players' => trim((string)($post['players'] ?? '')),
+            'bbs_type' => (string)($post['bbs_type'] ?? 'plain_rlogin'),
+            'host' => trim((string)($post['host'] ?? '')),
+            'port' => $post['port'] ?? '',
+            'client_username' => trim((string)($post['client_username'] ?? '')),
+            'server_username' => trim((string)($post['server_username'] ?? '')),
+            'terminal_type' => trim((string)($post['terminal_type'] ?? '')),
+            'terminal_speed' => $post['terminal_speed'] ?? '',
+            'output_encoding' => (string)($post['output_encoding'] ?? 'cp437'),
+            'pre_login_command' => (string)($post['pre_login_command'] ?? ''),
+            'pre_login_timeout' => $post['pre_login_timeout'] ?? '',
+            'admin_only' => !empty($post['admin_only']),
+            'enabled' => !empty($post['enabled']),
+            'credit_cost' => $post['credit_cost'] ?? '',
+            'max_time_minutes' => $post['max_time_minutes'] ?? '',
+            'max_sessions' => $post['max_sessions'] ?? '',
+            'allow_anonymous' => !empty($post['allow_anonymous']),
+            'guest_max_sessions' => $post['guest_max_sessions'] ?? '',
+            'hide_from_web' => !empty($post['hide_from_web']),
+        ];
+    }
+}
+
+if (!function_exists('rloginDoorUploadedImage')) {
+    /**
+     * Read an uploaded image file ($_FILES[$fieldName]) into a
+     * ['data' => binary, 'mime' => string] pair, or null if no file was
+     * uploaded for this field.
+     */
+    function rloginDoorUploadedImage(string $fieldName): ?array
+    {
+        if (empty($_FILES[$fieldName]) || ($_FILES[$fieldName]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+
+        if ($_FILES[$fieldName]['error'] !== UPLOAD_ERR_OK) {
+            throw new Exception("Upload failed for $fieldName");
+        }
+
+        $allowedMimes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'];
+        $tmpPath = $_FILES[$fieldName]['tmp_name'];
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $tmpPath);
+        finfo_close($finfo);
+
+        if (!in_array($mime, $allowedMimes, true)) {
+            throw new Exception("Unsupported image type for $fieldName: $mime");
+        }
+
+        $data = file_get_contents($tmpPath);
+        if ($data === false) {
+            throw new Exception("Failed to read uploaded file for $fieldName");
+        }
+
+        return ['data' => $data, 'mime' => $mime];
+    }
+}
+
+if (!function_exists('rloginSlugifyDoorId')) {
+    /**
+     * Turn a Synchronet xtrn program code into a valid RLoginDoorManager door_id.
+     */
+    function rloginSlugifyDoorId(string $code): string
+    {
+        $slug = strtolower(trim($code));
+        $slug = preg_replace('/[^a-z0-9_-]+/', '_', $slug);
+        $slug = trim($slug, '_-');
+        return $slug !== '' ? $slug : 'door';
+    }
+}
+
+if (!function_exists('rloginIsImportableSynchronetCategory')) {
+    /**
+     * The Import from Synchronet preview only offers doors from the "Games"
+     * and "Main" xtrn sections -- sysop/operator utilities (and anything
+     * else) are never worth rlogin-handing a regular user into and are
+     * excluded from the candidate list entirely.
+     */
+    function rloginIsImportableSynchronetCategory(?string $secName): bool
+    {
+        $normalized = strtolower(trim((string)$secName));
+        return $normalized === 'main' || str_starts_with($normalized, 'game');
+    }
+}
+
 if (!function_exists('userIdExists')) {
     function userIdExists(int $userId): bool
     {
         $stmt = \BinktermPHP\Database::getInstance()->getPdo()->prepare("SELECT 1 FROM users WHERE id = ?");
         $stmt->execute([$userId]);
         return (bool)$stmt->fetchColumn();
+    }
+}
+
+if (!function_exists('normalizeRegistrationScreeningConfig')) {
+    /**
+     * Validate and normalize the registration_screening settings block coming
+     * from the Admin -> Settings form before it is persisted via the admin
+     * daemon. Throws Exception('SCREENING: <reason>') on any invalid value so
+     * the POST handler can surface a structured error.
+     *
+     * @param mixed $raw
+     * @return array<string, mixed>
+     */
+    function normalizeRegistrationScreeningConfig($raw): array
+    {
+        if (!is_array($raw)) {
+            throw new \Exception('SCREENING: Invalid registration screening configuration');
+        }
+
+        $mode = strtolower(trim((string)($raw['mode'] ?? 'enforce')));
+        if (!in_array($mode, ['enforce', 'observe'], true)) {
+            throw new \Exception('SCREENING: Mode must be "enforce" or "observe"');
+        }
+
+        $threshold = (int)($raw['threshold'] ?? 30);
+        if ($threshold < 0 || $threshold > 1000) {
+            throw new \Exception('SCREENING: Threshold must be between 0 and 1000');
+        }
+
+        $dnsTimeout = (int)($raw['dns_timeout_ms'] ?? 750);
+        if ($dnsTimeout < 100 || $dnsTimeout > 5000) {
+            throw new \Exception('SCREENING: DNS timeout must be between 100 and 5000 ms');
+        }
+
+        $weight = static function ($v, string $label): int {
+            $n = (int)$v;
+            if ($n < 0 || $n > 1000) {
+                throw new \Exception('SCREENING: ' . $label . ' weight must be between 0 and 1000');
+            }
+            return $n;
+        };
+
+        $signalsIn = is_array($raw['signals'] ?? null) ? $raw['signals'] : [];
+
+        // RBL zones
+        $zonesIn = [];
+        if (isset($signalsIn['rbl']['zones']) && is_array($signalsIn['rbl']['zones'])) {
+            $zonesIn = $signalsIn['rbl']['zones'];
+        }
+        $zones = [];
+        foreach ($zonesIn as $zone) {
+            if (!is_array($zone)) {
+                continue;
+            }
+            $host = strtolower(trim((string)($zone['zone'] ?? '')));
+            if ($host === '') {
+                continue;
+            }
+            if (!preg_match('/^(?=.{1,253}$)([a-z0-9](-*[a-z0-9])*\.)+[a-z]{2,}$/', $host)) {
+                throw new \Exception('SCREENING: "' . $host . '" is not a valid RBL zone hostname');
+            }
+            $codes = [];
+            $codesIn = $zone['accept_codes'] ?? ['*'];
+            if (is_string($codesIn)) {
+                $codesIn = preg_split('/[\s,]+/', trim($codesIn)) ?: [];
+            }
+            if (!is_array($codesIn) || $codesIn === []) {
+                $codesIn = ['*'];
+            }
+            foreach ($codesIn as $code) {
+                $code = trim((string)$code);
+                if ($code === '') {
+                    continue;
+                }
+                if ($code === '*') {
+                    $codes = ['*'];
+                    break;
+                }
+                if (!preg_match('/^127\.0\.0\.\d{1,3}$/', $code) || (int)substr($code, strrpos($code, '.') + 1) > 255) {
+                    throw new \Exception('SCREENING: "' . $code . '" is not a valid 127.0.0.x response code');
+                }
+                $codes[] = $code;
+            }
+            if ($codes === []) {
+                $codes = ['*'];
+            }
+            $zones[] = [
+                'zone' => $host,
+                'weight' => $weight($zone['weight'] ?? 25, 'RBL zone'),
+                'accept_codes' => array_values(array_unique($codes)),
+            ];
+        }
+
+        $velIn = is_array($signalsIn['velocity'] ?? null) ? $signalsIn['velocity'] : [];
+        $windowHours = (int)($velIn['window_hours'] ?? 24);
+        $subnetPrefix = (int)($velIn['subnet_prefix'] ?? 24);
+        $countThreshold = (int)($velIn['count_threshold'] ?? 3);
+        if ($windowHours < 1 || $windowHours > 720) {
+            throw new \Exception('SCREENING: Velocity window must be between 1 and 720 hours');
+        }
+        if ($subnetPrefix < 1 || $subnetPrefix > 128) {
+            throw new \Exception('SCREENING: Velocity subnet prefix must be between 1 and 128');
+        }
+        if ($countThreshold < 1 || $countThreshold > 1000) {
+            throw new \Exception('SCREENING: Velocity count threshold must be between 1 and 1000');
+        }
+
+        return [
+            'enabled' => !empty($raw['enabled']),
+            'mode' => $mode,
+            'threshold' => $threshold,
+            'dns_timeout_ms' => $dnsTimeout,
+            'signals' => [
+                'rbl' => [
+                    'enabled' => !empty($signalsIn['rbl']['enabled']),
+                    'weight' => $weight($signalsIn['rbl']['weight'] ?? 25, 'RBL'),
+                    'zones' => $zones,
+                ],
+                'tor_exit' => [
+                    'enabled' => !empty($signalsIn['tor_exit']['enabled']),
+                    'weight' => $weight($signalsIn['tor_exit']['weight'] ?? 15, 'Tor exit'),
+                ],
+                'email_mx' => [
+                    'enabled' => !empty($signalsIn['email_mx']['enabled']),
+                    'weight' => $weight($signalsIn['email_mx']['weight'] ?? 10, 'Email MX'),
+                ],
+                'velocity' => [
+                    'enabled' => !empty($velIn['enabled']),
+                    'weight' => $weight($velIn['weight'] ?? 20, 'Velocity'),
+                    'window_hours' => $windowHours,
+                    'subnet_prefix' => $subnetPrefix,
+                    'count_threshold' => $countThreshold,
+                ],
+                'disposable_email' => [
+                    'enabled' => !empty($signalsIn['disposable_email']['enabled']),
+                    'weight' => $weight($signalsIn['disposable_email']['weight'] ?? 15, 'Disposable email'),
+                ],
+            ],
+        ];
     }
 }
 
@@ -439,6 +682,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/jsdosdoors_config.twig');
+    });
+
+    // RLogin Doors config page
+    SimpleRouter::get('/rlogin-doors', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/rlogindoors_config.twig');
     });
 
     // Door Manifest Editor page
@@ -1956,12 +2207,25 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ];
                 }
 
+                $screeningChanged = false;
+                if (array_key_exists('registration_screening', $config)) {
+                    $config['registration_screening'] = normalizeRegistrationScreeningConfig($config['registration_screening']);
+                    $screeningChanged = true;
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {
                     AdminActionLogger::logAction($userId, 'bbs_settings_updated', [
                         'credits' => $config['credits'] ?? null
                     ]);
+                    if ($screeningChanged) {
+                        AdminActionLogger::logAction($userId, 'registration_screening_settings_updated', [
+                            'enabled' => $config['registration_screening']['enabled'] ?? false,
+                            'mode' => $config['registration_screening']['mode'] ?? null,
+                            'threshold' => $config['registration_screening']['threshold'] ?? null,
+                        ]);
+                    }
                 }
                 echo json_encode([
                     'success' => true,
@@ -1975,6 +2239,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     apiError('errors.admin.bbs_settings.invalid_payload', apiLocalizedText('errors.admin.bbs_settings.invalid_payload', 'Invalid configuration payload'));
                 } elseif ($message === 'Invalid credits configuration') {
                     apiError('errors.admin.bbs_settings.invalid_credits_config', apiLocalizedText('errors.admin.bbs_settings.invalid_credits_config', 'Invalid credits configuration'));
+                } elseif (strpos($message, 'SCREENING:') === 0) {
+                    apiError('errors.admin.bbs_settings.invalid_screening_config', apiLocalizedText('errors.admin.bbs_settings.invalid_screening_config', trim(substr($message, strlen('SCREENING:')))));
                 } else {
                     apiError('errors.admin.bbs_settings.save_failed', apiLocalizedText('errors.admin.bbs_settings.save_failed', 'Failed to save BBS settings'));
                 }
@@ -4152,6 +4418,473 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.native_doors.sync_failed', apiLocalizedText('errors.admin.native_doors.sync_failed', 'Failed to sync native doors'), 500);
+            }
+        });
+
+        // RLogin Doors API endpoints — DB-backed CRUD (no manifest files: rlogin
+        // doors have no filesystem footprint, so there is no directory-scanning
+        // "discover doors" flow and no generic manifest editor for this type).
+        SimpleRouter::get('/rlogin-doors', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            header('Cache-Control: no-store');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $allDoors = $rloginDoorManager->getAllDoors();
+
+            $doors = [];
+            foreach ($allDoors as $doorId => $door) {
+                $doors[] = [
+                    'id' => $doorId,
+                    'name' => $door['name'],
+                    'short_name' => $door['short_name'] ?? $door['name'],
+                    'author' => $door['author'] ?? 'Unknown',
+                    'description' => $door['description'] ?? '',
+                    'host' => $door['host'] ?? '',
+                    'port' => $door['port'] ?? 513,
+                    'bbs_type' => $door['bbs_type'] ?? 'plain_rlogin',
+                    'icon_url' => !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null,
+                    'config' => $door['config'] ?? []
+                ];
+            }
+
+            echo json_encode([
+                'success' => true,
+                'doors' => $doors,
+            ]);
+        });
+
+        SimpleRouter::get('/rlogin-doors/{doorId}', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            header('Cache-Control: no-store');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $door = $rloginDoorManager->getDoor($doorId);
+
+            if (!$door) {
+                http_response_code(404);
+                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
+                return;
+            }
+
+            $door['id'] = $doorId;
+            $door['icon_url'] = !empty($door['icon']) ? "/door-assets/{$doorId}/icon" : null;
+            $door['screenshot_url'] = !empty($door['screenshot']) ? "/door-assets/{$doorId}/screenshot" : null;
+
+            echo json_encode(['success' => true, 'door' => $door]);
+        });
+
+        SimpleRouter::post('/rlogin-doors', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $doorId = trim((string)($_POST['door_id'] ?? ''));
+
+            if (!\BinktermPHP\RLoginDoorManager::isValidDoorId($doorId)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.invalid_door_id', apiLocalizedText('errors.admin.rlogin_doors.invalid_door_id', 'Door ID must contain only letters, numbers, hyphens, and underscores'), 400);
+                return;
+            }
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+
+            if ($rloginDoorManager->getDoor($doorId)) {
+                http_response_code(409);
+                apiError('errors.admin.rlogin_doors.already_exists', apiLocalizedText('errors.admin.rlogin_doors.already_exists', 'A door with this ID already exists'), 409);
+                return;
+            }
+
+            $fields = rloginDoorFieldsFromRequest($_POST);
+
+            if ($fields['name'] === '' || $fields['host'] === '') {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.name_host_required', apiLocalizedText('errors.admin.rlogin_doors.name_host_required', 'Display name and host are required'), 400);
+                return;
+            }
+
+            try {
+                $icon = rloginDoorUploadedImage('icon');
+                $screenshot = rloginDoorUploadedImage('screenshot');
+
+                $success = $rloginDoorManager->createDoor($doorId, $fields, $icon, $screenshot);
+                if (!$success) {
+                    throw new Exception('Insert failed');
+                }
+
+                $syncResult = $rloginDoorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.rlogindoors_config.created_success',
+                    'door' => $rloginDoorManager->getDoor($doorId),
+                    'synced' => $syncResult['synced'],
+                    'sync_errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.save_failed', apiLocalizedText('errors.admin.rlogin_doors.save_failed', 'Failed to save rlogin door'), 400);
+            }
+        });
+
+        // NOTE: these two literal routes must stay registered before the
+        // POST /rlogin-doors/{doorId} route below. pecee/simple-router's
+        // {param} syntax accepts "/", "-", or "." as the separator before a
+        // parameter, so "/rlogin-doors/{doorId}" also matches URLs like
+        // "/rlogin-doors-sync" (doorId captured as "sync") -- whichever
+        // route is registered first wins. Registering the literal routes
+        // first avoids that collision entirely.
+        SimpleRouter::post('/rlogin-doors-sync', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+                $syncResult = $rloginDoorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'synced' => $syncResult['synced'],
+                    'errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.rlogin_doors.sync_failed', apiLocalizedText('errors.admin.rlogin_doors.sync_failed', 'Failed to sync rlogin doors'), 500);
+            }
+        });
+
+        // Preview doors available to import from a linked Synchronet system via
+        // binktermphp-synchronet's list_doors action. Read-only -- creates
+        // nothing. Doors that already exist (by slugified door_id) are
+        // excluded from the candidate list entirely; the admin picks which
+        // of the remaining candidates to actually import via the confirm
+        // endpoint below.
+        SimpleRouter::post('/rlogin-doors-import-synchronet-preview', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $configPath = defined('BINKTERMPHP_BASEDIR')
+                ? BINKTERMPHP_BASEDIR . '/config/rlogin_synchronet_service.json'
+                : __DIR__ . '/../config/rlogin_synchronet_service.json';
+
+            if (!file_exists($configPath)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.synchronet_not_configured', apiLocalizedText('errors.admin.rlogin_doors.synchronet_not_configured', 'config/rlogin_synchronet_service.json is not configured yet'), 400);
+                return;
+            }
+
+            $rawConfig = json_decode((string)file_get_contents($configPath), true);
+            $rloginHost = is_array($rawConfig) ? ($rawConfig['rlogin_host'] ?? null) : null;
+
+            if (empty($rloginHost)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', apiLocalizedText('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', 'rlogin_host is not set in config/rlogin_synchronet_service.json'), 400);
+                return;
+            }
+
+            try {
+                $client = \BinktermPHP\Synchronet::fromConfigFile($configPath);
+                $result = $client->listDoors();
+            } catch (Exception $e) {
+                http_response_code(502);
+                apiError('errors.admin.rlogin_doors.synchronet_unreachable', apiLocalizedText('errors.admin.rlogin_doors.synchronet_unreachable', 'Could not reach the Synchronet service') . ': ' . $e->getMessage(), 502);
+                return;
+            }
+
+            if (empty($result['success'])) {
+                http_response_code(502);
+                apiError('errors.admin.rlogin_doors.synchronet_list_failed', $result['error'] ?? apiLocalizedText('errors.admin.rlogin_doors.synchronet_list_failed', 'Synchronet rejected the list_doors request'), 502);
+                return;
+            }
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $candidates = [];
+            $existingCount = 0;
+
+            foreach ($result['doors'] as $remoteDoor) {
+                if (!rloginIsImportableSynchronetCategory($remoteDoor['sec_name'] ?? null)) {
+                    continue;
+                }
+
+                $doorId = rloginSlugifyDoorId($remoteDoor['code']);
+
+                if ($rloginDoorManager->getDoor($doorId)) {
+                    $existingCount++;
+                    continue;
+                }
+
+                $candidates[] = [
+                    'code' => $remoteDoor['code'],
+                    'name' => $remoteDoor['name'],
+                    'sec_name' => $remoteDoor['sec_name'] ?? null,
+                    'door_id' => $doorId,
+                    'description' => $remoteDoor['description'] ?? null,
+                    'author' => $remoteDoor['author'] ?? null,
+                    'categories' => $remoteDoor['categories'] ?? [],
+                ];
+            }
+
+            echo json_encode([
+                'success' => true,
+                'candidates' => $candidates,
+                'existing_count' => $existingCount,
+            ]);
+        });
+
+        // Import the doors the admin selected from the preview above. Creates
+        // a disabled, fully-configured RLogin door (Synchronet with
+        // BinktermPHP Service defaults) for each one; re-checks existence
+        // server-side in case a door was created between preview and confirm.
+        SimpleRouter::post('/rlogin-doors-import-synchronet-confirm', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $configPath = defined('BINKTERMPHP_BASEDIR')
+                ? BINKTERMPHP_BASEDIR . '/config/rlogin_synchronet_service.json'
+                : __DIR__ . '/../config/rlogin_synchronet_service.json';
+
+            $rawConfig = file_exists($configPath) ? json_decode((string)file_get_contents($configPath), true) : null;
+            $rloginHost = is_array($rawConfig) ? ($rawConfig['rlogin_host'] ?? null) : null;
+            $rloginPort = is_array($rawConfig) ? (int)($rawConfig['rlogin_port'] ?? 513) : 513;
+
+            if (empty($rloginHost)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', apiLocalizedText('errors.admin.rlogin_doors.synchronet_rlogin_host_missing', 'rlogin_host is not set in config/rlogin_synchronet_service.json'), 400);
+                return;
+            }
+
+            $payload = json_decode(file_get_contents('php://input'), true);
+            $selected = is_array($payload['doors'] ?? null) ? $payload['doors'] : [];
+
+            if (empty($selected)) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.no_doors_selected', apiLocalizedText('errors.admin.rlogin_doors.no_doors_selected', 'No doors were selected to import'), 400);
+                return;
+            }
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+            $imported = [];
+            $skipped = [];
+            $errors = [];
+
+            foreach ($selected as $remoteDoor) {
+                if (!is_array($remoteDoor) || empty($remoteDoor['code'])) {
+                    continue;
+                }
+
+                $doorId = rloginSlugifyDoorId((string)$remoteDoor['code']);
+
+                if ($rloginDoorManager->getDoor($doorId)) {
+                    $skipped[] = $doorId;
+                    continue;
+                }
+
+                $description = !empty($remoteDoor['description'])
+                    ? (string)$remoteDoor['description']
+                    : (string)($remoteDoor['sec_name'] ?? '');
+                $categories = is_array($remoteDoor['categories'] ?? null)
+                    ? array_values(array_filter(array_map('strval', $remoteDoor['categories'])))
+                    : [];
+
+                $fields = [
+                    'name' => (string)($remoteDoor['name'] ?? $remoteDoor['code']),
+                    'short_name' => (string)$remoteDoor['code'],
+                    'author' => !empty($remoteDoor['author']) ? (string)$remoteDoor['author'] : null,
+                    'description' => $description,
+                    'genre' => $categories,
+                    'bbs_type' => 'synchronet_service',
+                    'host' => $rloginHost,
+                    'port' => $rloginPort,
+                    'client_username' => '{user_name}',
+                    'server_username' => '{user_name}',
+                    'terminal_type' => 'xtrn=' . $remoteDoor['code'],
+                    'output_encoding' => 'cp437',
+                    'pre_login_command' => 'php scripts/synchronet_add_user.php {user_name} {real_name} {user_number}',
+                    'pre_login_timeout' => 10,
+                    'enabled' => false,
+                ];
+
+                if ($rloginDoorManager->createDoor($doorId, $fields, null, null)) {
+                    $imported[] = $doorId;
+                } else {
+                    $errors[] = "Failed to import '$doorId'";
+                }
+            }
+
+            if (!empty($imported)) {
+                $rloginDoorManager->syncDoorsToDatabase();
+            }
+
+            echo json_encode([
+                'success' => true,
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ]);
+        });
+
+        // NOTE: must stay registered before POST /rlogin-doors/{doorId} below —
+        // see the pecee/simple-router {param} separator note above the
+        // rlogin-doors-sync route.
+        SimpleRouter::post('/rlogin-doors-generate-icon', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($input)) {
+                $input = [];
+            }
+
+            $name = trim((string)($input['name'] ?? ''));
+            if ($name === '') {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.icon_gen_name_required', apiLocalizedText('errors.admin.rlogin_doors.icon_gen_name_required', 'Enter a game name before generating an icon'), 400);
+                return;
+            }
+
+            $aiService = \BinktermPHP\AI\AiService::create();
+            if (empty($aiService->getConfiguredProviders())) {
+                http_response_code(503);
+                apiError('errors.admin.rlogin_doors.icon_gen_no_provider', apiLocalizedText('errors.admin.rlogin_doors.icon_gen_no_provider', 'No AI provider is configured'), 503);
+                return;
+            }
+
+            $shortName = trim((string)($input['short_name'] ?? ''));
+            $genre = trim((string)($input['genre'] ?? ''));
+            $description = trim((string)($input['description'] ?? ''));
+
+            $details = "Game name: {$name}";
+            if ($shortName !== '') {
+                $details .= "\nShort name: {$shortName}";
+            }
+            if ($genre !== '') {
+                $details .= "\nGenre: {$genre}";
+            }
+            if ($description !== '') {
+                $details .= "\nDescription: {$description}";
+            }
+
+            $systemPrompt = <<<'PROMPT'
+You design small square icon artwork for a BBS door game launcher, as raw SVG markup.
+
+Rules:
+- Output ONLY a single <svg>...</svg> element. No markdown fences, no explanation, no XML declaration.
+- Use viewBox="0 0 128 128" and no width/height attributes.
+- Build the icon from basic shapes (path, rect, circle, ellipse, polygon, line, text) and gradients defined inline in <defs>.
+- Do not reference any external file, URL, or image. Do not use <image>, <script>, <foreignObject>, or any event handler attribute.
+- Favor a flat, geometric, retro-BBS/terminal aesthetic with a small, deliberate color palette (3-5 colors) that reads clearly at small sizes.
+- The icon should visually evoke the game's genre and theme, not display the literal title text unless it fits naturally as a small monogram.
+- Keep it simple: at most ~20 shape elements total. The whole response must fit well within the output limit — always finish with a closing </svg> tag, never truncate mid-element.
+- Every element must be well-formed XML: self-close empty elements with "/>" (e.g. <rect .../>) or give them a matching closing tag, and always double-quote attribute values.
+PROMPT;
+
+            $userPrompt = "Design an icon for this door game:\n\n{$details}";
+
+            try {
+                $request = new \BinktermPHP\AI\AiRequest(
+                    feature: 'rlogin_door_icon_gen',
+                    systemPrompt: $systemPrompt,
+                    userPrompt: $userPrompt,
+                    temperature: 0.9,
+                    maxOutputTokens: 3000,
+                    timeoutSeconds: 45,
+                    userId: (int)($user['user_id'] ?? $user['id'] ?? 0) ?: null,
+                );
+
+                $response = $aiService->generateText($request);
+                $svg = \BinktermPHP\AI\SvgIconSanitizer::sanitize($response->getContent());
+
+                if ($svg === null) {
+                    getServerLogger()->error('RLogin door AI icon generation produced unusable SVG', [
+                        'finish_reason' => $response->getFinishReason(),
+                        'content_length' => strlen($response->getContent()),
+                        'content_preview' => substr($response->getContent(), 0, 2000),
+                    ]);
+                    http_response_code(500);
+                    apiError('errors.admin.rlogin_doors.icon_gen_failed', apiLocalizedText('errors.admin.rlogin_doors.icon_gen_failed', 'AI icon generation failed'), 500);
+                    return;
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'svg' => $svg,
+                ]);
+            } catch (\Throwable $e) {
+                getServerLogger()->error('RLogin door AI icon generation failed', ['error' => $e->getMessage()]);
+                http_response_code(500);
+                apiError('errors.admin.rlogin_doors.icon_gen_failed', apiLocalizedText('errors.admin.rlogin_doors.icon_gen_failed', 'AI icon generation failed'), 500);
+            }
+        });
+
+        SimpleRouter::post('/rlogin-doors/{doorId}', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+
+            if (!$rloginDoorManager->getDoor($doorId)) {
+                http_response_code(404);
+                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
+                return;
+            }
+
+            $fields = rloginDoorFieldsFromRequest($_POST);
+
+            if ($fields['name'] === '' || $fields['host'] === '') {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.name_host_required', apiLocalizedText('errors.admin.rlogin_doors.name_host_required', 'Display name and host are required'), 400);
+                return;
+            }
+
+            try {
+                $icon = !empty($_POST['remove_icon']) ? ['data' => null, 'mime' => null] : rloginDoorUploadedImage('icon');
+                $screenshot = !empty($_POST['remove_screenshot']) ? ['data' => null, 'mime' => null] : rloginDoorUploadedImage('screenshot');
+
+                $success = $rloginDoorManager->updateDoor($doorId, $fields, $icon, $screenshot);
+                if (!$success) {
+                    throw new Exception('Update failed');
+                }
+
+                $syncResult = $rloginDoorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.rlogindoors_config.updated_success',
+                    'door' => $rloginDoorManager->getDoor($doorId),
+                    'synced' => $syncResult['synced'],
+                    'sync_errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                apiError('errors.admin.rlogin_doors.save_failed', apiLocalizedText('errors.admin.rlogin_doors.save_failed', 'Failed to save rlogin door'), 400);
+            }
+        });
+
+        SimpleRouter::post('/rlogin-doors/{doorId}/delete', function(string $doorId) {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $rloginDoorManager = new \BinktermPHP\RLoginDoorManager();
+
+            if (!$rloginDoorManager->getDoor($doorId)) {
+                http_response_code(404);
+                apiError('errors.admin.rlogin_doors.not_found', apiLocalizedText('errors.admin.rlogin_doors.not_found', 'RLogin door not found'), 404);
+                return;
+            }
+
+            try {
+                $success = $rloginDoorManager->deleteDoor($doorId);
+                if (!$success) {
+                    throw new Exception('Delete failed');
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.rlogindoors_config.deleted_success',
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.rlogin_doors.delete_failed', apiLocalizedText('errors.admin.rlogin_doors.delete_failed', 'Failed to delete rlogin door'), 500);
             }
         });
 

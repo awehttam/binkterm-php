@@ -527,7 +527,7 @@ function parseRssFeed($xml) {
     // Detect feed type (RSS 2.0, RSS 1.0/RDF, Atom, etc.)
     if (isset($xml->channel->item)) {
         // RSS 2.0
-        getServerLogger()->info("Auto Feed: Parsing RSS 2.0 feed with " . count($xml->channel->item) . " items");
+        getServerLogger()->debug("Auto Feed: Parsing RSS 2.0 feed with " . count($xml->channel->item) . " items");
         foreach ($xml->channel->item as $item) {
             $contentEncoded = (string)($item->children($contentNs)->encoded ?? '');
             $dcDescription  = (string)($item->children($dcNs)->description ?? '');

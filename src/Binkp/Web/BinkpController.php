@@ -313,11 +313,15 @@ class BinkpController
      * excluded) for the Downlink Queue tab on /binkp. Not license-gated,
      * matching the ungated live queue file listing.
      */
-    public function getHubOutboundQueue(int $limit = 200): array
+    public function getHubOutboundQueue(): array
     {
         try {
             $db = \BinktermPHP\Database::getInstance()->getPdo();
-            $stmt = $db->prepare("
+            // No LIMIT: the Downlink Queue tab derives its per-downlink summary
+            // counts client-side from this list, so a truncated result set would
+            // make those counts disagree with the Outbound Queue card's COUNT(*).
+            // packet_data is excluded, so each row is lightweight metadata only.
+            $stmt = $db->query("
                 SELECT hno.id, hno.hub_node_id, hn.node_address, hn.name AS node_name, hn.node_type,
                        u.username AS owner_username,
                        hno.message_type, hno.status, hno.size_bytes, hno.priority, hno.attempts,
@@ -326,10 +330,7 @@ class BinkpController
                 JOIN hub_nodes hn ON hn.id = hno.hub_node_id
                 LEFT JOIN users u ON u.id = hn.user_id
                 ORDER BY hno.created_at DESC
-                LIMIT ?
             ");
-            $stmt->bindValue(1, $limit, \PDO::PARAM_INT);
-            $stmt->execute();
 
             return [
                 'success' => true,

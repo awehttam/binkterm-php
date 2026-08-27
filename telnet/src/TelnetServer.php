@@ -69,6 +69,9 @@ class TelnetServer
     private int $rateLimitMax;
     private int $rateLimitWindow;
     private array $connectionRateTable = [];
+    /** @var string[] Source IPs allowed to send a PROXY protocol v1 header */
+    private array $trustedProxies = [];
+    private int $proxyHeaderTimeout = 2;
     private Translator $translator;
     private string $systemLocale;
     private bool $tlsEnabled = true;
@@ -116,6 +119,119 @@ class TelnetServer
         $this->systemLocale = (string)Config::env('I18N_DEFAULT_LOCALE', 'en');
         $this->rateLimitMax    = (int)Config::env('TELNET_RATE_LIMIT_MAX', '5');
         $this->rateLimitWindow = (int)Config::env('TELNET_RATE_LIMIT_WINDOW', '60');
+        $this->trustedProxies  = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string)Config::env('TELNET_TRUSTED_PROXIES', '127.0.0.1,::1'))
+        )));
+        // Always trust loopback and the daemon's own bind address: a connection
+        // from there to ourselves is inherently local (the PubTerm forwarder
+        // dials whichever address this daemon listens on).
+        foreach (['127.0.0.1', '::1', $this->host] as $implicit) {
+            if ($implicit !== '' && $implicit !== '0.0.0.0' && $implicit !== '::'
+                && !in_array($implicit, $this->trustedProxies, true)) {
+                $this->trustedProxies[] = $implicit;
+            }
+        }
+        $this->proxyHeaderTimeout = max(1, (int)Config::env('TELNET_PROXY_HEADER_TIMEOUT', '2'));
+    }
+
+    /**
+     * Whether a raw peer address is permitted to supply a PROXY protocol header
+     * on behalf of another client (e.g. the local multiplexing bridge / PubTerm).
+     */
+    private function isTrustedProxy(string $ip): bool
+    {
+        return in_array($ip, $this->trustedProxies, true);
+    }
+
+    /**
+     * Consume a single HAProxy PROXY protocol v1 header line from a trusted
+     * local connection (the multiplexing bridge's PubTerm forwarder). Returns
+     * ['ip','name'] on success, or null when no valid header is present.
+     *
+     * The socket buffer is inspected with a non-destructive peek first: bytes
+     * are only consumed when a real "PROXY " header is found, so a normal TELNET
+     * client that happens to connect from a trusted address is left untouched.
+     *
+     * @param resource $conn
+     */
+    private function readProxyHeader($conn): ?array
+    {
+        $deadline = microtime(true) + $this->proxyHeaderTimeout;
+        $peek = '';
+
+        stream_set_blocking($conn, false);
+        try {
+            while (true) {
+                $buf = @stream_socket_recvfrom($conn, 128, STREAM_PEEK);
+                if (is_string($buf) && $buf !== '') {
+                    $peek = $buf;
+                }
+
+                // Not a PROXY header (e.g. a real telnet client sending IAC) —
+                // bail immediately without consuming anything.
+                if ($peek !== '' && strncmp($peek, 'PROXY ', min(6, strlen($peek))) !== 0) {
+                    return null;
+                }
+                if (strpos($peek, "\n") !== false) {
+                    break;
+                }
+                if (microtime(true) >= $deadline) {
+                    return null;
+                }
+                $r = [$conn]; $w = null; $e = null;
+                @stream_select($r, $w, $e, 0, 100000);
+            }
+        } finally {
+            stream_set_blocking($conn, true);
+        }
+
+        $nl1 = strpos($peek, "\n");
+        if (strncmp($peek, 'PROXY ', 6) !== 0 || $nl1 === false) {
+            return null;
+        }
+        $line = rtrim(substr($peek, 0, $nl1), "\r");
+
+        // Remove exactly the header line from the stream.
+        $this->consumeExact($conn, $nl1 + 1);
+
+        // "PROXY <proto> <src-ip> <dst-ip> <src-port> <dst-port>"
+        $fields = preg_split('/\s+/', trim($line));
+        if (count($fields) < 6
+            || $fields[0] !== 'PROXY'
+            || ($fields[1] !== 'TCP4' && $fields[1] !== 'TCP6')
+            || filter_var($fields[2], FILTER_VALIDATE_IP) === false) {
+            // "UNKNOWN"/malformed: header consumed, but no attribution.
+            return null;
+        }
+        $srcIp   = $fields[2];
+        $srcPort = preg_match('/^\d{1,5}$/', $fields[4]) ? $fields[4] : '0';
+
+        return [
+            'ip'   => $srcIp,
+            'name' => (strpos($srcIp, ':') !== false ? '[' . $srcIp . ']' : $srcIp) . ':' . $srcPort,
+        ];
+    }
+
+    /**
+     * Read and discard exactly $n bytes from the connection.
+     *
+     * @param resource $conn
+     */
+    private function consumeExact($conn, int $n): void
+    {
+        $got = 0;
+        while ($got < $n) {
+            $chunk = @fread($conn, $n - $got);
+            if ($chunk === false || $chunk === '') {
+                $meta = stream_get_meta_data($conn);
+                if (!empty($meta['timed_out']) || feof($conn)) {
+                    return;
+                }
+                continue;
+            }
+            $got += strlen($chunk);
+        }
     }
 
     /**
@@ -348,6 +464,25 @@ class TelnetServer
                 $connectionCount++;
                 [$peerName, $peerIp] = $this->parsePeerAddress($conn);
 
+                // Trusted local proxies (the multiplexing bridge's PubTerm forwarder)
+                // prepend a PROXY protocol v1 header naming the real browser-side
+                // client. Resolve it before rate limiting so limits and registration
+                // screening key on the true IP rather than the loopback address.
+                $viaProxy = false;
+                if (!$isTls && $peerIp !== null && $this->isTrustedProxy($peerIp)) {
+                    $hdr = $this->readProxyHeader($conn);
+                    if ($hdr !== null) {
+                        $viaProxy = true;
+                        $this->log("PROXY header from {$peerIp}: real client {$hdr['name']}");
+                        $peerName = $hdr['name'];
+                        $peerIp   = $hdr['ip'];
+                    } else {
+                        $this->log("No PROXY header from trusted source {$peerIp} — treating as direct connection");
+                    }
+                } elseif (!$isTls && $peerIp !== null && $this->debug) {
+                    $this->log("Connection from {$peerIp} is not a trusted proxy (trusted: " . implode(',', $this->trustedProxies) . ")");
+                }
+
                 $rl = $peerIp !== null ? $this->isRateLimited($peerIp) : 0;
                 if ($rl > 0) {
                     if ($rl === 1) {
@@ -358,7 +493,7 @@ class TelnetServer
                     continue;
                 }
 
-                $this->log("Connection #{$connectionCount} from {$peerName}" . ($isTls ? ' (TLS)' : ''));
+                $this->log("Connection #{$connectionCount} from {$peerName}" . ($isTls ? ' (TLS)' : ($viaProxy ? ' (via bridge)' : '')));
 
                 $forked = false;
                 if (function_exists('pcntl_fork')) {
