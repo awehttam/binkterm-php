@@ -45,7 +45,11 @@ class Auth
         $remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
 
         $claimed = trim((string)($_SERVER['HTTP_X_BINKTERM_CLIENT_IP'] ?? ''));
-        if ($claimed === '' || filter_var($claimed, FILTER_VALIDATE_IP) === false) {
+        if ($claimed === '') {
+            return $remote;
+        }
+        if (filter_var($claimed, FILTER_VALIDATE_IP) === false) {
+            self::logClientIpDebug("X-Binkterm-Client-IP '{$claimed}' is not a valid IP; using {$remote}");
             return $remote;
         }
 
@@ -56,11 +60,34 @@ class Auth
             ?? ''
         ));
 
-        if ($secret !== '' && $token !== '' && hash_equals($secret, $token)) {
-            return $claimed;
+        if ($secret === '') {
+            self::logClientIpDebug("X-Binkterm-Client-IP {$claimed} present but TERMINAL_REGISTRATION_SECRET is empty; using {$remote}");
+            return $remote;
+        }
+        if ($token === '') {
+            self::logClientIpDebug("X-Binkterm-Client-IP {$claimed} present but no client token header; using {$remote}");
+            return $remote;
+        }
+        if (!hash_equals($secret, $token)) {
+            self::logClientIpDebug("X-Binkterm-Client-IP {$claimed} rejected: client token does not match TERMINAL_REGISTRATION_SECRET; using {$remote}");
+            return $remote;
         }
 
-        return $remote;
+        return $claimed;
+    }
+
+    /**
+     * Diagnostic logging for {@see resolveClientIp()}. Only fires when a
+     * terminal client IP header was present but could not be honoured, so it is
+     * silent for ordinary web traffic and for the working case.
+     */
+    private static function logClientIpDebug(string $message): void
+    {
+        try {
+            getServerLogger()->warning('[resolveClientIp] ' . $message);
+        } catch (\Throwable $e) {
+            // Logging must never break authentication.
+        }
     }
 
     public function login($username, $password, string $service = 'web')
