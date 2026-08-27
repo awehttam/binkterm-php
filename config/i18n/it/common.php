@@ -3504,6 +3504,7 @@ return [
     'ui.binkp.hub_outbound.summary_pending' => 'In sospeso',
     'ui.binkp.hub_outbound.summary_failed' => 'Non riuscito',
     'ui.binkp.hub_outbound.summary_held' => 'Trattenuto',
+    'ui.binkp.hub_outbound.summary_sent' => 'Inviato',
     'ui.binkp.hub_outbound.summary_total' => 'Totale',
     'ui.binkp.hub_outbound.delete_selected' => 'Elimina selezionati',
     'ui.binkp.hub_outbound.delete_confirm' => 'Eliminare {count} elemento/i di coda selezionato/i?',

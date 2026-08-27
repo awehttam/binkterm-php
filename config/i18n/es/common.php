@@ -3505,6 +3505,7 @@ return [
     'ui.binkp.hub_outbound.summary_pending' => 'Pendiente',
     'ui.binkp.hub_outbound.summary_failed' => 'Fallido',
     'ui.binkp.hub_outbound.summary_held' => 'Retenido',
+    'ui.binkp.hub_outbound.summary_sent' => 'Enviado',
     'ui.binkp.hub_outbound.summary_total' => 'Total',
     'ui.binkp.hub_outbound.delete_selected' => 'Eliminar seleccionados',
     'ui.binkp.hub_outbound.delete_confirm' => 'Eliminar {count} elemento(s) de cola seleccionado(s)?',

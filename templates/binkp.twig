@@ -219,11 +219,12 @@
                                 <th>{{ t('ui.binkp.hub_outbound.summary_pending') }}</th>
                                 <th>{{ t('ui.binkp.hub_outbound.summary_failed') }}</th>
                                 <th>{{ t('ui.binkp.hub_outbound.summary_held') }}</th>
+                                <th>{{ t('ui.binkp.hub_outbound.summary_sent') }}</th>
                                 <th>{{ t('ui.binkp.hub_outbound.summary_total') }}</th>
                             </tr>
                         </thead>
                         <tbody id="hub-outbound-summary-rows">
-                            <tr><td colspan="5">{{ t('ui.common.loading') }}</td></tr>
+                            <tr><td colspan="6">{{ t('ui.common.loading') }}</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1034,20 +1035,21 @@ function refreshHubOutboundQueue() {
 function renderHubOutboundSummary(rows) {
     const tbody = document.getElementById('hub-outbound-summary-rows');
     if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.empty', 'No queued downlink packets'))}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-muted">${escapeHtml(uiT('ui.binkp.hub_outbound.empty', 'No queued downlink packets'))}</td></tr>`;
         return;
     }
 
     const nodes = new Map();
     rows.forEach(row => {
         if (!nodes.has(row.node_address)) {
-            nodes.set(row.node_address, { name: row.node_name || '', owner: row.owner_username || '', pending: 0, failed: 0, held: 0, total: 0 });
+            nodes.set(row.node_address, { name: row.node_name || '', owner: row.owner_username || '', pending: 0, failed: 0, held: 0, sent: 0, total: 0 });
         }
         const stats = nodes.get(row.node_address);
         stats.total++;
         if (row.status === 'pending') stats.pending++;
         else if (row.status === 'failed') stats.failed++;
         else if (row.status === 'held') stats.held++;
+        else if (row.status === 'sent') stats.sent++;
     });
 
     const addresses = Array.from(nodes.keys()).sort();
@@ -1059,6 +1061,7 @@ function renderHubOutboundSummary(rows) {
             <td>${stats.pending ? `<span class="badge bg-secondary">${stats.pending}</span>` : '0'}</td>
             <td>${stats.failed ? `<span class="badge bg-danger">${stats.failed}</span>` : '0'}</td>
             <td>${stats.held ? `<span class="badge bg-warning text-dark">${stats.held}</span>` : '0'}</td>
+            <td>${stats.sent ? `<span class="badge bg-success">${stats.sent}</span>` : '0'}</td>
             <td>${stats.total}</td>
         </tr>`;
     }).join('');

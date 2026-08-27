@@ -3523,6 +3523,7 @@ return [
     'ui.binkp.hub_outbound.summary_pending' => 'Pending',
     'ui.binkp.hub_outbound.summary_failed' => 'Failed',
     'ui.binkp.hub_outbound.summary_held' => 'Held',
+    'ui.binkp.hub_outbound.summary_sent' => 'Sent',
     'ui.binkp.hub_outbound.summary_total' => 'Total',
     'ui.binkp.hub_outbound.delete_selected' => 'Delete Selected',
     'ui.binkp.hub_outbound.delete_confirm' => 'Delete {count} selected queue item(s)?',

@@ -2916,6 +2916,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.binkp.hub_outbound.summary_pending' => 'En attente',
     'ui.binkp.hub_outbound.summary_failed' => 'Echec',
     'ui.binkp.hub_outbound.summary_held' => 'Retenu',
+    'ui.binkp.hub_outbound.summary_sent' => 'Envoyé',
     'ui.binkp.hub_outbound.summary_total' => 'Total',
     'ui.binkp.hub_outbound.delete_selected' => 'Supprimer la selection',
     'ui.binkp.hub_outbound.delete_confirm' => 'Supprimer {count} element(s) de file selectionne(s) ?',

@@ -3529,6 +3529,7 @@ return [
     'ui.binkp.hub_outbound.summary_pending' => 'В ожидании',
     'ui.binkp.hub_outbound.summary_failed' => 'Ошибка',
     'ui.binkp.hub_outbound.summary_held' => 'Задержано',
+    'ui.binkp.hub_outbound.summary_sent' => 'Отправлено',
     'ui.binkp.hub_outbound.summary_total' => 'Всего',
     'ui.binkp.hub_outbound.delete_selected' => 'Удалить выбранное',
     'ui.binkp.hub_outbound.delete_confirm' => 'Удалить {count} выбранных элементов очереди?',
