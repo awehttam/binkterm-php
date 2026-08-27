@@ -76,6 +76,9 @@ class BbsSession
     private bool $insecure;
     private bool $isTls;
     private bool $isSsh;
+    private bool $viaProxy = false;
+    private array $proxyMeta = [];
+    private string $initialPushback = '';
     private bool $tlsEnabled;
     private int $tlsPort;
     private ?Logger $logger;
@@ -115,6 +118,14 @@ class BbsSession
      * @param array|null  $preAuthSession Pre-authenticated user data from SSH layer
      * @param string|null $peerName       Peer address captured at accept time
      * @param string|null $peerIp         Parsed peer IP captured at accept time
+     * @param bool        $viaProxy       Connection arrived through a trusted local
+     *                                    proxy (multiplexing bridge / PubTerm) that
+     *                                    supplied a PROXY protocol header — the stream
+     *                                    carries no in-band TELNET negotiation.
+     * @param array       $proxyMeta      Capability hints from the bridge
+     *                                    (term/cols/rows) for proxied streams.
+     * @param string      $initialPushback Bytes already read off the socket that
+     *                                    belong to the session input stream.
      */
     public function __construct(
         $conn,
@@ -128,7 +139,10 @@ class BbsSession
         ?Logger $logger = null,
         ?array $preAuthSession = null,
         ?string $peerName = null,
-        ?string $peerIp = null
+        ?string $peerIp = null,
+        bool $viaProxy = false,
+        array $proxyMeta = [],
+        string $initialPushback = ''
     ) {
         $this->conn           = $conn;
         $this->apiBase        = rtrim($apiBase, '/');
@@ -136,11 +150,15 @@ class BbsSession
         $this->insecure       = $insecure;
         $this->isTls          = $isTls;
         $this->isSsh          = $isSsh;
+        $this->viaProxy       = $viaProxy;
+        $this->proxyMeta      = $proxyMeta;
+        $this->initialPushback = $initialPushback;
         $this->tlsEnabled     = $tlsEnabled;
         $this->tlsPort        = $tlsPort;
         $this->logger         = $logger;
         // Conservative default for Telnet until terminal capabilities are known.
-        $this->asciiTextMode  = !$this->isSsh;
+        // Proxied browser terminals (PubTerm) are always UTF-8 capable.
+        $this->asciiTextMode  = !$this->isSsh && !$this->viaProxy;
         $this->preAuthSession = $preAuthSession;
         $this->translator     = new Translator();
         $this->systemLocale   = (string)Config::env('I18N_DEFAULT_LOCALE', 'en');
@@ -193,11 +211,36 @@ class BbsSession
             }
         }
 
+        // Proxied browser terminals (PubTerm via the multiplexing bridge) do no
+        // in-band TELNET negotiation. Seed capabilities from the bridge's hint
+        // line and hand back any bytes already read off the socket.
+        if ($this->viaProxy) {
+            if ($this->initialPushback !== '') {
+                $state['pushback'] = $this->initialPushback . $state['pushback'];
+            }
+            $term = strtoupper(trim((string)($this->proxyMeta['term'] ?? '')));
+            $state['terminal_type'] = $term !== '' ? $term : 'XTERM-256COLOR';
+            $cols = (int)($this->proxyMeta['cols'] ?? 0);
+            $rows = (int)($this->proxyMeta['rows'] ?? 0);
+            if ($cols >= 20 && $cols <= 500) { $state['cols'] = $cols; }
+            if ($rows >= 5  && $rows <= 200) { $state['rows'] = $rows; }
+        }
+
         if ($this->debug) {
             $this->log("Connection initialized: screen size {$state['cols']}x{$state['rows']}");
         }
 
-        if (!$this->isSsh) {
+        if ($this->viaProxy) {
+            // Raw browser terminal — assume a modern, colour- and UTF-8-capable
+            // xterm class and skip all TELNET / capability probing (which would
+            // emit IAC bytes the browser terminal renders as garbage).
+            $this->ansiColorEnabled = true;
+            TelnetUtils::setAnsiColorEnabled(true);
+            $this->asciiTextMode = false;
+            if ($this->debug) {
+                $this->log("PubTerm proxied stream: TELNET negotiation skipped; ANSI+UTF-8 assumed ({$state['cols']}x{$state['rows']})");
+            }
+        } elseif (!$this->isSsh) {
             $this->negotiateTelnet($conn);
             // TLS telnet clients commonly delay TELNET option replies until after
             // they see visible output. Blocking on TTYPE before the banner causes
@@ -1428,8 +1471,8 @@ class BbsSession
      */
     private function shouldUseAsciiFallback(array $state): bool
     {
-        if ($this->isSsh) {
-            // SSH clients are typically UTF-8 capable.
+        if ($this->isSsh || $this->viaProxy) {
+            // SSH clients and browser terminals (PubTerm) are UTF-8 capable.
             return false;
         }
 
@@ -1677,7 +1720,7 @@ class BbsSession
     private function setEcho($conn, array &$state, bool $enable): void
     {
         $state['input_echo'] = $enable;
-        if (!$this->isSsh) {
+        if (!$this->isSsh && !$this->viaProxy) {
             $this->sendTelnetCommand($conn, self::WILL, self::OPT_ECHO);
             $this->sendTelnetCommand($conn, self::DONT, self::OPT_ECHO);
         }

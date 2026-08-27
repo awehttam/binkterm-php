@@ -711,6 +711,12 @@ class NativeAdapter extends EmulatorAdapter {
             ? JSON.parse(sessionData.user_data)
             : (sessionData.user_data || {});
 
+        // Real originating (browser-side) client IP, resolved from X-Forwarded-For
+        // by the multiplexing server. Doors that relay into another local service
+        // (e.g. pubterm -> the terminal server) use this to forward the true origin
+        // instead of 127.0.0.1, so IP-based screening / rate limiting still works.
+        const clientIp = (session && session.clientIp) ? String(session.clientIp) : '';
+
         const env = {
             ...process.env,
             DOOR_USER_NAME: userData.handle || userData.username || 'Guest',
@@ -721,6 +727,7 @@ class NativeAdapter extends EmulatorAdapter {
             DOOR_DROPFILE: dropfileFull,
             DOOR_HOME: homeDir,
             DOOR_ANSI: '1',
+            DOOR_CLIENT_IP: clientIp,
             TERM: 'xterm-256color'
         };
 
