@@ -626,7 +626,12 @@ class NativeAdapter extends EmulatorAdapter {
             return {};
         }
 
-        const targetHost = process.env.PUBTERM_HOST || '127.0.0.1';
+        // Always dial the terminal server over loopback: the forwarder is local,
+        // the daemon binds 0.0.0.0 by default, and a loopback source address is
+        // trusted by TELNET_TRUSTED_PROXIES out of the box (no extra config).
+        // PUBTERM_HOST is only consulted for the non-forwarded fallback/Windows
+        // path in pubterm.sh.
+        const targetHost = '127.0.0.1';
         const targetPort = parseInt(process.env.PUBTERM_PORT, 10) || 2323;
         const isV6 = net.isIP(clientIp) === 6;
         const proxyLine = `PROXY ${isV6 ? 'TCP6' : 'TCP4'} ${clientIp} ${isV6 ? '::1' : '127.0.0.1'} 0 ${targetPort}\r\n`;
