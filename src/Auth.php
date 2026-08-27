@@ -45,6 +45,20 @@ class Auth
         $remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
 
         $claimed = trim((string)($_SERVER['HTTP_X_BINKTERM_CLIENT_IP'] ?? ''));
+
+        // Opt-in verbose tracing: set TERMINAL_CLIENT_IP_DEBUG=true in .env to log
+        // every call (path, REMOTE_ADDR, header presence) to server.log.
+        if (filter_var(Config::env('TERMINAL_CLIENT_IP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN)) {
+            $tokenSeen = ($_SERVER['HTTP_X_BINKTERM_CLIENT_TOKEN'] ?? $_SERVER['HTTP_X_BINKTERM_REGISTRATION_TOKEN'] ?? '') !== '';
+            self::logClientIpDebug(sprintf(
+                'trace: path=%s remote=%s claimed=%s token_header=%s',
+                $_SERVER['REQUEST_URI'] ?? '?',
+                $remote !== '' ? $remote : '(none)',
+                $claimed !== '' ? $claimed : '(none)',
+                $tokenSeen ? 'present' : 'absent'
+            ));
+        }
+
         if ($claimed === '') {
             return $remote;
         }
