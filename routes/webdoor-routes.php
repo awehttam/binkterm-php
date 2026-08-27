@@ -448,6 +448,7 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
 
     // Include the DOS door player
     $doorId = $doorid; // For the player script
+    $doorIsNativeTerminal = false; // DOS doors use the Doorway protocol for nav keys
     require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
 });
 
@@ -493,6 +494,7 @@ SimpleRouter::get('/games/nativedoors/{doorid}', function($doorid) {
 
     // Reuse the DOS door terminal player (same WebSocket protocol)
     $doorId = $doorid;
+    $doorIsNativeTerminal = true; // Native doors expect raw xterm/ANSI key sequences
     require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
 });
 

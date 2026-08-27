@@ -175,6 +175,9 @@ if (empty($doorId)) {
         let doAutofit = false;
         let sessionId = null;
         const doorId = <?php echo json_encode($doorId); ?>;
+        // The guest player only ever serves native doors (e.g. PubTerm), which run
+        // real ANSI programs over a PTY and expect standard xterm key sequences.
+        const DOOR_IS_NATIVE = true;
 
         function initTerminal() {
             const container = document.getElementById('terminal-container');
@@ -232,6 +235,14 @@ if (empty($doorId)) {
             // for navigation/function keys, not ANSI escape sequences.
             term.attachCustomKeyEventHandler((e) => {
                 if (e.type !== 'keydown') return true;
+
+                // Native doors get raw xterm sequences — no Doorway remapping.
+                if (DOOR_IS_NATIVE) {
+                    if (e.ctrlKey && !e.altKey && e.key.length === 1) {
+                        e.preventDefault();
+                    }
+                    return true;
+                }
 
                 const doorwayKeys = {
                     'ArrowUp':    0x48, 'ArrowDown':  0x50,
@@ -434,6 +445,7 @@ if (empty($doorId)) {
 
         // Alt+key handling via capture phase
         document.addEventListener('keydown', function(e) {
+            if (DOOR_IS_NATIVE) return;
             if (!e.altKey || e.ctrlKey || !term || !socket || socket.readyState !== WebSocket.OPEN) return;
 
             const altLetterCodes = {
