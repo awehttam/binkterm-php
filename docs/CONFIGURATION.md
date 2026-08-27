@@ -145,6 +145,17 @@ ADMIN_DAEMON_SCHEDULE_INTERVAL=60    # seconds between scheduler ticks
 # TELNET_TLS_CERT=/etc/ssl/certs/your-cert.pem
 # TELNET_TLS_KEY=/etc/ssl/private/your-key.pem
 
+# Per-IP connection rate limiting (0 in MAX disables it)
+# TELNET_RATE_LIMIT_MAX=5
+# TELNET_RATE_LIMIT_WINDOW=60
+
+# PROXY protocol v1: source addresses allowed to supply a PROXY header naming
+# the real client (loopback and TELNET_BIND_HOST are always trusted on top of
+# this). Used by the PubTerm door so rate limiting / screening / logs see the
+# real visitor IP. See docs/TelnetServer.md.
+# TELNET_TRUSTED_PROXIES=127.0.0.1,::1
+# TELNET_PROXY_HEADER_TIMEOUT=2
+
 # ZMODEM file transfers over the telnet BBS
 # TERMINAL_FILE_TRANSFERS=true
 # TELNET_SZ_BIN=/usr/bin/sz   # override path to sz binary (lrzsz)
@@ -222,7 +233,17 @@ See [docs/DOSBox_Headless_Mode.md](DOSBox_Headless_Mode.md) and [docs/DOSDoors.m
 # PUBTERM_PORT=2323
 # PUBTERM_TELNET_BIN=/usr/bin/telnet
 # PUBTERM_PLINK_BIN=C:\Program Files\PuTTY\plink.exe   # Windows
+
+# Override the address PubTerm's IP-forwarding relay dials for the telnet
+# daemon. Only needed when the daemon was started with a --host bind address
+# that is not also set as TELNET_BIND_HOST. See docs/PubTerm.md.
+# PUBTERM_PROXY_TARGET=
 ```
+
+PubTerm forwards each visitor's real IP address to the telnet daemon via the
+PROXY protocol so rate limiting, registration screening, and logging see the
+actual client. This works with no configuration on a single-host install. See
+[docs/PubTerm.md](PubTerm.md#real-client-ip-forwarding).
 
 ### Appearance
 

@@ -22,6 +22,9 @@ troubleshooting.
 - **Connection rate limiting** — rejects repeated rapid connections from a single
   IP before forking a child process, preventing flood attacks from exhausting
   process table slots
+- **PROXY protocol v1** — optionally accepts a HAProxy PROXY header from trusted
+  local relays (such as the PubTerm door) so rate limiting, registration
+  screening, and logging see the real client address instead of the relay's
 
 ## Requirements
 
@@ -95,6 +98,10 @@ Command-line options take precedence over `.env` values.
 | `TELNET_TLS_PORT` | `8023` | TLS listener port (equivalent to `--tls-port`) |
 | `TELNET_TLS_CERT` | (empty) | Path to TLS cert PEM (equivalent to `--tls-cert`) |
 | `TELNET_TLS_KEY` | (empty) | Path to TLS key PEM (equivalent to `--tls-key`) |
+| `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP per window; `0` disables rate limiting |
+| `TELNET_RATE_LIMIT_WINDOW` | `60` | Rate-limit window duration in seconds |
+| `TELNET_TRUSTED_PROXIES` | `127.0.0.1,::1` | Comma-separated source IPs allowed to supply a PROXY protocol header (see [Proxied Connections](#proxied-connections-proxy-protocol)) |
+| `TELNET_PROXY_HEADER_TIMEOUT` | `2` | Seconds to wait for a PROXY header from a trusted source before treating the connection as direct |
 
 ## TLS Support
 
@@ -252,6 +259,41 @@ The defaults allow 5 connections per minute per IP, which is sufficient for
 any legitimate user. Adjust `TELNET_RATE_LIMIT_MAX` downward if you are seeing
 active floods, or set it to `0` on private/LAN-only installs.
 
+### Proxied Connections (PROXY protocol)
+
+When a connection reaches the daemon through a local relay rather than directly
+from the end user — the built-in PubTerm door is the main case, where a browser
+visitor's terminal session is forwarded into the telnet port — the daemon would
+otherwise see the relay's address (typically `127.0.0.1` or the server's own IP)
+for every such user. That breaks per-IP rate limiting, registration screening,
+and audit logging, since they would all key on the relay instead of the visitor.
+
+To avoid this, the daemon accepts an optional HAProxy **PROXY protocol v1**
+header as the first line of a connection. When the header is present and the
+connection's real source address is trusted, the daemon attributes the whole
+session to the address named in the header.
+
+- The header is only honoured from source addresses in `TELNET_TRUSTED_PROXIES`.
+  The daemon **always** additionally trusts loopback (`127.0.0.1`, `::1`) and its
+  own bind address (`TELNET_BIND_HOST` / `--host`, unless that is a wildcard), so
+  a single-host install where the relay runs on the same machine needs no
+  configuration here.
+- The check is non-destructive: a normal telnet client that happens to connect
+  from a trusted address (for example a sysop running `telnet localhost 2323`) is
+  detected and left untouched.
+- If a trusted source connects but sends no header within
+  `TELNET_PROXY_HEADER_TIMEOUT` seconds, the connection proceeds as a normal
+  direct connection.
+- Honoured headers are logged to `data/logs/telnetd.log` as
+  `PROXY header from <relay-ip>: real client <visitor-ip>` followed by the usual
+  `Connection #N from <visitor-ip> (via bridge)` line.
+
+PubTerm sets this up automatically; see [PubTerm.md](PubTerm.md#real-client-ip-forwarding).
+Only add entries to `TELNET_TRUSTED_PROXIES` if a relay reaches the daemon from
+some address other than loopback or the daemon's own bind address. Never list a
+public-facing address that untrusted clients could also connect from — anything
+on the list can spoof its source IP.
+
 ### Fail2ban
 
 The telnet daemon writes to `data/logs/telnetd.log`. Example fail2ban
@@ -365,18 +407,19 @@ request/response details.
 ### Connection Flow
 
 1. Client connects to the plain-text or TLS listener
-2. Parent checks per-IP connection rate limit — closes socket immediately if exceeded
-3. Daemon forks child process (Linux/macOS) or handles directly (Windows)
-4. If TLS: child performs TLS handshake; on failure, connection is dropped
-5. Child performs telnet option negotiation (NAWS, TTYPE, echo control)
-6. Child probes for ANSI color support via TTYPE; enables color automatically if supported
-7. Child displays ANSI/Sixel login screen or default banner
-8. User sees pre-login menu (Login / Register / Reset password / QWK / Quit)
-9. User authenticates via API (up to 3 attempts)
-10. Main menu displayed with message counts
-11. User navigates menus and performs actions
-12. Connection closed and child exits
-13. Parent reaps zombie process via SIGCHLD
+2. If the source address is a trusted proxy, the parent consumes an optional PROXY protocol v1 header and re-attributes the connection to the real client address
+3. Parent checks per-IP connection rate limit (against the real client address) — closes socket immediately if exceeded
+5. Daemon forks child process (Linux/macOS) or handles directly (Windows)
+6. If TLS: child performs TLS handshake; on failure, connection is dropped
+7. Child performs telnet option negotiation (NAWS, TTYPE, echo control)
+8. Child probes for ANSI color support via TTYPE; enables color automatically if supported
+9. Child displays ANSI/Sixel login screen or default banner
+10. User sees pre-login menu (Login / Register / Reset password / QWK / Quit)
+11. User authenticates via API (up to 3 attempts)
+12. Main menu displayed with message counts
+13. User navigates menus and performs actions
+14. Connection closed and child exits
+15. Parent reaps zombie process via SIGCHLD
 
 ### Code Structure
 

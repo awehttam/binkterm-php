@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Networks](#networks)
 - [Dashboard](#dashboard)
 - [DOS Doors](#dos-doors)
+- [PubTerm](#pubterm)
 - [Sessions](#sessions)
 - [Logging](#logging)
 - [Registration Screening](#registration-screening)
@@ -36,6 +37,11 @@ Make sure you have a current backup of your database and files before upgrading.
 - Fixed a crash in the DOSEMU adapter when a door's `launch_command` used the `{user_number}` placeholder.
 - Removed a duplicate, non-functional "Requires FOSSIL Driver" checkbox from the **Requirements** section of the DOS door manifest editor. The **Requires FOSSIL Driver** checkbox in the door info section is the one that actually controls whether the FOSSIL driver is loaded at launch; the removed checkbox never had any effect.
 - Fixed the **CPU Cycles** field in the DOS door manifest editor having no effect — the DOSBox multiplexing server now applies a door's configured cycle count to its generated `dosbox.conf` instead of always using the template's default value.
+
+### PubTerm
+
+- PubTerm (the browser terminal door) now forwards each visitor's real IP address to the telnet daemon, so per-IP connection rate limiting, new-user registration screening, and audit logs see the actual visitor instead of the server's loopback address. On a standard single-host install this needs no configuration.
+- New optional `.env` variables for the telnet daemon: `TELNET_TRUSTED_PROXIES`, `TELNET_PROXY_HEADER_TIMEOUT`, and `PUBTERM_PROXY_TARGET`. The telnet daemon's existing `TELNET_RATE_LIMIT_MAX` / `TELNET_RATE_LIMIT_WINDOW` settings are now also documented.
 
 ### Sessions
 
@@ -77,6 +83,36 @@ The DOSEMU adapter also had a bug fixed where launching a door whose manifest `l
 In the DOS door manifest editor (**Admin → DOS Doors**), the **Requirements** section previously had two checkboxes related to the FOSSIL driver: "Requires FOSSIL Driver" in the door info section (which actually controls whether the FOSSIL driver is loaded during door launch) and a second, identically-labeled checkbox in the Requirements section that had no effect on runtime behavior. The non-functional duplicate has been removed. Existing manifests are unaffected; the remaining "Requires FOSSIL Driver" checkbox in the door info section continues to work as before.
 
 The **CPU Cycles** field on the **Runtime Defaults** section of the manifest editor was previously stored but never applied — every door session used the same fixed `cycles=` value from the active DOSBox config template regardless of what was set per-door. The DOSBox multiplexing server now substitutes a door's configured CPU cycle count into its generated `dosbox.conf` at launch time, so raising or lowering the value for a specific door now actually changes its emulated CPU speed. Leave the field unset (or at its default) to keep using the template's value.
+
+## PubTerm
+
+PubTerm gives browser visitors a full terminal session by connecting them to the BBS's own telnet port. Because that connection is made on the server, the telnet daemon previously saw the loopback address (`127.0.0.1`) or the server's own IP for every PubTerm user. Anything that keys on the client address — the telnet daemon's per-IP connection rate limiter, the new registration screening feature, and connection logging — therefore could not tell PubTerm visitors apart or attribute activity to a real address.
+
+PubTerm now stands up a short-lived per-session relay that connects to the telnet daemon, announces the visitor's real address using the HAProxy PROXY protocol, and then passes the session through. The telnet daemon reads that header and attributes the whole session to the real address. PubTerm continues to use the ordinary system `telnet` client, so terminal negotiation and rendering are unchanged.
+
+**No action is required on a standard single-host install.** The telnet daemon only accepts the PROXY header from trusted source addresses, and it automatically trusts loopback and its own configured bind address — which is where the relay connects from. You only need to act if:
+
+- **The telnet daemon binds a specific address.** Set `TELNET_BIND_HOST` in `.env` to that address (if it is not already set) so both the relay and the daemon's trust list agree on it. If the daemon is started with a `--host` argument that differs from `TELNET_BIND_HOST`, also set `PUBTERM_PROXY_TARGET` to that address.
+- **The relay reaches the daemon from some other address.** Add that address to `TELNET_TRUSTED_PROXIES` (comma-separated). Never list a public-facing address that untrusted clients could connect from directly — any address on the list is allowed to claim any source IP.
+
+New telnet daemon `.env` variables:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TELNET_TRUSTED_PROXIES` | `127.0.0.1,::1` | Additional source addresses allowed to supply a PROXY header (loopback and the daemon's bind address are always trusted on top of this) |
+| `TELNET_PROXY_HEADER_TIMEOUT` | `2` | Seconds to wait for a PROXY header from a trusted source before treating the connection as a normal direct connection |
+| `PUBTERM_PROXY_TARGET` | (unset) | Overrides the address PubTerm's relay dials for the telnet daemon |
+
+To confirm it is working, connect to PubTerm and check `data/logs/telnetd.log` for:
+
+```
+PROXY header from <relay-address>: real client <visitor-ip>
+Connection #N from <visitor-ip> (via bridge)
+```
+
+Restart both the multiplexing bridge and the telnet daemon after upgrading. On Windows hosts the relay is not used (the Windows launch path uses PuTTY's `plink`), so PubTerm sessions there remain attributed to the loopback address.
+
+See [PubTerm.md](PubTerm.md#real-client-ip-forwarding) and [TelnetServer.md](TelnetServer.md#proxied-connections-proxy-protocol) for details.
 
 ## Sessions
 
