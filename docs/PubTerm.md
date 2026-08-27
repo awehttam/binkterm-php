@@ -104,7 +104,6 @@ PubTerm reads the following variables from `.env`. All have sensible defaults an
 | `PUBTERM_PORT` | `2323` | Port of the BBS telnet server |
 | `PUBTERM_TELNET_BIN` | `telnet` | Path to the telnet binary (Linux/macOS). Override if telnet is not on `PATH` |
 | `PUBTERM_PLINK_BIN` | `plink` | Path to PuTTY's `plink.exe` (Windows only). Override if plink is not on `PATH` |
-| `PUBTERM_PROXY_TARGET` | (unset) | Overrides the address the IP-forwarding relay dials for the telnet server. Only needed when the telnet daemon was started with a `--host` bind address that is not also set as `TELNET_BIND_HOST` in `.env`. See [Real Client IP Forwarding](#real-client-ip-forwarding) |
 
 ---
 
@@ -134,9 +133,9 @@ When the relay reaches the daemon from some other address, add that address to
 trust rules and the relevant `.env` variables.
 
 The relay dials the telnet daemon at `TELNET_BIND_HOST` (falling back to loopback
-when that is a wildcard such as `0.0.0.0`). If the daemon was started with a
-`--host` argument that differs from `TELNET_BIND_HOST`, set `PUBTERM_PROXY_TARGET`
-to that address so the relay can reach it.
+when that is a wildcard such as `0.0.0.0`). The daemon's own `--host` argument
+defaults to `TELNET_BIND_HOST`, so if the daemon binds a specific address, set
+`TELNET_BIND_HOST` in `.env` to match and the relay will reach it.
 
 A successful connection logs, in `data/logs/telnetd.log`:
 

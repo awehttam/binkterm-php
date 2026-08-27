@@ -42,7 +42,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - PubTerm (the browser terminal door) now forwards each visitor's real IP address to the telnet daemon, so per-IP connection rate limiting, new-user registration screening, connection logs, and the stored session IP shown in **Admin → Users** / `binktop` / `who` all reflect the actual visitor instead of the server's address. On a standard single-host install this needs no configuration.
 - Terminal (telnet/SSH) sessions in general now record the connecting user's IP address for online-session displays, rather than the server's — previously any terminal login showed the server address because the daemon proxies API traffic through the server.
-- New optional `.env` variables for the telnet daemon: `TELNET_TRUSTED_PROXIES`, `TELNET_PROXY_HEADER_TIMEOUT`, and `PUBTERM_PROXY_TARGET`. The telnet daemon's existing `TELNET_RATE_LIMIT_MAX` / `TELNET_RATE_LIMIT_WINDOW` settings are now also documented.
+- New optional `.env` variables for the telnet daemon: `TELNET_TRUSTED_PROXIES` and `TELNET_PROXY_HEADER_TIMEOUT`. The telnet daemon's existing `TELNET_RATE_LIMIT_MAX` / `TELNET_RATE_LIMIT_WINDOW` settings are now also documented.
 - Fixed a regression where arrow keys, Page Up/Down, Home/End, and function keys stopped working in PubTerm. When the browser terminal player gained DOS Doorway scan-code support for navigation keys, that translation was applied to PubTerm and other native doors too — but those expect normal ANSI/xterm key sequences, not Doorway codes.
 
 ### Sessions
@@ -94,7 +94,7 @@ PubTerm now stands up a short-lived per-session relay that connects to the telne
 
 **No action is required on a standard single-host install.** The telnet daemon only accepts the PROXY header from trusted source addresses, and it automatically trusts loopback and its own configured bind address — which is where the relay connects from. You only need to act if:
 
-- **The telnet daemon binds a specific address.** Set `TELNET_BIND_HOST` in `.env` to that address (if it is not already set) so both the relay and the daemon's trust list agree on it. If the daemon is started with a `--host` argument that differs from `TELNET_BIND_HOST`, also set `PUBTERM_PROXY_TARGET` to that address.
+- **The telnet daemon binds a specific address.** Set `TELNET_BIND_HOST` in `.env` to that address (if it is not already set) so both the relay and the daemon's trust list agree on it. The daemon's `--host` argument defaults to `TELNET_BIND_HOST`, so avoid passing a `--host` that differs from it.
 - **The relay reaches the daemon from some other address.** Add that address to `TELNET_TRUSTED_PROXIES` (comma-separated). Never list a public-facing address that untrusted clients could connect from directly — any address on the list is allowed to claim any source IP.
 
 New telnet daemon `.env` variables:
@@ -103,7 +103,6 @@ New telnet daemon `.env` variables:
 |---|---|---|
 | `TELNET_TRUSTED_PROXIES` | `127.0.0.1,::1` | Additional source addresses allowed to supply a PROXY header (loopback and the daemon's bind address are always trusted on top of this) |
 | `TELNET_PROXY_HEADER_TIMEOUT` | `2` | Seconds to wait for a PROXY header from a trusted source before treating the connection as a normal direct connection |
-| `PUBTERM_PROXY_TARGET` | (unset) | Overrides the address PubTerm's relay dials for the telnet daemon |
 
 To confirm it is working, connect to PubTerm and check `data/logs/telnetd.log` for:
 

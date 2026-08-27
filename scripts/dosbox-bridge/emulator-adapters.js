@@ -631,10 +631,10 @@ class NativeAdapter extends EmulatorAdapter {
         // reachable; a specific external IP means we must use that (the daemon
         // now implicitly trusts its own bind address as a proxy source, so no
         // TELNET_TRUSTED_PROXIES entry is needed for the common single-host
-        // setup). PUBTERM_PROXY_TARGET overrides this for unusual topologies;
-        // PUBTERM_HOST is only for the non-forwarded fallback / Windows path.
-        let targetHost = process.env.PUBTERM_PROXY_TARGET
-            || process.env.TELNET_BIND_HOST
+        // setup). The daemon's --host arg defaults to TELNET_BIND_HOST, so set
+        // that in .env if the daemon binds a specific address. PUBTERM_HOST is
+        // only for the non-forwarded fallback / Windows path.
+        let targetHost = process.env.TELNET_BIND_HOST
             || '127.0.0.1';
         if (targetHost === '0.0.0.0' || targetHost === '::' || targetHost === '') {
             targetHost = '127.0.0.1';

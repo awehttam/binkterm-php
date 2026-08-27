@@ -239,11 +239,6 @@ See [docs/DOSBox_Headless_Mode.md](DOSBox_Headless_Mode.md) and [docs/DOSDoors.m
 # PUBTERM_PORT=2323
 # PUBTERM_TELNET_BIN=/usr/bin/telnet
 # PUBTERM_PLINK_BIN=C:\Program Files\PuTTY\plink.exe   # Windows
-
-# Override the address PubTerm's IP-forwarding relay dials for the telnet
-# daemon. Only needed when the daemon was started with a --host bind address
-# that is not also set as TELNET_BIND_HOST. See docs/PubTerm.md.
-# PUBTERM_PROXY_TARGET=
 ```
 
 PubTerm forwards each visitor's real IP address to the telnet daemon via the
