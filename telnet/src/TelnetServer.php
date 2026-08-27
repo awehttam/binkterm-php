@@ -136,13 +136,12 @@ class TelnetServer
     }
 
     /**
-     * Consume an optional HAProxy PROXY protocol v1 header, plus an optional
-     * "@BINKTERM key=value ..." capability hint line, from a trusted local
-     * connection. Returns ['ip','name','meta'] on success, or null when no
-     * (valid) header is present.
+     * Consume a single HAProxy PROXY protocol v1 header line from a trusted
+     * local connection (the multiplexing bridge's PubTerm forwarder). Returns
+     * ['ip','name'] on success, or null when no valid header is present.
      *
-     * The socket buffer is inspected with a non-destructive peek first: bytes are
-     * only consumed when a real "PROXY " header is found, so a normal TELNET
+     * The socket buffer is inspected with a non-destructive peek first: bytes
+     * are only consumed when a real "PROXY " header is found, so a normal TELNET
      * client that happens to connect from a trusted address is left untouched.
      *
      * @param resource $conn
@@ -155,7 +154,7 @@ class TelnetServer
         stream_set_blocking($conn, false);
         try {
             while (true) {
-                $buf = @stream_socket_recvfrom($conn, 600, STREAM_PEEK);
+                $buf = @stream_socket_recvfrom($conn, 128, STREAM_PEEK);
                 if (is_string($buf) && $buf !== '') {
                     $peek = $buf;
                 }
@@ -165,21 +164,10 @@ class TelnetServer
                 if ($peek !== '' && strncmp($peek, 'PROXY ', min(6, strlen($peek))) !== 0) {
                     return null;
                 }
-
-                $nl = strpos($peek, "\n");
-                if ($nl !== false) {
-                    $tail = substr($peek, $nl + 1);
-                    // Done once we also have the hint line, or can tell there is none.
-                    if (strpos($tail, "\n") !== false
-                        || ($tail !== '' && strncmp($tail, '@BINKTERM', min(9, strlen($tail))) !== 0)) {
-                        break;
-                    }
+                if (strpos($peek, "\n") !== false) {
+                    break;
                 }
-
                 if (microtime(true) >= $deadline) {
-                    if ($nl !== false) {
-                        break; // PROXY line is complete; hint line never arrived
-                    }
                     return null;
                 }
                 $r = [$conn]; $w = null; $e = null;
@@ -193,26 +181,12 @@ class TelnetServer
         if (strncmp($peek, 'PROXY ', 6) !== 0 || $nl1 === false) {
             return null;
         }
-        $line1   = rtrim(substr($peek, 0, $nl1), "\r");
-        $consume = $nl1 + 1;
+        $line = rtrim(substr($peek, 0, $nl1), "\r");
 
-        $metaOut = [];
-        $after = substr($peek, $nl1 + 1);
-        if (strncmp($after, '@BINKTERM ', 10) === 0 && ($nl2 = strpos($after, "\n")) !== false) {
-            $consume += $nl2 + 1;
-            foreach (preg_split('/\s+/', trim(substr($after, 10, $nl2 - 10))) as $kv) {
-                if ($kv === '' || strpos($kv, '=') === false) {
-                    continue;
-                }
-                [$k, $v] = explode('=', $kv, 2);
-                $metaOut[strtolower($k)] = $v;
-            }
-        }
+        // Remove exactly the header line from the stream.
+        $this->consumeExact($conn, $nl1 + 1);
 
-        // Remove exactly the header bytes from the stream.
-        $this->consumeExact($conn, $consume);
-
-        $fields = preg_split('/\s+/', trim($line1));
+        $fields = preg_split('/\s+/', trim($line));
         if (count($fields) < 5
             || ($fields[0] !== 'TCP4' && $fields[0] !== 'TCP6')
             || filter_var($fields[1], FILTER_VALIDATE_IP) === false) {
@@ -225,7 +199,6 @@ class TelnetServer
         return [
             'ip'   => $srcIp,
             'name' => (strpos($srcIp, ':') !== false ? '[' . $srcIp . ']' : $srcIp) . ':' . $srcPort,
-            'meta' => $metaOut,
         ];
     }
 
@@ -480,20 +453,17 @@ class TelnetServer
                 $connectionCount++;
                 [$peerName, $peerIp] = $this->parsePeerAddress($conn);
 
-                // Trusted local proxies (the multiplexing bridge / PubTerm) prepend a
-                // PROXY protocol v1 header naming the real browser-side client. Resolve
-                // it before rate limiting so limits and screening key on the true IP.
+                // Trusted local proxies (the multiplexing bridge's PubTerm forwarder)
+                // prepend a PROXY protocol v1 header naming the real browser-side
+                // client. Resolve it before rate limiting so limits and registration
+                // screening key on the true IP rather than the loopback address.
                 $viaProxy = false;
-                $proxyMeta = [];
                 if (!$isTls && $peerIp !== null && $this->isTrustedProxy($peerIp)) {
-                    stream_set_timeout($conn, $this->proxyHeaderTimeout);
                     $hdr = $this->readProxyHeader($conn);
-                    stream_set_timeout($conn, 300);
                     if ($hdr !== null) {
-                        $viaProxy  = true;
-                        $peerName  = $hdr['name'];
-                        $peerIp    = $hdr['ip'];
-                        $proxyMeta = $hdr['meta'];
+                        $viaProxy = true;
+                        $peerName = $hdr['name'];
+                        $peerIp   = $hdr['ip'];
                     }
                 }
 
@@ -550,7 +520,7 @@ class TelnetServer
                     }
                 }
 
-                $this->handleConnection($conn, $forked, $isTls, $peerName, $peerIp, $viaProxy, $proxyMeta);
+                $this->handleConnection($conn, $forked, $isTls, $peerName, $peerIp);
             }
         }
     }
@@ -905,7 +875,7 @@ class TelnetServer
      * @param bool $forked Whether this is running in a forked child process
      * @param bool $isTls Whether the connection is TLS-encrypted
      */
-    private function handleConnection($conn, bool $forked, bool $isTls = false, ?string $peerName = null, ?string $peerIp = null, bool $viaProxy = false, array $proxyMeta = [], string $initialPushback = ''): void
+    private function handleConnection($conn, bool $forked, bool $isTls = false, ?string $peerName = null, ?string $peerIp = null): void
     {
         $preAuthSession = $this->debugUser !== null
             ? $this->buildDebugPreAuthSession($this->debugUser, $peerIp, $peerName)
@@ -923,10 +893,7 @@ class TelnetServer
             $this->logger,
             $preAuthSession,
             $peerName,
-            $peerIp,
-            $viaProxy,
-            $proxyMeta,
-            $initialPushback
+            $peerIp
         );
         $session->run($forked);
     }

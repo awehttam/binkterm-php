@@ -604,10 +604,63 @@ class NativeAdapter extends EmulatorAdapter {
         super(basePath);
         this.ptyProcess = null;
         this.outputEncoding = 'utf8';
+        this.proxyForwarder = null;
     }
 
     getName() {
         return 'Native';
+    }
+
+    /**
+     * For the pubterm door only: create a single-use loopback TCP forwarder that
+     * writes a PROXY protocol v1 header (naming the real browser-side client) to
+     * the terminal server, then splices the two sockets. Returns an env override
+     * ({ PUBTERM_HOST, PUBTERM_PORT }) pointing the door at the forwarder, or an
+     * empty object when no forwarding is needed/possible.
+     */
+    async _setupPubtermProxyForwarder(doorId, clientIp, slog) {
+        // The Windows launch path (plink) resolves ${PUBTERM_*} from process.env,
+        // not the door env, so the override would not take effect there.
+        if (doorId !== 'pubterm' || process.platform === 'win32'
+            || !clientIp || net.isIP(clientIp) === 0) {
+            return {};
+        }
+
+        const targetHost = process.env.PUBTERM_HOST || '127.0.0.1';
+        const targetPort = parseInt(process.env.PUBTERM_PORT, 10) || 2323;
+        const isV6 = net.isIP(clientIp) === 6;
+        const proxyLine = `PROXY ${isV6 ? 'TCP6' : 'TCP4'} ${clientIp} ${isV6 ? '::1' : '127.0.0.1'} 0 ${targetPort}\r\n`;
+
+        const server = net.createServer((client) => {
+            // Only the first connection is expected — stop listening immediately.
+            try { server.close(); } catch (_) {}
+
+            const upstream = net.connect(targetPort, targetHost, () => {
+                upstream.write(proxyLine);
+                client.pipe(upstream);
+                upstream.pipe(client);
+            });
+            const bail = () => { try { client.destroy(); } catch (_) {} try { upstream.destroy(); } catch (_) {} };
+            client.on('error', bail);
+            upstream.on('error', bail);
+            client.on('close', () => { try { upstream.end(); } catch (_) {} });
+            upstream.on('close', () => { try { client.end(); } catch (_) {} });
+        });
+
+        try {
+            await new Promise((resolve, reject) => {
+                server.once('error', reject);
+                server.listen(0, '127.0.0.1', resolve);
+            });
+        } catch (e) {
+            slog.warn(`[${this.getName()}] PubTerm PROXY forwarder failed to start: ${e.message}`);
+            return {};
+        }
+
+        this.proxyForwarder = server;
+        const port = server.address().port;
+        slog.log(`[${this.getName()}] PubTerm PROXY forwarder 127.0.0.1:${port} -> ${targetHost}:${targetPort} (client ${clientIp})`);
+        return { PUBTERM_HOST: '127.0.0.1', PUBTERM_PORT: String(port) };
     }
 
     async launch(session, sessionData) {
@@ -712,10 +765,15 @@ class NativeAdapter extends EmulatorAdapter {
             : (sessionData.user_data || {});
 
         // Real originating (browser-side) client IP, resolved from X-Forwarded-For
-        // by the multiplexing server. Doors that relay into another local service
-        // (e.g. pubterm -> the terminal server) use this to forward the true origin
-        // instead of 127.0.0.1, so IP-based screening / rate limiting still works.
+        // by the multiplexing server.
         const clientIp = (session && session.clientIp) ? String(session.clientIp) : '';
+
+        // PubTerm relays into the local terminal server, which would otherwise see
+        // 127.0.0.1 for every browser visitor. Stand up a per-session loopback
+        // forwarder that prepends a HAProxy PROXY v1 header naming the real client,
+        // and point the door at it. The door keeps using the ordinary telnet
+        // client, so TELNET option negotiation is unaffected.
+        const proxyEnvOverride = await this._setupPubtermProxyForwarder(door_id, clientIp, slog);
 
         const env = {
             ...process.env,
@@ -728,7 +786,8 @@ class NativeAdapter extends EmulatorAdapter {
             DOOR_HOME: homeDir,
             DOOR_ANSI: '1',
             DOOR_CLIENT_IP: clientIp,
-            TERM: 'xterm-256color'
+            TERM: 'xterm-256color',
+            ...proxyEnvOverride
         };
 
         slog.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir} (output_encoding=${this.outputEncoding})`);
@@ -794,6 +853,10 @@ class NativeAdapter extends EmulatorAdapter {
 
     close() {
         const slog = this.slog || console;
+        if (this.proxyForwarder) {
+            try { this.proxyForwarder.close(); } catch (_) {}
+            this.proxyForwarder = null;
+        }
         if (this.ptyProcess) {
             slog.log(`[${this.getName()}] Killing PTY process`);
             this.ptyProcess.kill();
