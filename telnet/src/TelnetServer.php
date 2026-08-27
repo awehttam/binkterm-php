@@ -471,9 +471,14 @@ class TelnetServer
                     $hdr = $this->readProxyHeader($conn);
                     if ($hdr !== null) {
                         $viaProxy = true;
+                        $this->log("PROXY header from {$peerIp}: real client {$hdr['name']}");
                         $peerName = $hdr['name'];
                         $peerIp   = $hdr['ip'];
+                    } else {
+                        $this->log("No PROXY header from trusted source {$peerIp} — treating as direct connection");
                     }
+                } elseif (!$isTls && $peerIp !== null && $this->debug) {
+                    $this->log("Connection from {$peerIp} is not a trusted proxy (trusted: " . implode(',', $this->trustedProxies) . ")");
                 }
 
                 $rl = $peerIp !== null ? $this->isRateLimited($peerIp) : 0;
