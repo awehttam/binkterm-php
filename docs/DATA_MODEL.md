@@ -177,6 +177,11 @@ See [BinkStreamChannel.md](BinkStreamChannel.md) for the full architecture.
 | `gateway_tokens` | SSO tokens for external service authentication |
 | `password_reset_tokens` | Time-limited password reset tokens |
 | `activity_categories` / `activity_types` / `user_activity_log` | User activity analytics |
+| `pending_users` | Registration requests awaiting approval; retained after approval/rejection for history. `risk_score` / `risk_flags` (JSONB) / `screening_forced_review` hold the registration-screening result |
+| `registration_attempts` | Per-IP registration attempt log used for rate limiting and the screening velocity signal |
+| `tor_exit_nodes` | Cached Tor exit node IPs for the registration-screening Tor signal; refreshed every 6h by `binkp_scheduler.php` via `scripts/update_tor_exit_list.php` |
+| `disposable_email_domains` | Cached disposable/throwaway email provider domains for the registration-screening `disposable_email` signal; refreshed every 24h by `binkp_scheduler.php` via `scripts/update_disposable_email_list.php` |
+| `screening_list_refresh` | Last-run/status tracking for screening cache-list refresh jobs, so the scheduler can gate them to a fixed interval |
 
 ---
 

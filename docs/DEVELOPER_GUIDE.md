@@ -93,7 +93,7 @@ All daemons write PID files to `data/run/` and logs to `data/logs/`. Use `restar
 |--------|--------|---------|----------|
 | Admin Daemon | `scripts/admin_daemon.php` | Logging relay, config writes, post-session triggers. Other daemons depend on it for structured logging. | Yes |
 | Binkp Server | `scripts/binkp_server.php` | Accepts incoming binkp connections from uplinks | If receiving mail |
-| Binkp Scheduler | `scripts/binkp_scheduler.php` | Schedules automatic uplink polling | If polling uplinks |
+| Binkp Scheduler | `scripts/binkp_scheduler.php` | Schedules automatic uplink polling; also runs the registration-screening cache list refreshes (Tor exit list, disposable email list) | If polling uplinks |
 | Realtime Server | `scripts/realtime_server.php` | WebSocket server for BinkStream; browsers fall back to SSE if not running | Optional |
 | Telnet Daemon | `scripts/telnet_daemon.php` | Telnet BBS terminal interface | Optional |
 | SSH Daemon | `ssh/ssh_daemon.php` | SSH-2 BBS terminal interface | Optional |
@@ -705,8 +705,10 @@ Maintenance and scheduling scripts typically run via cron or the admin daemon's 
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/binkp_scheduler.php` | Schedules automatic uplink polling |
+| `scripts/binkp_scheduler.php` | Schedules automatic uplink polling; also refreshes the registration-screening cache lists (Tor exit list every 6h, disposable email list every 24h) |
 | `scripts/binkp_poll.php` | Polls a single uplink on demand |
+| `scripts/update_tor_exit_list.php` | Downloads/caches the Tor exit node list for registration screening (run manually or by `binkp_scheduler.php`) |
+| `scripts/update_disposable_email_list.php` | Downloads/caches the disposable email domain list for registration screening (run manually or by `binkp_scheduler.php`) |
 | `scripts/echomail_maintenance.php` | Prunes old messages per area retention settings |
 | `scripts/chat_cleanup.php` | Removes expired MRC chat history |
 | `scripts/logrotate.php` | Rotates application log files |

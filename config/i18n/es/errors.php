@@ -818,4 +818,5 @@ return [
     'errors.point_management.fileareas_save_failed' => 'No se pudieron guardar las suscripciones de areas de archivos.',
     'errors.admin.hub_nodes.invalid_owner_user' => 'El usuario seleccionado no existe.',
     'errors.admin.users.autocomplete_failed' => 'No se pudo buscar usuarios.',
+    'errors.admin.bbs_settings.invalid_screening_config' => 'Configuración de detección de registros no válida',
 ];

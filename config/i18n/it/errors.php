@@ -818,4 +818,5 @@ return [
     'errors.point_management.fileareas_save_failed' => 'Impossibile salvare le iscrizioni alle aree file.',
     'errors.admin.hub_nodes.invalid_owner_user' => 'L\'utente selezionato non esiste.',
     'errors.admin.users.autocomplete_failed' => 'Impossibile cercare gli utenti.',
+    'errors.admin.bbs_settings.invalid_screening_config' => 'Configurazione del controllo delle registrazioni non valida',
 ];

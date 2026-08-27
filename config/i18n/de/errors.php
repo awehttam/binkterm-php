@@ -820,4 +820,5 @@ return [
     'errors.point_management.fileareas_save_failed' => 'Dateibereichsabonnements konnten nicht gespeichert werden.',
     'errors.admin.hub_nodes.invalid_owner_user' => 'Der ausgewaehlte Benutzer existiert nicht.',
     'errors.admin.users.autocomplete_failed' => 'Benutzersuche fehlgeschlagen.',
+    'errors.admin.bbs_settings.invalid_screening_config' => 'Ungültige Konfiguration der Registrierungsprüfung',
 ];

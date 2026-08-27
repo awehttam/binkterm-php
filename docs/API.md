@@ -6598,6 +6598,12 @@ List of pending user registrations
 | `users[].admin_notes` | string\|null | Admin notes on the registration |
 | `users[].reviewed_by_username` | string\|null | Username of reviewing admin |
 | `users[].registration_source` | string | Registration source (web, terminal, etc.) |
+| `users[].risk_score` | integer | Registration screening risk score (0 when screening is disabled) |
+| `users[].risk_flags` | array of objects\|null | Triggered risk signals (JSON); `null` when screening never ran |
+| `users[].risk_flags[].type` | string | Signal type (`rbl`, `tor_exit`, `invalid_email_mx`, `velocity`, `disposable_email`) |
+| `users[].risk_flags[].detail` | string | Human-readable explanation of the signal |
+| `users[].risk_flags[].weight` | integer | Points this signal contributed to `risk_score` |
+| `users[].screening_forced_review` | boolean | True if screening downgraded an auto-approve signup to manual review |
 
 **Error Responses**
 
@@ -6693,6 +6699,12 @@ Pending user registration details
 | `user.created_user_username` | string\|null | Username of the created account |
 | `user.created_user_real_name` | string\|null | Real name of the created account |
 | `user.registration_source` | string | Registration source (web, terminal, etc.) |
+| `user.risk_score` | integer | Registration screening risk score (0 when screening is disabled) |
+| `user.risk_flags` | array of objects\|null | Triggered risk signals (JSON); `null` when screening never ran |
+| `user.risk_flags[].type` | string | Signal type (`rbl`, `tor_exit`, `invalid_email_mx`, `velocity`, `disposable_email`) |
+| `user.risk_flags[].detail` | string | Human-readable explanation of the signal |
+| `user.risk_flags[].weight` | integer | Points this signal contributed to `risk_score` |
+| `user.screening_forced_review` | boolean | True if screening downgraded an auto-approve signup to manual review |
 
 **Error Responses**
 
@@ -7452,7 +7464,7 @@ System-wide referral statistics
 
 Public
 
-Creates a new user account with built-in anti-spam validation (honeypot, timing checks). Supports both JSON and form-encoded requests. Terminal clients (telnet/SSH) can bypass browser-only anti-spam checks by providing a valid `X-Binkterm-Registration-Token` header. Accepts optional `X-Binkterm-Registration-Source` and `X-Binkterm-Client-IP` headers for terminal registrations. When registration approval is disabled and the account is auto-approved immediately, this endpoint also creates an authenticated session, returns a CSRF token, and sets the `binktermphp_session` cookie just like a normal login.
+Creates a new user account with built-in anti-spam validation (honeypot, timing checks). Supports both JSON and form-encoded requests. Terminal clients (telnet/SSH) can bypass browser-only anti-spam checks by providing a valid `X-Binkterm-Registration-Token` header. Accepts optional `X-Binkterm-Registration-Source` and `X-Binkterm-Client-IP` headers for terminal registrations. When registration approval is disabled and the account is auto-approved immediately, this endpoint also creates an authenticated session, returns a CSRF token, and sets the `binktermphp_session` cookie just like a normal login. When registration screening is enabled in enforce mode (Admin → Settings) and the submitted IP/email cross the configured risk threshold, an otherwise auto-approved signup is instead held for manual review — the response then reports `auto_approved: false` with the standard "submitted for review" `message_code` and no session is created.
 
 **Request Body** _(JSON)_
 

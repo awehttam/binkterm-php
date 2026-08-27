@@ -816,4 +816,5 @@ return [
     'errors.point_management.fileareas_save_failed' => 'Failed to save file area subscriptions.',
     'errors.admin.hub_nodes.invalid_owner_user' => 'Selected user does not exist.',
     'errors.admin.users.autocomplete_failed' => 'Failed to search users.',
+    'errors.admin.bbs_settings.invalid_screening_config' => 'Invalid registration screening configuration',
 ];

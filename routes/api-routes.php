@@ -521,6 +521,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $requiresApproval = \BinktermPHP\BbsConfig::shouldRequireRegistrationApproval();
             $handler = new MessageHandler();
 
+            // Risk screening: compute IP/email risk signals and, when in enforce
+            // mode, downgrade an otherwise auto-approved signup to manual review.
+            try {
+                $screening = new \BinktermPHP\RegistrationScreening($db);
+                if ($screening->isEnabled() && $pendingUserId > 0) {
+                    $screenResult = $screening->screen($ipAddress, $email ?: null);
+                    $forcedReview = !empty($screenResult['force_manual_review']);
+
+                    $screenStmt = $db->prepare("
+                        UPDATE pending_users
+                        SET risk_score = ?, risk_flags = ?, screening_forced_review = ?
+                        WHERE id = ?
+                    ");
+                    $screenStmt->execute([
+                        (int)$screenResult['risk_score'],
+                        json_encode($screenResult['flags']),
+                        $forcedReview ? 'true' : 'false',
+                        $pendingUserId,
+                    ]);
+
+                    if ($forcedReview && !$requiresApproval) {
+                        $requiresApproval = true;
+                        $flagTypes = array_map(static fn($f) => $f['type'], $screenResult['flags']);
+                        getServerLogger()->warning(sprintf(
+                            'Registration screening forced manual review for pending user #%d (score %d, signals: %s)',
+                            $pendingUserId,
+                            (int)$screenResult['risk_score'],
+                            implode(', ', $flagTypes) ?: 'none'
+                        ));
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Screening must never break registration.
+                getServerLogger()->error('Registration screening error: ' . $e->getMessage());
+            }
+
             $newUserId = 0;
             if ($requiresApproval) {
                 // Send notification to sysop

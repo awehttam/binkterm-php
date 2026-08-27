@@ -228,6 +228,145 @@ if (!function_exists('userIdExists')) {
     }
 }
 
+if (!function_exists('normalizeRegistrationScreeningConfig')) {
+    /**
+     * Validate and normalize the registration_screening settings block coming
+     * from the Admin -> Settings form before it is persisted via the admin
+     * daemon. Throws Exception('SCREENING: <reason>') on any invalid value so
+     * the POST handler can surface a structured error.
+     *
+     * @param mixed $raw
+     * @return array<string, mixed>
+     */
+    function normalizeRegistrationScreeningConfig($raw): array
+    {
+        if (!is_array($raw)) {
+            throw new \Exception('SCREENING: Invalid registration screening configuration');
+        }
+
+        $mode = strtolower(trim((string)($raw['mode'] ?? 'enforce')));
+        if (!in_array($mode, ['enforce', 'observe'], true)) {
+            throw new \Exception('SCREENING: Mode must be "enforce" or "observe"');
+        }
+
+        $threshold = (int)($raw['threshold'] ?? 30);
+        if ($threshold < 0 || $threshold > 1000) {
+            throw new \Exception('SCREENING: Threshold must be between 0 and 1000');
+        }
+
+        $dnsTimeout = (int)($raw['dns_timeout_ms'] ?? 750);
+        if ($dnsTimeout < 100 || $dnsTimeout > 5000) {
+            throw new \Exception('SCREENING: DNS timeout must be between 100 and 5000 ms');
+        }
+
+        $weight = static function ($v, string $label): int {
+            $n = (int)$v;
+            if ($n < 0 || $n > 1000) {
+                throw new \Exception('SCREENING: ' . $label . ' weight must be between 0 and 1000');
+            }
+            return $n;
+        };
+
+        $signalsIn = is_array($raw['signals'] ?? null) ? $raw['signals'] : [];
+
+        // RBL zones
+        $zonesIn = [];
+        if (isset($signalsIn['rbl']['zones']) && is_array($signalsIn['rbl']['zones'])) {
+            $zonesIn = $signalsIn['rbl']['zones'];
+        }
+        $zones = [];
+        foreach ($zonesIn as $zone) {
+            if (!is_array($zone)) {
+                continue;
+            }
+            $host = strtolower(trim((string)($zone['zone'] ?? '')));
+            if ($host === '') {
+                continue;
+            }
+            if (!preg_match('/^(?=.{1,253}$)([a-z0-9](-*[a-z0-9])*\.)+[a-z]{2,}$/', $host)) {
+                throw new \Exception('SCREENING: "' . $host . '" is not a valid RBL zone hostname');
+            }
+            $codes = [];
+            $codesIn = $zone['accept_codes'] ?? ['*'];
+            if (is_string($codesIn)) {
+                $codesIn = preg_split('/[\s,]+/', trim($codesIn)) ?: [];
+            }
+            if (!is_array($codesIn) || $codesIn === []) {
+                $codesIn = ['*'];
+            }
+            foreach ($codesIn as $code) {
+                $code = trim((string)$code);
+                if ($code === '') {
+                    continue;
+                }
+                if ($code === '*') {
+                    $codes = ['*'];
+                    break;
+                }
+                if (!preg_match('/^127\.0\.0\.\d{1,3}$/', $code) || (int)substr($code, strrpos($code, '.') + 1) > 255) {
+                    throw new \Exception('SCREENING: "' . $code . '" is not a valid 127.0.0.x response code');
+                }
+                $codes[] = $code;
+            }
+            if ($codes === []) {
+                $codes = ['*'];
+            }
+            $zones[] = [
+                'zone' => $host,
+                'weight' => $weight($zone['weight'] ?? 25, 'RBL zone'),
+                'accept_codes' => array_values(array_unique($codes)),
+            ];
+        }
+
+        $velIn = is_array($signalsIn['velocity'] ?? null) ? $signalsIn['velocity'] : [];
+        $windowHours = (int)($velIn['window_hours'] ?? 24);
+        $subnetPrefix = (int)($velIn['subnet_prefix'] ?? 24);
+        $countThreshold = (int)($velIn['count_threshold'] ?? 3);
+        if ($windowHours < 1 || $windowHours > 720) {
+            throw new \Exception('SCREENING: Velocity window must be between 1 and 720 hours');
+        }
+        if ($subnetPrefix < 1 || $subnetPrefix > 128) {
+            throw new \Exception('SCREENING: Velocity subnet prefix must be between 1 and 128');
+        }
+        if ($countThreshold < 1 || $countThreshold > 1000) {
+            throw new \Exception('SCREENING: Velocity count threshold must be between 1 and 1000');
+        }
+
+        return [
+            'enabled' => !empty($raw['enabled']),
+            'mode' => $mode,
+            'threshold' => $threshold,
+            'dns_timeout_ms' => $dnsTimeout,
+            'signals' => [
+                'rbl' => [
+                    'enabled' => !empty($signalsIn['rbl']['enabled']),
+                    'weight' => $weight($signalsIn['rbl']['weight'] ?? 25, 'RBL'),
+                    'zones' => $zones,
+                ],
+                'tor_exit' => [
+                    'enabled' => !empty($signalsIn['tor_exit']['enabled']),
+                    'weight' => $weight($signalsIn['tor_exit']['weight'] ?? 15, 'Tor exit'),
+                ],
+                'email_mx' => [
+                    'enabled' => !empty($signalsIn['email_mx']['enabled']),
+                    'weight' => $weight($signalsIn['email_mx']['weight'] ?? 10, 'Email MX'),
+                ],
+                'velocity' => [
+                    'enabled' => !empty($velIn['enabled']),
+                    'weight' => $weight($velIn['weight'] ?? 20, 'Velocity'),
+                    'window_hours' => $windowHours,
+                    'subnet_prefix' => $subnetPrefix,
+                    'count_threshold' => $countThreshold,
+                ],
+                'disposable_email' => [
+                    'enabled' => !empty($signalsIn['disposable_email']['enabled']),
+                    'weight' => $weight($signalsIn['disposable_email']['weight'] ?? 15, 'Disposable email'),
+                ],
+            ],
+        ];
+    }
+}
+
 if (!function_exists('apiLocalizeErrorPayload')) {
     function apiLocalizeErrorPayload(array $payload, ?array $user = null): array
     {
@@ -2068,12 +2207,25 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ];
                 }
 
+                $screeningChanged = false;
+                if (array_key_exists('registration_screening', $config)) {
+                    $config['registration_screening'] = normalizeRegistrationScreeningConfig($config['registration_screening']);
+                    $screeningChanged = true;
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {
                     AdminActionLogger::logAction($userId, 'bbs_settings_updated', [
                         'credits' => $config['credits'] ?? null
                     ]);
+                    if ($screeningChanged) {
+                        AdminActionLogger::logAction($userId, 'registration_screening_settings_updated', [
+                            'enabled' => $config['registration_screening']['enabled'] ?? false,
+                            'mode' => $config['registration_screening']['mode'] ?? null,
+                            'threshold' => $config['registration_screening']['threshold'] ?? null,
+                        ]);
+                    }
                 }
                 echo json_encode([
                     'success' => true,
@@ -2087,6 +2239,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     apiError('errors.admin.bbs_settings.invalid_payload', apiLocalizedText('errors.admin.bbs_settings.invalid_payload', 'Invalid configuration payload'));
                 } elseif ($message === 'Invalid credits configuration') {
                     apiError('errors.admin.bbs_settings.invalid_credits_config', apiLocalizedText('errors.admin.bbs_settings.invalid_credits_config', 'Invalid credits configuration'));
+                } elseif (strpos($message, 'SCREENING:') === 0) {
+                    apiError('errors.admin.bbs_settings.invalid_screening_config', apiLocalizedText('errors.admin.bbs_settings.invalid_screening_config', trim(substr($message, strlen('SCREENING:')))));
                 } else {
                     apiError('errors.admin.bbs_settings.save_failed', apiLocalizedText('errors.admin.bbs_settings.save_failed', 'Failed to save BBS settings'));
                 }

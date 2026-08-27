@@ -19,6 +19,34 @@
     "max_cross_post_areas": 5,
     "echomail_moderation_threshold": 0,
     "registration_requires_approval": true,
+    "registration_screening": {
+        "enabled": false,
+        "mode": "observe",
+        "threshold": 30,
+        "dns_timeout_ms": 750,
+        "signals": {
+            "rbl": {
+                "enabled": true,
+                "weight": 25,
+                "zones": [
+                    {
+                        "zone": "zen.spamhaus.org",
+                        "weight": 25,
+                        "accept_codes": ["127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.0.9"]
+                    },
+                    {
+                        "zone": "bl.spamcop.net",
+                        "weight": 20,
+                        "accept_codes": ["*"]
+                    }
+                ]
+            },
+            "tor_exit": {"enabled": true, "weight": 15},
+            "email_mx": {"enabled": true, "weight": 10},
+            "velocity": {"enabled": true, "weight": 20, "window_hours": 24, "subnet_prefix": 24, "count_threshold": 3},
+            "disposable_email": {"enabled": false, "weight": 15}
+        }
+    },
     "outgoing_charset": "CP437",
     "qwk": {
         "bbs_id": "",

@@ -11,6 +11,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [DOS Doors](#dos-doors)
 - [Sessions](#sessions)
 - [Logging](#logging)
+- [Registration Screening](#registration-screening)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -43,6 +44,11 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Logging
 
 - The `[BINKD]` "Storing echomail" log line now includes the echo area (`Area: AREANAME@domain`), making it possible to tell which area a stored message landed in without cross-referencing other log lines.
+
+### Registration Screening
+
+- Added an optional **registration screening** step that scores each new-user signup from IP and email risk signals (DNSBL/RBL listing, Tor exit node, missing email MX record, repeated attempts from one subnet). It ships turned off; when enabled it can either just record a risk score for the sysop to see, or hold high-scoring signups for manual review even when registration is set to auto-approve.
+- The binkp scheduler daemon now also refreshes a cached Tor exit node list every 6 hours (only while screening and its Tor signal are enabled).
 
 ---
 
@@ -81,6 +87,29 @@ Web sessions now refresh their stored IP address automatically as the session is
 ## Logging
 
 The `[BINKD]` log line written when an incoming echomail message is stored now includes the echo area it was stored in, in the format `Area: AREANAME@domain`. Previously the line included the MSGID, author, packet sender, and subject, but not the area, making it harder to tell where a given message landed when scanning server logs.
+
+## Registration Screening
+
+BinktermPHP can now screen new-user registrations for signs of automated abuse or throwaway accounts. This is a separate layer from the existing **Require approval for new users** setting: approval decides whether *every* signup waits for the sysop, while screening looks at *individual* signups and can single out the risky ones.
+
+When a registration comes in, screening computes a risk score by adding up the weight of each signal that fires:
+
+- **DNSBL / RBL** — the registrant's IP is listed on a DNS blocklist. Ships configured with `zen.spamhaus.org` and `bl.spamcop.net`. For Spamhaus ZEN, only the spam-source and compromised-host listings count; the Policy Block List (dynamic/residential ranges) is ignored so ordinary home connections are not penalized.
+- **Tor exit node** — the IP is a current Tor exit relay, matched against a locally cached list.
+- **Email domain has no mail server** — the submitted email's domain publishes no MX, A, or AAAA record, so it cannot receive mail.
+- **Registration velocity** — several registration attempts have come from the same subnet within a time window (default: 3 attempts from a /24 in 24 hours).
+- **Disposable email domain** — the email domain (or a parent of it) is on a known throwaway-provider list. Off by default; when enabled, the scheduler downloads and caches the list (the community `disposable-email-domains` blocklist by default) every 24 hours.
+
+Screening runs in one of two modes:
+
+- **Observe** (the shipped default) — the score and the list of triggered signals are stored on the registration and shown in **Admin → Users** under the pending list, but the approve/hold outcome is unchanged.
+- **Enforce** — a registration whose score reaches the configured threshold (default: 30) is held for manual review, even if **Require approval for new users** is off. Screening never rejects a registration outright; the worst case is that the sysop has to approve it by hand.
+
+To turn it on, go to **Admin → BBS Settings → Registration Screening**, enable it, and adjust the per-signal weights, the threshold, and the RBL zone list to taste. Every setting has a documented default in [CONFIGURATION.md](CONFIGURATION.md#registration-screening).
+
+One caveat on the RBL check: if your server resolves DNS through a large public resolver such as `1.1.1.1` or `8.8.8.8`, Spamhaus returns an error code instead of real listing data for every query. The shipped configuration ignores that code so it will not produce false hits, but the RBL signal only returns meaningful results when the host queries its own resolver or its ISP's.
+
+If you run the scheduler (`scripts/binkp_scheduler.php`, as either the long-lived daemon or `--once` from cron), it keeps the cache lists for the Tor and disposable-email signals current: it downloads each list the first time it finds that cache empty, then refreshes the Tor list every 6 hours and the disposable-email list every 24 hours. You can also populate them immediately by hand with `php scripts/update_tor_exit_list.php` and `php scripts/update_disposable_email_list.php`.
 
 ## Upgrade Instructions
 

@@ -21,6 +21,17 @@ class BbsConfig
     private static ?array $config = null;
     private static bool $loaded = false;
 
+    /**
+     * Config keys whose value is replaced wholesale (not recursively merged)
+     * when present in config/bbs.json. Needed for blocks containing list-shaped
+     * children (e.g. registration_screening.signals.rbl.zones) where
+     * array_replace_recursive would merge list elements by index and leave
+     * stale entries behind when the operator removes one.
+     *
+     * @var string[]
+     */
+    private const REPLACE_WHOLESALE_KEYS = ['registration_screening'];
+
     private static function getConfigPath(): string
     {
         return __DIR__ . '/../config/bbs.json';
@@ -89,7 +100,15 @@ class BbsConfig
 
         $configWithoutFeatures = $config;
         unset($configWithoutFeatures['features']);
+        foreach (self::REPLACE_WHOLESALE_KEYS as $key) {
+            unset($configWithoutFeatures[$key]);
+        }
         $merged = self::mergeConfigRecursive($defaults, $configWithoutFeatures);
+        foreach (self::REPLACE_WHOLESALE_KEYS as $key) {
+            if (array_key_exists($key, $config)) {
+                $merged[$key] = $config[$key];
+            }
+        }
 
         $features = $defaults['features'] ?? [];
         if (isset($config['features']) && is_array($config['features'])) {
@@ -246,6 +265,66 @@ class BbsConfig
             || !empty(self::$config['registration_requires_approval']);
     }
 
+    /**
+     * Return the normalized registration screening configuration block.
+     *
+     * Shape mirrors config/bbs.json.example -> registration_screening. Missing
+     * keys fall back to safe defaults so callers never have to null-check.
+     *
+     * @return array{
+     *     enabled: bool, mode: string, threshold: int, dns_timeout_ms: int,
+     *     signals: array<string, array<string, mixed>>
+     * }
+     */
+    public static function getRegistrationScreeningConfig(): array
+    {
+        self::load();
+        $raw = self::$config['registration_screening'] ?? [];
+        if (!is_array($raw)) {
+            $raw = [];
+        }
+
+        $mode = strtolower(trim((string)($raw['mode'] ?? 'observe')));
+        if (!in_array($mode, ['enforce', 'observe'], true)) {
+            $mode = 'enforce';
+        }
+
+        $signals = is_array($raw['signals'] ?? null) ? $raw['signals'] : [];
+
+        return [
+            'enabled' => !empty($raw['enabled']),
+            'mode' => $mode,
+            'threshold' => max(0, (int)($raw['threshold'] ?? 30)),
+            'dns_timeout_ms' => min(5000, max(100, (int)($raw['dns_timeout_ms'] ?? 750))),
+            'signals' => $signals,
+        ];
+    }
+
+    /**
+     * @return bool Whether registration risk screening runs at all.
+     */
+    public static function isRegistrationScreeningEnabled(): bool
+    {
+        return self::getRegistrationScreeningConfig()['enabled'];
+    }
+
+    /**
+     * @return string 'enforce' (may downgrade a risky signup to manual review)
+     *                or 'observe' (compute + store flags only, never override).
+     */
+    public static function getRegistrationScreeningMode(): string
+    {
+        return self::getRegistrationScreeningConfig()['mode'];
+    }
+
+    /**
+     * @return int risk_score at or above which a signup is forced to manual review.
+     */
+    public static function getRegistrationScreeningThreshold(): int
+    {
+        return self::getRegistrationScreeningConfig()['threshold'];
+    }
+
     public static function getOutgoingCharset(): string
     {
         self::load();
@@ -296,9 +375,22 @@ class BbsConfig
         unset($existingWithoutFeatures['features']);
         $configWithoutFeatures = $config;
         unset($configWithoutFeatures['features']);
+        foreach (self::REPLACE_WHOLESALE_KEYS as $key) {
+            unset($existingWithoutFeatures[$key], $configWithoutFeatures[$key]);
+        }
 
         $sanitized = self::mergeConfigRecursive($defaults, $existingWithoutFeatures);
         $sanitized = self::mergeConfigRecursive($sanitized, $configWithoutFeatures);
+
+        // Replace-wholesale blocks: prefer the incoming value, else keep what
+        // was already on disk, else fall back to the example defaults.
+        foreach (self::REPLACE_WHOLESALE_KEYS as $key) {
+            if (array_key_exists($key, $config)) {
+                $sanitized[$key] = $config[$key];
+            } elseif (array_key_exists($key, $existing)) {
+                $sanitized[$key] = $existing[$key];
+            }
+        }
 
         $features = $defaults['features'] ?? [];
         if (isset($existing['features']) && is_array($existing['features'])) {

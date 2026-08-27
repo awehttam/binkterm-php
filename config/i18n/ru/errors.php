@@ -821,4 +821,5 @@ return [
     'errors.point_management.fileareas_save_failed' => 'Не удалось сохранить подписки на файловые области.',
     'errors.admin.hub_nodes.invalid_owner_user' => 'Выбранный пользователь не существует.',
     'errors.admin.users.autocomplete_failed' => 'Не удалось выполнить поиск пользователей.',
+    'errors.admin.bbs_settings.invalid_screening_config' => 'Неверная конфигурация проверки регистраций',
 ];

@@ -24,6 +24,7 @@ bash scripts/restart_daemons.sh
   - [Crashmail Settings](#crashmail-settings)
 - [config/nodelists.json — Nodelist Sources](#confignodelistsjson--nodelist-sources)
 - [config/bbs.json — BBS Feature Settings](#configbbsjson--bbs-feature-settings)
+  - [Registration Screening](#registration-screening)
 - [Other Config Files](#other-config-files)
 - [Network Ports Reference](#network-ports-reference)
 - [Server Sizing & Tuning](#server-sizing--tuning)
@@ -280,6 +281,12 @@ PERF_LOG_SLOW_MS=500
 # Archive extractors for Fidonet bundles (JSON array)
 # ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]
 
+# Registration screening — cache list refresh (see config/bbs.json Registration Screening)
+# SCREENING_TOR_REFRESH_HOURS=6
+# TOR_EXIT_LIST_URL=https://check.torproject.org/torbulkexitlist
+# SCREENING_DISPOSABLE_REFRESH_HOURS=24
+# DISPOSABLE_EMAIL_LIST_URL=https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf
+
 # i18n missing-key logging (development/QA)
 # I18N_LOG_MISSING_KEYS=false
 # I18N_MISSING_KEYS_LOG_FILE=data/logs/i18n_missing_keys.log
@@ -523,6 +530,44 @@ Defines sources for automatic nodelist downloads.  See `config/nodelists.json.ex
 `config/bbs.json` controls BBS-specific features: credits system, file areas, user registration, telnet/SSH settings, and more.  The recommended way to edit this is through Admin → BBS Settings in the web interface.
 
 A documented example is provided in `config/bbs.json.example`.
+
+### Registration Screening
+
+Edited through **Admin → BBS Settings → Registration Screening**. Computes IP and
+email risk signals during registration and, in `enforce` mode, holds a signup
+for manual review when the total score crosses the threshold — even if
+registration is otherwise set to auto-approve. Screening runs whenever
+`enabled` is true, independent of the global "require registration approval"
+setting and of the mode.
+
+Stored under the `registration_screening` key in `config/bbs.json`:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `false` | Master switch. When off, no screening runs and no risk data is stored. |
+| `mode` | `observe` | `observe` = compute and store risk flags on the pending-user record but never change the approve/hold outcome. `enforce` = a score at or above `threshold` forces manual review. |
+| `threshold` | `30` | Score at or above which `enforce` mode holds the registration. |
+| `dns_timeout_ms` | `750` | Per-query timeout for the parallel DNS resolver used by the RBL and email-MX signals. The whole DNS step is bounded by the single slowest query, not the sum. |
+| `signals.rbl` | on, weight `25` | DNSBL/RBL lookups. `zones` is a list of `{zone, weight, accept_codes}`. `accept_codes` is `["*"]` (any `127.0.0.x` result counts) or an explicit list of result codes. Ships with `zen.spamhaus.org` (SBL + XBL codes only — **PBL codes `127.0.0.10/.11` are deliberately excluded** so residential/dynamic IPs are not flagged) and `bl.spamcop.net` (`["*"]`). |
+| `signals.tor_exit` | on, weight `15` | Matches the IP against the cached Tor exit node list (refreshed every 6 hours by `binkp_scheduler.php`). |
+| `signals.email_mx` | on, weight `10` | Fails when the email domain publishes no MX, A, or AAAA record. Skipped when no email was supplied. |
+| `signals.velocity` | on, weight `20` | Counts prior registration attempts from the same subnet. `window_hours` (24), `subnet_prefix` (24), `count_threshold` (3). No external dependency. |
+| `signals.disposable_email` | off, weight `15` | Matches the email domain (and its parent domains) against the cached `disposable_email_domains` list. Ships off; when enabled, `binkp_scheduler.php` downloads and refreshes the list every 24 hours (or run `scripts/update_disposable_email_list.php` by hand). |
+
+Each triggered signal adds its `weight` to the score; `risk_score` and the
+`risk_flags` breakdown are shown per registration in **Admin → Users** (pending
+list) regardless of mode.
+
+Related `.env` variables: `SCREENING_TOR_REFRESH_HOURS` (default `6`),
+`TOR_EXIT_LIST_URL` (default `https://check.torproject.org/torbulkexitlist`),
+`SCREENING_DISPOSABLE_REFRESH_HOURS` (default `24`), `DISPOSABLE_EMAIL_LIST_URL`
+(default: the `disposable-email-domains` GitHub blocklist).
+
+> **Public DNS resolver note:** if the host resolves through a large public
+> resolver (`1.1.1.1`, `8.8.8.8`), Spamhaus returns an "open resolver" error
+> code instead of real listing data. ZEN's default `accept_codes` ignore that
+> code, so it will not false-positive, but RBL results are only meaningful when
+> the host uses its own or its ISP's resolver.
 
 ---
 

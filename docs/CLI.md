@@ -20,6 +20,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Admin Daemon](#admin-daemon)
 - [Admin Client](#admin-client)
 - [Nodelist Updates](#nodelist-updates)
+- [Registration Screening](#registration-screening)
 - [Geocoding](#geocoding)
 - [Database Backup](#database-backup)
 - [Crashmail Poll](#crashmail-poll)
@@ -386,6 +387,11 @@ php scripts/binkp_status.php --json
 ```
 
 ### Automated Scheduler
+The scheduler daemon also refreshes the registration-screening Tor exit node
+list every 6 hours (when screening and its Tor signal are enabled in
+Admin → Settings), gated so it runs at most once per window regardless of the
+daemon tick.
+
 ```bash
 # Start scheduler daemon
 php scripts/binkp_scheduler.php --daemon
@@ -568,6 +574,43 @@ php scripts/update_nodelists.php --force
 # Show help and available macros
 php scripts/update_nodelists.php --help
 ```
+
+## Registration Screening
+
+### Update Tor Exit Node List
+
+Downloads the Tor Project bulk exit list and refreshes the `tor_exit_nodes`
+cache table used by the registration screening feature. Exit nodes not present
+in the current download are pruned. `binkp_scheduler.php` runs this automatically
+— immediately when it first finds the cache empty, then every 6 hours — so
+running it by hand is only needed to force an out-of-cycle refresh.
+
+```bash
+php scripts/update_tor_exit_list.php
+php scripts/update_tor_exit_list.php --verbose
+```
+
+Set `TOR_EXIT_LIST_URL` in `.env` to override the download source, and
+`SCREENING_TOR_REFRESH_HOURS` to change the scheduler refresh interval.
+
+### Update Disposable Email Domain List
+
+Downloads a disposable / throwaway email provider domain list and refreshes the
+`disposable_email_domains` cache table used by the registration screening
+feature's `disposable_email` signal. Domains not present in the current download
+are pruned. Like the Tor list, `binkp_scheduler.php` runs this automatically —
+immediately when it first finds the cache empty, then every 24 hours — so
+running it by hand is only needed to force an out-of-cycle refresh.
+
+```bash
+php scripts/update_disposable_email_list.php
+php scripts/update_disposable_email_list.php --verbose
+```
+
+The default source is the community-maintained
+[`disposable-email-domains`](https://github.com/disposable-email-domains/disposable-email-domains)
+blocklist. Set `DISPOSABLE_EMAIL_LIST_URL` in `.env` to override it, and
+`SCREENING_DISPOSABLE_REFRESH_HOURS` to change the scheduler refresh interval.
 
 ## Geocoding
 

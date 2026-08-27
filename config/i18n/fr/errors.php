@@ -773,6 +773,7 @@ return [
     'errors.point_management.fileareas_save_failed' => 'Echec de l\'enregistrement des abonnements aux zones de fichiers.',
     'errors.admin.hub_nodes.invalid_owner_user' => 'L\'utilisateur selectionne n\'existe pas.',
     'errors.admin.users.autocomplete_failed' => 'Echec de la recherche d\'utilisateurs.',
+    'errors.admin.bbs_settings.invalid_screening_config' => 'Configuration du filtrage des inscriptions invalide',
 ];
 
 
