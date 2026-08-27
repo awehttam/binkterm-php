@@ -43,7 +43,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - PubTerm (the browser terminal door) now forwards each visitor's real IP address to the telnet daemon, so per-IP connection rate limiting, new-user registration screening, connection logs, and the stored session IP shown in **Admin → Users** / `binktop` / `who` all reflect the actual visitor instead of the server's address. On a standard single-host install this needs no configuration.
 - Terminal (telnet/SSH) sessions in general now record the connecting user's IP address for online-session displays, rather than the server's — previously any terminal login showed the server address because the daemon proxies API traffic through the server.
 - New optional `.env` variables for the telnet daemon: `TELNET_TRUSTED_PROXIES`, `TELNET_PROXY_HEADER_TIMEOUT`, and `PUBTERM_PROXY_TARGET`. The telnet daemon's existing `TELNET_RATE_LIMIT_MAX` / `TELNET_RATE_LIMIT_WINDOW` settings are now also documented.
-- Fixed arrow keys, Page Up/Down, Home/End, and function keys not working in PubTerm. The browser terminal player was converting these keys to DOS Doorway scan codes — correct for DOS doors, but wrong for PubTerm and other native doors, which expect normal ANSI/xterm key sequences.
+- Fixed a regression where arrow keys, Page Up/Down, Home/End, and function keys stopped working in PubTerm. When the browser terminal player gained DOS Doorway scan-code support for navigation keys, that translation was applied to PubTerm and other native doors too — but those expect normal ANSI/xterm key sequences, not Doorway codes.
 
 ### Sessions
 
@@ -116,9 +116,9 @@ Restart both the multiplexing bridge and the telnet daemon after upgrading. On W
 
 ### Navigation keys
 
-Arrow keys, Page Up/Page Down, Home/End, Insert/Delete, and the function keys did not work in a PubTerm session — pressing an arrow key produced a stray character or nothing at all.
+Arrow keys, Page Up/Page Down, Home/End, Insert/Delete, and the function keys stopped working in a PubTerm session — pressing an arrow key produced a stray character or nothing at all. This was a regression.
 
-The browser terminal player is shared with the DOS door player, which intercepts these keys and sends them as DOS Doorway scan codes (a null byte followed by an IBM PC scan code). DOS programs expect that; the BinktermPHP terminal server behind PubTerm expects ordinary ANSI/xterm escape sequences (`ESC [ A` for cursor up, and so on) and silently discarded the Doorway bytes.
+PubTerm uses the same in-browser terminal player as the DOS door games. That player was later changed to intercept navigation keys and send them as DOS Doorway scan codes (a null byte followed by an IBM PC scan code), which is what DOS programs expect. PubTerm is not a DOS program — the BinktermPHP terminal server behind it expects ordinary ANSI/xterm escape sequences (`ESC [ A` for cursor up, and so on) — so it silently discarded the Doorway bytes, and every navigation key appeared dead.
 
 The player now recognizes native doors — PubTerm and any other door that runs a real Linux program rather than a DOS emulator — and leaves their key sequences untranslated. DOS doors are unchanged.
 
