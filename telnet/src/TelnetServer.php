@@ -195,15 +195,17 @@ class TelnetServer
         // Remove exactly the header line from the stream.
         $this->consumeExact($conn, $nl1 + 1);
 
+        // "PROXY <proto> <src-ip> <dst-ip> <src-port> <dst-port>"
         $fields = preg_split('/\s+/', trim($line));
-        if (count($fields) < 5
-            || ($fields[0] !== 'TCP4' && $fields[0] !== 'TCP6')
-            || filter_var($fields[1], FILTER_VALIDATE_IP) === false) {
+        if (count($fields) < 6
+            || $fields[0] !== 'PROXY'
+            || ($fields[1] !== 'TCP4' && $fields[1] !== 'TCP6')
+            || filter_var($fields[2], FILTER_VALIDATE_IP) === false) {
             // "UNKNOWN"/malformed: header consumed, but no attribution.
             return null;
         }
-        $srcIp   = $fields[1];
-        $srcPort = preg_match('/^\d{1,5}$/', $fields[3]) ? $fields[3] : '0';
+        $srcIp   = $fields[2];
+        $srcPort = preg_match('/^\d{1,5}$/', $fields[4]) ? $fields[4] : '0';
 
         return [
             'ip'   => $srcIp,
