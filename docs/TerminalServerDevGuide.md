@@ -38,7 +38,7 @@ Both daemon entry points manually `require_once` every `telnet/src/` class they 
 
 Both daemons hand off to the same `BbsSession` flow after transport setup:
 
-1. **Transport handshake** — Telnet negotiates NAWS, echo control, and optional TLS; SSH reads PTY dimensions from `pty-req` and probes Sixel capability. Before negotiation, if the TCP connection originates from a trusted address (`TELNET_TRUSTED_PROXIES`, plus loopback and the daemon's own bind address), `TelnetServer` consumes an optional HAProxy PROXY protocol v1 header (non-destructive peek) and re-points `$peerName` / `$peerIp` at the real client. This is how PubTerm's per-session forwarder conveys the browser visitor's address; rate limiting and the `X-Binkterm-Client-IP` registration header both then use it.
+1. **Transport handshake** — Telnet negotiates NAWS, echo control, and optional TLS; SSH reads PTY dimensions from `pty-req` and probes Sixel capability. Before negotiation, if the TCP connection originates from a trusted address (`TELNET_TRUSTED_PROXIES`, plus loopback and the daemon's own bind address), `TelnetServer` consumes an optional HAProxy PROXY protocol v1 header (non-destructive peek) and re-points `$peerName` / `$peerIp` at the real client. This is how PubTerm's per-session forwarder conveys the browser visitor's address; connection rate limiting then keys on it.
 2. **Pre-login menu** — Login / Register / Reset password / Login and run terminal setup / QWK (when enabled) / Quit. Registration posts to the shared `/api/register` flow, so whether the account stays pending or is auto-approved is controlled centrally by `BbsConfig::shouldRequireRegistrationApproval()`. Auto-approved registrations now return a normal authenticated session and continue directly into the terminal session without forcing a reconnect. Choosing **T** sets `force_terminal_setup` on the login result, which makes the post-login setup step in `BbsSession::handle()` run `TerminalSettingsHandler::runDetectionWizard()` even when the user already has saved terminal settings.
 3. **Authentication** — Username/password via `POST /api/auth/login`, or auto-login via auto-approved `POST /api/register`; session cookie stored in `$state`.
 4. **Session init** — Single `GET /api/config/session-init` call returns timezone, locale, date format, charset, ANSI color flag, idle timeout thresholds, and main menu key bindings.
@@ -476,6 +476,10 @@ Primary endpoints used by `BbsSession` and the core handlers:
 | `/api/dashboard/stats` | GET | Main menu dashboard widgets (unread counts, online users, bulletins, credits) |
 
 All API requests include cookie-based session management, automatic retry with exponential backoff, and optional SSL certificate verification. Additional endpoints are called by individual feature handlers — see each `*Handler.php` class and the full [API Reference](API.md).
+
+### Client IP forwarding
+
+The daemon proxies every user's API traffic through the server, so without help the web side records the server's own address as each terminal session's IP. `BbsSession::run()` calls `TelnetUtils::setClientContext($peerIp, TERMINAL_REGISTRATION_SECRET)` once per forked session; `TelnetUtils::apiRequest()` (and the `BbsSession` / `DoorHandler` curl paths, via `TelnetUtils::clientContextHeaders()`) then attach `X-Binkterm-Client-IP` and `X-Binkterm-Client-Token` to every request. Web-side, `Auth::resolveClientIp()` returns that address instead of `REMOTE_ADDR` when the token matches, and it is used for session-row IP attribution and registration screening. `$peerIp` is already the real end user for PubTerm sessions (resolved from the PROXY header in step 1).
 
 ---
 
