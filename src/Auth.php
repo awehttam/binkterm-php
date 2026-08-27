@@ -25,6 +25,44 @@ class Auth
         $this->db = Database::getInstance()->getPdo();
     }
 
+    /**
+     * Resolve the effective client IP for the current request.
+     *
+     * Normally this is `$_SERVER['REMOTE_ADDR']`. The first-party terminal
+     * daemons (telnet / SSH) proxy every user's API traffic through the server
+     * itself, so without this their session IP would always be recorded as the
+     * server's address. They send the real end-user address in the
+     * `X-Binkterm-Client-IP` header, authenticated with the shared
+     * `TERMINAL_REGISTRATION_SECRET` (also accepted under the legacy
+     * `X-Binkterm-Registration-Token` header name). The header is honoured only
+     * when that token matches.
+     *
+     * Change `TERMINAL_REGISTRATION_SECRET` from its default: anything that can
+     * present the token can set its own recorded session IP.
+     */
+    public static function resolveClientIp(): string
+    {
+        $remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+
+        $claimed = trim((string)($_SERVER['HTTP_X_BINKTERM_CLIENT_IP'] ?? ''));
+        if ($claimed === '' || filter_var($claimed, FILTER_VALIDATE_IP) === false) {
+            return $remote;
+        }
+
+        $secret = trim((string)Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+        $token  = trim((string)(
+            $_SERVER['HTTP_X_BINKTERM_CLIENT_TOKEN']
+            ?? $_SERVER['HTTP_X_BINKTERM_REGISTRATION_TOKEN']
+            ?? ''
+        ));
+
+        if ($secret !== '' && $token !== '' && hash_equals($secret, $token)) {
+            return $claimed;
+        }
+
+        return $remote;
+    }
+
     public function login($username, $password, string $service = 'web')
     {
         $user = $this->authenticateCredentials($username, $password);
@@ -150,7 +188,7 @@ class Auth
         return $this->createSessionForConnection(
             (int)$userId,
             $service,
-            (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+            self::resolveClientIp(),
             (string)($_SERVER['HTTP_USER_AGENT'] ?? '')
         );
     }
@@ -199,7 +237,7 @@ class Auth
     {
         $sessionId = $_COOKIE['binktermphp_session'] ?? null;
         if ($sessionId) {
-            $user = $this->validateSession($sessionId, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+            $user = $this->validateSession($sessionId, self::resolveClientIp());
             if ($user) {
                 $userId = $user['user_id'] ?? $user['id'] ?? null;
                 if ($userId) {

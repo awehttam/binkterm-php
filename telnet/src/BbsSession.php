@@ -400,7 +400,14 @@ class BbsSession
         }
 
         $auth       = new \BinktermPHP\Auth();
-        $userRecord = $auth->validateSession($session);
+        // Pass the real peer IP so the freshly created session records the user's
+        // address rather than the server's (the daemon's API calls all originate
+        // from the server). $this->peerIp is already the true client for PubTerm
+        // sessions via the PROXY header.
+        $userRecord = $auth->validateSession(
+            $session,
+            ($peerIp !== null && filter_var($peerIp, FILTER_VALIDATE_IP) !== false) ? $peerIp : null
+        );
         $state['is_admin'] = !empty($userRecord['is_admin']);
         $state['user_id']  = (int)($userRecord['user_id'] ?? $userRecord['id'] ?? 0);
 
@@ -3675,19 +3682,25 @@ class BbsSession
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
                 $headers[] = 'Content-Type: application/json';
             }
+
+            // The daemon proxies every user's API traffic through the server, so
+            // tell the web side the real end-user address (authenticated with the
+            // shared terminal secret) on every request. This keeps the session's
+            // recorded IP — and registration screening — pointed at the user, not
+            // the server. See Auth::resolveClientIp().
+            $terminalSecret = trim((string) Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+            if ($terminalSecret !== ''
+                && $this->peerIp !== null
+                && filter_var($this->peerIp, FILTER_VALIDATE_IP) !== false) {
+                $headers[] = 'X-Binkterm-Client-IP: ' . $this->peerIp;
+                $headers[] = 'X-Binkterm-Client-Token: ' . $terminalSecret;
+            }
+
             if ($path === '/api/register') {
                 $terminalSource = $this->isSsh ? 'ssh' : 'telnet';
                 $headers[] = 'X-Binkterm-Registration-Source: ' . $terminalSource;
-                if ($this->peerIp !== null && filter_var($this->peerIp, FILTER_VALIDATE_IP) !== false) {
-                    $headers[] = 'X-Binkterm-Client-IP: ' . $this->peerIp;
-                }
-
-                $registrationSecret = trim((string) Config::env(
-                    'TERMINAL_REGISTRATION_SECRET',
-                    'Chang3Me'
-                ));
-                if ($registrationSecret !== '') {
-                    $headers[] = 'X-Binkterm-Registration-Token: ' . $registrationSecret;
+                if ($terminalSecret !== '') {
+                    $headers[] = 'X-Binkterm-Registration-Token: ' . $terminalSecret;
                 }
             }
             if ($session) {

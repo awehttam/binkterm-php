@@ -156,6 +156,12 @@ ADMIN_DAEMON_SCHEDULE_INTERVAL=60    # seconds between scheduler ticks
 # TELNET_TRUSTED_PROXIES=127.0.0.1,::1
 # TELNET_PROXY_HEADER_TIMEOUT=2
 
+# Shared secret the telnet/SSH daemons use to authorize terminal-originated
+# registrations AND to tell the web side the connecting user's real IP address
+# (recorded on the session and used by registration screening). CHANGE THIS
+# from the default — anything holding it can set its own recorded session IP.
+# TERMINAL_REGISTRATION_SECRET=change-me-to-a-long-random-string
+
 # ZMODEM file transfers over the telnet BBS
 # TERMINAL_FILE_TRANSFERS=true
 # TELNET_SZ_BIN=/usr/bin/sz   # override path to sz binary (lrzsz)

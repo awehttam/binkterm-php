@@ -40,7 +40,8 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### PubTerm
 
-- PubTerm (the browser terminal door) now forwards each visitor's real IP address to the telnet daemon, so per-IP connection rate limiting, new-user registration screening, and audit logs see the actual visitor instead of the server's loopback address. On a standard single-host install this needs no configuration.
+- PubTerm (the browser terminal door) now forwards each visitor's real IP address to the telnet daemon, so per-IP connection rate limiting, new-user registration screening, connection logs, and the stored session IP shown in **Admin → Users** / `binktop` / `who` all reflect the actual visitor instead of the server's address. On a standard single-host install this needs no configuration.
+- Terminal (telnet/SSH) sessions in general now record the connecting user's IP address for online-session displays, rather than the server's — previously any terminal login showed the server address because the daemon proxies API traffic through the server.
 - New optional `.env` variables for the telnet daemon: `TELNET_TRUSTED_PROXIES`, `TELNET_PROXY_HEADER_TIMEOUT`, and `PUBTERM_PROXY_TARGET`. The telnet daemon's existing `TELNET_RATE_LIMIT_MAX` / `TELNET_RATE_LIMIT_WINDOW` settings are now also documented.
 
 ### Sessions
@@ -111,6 +112,14 @@ Connection #N from <visitor-ip> (via bridge)
 ```
 
 Restart both the multiplexing bridge and the telnet daemon after upgrading. On Windows hosts the relay is not used (the Windows launch path uses PuTTY's `plink`), so PubTerm sessions there remain attributed to the loopback address.
+
+### Terminal session IP attribution
+
+Separately from PubTerm, every telnet and SSH login now records the connecting user's address in `user_sessions.ip_address` (the value shown on the **Admin → Users** online-sessions list and by `scripts/binktop.php` / `scripts/who.php`). Previously the daemon's own API calls set this, so every terminal session was labelled with the server's address.
+
+The daemon authenticates the forwarded address with the existing `TERMINAL_REGISTRATION_SECRET` from `.env`. **If you have not changed it from the `Chang3Me` default, do so** — anything able to present that secret can set its own recorded session IP. It is the same secret already used to authorize terminal-originated registrations.
+
+This secret is now sent by the daemon on every API call rather than only on registration, so the daemon should reach the web application over HTTPS or a loopback address. If your daemon's API base is a plain `http://` URL on an untrusted network, point it at `http://127.0.0.1` (or an HTTPS URL) with `--api-base` or `SITE_URL`.
 
 See [PubTerm.md](PubTerm.md#real-client-ip-forwarding) and [TelnetServer.md](TelnetServer.md#proxied-connections-proxy-protocol) for details.
 
