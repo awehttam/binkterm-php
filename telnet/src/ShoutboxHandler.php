@@ -71,9 +71,9 @@ class ShoutboxHandler
                     'status_segments' => $this->buildShoutboxCommandFooter(true),
                     'extra_keys' => ['p' => 'post', 'r' => 'refresh'],
                     'color_scheme' => [
-                        'border' => TelnetUtils::ANSI_RED . TelnetUtils::ANSI_BOLD,
-                        'divider' => TelnetUtils::ANSI_RED,
-                        'title_bar' => TelnetUtils::ANSI_BG_RED . TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD,
+                        'border' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD,
+                        'divider' => TelnetUtils::ANSI_CYAN,
+                        'title_bar' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD,
                         'body' => "\033[40m\033[37m",
                         'status_bar_bg' => "\033[40m",
                         'status_bar_fill' => TelnetUtils::ANSI_BLUE,
@@ -157,9 +157,9 @@ class ShoutboxHandler
                 [
                     'status_segments' => $this->buildShoutboxCommandFooter(false),
                     'color_scheme' => [
-                        'border' => TelnetUtils::ANSI_RED . TelnetUtils::ANSI_BOLD,
-                        'divider' => TelnetUtils::ANSI_RED,
-                        'title_bar' => TelnetUtils::ANSI_BG_RED . TelnetUtils::ANSI_YELLOW . TelnetUtils::ANSI_BOLD,
+                        'border' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD,
+                        'divider' => TelnetUtils::ANSI_CYAN,
+                        'title_bar' => TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD,
                         'body' => "\033[40m\033[37m",
                         'status_bar_bg' => "\033[40m",
                         'status_bar_fill' => TelnetUtils::ANSI_BLUE,

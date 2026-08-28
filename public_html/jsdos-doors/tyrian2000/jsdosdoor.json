@@ -1,0 +1,977 @@
+{
+    "id": "tyrian2000",
+    "name": "Tyrian2000",
+    "version": "3.0",
+    "author": "Eclipse Software",
+    "description": "Vertical scrolling space shooter — full freeware release, all 5 episodes",
+    "icon": "icon.png",
+    "emulator": "jsdos",
+    "emulator_config": {
+        "cpu_cycles": "max 90%",
+        "memory_mb": 16,
+        "machine": "svga_s3",
+        "output": "surface",
+        "scaler": "normal3x forced",
+        "autolock": true,
+        "game_files": [
+            {
+                "asset_path": "assets/CUBETXT1.DAT",
+                "dos_path": "C:/TYRIAN20/CUBETXT1.DAT"
+            },
+            {
+                "asset_path": "assets/CUBETXT2.DAT",
+                "dos_path": "C:/TYRIAN20/CUBETXT2.DAT"
+            },
+            {
+                "asset_path": "assets/CUBETXT3.DAT",
+                "dos_path": "C:/TYRIAN20/CUBETXT3.DAT"
+            },
+            {
+                "asset_path": "assets/CUBETXT4.DAT",
+                "dos_path": "C:/TYRIAN20/CUBETXT4.DAT"
+            },
+            {
+                "asset_path": "assets/CUBETXT5.DAT",
+                "dos_path": "C:/TYRIAN20/CUBETXT5.DAT"
+            },
+            {
+                "asset_path": "assets/DEMO.1",
+                "dos_path": "C:/TYRIAN20/DEMO.1"
+            },
+            {
+                "asset_path": "assets/DEMO.2",
+                "dos_path": "C:/TYRIAN20/DEMO.2"
+            },
+            {
+                "asset_path": "assets/DEMO.3",
+                "dos_path": "C:/TYRIAN20/DEMO.3"
+            },
+            {
+                "asset_path": "assets/DEMO.4",
+                "dos_path": "C:/TYRIAN20/DEMO.4"
+            },
+            {
+                "asset_path": "assets/DEMO.5",
+                "dos_path": "C:/TYRIAN20/DEMO.5"
+            },
+            {
+                "asset_path": "assets/DPMI16BI.OVL",
+                "dos_path": "C:/TYRIAN20/DPMI16BI.OVL"
+            },
+            {
+                "asset_path": "assets/ESTSC.SHP",
+                "dos_path": "C:/TYRIAN20/ESTSC.SHP"
+            },
+            {
+                "asset_path": "assets/EXITMSG.BIN",
+                "dos_path": "C:/TYRIAN20/EXITMSG.BIN"
+            },
+            {
+                "asset_path": "assets/LEVELS1.DAT",
+                "dos_path": "C:/TYRIAN20/LEVELS1.DAT"
+            },
+            {
+                "asset_path": "assets/LEVELS2.DAT",
+                "dos_path": "C:/TYRIAN20/LEVELS2.DAT"
+            },
+            {
+                "asset_path": "assets/LEVELS3.DAT",
+                "dos_path": "C:/TYRIAN20/LEVELS3.DAT"
+            },
+            {
+                "asset_path": "assets/LEVELS4.DAT",
+                "dos_path": "C:/TYRIAN20/LEVELS4.DAT"
+            },
+            {
+                "asset_path": "assets/LEVELS5.DAT",
+                "dos_path": "C:/TYRIAN20/LEVELS5.DAT"
+            },
+            {
+                "asset_path": "assets/LOUDNESS.AWE",
+                "dos_path": "C:/TYRIAN20/LOUDNESS.AWE"
+            },
+            {
+                "asset_path": "assets/MUSIC.MUS",
+                "dos_path": "C:/TYRIAN20/MUSIC.MUS"
+            },
+            {
+                "asset_path": "assets/NEWSH_HASH.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH#.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH$.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH$.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH_PCT.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH%.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH'.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH'.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH(.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH(.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH0.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH0.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH1.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH1.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH2.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH2.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH3.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH3.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH4.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH4.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH5.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH5.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH6.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH6.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH7.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH7.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH8.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH8.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH9.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH9.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH@.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH@.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHA.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHA.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHB.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHB.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHC.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHC.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHD.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHD.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHE.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHE.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHF.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHF.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHG.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHG.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHH.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHH.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHI.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHI.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHJ.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHJ.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHK.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHK.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHL.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHL.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHM.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHM.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHN.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHN.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHO.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHO.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHP.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHP.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHQ.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHQ.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHR.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHR.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHS.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHS.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHT.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHT.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHU.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHU.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSHV.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSHV.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH^.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH^.SHP"
+            },
+            {
+                "asset_path": "assets/NEWSH~.SHP",
+                "dos_path": "C:/TYRIAN20/NEWSH~.SHP"
+            },
+            {
+                "asset_path": "assets/PALETTE.DAT",
+                "dos_path": "C:/TYRIAN20/PALETTE.DAT"
+            },
+            {
+                "asset_path": "assets/RTM.EXE",
+                "dos_path": "C:/TYRIAN20/RTM.EXE"
+            },
+            {
+                "asset_path": "assets/SETUP.BOX",
+                "dos_path": "C:/TYRIAN20/SETUP.BOX"
+            },
+            {
+                "asset_path": "assets/SETUP.EXE",
+                "dos_path": "C:/TYRIAN20/SETUP.EXE"
+            },
+            {
+                "asset_path": "assets/SHAPES).DAT",
+                "dos_path": "C:/TYRIAN20/SHAPES).DAT"
+            },
+            {
+                "asset_path": "assets/SHAPESW.DAT",
+                "dos_path": "C:/TYRIAN20/SHAPESW.DAT"
+            },
+            {
+                "asset_path": "assets/SHAPESX.DAT",
+                "dos_path": "C:/TYRIAN20/SHAPESX.DAT"
+            },
+            {
+                "asset_path": "assets/SHAPESY.DAT",
+                "dos_path": "C:/TYRIAN20/SHAPESY.DAT"
+            },
+            {
+                "asset_path": "assets/SHAPESZ.DAT",
+                "dos_path": "C:/TYRIAN20/SHAPESZ.DAT"
+            },
+            {
+                "asset_path": "assets/TSHP2.PCX",
+                "dos_path": "C:/TYRIAN20/TSHP2.PCX"
+            },
+            {
+                "asset_path": "assets/TYREND.ANM",
+                "dos_path": "C:/TYRIAN20/TYREND.ANM"
+            },
+            {
+                "asset_path": "assets/TYRIAN.CDT",
+                "dos_path": "C:/TYRIAN20/TYRIAN.CDT"
+            },
+            {
+                "asset_path": "assets/TYRIAN.CFG",
+                "dos_path": "C:/TYRIAN20/TYRIAN.CFG"
+            },
+            {
+                "asset_path": "assets/TYRIAN.HDT",
+                "dos_path": "C:/TYRIAN20/TYRIAN.HDT"
+            },
+            {
+                "asset_path": "assets/TYRIAN.PIC",
+                "dos_path": "C:/TYRIAN20/TYRIAN.PIC"
+            },
+            {
+                "asset_path": "assets/TYRIAN.SHP",
+                "dos_path": "C:/TYRIAN20/TYRIAN.SHP"
+            },
+            {
+                "asset_path": "assets/TYRIAN.SND",
+                "dos_path": "C:/TYRIAN20/TYRIAN.SND"
+            },
+            {
+                "asset_path": "assets/TYRIAN1.LVL",
+                "dos_path": "C:/TYRIAN20/TYRIAN1.LVL"
+            },
+            {
+                "asset_path": "assets/TYRIAN2.LVL",
+                "dos_path": "C:/TYRIAN20/TYRIAN2.LVL"
+            },
+            {
+                "asset_path": "assets/TYRIAN3.LVL",
+                "dos_path": "C:/TYRIAN20/TYRIAN3.LVL"
+            },
+            {
+                "asset_path": "assets/TYRIAN4.LVL",
+                "dos_path": "C:/TYRIAN20/TYRIAN4.LVL"
+            },
+            {
+                "asset_path": "assets/TYRIAN5.LVL",
+                "dos_path": "C:/TYRIAN20/TYRIAN5.LVL"
+            },
+            {
+                "asset_path": "assets/Translate/CUBE1.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE1.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/CUBE2.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE2.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/CUBE3.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE3.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/CUBE4.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE4.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/CUBE5.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE5.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/LEVELS1.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS1.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/LEVELS2.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS2.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/LEVELS3.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS3.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/LEVELS4.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS4.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/LEVELS5.DAT",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS5.DAT"
+            },
+            {
+                "asset_path": "assets/Translate/Readme.txt",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/README.TXT"
+            },
+            {
+                "asset_path": "assets/Translate/TYRIAN.HTX",
+                "dos_path": "C:/TYRIAN20/TRANSLATE/TYRIAN.HTX"
+            },
+            {
+                "asset_path": "assets/USER.SHP",
+                "dos_path": "C:/TYRIAN20/USER.SHP"
+            },
+            {
+                "asset_path": "assets/USER1.SHP",
+                "dos_path": "C:/TYRIAN20/USER1.SHP"
+            },
+            {
+                "asset_path": "assets/USER2.SHP",
+                "dos_path": "C:/TYRIAN20/USER2.SHP"
+            },
+            {
+                "asset_path": "assets/VOICES.SND",
+                "dos_path": "C:/TYRIAN20/VOICES.SND"
+            },
+            {
+                "asset_path": "assets/VOICESC.SND",
+                "dos_path": "C:/TYRIAN20/VOICESC.SND"
+            },
+            {
+                "asset_path": "assets/tyrian2.exe",
+                "dos_path": "C:/TYRIAN20/TYRIAN2.EXE"
+            },
+            {
+                "asset_path": "assets/tyrianc.shp",
+                "dos_path": "C:/TYRIAN20/TYRIANC.SHP"
+            }
+        ],
+        "autoexec": [
+            "C:",
+            "cd TYRIAN20",
+            "SET BLASTER=A220 I7 D1 T4",
+            "TYRIAN2.EXE"
+        ]
+    },
+    "modes": {
+        "config": {
+            "label": "Admin Setup",
+            "description": "Admin-only configuration mode. Launches to a DOS prompt so you can run setup utilities and create or update shared defaults.",
+            "admin_only": true,
+            "keep_open": true,
+            "emulator_config": {
+                "cpu_cycles": "max 90%",
+                "memory_mb": 16,
+                "machine": "svga_s3",
+                "output": "surface",
+                "autolock": true,
+                "game_files": [
+                    {
+                        "asset_path": "assets/CUBETXT1.DAT",
+                        "dos_path": "C:/TYRIAN20/CUBETXT1.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/CUBETXT2.DAT",
+                        "dos_path": "C:/TYRIAN20/CUBETXT2.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/CUBETXT3.DAT",
+                        "dos_path": "C:/TYRIAN20/CUBETXT3.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/CUBETXT4.DAT",
+                        "dos_path": "C:/TYRIAN20/CUBETXT4.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/CUBETXT5.DAT",
+                        "dos_path": "C:/TYRIAN20/CUBETXT5.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/DEMO.1",
+                        "dos_path": "C:/TYRIAN20/DEMO.1",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/DEMO.2",
+                        "dos_path": "C:/TYRIAN20/DEMO.2",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/DEMO.3",
+                        "dos_path": "C:/TYRIAN20/DEMO.3",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/DEMO.4",
+                        "dos_path": "C:/TYRIAN20/DEMO.4",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/DEMO.5",
+                        "dos_path": "C:/TYRIAN20/DEMO.5",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/DPMI16BI.OVL",
+                        "dos_path": "C:/TYRIAN20/DPMI16BI.OVL",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/ESTSC.SHP",
+                        "dos_path": "C:/TYRIAN20/ESTSC.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/EXITMSG.BIN",
+                        "dos_path": "C:/TYRIAN20/EXITMSG.BIN",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/LEVELS1.DAT",
+                        "dos_path": "C:/TYRIAN20/LEVELS1.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/LEVELS2.DAT",
+                        "dos_path": "C:/TYRIAN20/LEVELS2.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/LEVELS3.DAT",
+                        "dos_path": "C:/TYRIAN20/LEVELS3.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/LEVELS4.DAT",
+                        "dos_path": "C:/TYRIAN20/LEVELS4.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/LEVELS5.DAT",
+                        "dos_path": "C:/TYRIAN20/LEVELS5.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/LOUDNESS.AWE",
+                        "dos_path": "C:/TYRIAN20/LOUDNESS.AWE",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/MUSIC.MUS",
+                        "dos_path": "C:/TYRIAN20/MUSIC.MUS",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH_HASH.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH#.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH$.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH$.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH_PCT.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH%.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH'.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH'.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH(.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH(.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH0.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH0.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH1.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH1.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH2.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH2.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH3.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH3.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH4.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH4.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH5.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH5.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH6.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH6.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH7.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH7.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH8.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH8.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH9.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH9.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH@.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH@.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHA.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHA.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHB.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHB.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHC.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHC.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHD.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHD.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHE.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHE.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHF.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHF.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHG.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHG.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHH.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHH.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHI.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHI.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHJ.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHJ.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHK.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHK.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHL.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHL.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHM.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHM.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHN.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHN.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHO.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHO.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHP.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHP.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHQ.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHQ.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHR.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHR.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHS.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHS.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHT.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHT.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHU.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHU.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSHV.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSHV.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH^.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH^.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/NEWSH~.SHP",
+                        "dos_path": "C:/TYRIAN20/NEWSH~.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/PALETTE.DAT",
+                        "dos_path": "C:/TYRIAN20/PALETTE.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/RTM.EXE",
+                        "dos_path": "C:/TYRIAN20/RTM.EXE",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/SETUP.BOX",
+                        "dos_path": "C:/TYRIAN20/SETUP.BOX",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/SETUP.EXE",
+                        "dos_path": "C:/TYRIAN20/SETUP.EXE",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/SHAPES).DAT",
+                        "dos_path": "C:/TYRIAN20/SHAPES).DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/SHAPESW.DAT",
+                        "dos_path": "C:/TYRIAN20/SHAPESW.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/SHAPESX.DAT",
+                        "dos_path": "C:/TYRIAN20/SHAPESX.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/SHAPESY.DAT",
+                        "dos_path": "C:/TYRIAN20/SHAPESY.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/SHAPESZ.DAT",
+                        "dos_path": "C:/TYRIAN20/SHAPESZ.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TSHP2.PCX",
+                        "dos_path": "C:/TYRIAN20/TSHP2.PCX",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYREND.ANM",
+                        "dos_path": "C:/TYRIAN20/TYREND.ANM",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN.CDT",
+                        "dos_path": "C:/TYRIAN20/TYRIAN.CDT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN.CFG",
+                        "dos_path": "C:/TYRIAN20/TYRIAN.CFG",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN.HDT",
+                        "dos_path": "C:/TYRIAN20/TYRIAN.HDT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN.PIC",
+                        "dos_path": "C:/TYRIAN20/TYRIAN.PIC",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN.SHP",
+                        "dos_path": "C:/TYRIAN20/TYRIAN.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN.SND",
+                        "dos_path": "C:/TYRIAN20/TYRIAN.SND",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN1.LVL",
+                        "dos_path": "C:/TYRIAN20/TYRIAN1.LVL",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN2.LVL",
+                        "dos_path": "C:/TYRIAN20/TYRIAN2.LVL",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN3.LVL",
+                        "dos_path": "C:/TYRIAN20/TYRIAN3.LVL",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN4.LVL",
+                        "dos_path": "C:/TYRIAN20/TYRIAN4.LVL",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/TYRIAN5.LVL",
+                        "dos_path": "C:/TYRIAN20/TYRIAN5.LVL",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/CUBE1.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE1.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/CUBE2.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE2.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/CUBE3.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE3.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/CUBE4.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE4.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/CUBE5.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/CUBE5.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/LEVELS1.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS1.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/LEVELS2.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS2.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/LEVELS3.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS3.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/LEVELS4.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS4.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/LEVELS5.DAT",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/LEVELS5.DAT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/Readme.txt",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/README.TXT",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/Translate/TYRIAN.HTX",
+                        "dos_path": "C:/TYRIAN20/TRANSLATE/TYRIAN.HTX",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/USER.SHP",
+                        "dos_path": "C:/TYRIAN20/USER.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/USER1.SHP",
+                        "dos_path": "C:/TYRIAN20/USER1.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/USER2.SHP",
+                        "dos_path": "C:/TYRIAN20/USER2.SHP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/VOICES.SND",
+                        "dos_path": "C:/TYRIAN20/VOICES.SND",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/VOICESC.SND",
+                        "dos_path": "C:/TYRIAN20/VOICESC.SND",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/tyrian2.exe",
+                        "dos_path": "C:/TYRIAN20/TYRIAN2.EXE",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/tyrianc.shp",
+                        "dos_path": "C:/TYRIAN20/TYRIANC.SHP",
+                        "optional": true
+                    }
+                ],
+                "autoexec": [
+                    "C:",
+                    "cd TYRIAN20",
+                    "SET BLASTER=A220 I7 D1 T4",
+                    "SETUP.EXE"
+                ]
+            },
+            "saves": {
+                "enabled": true,
+                "scope": "shared",
+                "save_paths": [
+                    "C:/TYRIAN20/TYRIAN.CFG"
+                ],
+                "max_size_kb": 512
+            }
+        }
+    },
+    "credits": {
+        "session_cost": 0
+    },
+    "saves": {
+        "enabled": true,
+        "scope": "user",
+        "save_paths": [
+            "C:/TYRIAN20/*.SAV",
+            "C:/TYRIAN20/*.CFG"
+        ],
+        "max_size_kb": 512
+    }
+}

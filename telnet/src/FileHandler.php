@@ -56,6 +56,19 @@ class FileHandler
     public function show($conn, array &$state, string $session): void
     {
         $shell   = TerminalShellFactory::create($this->server, $state);
+        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+        if (TelnetUtils::showScreenIfExists('files.ans', $this->server, $conn)) {
+            TelnetUtils::safeWrite($conn, "\r\n" . TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to continue...', [], $state['locale']),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            while (true) {
+                $key = $this->server->readKeyWithIdleCheck($conn, $state);
+                if ($key !== '') {
+                    break;
+                }
+            }
+        }
         $page    = 1;
         $perPage = MailUtils::getMessagesPerPage($state);
         $locale  = $state['locale'] ?? '';

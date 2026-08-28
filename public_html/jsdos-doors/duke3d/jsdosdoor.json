@@ -1,0 +1,93 @@
+{
+    "id": "duke3d",
+    "name": "Duke Nukem 3D",
+    "version": "1.3D",
+    "author": "3D Realms",
+    "description": "OG Duke3D!",
+    "icon": "icon-v2.png",
+    "emulator": "jsdos",
+    "emulator_config": {
+        "cpu_cycles": "max 90%",
+        "memory_mb": 16,
+        "machine": "svga_s3",
+        "output": "surface",
+        "scaler": "normal3x forced",
+        "autolock": true,
+        "game_files": [
+            {
+                "asset_path": "assets/DUKE3D.EXE",
+                "dos_path": "C:/DUKE3D/DUKE3D.EXE"
+            },
+            {
+                "asset_path": "assets/DUKE3D.GRP",
+                "dos_path": "C:/DUKE3D/DUKE3D.GRP"
+            },
+            {
+                "asset_path": "assets/DUKE3D.CFG",
+                "dos_path": "C:/DUKE3D/DUKE3D.CFG"
+            }
+        ],
+        "autoexec": [
+            "C:",
+            "cd DUKE3D",
+            "SET BLASTER=A220 I7 D1 T4",
+            "DUKE3D.EXE"
+        ]
+    },
+    "modes": {
+        "config": {
+            "label": "Admin Setup",
+            "description": "Admin-only configuration mode. Launches to a DOS prompt so you can run setup utilities and create or update shared defaults.",
+            "admin_only": true,
+            "keep_open": true,
+            "emulator_config": {
+                "cpu_cycles": "max 90%",
+                "memory_mb": 16,
+                "machine": "svga_s3",
+                "output": "surface",
+                "autolock": true,
+                "game_files": [
+                    {
+                        "asset_path": "assets/DUKE3D.EXE",
+                        "dos_path": "C:/DUKE3D/DUKE3D.EXE",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/DUKE3D.GRP",
+                        "dos_path": "C:/DUKE3D/DUKE3D.GRP",
+                        "optional": true
+                    },
+                    {
+                        "asset_path": "assets/SETUP.EXE",
+                        "dos_path": "C:/DUKE3D/SETUP.EXE"
+                    }
+                ],
+                "autoexec": [
+                    "C:",
+                    "cd DUKE3D",
+                    "SET BLASTER=A220 I7 D1 T4"
+                ]
+            },
+            "saves": {
+                "enabled": true,
+                "scope": "shared",
+                "save_paths": [
+                    "C:/DUKE3D/DUKE3D.CFG"
+                ],
+                "max_size_kb": 512
+            }
+        }
+    },
+    "credits": {
+        "session_cost": 0
+    },
+    "saves": {
+        "enabled": true,
+        "scope": "user",
+        "save_paths": [
+            "C:/DUKE3D/*.SAV",
+            "C:/DUKE3D/*.CFG"
+        ],
+        "max_size_kb": 512
+    }
+}

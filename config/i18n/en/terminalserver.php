@@ -79,7 +79,7 @@ return [
     'ui.terminalserver.server.menu.whos_online'        => "W) Who's Online",
     'ui.terminalserver.server.menu.shoutbox'           => 'S) Shoutbox',
     'ui.terminalserver.server.menu.polls'              => 'P) Polls',
-    'ui.terminalserver.server.menu.doors'              => 'D) Door Games',
+    'ui.terminalserver.server.menu.doors'              => 'D) Games & Experiences',
     'ui.terminalserver.server.menu.quit'              => 'Q) Quit',
 
     // --- Farewell ---
@@ -539,9 +539,9 @@ return [
     'ui.terminalserver.detect.press_enter'             => 'Press Enter to continue...',
 
     // --- Door games ---
-    'ui.terminalserver.doors.no_doors'                 => 'No doors are currently available.',
-    'ui.terminalserver.doors.title'                    => 'Door Games',
-    'ui.terminalserver.doors.enter_choice'             => 'Enter number to play, or Q to return: ',
+    'ui.terminalserver.doors.no_doors'                 => 'No games or experiences are currently available.',
+    'ui.terminalserver.doors.title'                    => 'Games & Experiences',
+    'ui.terminalserver.doors.enter_choice'             => 'Select an experience or Q to return: ',
     'ui.terminalserver.doors.invalid'                  => 'Invalid selection.',
     'ui.terminalserver.doors.launching'                => 'Launching {name}...',
     'ui.terminalserver.doors.launch_error'             => 'Error: {error}',

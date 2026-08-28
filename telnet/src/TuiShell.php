@@ -193,17 +193,17 @@ class TuiShell implements TerminalShellInterface
             $panelHeight = $bodyHeight + 6;
 
             $chars = $this->server->getTerminalLineDrawingChars();
-            $tl = $this->server->encodeForTerminal($chars['tl'] ?? '+');
-            $tr = $this->server->encodeForTerminal($chars['tr'] ?? '+');
-            $bl = $this->server->encodeForTerminal($chars['bl'] ?? '+');
-            $br = $this->server->encodeForTerminal($chars['br'] ?? '+');
-            $hz = $this->server->encodeForTerminal($chars['h_bold'] ?? ($chars['h'] ?? '-'));
+            $tl = $chars['tl'] ?? '+';
+            $tr = $chars['tr'] ?? '+';
+            $bl = $chars['bl'] ?? '+';
+            $br = $chars['br'] ?? '+';
+            $hz = $chars['h_bold'] ?? ($chars['h'] ?? '-');
             $vt = $this->server->encodeForTerminal($chars['v'] ?? '|');
-            $lTee = $this->server->encodeForTerminal($chars['l_tee'] ?? '+');
-            $rTee = $this->server->encodeForTerminal($chars['r_tee'] ?? '+');
+            $lTee = $chars['l_tee'] ?? '+';
+            $rTee = $chars['r_tee'] ?? '+';
 
-            $topBorder = $tl . str_repeat($hz, $boxWidth - 2) . $tr;
-            $bottomBorder = $bl . str_repeat($hz, $boxWidth - 2) . $br;
+            $topBorder = $this->server->encodeForTerminal($tl . str_repeat($hz, $boxWidth - 2) . $tr);
+            $bottomBorder = $this->server->encodeForTerminal($bl . str_repeat($hz, $boxWidth - 2) . $br);
             $frameColor = (string)($scheme['border'] ?? (TelnetUtils::ANSI_BLUE . TelnetUtils::ANSI_BOLD));
             $dividerColor = (string)($scheme['divider'] ?? TelnetUtils::ANSI_BLUE);
             $titleBarColor = (string)($scheme['title_bar'] ?? (TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
@@ -257,7 +257,7 @@ class TuiShell implements TerminalShellInterface
                 . $this->server->colorizeForTerminal($vt, $frameColor);
             TelnetUtils::safeWrite($conn, "\033[" . ($startRow + 1) . ';' . $startCol . 'H' . $titleLineOut . TelnetUtils::ANSI_RESET);
 
-            $divider = $lTee . str_repeat($hz, $boxWidth - 2) . $rTee;
+            $divider = $this->server->encodeForTerminal($lTee . str_repeat($hz, $boxWidth - 2) . $rTee);
             TelnetUtils::safeWrite($conn, "\033[" . ($startRow + 2) . ';' . $startCol . 'H' . $this->server->colorizeForTerminal($divider, $dividerColor) . TelnetUtils::ANSI_RESET);
 
             for ($i = 0; $i < $bodyHeight; $i++) {

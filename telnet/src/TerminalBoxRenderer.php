@@ -117,6 +117,7 @@ class TerminalBoxRenderer
         $hasShadow = $shadowChar !== '';
 
         $topBorder = $this->server->encodeForTerminal($chars['tl'] . str_repeat($chars['h_bold'], $layout['boxWidth'] - 2) . $chars['tr']);
+        error_log('DEBUG topBorder title="' . $title . '" hex=' . bin2hex($topBorder));
         $divider = $this->server->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $layout['boxWidth'] - 2) . $chars['r_tee']);
         $bottomBorder = $this->server->encodeForTerminal($chars['bl'] . str_repeat($chars['h_bold'], $layout['boxWidth'] - 2) . $chars['br']);
         $titleText = $this->fitPlainText($title, $layout['contentWidth']);

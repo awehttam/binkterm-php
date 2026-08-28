@@ -78,3 +78,9 @@ bugreports/
 
 # Sysop-local Docker Compose overrides (see docker-compose.override.yml.example)
 docker-compose.override.yml
+
+# Local runtime / troubleshooting artifacts
+/supervisord.log
+/supervisord.pid
+*.bak.*
+*.before-identity-placeholders

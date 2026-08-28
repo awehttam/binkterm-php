@@ -3,9 +3,7 @@
 namespace BinktermPHP\TelnetServer;
 
 use BinktermPHP\Config;
-use BinktermPHP\DoorManager;
-use BinktermPHP\NativeDoorManager;
-use BinktermPHP\RLoginDoorManager;
+use BinktermPHP\GameCatalog;
 
 /**
  * DoorHandler - DOS door game access via telnet
@@ -43,32 +41,43 @@ class DoorHandler
     public function show($conn, array &$state, string $session): void
     {
         $shell = TerminalShellFactory::create($this->server, $state);
-        $dosDoors = (new DoorManager())->getEnabledDoors();
-        $nativeDoors = (new NativeDoorManager())->getEnabledDoors();
-        $rloginDoors = (new RLoginDoorManager())->getEnabledDoors();
+        TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+        if (TelnetUtils::showScreenIfExists('doors.ans', $this->server, $conn)) {
+            TelnetUtils::safeWrite($conn, "\r\n" . TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to continue...', [], $state['locale']),
+                TelnetUtils::ANSI_YELLOW
+            ));
 
-        // Merge all lists; later entries take precedence on ID collision
-        $allDoors = array_merge($dosDoors, $nativeDoors, $rloginDoors);
-
-        // Hide admin-only doors from non-admin users
-        if (empty($state['is_admin'])) {
-            $allDoors = array_filter($allDoors, fn($door) => empty($door['admin_only']));
+            while (true) {
+                $key = $this->server->readKeyWithIdleCheck($conn, $state);
+                if ($key !== '') {
+                    break;
+                }
+            }
         }
+        // Use the unified game catalog for terminal-visible experiences.
+        // Unlike the web surface, terminal includes doors marked hide_from_web.
+        $catalog = new GameCatalog();
+        $allDoors = $catalog->getEnabledGames(
+            ['is_admin' => !empty($state['is_admin'])],
+            'terminal'
+        );
 
         if (empty($allDoors)) {
             $shell->showText(
                 $conn,
                 $state,
-                $this->server->t('ui.terminalserver.doors.title', 'Door Games', [], $state['locale']),
-                [$this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale'])]
+                $this->server->t('ui.terminalserver.doors.title', 'Games & Experiences', [], $state['locale']),
+                [$this->server->t('ui.terminalserver.doors.no_doors', 'No games or experiences are currently available.', [], $state['locale'])]
             );
             return;
         }
 
-        // Convert associative array to indexed list, preserving door IDs
+        // Convert associative catalog entries to the indexed list expected
+        // by the terminal chooser, preserving game IDs.
         $doorList = [];
-        foreach ($allDoors as $doorId => $door) {
-            $doorList[] = ['id' => $doorId, 'data' => $door];
+        foreach ($allDoors as $doorId => $game) {
+            $doorList[] = ['id' => $doorId, 'data' => $game];
         }
 
         while (true) {
@@ -77,22 +86,51 @@ class DoorHandler
                 $door = $entry['data'];
                 $name = $door['name'] ?? $entry['id'];
                 $desc = trim((string)($door['description'] ?? ''));
-                $creditCost = (int)($door['config']['credit_cost'] ?? 0);
+                $creditCost = (int)($door['source']['config']['credit_cost'] ?? 0);
+
+                $experience = $door['experience'] ?? [];
+                $category = strtolower((string)($experience['category'] ?? 'game'));
+                $categoryLabel = match ($category) {
+                    'gateway' => 'Gateway',
+                    'game' => 'Game',
+                    default => ucfirst($category),
+                };
+
+                $meta = [$categoryLabel];
+
+                $genre = $door['genre'] ?? [];
+                if (is_array($genre) && !empty($genre)) {
+                    $meta[] = implode('/', $genre);
+                }
+
+                // Multiplayer is useful metadata for actual games. Gateway
+                // descriptions already make their multiplayer purpose clear.
+                if ($category === 'game' && !empty($experience['multiplayer'])) {
+                    $meta[] = 'Multiplayer';
+                }
+
+                $detailParts = [];
+                if ($desc !== '') {
+                    $detailParts[] = $desc;
+                }
+                if (!empty($meta)) {
+                    $detailParts[] = '[' . implode(' / ', $meta) . ']';
+                }
 
                 $items[] = [
                     'label' => trim($name . ($creditCost > 0 ? " [{$creditCost} credits]" : '')),
-                    'detail' => $desc,
+                    'detail' => implode(' ', $detailParts),
                 ];
             }
 
             $selected = $shell->chooseFromList(
                 $conn,
                 $state,
-                $this->server->t('ui.terminalserver.doors.title', 'Door Games', [], $state['locale']),
+                $this->server->t('ui.terminalserver.doors.title', 'Games & Experiences', [], $state['locale']),
                 $items,
                 [
-                    'prompt' => $this->server->t('ui.terminalserver.doors.enter_choice', 'Select a door or Q to return: ', [], $state['locale']),
-                    'empty_message' => $this->server->t('ui.terminalserver.doors.no_doors', 'No doors are currently available.', [], $state['locale']),
+                    'prompt' => $this->server->t('ui.terminalserver.doors.enter_choice', 'Select an experience or Q to return: ', [], $state['locale']),
+                    'empty_message' => $this->server->t('ui.terminalserver.doors.no_doors', 'No games or experiences are currently available.', [], $state['locale']),
                 ]
             );
             if ($selected === null) {
@@ -101,8 +139,9 @@ class DoorHandler
 
             $entry = $doorList[$selected];
             $doorName = $entry['data']['name'] ?? $entry['id'];
+            $terminalMode = (string)($entry['data']['source']['terminal_mode'] ?? 'doorway');
             $this->server->logAction($state['username'] ?? 'unknown', "Doors: launched \"{$doorName}\"");
-            $this->launchDoor($conn, $state, $session, $entry['id'], $doorName);
+            $this->launchDoor($conn, $state, $session, $entry['id'], $doorName, $terminalMode);
             // Return to the door menu so users can launch another door or back out explicitly.
             continue;
         }
@@ -117,8 +156,16 @@ class DoorHandler
      * @param string $session Auth session cookie value
      * @param string $doorId Door identifier (e.g. "lord")
      * @param string $doorName Human-readable door name for display
+     * @param string $terminalMode Terminal input mode: doorway (legacy) or raw
      */
-    private function launchDoor($conn, array &$state, string $session, string $doorId, string $doorName): void
+    private function launchDoor(
+        $conn,
+        array &$state,
+        string $session,
+        string $doorId,
+        string $doorName,
+        string $terminalMode = 'doorway'
+    ): void
     {
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.doors.launching', 'Launching {name}...', ['name' => $doorName], $state['locale']), TelnetUtils::ANSI_CYAN));
@@ -166,7 +213,13 @@ class DoorHandler
         $this->server->safeWrite($conn, chr(255) . chr(251) . chr(1)); // IAC WILL ECHO
         $this->server->safeWrite($conn, chr(255) . chr(254) . chr(1)); // IAC DONT ECHO
 
-        $this->relayLoop($conn, $state, $wsSock, $doorType);
+        // Modern/raw experiences should inherit the caller's actual terminal
+        // geometry rather than the native adapter's configured/default PTY size.
+        if ($terminalMode === 'raw') {
+            $this->sendTerminalResize($wsSock, $state);
+        }
+
+        $this->relayLoop($conn, $state, $wsSock, $terminalMode, $doorType);
 
         // Send WebSocket close frame and release the socket
         $this->wsSendClose($wsSock);
@@ -211,11 +264,19 @@ class DoorHandler
      * @param resource $conn Telnet client socket
      * @param array $state Terminal state (updated by NAWS sequences)
      * @param resource $wsSock WebSocket TCP socket
-     * @param string $doorType Door type ('dos', 'native', or 'rlogin') — controls
-     *                         whether ANSI cursor keys are rewritten to Doorway
-     *                         protocol scan codes (see processTelnetInput()).
+     * @param string $terminalMode Terminal input mode: doorway (legacy) or raw
+     * @param string $doorType Door type ('dos', 'native', or 'rlogin') — in the
+     *                         legacy doorway path, controls whether ANSI cursor
+     *                         keys are rewritten to Doorway protocol scan codes
+     *                         (see processTelnetInput()).
      */
-    private function relayLoop($conn, array &$state, $wsSock, string $doorType = 'dos'): void
+    private function relayLoop(
+        $conn,
+        array &$state,
+        $wsSock,
+        string $terminalMode = 'doorway',
+        string $doorType = 'dos'
+    ): void
     {
         $connMeta = stream_get_meta_data($conn);
         $wsMeta = stream_get_meta_data($wsSock);
@@ -254,17 +315,42 @@ class DoorHandler
                             continue;
                         }
 
-                        // Strip IAC commands (capture NAWS resizes) and convert ANSI escape
-                        // sequences to Doorway protocol scan codes understood by DOS door games
-                        $processed = $this->processTelnetInput($raw, $state, $doorType);
-                        if ($processed === '') {
-                            continue;
-                        }
+                        if ($terminalMode === 'raw') {
+                            // Modern terminal mode: remove Telnet protocol framing and
+                            // capture NAWS, but preserve ANSI/xterm and UTF-8 payload.
+                            $oldCols = (int)($state['cols'] ?? 0);
+                            $oldRows = (int)($state['rows'] ?? 0);
 
-                        // Convert CP437 → UTF-8 before sending as WebSocket text frame
-                        $utf8 = function_exists('iconv') ? iconv('CP437', 'UTF-8//IGNORE', $processed) : $processed;
-                        if ($utf8 !== '' && $utf8 !== false) {
-                            $this->wsSend($wsSock, $utf8);
+                            $processed = $this->processRawTelnetInput($raw, $state);
+
+                            $newCols = (int)($state['cols'] ?? 0);
+                            $newRows = (int)($state['rows'] ?? 0);
+
+                            if ($newCols > 0 && $newRows > 0
+                                && ($newCols !== $oldCols || $newRows !== $oldRows)) {
+                                $this->sendTerminalResize($wsSock, $state);
+                            }
+
+                            if ($processed !== '') {
+                                $this->wsSend($wsSock, $processed);
+                            }
+                        } else {
+                            // Legacy door mode: convert terminal keys to Doorway scan
+                            // codes and translate the CP437 client stream to UTF-8.
+                            // RLogin doors need ANSI cursor keys passed through
+                            // unmodified, which processTelnetInput() gates on $doorType.
+                            $processed = $this->processTelnetInput($raw, $state, $doorType);
+                            if ($processed === '') {
+                                continue;
+                            }
+
+                            $utf8 = function_exists('iconv')
+                                ? iconv('CP437', 'UTF-8//IGNORE', $processed)
+                                : $processed;
+
+                            if ($utf8 !== '' && $utf8 !== false) {
+                                $this->wsSend($wsSock, $utf8);
+                            }
                         }
                     } else {
                         // --- Bridge → telnet client ---
@@ -297,13 +383,26 @@ class DoorHandler
                                 continue;
                             }
 
-                            // Convert UTF-8 → CP437 for the telnet client
-                            $cp437 = function_exists('iconv')
-                                ? iconv('UTF-8', 'CP437//IGNORE', $result['payload'])
-                                : $result['payload'];
+                            if ($terminalMode === 'raw') {
+                                // Raw experiences speak modern UTF-8/ANSI, but the
+                                // connected BBS terminal may still be CP437 or ASCII.
+                                // Preserve control/ANSI bytes while transcoding printable
+                                // UTF-8 characters for the caller's configured charset.
+                                $output = $this->encodeRawTerminalOutput($result['payload']);
 
-                            if ($cp437 !== '' && $cp437 !== false) {
-                                $this->server->safeWrite($conn, $cp437);
+                                if ($output !== '') {
+                                    $this->server->safeWrite($conn, $output);
+                                }
+                            } else {
+                                // Legacy door output is presented to the Telnet
+                                // client using the traditional CP437 path.
+                                $cp437 = function_exists('iconv')
+                                    ? iconv('UTF-8', 'CP437//IGNORE', $result['payload'])
+                                    : $result['payload'];
+
+                                if ($cp437 !== '' && $cp437 !== false) {
+                                    $this->server->safeWrite($conn, $cp437);
+                                }
                             }
                         }
                     }
@@ -317,6 +416,105 @@ class DoorHandler
                 stream_set_blocking($wsSock, $wsWasBlocking);
             }
         }
+    }
+
+    /**
+     * Strip Telnet protocol framing while preserving modern terminal payload.
+     *
+     * Unlike processTelnetInput(), this does not translate ANSI escape
+     * sequences to Doorway scan codes, remap DEL, or perform character-set
+     * conversion. NAWS is still consumed so terminal dimensions remain known.
+     *
+     * @param string $data Raw bytes from the Telnet client
+     * @param array $state Terminal state (cols/rows updated if NAWS seen)
+     * @return string Raw terminal payload ready for the bridge
+     */
+    private function processRawTelnetInput(string $data, array &$state): string
+    {
+        $out = '';
+        $len = strlen($data);
+        $i = 0;
+
+        while ($i < $len) {
+            $byte = ord($data[$i]);
+
+            // Telnet IAC (0xFF) command sequence.
+            if ($byte === 255) {
+                $i++;
+                if ($i >= $len) {
+                    break;
+                }
+
+                $cmd = ord($data[$i++]);
+
+                // Escaped IAC means a literal 0xFF data byte.
+                if ($cmd === 255) {
+                    $out .= chr(255);
+                    continue;
+                }
+
+                // WILL/WONT/DO/DONT consume their option byte.
+                if ($cmd >= 251 && $cmd <= 254) {
+                    if ($i < $len) {
+                        $i++;
+                    }
+                    continue;
+                }
+
+                // Subnegotiation: consume through IAC SE.
+                if ($cmd === 250) {
+                    $opt = ($i < $len) ? ord($data[$i++]) : null;
+                    $sbData = '';
+
+                    while ($i < $len) {
+                        $b = ord($data[$i++]);
+
+                        if ($b === 255 && $i < $len && ord($data[$i]) === 240) {
+                            $i++;
+                            break;
+                        }
+
+                        $sbData .= chr($b);
+                    }
+
+                    // NAWS (option 31): retain terminal dimensions.
+                    if ($opt === 31 && strlen($sbData) >= 4) {
+                        $w = (ord($sbData[0]) << 8) + ord($sbData[1]);
+                        $h = (ord($sbData[2]) << 8) + ord($sbData[3]);
+
+                        if ($w > 0) {
+                            $state['cols'] = $w;
+                        }
+                        if ($h > 0) {
+                            $state['rows'] = $h;
+                        }
+                    }
+
+                    continue;
+                }
+
+                // Other Telnet commands contain no application payload.
+                continue;
+            }
+
+            // Decode Telnet NVT Enter framing while preserving a normal CR
+            // for the downstream terminal application.
+            if ($byte === 13) {
+                $i++;
+                $out .= chr(13);
+
+                if ($i < $len && (ord($data[$i]) === 10 || ord($data[$i]) === 0)) {
+                    $i++;
+                }
+
+                continue;
+            }
+
+            // Everything else is modern terminal payload and passes unchanged.
+            $out .= $data[$i++];
+        }
+
+        return $out;
     }
 
     /**
@@ -682,6 +880,145 @@ class DoorHandler
      * @param resource $sock
      * @param string   $payload UTF-8 text payload
      */
+    /**
+     * Forward terminal dimensions to the bridge for PTY-backed raw experiences.
+     */
+    /**
+     * Encode a modern UTF-8/ANSI terminal stream for the connected BBS client.
+     *
+     * ANSI/control sequences are preserved byte-for-byte. Printable UTF-8 text
+     * spans are passed through BbsSession::encodeForTerminal(), allowing the
+     * session's utf8/cp437/ascii setting to remain authoritative.
+     */
+    private function encodeRawTerminalOutput(string $data): string
+    {
+        if ($data === '') {
+            return '';
+        }
+
+        $charset = method_exists($this->server, 'getTerminalCharset')
+            ? $this->server->getTerminalCharset()
+            : 'utf8';
+
+        if ($charset === 'utf8') {
+            return $data;
+        }
+
+        $encodeText = function (string $text): string {
+            if ($text === '') {
+                return '';
+            }
+
+            if (method_exists($this->server, 'encodeForTerminal')) {
+                return $this->server->encodeForTerminal($text);
+            }
+
+            return $text;
+        };
+
+        $out = '';
+        $text = '';
+        $len = strlen($data);
+        $i = 0;
+
+        $flushText = function () use (&$text, &$out, $encodeText): void {
+            if ($text !== '') {
+                $out .= $encodeText($text);
+                $text = '';
+            }
+        };
+
+        while ($i < $len) {
+            $byte = ord($data[$i]);
+
+            // ESC introduces ANSI/VT control sequences. Preserve them exactly.
+            if ($byte === 0x1B) {
+                $flushText();
+
+                $start = $i++;
+                if ($i >= $len) {
+                    $out .= substr($data, $start, 1);
+                    break;
+                }
+
+                $next = ord($data[$i]);
+
+                // CSI: ESC [ ... final-byte
+                if ($next === 0x5B) {
+                    $i++;
+
+                    while ($i < $len) {
+                        $b = ord($data[$i++]);
+
+                        // ANSI final byte range.
+                        if ($b >= 0x40 && $b <= 0x7E) {
+                            break;
+                        }
+                    }
+
+                    $out .= substr($data, $start, $i - $start);
+                    continue;
+                }
+
+                // OSC: ESC ] ... BEL or ST (ESC \)
+                if ($next === 0x5D) {
+                    $i++;
+
+                    while ($i < $len) {
+                        $b = ord($data[$i++]);
+
+                        if ($b === 0x07) {
+                            break;
+                        }
+
+                        if ($b === 0x1B && $i < $len && ord($data[$i]) === 0x5C) {
+                            $i++;
+                            break;
+                        }
+                    }
+
+                    $out .= substr($data, $start, $i - $start);
+                    continue;
+                }
+
+                // Other two-byte ESC forms.
+                $i++;
+                $out .= substr($data, $start, $i - $start);
+                continue;
+            }
+
+            // C0 controls and DEL are transport/control bytes, not text.
+            if ($byte < 0x20 || $byte === 0x7F) {
+                $flushText();
+                $out .= $data[$i++];
+                continue;
+            }
+
+            // Printable UTF-8 byte. Accumulate until the next control sequence.
+            $text .= $data[$i++];
+        }
+
+        $flushText();
+
+        return $out;
+    }
+
+    private function sendTerminalResize($wsSock, array $state): void
+    {
+        $cols = max(20, min(500, (int)($state['cols'] ?? 80)));
+        $rows = max(5, min(200, (int)($state['rows'] ?? 25)));
+
+        $payload = json_encode([
+            'type' => 'resize',
+            'cols' => $cols,
+            'rows' => $rows,
+        ]);
+
+        if ($payload !== false) {
+            $this->wsSend($wsSock, $payload);
+        }
+    }
+
     private function wsSend($sock, string $payload): void
     {
         if (!is_resource($sock)) {
@@ -841,6 +1178,7 @@ class DoorHandler
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_COOKIE         => 'binktermphp_session=' . $session,
             CURLOPT_TIMEOUT        => 15,
+            CURLOPT_USERAGENT      => 'BinktermPHP-Telnet/1.10.2',
         ]);
 
         $response = curl_exec($ch);
@@ -874,6 +1212,7 @@ class DoorHandler
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_COOKIE         => 'binktermphp_session=' . $session,
             CURLOPT_TIMEOUT        => 5,
+            CURLOPT_USERAGENT      => 'BinktermPHP-Telnet/1.10.2',
         ]);
         curl_exec($ch);
         curl_close($ch);

@@ -218,7 +218,7 @@ class BbsSession
                 $this->ansiColorEnabled = true;
                 TelnetUtils::setAnsiColorEnabled(true);
                 if ($this->debug) { $this->log('TLS startup: ANSI enabled; charset deferred to saved settings'); }
-                $this->probeSixelSupport($conn, $state);
+                // Defer active Sixel probing until after the login banner.
             } else {
                 // Probe ANSI support before showing the banner by doing the TTYPE
                 // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
@@ -230,7 +230,7 @@ class BbsSession
                     $this->ansiColorEnabled = true;
                     TelnetUtils::setAnsiColorEnabled(true);
                     if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
-                    $this->probeSixelSupport($conn, $state);
+                    // Defer active Sixel probing until after the login banner.
                 } else {
                     if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
                 }
@@ -561,7 +561,7 @@ class BbsSession
             $lblShoutbox   = $norm($this->t('ui.terminalserver.server.menu.shoutbox',   'S) Shoutbox', [], $locale), 'S');
             $lblBulletins  = $norm($this->t('ui.terminalserver.server.menu.bulletins',  'U) Bulletins', [], $locale), 'U');
             $lblPolls      = $norm($this->t('ui.terminalserver.server.menu.polls',      'P) Polls', [], $locale), 'P');
-            $lblDoors      = $norm($this->t('ui.terminalserver.server.menu.doors',      'D) Door Games', [], $locale), 'D');
+            $lblDoors      = $norm($this->t('ui.terminalserver.server.menu.doors',      'D) Games & Experiences', [], $locale), 'D');
             $lblFiles      = $norm($this->t('ui.terminalserver.server.menu.files',      'F) Files', [], $locale), 'F');
             $lblFreq       = $norm($this->t('ui.terminalserver.server.menu.freqrequests', 'R) File Requests', [], $locale), 'R');
             $lblBbsList    = $norm($this->t('ui.terminalserver.server.menu.bbs_list',   'B) BBS Directory', [], $locale), 'B');
@@ -2168,6 +2168,7 @@ class BbsSession
             return;
         }
 
+
         if (TelnetUtils::showScreenIfExists("login.ans", $this, $conn)) {
             return;
         }
@@ -2704,11 +2705,9 @@ class BbsSession
         $username = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.login.username_prompt', 'Username: ', [], $state['locale']), true);
         if ($username === null) { return null; }
         $attemptedUsername = $username;
-
         $password = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.login.password_prompt', 'Password: ', [], $state['locale']), false);
         if ($password === null) { return null; }
         $this->writeLine($conn, '');
-
         $transport = $this->isSsh ? 'ssh' : 'telnet';
         try {
             $result = $this->apiRequest('POST', '/api/auth/login', [
@@ -3683,6 +3682,7 @@ class BbsSession
                 CURLOPT_CUSTOMREQUEST  => $method,
                 CURLOPT_TIMEOUT        => 10,
                 CURLOPT_HEADER         => false,
+                CURLOPT_USERAGENT      => 'BinktermPHP-Telnet/1.10.2',
             ]);
 
             $headers = ['Accept: application/json'];

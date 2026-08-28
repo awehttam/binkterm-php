@@ -159,6 +159,7 @@ class NativeDoorManifest
             'players' => $data['game']['players'] ?? null,
             'icon' => $data['game']['icon'] ?? null,
             'screenshot' => $data['game']['screenshot'] ?? null,
+            'experience' => $data['experience'] ?? null,
 
             // Door technical info
             'executable' => $data['door']['executable'],
@@ -167,6 +168,7 @@ class NativeDoorManifest
             'directory' => 'native-doors/doors/' . $doorId,
             'dropfile_format' => $data['door']['dropfile_format'] ?? 'DOOR.SYS',
             'output_encoding' => $data['door']['output_encoding'] ?? 'utf8',
+            'terminal_mode' => $data['door']['terminal_mode'] ?? 'doorway',
             'node_support' => true,
             'max_nodes' => $data['door']['max_nodes'] ?? 10,
             'ansi_required' => $data['door']['ansi_required'] ?? true,

@@ -589,6 +589,12 @@ if (empty($doorId)) {
 
         // Clean up on page unload
         window.addEventListener('beforeunload', () => {
+            if (sessionId) {
+                const data = new URLSearchParams();
+                data.append('session_id', sessionId);
+                navigator.sendBeacon('/api/door/end', data);
+            }
+
             if (socket) {
                 socket.close();
             }

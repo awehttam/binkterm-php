@@ -1,0 +1,37 @@
+{
+    "type": "nativedoor",
+    "version": "1.0",
+    "game": {
+        "name": "Lateania",
+        "short_name": "LATEANIA",
+        "author": "late.sh",
+        "version": "late.sh",
+        "release_year": 2026,
+        "description": "A persistent multiplayer fantasy world supplied by late.sh.",
+        "genre": [
+            "RPG",
+            "Multiplayer"
+        ],
+        "players": "Multiplayer",
+        "icon": null,
+        "screenshot": null
+    },
+    "experience": {
+        "category": "game",
+        "featured": true,
+        "multiplayer": true
+    },
+    "door": {
+        "executable": "ssh",
+        "launch_command": "ssh -tt -i /var/www/html/data/portal/late/id_ed25519 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/var/www/html/data/portal/late/known_hosts -o LogLevel=ERROR -o SetEnv=\"LATE_LAUNCH=lateania BINKTERM_USER_ID={user_number} BINKTERM_USERNAME={user_name} BINKTERM_DISPLAY_NAME={user_real_name} LATE_NODE={node}\" -p 2222 portal@late-ssh",
+        "dropfile_format": "DOOR.SYS",
+        "output_encoding": "utf8",
+        "terminal_mode": "raw",
+        "max_nodes": 10,
+        "ansi_required": true,
+        "time_per_day": 60
+    },
+    "requirements": {
+        "admin_only": false
+    }
+}

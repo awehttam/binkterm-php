@@ -1,0 +1,37 @@
+{
+  "type": "nativedoor",
+  "version": "1.0",
+  "game": {
+    "name": "DoorParty",
+    "short_name": "DoorParty",
+    "author": "L33TEST",
+    "version": "1.0",
+    "release_year": 2026,
+    "description": "Connect to DoorParty - 180+ multiplayer door games",
+    "players": "Multi-player",
+    "icon": "icon.png",
+    "screenshot": null
+  },
+  "door": {
+    "executable": "doorparty.php",
+    "launch_command": "/usr/local/bin/php doorparty.php",
+    "dropfile_format": "DOOR.SYS",
+    "max_nodes": 10,
+    "ansi_required": true,
+    "time_per_day": 60,
+    "output_encoding": "cp437"
+  },
+  "requirements": {
+    "admin_only": false
+  },
+  "config": {
+    "enabled": false,
+    "credit_cost": 0,
+    "max_sessions": 10
+  },
+  "experience": {
+    "category": "gateway",
+    "featured": true,
+    "multiplayer": true
+  }
+}
