@@ -8793,7 +8793,7 @@ User settings object with locale, shell, notification preferences, and license s
 | `settings.netmail_notification_sound` | string | Netmail notification sound (disabled, notify1–5) |
 | `settings.file_notification_sound` | string | File notification sound (disabled, notify1–5) |
 | `settings.compose_advanced_open` | boolean | Whether advanced compose panel is open by default |
-| `settings.compose_hard_wrap` | integer | Hard-wrap column for message composition (0 = disabled) |
+| `settings.compose_hard_wrap` | integer | Hard-wrap column for message composition: `0` (disabled), `39`, `72` (default), or `79`; other values are coerced to `72` |
 | `settings.media_render_mode` | string | Media rendering mode ('click', 'auto') |
 | `settings.license_valid` | boolean | Whether the system has a valid license |
 

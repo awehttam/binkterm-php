@@ -10075,7 +10075,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['file_notification_sound'] = $meta->getValue((int)$userId, 'file_notification_sound') ?? 'disabled';
                 $settings['compose_advanced_open'] = $meta->getValue((int)$userId, 'compose_advanced_open') === 'true';
                 $rawWrap = $meta->getValue((int)$userId, 'compose_hard_wrap');
-                $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 79;
+                $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 72;
                 $settings['media_render_mode'] = $meta->getValue((int)$userId, 'media_render_mode') ?? 'click';
             }
 
@@ -10159,8 +10159,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 if (isset($settings['compose_hard_wrap'])) {
                     $wrapVal = (int)$settings['compose_hard_wrap'];
-                    if (!in_array($wrapVal, [0, 39, 79], true)) {
-                        $wrapVal = 79;
+                    if (!in_array($wrapVal, [0, 39, 72, 79], true)) {
+                        $wrapVal = 72;
                     }
                     $meta->setValue((int)$userId, 'compose_hard_wrap', (string)$wrapVal);
                     $metaSettingsUpdated = true;
