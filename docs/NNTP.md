@@ -59,7 +59,8 @@ newsreader is off by default** — turn on *Allow posting from newsreaders* in
    `php scripts/nntp_server.php`.
 
    In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and
-   publish ports `119` and `563`.
+   uncomment its port lines (`119:8119`, `563:8563` — the daemon binds high
+   ports inside the container because the `binkterm` user cannot bind 119/563).
 
 ## Admin → NNTP Server settings
 
