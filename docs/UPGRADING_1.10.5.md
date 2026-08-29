@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Message Composition](#message-composition)
 - [Admin BBS Settings](#admin-bbs-settings)
 - [MeshCore Enable/Disable](#meshcore-enabledisable)
+- [NNTP Server](#nntp-server)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -25,6 +26,12 @@ Make sure you have a current backup of your database and files before upgrading.
 ### MeshCore Enable/Disable
 
 - A new **Enable MeshCore** toggle in **Admin -> BBS Settings -> System & Features** turns the whole MeshCore / PacketBBS radio subsystem on or off. It defaults to **on**, so existing MeshCore setups keep working. Turning it off makes the bridge API unreachable and hides every MeshCore surface (user settings tab, public nodes page, admin page, dashboard card, navigation links).
+
+### NNTP Server
+
+- BinktermPHP can now serve its echoareas as Usenet-style newsgroups over NNTP (RFC 3977), so members can read — and optionally post — echomail with a standard newsreader such as Thunderbird. It runs as a new optional daemon, `scripts/nntp_server.php`, and is **disabled by default**. Enable it, and configure rate limits and the plaintext-authentication policy, in the new **Admin -> NNTP Server** page. Posting from a newsreader is a second toggle on that page, also off by default.
+- Two new database tables (`nntp_article_numbers`, `nntp_area_watermark`) are created and populated from your existing echomail during the upgrade.
+- Transport settings — bind address, ports, and TLS certificate paths — are read from `.env`. New keys: `NNTP_BIND_HOST`, `NNTP_PORT` (119), `NNTP_TLS_PORT` (563), `NNTP_TLS_CERT_PATH`, `NNTP_TLS_KEY_PATH`.
 
 ---
 
@@ -59,6 +66,44 @@ When it is disabled:
 - The **Admin -> Packet BBS** management page returns `404` and its navigation link is hidden.
 
 Node records, radio sessions, and stored contacts are not deleted while MeshCore is disabled; re-enabling the toggle restores everything.
+
+## NNTP Server
+
+An NNTP server lets members connect with any standard newsreader (Thunderbird, slrn, tin, Forte Agent) and read FTN echoareas as if they were newsgroups. Each echoarea a member is subscribed to appears as a newsgroup named `<Network>.<AreaTag>`, for example `FidoNet.GENERAL` or `LovlyNet.LVLY_BINKTERMPHP`. Members sign in with their normal BinktermPHP username and password.
+
+### Enabling it
+
+1. Turn the server on in **Admin -> NNTP Server** (*Enable the NNTP server*). The same page has the newsgroup-name prefix style, a per-IP connection limit, per-member posting rate limits, and a *plaintext authentication* switch. These are stored in a new `config/nntp.json`, written through the admin daemon.
+
+2. Set the transport in `.env` and restart the daemon for the change to take effect:
+
+   | Key | Default | Purpose |
+   |---|---|---|
+   | `NNTP_BIND_HOST` | `0.0.0.0` | Address to bind |
+   | `NNTP_PORT` | `119` | Plaintext + `STARTTLS` port |
+   | `NNTP_TLS_PORT` | `563` | Implicit-TLS port; leave empty to disable |
+   | `NNTP_TLS_CERT_PATH` | `data/nntp/server.crt` | PEM certificate, or a combined cert+key PEM |
+   | `NNTP_TLS_KEY_PATH` | `data/nntp/server.key` | PEM private key |
+
+   Ports 119 and 563 are privileged. If `NNTP_TLS_CERT_PATH` is left at its default and no file exists there, the daemon generates a self-signed certificate on first start; point it at a real certificate (for example the one your web server uses) for clients that reject self-signed certs. A path that is set but points at a missing file stops the daemon with an error.
+
+3. Start the daemon. It is an optional daemon, so `scripts/restart_daemons.sh` with no arguments only restarts it if it was already running:
+
+   ```bash
+   scripts/restart_daemons.sh --start nntp_daemon
+   ```
+
+   On Windows it is not part of `start_daemons_windows.*` and must be started by hand with `php scripts/nntp_server.php`. In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and uncomment its port lines (`119:8119`, `563:8563`).
+
+### Posting
+
+Reading works as soon as the server is enabled. To also let members compose and reply from their newsreader, turn on *Allow posting from newsreaders* in **Admin -> NNTP Server**. Posted articles go through the same path as a web or terminal post, so the echoarea's posting-name policy and echomail moderation apply, and the message is attributed to the signed-in member regardless of the `From:` line the newsreader sends. A post whose `Newsgroups:` header names more echoareas than the configured cross-post limit is rejected rather than trimmed.
+
+### Article numbering
+
+NNTP requires per-newsgroup article numbers that are never reused. The `nntp_article_numbers` and `nntp_area_watermark` tables track them; the daemon assigns a number the first time a newsgroup is read. If echomail is later pruned, the numbers it held are retired, not reissued.
+
+See `docs/NNTP.md` for connecting a newsreader and troubleshooting.
 
 ## Upgrade Instructions
 
