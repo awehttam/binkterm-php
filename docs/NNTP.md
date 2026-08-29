@@ -4,9 +4,9 @@ BinktermPHP can expose its FTN echoareas as Usenet-style newsgroups over NNTP
 (RFC 3977), so members can read echomail with any standard newsreader —
 Thunderbird, and older readers such as slrn, tin or Forte Agent.
 
-**This release is read-only.** Members can browse and read; posting from a
-newsreader is not yet available. The relevant settings exist but are inert until a
-future update enables them.
+Reading works out of the box once the server is enabled. **Posting from a
+newsreader is off by default** — turn on *Allow posting from newsreaders* in
+**Admin → NNTP Server** to let members compose and reply from their client.
 
 ## How it works
 
@@ -66,10 +66,11 @@ future update enables them.
 | Setting | Notes |
 |---|---|
 | Enable the NNTP server | Master switch. When off the daemon accepts connections but serves nothing. |
-| Allow posting from newsreaders | Reserved for a future release; has no effect now. |
+| Allow posting from newsreaders | Off by default. When on, authenticated members can `POST` new messages and replies. |
 | Newsgroup name prefix | `Network display name` (default) or `Domain slug`. |
 | Max connections per IP | Concurrent connections allowed from one source address (default 3). |
-| Posts per minute / hour, Max cross-post areas | Posting rate limits — inert until posting is enabled. |
+| Posts per minute / hour | Per-member posting rate limits; a post over the limit is rejected with `441`. Set to 0 to disable that limit. |
+| Max cross-post areas | Most echoareas one article may target via a multi-group `Newsgroups:` header. An over-limit post is **rejected**, not trimmed. |
 | Allow plaintext authentication on port 119 | **Off by default.** When off, a newsreader on port 119 must run `STARTTLS` before it can log in. Turn it on only for a legacy reader with no TLS support, accepting that its password crosses the wire in cleartext. Port 563 is always encrypted. |
 
 Settings are stored in `config/nntp.json` and written through the admin daemon.
@@ -82,6 +83,24 @@ Account*. Server = your BBS hostname, port 119 (with *Connection security:
 STARTTLS*) or 563 (*SSL/TLS*). Under *Server Settings*, enable
 *Always request authentication* and use your BBS credentials. Then *Subscribe* and
 pick the groups you want.
+
+## Posting
+
+When *Allow posting from newsreaders* is on:
+
+- A posted article is injected through the same path as a web/terminal post
+  (`MessageHandler::postEchomail()`), so kludge generation, the echoarea's
+  posting-name policy, and echomail moderation all apply. The `From:` line the
+  newsreader sends is ignored — the message is attributed to the authenticated
+  member per the network's posting-name policy.
+- `Newsgroups:` may list several groups (cross-post); each becomes an independent
+  copy. If the list exceeds *Max cross-post areas* the whole post is rejected.
+- `References:` is used to thread a reply onto its parent when the parent is a
+  message this server served.
+- Held-for-moderation posts still return success to the client; the message
+  appears once a moderator approves it.
+- Cancel and supersede control messages are accepted and silently dropped (FTN
+  has no equivalent).
 
 ## Article numbering
 

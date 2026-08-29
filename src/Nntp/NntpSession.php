@@ -190,11 +190,7 @@ class NntpSession
                 $this->cmdLastNext($command);
                 return;
             case 'POST':
-                $this->send(
-                    $this->postingReady()
-                        ? '440 Posting not implemented yet'
-                        : '440 Posting not permitted'
-                );
+                $this->cmdPost();
                 return;
             case 'IHAVE':
                 $this->send('500 IHAVE not supported');
@@ -593,6 +589,70 @@ class NntpSession
             default:
                 $payload = array_merge($headerLines, [''], $bodyLines);
                 $this->sendMulti(sprintf('220 %d %s', $number, $built['message_id']), $payload);
+        }
+    }
+
+    // ── POST ──────────────────────────────────────────────────────────────
+
+    /** Hard cap on a POSTed article, in bytes. */
+    private const MAX_POST_BYTES = 4 * 1024 * 1024;
+
+    private function cmdPost(): void
+    {
+        if (!$this->config->isEnabled() || !$this->config->isPostingAllowed()) {
+            $this->send('440 Posting not permitted');
+            return;
+        }
+        if (!$this->authenticated) {
+            $this->send('480 Authentication required');
+            return;
+        }
+        if (!$this->tlsActive && $this->isPlaintextPort && !$this->config->isPlaintextAuthAllowed()) {
+            $this->send('483 Secure connection required (issue STARTTLS first)');
+            return;
+        }
+
+        $this->send('340 Send article; end with <CR-LF>.<CR-LF>');
+
+        $raw = $this->readDotTerminated();
+        if ($raw === null) {
+            // client hung up or the article was too large
+            $this->send('441 Article rejected (too large or connection lost)');
+            return;
+        }
+
+        $post = new NntpPost($this->db, $this->config, $this->logger, $this->groups, (int)$this->userId, $this->subscribed);
+        $result = $post->submit($raw);
+        $this->auth->touch('NNTP: posting');
+        $this->send($result['code'] . ' ' . $result['text']);
+    }
+
+    /**
+     * Read a dot-terminated block from the client, un-terminating (but not
+     * un-dot-stuffing — the parser does that) each line. Returns null on EOF or
+     * when the article exceeds MAX_POST_BYTES.
+     */
+    private function readDotTerminated(): ?string
+    {
+        $buf = '';
+        while (true) {
+            $line = ($this->readLine)();
+            if ($line === null) {
+                return null;
+            }
+            $line = rtrim($line, "\r\n");
+            if ($line === '.') {
+                return $buf;
+            }
+            $buf .= $line . "\r\n";
+            if (strlen($buf) > self::MAX_POST_BYTES) {
+                // Keep draining until the terminator so the stream stays in sync,
+                // then signal failure.
+                while (($drain = ($this->readLine)()) !== null && rtrim($drain, "\r\n") !== '.') {
+                    // discard
+                }
+                return null;
+            }
         }
     }
 

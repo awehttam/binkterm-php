@@ -30,7 +30,7 @@
                         </div>
 
                         <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="nntpAllowPosting" disabled>
+                            <input class="form-check-input" type="checkbox" id="nntpAllowPosting">
                             <label class="form-check-label" for="nntpAllowPosting">{{ t('ui.admin.nntp_settings.allow_posting') }}</label>
                             <small class="form-text d-block text-muted">{{ t('ui.admin.nntp_settings.allow_posting_help') }}</small>
                         </div>
@@ -147,7 +147,7 @@ function populateNntpForm() {
 async function saveNntpSettings() {
     const config = {
         enabled: $('#nntpEnabled').is(':checked'),
-        allow_posting: nntpConfig.allow_posting || false,
+        allow_posting: $('#nntpAllowPosting').is(':checked'),
         newsgroup_prefix_mode: $('#nntpPrefixMode').val(),
         posts_per_minute: parseInt($('#nntpPostsPerMinute').val(), 10),
         posts_per_hour: parseInt($('#nntpPostsPerHour').val(), 10),
