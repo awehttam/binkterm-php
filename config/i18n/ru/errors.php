@@ -776,6 +776,7 @@ return [
     'errors.admin.networks.delete_in_use' => 'Сеть используется.',
     'errors.admin.networks.delete_failed' => 'Не удалось удалить сеть.',
 
+    'errors.meshcore.disabled' => 'MeshCore отключён в этой системе.',
     'errors.meshcore.invalid_node_id' => 'ID ноды должен содержать 12 или 64 строчных шестнадцатеричных символа.',
     'errors.meshcore.contact_exists' => 'Контакт с таким ID ноды уже существует.',
     'errors.meshcore.not_found' => 'Контакт не найден.',

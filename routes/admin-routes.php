@@ -8114,6 +8114,11 @@ SimpleRouter::get('/admin/packet-bbs', function() {
     $adminController = new AdminController();
     $adminController->requireAdmin($user);
 
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('meshcore')) {
+        http_response_code(404);
+        return;
+    }
+
     $template = new Template();
     $template->renderResponse('admin/packet_bbs.twig', [
         'current_admin_user' => [

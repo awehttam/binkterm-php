@@ -13642,7 +13642,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // ---- MeshCore user contact management ----
 
-    SimpleRouter::get('/user/meshcore/bridges', function() {
+    /**
+     * Guard: the MeshCore subsystem is gated behind the `meshcore` BBS feature.
+     * Emits a 404 apiError and returns false when the feature is disabled.
+     */
+    $requireMeshcoreFeature = function(): bool {
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('meshcore')) {
+            apiError('errors.meshcore.disabled', apiLocalizedText('errors.meshcore.disabled', 'MeshCore is disabled on this system.'), 404);
+            return false;
+        }
+        return true;
+    };
+
+    SimpleRouter::get('/user/meshcore/bridges', function() use ($requireMeshcoreFeature) {
+        if (!$requireMeshcoreFeature()) { return; }
         $auth = new Auth();
         $auth->requireAuth();
         header('Content-Type: application/json');
@@ -13656,7 +13669,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['bridges' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
     });
 
-    SimpleRouter::get('/user/meshcore/contacts', function() {
+    SimpleRouter::get('/user/meshcore/contacts', function() use ($requireMeshcoreFeature) {
+        if (!$requireMeshcoreFeature()) { return; }
         $auth   = new Auth();
         $user   = $auth->requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
@@ -13675,7 +13689,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['success' => true, 'contacts' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
     });
 
-    SimpleRouter::post('/user/meshcore/contacts', function() {
+    SimpleRouter::post('/user/meshcore/contacts', function() use ($requireMeshcoreFeature) {
+        if (!$requireMeshcoreFeature()) { return; }
         $auth   = new Auth();
         $user   = $auth->requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
@@ -13740,7 +13755,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
-    SimpleRouter::put('/user/meshcore/contacts/{id}', function($id) {
+    SimpleRouter::put('/user/meshcore/contacts/{id}', function($id) use ($requireMeshcoreFeature) {
+        if (!$requireMeshcoreFeature()) { return; }
         $auth   = new Auth();
         $user   = $auth->requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
@@ -13806,7 +13822,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['success' => true]);
     });
 
-    SimpleRouter::delete('/user/meshcore/contacts/{id}', function($id) {
+    SimpleRouter::delete('/user/meshcore/contacts/{id}', function($id) use ($requireMeshcoreFeature) {
+        if (!$requireMeshcoreFeature()) { return; }
         $auth   = new Auth();
         $user   = $auth->requireAuth();
         $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
@@ -13914,7 +13931,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      * Returns all registered PacketBBS nodes (public, no auth required).
      * Used by the dashboard card.
      */
-    SimpleRouter::get('/meshcore/nodes', function() {
+    SimpleRouter::get('/meshcore/nodes', function() use ($requireMeshcoreFeature) {
+        if (!$requireMeshcoreFeature()) { return; }
         header('Content-Type: application/json');
         $service = new \BinktermPHP\PacketBbs\PacketBbsNodeService();
         echo json_encode(['nodes' => $service->getPublicNodes()]);
@@ -13925,7 +13943,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      *
      * Returns public detail for a single registered PacketBBS node.
      */
-    SimpleRouter::get('/meshcore/node/{id}', function($id) {
+    SimpleRouter::get('/meshcore/node/{id}', function($id) use ($requireMeshcoreFeature) {
+        if (!$requireMeshcoreFeature()) { return; }
         header('Content-Type: application/json');
         $service = new \BinktermPHP\PacketBbs\PacketBbsNodeService();
         $node = $service->getNodeById((int)$id);
@@ -14123,6 +14142,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
      * Returns an SVG QR code encoding the MeshCore contact-add deep-link for the node.
      */
     SimpleRouter::get('/meshcore/node/{id}/qr.svg', function($id) {
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('meshcore')) {
+            http_response_code(404);
+            echo 'Not found';
+            return;
+        }
         $service = new \BinktermPHP\PacketBbs\PacketBbsNodeService();
         $node = $service->getNodeById((int)$id);
         if (!$node) {

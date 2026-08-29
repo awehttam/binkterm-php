@@ -28,6 +28,15 @@ use Pecee\SimpleRouter\SimpleRouter;
  */
 function requirePacketBbsAuth(string $nodeId): bool
 {
+    // The MeshCore / Packet-BBS bridge is gated behind the `meshcore` BBS feature.
+    // When it is disabled every inbound bridge endpoint is dark.
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('meshcore')) {
+        http_response_code(404);
+        header('Content-Type: text/plain');
+        echo 'Not found';
+        return false;
+    }
+
     $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
 
     if (!preg_match('/^Bearer\s+(.+)$/i', $header, $m)) {

@@ -46,11 +46,13 @@
                 <i class="fas fa-key me-2"></i>{{ t('ui.settings.tab.pgp', {}, locale, ['common']) }}
             </button>
             {% endif %}
+            {% if meshcore_enabled %}
             <button class="nav-link text-start" id="tab-meshcore-btn"
                     data-bs-toggle="pill" data-bs-target="#tab-meshcore"
                     type="button" role="tab">
                 <i class="fas fa-broadcast-tower me-2"></i>{{ t('ui.settings.tab.meshcore', {}, locale, ['common']) }}
             </button>
+            {% endif %}
         </div>
     </div>
 
@@ -782,6 +784,7 @@
             {# ------------------------------------------------------------------ #}
             {# MeshCore tab                                                        #}
             {# ------------------------------------------------------------------ #}
+            {% if meshcore_enabled %}
             <div class="tab-pane fade" id="tab-meshcore" role="tabpanel">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -807,6 +810,7 @@
                 </div>
                 <p class="form-text mt-2">{{ t('ui.settings.meshcore.help', {}, locale, ['common']) }}</p>
             </div>
+            {% endif %}
 
         </div>{# /tab-content #}
         </form>
@@ -858,6 +862,7 @@
         </div>
     </div>
 </div>
+{% if meshcore_enabled %}
 <!-- MeshCore Radio Add/Edit Modal -->
 <div class="modal fade" id="meshcoreRadioModal" tabindex="-1">
     <div class="modal-dialog">
@@ -937,6 +942,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -1021,6 +1027,7 @@ $(document).ready(function() {
         loadPgpKeys();
     }
 
+    {% if meshcore_enabled %}
     // Load MeshCore contacts when the MeshCore tab is shown
     document.getElementById('tab-meshcore-btn')?.addEventListener('shown.bs.tab', function() {
         loadMeshcoreContacts();
@@ -1028,6 +1035,7 @@ $(document).ready(function() {
     if (savedTab === '#tab-meshcore') {
         loadMeshcoreContacts();
     }
+    {% endif %}
 
     // Apply theme immediately when changed
     $('#theme').on('change', function() {
@@ -2030,6 +2038,7 @@ function pollUplinks() {
         });
 }
 
+{% if meshcore_enabled %}
 // ---- MeshCore Radio management ----
 
 let meshcoreRadioModal;
@@ -2336,5 +2345,6 @@ function escapeJs(text) {
         }
     });
 }());
+{% endif %}
 </script>
 {% endblock %}

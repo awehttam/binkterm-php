@@ -111,6 +111,17 @@ Sessions are keyed by `node_id`, so multiple radio users behind one bridge can h
 
 ## Sysop Setup
 
+### 0. Enable MeshCore / PacketBBS
+
+The entire MeshCore / PacketBBS subsystem is gated behind the **MeshCore** feature toggle in **Admin → BBS Settings → System & Features** (`features.meshcore` in `config/bbs.json`, default `true`). When it is turned off:
+
+- Every inbound bridge endpoint (`/api/packetbbs/*`, `/api/meshcore/*`) returns `404`, so no bridge can authenticate or relay commands.
+- The MeshCore tab in user **Settings** is hidden.
+- The public **Meshcore Nodes** page (`/packetbbs-nodes`), its navigation links, and the dashboard "Packet BBS Status" card are hidden.
+- The **Admin → Packet BBS** management page returns `404`.
+
+Turn it back on to restore all of the above; node records, sessions, and contacts are left untouched while it is disabled.
+
 ### 1. Configure PacketBBS Defaults
 
 PacketBBS defaults live under `packet_bbs` in `config/bbs.json` and are configurable from the **Admin → BBS Settings → Packet BBS Settings** card:

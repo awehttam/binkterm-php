@@ -4446,6 +4446,8 @@ JSON object with media type, provider name, and embed HTML.
 
 Bridge-facing endpoints authenticated with a per-node Bearer token (`Authorization: Bearer <api_key>`).
 
+All MeshCore endpoints (bridge-facing, user-facing, and public) return `404 Not found` when the **MeshCore** feature is disabled in **Admin → BBS Settings → System & Features** (`features.meshcore` in `config/bbs.json`).
+
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/meshcore/contact`](#post-apimeshcorecontact) | Bearer | Report a companion contact from a MeshCore bridge. |

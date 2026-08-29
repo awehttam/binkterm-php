@@ -1821,6 +1821,10 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.bbs_settings.page_title' => 'Paramètres BBS',
     'ui.admin.bbs_settings.heading' => 'Paramètres BBS',
     'ui.admin.bbs_settings.current' => 'actuel',
+    'ui.admin.bbs_settings.tabs.system' => 'Système et fonctionnalités',
+    'ui.admin.bbs_settings.tabs.credits' => 'Système de crédits',
+    'ui.admin.bbs_settings.tabs.taglines' => 'Signatures',
+    'ui.admin.bbs_settings.tabs.screening' => 'Filtrage des inscriptions',
     'ui.admin.bbs_settings.system.title' => 'Paramètres système',
     'ui.admin.bbs_settings.system.system_name' => 'Nom du système',
     'ui.admin.bbs_settings.system.sysop_name' => 'Nom du sysop',
@@ -4283,6 +4287,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.bbs_settings.features.public_files_index_help' => 'Affiche une page publique /public-files listant toutes les zones de fichiers publiques. Ajoute également un lien de navigation pour les visiteurs. Nécessite une licence enregistrée.',
     'ui.admin.bbs_settings.features.public_files_index_requires_license' => 'L\'index des zones de fichiers publiques nécessite une licence enregistrée.',
     'ui.admin.bbs_settings.features.qwk_help' => 'Permet aux utilisateurs de télécharger des paquets QWK et d\'envoyer des paquets de réponses REP pour la lecture de courrier hors ligne.',
+    'ui.admin.bbs_settings.features.enable_meshcore' => 'Activer MeshCore',
+    'ui.admin.bbs_settings.features.meshcore_help' => 'Active la passerelle radio MeshCore / Packet BBS, l\'onglet de paramètres MeshCore de l\'utilisateur et la page publique des noeuds Meshcore. Lorsqu\'elle est désactivée, l\'API de la passerelle est injoignable et toute l\'interface MeshCore est masquée.',
     'ui.admin.bbs_settings.validation.dashboard_ad_rotate_interval_range' => 'L\'intervalle de rotation des annonces du tableau de bord doit être un entier compris entre 5 et 300 secondes.',
 
     // Admin Dashboard
