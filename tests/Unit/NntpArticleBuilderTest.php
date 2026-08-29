@@ -79,4 +79,55 @@ final class NntpArticleBuilderTest extends TestCase
         [, $lines] = $this->builder()->wireMetrics(['From: x', 'Subject: y'], "one\ntwo\nthree");
         self::assertSame(3, $lines);
     }
+
+    public function testEmitsXrefForThisGroupOnly(): void
+    {
+        $built = $this->builder()->build(
+            ['id' => 5, 'from_name' => 'A', 'from_address' => '1:2/3', 'subject' => 's', 'message_text' => 'x', 'message_id' => '1:2/3 AAAA'],
+            ['tag' => 'TEST'],
+            'FidoNet.TEST',
+            42
+        );
+        $xref = array_values(array_filter($built['headers'], static fn ($h) => stripos($h, 'Xref:') === 0));
+        self::assertSame(['Xref: bbs.example.org FidoNet.TEST:42'], $xref);
+    }
+
+    public function testNoXrefWhenNumberIsZero(): void
+    {
+        $built = $this->builder()->build(
+            ['id' => 5, 'from_name' => 'A', 'from_address' => '1:2/3', 'subject' => 's', 'message_text' => 'x', 'message_id' => '1:2/3 AAAA'],
+            ['tag' => 'TEST'],
+            'FidoNet.TEST',
+            0
+        );
+        self::assertSame([], array_filter($built['headers'], static fn ($h) => stripos($h, 'Xref:') === 0));
+    }
+
+    public function testPrefetchedParentMapProducesSingleParentReferencesWithoutDb(): void
+    {
+        // No usable PDO here — if build() touched the DB for References this would throw.
+        $b = new \BinktermPHP\Nntp\NntpArticleBuilder(new PDO('sqlite::memory:'), 'h');
+        $built = $b->build(
+            ['id' => 9, 'reply_to_id' => 4, 'from_name' => 'A', 'from_address' => '1:2/3', 'subject' => 'Re: s', 'message_text' => 'x', 'message_id' => '1:2/3 BBBB'],
+            ['tag' => 'T'],
+            'N.T',
+            2,
+            [4 => '<PARENT.z1n2f3p0.n.t@h>']
+        );
+        $refs = array_values(array_filter($built['headers'], static fn ($h) => stripos($h, 'References:') === 0));
+        self::assertSame(['References: <PARENT.z1n2f3p0.n.t@h>'], $refs);
+    }
+
+    public function testPrefetchedParentMapMissingParentYieldsNoReferences(): void
+    {
+        $b = new \BinktermPHP\Nntp\NntpArticleBuilder(new PDO('sqlite::memory:'), 'h');
+        $built = $b->build(
+            ['id' => 9, 'reply_to_id' => 4, 'from_name' => 'A', 'from_address' => '1:2/3', 'subject' => 'Re: s', 'message_text' => 'x', 'message_id' => '1:2/3 BBBB'],
+            ['tag' => 'T'],
+            'N.T',
+            2,
+            []
+        );
+        self::assertSame([], array_filter($built['headers'], static fn ($h) => stripos($h, 'References:') === 0));
+    }
 }

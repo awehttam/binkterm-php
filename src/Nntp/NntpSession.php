@@ -204,7 +204,7 @@ class NntpSession
 
     private function cmdCapabilities(): void
     {
-        $caps = ['VERSION 2', 'READER', 'HDR', 'OVER', 'LIST ACTIVE NEWSGROUPS OVERVIEW.FMT'];
+        $caps = ['VERSION 2', 'READER', 'HDR', 'OVER', 'LIST ACTIVE ACTIVE.TIMES NEWSGROUPS OVERVIEW.FMT HEADERS'];
         if (!$this->tlsActive && $this->isPlaintextPort) {
             $caps[] = 'STARTTLS';
         }
@@ -356,6 +356,26 @@ class NntpSession
             return;
         }
 
+        if ($keyword === 'ACTIVE.TIMES') {
+            $host = $this->serverName();
+            $lines = [];
+            foreach ($this->visibleGroups() as $g) {
+                if ($wildmat !== null && !self::wildmat($wildmat, $g['group'])) {
+                    continue;
+                }
+                $created = strtotime((string)($g['row']['created_at'] ?? '') . ' UTC');
+                $lines[] = sprintf('%s %d nntp@%s', $g['group'], max(0, $created ?: 0), $host);
+            }
+            $this->sendMulti('215 information follows', $lines);
+            return;
+        }
+
+        if ($keyword === 'HEADERS') {
+            // ":" means every header is retrievable via HDR.
+            $this->sendMulti('215 metadata items supported:', [':']);
+            return;
+        }
+
         $this->send('501 Unknown LIST keyword');
     }
 
@@ -422,22 +442,31 @@ class NntpSession
             return;
         }
 
-        $lines = [];
+        $groupById = [];
         foreach ($this->visibleGroups() as $g) {
-            if (!self::wildmat($wildmat, $g['group'])) {
-                continue;
+            if (self::wildmat($wildmat, $g['group'])) {
+                $groupById[(int)$g['row']['id']] = $g['group'];
             }
-            $stmt = $this->db->prepare(
-                "SELECT id, message_id, kludge_lines, message_text, from_address
-                 FROM echomail
-                 WHERE echoarea_id = ?
-                   AND COALESCE(moderation_status,'approved') = 'approved'
-                   AND date_received >= to_timestamp(?)"
-            );
-            $stmt->execute([(int)$g['row']['id'], $since]);
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $em) {
-                $lines[] = $this->builder->messageIdFor($em, $g['group']);
-            }
+        }
+
+        if ($groupById === []) {
+            $this->sendMulti('230 list of new articles follows', []);
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($groupById), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT echoarea_id, message_id, kludge_lines, message_text, from_address
+             FROM echomail
+             WHERE echoarea_id IN ($placeholders)
+               AND COALESCE(moderation_status,'approved') = 'approved'
+               AND date_received >= to_timestamp(?)"
+        );
+        $stmt->execute([...array_keys($groupById), $since]);
+
+        $lines = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $em) {
+            $lines[] = $this->builder->messageIdFor($em, $groupById[(int)$em['echoarea_id']]);
         }
         $this->sendMulti('230 list of new articles follows', array_values(array_unique($lines)));
     }
@@ -704,11 +733,13 @@ class NntpSession
         }
 
         $rangeMap = $this->numbers->range($areaId, $lo, $hi, 5000);
+        $rows = $this->loadEchomailBatch(array_values($rangeMap));
+        $parentIds = $this->parentMessageIdMap($rows, $this->group['nntp_group']);
+
         $lines = [];
         foreach ($rangeMap as $number => $emId) {
-            $em = $this->loadEchomail($emId);
-            if ($em !== null) {
-                $lines[] = $this->builder->overviewLine($em, $this->group, $this->group['nntp_group'], $number);
+            if (isset($rows[$emId])) {
+                $lines[] = $this->builder->overviewLine($rows[$emId], $this->group, $this->group['nntp_group'], $number, $parentIds);
             }
         }
         $this->sendMulti('224 Overview information follows', $lines);
@@ -743,13 +774,16 @@ class NntpSession
             $lo = $hi = $this->pointer ?? $lo;
         }
 
+        $rangeMap = $this->numbers->range($areaId, $lo, $hi, 5000);
+        $rows = $this->loadEchomailBatch(array_values($rangeMap));
+        $parentIds = $this->parentMessageIdMap($rows, $this->group['nntp_group']);
+
         $lines = [];
-        foreach ($this->numbers->range($areaId, $lo, $hi, 5000) as $number => $emId) {
-            $em = $this->loadEchomail($emId);
-            if ($em === null) {
+        foreach ($rangeMap as $number => $emId) {
+            if (!isset($rows[$emId])) {
                 continue;
             }
-            $built = $this->builder->build($em, $this->group, $this->group['nntp_group'], $number);
+            $built = $this->builder->build($rows[$emId], $this->group, $this->group['nntp_group'], $number, $parentIds);
             $value = $this->headerFromLines($built['headers'], $field);
             if ($value !== null) {
                 $lines[] = $number . ' ' . $value;
@@ -852,17 +886,79 @@ class NntpSession
         return [$em, $area, $group, $number];
     }
 
+    private const ECHOMAIL_COLUMNS =
+        'id, echoarea_id, from_address, from_name, to_name, subject, message_text,
+         date_written, date_received, reply_to_id, message_id, origin_line,
+         kludge_lines, bottom_kludges, message_charset';
+
+    /**
+     * Load many echomail rows in one query, keyed by id (OVER/HDR range paths).
+     *
+     * @param int[] $ids
+     * @return array<int,array<string,mixed>>
+     */
+    private function loadEchomailBatch(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare(
+            'SELECT ' . self::ECHOMAIL_COLUMNS . " FROM echomail WHERE id IN ($placeholders)"
+        );
+        $stmt->execute($ids);
+
+        $map = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $map[(int)$row['id']] = $row;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Prefetch constructed Message-IDs for every distinct parent referenced by a
+     * batch of rows, so `References:` needs no per-article DB walk. Replies live
+     * in the same echoarea as their parent, so one group name applies.
+     *
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,string>  parent echomail id => constructed Message-ID
+     */
+    private function parentMessageIdMap(array $rows, string $group): array
+    {
+        $parentIds = [];
+        foreach ($rows as $row) {
+            $pid = (int)($row['reply_to_id'] ?? 0);
+            if ($pid > 0) {
+                $parentIds[$pid] = true;
+            }
+        }
+        if ($parentIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($parentIds), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT id, message_id, kludge_lines, message_text, from_address
+             FROM echomail WHERE id IN ($placeholders)"
+        );
+        $stmt->execute(array_keys($parentIds));
+
+        $map = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $parent) {
+            $map[(int)$parent['id']] = $this->builder->messageIdFor($parent, $group);
+        }
+
+        return $map;
+    }
+
     /**
      * @return array<string,mixed>|null
      */
     private function loadEchomail(int $id): ?array
     {
-        $stmt = $this->db->prepare(
-            'SELECT id, echoarea_id, from_address, from_name, to_name, subject, message_text,
-                    date_written, date_received, reply_to_id, message_id, origin_line,
-                    kludge_lines, bottom_kludges, message_charset
-             FROM echomail WHERE id = ?'
-        );
+        $stmt = $this->db->prepare('SELECT ' . self::ECHOMAIL_COLUMNS . ' FROM echomail WHERE id = ?');
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 

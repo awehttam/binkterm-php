@@ -48,11 +48,15 @@ class NntpArticleBuilder
      * @param array<string,mixed> $area   Row from `echoareas` (tag, domain, ...).
      * @param string              $group  Translated newsgroup name for the area.
      * @param int                 $number Article number in that group.
+     * @param array<int,string>|null $parentIds  Optional prefetched map of
+     *   parent echomail id => constructed Message-ID. When given, `References:`
+     *   is the single immediate parent (no per-ancestor DB walk) — used for the
+     *   OVER/HDR range paths. When null, the full ancestor chain is walked.
      *
      * @return array{headers:string[],body:string,message_id:string}
      *   headers: "Name: value" lines (no CRLF); body: \n-delimited, not dot-stuffed.
      */
-    public function build(array $em, array $area, string $group, int $number): array
+    public function build(array $em, array $area, string $group, int $number, ?array $parentIds = null): array
     {
         $messageId = $this->messageIdFor($em, $group);
         $headers = [];
@@ -67,7 +71,7 @@ class NntpArticleBuilder
         $headers[] = 'Date: ' . $this->rfcDate($em['date_written'] ?? null, $em['date_received'] ?? null);
         $headers[] = 'Message-ID: ' . $messageId;
 
-        $references = $this->referencesChain($em, $group);
+        $references = $this->referencesChain($em, $group, $parentIds);
         if ($references !== '') {
             $headers[] = 'References: ' . $references;
         }
@@ -121,6 +125,12 @@ class NntpArticleBuilder
             $headers[] = 'X-FTN-Origin: ' . $this->encodeHeader(trim($origin));
         }
 
+        if ($number > 0) {
+            // Cross-posted copies are independent echomail rows with their own
+            // numbers and Message-IDs, so Xref only ever names this one group.
+            $headers[] = 'Xref: ' . $this->host . ' ' . $group . ':' . $number;
+        }
+
         $body = $this->normalizeBody((string)($em['message_text'] ?? ''));
 
         return ['headers' => $headers, 'body' => $body, 'message_id' => $messageId];
@@ -131,9 +141,9 @@ class NntpArticleBuilder
      * `LIST OVERVIEW.FMT` order (Subject, From, Date, Message-ID, References, :bytes,
      * :lines).
      */
-    public function overviewLine(array $em, array $area, string $group, int $number): string
+    public function overviewLine(array $em, array $area, string $group, int $number, ?array $parentIds = null): string
     {
-        $built = $this->build($em, $area, $group, $number);
+        $built = $this->build($em, $area, $group, $number, $parentIds);
         [$bytes, $lines] = $this->wireMetrics($built['headers'], $built['body']);
 
         $subject = trim((string)($em['subject'] ?? ''));
@@ -143,7 +153,7 @@ class NntpArticleBuilder
             $this->overClean($this->fromHeader((string)($em['from_name'] ?? ''), (string)($em['from_address'] ?? ''))),
             $this->rfcDate($em['date_written'] ?? null, $em['date_received'] ?? null),
             $built['message_id'],
-            $this->referencesChain($em, $group),
+            $this->headerValue($built['headers'], 'References'),
             (string)$bytes,
             (string)$lines,
         ];
@@ -188,13 +198,38 @@ class NntpArticleBuilder
     // ── References ─────────────────────────────────────────────────────────
 
     /**
-     * Ancestor chain (oldest first, space-separated) built by walking `reply_to_id`.
+     * First matching "Name: value" header value from a built header list, or ''.
+     *
+     * @param string[] $headerLines
      */
-    private function referencesChain(array $em, string $group): string
+    private function headerValue(array $headerLines, string $name): string
+    {
+        $prefix = strtolower($name) . ':';
+        foreach ($headerLines as $line) {
+            if (stripos($line, $prefix) === 0) {
+                return trim(substr($line, strlen($prefix)));
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * `References:` value. With a prefetched `$parentIds` map (parent echomail id
+     * => Message-ID) only the immediate parent is emitted and no DB query is made;
+     * otherwise the full ancestor chain is walked via `reply_to_id`.
+     *
+     * @param array<int,string>|null $parentIds
+     */
+    private function referencesChain(array $em, string $group, ?array $parentIds = null): string
     {
         $parentId = $em['reply_to_id'] ?? null;
         if ($parentId === null || $parentId === '') {
             return '';
+        }
+
+        if ($parentIds !== null) {
+            return $parentIds[(int)$parentId] ?? '';
         }
 
         $stmt = $this->db->prepare(
