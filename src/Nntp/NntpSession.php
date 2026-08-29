@@ -91,8 +91,15 @@ class NntpSession
      */
     public function run(): void
     {
+        if (!$this->config->isEnabled()) {
+            // RFC 3977 400: service not available, server closes the connection.
+            $this->send('400 NNTP service is disabled on this system');
+            $this->auth->close();
+            return;
+        }
+
         $this->send(
-            $this->config->isPostingAllowed() && $this->config->isEnabled()
+            $this->config->isPostingAllowed()
                 ? '200 ' . $this->serverName() . ' BinktermPHP NNTP service ready (posting ok)'
                 : '201 ' . $this->serverName() . ' BinktermPHP NNTP service ready (no posting)'
         );
