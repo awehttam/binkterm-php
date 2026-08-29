@@ -862,6 +862,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // NNTP server settings page
+    SimpleRouter::get('/nntp-settings', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/nntp_settings.twig');
+    });
+
     // MRC Chat settings page
     SimpleRouter::get('/mrc-settings', function() {
         $user = RouteHelper::requireAdmin();
@@ -3263,6 +3271,64 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.matterbridge_settings.save_failed', apiLocalizedText('errors.admin.matterbridge_settings.save_failed', 'Failed to save Matterbridge settings'));
+            }
+        });
+
+        SimpleRouter::get('/nntp-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getNntpConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.nntp_settings.load_failed', apiLocalizedText('errors.admin.nntp_settings.load_failed', 'Failed to load NNTP settings'));
+            }
+        });
+
+        SimpleRouter::post('/nntp-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? [];
+
+                if (!is_array($config)) {
+                    throw new Exception('Invalid configuration payload');
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $savedConfig = $client->setNntpConfig($config);
+
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'nntp_settings_updated', [
+                        'enabled' => $config['enabled'] ?? null,
+                        'allow_posting' => $config['allow_posting'] ?? null,
+                    ]);
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $savedConfig,
+                    'message_code' => 'ui.admin.nntp_settings.saved_success'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.nntp_settings.save_failed', apiLocalizedText('errors.admin.nntp_settings.save_failed', 'Failed to save NNTP settings'));
             }
         });
 

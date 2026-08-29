@@ -189,6 +189,22 @@ See [docs/SSHServer.md](SSHServer.md) for full SSH daemon setup including key ge
 
 See [docs/GeminiCapsule.md](GeminiCapsule.md) for Gemini capsule hosting setup.
 
+### NNTP Server Daemon
+
+```bash
+# NNTP_BIND_HOST=0.0.0.0
+# NNTP_PORT=119
+# NNTP_TLS_PORT=563
+# NNTP_TLS_CERT_PATH=/etc/letsencrypt/live/yourdomain.com/fullchain.pem
+# NNTP_TLS_KEY_PATH=/etc/letsencrypt/live/yourdomain.com/privkey.pem
+```
+
+`NNTP_TLS_PORT` empty disables the implicit-TLS listener. If `NNTP_TLS_CERT_PATH`
+is unset and the default path holds no cert, the daemon self-signs one on first
+start; a path that is set but missing is a fatal error. Enable the server and set
+its behaviour (rate limits, plaintext-auth policy) in **Admin → NNTP Server**;
+see [docs/NNTP.md](NNTP.md).
+
 ### MCP Server
 
 ```bash

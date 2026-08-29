@@ -45,6 +45,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 - [PacketBBS Gateway](PacketBBS.md) — Packet/mesh access method for low-bandwidth nodes using compact text commands
 - [FTP Server](FTPServer.md) — Standalone passive FTP daemon for QWK exchange and file-area transfers
 - [QWK Offline Mail](QWK.md) — Download and upload QWK/QWKE packets for offline message reading in external readers
+- [NNTP Server](NNTP.md) — Read FTN echoareas as newsgroups from any standard newsreader (RFC 3977)
 - [Gemini Capsule](GeminiCapsule.md) — Gemini access method for lightweight capsule browsing
 
 ---

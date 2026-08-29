@@ -818,4 +818,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'Selected user does not exist.',
     'errors.admin.users.autocomplete_failed' => 'Failed to search users.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Invalid registration screening configuration',
+    'errors.admin.nntp_settings.load_failed' => 'Failed to load NNTP settings',
+    'errors.admin.nntp_settings.save_failed' => 'Failed to save NNTP settings',
 ];

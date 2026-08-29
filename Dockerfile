@@ -123,6 +123,8 @@ EXPOSE 1965
 EXPOSE 2022
 EXPOSE 2121
 EXPOSE 3740
+EXPOSE 119
+EXPOSE 563
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

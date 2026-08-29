@@ -1,0 +1,10 @@
+{
+    "enabled": false,
+    "allow_posting": false,
+    "newsgroup_prefix_mode": "network_name",
+    "posts_per_minute": 10,
+    "posts_per_hour": 60,
+    "max_cross_post_areas": 5,
+    "max_connections_per_ip": 3,
+    "allow_plaintext_auth": false
+}

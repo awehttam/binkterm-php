@@ -751,6 +751,21 @@ class AdminDaemonServer
                     $mrcConfig->setFullConfig($payload);
                     $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
                     break;
+                case 'get_nntp_config':
+                    $nntpConfig = \BinktermPHP\Nntp\NntpConfig::getInstance();
+                    $nntpConfig->reloadConfig();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $nntpConfig->getFullConfig()]);
+                    break;
+                case 'set_nntp_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    if (!is_array($payload)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_config']);
+                        break;
+                    }
+                    $nntpConfig = \BinktermPHP\Nntp\NntpConfig::getInstance();
+                    $nntpConfig->setFullConfig($payload);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $nntpConfig->getFullConfig()]);
+                    break;
                 case 'get_aio_config':
                     $aioPath = __DIR__ . '/../../config/aio.json';
                     if (!file_exists($aioPath)) {

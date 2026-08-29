@@ -17,6 +17,7 @@ MCP_PID="${MCP_PID:-${RUN_DIR}/mcp-server.pid}"
 REALTIME_PID="${REALTIME_PID:-${RUN_DIR}/realtime_server.pid}"
 FTPD_PID="${FTPD_PID:-${RUN_DIR}/ftpd.pid}"
 MATTERBRIDGE_PID="${MATTERBRIDGE_PID:-${RUN_DIR}/matterbridge_daemon.pid}"
+NNTPD_PID="${NNTPD_PID:-${RUN_DIR}/nntpd.pid}"
 
 mkdir -p "$RUN_DIR"
 
@@ -75,13 +76,14 @@ stop_service() {
         ftp_daemon|ftpd)      stop_process "$FTPD_PID"      "ftp_daemon"          || true ;;
         ssh_daemon|sshd)        stop_process "$SSHD_PID"          "ssh_daemon"          || true ;;
         matterbridge_daemon)    stop_process "$MATTERBRIDGE_PID"  "matterbridge_daemon"  || true ;;
+        nntp_daemon|nntpd)      stop_process "$NNTPD_PID"         "nntp_daemon"         || true ;;
         termserver)
             stop_service telnetd
             stop_service ssh_daemon
             ;;
         *)
             echo "Unknown service: ${svc}"
-            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, ftp_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, matterbridge_daemon, termserver"
+            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, ftp_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, matterbridge_daemon, nntp_daemon, termserver"
             exit 1
             ;;
     esac
@@ -126,13 +128,16 @@ start_service() {
         matterbridge_daemon)
             start_process "${PHP_BIN} scripts/matterbridge_daemon.php --daemon --pid-file=${MATTERBRIDGE_PID}" "matterbridge_daemon"
             ;;
+        nntp_daemon|nntpd)
+            start_process "${PHP_BIN} scripts/nntp_server.php --daemon --pid-file=${NNTPD_PID}" "nntp_daemon"
+            ;;
         termserver)
             start_service telnetd
             start_service ssh_daemon
             ;;
         *)
             echo "Unknown service: ${svc}"
-            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, ftp_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, matterbridge_daemon, termserver"
+            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, ftp_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, matterbridge_daemon, nntp_daemon, termserver"
             exit 1
             ;;
     esac
@@ -199,13 +204,18 @@ restart_service() {
                 start_process "${PHP_BIN} scripts/matterbridge_daemon.php --daemon --pid-file=${MATTERBRIDGE_PID}" "matterbridge_daemon"
             fi
             ;;
+        nntp_daemon|nntpd)
+            if stop_process "$NNTPD_PID" "nntp_daemon"; then
+                start_process "${PHP_BIN} scripts/nntp_server.php --daemon --pid-file=${NNTPD_PID}" "nntp_daemon"
+            fi
+            ;;
         termserver)
             restart_service telnetd
             restart_service ssh_daemon
             ;;
         *)
             echo "Unknown service: ${svc}"
-            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, ftp_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, matterbridge_daemon, termserver"
+            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, realtime_daemon, ftp_daemon, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, mcp_server, ssh_daemon, matterbridge_daemon, nntp_daemon, termserver"
             exit 1
             ;;
     esac
@@ -234,6 +244,7 @@ elif [[ $# -gt 0 && "$1" == "--list" ]]; then
     echo "mcp_server          (only if running)"
     echo "ssh_daemon          (only if running)"
     echo "matterbridge_daemon (only if running)"
+    echo "nntp_daemon         (only if running)"
     echo "termserver          (alias: restarts/stops telnetd + ssh_daemon)"
     exit 0
 elif [[ $# -gt 1 && "$1" == "--start" ]]; then
@@ -257,6 +268,7 @@ else
     restart_service mcp_server
     restart_service ssh_daemon
     restart_service matterbridge_daemon
+    restart_service nntp_daemon
 fi
 
 echo "Done."
