@@ -31,7 +31,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - BinktermPHP can now serve its echoareas as Usenet-style newsgroups over NNTP (RFC 3977), so members can read — and optionally post — echomail with a standard newsreader such as Thunderbird. It runs as a new optional daemon, `scripts/nntp_server.php`, and is **disabled by default**. Enable it, and configure rate limits and the plaintext-authentication policy, in the new **Admin -> NNTP Server** page. Posting from a newsreader is a second toggle on that page, also off by default.
 - Two new database tables (`nntp_article_numbers`, `nntp_area_watermark`) are created and populated from your existing echomail during the upgrade.
-- Transport settings — bind address, ports, and TLS certificate paths — are read from `.env`. New keys: `NNTP_BIND_HOST`, `NNTP_PORT` (119), `NNTP_TLS_PORT` (563), `NNTP_TLS_CERT_PATH`, `NNTP_TLS_KEY_PATH`.
+- Transport settings — bind address, ports, and TLS certificate paths — are read from `.env`. New keys: `NNTP_BIND_HOST`, `NNTP_PORT` (default `8119`), `NNTP_TLS_PORT` (default `8563`), `NNTP_TLS_CERT_PATH`, `NNTP_TLS_KEY_PATH`. The ports default to an unprivileged range; redirect the standard `119` / `563` to them with a firewall rule.
 
 ---
 
@@ -80,12 +80,12 @@ An NNTP server lets members connect with any standard newsreader (Thunderbird, s
    | Key | Default | Purpose |
    |---|---|---|
    | `NNTP_BIND_HOST` | `0.0.0.0` | Address to bind |
-   | `NNTP_PORT` | `119` | Plaintext + `STARTTLS` port |
-   | `NNTP_TLS_PORT` | `563` | Implicit-TLS port; leave empty to disable |
+   | `NNTP_PORT` | `8119` | Plaintext + `STARTTLS` port |
+   | `NNTP_TLS_PORT` | `8563` | Implicit-TLS port; leave empty to disable |
    | `NNTP_TLS_CERT_PATH` | `data/nntp/server.crt` | PEM certificate, or a combined cert+key PEM |
    | `NNTP_TLS_KEY_PATH` | `data/nntp/server.key` | PEM private key |
 
-   Ports 119 and 563 are privileged. If `NNTP_TLS_CERT_PATH` is left at its default and no file exists there, the daemon generates a self-signed certificate on first start; point it at a real certificate (for example the one your web server uses) for clients that reject self-signed certs. A path that is set but points at a missing file stops the daemon with an error.
+   The ports default to the unprivileged `8119` and `8563` so the daemon runs as an ordinary user. Newsreaders expect NNTP on `119` and `563`; on a public server, redirect those to `8119` / `8563` with an `iptables` or `nftables` rule (see `docs/NNTP.md`), or set `NNTP_PORT` / `NNTP_TLS_PORT` to `119` / `563` and run the daemon with permission to bind them. If `NNTP_TLS_CERT_PATH` is left at its default and no file exists there, the daemon generates a self-signed certificate on first start; point it at a real certificate (for example the one your web server uses) for clients that reject self-signed certs. A path that is set but points at a missing file stops the daemon with an error.
 
 3. Start the daemon. It is an optional daemon, so `scripts/restart_daemons.sh` with no arguments only restarts it if it was already running:
 

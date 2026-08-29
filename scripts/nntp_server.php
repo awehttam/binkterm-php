@@ -18,12 +18,14 @@
  * BinktermPHP NNTP Server Daemon
  *
  * Serves FTN echoareas as NNTP newsgroups (RFC 3977) to standard newsreaders.
- * Read-only in this release; posting is gated behind config/nntp.json allow_posting.
+ * Reading works once enabled; posting is gated behind config/nntp.json allow_posting.
  *
- * Transport is configured via .env (a daemon restart applies changes):
+ * Transport is configured via .env (a daemon restart applies changes). The ports
+ * default to the unprivileged 8119/8563 so the daemon needs no special privileges;
+ * redirect the standard 119/563 to them with a firewall rule (see docs/NNTP.md).
  *   NNTP_BIND_HOST      bind address (default 0.0.0.0)
- *   NNTP_PORT           plaintext + STARTTLS port (default 119)
- *   NNTP_TLS_PORT       implicit-TLS port (default 563; empty string disables)
+ *   NNTP_PORT           plaintext + STARTTLS port (default 8119)
+ *   NNTP_TLS_PORT       implicit-TLS port (default 8563; empty string disables)
  *   NNTP_TLS_CERT_PATH  PEM cert or combined cert+key (default data/nntp/server.crt)
  *   NNTP_TLS_KEY_PATH   PEM private key (default data/nntp/server.key)
  *
@@ -33,8 +35,8 @@
  * Usage:
  *   php scripts/nntp_server.php [options]
  *     --host=ADDR        Bind address (default: NNTP_BIND_HOST or 0.0.0.0)
- *     --port=PORT        Plaintext/STARTTLS port (default: NNTP_PORT or 119)
- *     --tls-port=PORT    Implicit TLS port (default: NNTP_TLS_PORT or 563; 0 disables)
+ *     --port=PORT        Plaintext/STARTTLS port (default: NNTP_PORT or 8119)
+ *     --tls-port=PORT    Implicit TLS port (default: NNTP_TLS_PORT or 8563; 0 disables)
  *     --daemon           Run as a background daemon (requires pcntl)
  *     --no-console       Disable console logging
  *     --pid-file=FILE    PID file path (default: data/run/nntpd.pid)
@@ -103,9 +105,9 @@ if (isset($args['help'])) {
 }
 
 $host = (string)($args['host'] ?? Config::env('NNTP_BIND_HOST', '0.0.0.0'));
-$plainPort = (int)($args['port'] ?? Config::env('NNTP_PORT', '119'));
+$plainPort = (int)($args['port'] ?? Config::env('NNTP_PORT', '8119'));
 
-$tlsPortRaw = $args['tls-port'] ?? Config::env('NNTP_TLS_PORT', '563');
+$tlsPortRaw = $args['tls-port'] ?? Config::env('NNTP_TLS_PORT', '8563');
 $tlsPort = ($tlsPortRaw === '' || $tlsPortRaw === false) ? 0 : (int)$tlsPortRaw;
 
 $certDir = __DIR__ . '/../data/nntp';

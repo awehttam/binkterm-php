@@ -22,7 +22,7 @@
  * wire dialogue. Not an automated test — a diagnostic aid.
  *
  * Usage:
- *   php scripts/nntp_test_client.php --host=127.0.0.1 --port=1190 \
+ *   php scripts/nntp_test_client.php --host=127.0.0.1 --port=8119 \
  *       --user=alice --pass=secret [--group=Local.GENERAL] [--tls] [--starttls]
  */
 
@@ -34,7 +34,7 @@ foreach ($argv as $a) {
 }
 
 $host = $args['host'] ?? '127.0.0.1';
-$port = (int)($args['port'] ?? 1190);
+$port = (int)($args['port'] ?? 8119);
 $user = $args['user'] ?? null;
 $pass = $args['pass'] ?? null;
 $group = $args['group'] ?? null;

@@ -193,17 +193,20 @@ See [docs/GeminiCapsule.md](GeminiCapsule.md) for Gemini capsule hosting setup.
 
 ```bash
 # NNTP_BIND_HOST=0.0.0.0
-# NNTP_PORT=119
-# NNTP_TLS_PORT=563
+# NNTP_PORT=8119
+# NNTP_TLS_PORT=8563
 # NNTP_TLS_CERT_PATH=/etc/letsencrypt/live/yourdomain.com/fullchain.pem
 # NNTP_TLS_KEY_PATH=/etc/letsencrypt/live/yourdomain.com/privkey.pem
 ```
 
-`NNTP_TLS_PORT` empty disables the implicit-TLS listener. If `NNTP_TLS_CERT_PATH`
-is unset and the default path holds no cert, the daemon self-signs one on first
-start; a path that is set but missing is a fatal error. Enable the server and set
-its behaviour (rate limits, plaintext-auth policy) in **Admin → NNTP Server**;
-see [docs/NNTP.md](NNTP.md).
+The ports default to the unprivileged `8119` (plaintext + `STARTTLS`) and `8563`
+(implicit TLS) so the daemon needs no special privileges. To serve the standard
+NNTP ports, redirect `119`/`563` to them with a firewall rule — see the redirect
+examples in [docs/NNTP.md](NNTP.md). `NNTP_TLS_PORT` empty disables the
+implicit-TLS listener. If `NNTP_TLS_CERT_PATH` is unset and the default path holds
+no cert, the daemon self-signs one on first start; a path that is set but missing
+is a fatal error. Enable the server and set its behaviour (rate limits,
+plaintext-auth policy) in **Admin → NNTP Server**.
 
 ### MCP Server
 
@@ -636,6 +639,8 @@ Related `.env` variables: `SCREENING_TOR_REFRESH_HOURS` (default `6`),
 | Telnet daemon (TLS) | `8023` | TCP/TLS | Inbound | `.env` `TELNET_TLS_PORT` |
 | SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
 | Gemini capsule daemon | `1965` | Gemini/TLS | Inbound | `.env` `GEMINI_PORT` |
+| NNTP daemon (plain + STARTTLS) | `8119` | TCP | Inbound | `.env` `NNTP_PORT` |
+| NNTP daemon (implicit TLS) | `8563` | TCP/TLS | Inbound | `.env` `NNTP_TLS_PORT` |
 | Realtime WebSocket daemon | `6010` | WebSocket/TCP | Inbound or proxied | `.env` `BINKSTREAM_WS_PORT` |
 | DOS door WebSocket bridge | `6001` | WebSocket | Inbound | `.env` `DOSDOOR_WS_PORT` |
 | DOSBox bridge session range | `5000–5100` | TCP | Internal | Between bridge and emulator |

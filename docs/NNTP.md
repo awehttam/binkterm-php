@@ -32,14 +32,16 @@ newsreader is off by default** — turn on *Allow posting from newsreaders* in
    | Variable | Default | Meaning |
    |---|---|---|
    | `NNTP_BIND_HOST` | `0.0.0.0` | Address to bind |
-   | `NNTP_PORT` | `119` | Plaintext + `STARTTLS` port |
-   | `NNTP_TLS_PORT` | `563` | Implicit-TLS port; set empty to disable |
+   | `NNTP_PORT` | `8119` | Plaintext + `STARTTLS` port |
+   | `NNTP_TLS_PORT` | `8563` | Implicit-TLS port; set empty to disable |
    | `NNTP_TLS_CERT_PATH` | `data/nntp/server.crt` | PEM cert, or combined cert+key |
    | `NNTP_TLS_KEY_PATH` | `data/nntp/server.key` | PEM private key |
 
-   Ports 119 and 563 are privileged; either run the daemon with the necessary
-   capability/permission, bind it to high ports, or publish it through your
-   container's port mapping.
+   The ports default to the unprivileged `8119` / `8563` so the daemon runs as an
+   ordinary user with no extra capabilities. Newsreaders expect NNTP on `119` and
+   `563` — see [Serving the standard ports](#serving-the-standard-ports-119--563)
+   below to redirect them. You can also just set `NNTP_PORT` / `NNTP_TLS_PORT` to
+   `119` / `563` if the daemon runs with permission to bind them.
 
    If `NNTP_TLS_CERT_PATH` is left at the default and no file exists there, the
    daemon generates a self-signed certificate on first start. Point
@@ -59,8 +61,9 @@ newsreader is off by default** — turn on *Allow posting from newsreaders* in
    `php scripts/nntp_server.php`.
 
    In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and
-   uncomment its port lines (`119:8119`, `563:8563` — the daemon binds high
-   ports inside the container because the `binkterm` user cannot bind 119/563).
+   uncomment its port lines (`119:8119`, `563:8563` — the daemon listens on its
+   default `8119` / `8563` in the container and the mapping presents the standard
+   ports to the outside).
 
 ## Admin → NNTP Server settings
 
@@ -72,18 +75,47 @@ newsreader is off by default** — turn on *Allow posting from newsreaders* in
 | Max connections per IP | Concurrent connections allowed from one source address (default 3). |
 | Posts per minute / hour | Per-member posting rate limits; a post over the limit is rejected with `441`. Set to 0 to disable that limit. |
 | Max cross-post areas | Most echoareas one article may target via a multi-group `Newsgroups:` header. An over-limit post is **rejected**, not trimmed. |
-| Allow plaintext authentication on port 119 | **Off by default.** When off, a newsreader on port 119 must run `STARTTLS` before it can log in. Turn it on only for a legacy reader with no TLS support, accepting that its password crosses the wire in cleartext. Port 563 is always encrypted. |
+| Allow plaintext authentication on the plaintext port | **Off by default.** When off, a newsreader on the plaintext port must run `STARTTLS` before it can log in. Turn it on only for a legacy reader with no TLS support, accepting that its password crosses the wire in cleartext. The implicit-TLS port is always encrypted. |
 
 Settings are stored in `config/nntp.json` and written through the admin daemon.
 **Restart the NNTP daemon after saving.**
 
+## Serving the standard ports (119 / 563)
+
+The daemon defaults to `8119` and `8563`. Newsreaders connect to `119` and `563`,
+so on a public server redirect the standard ports to the daemon's with a firewall
+rule (this is the same approach the FTP daemon uses for port 21 — see
+[FTPServer.md](FTPServer.md#iptables-redirect-rules) for persistence tips).
+
+`iptables`:
+
+```bash
+sudo iptables -t nat -A PREROUTING -p tcp --dport 119 -j REDIRECT --to-ports 8119
+sudo iptables -t nat -A PREROUTING -p tcp --dport 563 -j REDIRECT --to-ports 8563
+# also needed if local processes connect to the machine's own public IP:
+sudo iptables -t nat -A OUTPUT -p tcp -d YOUR.SERVER.IP --dport 119 -j REDIRECT --to-ports 8119
+sudo iptables -t nat -A OUTPUT -p tcp -d YOUR.SERVER.IP --dport 563 -j REDIRECT --to-ports 8563
+```
+
+`nftables`:
+
+```bash
+sudo nft add rule ip nat prerouting tcp dport 119 redirect to :8119
+sudo nft add rule ip nat prerouting tcp dport 563 redirect to :8563
+```
+
+Behind a router/NAT device, forward external `119`/`563` to the daemon host's
+`8119`/`8563` instead. Alternatively, set `NNTP_PORT=119` and `NNTP_TLS_PORT=563`
+in `.env` and run the daemon with permission to bind low ports.
+
 ## Connecting a newsreader
 
 Thunderbird: *Account Settings → Account Actions → Add Other Account → Newsgroup
-Account*. Server = your BBS hostname, port 119 (with *Connection security:
-STARTTLS*) or 563 (*SSL/TLS*). Under *Server Settings*, enable
-*Always request authentication* and use your BBS credentials. Then *Subscribe* and
-pick the groups you want.
+Account*. Server = your BBS hostname; port `119` with *Connection security:
+STARTTLS* or `563` with *SSL/TLS* (or the daemon's `8119` / `8563` directly if you
+have not set up a redirect). Under *Server Settings*, enable *Always request
+authentication* and use your BBS credentials. Then *Subscribe* and pick the groups
+you want.
 
 ## Posting
 
@@ -113,12 +145,13 @@ are retired (not reissued) and requests for them return `423`.
 ## Troubleshooting
 
 - **`log: data/logs/nntpd.log`** (`nntp_daemon.log` under Docker).
-- **Client can't log in on port 119** — it probably does not support `STARTTLS`.
-  Use port 563, or (last resort) enable plaintext authentication.
+- **Client can't log in on the plaintext port** — it probably does not support
+  `STARTTLS`. Use the implicit-TLS port, or (last resort) enable plaintext
+  authentication.
 - **"No such newsgroup (or not subscribed)"** — the member is not subscribed to
   that echoarea.
 - **A group is missing from `LIST`** — its area tag contains a character that is
   not valid in a newsgroup name (e.g. `&`); such areas are skipped and logged at
   startup.
 - **Probe the server** without a full newsreader:
-  `php scripts/nntp_test_client.php --host=127.0.0.1 --port=119 --user=NAME --pass=PW`
+  `php scripts/nntp_test_client.php --host=127.0.0.1 --port=8119 --user=NAME --pass=PW`

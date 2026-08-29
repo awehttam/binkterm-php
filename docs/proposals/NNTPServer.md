@@ -82,11 +82,13 @@ Bind host and ports are likewise `.env`-driven, consistent with the other daemon
 
 ```
 NNTP_BIND_HOST       # default 0.0.0.0
-NNTP_PORT            # plaintext + STARTTLS, default 119
-NNTP_TLS_PORT        # implicit TLS, default 563; empty disables the listener
+NNTP_PORT            # plaintext + STARTTLS, default 8119
+NNTP_TLS_PORT        # implicit TLS, default 8563; empty disables the listener
 ```
 
-For `STARTTLS` on port 119, the crypto method should be negotiated **after fork** in the child, so the parent's socket close does not emit a `close_notify` alert before the child responds (same ordering caveat as the gemini daemon).
+The port defaults are the unprivileged `8119` / `8563` (following the telnet daemon, which defaults to `2323` / `8023`) so the daemon needs no `CAP_NET_BIND_SERVICE` or root. A sysop serving the well-known `119` / `563` redirects them with an `iptables` / `nftables` rule, exactly as documented for the FTP daemon's port 21, or sets `NNTP_PORT` / `NNTP_TLS_PORT` explicitly and grants the bind capability. The rest of this document says "port 119" / "port 563" to mean the plaintext and implicit-TLS listeners regardless of their actual numbers.
+
+For `STARTTLS` on the plaintext listener, the crypto method should be negotiated **after fork** in the child, so the parent's socket close does not emit a `close_notify` alert before the child responds (same ordering caveat as the gemini daemon).
 
 ---
 
@@ -274,7 +276,7 @@ The daemon enforces a maximum number of concurrent connections per source IP add
 Following the pattern of the other protocol daemons in `scripts/` (`gemini_daemon.php`, `ftp_daemon.php`, `mrc_daemon.php`), the NNTP server would be a standalone PHP daemon with a thin entry point and its supporting classes under `src/Nntp/`:
 
 ```
-scripts/nntp_server.php  — entry point, listens on TCP port 119/563
+scripts/nntp_server.php  — entry point, listens on TCP (default 8119/8563)
 src/Nntp/
   NNTPSession.php        — per-connection state machine
   NNTPArticle.php        — echomail → NNTP article translation
@@ -315,8 +317,8 @@ Settings split into two tiers, matching how the other daemons are configured:
 **Transport / process — `.env` via `Config::env()`** (needs a daemon restart to take effect, and the web process cannot write these anyway):
 
 - `NNTP_BIND_HOST` (default `0.0.0.0`)
-- `NNTP_PORT` (plaintext + `STARTTLS`, default 119)
-- `NNTP_TLS_PORT` (implicit TLS, default 563; empty disables the listener)
+- `NNTP_PORT` (plaintext + `STARTTLS`, default 8119 — redirect 119 to it, or set explicitly)
+- `NNTP_TLS_PORT` (implicit TLS, default 8563 — redirect 563 to it, or set explicitly; empty disables the listener)
 - `NNTP_TLS_CERT_PATH` / `NNTP_TLS_KEY_PATH` (self-signed automatically if unset; fatal if set but missing)
 
 **Behavior — `config/nntp.json`, managed through the BBS admin interface** (written via the admin daemon, never directly by a route):
@@ -334,7 +336,7 @@ Settings split into two tiers, matching how the other daemons are configured:
 
 Like the telnet and SSH daemons, the NNTP daemon runs as its own process rather than under Apache/PHP-FPM, so it needs its own considerations in the Docker packaging:
 
-- **Port exposure** — `Dockerfile` and `docker-compose.yml` (or equivalent) need port 119 `EXPOSE`d/mapped, plus 563 if NNTPS is supported.
+- **Port exposure** — `Dockerfile` `EXPOSE`s the daemon's `8119` / `8563`; the compose override maps host `119:8119` and `563:8563` so the container presents the standard ports.
 - **Enable/disable at the container level** — Since the feature is disabled by default, the container's entrypoint/startup script needs to check the enable/disable setting before starting the `scripts/nntp_server.php` process, the same way other optional daemons are conditionally started. Toggling the setting through the admin interface should not require rebuilding the image, only restarting the daemon process.
 - **Process supervision** — The daemon should be added to whatever process manager the container already uses to run the telnet/SSH daemons alongside Apache (e.g. supervisord), rather than introducing a new mechanism.
 
