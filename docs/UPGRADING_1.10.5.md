@@ -73,27 +73,29 @@ An NNTP server lets members connect with any standard newsreader (Thunderbird, s
 
 ### Enabling it
 
-1. Turn the server on in **Admin -> NNTP Server** (*Enable the NNTP server*). The same page has the newsgroup-name prefix style, a per-IP connection limit, per-member posting rate limits, and a *plaintext authentication* switch. These are stored in a new `config/nntp.json`, written through the admin daemon.
+Turn the server on in **Admin -> NNTP Server** (*Enable the NNTP server*). The same page has the newsgroup-name prefix style, a per-IP connection limit, per-member posting rate limits, and a *plaintext authentication* switch. These are stored in a new `config/nntp.json`, written through the admin daemon. A disabled server answers connections with a `400` error and closes; you must restart the daemon after switching it on.
 
-2. Set the transport in `.env` and restart the daemon for the change to take effect:
+Set the transport in `.env` and restart the daemon for the change to take effect. New variables:
 
-   | Key | Default | Purpose |
-   |---|---|---|
-   | `NNTP_BIND_HOST` | `0.0.0.0` | Address to bind |
-   | `NNTP_PORT` | `8119` | Plaintext + `STARTTLS` port |
-   | `NNTP_TLS_PORT` | `8563` | Implicit-TLS port; leave empty to disable |
-   | `NNTP_TLS_CERT_PATH` | `data/nntp/server.crt` | PEM certificate, or a combined cert+key PEM |
-   | `NNTP_TLS_KEY_PATH` | `data/nntp/server.key` | PEM private key |
+| Key | Default | Purpose |
+|---|---|---|
+| `NNTP_BIND_HOST` | `0.0.0.0` | Address to bind |
+| `NNTP_PORT` | `8119` | Plaintext + `STARTTLS` port |
+| `NNTP_TLS_PORT` | `8563` | Implicit-TLS port; leave empty to disable |
+| `NNTP_TLS_CERT_PATH` | `data/nntp/server.crt` | PEM certificate, or a combined cert+key PEM |
+| `NNTP_TLS_KEY_PATH` | `data/nntp/server.key` | PEM private key |
 
-   The ports default to the unprivileged `8119` and `8563` so the daemon runs as an ordinary user. Newsreaders expect NNTP on `119` and `563`; on a public server, redirect those to `8119` / `8563` with an `iptables` or `nftables` rule (see `docs/NNTP.md`), or set `NNTP_PORT` / `NNTP_TLS_PORT` to `119` / `563` and run the daemon with permission to bind them. If `NNTP_TLS_CERT_PATH` is left at its default and no file exists there, the daemon generates a self-signed certificate on first start; point it at a real certificate (for example the one your web server uses) for clients that reject self-signed certs. A path that is set but points at a missing file stops the daemon with an error.
+The ports default to the unprivileged `8119` and `8563` so the daemon runs as an ordinary user. Newsreaders expect NNTP on `119` and `563`; on a public server, redirect those to `8119` / `8563` with an `iptables` or `nftables` rule (see `docs/NNTP.md`), or set `NNTP_PORT` / `NNTP_TLS_PORT` to `119` / `563` and run the daemon with permission to bind them.
 
-3. Start the daemon. It is an optional daemon, so `scripts/restart_daemons.sh` with no arguments only restarts it if it was already running:
+If `NNTP_TLS_CERT_PATH` is left at its default and no file exists there, the daemon generates a self-signed certificate on first start; point it at a real certificate (for example the one your web server uses) for clients that reject self-signed certs. A path that is set but points at a missing file stops the daemon with an error.
 
-   ```bash
-   scripts/restart_daemons.sh --start nntp_daemon
-   ```
+Start the daemon. It is an optional daemon, so `scripts/restart_daemons.sh` with no arguments only restarts it if it was already running:
 
-   On Windows it is not part of `start_daemons_windows.*` and must be started by hand with `php scripts/nntp_server.php`. In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and uncomment its port lines (`119:8119`, `563:8563`).
+```bash
+scripts/restart_daemons.sh --start nntp_daemon
+```
+
+On Windows it is not part of `start_daemons_windows.*` and must be started by hand with `php scripts/nntp_server.php`. In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and uncomment its port lines (`119:8119`, `563:8563`).
 
 ### Posting
 

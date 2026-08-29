@@ -26,44 +26,46 @@ newsreader is off by default** — turn on *Allow posting from newsreaders* in
 
 ## Enabling it
 
-1. **Turn it on** in **Admin → NNTP Server**: set *Enable the NNTP server*.
-2. **Set the transport** in `.env` (a daemon restart applies changes):
+**Turn it on** in **Admin → NNTP Server**: set *Enable the NNTP server*. While it
+is off the daemon answers every connection with a `400` error and closes; the
+change takes effect on the next daemon restart.
 
-   | Variable | Default | Meaning |
-   |---|---|---|
-   | `NNTP_BIND_HOST` | `0.0.0.0` | Address to bind |
-   | `NNTP_PORT` | `8119` | Plaintext + `STARTTLS` port |
-   | `NNTP_TLS_PORT` | `8563` | Implicit-TLS port; set empty to disable |
-   | `NNTP_TLS_CERT_PATH` | `data/nntp/server.crt` | PEM cert, or combined cert+key |
-   | `NNTP_TLS_KEY_PATH` | `data/nntp/server.key` | PEM private key |
+**Set the transport** in `.env` (a daemon restart applies changes):
 
-   The ports default to the unprivileged `8119` / `8563` so the daemon runs as an
-   ordinary user with no extra capabilities. Newsreaders expect NNTP on `119` and
-   `563` — see [Serving the standard ports](#serving-the-standard-ports-119--563)
-   below to redirect them. You can also just set `NNTP_PORT` / `NNTP_TLS_PORT` to
-   `119` / `563` if the daemon runs with permission to bind them.
+| Variable | Default | Meaning |
+|---|---|---|
+| `NNTP_BIND_HOST` | `0.0.0.0` | Address to bind |
+| `NNTP_PORT` | `8119` | Plaintext + `STARTTLS` port |
+| `NNTP_TLS_PORT` | `8563` | Implicit-TLS port; set empty to disable |
+| `NNTP_TLS_CERT_PATH` | `data/nntp/server.crt` | PEM cert, or combined cert+key |
+| `NNTP_TLS_KEY_PATH` | `data/nntp/server.key` | PEM private key |
 
-   If `NNTP_TLS_CERT_PATH` is left at the default and no file exists there, the
-   daemon generates a self-signed certificate on first start. Point
-   `NNTP_TLS_CERT_PATH` at a real certificate (e.g. the same one your web server
-   uses) for clients that reject self-signed certs. A path that is set but missing
-   is a fatal startup error.
+The ports default to the unprivileged `8119` / `8563` so the daemon runs as an
+ordinary user with no extra capabilities. Newsreaders expect NNTP on `119` and
+`563` — see [Serving the standard ports](#serving-the-standard-ports-119--563)
+below to redirect them. You can also just set `NNTP_PORT` / `NNTP_TLS_PORT` to
+`119` / `563` if the daemon runs with permission to bind them.
 
-3. **Start the daemon**:
+If `NNTP_TLS_CERT_PATH` is left at the default and no file exists there, the
+daemon generates a self-signed certificate on first start. Point
+`NNTP_TLS_CERT_PATH` at a real certificate (e.g. the same one your web server
+uses) for clients that reject self-signed certs. A path that is set but missing
+is a fatal startup error.
 
-   ```
-   scripts/restart_daemons.sh --start nntp_daemon
-   ```
+**Start the daemon:**
 
-   It is an optional daemon — `restart_daemons.sh` with no arguments only restarts
-   it if it was already running. On Windows it is not part of
-   `start_daemons_windows.*` and must be started by hand:
-   `php scripts/nntp_server.php`.
+```
+scripts/restart_daemons.sh --start nntp_daemon
+```
 
-   In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and
-   uncomment its port lines (`119:8119`, `563:8563` — the daemon listens on its
-   default `8119` / `8563` in the container and the mapping presents the standard
-   ports to the outside).
+It is an optional daemon — `restart_daemons.sh` with no arguments only restarts it
+if it was already running. On Windows it is not part of `start_daemons_windows.*`
+and must be started by hand: `php scripts/nntp_server.php`.
+
+In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and uncomment
+its port lines (`119:8119`, `563:8563` — the daemon listens on its default `8119` /
+`8563` in the container and the mapping presents the standard ports to the
+outside).
 
 ## Admin → NNTP Server settings
 
