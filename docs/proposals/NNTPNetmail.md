@@ -26,8 +26,8 @@ user's own netmail, readable in any standard newsreader, with `POST` wired to
 `MessageHandler::sendNetmail()` so replies and new messages route out through the BinkP
 mailer.
 
-The user-visible result is a group named `netmail` (or `private.netmail`, or
-`<bbs-name>.netmail` — see the Prefix open question) that behaves like a
+The user-visible result is a group named `netmail` (sysop-overridable, default is the bare
+leaf with no prefix) that behaves like a
 personal mail folder inside a newsreader — new inbound netmail appears as new articles,
 and posting to the group (or replying to an article in it) sends netmail.
 
@@ -331,12 +331,9 @@ the admin daemon — never directly by a route), read through `NntpConfig`:
 
 - `expose_netmail_group` (boolean, default `true` when the NNTP server is enabled) —
   whether the per-user netmail group is listed and selectable at all.
-- `netmail_group_name` (string, default `netmail`) — the leaf name.
-- `netmail_group_prefix` (enum: `none` | `private` | `bbs-name`, default `none`) — the
-  hierarchy the leaf sits under. `none` → `netmail`; `private` → `private.netmail`;
-  `bbs-name` → `<sanitized BBS name>.netmail` (lowercased, non-`[a-z0-9]` runs collapsed to
-  `-`, trimmed; empty result falls back to `private`). Never a hard-coded product name. See
-  the Prefix open question.
+- `netmail_group_name` (string, default `netmail`) — the full group name. Default is the
+  bare leaf `netmail` with no hierarchy prefix. A sysop may override it (e.g.
+  `private.netmail`) but there is no separate prefix key and no product-name default.
 - `allow_netmail_send` (boolean, default follows the existing `allow_posting`) — whether
   `POST` into the netmail group is honored. When `false` the group is read-only and its
   `LIST ACTIVE` flag is `n`.
@@ -393,31 +390,41 @@ No new `.env` / transport settings — the netmail group rides the existing list
    the re-send is a new `netmail` row and gets its own new number. Deleted rows retire their
    number (`423`), and the per-user watermark only moves forward.
 
+9. **Group name.** The group is `netmail` — bare leaf, no hierarchy prefix, no product-name
+   or network-name prefix (netmail is not network-scoped, so a network prefix would be
+   misleading). Sysop-overridable via `netmail_group_name` for anyone who wants
+   `private.netmail` or similar, but the default ships as `netmail`.
+
+10. **Local (BBS-internal) netmail needs no special-casing.** Mail routed to the local
+    sysop / a local user never hits the outbound queue and carries `user_id` = **sender**.
+    `netmailVisibilityFilter()` surfaces it to the recipient through the `to_name` +
+    `to_address` match, identically to the web inbox. This is precisely the path a naive
+    `user_id = :uid` scope breaks, so it gets a dedicated isolation test.
+
+11. **Sending FTN identity is derived from the recipient.** BinktermPHP already works this
+    way: `MessageHandler::sendNetmail()` calls
+    `BinkpConfig::getOriginAddressByDestination($toAddress)`, which routes the destination
+    through the uplink table (exact uplink-address match, else `FtnRouter` network-pattern
+    matching by specificity: point > node > net > zone > default) and returns that uplink's
+    `me` address; it falls back to the system address when nothing matches. Posting name
+    policy and default charset are resolved per-destination the same way. The NNTP netmail
+    post handler adds nothing here — it resolves the destination FTN address (from the parent
+    row on a reply, or from `To:` / `X-FTN-To:` on a fresh compose) and hands it to
+    `sendNetmail()`, which selects the correct origin identity for that recipient. Multiple
+    FTN identities per user are therefore supported for free. The `From:` header on a built
+    article always uses that row's stored `from_address`, so it is already correct per-row.
+
 ---
 
 ## Open Questions
 
-- **Prefix.** Netmail is not network-scoped, so borrowing a per-user network prefix
-  (`LovelyBits.netmail`) is misleading, and a hardcoded product-name prefix (`BinktermPHP.`)
-  is undesirable. Candidates, roughly in order of preference:
-  - `netmail` — no prefix at all; shortest, unambiguous, sorts on its own.
-  - `private.netmail` — a fixed `private.` hierarchy that could later hold other
-    per-user pseudo-groups.
-  - `<bbs-name>.netmail` — the configured BBS name, sanitized to a valid newsgroup
-    component (lowercase, `[a-z0-9]`, other runs collapsed to `-`, no leading/trailing `-`);
-    falls back to `private` (or plain `netmail`) if the sanitized name is empty.
-
-  `netmail_group_name` (leaf) and a separate `netmail_group_prefix` (empty / `private` /
-  `bbs-name`) config pair covers all three without a hard-coded product string anywhere.
-- **Local (BBS-internal) netmail.** Messages routed to the local sysop / a local user never
-  hit the outbound queue and carry `user_id` = **sender**. `netmailVisibilityFilter()`
-  already surfaces these to the recipient via the `to_name` + `to_address` match, so no
-  special-casing is needed — but this is exactly the path a naive `user_id = :uid` scope
-  would break, and it needs an explicit isolation test.
-- **Multiple FTN identities.** A user with a point address on more than one network — the
-  `To:`/`From:` synthesis and the destination parser need to handle each network's domain
-  slug. `NntpArticleBuilder::fromHeader()` already takes a domain argument; the inverse
-  parser must too.
+- **Host-form `To:` inversion for multi-network users.** The one residual multi-network
+  detail: when a fresh compose supplies only the `f{node}.n{net}.z{zone}.{domain}` host form
+  that `NntpArticleBuilder::fromHeader()` emits (rather than the `(z:n/f.p)` display comment
+  or an explicit `X-FTN-To:`), the parser must map the `{domain}` slug back to a zone to
+  reconstruct the FTN address. `BinkpConfig` already has domain↔address helpers
+  (`getDomainByAddress()`); confirm there is a usable domain→zone lookup, or require one of
+  the two unambiguous forms and reject the bare host form with `441`.
 
 ---
 
