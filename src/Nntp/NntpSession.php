@@ -55,8 +55,8 @@ class NntpSession
     /** @var array<int,array<string,mixed>>  subscribed echoarea id => row */
     private array $subscribed = [];
 
-    /** @var array<string,mixed>|null  current echoarea row (+ nntp_group) */
-    private ?array $group = null;
+    /** Currently selected group, or null. */
+    private ?NntpGroupSource $source = null;
     private ?int $pointer = null;
 
     private bool $quit = false;
@@ -248,7 +248,7 @@ class NntpSession
         $this->userId = null;
         $this->pendingAuthUser = null;
         $this->subscribed = [];
-        $this->group = null;
+        $this->source = null;
         $this->pointer = null;
     }
 
@@ -344,7 +344,7 @@ class NntpSession
                 if ($wildmat !== null && !self::wildmat($wildmat, $g['group'])) {
                     continue;
                 }
-                $lines[] = sprintf('%s %d %d n', $g['group'], $g['high'], $g['low']);
+                $lines[] = sprintf('%s %d %d %s', $g['group'], $g['high'], $g['low'], $g['source']->isPostable() ? 'y' : 'n');
             }
             $this->sendMulti('215 list of newsgroups follows', $lines);
             return;
@@ -356,8 +356,7 @@ class NntpSession
                 if ($wildmat !== null && !self::wildmat($wildmat, $g['group'])) {
                     continue;
                 }
-                $desc = trim((string)($g['row']['description'] ?? ''));
-                $lines[] = $g['group'] . "\t" . ($desc === '' ? $g['group'] : preg_replace('/\s+/', ' ', $desc));
+                $lines[] = $g['group'] . "\t" . $g['source']->description();
             }
             $this->sendMulti('215 list of newsgroups follows', $lines);
             return;
@@ -370,8 +369,8 @@ class NntpSession
                 if ($wildmat !== null && !self::wildmat($wildmat, $g['group'])) {
                     continue;
                 }
-                $created = strtotime((string)($g['row']['created_at'] ?? '') . ' UTC');
-                $lines[] = sprintf('%s %d nntp@%s', $g['group'], max(0, $created ?: 0), $host);
+                $created = $g['source']->createdAtUnix();
+                $lines[] = sprintf('%s %d nntp@%s', $g['group'], max(0, $created ?? 0), $host);
             }
             $this->sendMulti('215 information follows', $lines);
             return;
@@ -387,9 +386,9 @@ class NntpSession
     }
 
     /**
-     * Subscribed, listable groups with their current bounds.
+     * Subscribed, listable groups with their current bounds and backing source.
      *
-     * @return array<int,array{group:string,low:int,high:int,count:int,row:array<string,mixed>}>
+     * @return array<int,array{group:string,low:int,high:int,count:int,source:NntpGroupSource}>
      */
     private function visibleGroups(): array
     {
@@ -399,19 +398,34 @@ class NntpSession
             if ($group === null) {
                 continue;
             }
-            $this->numbers->ensureArea((int)$row['id']);
-            $bounds = $this->numbers->groupBounds((int)$row['id']);
+            $source = $this->sourceForArea($row);
+            $source->ensureNumbered();
+            $bounds = $source->bounds();
             $out[] = [
                 'group' => $group,
                 'low' => $bounds['low'],
                 'high' => $bounds['high'],
                 'count' => $bounds['count'],
-                'row' => $row,
+                'source' => $source,
             ];
         }
         usort($out, static fn ($a, $b) => strcmp($a['group'], $b['group']));
 
         return $out;
+    }
+
+    /**
+     * Build the echomail group source for a subscribed echoarea row.
+     *
+     * @param array<string,mixed> $row  echoareas row
+     */
+    private function sourceForArea(array $row): EchomailGroupSource
+    {
+        if (!isset($row['nntp_group'])) {
+            $row['nntp_group'] = $this->groups->groupNameForArea($row);
+        }
+
+        return new EchomailGroupSource($this->db, $row, $this->numbers, $this->builder);
     }
 
     // ── NEWGROUPS / NEWNEWS ────────────────────────────────────────────────
@@ -429,9 +443,9 @@ class NntpSession
 
         $lines = [];
         foreach ($this->visibleGroups() as $g) {
-            $created = strtotime((string)($g['row']['created_at'] ?? '') . ' UTC');
-            if ($created !== false && $created >= $since) {
-                $lines[] = sprintf('%s %d %d n', $g['group'], $g['high'], $g['low']);
+            $created = $g['source']->createdAtUnix();
+            if ($created !== null && $created >= $since) {
+                $lines[] = sprintf('%s %d %d %s', $g['group'], $g['high'], $g['low'], $g['source']->isPostable() ? 'y' : 'n');
             }
         }
         $this->sendMulti('231 list of new newsgroups follows', $lines);
@@ -449,31 +463,14 @@ class NntpSession
             return;
         }
 
-        $groupById = [];
-        foreach ($this->visibleGroups() as $g) {
-            if (self::wildmat($wildmat, $g['group'])) {
-                $groupById[(int)$g['row']['id']] = $g['group'];
-            }
-        }
-
-        if ($groupById === []) {
-            $this->sendMulti('230 list of new articles follows', []);
-            return;
-        }
-
-        $placeholders = implode(',', array_fill(0, count($groupById), '?'));
-        $stmt = $this->db->prepare(
-            "SELECT echoarea_id, message_id, kludge_lines, message_text, from_address
-             FROM echomail
-             WHERE echoarea_id IN ($placeholders)
-               AND COALESCE(moderation_status,'approved') = 'approved'
-               AND date_received >= to_timestamp(?)"
-        );
-        $stmt->execute([...array_keys($groupById), $since]);
-
         $lines = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $em) {
-            $lines[] = $this->builder->messageIdFor($em, $groupById[(int)$em['echoarea_id']]);
+        foreach ($this->visibleGroups() as $g) {
+            if (!self::wildmat($wildmat, $g['group'])) {
+                continue;
+            }
+            foreach ($g['source']->newMessageIdsSince($since) as $mid) {
+                $lines[] = $mid;
+            }
         }
         $this->sendMulti('230 list of new articles follows', array_values(array_unique($lines)));
     }
@@ -486,19 +483,19 @@ class NntpSession
             return;
         }
         $name = $args[0] ?? '';
-        $row = $this->selectGroup($name);
-        if ($row === null) {
+        $source = $this->selectGroup($name);
+        if ($source === null) {
             return;
         }
 
-        $bounds = $this->numbers->groupBounds((int)$row['id']);
+        $bounds = $source->bounds();
         $this->pointer = $bounds['count'] > 0 ? $bounds['low'] : null;
         $this->send(sprintf(
             '211 %d %d %d %s',
             $bounds['count'],
             $bounds['low'],
             $bounds['high'],
-            $row['nntp_group']
+            $source->groupName()
         ));
     }
 
@@ -509,17 +506,17 @@ class NntpSession
         }
 
         $name = $args[0] ?? null;
-        if ($name === null && $this->group === null) {
+        if ($name === null && $this->source === null) {
             $this->send('412 No newsgroup selected');
             return;
         }
 
-        $row = $name !== null ? $this->selectGroup($name) : $this->group;
-        if ($row === null) {
+        $source = $name !== null ? $this->selectGroup($name) : $this->source;
+        if ($source === null) {
             return;
         }
 
-        $bounds = $this->numbers->groupBounds((int)$row['id']);
+        $bounds = $source->bounds();
         $lo = $bounds['low'];
         $hi = $bounds['high'];
         if (isset($args[1]) && preg_match('/^(\d+)(-(\d*))?$/', $args[1], $m)) {
@@ -531,30 +528,30 @@ class NntpSession
             }
         }
 
-        $nums = array_keys($this->numbers->range((int)$row['id'], $lo, $hi));
+        $nums = array_keys($source->range($lo, $hi));
         $this->pointer = $bounds['count'] > 0 ? $bounds['low'] : null;
         $this->sendMulti(
-            sprintf('211 %d %d %d %s list follows', $bounds['count'], $bounds['low'], $bounds['high'], $row['nntp_group']),
+            sprintf('211 %d %d %d %s list follows', $bounds['count'], $bounds['low'], $bounds['high'], $source->groupName()),
             array_map('strval', $nums)
         );
     }
 
     /**
      * Resolve + authorize a newsgroup name, emitting the error response on failure.
-     *
-     * @return array<string,mixed>|null
+     * Sets it as the current group on success.
      */
-    private function selectGroup(string $name): ?array
+    private function selectGroup(string $name): ?NntpGroupSource
     {
         $row = $this->groups->resolveGroup($name);
         if ($row === null || !isset($this->subscribed[(int)$row['id']])) {
             $this->send('411 No such newsgroup (or not subscribed)');
             return null;
         }
-        $this->numbers->ensureArea((int)$row['id']);
-        $this->group = $row;
+        $source = $this->sourceForArea($row);
+        $source->ensureNumbered();
+        $this->source = $source;
 
-        return $row;
+        return $source;
     }
 
     // ── ARTICLE / HEAD / BODY / STAT ───────────────────────────────────────
@@ -566,10 +563,8 @@ class NntpSession
         }
 
         $selector = $args[0] ?? null;
-        $em = null;
-        $area = null;
-        $group = null;
         $number = 0;
+        $built = null;
 
         if ($selector !== null && str_starts_with($selector, '<')) {
             $resolved = $this->resolveByMessageId($selector);
@@ -577,37 +572,33 @@ class NntpSession
                 $this->send('430 No article with that message-id');
                 return;
             }
-            [$em, $area, $group, $number] = $resolved;
+            [$source, $number] = $resolved;
+            $built = $source->article($number);
         } else {
-            if ($this->group === null) {
+            if ($this->source === null) {
                 $this->send('412 No newsgroup selected');
                 return;
             }
-            $areaId = (int)$this->group['id'];
             $number = $selector !== null ? (int)$selector : ($this->pointer ?? 0);
             if ($number <= 0) {
                 $this->send('420 No current article selected');
                 return;
             }
-            $emId = $this->numbers->echomailIdFor($areaId, $number);
-            if ($emId === null) {
+            $built = $this->source->article($number);
+            if ($built === null) {
                 $this->send('423 No article with that number');
                 return;
             }
-            $em = $this->loadEchomail($emId);
-            $area = $this->group;
-            $group = $this->group['nntp_group'];
             if ($selector !== null) {
                 $this->pointer = $number;
             }
         }
 
-        if ($em === null) {
+        if ($built === null) {
             $this->send('423 No article with that number');
             return;
         }
 
-        $built = $this->builder->build($em, $area, $group, $number);
         $headerLines = $built['headers'];
         $bodyLines = $built['body'] === '' ? [] : explode("\n", $built['body']);
 
@@ -708,20 +699,18 @@ class NntpSession
                 $this->send('430 No article with that message-id');
                 return;
             }
-            [$em, $area, $group, $number] = $resolved;
-            $this->sendMulti('224 Overview information follows', [
-                $this->builder->overviewLine($em, $area, $group, $number),
-            ]);
+            [$source, $number] = $resolved;
+            $line = $source->overview($number);
+            $this->sendMulti('224 Overview information follows', $line === null ? [] : [$line]);
             return;
         }
 
-        if ($this->group === null) {
+        if ($this->source === null) {
             $this->send('412 No newsgroup selected');
             return;
         }
 
-        $areaId = (int)$this->group['id'];
-        $bounds = $this->numbers->groupBounds($areaId);
+        $bounds = $this->source->bounds();
         $lo = $bounds['low'];
         $hi = $bounds['high'];
 
@@ -739,16 +728,8 @@ class NntpSession
             return;
         }
 
-        $rangeMap = $this->numbers->range($areaId, $lo, $hi, 5000);
-        $rows = $this->loadEchomailBatch(array_values($rangeMap));
-        $parentIds = $this->parentMessageIdMap($rows, $this->group['nntp_group']);
-
-        $lines = [];
-        foreach ($rangeMap as $number => $emId) {
-            if (isset($rows[$emId])) {
-                $lines[] = $this->builder->overviewLine($rows[$emId], $this->group, $this->group['nntp_group'], $number, $parentIds);
-            }
-        }
+        $rangeMap = $this->source->range($lo, $hi, 5000);
+        $lines = array_values($this->source->overviewBatch($rangeMap));
         $this->sendMulti('224 Overview information follows', $lines);
     }
 
@@ -764,13 +745,12 @@ class NntpSession
             $this->send('501 Syntax: HDR field [range]');
             return;
         }
-        if ($this->group === null) {
+        if ($this->source === null) {
             $this->send('412 No newsgroup selected');
             return;
         }
 
-        $areaId = (int)$this->group['id'];
-        $bounds = $this->numbers->groupBounds($areaId);
+        $bounds = $this->source->bounds();
         $lo = $bounds['low'];
         $hi = $bounds['high'];
         $selector = $args[1] ?? null;
@@ -781,16 +761,10 @@ class NntpSession
             $lo = $hi = $this->pointer ?? $lo;
         }
 
-        $rangeMap = $this->numbers->range($areaId, $lo, $hi, 5000);
-        $rows = $this->loadEchomailBatch(array_values($rangeMap));
-        $parentIds = $this->parentMessageIdMap($rows, $this->group['nntp_group']);
+        $rangeMap = $this->source->range($lo, $hi, 5000);
 
         $lines = [];
-        foreach ($rangeMap as $number => $emId) {
-            if (!isset($rows[$emId])) {
-                continue;
-            }
-            $built = $this->builder->build($rows[$emId], $this->group, $this->group['nntp_group'], $number, $parentIds);
+        foreach ($this->source->articleBatch($rangeMap) as $number => $built) {
             $value = $this->headerFromLines($built['headers'], $field);
             if ($value !== null) {
                 $lines[] = $number . ' ' . $value;
@@ -827,7 +801,7 @@ class NntpSession
         if (!$this->requireAuth()) {
             return;
         }
-        if ($this->group === null) {
+        if ($this->source === null) {
             $this->send('412 No newsgroup selected');
             return;
         }
@@ -836,9 +810,8 @@ class NntpSession
             return;
         }
 
-        $areaId = (int)$this->group['id'];
-        $bounds = $this->numbers->groupBounds($areaId);
-        $nums = array_keys($this->numbers->range($areaId, $bounds['low'], $bounds['high']));
+        $bounds = $this->source->bounds();
+        $nums = array_keys($this->source->range($bounds['low'], $bounds['high']));
         $idx = array_search($this->pointer, $nums, true);
         if ($idx === false) {
             $this->send('420 No current article');
@@ -852,16 +825,18 @@ class NntpSession
         }
 
         $this->pointer = $target;
-        $emId = $this->numbers->echomailIdFor($areaId, $target);
-        $em = $emId !== null ? $this->loadEchomail($emId) : null;
-        $mid = $em !== null ? $this->builder->messageIdFor($em, $this->group['nntp_group']) : '<unknown>';
+        $mid = $this->source->messageIdForNumber($target) ?? '<unknown>';
         $this->send(sprintf('223 %d %s', $target, $mid));
     }
 
     // ── Shared helpers ─────────────────────────────────────────────────────
 
     /**
-     * @return array{0:array<string,mixed>,1:array<string,mixed>,2:string,3:int}|null
+     * Resolve an `<...>` Message-ID to the group source that owns it and the
+     * article number within that group. Only groups the user is subscribed to
+     * (and, for netmail, entitled to) are considered.
+     *
+     * @return array{0:NntpGroupSource,1:int}|null
      */
     private function resolveByMessageId(string $messageId): ?array
     {
@@ -874,111 +849,15 @@ class NntpSession
         if ($area === null || !isset($this->subscribed[(int)$area['id']])) {
             return null;
         }
-        $this->numbers->ensureArea((int)$area['id']);
 
-        // Match the raw MSGID by its trailing serial within this area.
-        $stmt = $this->db->prepare(
-            "SELECT id FROM echomail
-             WHERE echoarea_id = ?
-               AND COALESCE(moderation_status,'approved') = 'approved'
-               AND (message_id = ? OR message_id LIKE ?)
-             ORDER BY id LIMIT 1"
-        );
-        $stmt->execute([(int)$area['id'], $parsed['serial'], '% ' . $parsed['serial']]);
-        $emId = $stmt->fetchColumn();
-
-        if ($emId === false) {
-            // Fall back to a synthetic-ID hash match is not feasible; give up.
+        $source = $this->sourceForArea($area);
+        $source->ensureNumbered();
+        $number = $source->resolveMessageId($messageId);
+        if ($number === null) {
             return null;
         }
 
-        $em = $this->loadEchomail((int)$emId);
-        if ($em === null) {
-            return null;
-        }
-        $group = $this->groups->groupNameForArea($area) ?? $parsed['group'];
-        $number = $this->numbers->numberFor((int)$area['id'], (int)$emId) ?? 0;
-
-        return [$em, $area, $group, $number];
-    }
-
-    private const ECHOMAIL_COLUMNS =
-        'id, echoarea_id, from_address, from_name, to_name, subject, message_text,
-         date_written, date_received, reply_to_id, message_id, origin_line,
-         kludge_lines, bottom_kludges, message_charset';
-
-    /**
-     * Load many echomail rows in one query, keyed by id (OVER/HDR range paths).
-     *
-     * @param int[] $ids
-     * @return array<int,array<string,mixed>>
-     */
-    private function loadEchomailBatch(array $ids): array
-    {
-        $ids = array_values(array_unique(array_map('intval', $ids)));
-        if ($ids === []) {
-            return [];
-        }
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $this->db->prepare(
-            'SELECT ' . self::ECHOMAIL_COLUMNS . " FROM echomail WHERE id IN ($placeholders)"
-        );
-        $stmt->execute($ids);
-
-        $map = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $map[(int)$row['id']] = $row;
-        }
-
-        return $map;
-    }
-
-    /**
-     * Prefetch constructed Message-IDs for every distinct parent referenced by a
-     * batch of rows, so `References:` needs no per-article DB walk. Replies live
-     * in the same echoarea as their parent, so one group name applies.
-     *
-     * @param array<int,array<string,mixed>> $rows
-     * @return array<int,string>  parent echomail id => constructed Message-ID
-     */
-    private function parentMessageIdMap(array $rows, string $group): array
-    {
-        $parentIds = [];
-        foreach ($rows as $row) {
-            $pid = (int)($row['reply_to_id'] ?? 0);
-            if ($pid > 0) {
-                $parentIds[$pid] = true;
-            }
-        }
-        if ($parentIds === []) {
-            return [];
-        }
-
-        $placeholders = implode(',', array_fill(0, count($parentIds), '?'));
-        $stmt = $this->db->prepare(
-            "SELECT id, message_id, kludge_lines, message_text, from_address
-             FROM echomail WHERE id IN ($placeholders)"
-        );
-        $stmt->execute(array_keys($parentIds));
-
-        $map = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $parent) {
-            $map[(int)$parent['id']] = $this->builder->messageIdFor($parent, $group);
-        }
-
-        return $map;
-    }
-
-    /**
-     * @return array<string,mixed>|null
-     */
-    private function loadEchomail(int $id): ?array
-    {
-        $stmt = $this->db->prepare('SELECT ' . self::ECHOMAIL_COLUMNS . ' FROM echomail WHERE id = ?');
-        $stmt->execute([$id]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        return $row ?: null;
+        return [$source, $number];
     }
 
     private function requireAuth(): bool
