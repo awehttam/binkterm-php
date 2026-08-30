@@ -78,6 +78,22 @@ class NntpPost
             return $this->fail('Missing Newsgroups header');
         }
 
+        // Netmail newsgroup — a separate, non-cross-postable path.
+        $netmailGroup = $this->config->getNetmailGroupName();
+        $namesNetmail = false;
+        foreach ($groupNames as $name) {
+            if (strcasecmp($name, $netmailGroup) === 0) {
+                $namesNetmail = true;
+                break;
+            }
+        }
+        if ($namesNetmail) {
+            if (count($groupNames) > 1) {
+                return $this->fail('Netmail cannot be cross-posted');
+            }
+            return (new NntpNetmailPost($this->db, $this->config, $this->logger, $this->userId))->submit($article);
+        }
+
         $max = $this->config->getMaxCrossPostAreas();
         if (count($groupNames) > $max) {
             return $this->fail("Too many groups in Newsgroups header (limit {$max}); post rejected");
