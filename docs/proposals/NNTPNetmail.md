@@ -86,10 +86,11 @@ today. The NNTP netmail source **must not** add a fourth copy — see
 [Centralized netmail visibility](#centralized-netmail-visibility) below.
 
 See `docs/Netmail.md` ("Ownership and visibility") for the authoritative description of this
-rule. Note also `docs/proposals/NetmailOwnershipChangesMay9.md`, which proposes replacing the
-name-matching inference with explicit `local_sender_id` / `local_recipient_id` columns. If
-that lands first, the centralized helper below is where it gets adopted, and the NNTP source
-inherits the fix for free.
+rule. `docs/proposals/NetmailOwnershipChangesMay9.md` proposes replacing the name-matching
+inference with explicit `local_sender_id` / `local_recipient_id` columns — **this work does
+not wait on it.** The centralized helper below wraps the current name+address predicate; if
+that other proposal lands later, the helper is the single place it gets swapped in and the
+NNTP source needs no further change.
 
 ---
 
@@ -413,10 +414,6 @@ No new `.env` / transport settings — the netmail group rides the existing list
   already surfaces these to the recipient via the `to_name` + `to_address` match, so no
   special-casing is needed — but this is exactly the path a naive `user_id = :uid` scope
   would break, and it needs an explicit isolation test.
-- **Adopt `NetmailOwnershipChangesMay9`?** That proposal replaces the name-matching
-  inference with `local_sender_id` / `local_recipient_id`. If it lands, `netmailVisibilityFilter()`
-  is the single place to switch over, and the NNTP source needs no further change. Decide
-  whether to sequence that work before this.
 - **Multiple FTN identities.** A user with a point address on more than one network — the
   `To:`/`From:` synthesis and the destination parser need to handle each network's domain
   slug. `NntpArticleBuilder::fromHeader()` already takes a domain argument; the inverse
