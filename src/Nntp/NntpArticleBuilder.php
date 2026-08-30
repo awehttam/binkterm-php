@@ -34,11 +34,13 @@ class NntpArticleBuilder
 
     private PDO $db;
     private string $host;
+    private bool $convertQuotesToRfc;
 
-    public function __construct(PDO $db, ?string $host = null)
+    public function __construct(PDO $db, ?string $host = null, bool $convertQuotesToRfc = false)
     {
         $this->db = $db;
         $this->host = $host ?? NntpMessageId::hostname();
+        $this->convertQuotesToRfc = $convertQuotesToRfc;
     }
 
     /**
@@ -132,6 +134,9 @@ class NntpArticleBuilder
         }
 
         $body = $this->normalizeBody((string)($em['message_text'] ?? ''));
+        if ($this->convertQuotesToRfc) {
+            $body = NntpQuoteStyle::toRfc($body);
+        }
 
         return ['headers' => $this->unfold($headers), 'body' => $body, 'message_id' => $messageId];
     }

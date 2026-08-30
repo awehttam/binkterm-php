@@ -82,7 +82,7 @@ class NntpSession
 
         $this->groups = new NntpNewsgroups($this->db, $this->config);
         $this->numbers = new NntpArticleNumbers($this->db);
-        $this->builder = new NntpArticleBuilder($this->db);
+        $this->builder = new NntpArticleBuilder($this->db, null, $this->config->shouldConvertOutboundQuotes());
         $this->auth = new NntpAuth();
     }
 

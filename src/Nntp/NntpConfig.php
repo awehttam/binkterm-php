@@ -90,6 +90,11 @@ class NntpConfig
             // When false, AUTHINFO/POST on the plaintext port require STARTTLS first
             // (483 otherwise). Enabling this exposes account passwords in cleartext.
             'allow_plaintext_auth' => false,
+            // Quote-style conversion at the gateway boundary (see NntpQuoteStyle):
+            //   "off"      - serve/store bodies verbatim
+            //   "outbound" - FSC-0032 " XX> " -> "> " on served articles only (default)
+            //   "both"     - also convert "> " -> " XX> " on inbound POSTs
+            'quote_style_conversion' => 'outbound',
         ];
     }
 
@@ -186,6 +191,9 @@ class NntpConfig
         $merged['posts_per_hour'] = max(0, (int)$merged['posts_per_hour']);
         $merged['max_cross_post_areas'] = max(1, (int)$merged['max_cross_post_areas']);
         $merged['max_connections_per_ip'] = max(1, (int)$merged['max_connections_per_ip']);
+        $merged['quote_style_conversion'] = in_array($merged['quote_style_conversion'], ['off', 'outbound', 'both'], true)
+            ? $merged['quote_style_conversion']
+            : 'outbound';
 
         return $merged;
     }
@@ -231,5 +239,30 @@ class NntpConfig
     public function isPlaintextAuthAllowed(): bool
     {
         return (bool)($this->config['allow_plaintext_auth'] ?? false);
+    }
+
+    /**
+     * One of "off", "outbound", "both".
+     */
+    public function getQuoteStyleConversion(): string
+    {
+        $mode = $this->config['quote_style_conversion'] ?? 'outbound';
+        return in_array($mode, ['off', 'outbound', 'both'], true) ? $mode : 'outbound';
+    }
+
+    /**
+     * True when served articles should have FSC-0032 quoting rewritten to `> `.
+     */
+    public function shouldConvertOutboundQuotes(): bool
+    {
+        return in_array($this->getQuoteStyleConversion(), ['outbound', 'both'], true);
+    }
+
+    /**
+     * True when inbound POSTed articles should have `> ` quoting rewritten to FSC-0032.
+     */
+    public function shouldConvertInboundQuotes(): bool
+    {
+        return $this->getQuoteStyleConversion() === 'both';
     }
 }

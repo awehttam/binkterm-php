@@ -6,5 +6,6 @@
     "posts_per_hour": 60,
     "max_cross_post_areas": 5,
     "max_connections_per_ip": 3,
-    "allow_plaintext_auth": false
+    "allow_plaintext_auth": false,
+    "quote_style_conversion": "outbound"
 }

@@ -117,6 +117,15 @@ class NntpPost
             (int)$targets[0]['id']
         );
 
+        // Rewrite Internet "> " quoting to FSC-0032 " XX> " using the quoted
+        // author's initials (the parent this reply threads onto), when enabled.
+        if ($this->config->shouldConvertInboundQuotes() && $replyToId !== null) {
+            $quoter = $this->parentFromName($replyToId);
+            if ($quoter !== '') {
+                $body = NntpQuoteStyle::toFtn($body, $quoter);
+            }
+        }
+
         $handler = new MessageHandler();
         $primaryPending = false;
         $posted = 0;
@@ -239,6 +248,19 @@ class NntpPost
         $id = $stmt->fetchColumn();
 
         return $id === false ? null : (int)$id;
+    }
+
+    /**
+     * from_name of an echomail row (the quoted author for inbound quote conversion),
+     * or '' when the row is gone.
+     */
+    private function parentFromName(int $echomailId): string
+    {
+        $stmt = $this->db->prepare('SELECT from_name FROM echomail WHERE id = ?');
+        $stmt->execute([$echomailId]);
+        $name = $stmt->fetchColumn();
+
+        return $name === false ? '' : trim((string)$name);
     }
 
     /**

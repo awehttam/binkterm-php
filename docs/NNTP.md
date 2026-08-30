@@ -77,6 +77,7 @@ outside).
 | Max connections per IP | Concurrent connections allowed from one source address (default 3). |
 | Posts per minute / hour | Per-member posting rate limits; a post over the limit is rejected with `441`. Set to 0 to disable that limit. |
 | Max cross-post areas | Most echoareas one article may target via a multi-group `Newsgroups:` header. An over-limit post is **rejected**, not trimmed. |
+| Quote-style conversion | `Off`, `Outbound only` (default), or `Both directions`. See [Quote-style conversion](#quote-style-conversion) below. |
 | Allow plaintext authentication on the plaintext port | **Off by default.** When off, a newsreader on the plaintext port must run `STARTTLS` before it can log in. Turn it on only for a legacy reader with no TLS support, accepting that its password crosses the wire in cleartext. The implicit-TLS port is always encrypted. |
 
 Settings are stored in `config/nntp.json` and written through the admin daemon.
@@ -136,6 +137,33 @@ When *Allow posting from newsreaders* is on:
   appears once a moderator approves it.
 - Cancel and supersede control messages are accepted and silently dropped (FTN
   has no equivalent).
+
+## Quote-style conversion
+
+FTN and newsreaders quote replies differently. FTN uses the FSC-0032 form — the
+quoted author's initials and a `>`, e.g. ` MA> original text`, with an extra `>`
+per nesting level. Newsreaders use a bare, stacked `>`: `> text`, `>> text`.
+Serving FTN-style quoting to a newsreader works but reads as foreign, and a reply
+composed in a newsreader comes back as bare `>` that looks foreign in an FTN
+reader.
+
+The **Quote-style conversion** setting bridges this at the gateway:
+
+| Value | Effect |
+|---|---|
+| `Off` | Message text is served and stored exactly as-is. |
+| `Outbound only` *(default)* | On articles served to a newsreader, a leading ` MA> ` is rewritten to `> ` of the same depth. Stored echomail is unchanged. |
+| `Both directions` | Also rewrites a leading `> ` on an **incoming** post to ` XX> `, where `XX` is the initials of the message being replied to (from `References:`). Every quote level is attributed to that one author, since FTN records only one quoted author per line. |
+
+Both directions are line-oriented and conservative: only an unmistakable leading
+prefix is touched, fenced code blocks (```` ``` ````) are skipped, and lines
+containing ANSI escapes (art) are left alone. The transform preserves quote depth
+but not the identity of authors quoted below the immediate parent, so it is not
+perfectly reversible — inherent to any FTN/Usenet bridge. Inbound conversion is a
+heuristic and can misfire on pasted shell transcripts, so it is opt-in.
+
+Initials follow the same rule as the web and terminal reply editors: two letters
+for a single-word name, first-plus-last initial otherwise.
 
 ## Article numbering
 

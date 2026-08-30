@@ -246,6 +246,68 @@ FTN threading is subject-based by convention — replies share the same `Subject
 
 ---
 
+## Quote-style conversion
+
+FTN and Usenet quote replies differently. FTN follows FSC-0032: a quoted line is prefixed
+with the quoted author's initials and a `>`, e.g. ` MA> the original text`, with an extra
+`>` inserted per nesting level (` MA>> `). Usenet/mail uses a bare, stacked `>`:
+`> text`, `>> text`. BinktermPHP's own web and terminal reply composers already produce
+the FSC-0032 form (`generateInitials()` / `quoteMessageText()` in `src/functions.php`,
+`MailUtils::quoteMessage()` on the terminal side), and the message renderer recognises both
+forms.
+
+Serving raw FSC-0032 text to a newsreader works but does not *feel* native: the newsreader
+cannot collapse or colour quotes it does not recognise, and a reply composed in the
+newsreader comes back as bare `>` that looks foreign in an FTN reader. A double conversion
+at the gateway boundary fixes both directions:
+
+- **Outbound (echomail → NNTP article).** Rewrite a leading FSC-0032 prefix to stacked
+  `>` of the same depth: ` MA> x` → `> x`, ` MA>> x` → `>> x`, ` MA> JS> x` → `>> x`.
+- **Inbound (NNTP `POST` → echomail).** Rewrite a leading `>` run to an FSC-0032 prefix
+  using the initials of the message this reply quotes — the parent resolved from
+  `References:` (`NntpArticleParser::lastReference()` → parent `echomail.from_name`).
+  `> x` → ` MA> x`, `>> x` → ` MA>> x`. FTN records only one quoted author per line, so
+  every level is attributed to that same parent author.
+
+### Rules
+
+- **Line-oriented and conservative.** Only a prefix that unambiguously matches is
+  rewritten. Outbound requires at least one letter before the `>` (so a bare `>` — already
+  Internet style — and a `>`-led ASCII-art line are left alone). Inbound skips a line that
+  already carries an FSC-0032 prefix, and skips any line containing an ESC byte
+  (`\x1b`, i.e. ANSI art rather than prose).
+- **Fenced code blocks are never touched** (```` ``` ````, `~~~`).
+- **Initials follow the existing rule** (`generateInitials()`): two letters for a
+  single-token name, first-plus-last initial otherwise. A netmail folder (see
+  `docs/proposals/NNTPNetmail.md`) reuses the same converter with the netmail parent.
+- **Message-ID inputs are unaffected.** The synthetic `Message-ID` / `References` hash is
+  taken from the raw stored `message_text` before this conversion (see "Message-ID
+  Construction"), so toggling quote conversion never shifts an article's identity.
+- **The transform is lossy and not round-trip-exact.** Depth is preserved but the identity
+  of quoted authors below the immediate parent is not recoverable, so text that crosses
+  the gateway repeatedly loses attribution detail. This is inherent to any FTN↔Usenet
+  bridge and is documented, not worked around.
+
+### Where it lives
+
+A single shared helper, `src/Nntp/NntpQuoteStyle` (`toRfc()` / `toFtn()` / `initials()`),
+called from `NntpArticleBuilder::build()` on the way out and from `NntpPost::submit()` on
+the way in. The companion `NNTPClientTransport` design reuses the same helper so the two
+transports never diverge on quote handling.
+
+### Configuration
+
+One `config/nntp.json` behaviour key, `quote_style_conversion`, managed through
+**Admin → NNTP Server**:
+
+| Value | Effect |
+|---|---|
+| `off` | Serve and store bodies verbatim (previous behaviour). |
+| `outbound` *(default)* | Convert FSC-0032 → `>` on served articles only. Low risk. |
+| `both` | Also convert `>` → FSC-0032 on inbound posts. Opt-in, because the inbound heuristic can misfire on pasted transcripts or art. |
+
+---
+
 ## Bidirectional Posting
 
 Read-only access is straightforward. Two-way posting adds complexity:

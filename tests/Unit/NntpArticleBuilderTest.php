@@ -146,6 +146,31 @@ final class NntpArticleBuilderTest extends TestCase
         self::assertSame(['References: <PARENT.z1n2f3p0.n.t@h>'], $refs);
     }
 
+    public function testConvertQuotesToRfcRewritesBodyWhenEnabled(): void
+    {
+        $b = new NntpArticleBuilder(new PDO('sqlite::memory:'), 'h', true);
+        $built = $b->build(
+            ['id' => 1, 'from_name' => 'A', 'from_address' => '1:2/3', 'subject' => 's',
+             'message_text' => " MA> quoted line\nmy reply", 'message_id' => '1:2/3 AAAA'],
+            ['tag' => 'T'],
+            'N.T',
+            1
+        );
+        self::assertSame("> quoted line\nmy reply", $built['body']);
+    }
+
+    public function testConvertQuotesOffByDefault(): void
+    {
+        $built = $this->builder()->build(
+            ['id' => 1, 'from_name' => 'A', 'from_address' => '1:2/3', 'subject' => 's',
+             'message_text' => " MA> quoted line", 'message_id' => '1:2/3 AAAA'],
+            ['tag' => 'T'],
+            'N.T',
+            1
+        );
+        self::assertSame(' MA> quoted line', $built['body']);
+    }
+
     public function testPrefetchedParentMapMissingParentYieldsNoReferences(): void
     {
         $b = new \BinktermPHP\Nntp\NntpArticleBuilder(new PDO('sqlite::memory:'), 'h');

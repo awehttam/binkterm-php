@@ -71,6 +71,16 @@
                             <small class="form-text text-muted">{{ t('ui.admin.nntp_settings.max_cross_post_areas_help') }}</small>
                         </div>
 
+                        <div class="mb-3">
+                            <label class="form-label" for="nntpQuoteStyle">{{ t('ui.admin.nntp_settings.quote_style') }}</label>
+                            <select class="form-select" id="nntpQuoteStyle">
+                                <option value="off">{{ t('ui.admin.nntp_settings.quote_style_off') }}</option>
+                                <option value="outbound">{{ t('ui.admin.nntp_settings.quote_style_outbound') }}</option>
+                                <option value="both">{{ t('ui.admin.nntp_settings.quote_style_both') }}</option>
+                            </select>
+                            <small class="form-text text-muted">{{ t('ui.admin.nntp_settings.quote_style_help') }}</small>
+                        </div>
+
                         <hr>
 
                         <div class="form-check form-switch mb-2">
@@ -141,6 +151,7 @@ function populateNntpForm() {
     $('#nntpPostsPerMinute').val(nntpConfig.posts_per_minute ?? 10);
     $('#nntpPostsPerHour').val(nntpConfig.posts_per_hour ?? 60);
     $('#nntpMaxCrossPost').val(nntpConfig.max_cross_post_areas || 5);
+    $('#nntpQuoteStyle').val(nntpConfig.quote_style_conversion || 'outbound');
     $('#nntpAllowPlaintextAuth').prop('checked', nntpConfig.allow_plaintext_auth || false);
 }
 
@@ -153,6 +164,7 @@ async function saveNntpSettings() {
         posts_per_hour: parseInt($('#nntpPostsPerHour').val(), 10),
         max_cross_post_areas: parseInt($('#nntpMaxCrossPost').val(), 10),
         max_connections_per_ip: parseInt($('#nntpMaxConnPerIp').val(), 10),
+        quote_style_conversion: $('#nntpQuoteStyle').val(),
         allow_plaintext_auth: $('#nntpAllowPlaintextAuth').is(':checked')
     };
 
