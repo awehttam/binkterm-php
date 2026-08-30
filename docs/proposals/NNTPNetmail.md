@@ -26,7 +26,8 @@ user's own netmail, readable in any standard newsreader, with `POST` wired to
 `MessageHandler::sendNetmail()` so replies and new messages route out through the BinkP
 mailer.
 
-The user-visible result is a group such as `BinktermPHP.netmail` that behaves like a
+The user-visible result is a group named `netmail` (or `private.netmail`, or
+`<bbs-name>.netmail` — see the Prefix open question) that behaves like a
 personal mail folder inside a newsreader — new inbound netmail appears as new articles,
 and posting to the group (or replying to an article in it) sends netmail.
 
@@ -146,7 +147,7 @@ Suggested surface:
 ```php
 interface NntpGroupSource
 {
-    public function groupName(): string;                       // "BinktermPHP.netmail"
+    public function groupName(): string;                       // "netmail" / "private.netmail"
     public function description(): string;
     public function isPostable(): bool;                        // maps to LIST ACTIVE flag y/n
     public function ensureNumbered(): void;                    // lazy article-number allocation
@@ -329,9 +330,12 @@ the admin daemon — never directly by a route), read through `NntpConfig`:
 
 - `expose_netmail_group` (boolean, default `true` when the NNTP server is enabled) —
   whether the per-user netmail group is listed and selectable at all.
-- `netmail_group_name` (string, default `netmail`) — the leaf name; the full group name is
-  `<hierarchy-prefix>.<netmail_group_name>`, using the same prefix convention as echo
-  groups (or a fixed `BinktermPHP.` prefix if that reads better — open question).
+- `netmail_group_name` (string, default `netmail`) — the leaf name.
+- `netmail_group_prefix` (enum: `none` | `private` | `bbs-name`, default `none`) — the
+  hierarchy the leaf sits under. `none` → `netmail`; `private` → `private.netmail`;
+  `bbs-name` → `<sanitized BBS name>.netmail` (lowercased, non-`[a-z0-9]` runs collapsed to
+  `-`, trimmed; empty result falls back to `private`). Never a hard-coded product name. See
+  the Prefix open question.
 - `allow_netmail_send` (boolean, default follows the existing `allow_posting`) — whether
   `POST` into the netmail group is honored. When `false` the group is read-only and its
   `LIST ACTIVE` flag is `n`.
@@ -386,10 +390,18 @@ No new `.env` / transport settings — the netmail group rides the existing list
 
 ## Open Questions
 
-- **Prefix.** Should the group be `BinktermPHP.netmail` (fixed), or use each user's
-  primary network prefix (`LovelyBits.netmail`)? A fixed prefix is simpler and unambiguous;
-  a network prefix is more consistent with the echo groups but meaningless for netmail,
-  which is not network-scoped.
+- **Prefix.** Netmail is not network-scoped, so borrowing a per-user network prefix
+  (`LovelyBits.netmail`) is misleading, and a hardcoded product-name prefix (`BinktermPHP.`)
+  is undesirable. Candidates, roughly in order of preference:
+  - `netmail` — no prefix at all; shortest, unambiguous, sorts on its own.
+  - `private.netmail` — a fixed `private.` hierarchy that could later hold other
+    per-user pseudo-groups.
+  - `<bbs-name>.netmail` — the configured BBS name, sanitized to a valid newsgroup
+    component (lowercase, `[a-z0-9]`, other runs collapsed to `-`, no leading/trailing `-`);
+    falls back to `private` (or plain `netmail`) if the sanitized name is empty.
+
+  `netmail_group_name` (leaf) and a separate `netmail_group_prefix` (empty / `private` /
+  `bbs-name`) config pair covers all three without a hard-coded product string anywhere.
 - **Sent-item article identity.** A sent message that later bounces or is re-sent — does it
   keep its article number? (Proposed: yes, numbers are never reused; a re-send is a new
   row with a new number.)
