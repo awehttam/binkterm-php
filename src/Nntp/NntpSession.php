@@ -117,6 +117,8 @@ class NntpSession
                 continue;
             }
 
+            $this->logWire('C:', $this->redactCommand($line));
+
             try {
                 $this->dispatch($line);
             } catch (\Throwable $e) {
@@ -724,6 +726,8 @@ class NntpSession
             $this->send('441 Article rejected (too large or connection lost)');
             return;
         }
+        $this->logWire('C:', '[POSTed article, ' . strlen($raw) . ' bytes]');
+        $this->logPostedArticle($raw);
 
         $post = new NntpPost($this->db, $this->config, $this->logger, $this->groups, (int)$this->userId, $this->subscribed);
         $result = $post->submit($raw);
@@ -979,6 +983,7 @@ class NntpSession
 
     private function send(string $line): void
     {
+        $this->logWire('S:', $line);
         ($this->writeRaw)($line . "\r\n");
     }
 
@@ -989,6 +994,9 @@ class NntpSession
      */
     private function sendMulti(string $status, array $lines): void
     {
+        $n = count($lines);
+        $this->logWire('S:', $n > 0 ? $status . ' [+' . $n . ' line' . ($n === 1 ? '' : 's') . ']' : $status);
+
         $buf = $status . "\r\n";
         foreach ($lines as $line) {
             $line = str_replace(["\r", "\n"], '', (string)$line);
@@ -999,6 +1007,42 @@ class NntpSession
         }
         $buf .= ".\r\n";
         ($this->writeRaw)($buf);
+    }
+
+    /**
+     * Protocol-level wire trace at DEBUG (`--log-level=DEBUG`). `$dir` is `C:` for
+     * a line received from the client, `S:` for one sent to it. A cheap no-op
+     * when DEBUG logging is off.
+     */
+    private function logWire(string $dir, string $text): void
+    {
+        $this->logger->debug('[nntp] ' . $dir . ' ' . $text, ['ip' => $this->remoteIp]);
+    }
+
+    /**
+     * Redact the passphrase from an `AUTHINFO PASS ...` line before it is traced.
+     */
+    private function redactCommand(string $line): string
+    {
+        if (stripos($line, 'AUTHINFO PASS ') === 0) {
+            return 'AUTHINFO PASS ***';
+        }
+
+        return $line;
+    }
+
+    /**
+     * Trace the header block of a POSTed article at DEBUG (the body is omitted —
+     * it can be large and is not protocol-relevant).
+     */
+    private function logPostedArticle(string $raw): void
+    {
+        $headerBlock = preg_split('/\r?\n\r?\n/', $raw, 2)[0] ?? '';
+        foreach (preg_split('/\r?\n/', $headerBlock) as $line) {
+            if (trim($line) !== '') {
+                $this->logWire('C:', '  ' . $line);
+            }
+        }
     }
 
     // ── Static parsing helpers ─────────────────────────────────────────────

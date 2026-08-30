@@ -106,6 +106,7 @@ class NntpServer
                 }
 
                 $ip = $this->peerIp($peer);
+                $this->logger->debug('[nntp] accept', ['ip' => $ip, 'port' => $isTls ? 'tls' : 'plain', 'peer' => $peer]);
 
                 if (($this->perIp[$ip] ?? 0) >= $this->config->getMaxConnectionsPerIp()) {
                     $this->logger->warning('[nntp] connection refused (per-IP limit)', ['ip' => $ip]);
@@ -163,6 +164,7 @@ class NntpServer
                 $this->drainSslErrors('implicit TLS handshake failed', $ip);
                 return;
             }
+            $this->logger->debug('[nntp] implicit TLS handshake ok', ['ip' => $ip]);
         }
 
         // Fresh PDO handle after fork (the parent's must not be shared).
@@ -277,6 +279,24 @@ class NntpServer
 
     private function logStartupDiagnostics(): void
     {
+        $c = $this->config;
+        $this->logger->debug('[nntp] effective config: ' . json_encode([
+            'enabled' => $c->isEnabled(),
+            'allow_posting' => $c->isPostingAllowed(),
+            'allow_plaintext_auth' => $c->isPlaintextAuthAllowed(),
+            'newsgroup_prefix_mode' => $c->getNewsgroupPrefixMode(),
+            'quote_style_conversion' => $c->getQuoteStyleConversion(),
+            'max_connections_per_ip' => $c->getMaxConnectionsPerIp(),
+            'posts_per_minute' => $c->getPostsPerMinute(),
+            'posts_per_hour' => $c->getPostsPerHour(),
+            'expose_netmail_group' => $c->isNetmailGroupExposed(),
+            'netmail_group_name' => $c->getNetmailGroupName(),
+            'allow_netmail_send' => $c->isNetmailSendAllowed(),
+            'netmail_group_include_sent' => $c->shouldIncludeSentNetmail(),
+            'netmail_posts_per_minute' => $c->getNetmailPostsPerMinute(),
+            'netmail_posts_per_hour' => $c->getNetmailPostsPerHour(),
+        ]));
+
         try {
             $groups = new NntpNewsgroups(Database::getInstance()->getPdo(), $this->config);
             foreach ($groups->detectCollisions() as $name => $sources) {

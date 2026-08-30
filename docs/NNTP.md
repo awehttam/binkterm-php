@@ -237,3 +237,7 @@ time a member opens the group, and a soft-deleted netmail's number is retired.
   startup.
 - **Probe the server** without a full newsreader:
   `php scripts/nntp_test_client.php --host=127.0.0.1 --port=8119 --user=NAME --pass=PW`
+- **See the protocol dialogue** — start the daemon with `--log-level=DEBUG`. The log
+  then carries the full wire trace (`C:` lines received, `S:` responses, multi-line
+  bodies summarised as `[+N lines]`, POSTed article headers, and the effective
+  `config/nntp.json` at startup). `AUTHINFO PASS` is redacted.
