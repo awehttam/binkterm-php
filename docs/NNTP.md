@@ -8,6 +8,9 @@ Reading works out of the box once the server is enabled. **Posting from a
 newsreader is off by default** — turn on *Allow posting from newsreaders* in
 **Admin → NNTP Server** to let members compose and reply from their client.
 
+Each member also gets a private **netmail** newsgroup — a personal mail folder
+inside the newsreader. See [Netmail newsgroup](#netmail-newsgroup) below.
+
 ## How it works
 
 - Each active echoarea becomes a newsgroup named `<Network>.<AreaTag>` — for
@@ -79,6 +82,11 @@ outside).
 | Max cross-post areas | Most echoareas one article may target via a multi-group `Newsgroups:` header. An over-limit post is **rejected**, not trimmed. |
 | Quote-style conversion | `Off`, `Outbound only` (default), or `Both directions`. See [Quote-style conversion](#quote-style-conversion) below. |
 | Allow plaintext authentication on the plaintext port | **Off by default.** When off, a newsreader on the plaintext port must run `STARTTLS` before it can log in. Turn it on only for a legacy reader with no TLS support, accepting that its password crosses the wire in cleartext. The implicit-TLS port is always encrypted. |
+| Offer the netmail newsgroup | On by default. Gives every authenticated member the private [netmail newsgroup](#netmail-newsgroup). |
+| Netmail newsgroup name | The group's name (default `netmail`). Cleaned to a valid newsgroup name. |
+| Allow sending netmail from newsreaders | On by default, but only effective when *Allow posting from newsreaders* is also on. When off, the netmail group is read-only. |
+| Include sent netmail as articles | On by default — the member's own sent netmail appears alongside received mail as one thread. Off makes the group inbound-only. |
+| Netmail per minute / hour | Per-member limits on netmail *sent* through NNTP, separate from the posting limits above. 0 disables a limit. |
 
 Settings are stored in `config/nntp.json` and written through the admin daemon.
 **Restart the NNTP daemon after saving.**
@@ -138,6 +146,46 @@ When *Allow posting from newsreaders* is on:
 - Cancel and supersede control messages are accepted and silently dropped (FTN
   has no equivalent).
 
+## Netmail newsgroup
+
+Alongside the echoarea groups, each authenticated member sees one extra group —
+`netmail` by default — that behaves like a personal mail folder:
+
+- Its articles are **that member's own netmail** (received, plus sent unless the
+  sysop turns that off). Two members connected to the same server see completely
+  different articles under the same group name. A member never sees another
+  member's netmail through it.
+- New inbound netmail simply appears as new articles; `NEWNEWS` reports it.
+- Articles carry a real `To:` header (both the display name and the FTN address),
+  plus `X-FTN-From-Address` / `X-FTN-To-Address` for round-tripping. The echomail
+  area kludges (`X-FTN-AREA`, `SEEN-BY`, `PATH`, origin) do not apply. Sent items
+  are tagged `X-BinktermPHP-Folder: sent`.
+- A send/receive exchange threads together (`References:`), so a conversation
+  reads in order.
+
+### Sending netmail
+
+With *Allow posting from newsreaders* and *Allow sending netmail from newsreaders*
+both on, posting into the netmail group sends netmail. The message goes through
+`MessageHandler::sendNetmail()` — the same path as web/terminal — so origin-address
+selection, the destination network's posting-name policy, charset, local-sysop
+routing, credit costs and outbound spooling all apply.
+
+The destination FTN address is resolved in this order:
+
+1. an explicit `X-FTN-To: 21:1/100` header (with optional `X-FTN-To-Name`);
+2. **reply** — when `References:` points at an article in your netmail group, the
+   address is taken from that parent message (its reply address, else its sender).
+   This is the zero-effort common case;
+3. the `To:` header — either the `(z:n/f.p)` shown in its display-name comment or
+   the `f…n…z…` host form of the address, both of which this server emits on the
+   articles it serves, so "reply" and "copy the address from a message" just work.
+
+If none of those yields a valid FTN address the post is rejected with
+`441 Cannot determine netmail destination`. Netmail cannot be cross-posted —
+naming the netmail group together with any other group is rejected. Attachments,
+file requests and crashmail are not supported over NNTP.
+
 ## Quote-style conversion
 
 FTN and newsreaders quote replies differently. FTN uses the FSC-0032 form — the
@@ -171,6 +219,10 @@ NNTP requires per-group article numbers that are never reused. BinktermPHP keeps
 them in `nntp_article_numbers` / `nntp_area_watermark`; the daemon assigns numbers
 the first time an area is read. If echomail is later pruned, the numbers it held
 are retired (not reissued) and requests for them return `423`.
+
+The netmail group has its own per-member tables, `nntp_netmail_article_numbers` /
+`nntp_netmail_watermark`, with the same rules — numbers are assigned the first
+time a member opens the group, and a soft-deleted netmail's number is retired.
 
 ## Troubleshooting
 

@@ -410,7 +410,7 @@ Like the telnet and SSH daemons, the NNTP daemon runs as its own process rather 
 
 2. **Flood control is configurable** — Per-user post rate limits (e.g. max posts per minute and per hour) should be configurable via the admin interface with reasonable defaults (e.g. 10 posts/minute, 60 posts/hour). Posts that exceed the limit are rejected with a 441 response rather than silently queued.
 
-3. **No peering** — The server implements client-facing NNTP only. Server-to-server commands (`IHAVE`, `CHECK`, `TAKETHIS`) are not implemented. The BinktermPHP FTN mailer remains the sole mechanism for propagating messages to the wider network.
+3. **No peering** — The server implements client-facing NNTP only. Server-to-server commands (`IHAVE`, `CHECK`, `TAKETHIS`) are not implemented. The BinktermPHP FTN mailer remains the sole mechanism for propagating messages to the wider network. The client-facing surface now covers both echomail (each subscribed echoarea is a newsgroup) and, per member, a private `netmail` pseudo-newsgroup — see `docs/proposals/NNTPNetmail.md` and `docs/NNTP.md`. Both are served through the shared `NntpGroupSource` strategy so the session code stays message-type agnostic.
 
 4. **Article expiry is a backend concern** — The NNTP daemon does not send `Expires:` headers and does not manage expiry itself. If the BinktermPHP backend prunes old echomail rows, those articles disappear from the newsgroup's `LOW`–`HIGH` range, but the article numbers they held are retired, never reissued (the per-area watermark does not roll back — see Article Numbering). Newsreaders that have already downloaded them will retain their local copies; requests for a retired or never-assigned article number return 423.
 

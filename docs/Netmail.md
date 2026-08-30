@@ -84,10 +84,13 @@ user's identity and the system's addresses. Soft-delete is applied per side: a r
 from the sender when `deleted_by_sender` is set (matched via `user_id`), and from the
 recipient when `deleted_by_recipient` is set (matched via the `to_name` + `to_address` test).
 
-This predicate is currently implemented (and duplicated) in `MessageHandler::getNetmail()`,
-`getMessage()`, and — transitively — `getNetmailConversation()`. `deleteNetmail()` uses a
-simplified form of the same test to decide which soft-delete flag to set. New code that
-needs to query netmail for a user should go through `MessageHandler` rather than
+This predicate is built by `MessageHandler::netmailVisibilityClause()` /
+`netmailNotDeletedClause()` (with public `netmailVisibilityFilter()` /
+`netmailNotDeletedFilter()` wrappers returning a `{sql, params}` fragment for callers
+outside the class, such as the NNTP netmail source). `getNetmail()`, `getThreadedNetmail()`
+and `getMessage()` all build their `WHERE` clauses from these helpers; `deleteNetmail()`
+uses a simplified form of the same test to decide which soft-delete flag to set. New code
+that needs to query netmail for a user must go through these helpers rather than
 re-deriving the predicate.
 
 ### Planned change
@@ -232,10 +235,12 @@ tables):
 | `POST` | `/api/netmail/attachment/upload` | Stage a file for an outbound attachment. |
 | `POST` | `/api/messages/send` (`type=netmail`) | Compose and send (routes into `sendNetmail()`). |
 
-The terminal server has a parallel netmail path (`telnet/src/`), and NNTP exposure of
-netmail as a per-user pseudo-newsgroup is proposed in
-`docs/proposals/NNTPNetmail.md`. Feature work on netmail should keep parity across the web,
-terminal, and (where applicable) QWK and NNTP surfaces.
+The terminal server has a parallel netmail path (`telnet/src/`). The NNTP server exposes
+each member's netmail as a private per-user pseudo-newsgroup (`src/Nntp/NetmailGroupSource.php`,
+`src/Nntp/NntpNetmailPost.php`; see `docs/NNTP.md` and `docs/proposals/NNTPNetmail.md`) —
+every query there is scoped through `MessageHandler::netmailVisibilityFilter()` /
+`netmailNotDeletedFilter()`, the same helpers the web inbox uses. Feature work on netmail
+should keep parity across the web, terminal, and (where applicable) QWK and NNTP surfaces.
 
 ---
 

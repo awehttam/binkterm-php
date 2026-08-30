@@ -1,6 +1,8 @@
 # NNTP Netmail Folder for BinktermPHP
 
-**Status:** DRAFT — Discussion Only
+**Status:** IMPLEMENTED on the `nntpserver` branch (see `docs/NNTP.md` — "Netmail newsgroup").
+This document is retained as the design record; where it and the code differ, the code and
+`docs/NNTP.md` are authoritative.
 **Generated:** 2026-08-29
 
 ---
