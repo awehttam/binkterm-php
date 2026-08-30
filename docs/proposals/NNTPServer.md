@@ -144,7 +144,7 @@ Synchronet encodes the FTN address into a structured email-like address using th
 "awehttam" (227:1/200) <awehttam@f200.n1.z227.fidonet>
 ```
 
-The format is `"DisplayName" (zone:net/node.point) <username@f{node}.n{net}.z{zone}.{domain}>`, where `{domain}` is the echoarea's FTN domain (e.g. `lovlynet`), falling back to `fidonet` when the area has no domain set. Point 0 is included literally. This is non-routable but unambiguous and round-trippable.
+The format is `"DisplayName" (zone:net/node.point) <username@f{node}.n{net}.z{zone}.{domain}>`, where `{domain}` is the echoarea's FTN domain (e.g. `lovlynet`), falling back to `local` when the area has no domain set (local-only areas carry no FTN domain). Point 0 is included literally. This is non-routable but unambiguous and round-trippable.
 
 #### Message-ID format
 

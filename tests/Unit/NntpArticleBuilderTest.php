@@ -15,13 +15,13 @@ final class NntpArticleBuilderTest extends TestCase
 
     public function testFromHeaderSynthesisWithFtnAddress(): void
     {
-        $from = $this->builder()->fromHeader('John Gonzales', '1:267/331');
+        $from = $this->builder()->fromHeader('John Gonzales', '1:267/331', 'fidonet');
         self::assertSame('"John Gonzales" (1:267/331.0) <john.gonzales@f331.n267.z1.fidonet>', $from);
     }
 
     public function testFromHeaderWithPoint(): void
     {
-        $from = $this->builder()->fromHeader('Kludge', '227:1/200.5');
+        $from = $this->builder()->fromHeader('Kludge', '227:1/200.5', 'fidonet');
         self::assertStringContainsString('(227:1/200.5)', $from);
         self::assertStringContainsString('<kludge@p5.f200.n1.z227.fidonet>', $from);
     }
@@ -38,7 +38,13 @@ final class NntpArticleBuilderTest extends TestCase
     public function testFromHeaderUnparseableAddressStillValid(): void
     {
         $from = $this->builder()->fromHeader('Some One', 'garbage');
-        self::assertStringContainsString('<some.one@unknown.fidonet>', $from);
+        self::assertStringContainsString('<some.one@unknown.local>', $from);
+    }
+
+    public function testFromHeaderLocalAreaHasNoFtnDomain(): void
+    {
+        $from = $this->builder()->fromHeader('Some One', '999:1/1');
+        self::assertStringContainsString('<some.one@f1.n1.z999.local>', $from);
     }
 
     public function testEncodeHeaderPassesAsciiThrough(): void

@@ -302,7 +302,7 @@ class NntpArticleBuilder
      * `"Display Name" (z:n/f.p) <handle@fN.nN.zN.domain>` — non-routable but
      * unambiguous and round-trippable (docs/proposals/NNTPServer.md — "From address").
      * `$domain` is the echoarea's FTN domain (e.g. `lovlynet`); falls back to
-     * `fidonet` when empty.
+     * `local` when empty (local-only areas carry no FTN domain).
      */
     public function fromHeader(string $name, string $address, string $domain = ''): string
     {
@@ -311,7 +311,7 @@ class NntpArticleBuilder
 
         $tld = strtolower(preg_replace('/[^A-Za-z0-9-]+/', '', $domain) ?? '');
         if ($tld === '') {
-            $tld = 'fidonet';
+            $tld = 'local';
         }
 
         $handle = strtolower(preg_replace('/[^A-Za-z0-9._-]+/', '.', $name) ?? '');
