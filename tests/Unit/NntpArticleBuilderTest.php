@@ -26,6 +26,15 @@ final class NntpArticleBuilderTest extends TestCase
         self::assertStringContainsString('<kludge@p5.f200.n1.z227.fidonet>', $from);
     }
 
+    public function testFromHeaderUsesEchoareaDomain(): void
+    {
+        $from = $this->builder()->fromHeader('Mistigris', '227:1/200.0', 'lovlynet');
+        self::assertStringContainsString('<mistigris@f200.n1.z227.lovlynet>', $from);
+
+        $garbled = $this->builder()->fromHeader('Some One', 'garbage', 'lovlynet');
+        self::assertStringContainsString('<some.one@unknown.lovlynet>', $garbled);
+    }
+
     public function testFromHeaderUnparseableAddressStillValid(): void
     {
         $from = $this->builder()->fromHeader('Some One', 'garbage');

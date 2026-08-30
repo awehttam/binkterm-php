@@ -121,7 +121,7 @@ Synchronet's output is a useful reference for which headers to emit. BinktermPHP
 
 | FTN field / kludge  | NNTP header             | Notes                                                    |
 |---------------------|-------------------------|----------------------------------------------------------|
-| `From:` (name)      | `From:`                 | `"Name" (z:n/f.p) <user@fN.nN.zN.fidonet>` — see below |
+| `From:` (name)      | `From:`                 | `"Name" (z:n/f.p) <user@fN.nN.zN.{domain}>` — see below |
 | `Subject:`          | `Subject:`              |                                                          |
 | `To:` (name)        | `X-Comment-To:`         | Synchronet convention; `To:` header is omitted           |
 | `MSGID:` kludge     | `Message-ID:`           | Origin address + serial both folded in; see format below; raw value also in `X-FTN-MSGID:` |
@@ -144,7 +144,7 @@ Synchronet encodes the FTN address into a structured email-like address using th
 "awehttam" (227:1/200) <awehttam@f200.n1.z227.fidonet>
 ```
 
-The format is `"DisplayName" (zone:net/node.point) <username@f{node}.n{net}.z{zone}.fidonet>`. Point 0 is included literally. This is non-routable but unambiguous and round-trippable.
+The format is `"DisplayName" (zone:net/node.point) <username@f{node}.n{net}.z{zone}.{domain}>`, where `{domain}` is the echoarea's FTN domain (e.g. `lovlynet`), falling back to `fidonet` when the area has no domain set. Point 0 is included literally. This is non-routable but unambiguous and round-trippable.
 
 #### Message-ID format
 

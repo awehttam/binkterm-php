@@ -137,7 +137,7 @@ class NntpPost
                     !$isPrimary,   // skipCredits for cross-posted copies
                     null,
                     '',
-                    null,
+                    'NNTP', // tearline component -> "--- BinktermPHP NNTP vX.Y.Z"
                     'UTF-8',
                     null
                 );

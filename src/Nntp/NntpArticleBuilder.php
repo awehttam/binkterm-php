@@ -62,7 +62,7 @@ class NntpArticleBuilder
         $headers = [];
 
         $headers[] = 'Path: ' . $this->host . '!not-for-mail';
-        $headers[] = 'From: ' . $this->fromHeader((string)($em['from_name'] ?? ''), (string)($em['from_address'] ?? ''));
+        $headers[] = 'From: ' . $this->fromHeader((string)($em['from_name'] ?? ''), (string)($em['from_address'] ?? ''), (string)($area['domain'] ?? ''));
         $headers[] = 'Newsgroups: ' . $group;
 
         $subject = trim((string)($em['subject'] ?? ''));
@@ -150,7 +150,7 @@ class NntpArticleBuilder
         $fields = [
             (string)$number,
             $this->overClean($this->encodeHeader($subject === '' ? '(none)' : $subject)),
-            $this->overClean($this->fromHeader((string)($em['from_name'] ?? ''), (string)($em['from_address'] ?? ''))),
+            $this->overClean($this->fromHeader((string)($em['from_name'] ?? ''), (string)($em['from_address'] ?? ''), (string)($area['domain'] ?? ''))),
             $this->rfcDate($em['date_written'] ?? null, $em['date_received'] ?? null),
             $built['message_id'],
             $this->headerValue($built['headers'], 'References'),
@@ -269,13 +269,20 @@ class NntpArticleBuilder
     // ── From: synthesis ────────────────────────────────────────────────────
 
     /**
-     * `"Display Name" (z:n/f.p) <handle@fN.nN.zN.fidonet>` — non-routable but
+     * `"Display Name" (z:n/f.p) <handle@fN.nN.zN.domain>` — non-routable but
      * unambiguous and round-trippable (docs/proposals/NNTPServer.md — "From address").
+     * `$domain` is the echoarea's FTN domain (e.g. `lovlynet`); falls back to
+     * `fidonet` when empty.
      */
-    public function fromHeader(string $name, string $address): string
+    public function fromHeader(string $name, string $address, string $domain = ''): string
     {
         $name = trim($name) === '' ? 'Unknown' : trim($name);
         $address = trim($address);
+
+        $tld = strtolower(preg_replace('/[^A-Za-z0-9-]+/', '', $domain) ?? '');
+        if ($tld === '') {
+            $tld = 'fidonet';
+        }
 
         $handle = strtolower(preg_replace('/[^A-Za-z0-9._-]+/', '.', $name) ?? '');
         $handle = trim($handle, '.');
@@ -289,12 +296,12 @@ class NntpArticleBuilder
             $node = (int)$m[3];
             $point = (int)($m[4] ?? 0);
             $tuple = sprintf('%d:%d/%d.%d', $zone, $net, $node, $point);
-            $domain = ($point > 0 ? "p{$point}." : '') . "f{$node}.n{$net}.z{$zone}.fidonet";
+            $domain = ($point > 0 ? "p{$point}." : '') . "f{$node}.n{$net}.z{$zone}.{$tld}";
             return sprintf('%s (%s) <%s@%s>', $this->quoteDisplayName($name), $tuple, $handle, $domain);
         }
 
         // Address unparseable — still emit a syntactically valid From.
-        return sprintf('%s <%s@%s>', $this->quoteDisplayName($name), $handle, 'unknown.fidonet');
+        return sprintf('%s <%s@%s>', $this->quoteDisplayName($name), $handle, 'unknown.' . $tld);
     }
 
     private function quoteDisplayName(string $name): string
