@@ -59,6 +59,9 @@ class NntpSession
     private ?NntpGroupSource $source = null;
     private ?int $pointer = null;
 
+    /** Memoized per-connection netmail group source (built on first use). */
+    private ?NetmailGroupSource $netmailSource = null;
+
     private bool $quit = false;
 
     /**
@@ -250,6 +253,7 @@ class NntpSession
         $this->subscribed = [];
         $this->source = null;
         $this->pointer = null;
+        $this->netmailSource = null;
     }
 
     // ── AUTHINFO ───────────────────────────────────────────────────────────
@@ -393,9 +397,15 @@ class NntpSession
     private function visibleGroups(): array
     {
         $out = [];
+        $netmailName = $this->netmailGroupName();
         foreach ($this->subscribed as $row) {
             $group = $this->groups->groupNameForArea($row);
             if ($group === null) {
+                continue;
+            }
+            // A misconfigured echoarea whose translated name collides with the
+            // netmail group is skipped here — the per-user netmail group wins.
+            if ($netmailName !== null && strcasecmp($group, $netmailName) === 0) {
                 continue;
             }
             $source = $this->sourceForArea($row);
@@ -409,6 +419,20 @@ class NntpSession
                 'source' => $source,
             ];
         }
+
+        if ($netmailName !== null) {
+            $source = $this->netmailSource();
+            $source->ensureNumbered();
+            $bounds = $source->bounds();
+            $out[] = [
+                'group' => $netmailName,
+                'low' => $bounds['low'],
+                'high' => $bounds['high'],
+                'count' => $bounds['count'],
+                'source' => $source,
+            ];
+        }
+
         usort($out, static fn ($a, $b) => strcmp($a['group'], $b['group']));
 
         return $out;
@@ -426,6 +450,50 @@ class NntpSession
         }
 
         return new EchomailGroupSource($this->db, $row, $this->numbers, $this->builder);
+    }
+
+    /**
+     * Configured netmail newsgroup name for this authenticated connection, or
+     * null when the feature is disabled or the connection is unauthenticated
+     * (the group is per-user).
+     */
+    private function netmailGroupName(): ?string
+    {
+        if (!$this->authenticated || $this->userId === null || !$this->config->isNetmailGroupExposed()) {
+            return null;
+        }
+
+        return $this->config->getNetmailGroupName();
+    }
+
+    private function netmailSource(): NetmailGroupSource
+    {
+        if ($this->netmailSource === null) {
+            $handler = new \BinktermPHP\MessageHandler();
+            $numbers = new NntpNetmailArticleNumbers(
+                $this->db,
+                $handler,
+                $this->config->shouldIncludeSentNetmail() ? 'either' : 'recipient'
+            );
+            $builder = new NntpNetmailArticleBuilder(
+                $this->db,
+                $this->config->getNetmailGroupName(),
+                null,
+                $this->config->shouldConvertOutboundQuotes()
+            );
+            $this->netmailSource = new NetmailGroupSource(
+                $this->db,
+                (int)$this->userId,
+                $this->config->getNetmailGroupName(),
+                'Your private netmail',
+                $this->config->isNetmailSendAllowed(),
+                $handler,
+                $numbers,
+                $builder
+            );
+        }
+
+        return $this->netmailSource;
     }
 
     // ── NEWGROUPS / NEWNEWS ────────────────────────────────────────────────
@@ -542,6 +610,15 @@ class NntpSession
      */
     private function selectGroup(string $name): ?NntpGroupSource
     {
+        $netmailName = $this->netmailGroupName();
+        if ($netmailName !== null && strcasecmp($name, $netmailName) === 0) {
+            $source = $this->netmailSource();
+            $source->ensureNumbered();
+            $this->source = $source;
+
+            return $source;
+        }
+
         $row = $this->groups->resolveGroup($name);
         if ($row === null || !isset($this->subscribed[(int)$row['id']])) {
             $this->send('411 No such newsgroup (or not subscribed)');
@@ -843,6 +920,15 @@ class NntpSession
         $parsed = NntpMessageId::parse($messageId);
         if ($parsed === null) {
             return null;
+        }
+
+        $netmailName = $this->netmailGroupName();
+        if ($netmailName !== null && strcasecmp($parsed['group'], $netmailName) === 0) {
+            $source = $this->netmailSource();
+            $source->ensureNumbered();
+            $number = $source->resolveMessageId($messageId);
+
+            return $number === null ? null : [$source, $number];
         }
 
         $area = $this->groups->resolveGroup($parsed['group']);

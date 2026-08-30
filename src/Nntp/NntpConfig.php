@@ -95,6 +95,22 @@ class NntpConfig
             //   "outbound" - FSC-0032 " XX> " -> "> " on served articles only (default)
             //   "both"     - also convert "> " -> " XX> " on inbound POSTs
             'quote_style_conversion' => 'outbound',
+            // Virtual per-user netmail newsgroup (docs/proposals/NNTPNetmail.md).
+            // When true, every authenticated user sees a private group whose
+            // articles are their own netmail.
+            'expose_netmail_group' => true,
+            // Leaf/full name of that group. Bare "netmail" by default (no prefix,
+            // not network-scoped). A sysop may set e.g. "private.netmail".
+            'netmail_group_name' => 'netmail',
+            // Whether POST into the netmail group sends netmail. Effective only
+            // when allow_posting is also true.
+            'allow_netmail_send' => true,
+            // Include the user's own sent netmail as articles (unified inbox+sent).
+            'netmail_group_include_sent' => true,
+            // Per-user netmail send rate limits, independent of the echomail
+            // posts_per_minute / posts_per_hour.
+            'netmail_posts_per_minute' => 5,
+            'netmail_posts_per_hour' => 30,
         ];
     }
 
@@ -195,7 +211,31 @@ class NntpConfig
             ? $merged['quote_style_conversion']
             : 'outbound';
 
+        $merged['expose_netmail_group'] = (bool)$merged['expose_netmail_group'];
+        $merged['allow_netmail_send'] = (bool)$merged['allow_netmail_send'];
+        $merged['netmail_group_include_sent'] = (bool)$merged['netmail_group_include_sent'];
+        $merged['netmail_group_name'] = self::sanitizeGroupName((string)$merged['netmail_group_name']);
+        $merged['netmail_posts_per_minute'] = max(0, (int)$merged['netmail_posts_per_minute']);
+        $merged['netmail_posts_per_hour'] = max(0, (int)$merged['netmail_posts_per_hour']);
+
         return $merged;
+    }
+
+    /**
+     * Coerce a configured netmail group name to a syntactically valid newsgroup
+     * name (dot-separated components of [A-Za-z0-9+_-]). Falls back to "netmail".
+     */
+    private static function sanitizeGroupName(string $name): string
+    {
+        $parts = [];
+        foreach (explode('.', strtolower(trim($name))) as $part) {
+            $part = preg_replace('/[^a-z0-9+_-]+/', '', $part) ?? '';
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return $parts === [] ? 'netmail' : implode('.', $parts);
     }
 
     // ── Typed getters ────────────────────────────────────────────────────────
@@ -256,6 +296,40 @@ class NntpConfig
     public function shouldConvertOutboundQuotes(): bool
     {
         return in_array($this->getQuoteStyleConversion(), ['outbound', 'both'], true);
+    }
+
+    // ── Netmail newsgroup ────────────────────────────────────────────────────
+
+    public function isNetmailGroupExposed(): bool
+    {
+        return (bool)($this->config['expose_netmail_group'] ?? true);
+    }
+
+    /** Full newsgroup name for the per-user netmail group. */
+    public function getNetmailGroupName(): string
+    {
+        return self::sanitizeGroupName((string)($this->config['netmail_group_name'] ?? 'netmail'));
+    }
+
+    /** True when POST into the netmail group is honoured (requires allow_posting too). */
+    public function isNetmailSendAllowed(): bool
+    {
+        return $this->isPostingAllowed() && (bool)($this->config['allow_netmail_send'] ?? true);
+    }
+
+    public function shouldIncludeSentNetmail(): bool
+    {
+        return (bool)($this->config['netmail_group_include_sent'] ?? true);
+    }
+
+    public function getNetmailPostsPerMinute(): int
+    {
+        return max(0, (int)($this->config['netmail_posts_per_minute'] ?? 5));
+    }
+
+    public function getNetmailPostsPerHour(): int
+    {
+        return max(0, (int)($this->config['netmail_posts_per_hour'] ?? 30));
     }
 
     /**
