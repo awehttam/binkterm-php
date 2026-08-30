@@ -273,15 +273,22 @@ Two resolution paths, both supported:
    `from_address`, with `to_name` from the parent's `from_name`. Zero user friction; covers
    the common case. This reuses `NntpPost::resolveParent()`-style logic against `netmail`.
 
-2. **New message** — require a parseable recipient. Accept either:
-   - a `To:` header whose addr-spec this server can invert — the `(z:n/f.p)` display
-     comment, or the `f{node}.n{net}.z{zone}.{domain}` host form that
-     `NntpArticleBuilder::fromHeader()` emits — or
+2. **New message** — require a parseable recipient. Accept, in priority order:
    - an explicit `X-FTN-To: 227:1/200` header (with `X-FTN-To-Name` optional; defaults from
-     the `To:` display name).
+     the `To:` display name);
+   - the `(z:n/f.p)` tuple in the `To:` header's display-name comment — the literal FTN
+     address, parsed directly;
+   - the `[pP.]fN.nN.zN.tld` host form in the `To:` addr-spec that
+     `NntpArticleBuilder::fromHeader()` emits — reconstructed as `Z:N/F.P` from the labelled
+     numeric components. The `tld` is **not** consulted: zone, net, node and point are all
+     explicit in the host form, so no domain→zone lookup is needed. (`tld` is only a
+     tiebreaker for the rare case of two networks sharing a zone number; if that ever
+     matters, `BinkpConfig::getUplinkAddressForDomain($tld)` resolves it, but v1 ignores it.)
 
-   If neither yields a valid FTN address, reject with `441 Cannot determine netmail
-   destination`.
+   `NntpArticleBuilder::fromHeader()` emits the `(z:n/f.p)` comment and the host form in the
+   *same* header, so a newsreader replying to or copying an address from a built article
+   always yields at least one invertible form. If none of the three yields a valid FTN
+   address, reject with `441 Cannot determine netmail destination`.
 
 Once resolved, hand off to the shared posting method:
 
@@ -414,17 +421,19 @@ No new `.env` / transport settings — the netmail group rides the existing list
     FTN identities per user are therefore supported for free. The `From:` header on a built
     article always uses that row's stored `from_address`, so it is already correct per-row.
 
+12. **Both `To:` address forms are invertible without a domain lookup.**
+    `NntpArticleBuilder::fromHeader()` emits `"Name" (z:n/f.p) <handle@[pP.]fN.nN.zN.tld>` —
+    the `(z:n/f.p)` comment is a literal FTN address and the host form carries zone, net,
+    node and point as explicit numeric labels. The destination parser inverts either form
+    directly; the `tld` slug is cosmetic and never needs mapping back to a zone. Multiple
+    FTN identities per user therefore need no special handling in the parser — every
+    identity's zone is explicit in its address.
+
 ---
 
 ## Open Questions
 
-- **Host-form `To:` inversion for multi-network users.** The one residual multi-network
-  detail: when a fresh compose supplies only the `f{node}.n{net}.z{zone}.{domain}` host form
-  that `NntpArticleBuilder::fromHeader()` emits (rather than the `(z:n/f.p)` display comment
-  or an explicit `X-FTN-To:`), the parser must map the `{domain}` slug back to a zone to
-  reconstruct the FTN address. `BinkpConfig` already has domain↔address helpers
-  (`getDomainByAddress()`); confirm there is a usable domain→zone lookup, or require one of
-  the two unambiguous forms and reject the bare host form with `441`.
+*(none outstanding — see Design Decisions)*
 
 ---
 
