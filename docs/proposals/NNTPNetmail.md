@@ -45,16 +45,89 @@ the echomail shape:
 | Article numbers | `nntp_article_numbers` keyed `(echoarea_id, …)` | Must be keyed `(user_id, …)` |
 | Article build | `NntpArticleBuilder` emits `Newsgroups:`/`X-FTN-AREA:`/`SEEN-BY`/`PATH` | None of those apply; a real `To:` header does |
 | Posting | `Newsgroups:` header names one or more target areas | The target is an FTN node address the header cannot express |
-| Privacy | Group content is shared; leak risk is low | Every query must be `user_id`-scoped or one account reads another's mail |
+| Privacy | Group content is shared; leak risk is low | Every query must be scoped to "netmail this user may see" or one account reads another's mail |
 
 Because of this, a netmail group cannot reuse the echomail code paths directly. The
 recommended structure is a small strategy layer (below) so both message types share the
 transport, command dispatch, `Message-ID` construction, header encoding, and threading
 helpers without the echomail assumptions bleeding into netmail.
 
+### `netmail.user_id` is not the mailbox owner
+
+An earlier draft of this proposal scoped the group as `netmail WHERE user_id = <authenticated
+user>`. **That is wrong** and must not be implemented. `netmail.user_id` is overloaded:
+
+- **Inbound remote netmail** — `BinkdProcessor` sets `user_id` from
+  `findTargetUser(destAddr, toName)`, which returns `NULL` when the recipient cannot be
+  resolved (a `toName` that is a nickname not matching any `username` / `real_name`, an
+  address not on file). Those rows are still the recipient's mail.
+- **Locally-delivered mail** (same-system user-to-user, or mail to the sysop) —
+  `MessageHandler::sendNetmail()` / `sendLocalSysopMessage()` set `user_id` to the **sender**,
+  and `is_sent` stays `FALSE` forever because there is nothing to spool. See the comments at
+  `src/MessageHandler.php` around the `unread` filter branch.
+- **Outbound spooled mail** — the web "sent" filter does not trust `user_id` at all; it
+  matches on `from_name` + `from_address` against the user's identity and the system
+  addresses.
+
+The web inbox therefore scopes netmail with a compound predicate (see
+`MessageHandler::getNetmail()` and `getMessage()`):
+
+```sql
+WHERE n.user_id = :uid
+   OR ( (LOWER(n.to_name) = LOWER(:username) OR LOWER(n.to_name) = LOWER(:realname))
+        AND n.to_address IN (<this user's FTN + system addresses>) )
+```
+
+plus a per-side soft-delete exclusion (`deleted_by_sender` keyed off `user_id`,
+`deleted_by_recipient` keyed off the `to_name` + address match). This same predicate is
+duplicated across `getNetmail()`, `getMessage()`, and (transitively) `getNetmailConversation()`
+today. The NNTP netmail source **must not** add a fourth copy — see
+[Centralized netmail visibility](#centralized-netmail-visibility) below.
+
+See `docs/Netmail.md` ("Ownership and visibility") for the authoritative description of this
+rule. Note also `docs/proposals/NetmailOwnershipChangesMay9.md`, which proposes replacing the
+name-matching inference with explicit `local_sender_id` / `local_recipient_id` columns. If
+that lands first, the centralized helper below is where it gets adopted, and the NNTP source
+inherits the fix for free.
+
 ---
 
 ## Architecture
+
+### Centralized netmail visibility
+
+Before any NNTP work, extract the duplicated netmail scoping logic in `src/MessageHandler.php`
+into reusable helpers so the web inbox and the NNTP source ask the identical question. Working
+shape (methods on `MessageHandler`, or a dedicated `NetmailVisibility` collaborator it owns):
+
+```php
+/**
+ * SQL predicate + bound params selecting the netmail rows $userId is entitled to
+ * see (received mail + mail they sent), matching the web inbox rules exactly.
+ *
+ * @param string $alias table alias used for netmail in the caller's query
+ * @return array{sql: string, params: list<mixed>}
+ */
+public function netmailVisibilityFilter(int $userId, string $alias = 'n'): array;
+
+/**
+ * SQL predicate + params excluding rows this user has soft-deleted on whichever
+ * side (sender / recipient) they are on.
+ *
+ * @return array{sql: string, params: list<mixed>}
+ */
+public function netmailNotDeletedFilter(int $userId, string $alias = 'n'): array;
+```
+
+`getNetmail()`, `getMessage()`, and `getNetmailConversation()` are refactored to consume these
+helpers (behavior-preserving, its own commit, existing netmail tests stay green). The helpers
+own the "no addresses configured" fallback, the sender-identity exclusion, and — if
+`NetmailOwnershipChangesMay9` lands — the switch to `local_sender_id` / `local_recipient_id`.
+
+`NetmailGroupSource` builds **every** query — `bounds()`, `range()`, `messageIdToNumber()`,
+`loadMessages()`, and the `Message-ID` resolver — as
+`... WHERE <netmailVisibilityFilter> AND <netmailNotDeletedFilter> AND <range/id predicate>`.
+It never writes a bare `user_id = ?` against `netmail`.
 
 ### Group source strategy
 
@@ -120,28 +193,39 @@ CREATE TABLE nntp_netmail_watermark (
 
 Allocation is lazy, mirroring `NntpArticleNumbers::ensureArea()`: at the top of
 `GROUP` / `LISTGROUP` / `OVER` / `ARTICLE`-by-number for the netmail source, assign numbers
-in `netmail.id` order to any of the user's not-yet-mapped, not-soft-deleted rows, inside
-one transaction serialized by the per-user watermark row lock. The insert paths
-(`BinkdProcessor`, `MessageHandler::sendNetmail()`) are left untouched.
+in `netmail.id` order to every row **visible to this user** (`netmailVisibilityFilter($uid)`)
+that is not yet mapped for this user, inside one transaction serialized by the per-user
+watermark row lock. The insert paths (`BinkdProcessor`, `MessageHandler::sendNetmail()`) are
+left untouched. Note a single `netmail` row can be visible to two local users (sender and
+recipient) and then legitimately holds a different article number in each user's space —
+`nntp_netmail_article_numbers` is keyed `(user_id, article_number)` and uniquely indexed
+`(user_id, netmail_id)`, so that is expected, not a conflict.
 
-Soft-deleted rows (`deleted_by_sender` / `deleted_by_recipient`, depending on which side
-this user is on) are excluded from `bounds()` and `range()` exactly the way pruned echomail
-is — their numbers are retired, the watermark does not roll back.
+Soft-deleted rows are excluded from `bounds()` and `range()` via `netmailNotDeletedFilter()`
+exactly the way pruned echomail is — their numbers are retired, the watermark does not roll
+back.
 
-A one-time migration seeds `nntp_netmail_article_numbers` and `nntp_netmail_watermark` for
-existing rows, per user, `ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY id)`, idempotent
-(`ON CONFLICT DO NOTHING`).
+**No bulk backfill migration.** Because visibility depends on the per-user name+address
+match (not a plain `netmail.user_id` partition), a `ROW_NUMBER() OVER (PARTITION BY user_id)`
+seed would allocate the wrong sets and miss rows owned by `to_name` match. Instead the two
+tables ship empty and the first `GROUP` selection per user does the initial lazy allocation
+over that user's full visible history. This keeps the seeding logic in exactly one place and
+guarantees it agrees with the read path.
 
 ### Inbox vs. sent
 
-`netmail` holds both received mail (`user_id` = recipient) and mail this user sent
-(`user_id` = sender, `is_sent = true`). A single flat NNTP group cannot folder them apart.
+`netmail` holds both mail this user received and mail this user sent. Neither side can be
+identified by `user_id` alone (see "`netmail.user_id` is not the mailbox owner" above) — the
+"received vs sent" split is the same `from_name`/`from_address`-vs-`to_name`/`to_address`
+identity test the web "sent"/"received" filters use. A single flat NNTP group cannot folder
+them apart anyway.
 
-**Recommendation:** include both, ordered by `netmail.id`, so the group reads like a
-unified conversation view and threading (`reply_to_id`) stays intact across a
-send/receive exchange. A `netmail_group_include_sent` config flag (default `true`) lets a
-sysop restrict it to inbound only. Sent items are marked with an `X-BinktermPHP-Folder:
-sent` header so a newsreader can filter if the user wants.
+**Recommendation:** include everything `netmailVisibilityFilter()` returns, ordered by
+`netmail.id`, so the group reads like a unified conversation view and threading
+(`reply_to_id`) stays intact across a send/receive exchange. A `netmail_group_include_sent`
+config flag (default `true`) — when `false`, the source ANDs in the "received side" half of
+the identity test to drop the user's own sent rows. Sent items are marked with an
+`X-BinktermPHP-Folder: sent` header so a newsreader can filter if the user wants.
 
 ### Article translation
 
@@ -169,10 +253,11 @@ the existing `NntpMessageId` helpers with the netmail group name as the scope to
 ### Message-ID resolution
 
 `NntpSession::resolveByMessageId()` does an area-scoped `echomail` lookup. Add a
-`user_id`-scoped `netmail` lookup for the netmail source. This must be strictly
-user-scoped — resolution, `range()`, `bounds()`, `OVER`, `HDR`, and article fetch all carry
-`WHERE user_id = :uid` — so one account can never retrieve another's netmail by guessing or
-enumerating an ID.
+visibility-scoped `netmail` lookup for the netmail source. Resolution, `range()`, `bounds()`,
+`OVER`, `HDR`, and article fetch all AND in `netmailVisibilityFilter($uid)` +
+`netmailNotDeletedFilter($uid)` — never a bare `user_id = :uid` — so one account can never
+retrieve another's netmail by guessing or enumerating an ID, and can never *lose* its own
+inbound mail whose `user_id` happens to be `NULL` or the sender.
 
 ---
 
@@ -229,10 +314,11 @@ required and TLS is not active, `440` if the server or netmail sending is disabl
 
 ## Receiving
 
-Largely free. Inbound netmail is already tossed into the `netmail` table with `user_id`
-resolved by `BinkdProcessor`. Once `NetmailGroupSource` exposes
-`WHERE user_id = <authenticated user>`, new inbound netmail simply appears as new articles;
-`NEWNEWS` works off `netmail.date_received` the same way the echomail path does.
+Largely free. Inbound netmail is already tossed into the `netmail` table by
+`BinkdProcessor`. Once `NetmailGroupSource` filters with `netmailVisibilityFilter()`, new
+inbound netmail simply appears as new articles — including mail `BinkdProcessor` could not
+bind to a `user_id` but whose `to_name` + `to_address` match this user. `NEWNEWS` works off
+`netmail.date_received` the same way the echomail path does.
 
 ---
 
@@ -261,10 +347,12 @@ No new `.env` / transport settings — the netmail group rides the existing list
 
 ## Design Decisions
 
-1. **Per-user, not shared.** The netmail group's article set is
-   `netmail WHERE user_id = <authenticated user>` and nothing else. Two users connected to
-   the same server see entirely different articles under the same group name. This is the
-   only model consistent with netmail being private.
+1. **Per-user, not shared.** The netmail group's article set is exactly the netmail the
+   authenticated user may see in the web inbox — the compound
+   `netmailVisibilityFilter()` predicate, **not** a bare `netmail.user_id` match, which is
+   an overloaded column (see "`netmail.user_id` is not the mailbox owner"). Two users
+   connected to the same server see entirely different articles under the same group name.
+   This is the only model consistent with netmail being private.
 
 2. **One group, unified inbox+sent.** Rather than `netmail.in` / `netmail.out` (or
    per-correspondent groups), a single flat group holds everything, ordered by arrival, so
@@ -275,13 +363,18 @@ No new `.env` / transport settings — the netmail group rides the existing list
    article covers the common case with no user configuration. The parseable-`To:` /
    `X-FTN-To:` path exists for composing fresh netmail but is secondary.
 
-4. **Strict user-scoping is a correctness requirement, not a nicety.** Every query path in
-   `NetmailGroupSource` and the netmail `Message-ID` resolver carries `user_id`. This is
-   the main risk area and gets dedicated tests.
+4. **Strict visibility-scoping is a correctness requirement, not a nicety.** Every query
+   path in `NetmailGroupSource` and the netmail `Message-ID` resolver goes through the one
+   centralized `netmailVisibilityFilter()` / `netmailNotDeletedFilter()` pair shared with
+   the web inbox — no hand-rolled `WHERE` clauses against `netmail`. Over-exposure (reading
+   another account's mail) and under-exposure (dropping your own unbound inbound mail) are
+   both the main risk area and both get dedicated tests.
 
 5. **Numbering mirrors the echomail scheme.** Same lazy allocation, same monotonic
-   watermark, same retired-number / `423` behavior — just partitioned by `user_id` instead
-   of `echoarea_id`. Soft-deleted netmail drops out of the range like pruned echomail.
+   watermark, same retired-number / `423` behavior — partitioned by reader `user_id` instead
+   of `echoarea_id`, over that reader's *visible* set rather than a `netmail.user_id`
+   partition. No bulk backfill migration; first `GROUP` does the initial allocation.
+   Soft-deleted netmail drops out of the range like pruned echomail.
 
 6. **No new protocol surface.** No new NNTP commands. The netmail group is discovered via
    `LIST` / `LIST ACTIVE` / `NEWGROUPS` like any other group, and served through the same
@@ -300,9 +393,15 @@ No new `.env` / transport settings — the netmail group rides the existing list
 - **Sent-item article identity.** A sent message that later bounces or is re-sent — does it
   keep its article number? (Proposed: yes, numbers are never reused; a re-send is a new
   row with a new number.)
-- **Local (BBS-internal) netmail.** Messages routed to the local sysop user never hit the
-  outbound queue. They should still appear in the recipient's netmail group; confirm
-  `BinkdProcessor` / `sendLocalSysopMessage()` set `user_id` consistently.
+- **Local (BBS-internal) netmail.** Messages routed to the local sysop / a local user never
+  hit the outbound queue and carry `user_id` = **sender**. `netmailVisibilityFilter()`
+  already surfaces these to the recipient via the `to_name` + `to_address` match, so no
+  special-casing is needed — but this is exactly the path a naive `user_id = :uid` scope
+  would break, and it needs an explicit isolation test.
+- **Adopt `NetmailOwnershipChangesMay9`?** That proposal replaces the name-matching
+  inference with `local_sender_id` / `local_recipient_id`. If it lands, `netmailVisibilityFilter()`
+  is the single place to switch over, and the NNTP source needs no further change. Decide
+  whether to sequence that work before this.
 - **Multiple FTN identities.** A user with a point address on more than one network — the
   `To:`/`From:` synthesis and the destination parser need to handle each network's domain
   slug. `NntpArticleBuilder::fromHeader()` already takes a domain argument; the inverse
@@ -312,18 +411,23 @@ No new `.env` / transport settings — the netmail group rides the existing list
 
 ## Implementation Order
 
-1. Refactor the echoarea-backed logic in `NntpSession` behind `NntpGroupSource` /
+1. Extract `MessageHandler::netmailVisibilityFilter()` / `netmailNotDeletedFilter()` and
+   refactor `getNetmail()`, `getMessage()`, `getNetmailConversation()` onto them. No
+   behavior change; existing netmail tests stay green.
+2. Refactor the echoarea-backed logic in `NntpSession` behind `NntpGroupSource` /
    `EchomailGroupSource`. No behavior change; existing tests stay green.
-2. Add `nntp_netmail_article_numbers` / `nntp_netmail_watermark` + backfill migration
-   (via `/new-migration`).
-3. `NetmailGroupSource` read path (numbering, bounds, range, build, overview, Message-ID
-   resolution) — all `user_id`-scoped.
-4. Wire the netmail group into `NntpNewsgroups` and `NntpSession::visibleGroups()` +
+3. Add `nntp_netmail_article_numbers` / `nntp_netmail_watermark` (empty tables, no bulk
+   backfill) via `/new-migration`.
+4. `NetmailGroupSource` read path (numbering, bounds, range, build, overview, Message-ID
+   resolution) — every query ANDs in `netmailVisibilityFilter()` + `netmailNotDeletedFilter()`.
+5. Wire the netmail group into `NntpNewsgroups` and `NntpSession::visibleGroups()` +
    config keys in `NntpConfig`.
-5. Netmail `POST` handler: reply-derivation, `To:`/`X-FTN-To:` parsing, rate limiting,
+6. Netmail `POST` handler: reply-derivation, `To:`/`X-FTN-To:` parsing, rate limiting,
    hand-off to `sendNetmail()`.
-6. Admin UI for the new `config/nntp.json` keys (admin daemon command).
-7. Tests: numbering table semantics, user-scoping isolation, `To:`-address round-trip,
+7. Admin UI for the new `config/nntp.json` keys (admin daemon command).
+8. Tests: numbering table semantics, visibility-scoping isolation (both over- and
+   under-exposure: another user's mail, own inbound mail with `user_id` NULL / = sender,
+   local user-to-user mail seen by the recipient), `To:`-address round-trip,
    reply-derivation.
-8. Docs: update `docs/NNTP.md`, and `docs/proposals/NNTPServer.md` Design Decision 3
+9. Docs: update `docs/NNTP.md`, and `docs/proposals/NNTPServer.md` Design Decision 3
    (currently "client-facing echomail only").

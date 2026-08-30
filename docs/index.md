@@ -142,6 +142,7 @@ Specifications published by the LovlyNet Standards Council.
 
 - [Architecture](ARCHITECTURE.md) — Ecosystem map showing how access methods, realtime delivery, FTN networking, doors, MCP, and AI fit together
 - [Data Model](DATA_MODEL.md) — Key database tables, their relationships, and conceptual model for developers
+- [Netmail Subsystem](Netmail.md) — Netmail storage model, mailbox ownership/visibility rules, and the send/receive/delete code paths
 - [Developer Guide](DEVELOPER_GUIDE.md) — Coding conventions, database migrations, and project structure
 - [PostgreSQL Dependency Inventory](PostgreSQLDependencies.md) — Living list of PostgreSQL-specific dependencies, code locations, and future compatibility notes
 - [Terminal Server Developer Guide](TerminalServerDevGuide.md) — Shell abstraction, style profile, widget reference, handler patterns, and session internals for contributors

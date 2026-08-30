@@ -42,7 +42,7 @@ The central table. Stores every public FTN message received or posted.
 
 ### `netmail`
 
-Private point-to-point FTN messages. Structure mirrors `echomail` but without an `echoarea_id`. Has `to_address` (the recipient's FTN address) and `is_read`, `is_deleted` per-message state. Attachments are stored as files referenced by `attachment_filename`.
+Private point-to-point FTN messages. Structure mirrors `echomail` but without an `echoarea_id`, and with a real `to_address` (the recipient's FTN address). Soft-delete is per side (`deleted_by_sender` / `deleted_by_recipient`); read state is per-user in `message_read_status`. Attachments are rows in the `files` table (`message_type = 'netmail'`). **`user_id` is not reliably the mailbox owner** — see [Netmail.md](Netmail.md) for the ownership and visibility rules.
 
 ### `echoareas`
 
