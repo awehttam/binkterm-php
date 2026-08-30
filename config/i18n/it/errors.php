@@ -820,6 +820,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'L\'utente selezionato non esiste.',
     'errors.admin.users.autocomplete_failed' => 'Impossibile cercare gli utenti.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Configurazione del controllo delle registrazioni non valida',
-    'errors.admin.nntp_settings.load_failed' => 'Failed to load NNTP settings',
-    'errors.admin.nntp_settings.save_failed' => 'Failed to save NNTP settings',
+    'errors.admin.nntp_settings.load_failed' => 'Impossibile caricare le impostazioni NNTP',
+    'errors.admin.nntp_settings.save_failed' => 'Impossibile salvare le impostazioni NNTP',
 ];

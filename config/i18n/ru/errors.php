@@ -823,6 +823,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'Выбранный пользователь не существует.',
     'errors.admin.users.autocomplete_failed' => 'Не удалось выполнить поиск пользователей.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Неверная конфигурация проверки регистраций',
-    'errors.admin.nntp_settings.load_failed' => 'Failed to load NNTP settings',
-    'errors.admin.nntp_settings.save_failed' => 'Failed to save NNTP settings',
+    'errors.admin.nntp_settings.load_failed' => 'Не удалось загрузить настройки NNTP',
+    'errors.admin.nntp_settings.save_failed' => 'Не удалось сохранить настройки NNTP',
 ];

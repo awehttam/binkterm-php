@@ -775,6 +775,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'L\'utilisateur selectionne n\'existe pas.',
     'errors.admin.users.autocomplete_failed' => 'Echec de la recherche d\'utilisateurs.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Configuration du filtrage des inscriptions invalide',
-    'errors.admin.nntp_settings.load_failed' => 'Failed to load NNTP settings',
-    'errors.admin.nntp_settings.save_failed' => 'Failed to save NNTP settings',
+    'errors.admin.nntp_settings.load_failed' => 'Échec du chargement des paramètres NNTP',
+    'errors.admin.nntp_settings.save_failed' => 'Échec de l\'enregistrement des paramètres NNTP',
 ];
