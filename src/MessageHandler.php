@@ -309,6 +309,37 @@ class MessageHandler
         return $this->netmailNotDeletedClause($user, $alias);
     }
 
+    /**
+     * True when a netmail row was sent by $userId from this system — the same
+     * from_name + from_address identity test the "sent" inbox filter uses.
+     * Used by the NNTP netmail source to tag articles X-BinktermPHP-Folder: sent.
+     *
+     * @param array<string,mixed> $row  a netmail row (needs from_name, from_address)
+     */
+    public function netmailRowIsOutgoing(int $userId, array $row): bool
+    {
+        $user = $this->getUserById($userId);
+        if (!$user) {
+            return false;
+        }
+
+        $fromName = strtolower(trim((string)($row['from_name'] ?? '')));
+        $nameMatch = $fromName !== '' && (
+            $fromName === strtolower(trim((string)($user['username'] ?? '')))
+            || $fromName === strtolower(trim((string)($user['real_name'] ?? '')))
+        );
+        if (!$nameMatch) {
+            return false;
+        }
+
+        $addresses = $this->netmailMyAddresses();
+        if ($addresses === []) {
+            return true;
+        }
+
+        return in_array(trim((string)($row['from_address'] ?? '')), $addresses, true);
+    }
+
     public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
     {
         $user = $this->getUserById($userId);
