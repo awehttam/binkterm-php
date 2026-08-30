@@ -82,6 +82,46 @@
                         </div>
 
                         <hr>
+                        <h6 class="mb-1">{{ t('ui.admin.nntp_settings.netmail_heading') }}</h6>
+                        <p class="text-muted small">{{ t('ui.admin.nntp_settings.netmail_help') }}</p>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="nntpExposeNetmail">
+                            <label class="form-check-label" for="nntpExposeNetmail">{{ t('ui.admin.nntp_settings.expose_netmail') }}</label>
+                            <small class="form-text d-block text-muted">{{ t('ui.admin.nntp_settings.expose_netmail_help') }}</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="nntpNetmailGroupName">{{ t('ui.admin.nntp_settings.netmail_group_name') }}</label>
+                            <input type="text" class="form-control" id="nntpNetmailGroupName" value="netmail">
+                            <small class="form-text text-muted">{{ t('ui.admin.nntp_settings.netmail_group_name_help') }}</small>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="nntpAllowNetmailSend">
+                            <label class="form-check-label" for="nntpAllowNetmailSend">{{ t('ui.admin.nntp_settings.allow_netmail_send') }}</label>
+                            <small class="form-text d-block text-muted">{{ t('ui.admin.nntp_settings.allow_netmail_send_help') }}</small>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="nntpNetmailIncludeSent">
+                            <label class="form-check-label" for="nntpNetmailIncludeSent">{{ t('ui.admin.nntp_settings.netmail_include_sent') }}</label>
+                            <small class="form-text d-block text-muted">{{ t('ui.admin.nntp_settings.netmail_include_sent_help') }}</small>
+                        </div>
+
+                        <p class="text-muted small mb-2">{{ t('ui.admin.nntp_settings.netmail_limits_help') }}</p>
+                        <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label" for="nntpNetmailPerMinute">{{ t('ui.admin.nntp_settings.netmail_posts_per_minute') }}</label>
+                                <input type="number" class="form-control" id="nntpNetmailPerMinute" min="0" max="1000" value="5">
+                            </div>
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label" for="nntpNetmailPerHour">{{ t('ui.admin.nntp_settings.netmail_posts_per_hour') }}</label>
+                                <input type="number" class="form-control" id="nntpNetmailPerHour" min="0" max="10000" value="30">
+                            </div>
+                        </div>
+
+                        <hr>
 
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="nntpAllowPlaintextAuth">
@@ -153,6 +193,12 @@ function populateNntpForm() {
     $('#nntpMaxCrossPost').val(nntpConfig.max_cross_post_areas || 5);
     $('#nntpQuoteStyle').val(nntpConfig.quote_style_conversion || 'outbound');
     $('#nntpAllowPlaintextAuth').prop('checked', nntpConfig.allow_plaintext_auth || false);
+    $('#nntpExposeNetmail').prop('checked', nntpConfig.expose_netmail_group ?? true);
+    $('#nntpNetmailGroupName').val(nntpConfig.netmail_group_name || 'netmail');
+    $('#nntpAllowNetmailSend').prop('checked', nntpConfig.allow_netmail_send ?? true);
+    $('#nntpNetmailIncludeSent').prop('checked', nntpConfig.netmail_group_include_sent ?? true);
+    $('#nntpNetmailPerMinute').val(nntpConfig.netmail_posts_per_minute ?? 5);
+    $('#nntpNetmailPerHour').val(nntpConfig.netmail_posts_per_hour ?? 30);
 }
 
 async function saveNntpSettings() {
@@ -165,7 +211,13 @@ async function saveNntpSettings() {
         max_cross_post_areas: parseInt($('#nntpMaxCrossPost').val(), 10),
         max_connections_per_ip: parseInt($('#nntpMaxConnPerIp').val(), 10),
         quote_style_conversion: $('#nntpQuoteStyle').val(),
-        allow_plaintext_auth: $('#nntpAllowPlaintextAuth').is(':checked')
+        allow_plaintext_auth: $('#nntpAllowPlaintextAuth').is(':checked'),
+        expose_netmail_group: $('#nntpExposeNetmail').is(':checked'),
+        netmail_group_name: $('#nntpNetmailGroupName').val(),
+        allow_netmail_send: $('#nntpAllowNetmailSend').is(':checked'),
+        netmail_group_include_sent: $('#nntpNetmailIncludeSent').is(':checked'),
+        netmail_posts_per_minute: parseInt($('#nntpNetmailPerMinute').val(), 10),
+        netmail_posts_per_hour: parseInt($('#nntpNetmailPerHour').val(), 10)
     };
 
     try {
