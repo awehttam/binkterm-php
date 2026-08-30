@@ -186,6 +186,39 @@ If none of those yields a valid FTN address the post is rejected with
 naming the netmail group together with any other group is rejected. Attachments,
 file requests and crashmail are not supported over NNTP.
 
+The outbound tearline is attributed — `--- BinktermPHP NNTP vX.Y.Z` — the same
+way an NNTP echomail post is.
+
+### Addressing a fresh netmail in Thunderbird
+
+Replying to a netmail article needs nothing — just hit **Reply** and the
+destination comes from the parent (path 2 above). Composing a *new* netmail needs
+an address, and Thunderbird's newsgroup composer has no `To:` field by default.
+Two ways:
+
+**Add an `X-FTN-To` header field (recommended).**
+
+1. **Settings → General**, scroll to the bottom, open the **Config Editor**.
+2. Find `mail.compose.other.header` and set its value to `X-FTN-To,X-FTN-To-Name`.
+3. Restart Thunderbird.
+
+A new message to the `netmail` group now offers **X-FTN-To** and **X-FTN-To-Name**
+in the address-row dropdown (where it normally says *Newsgroup*). Set
+**X-FTN-To** to the FTN address, e.g. `21:1/100` (a trailing `@domain` is
+ignored), and **X-FTN-To-Name** to the recipient's name. Add a Subject and body
+and send.
+
+**Or put the address in a `To:` field.** Change one address row from *Newsgroup*
+to *To* and enter the address in the host form the server itself emits:
+
+```
+Jane Sysop <anything@f100.n1.z21.fidonet>
+```
+
+`f100.n1.z21` → zone 21, net 1, node 100 (add `p5.` in front for point 5). The
+local part and the domain slug are ignored; it just has to be a syntactically
+valid address so Thunderbird accepts it.
+
 ## Quote-style conversion
 
 FTN and newsreaders quote replies differently. FTN uses the FSC-0032 form — the
