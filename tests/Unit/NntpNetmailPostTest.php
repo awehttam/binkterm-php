@@ -49,6 +49,11 @@ final class NntpNetmailPostTest extends TestCase
         self::assertSame('Jane Doe', NntpNetmailPost::displayName('"Jane Doe" (21:1/100) <j@h>'));
         self::assertSame('Jane Doe', NntpNetmailPost::displayName('Jane Doe <j@h>'));
         self::assertSame('', NntpNetmailPost::displayName('<j@h>'));
+        // A client that quotes the whole value leaves an unbalanced quote once
+        // the parser splits on "<" — it must not leak into the name.
+        self::assertSame('awehttam', NntpNetmailPost::displayName('"awehttam <227:1/200>"'));
+        self::assertSame('awehttam', NntpNetmailPost::cleanName('"awehttam'));
+        self::assertSame('O\'Brien', NntpNetmailPost::cleanName('"O\'Brien"'));
     }
 
     /**

@@ -143,7 +143,7 @@ final class NntpNetmailPost
         $xto = trim((string)($headers['x-ftn-to'] ?? ''));
         $xto = preg_replace('/@.*$/', '', $xto) ?? $xto;
         if ($xto !== '' && self::isFtnAddress($xto)) {
-            $name = trim((string)($headers['x-ftn-to-name'] ?? ''));
+            $name = self::cleanName((string)($headers['x-ftn-to-name'] ?? ''));
             if ($name === '') {
                 $name = self::displayName((string)($headers['to'] ?? ''));
             }
@@ -269,12 +269,23 @@ final class NntpNetmailPost
     public static function displayName(string $to): string
     {
         $head = preg_split('/[<(]/', $to, 2)[0] ?? '';
-        $head = trim($head);
-        if (strlen($head) >= 2 && $head[0] === '"' && substr($head, -1) === '"') {
-            $head = stripcslashes(substr($head, 1, -1));
+
+        return self::cleanName($head);
+    }
+
+    /**
+     * Normalise a display name: unwrap an RFC 5322 quoted-string and strip any
+     * stray leading/trailing double-quote a client left unbalanced (e.g. a
+     * `To: "Name <addr>"` the parser split mid-quote).
+     */
+    public static function cleanName(string $name): string
+    {
+        $name = trim($name);
+        if (strlen($name) >= 2 && $name[0] === '"' && substr($name, -1) === '"') {
+            $name = str_replace(['\\"', '\\\\'], ['"', '\\'], substr($name, 1, -1));
         }
 
-        return trim($head);
+        return trim($name, " \t\"");
     }
 
     /**
