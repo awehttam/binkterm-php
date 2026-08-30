@@ -801,14 +801,23 @@ class NntpSession
 
     private function headerFromLines(array $headerLines, string $field): ?string
     {
+        $value = null;
         foreach ($headerLines as $line) {
+            if ($value !== null) {
+                // Folded continuation line (leading WSP) — unfold onto one line.
+                if ($line !== '' && ($line[0] === ' ' || $line[0] === "\t")) {
+                    $value .= ' ' . trim($line);
+                    continue;
+                }
+                break;
+            }
             $pos = strpos($line, ':');
             if ($pos !== false && strtolower(substr($line, 0, $pos)) === $field) {
-                return trim(substr($line, $pos + 1));
+                $value = trim(substr($line, $pos + 1));
             }
         }
 
-        return null;
+        return $value;
     }
 
     // ── LAST / NEXT ────────────────────────────────────────────────────────

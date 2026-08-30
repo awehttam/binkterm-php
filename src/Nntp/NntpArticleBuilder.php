@@ -133,7 +133,32 @@ class NntpArticleBuilder
 
         $body = $this->normalizeBody((string)($em['message_text'] ?? ''));
 
-        return ['headers' => $headers, 'body' => $body, 'message_id' => $messageId];
+        return ['headers' => $this->unfold($headers), 'body' => $body, 'message_id' => $messageId];
+    }
+
+    /**
+     * Split any header whose value was folded by {@see encodeHeader()} (a long
+     * RFC 2047 value becomes `word CRLF SP word`) into separate physical lines, so
+     * the wire writer emits a properly folded header block. Continuation lines
+     * already carry their leading whitespace.
+     *
+     * @param string[] $headers
+     * @return string[]
+     */
+    private function unfold(array $headers): array
+    {
+        $out = [];
+        foreach ($headers as $header) {
+            if (strpos($header, "\n") === false) {
+                $out[] = $header;
+                continue;
+            }
+            foreach (preg_split('/\r\n|\n/', $header) as $line) {
+                $out[] = $line;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -317,8 +342,15 @@ class NntpArticleBuilder
     // ── Header/value helpers ───────────────────────────────────────────────
 
     /**
-     * RFC 2047 encoded-word for a header value containing non-ASCII or control bytes;
-     * returned unchanged when it is plain ASCII.
+     * RFC 2047 encoded-word(s) for a header value containing non-ASCII or control
+     * bytes; returned unchanged when it is plain ASCII.
+     *
+     * Delegates to {@see mb_encode_mimeheader()} so that a value too long for a
+     * single 75-character encoded-word (RFC 2047 §2) is split into multiple
+     * encoded-words folded with CRLF + space, always on UTF-8 character
+     * boundaries. A naive byte-chunked splitter would cut a multi-byte character
+     * (e.g. Cyrillic, where each letter is two bytes) across two encoded-words and
+     * corrupt it — which is exactly the "borked subject" failure this avoids.
      */
     public function encodeHeader(string $value): string
     {
@@ -326,7 +358,15 @@ class NntpArticleBuilder
             return $value;
         }
 
-        return '=?UTF-8?B?' . base64_encode($value) . '?=';
+        $previous = mb_internal_encoding();
+        mb_internal_encoding('UTF-8');
+        try {
+            return mb_encode_mimeheader($value, 'UTF-8', 'B', "\r\n");
+        } finally {
+            if (is_string($previous)) {
+                mb_internal_encoding($previous);
+            }
+        }
     }
 
     /**

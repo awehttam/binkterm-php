@@ -48,6 +48,25 @@ final class NntpArticleBuilderTest extends TestCase
         self::assertSame('=?UTF-8?B?' . base64_encode('café') . '?=', $b->encodeHeader('café'));
     }
 
+    public function testEncodeHeaderFoldsLongCyrillicIntoValidEncodedWords(): void
+    {
+        $subject = 'Re: Тестосообщение про подписки которые не работают вот вообще совсем никак';
+        $encoded = $this->builder()->encodeHeader($subject);
+
+        // Folded onto multiple physical lines, each a legal length, every
+        // encoded-word within the RFC 2047 75-char cap.
+        $lines = preg_split('/\r\n/', $encoded);
+        self::assertGreaterThan(1, count($lines));
+        foreach ($lines as $line) {
+            self::assertLessThanOrEqual(76, strlen($line), $line);
+        }
+        self::assertMatchesRegularExpression('/=\?UTF-8\?B\?[A-Za-z0-9+\/=]{1,63}\?=/', $encoded);
+        self::assertDoesNotMatchRegularExpression('/=\?UTF-8\?B\?[A-Za-z0-9+\/=]{64,}\?=/', $encoded);
+
+        // Round-trips back to the original (no character split across words).
+        self::assertSame($subject, mb_decode_mimeheader($encoded));
+    }
+
     public function testKludgeValueExtraction(): void
     {
         $kludges = "\x01CHRS: CP437 2\n\x01PID: Mystic 1.12\n\x01MSGID: 1:2/3 ABCD";
