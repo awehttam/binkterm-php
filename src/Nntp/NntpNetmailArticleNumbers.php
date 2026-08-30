@@ -105,6 +105,7 @@ final class NntpNetmailArticleNumbers
             );
             $wmStmt->execute([$userId]);
             $watermark = (int)$wmStmt->fetchColumn();
+            $wmStmt->closeCursor();
 
             $insert = $this->db->prepare(
                 "INSERT INTO nntp_netmail_article_numbers (user_id, article_number, netmail_id)
@@ -120,6 +121,7 @@ final class NntpNetmailArticleNumbers
             );
             $insert->execute([$userId, $watermark, ...$scope['params'], $userId]);
             $allocated = $insert->rowCount();
+            $insert->closeCursor();
 
             if ($allocated > 0) {
                 $bump = $this->db->prepare(
