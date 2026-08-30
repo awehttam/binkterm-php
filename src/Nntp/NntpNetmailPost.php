@@ -110,7 +110,8 @@ final class NntpNetmailPost
                 null,        // markupType
                 false,       // isFreq
                 'UTF-8',
-                null         // pgpMode
+                null,        // pgpMode
+                'NNTP'       // tearline component -> "--- BinktermPHP NNTP vX.Y.Z"
             );
         } catch (\Throwable $e) {
             $this->logger->warning('[nntp] netmail post failed for user ' . $this->userId . ': ' . $e->getMessage());

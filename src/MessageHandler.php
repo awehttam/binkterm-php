@@ -1423,7 +1423,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false, $charset = null, $pgpMode = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false, $charset = null, $pgpMode = null, $tearlineComponent = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1575,8 +1575,8 @@ class MessageHandler
         $storage = $this->prepareLocalMessageStorage($finalMessageText);
 
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq, freq_status)
-            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq, :freq_status)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq, freq_status, tearline_component)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq, :freq_status, :tearline_component)
             RETURNING id
         ");
 
@@ -1595,6 +1595,7 @@ class MessageHandler
         $stmt->bindValue(':kludge_lines', $kludgeLines);
         $stmt->bindValue(':is_freq', $isFreq ? 'true' : 'false');
         $stmt->bindValue(':freq_status', $isFreq ? 'pending' : null, $isFreq ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
+        $stmt->bindValue(':tearline_component', ($tearlineComponent !== null && $tearlineComponent !== '') ? $tearlineComponent : null, ($tearlineComponent !== null && $tearlineComponent !== '') ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
 
         $stmt->execute();
         $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);

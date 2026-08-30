@@ -157,7 +157,11 @@ All sends go through `MessageHandler::sendNetmail(...)`. High-level flow:
 7. **Kludge generation.** `generateNetmailKludges()` builds MSGID, REPLY (when replying),
    INTL/FMPT/TOPT, CHRS, TZUTC, and any MARKUP kludge. The authoritative MSGID is parsed
    back out of the generated kludges and stored in `message_id`.
-8. **Insert** the row with `user_id` = sender, `is_sent = FALSE`.
+8. **Insert** the row with `user_id` = sender, `is_sent = FALSE`. An optional
+   `tearline_component` (e.g. `NNTP`) is stored for callers that want an attributed
+   tearline — `BinkdProcessor` renders it as `--- BinktermPHP <component> vX.Y.Z` on the
+   outbound packet, matching `echomail.tearline_component`; `NULL` gives the plain
+   `--- BinktermPHP vX.Y.Z`. The tearline is on the packet only, never the stored body.
 9. **Delivery:**
    - **Local** (destination equals our origin address): nothing is spooled. Attachments are
      copied straight into the recipient's private file area (and a sender copy into the
