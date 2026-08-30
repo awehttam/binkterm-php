@@ -386,6 +386,12 @@ No new `.env` / transport settings — the netmail group rides the existing list
 
 7. **Attachments and crashmail deferred.** v1 is plain-text netmail send/receive only.
 
+8. **Article numbers are permanent and never reused.** Once a `netmail` row is assigned a
+   number in a user's space it keeps that number for the life of the row, exactly like the
+   echomail scheme. A sent message that later bounces or is re-sent does not change number;
+   the re-send is a new `netmail` row and gets its own new number. Deleted rows retire their
+   number (`423`), and the per-user watermark only moves forward.
+
 ---
 
 ## Open Questions
@@ -402,9 +408,6 @@ No new `.env` / transport settings — the netmail group rides the existing list
 
   `netmail_group_name` (leaf) and a separate `netmail_group_prefix` (empty / `private` /
   `bbs-name`) config pair covers all three without a hard-coded product string anywhere.
-- **Sent-item article identity.** A sent message that later bounces or is re-sent — does it
-  keep its article number? (Proposed: yes, numbers are never reused; a re-send is a new
-  row with a new number.)
 - **Local (BBS-internal) netmail.** Messages routed to the local sysop / a local user never
   hit the outbound queue and carry `user_id` = **sender**. `netmailVisibilityFilter()`
   already surfaces these to the recipient via the `to_name` + `to_address` match, so no
