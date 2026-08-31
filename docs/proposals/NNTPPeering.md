@@ -60,7 +60,8 @@ them.
 
 The `nntpserver` branch's dedupe is the FTN one: `BinkdProcessor` does
 `SELECT id FROM echomail WHERE message_id = ? AND echoarea_id = ?` before inserting
-(`src/BinkdProcessor.php:1465`). There is **no** global `Message-ID` history table, and
+(`src/BinkdProcessor.php`, the "Check for duplicate MSGID" block in `storeEchomail`).
+There is **no** global `Message-ID` history table, and
 the NNTP layer's `Message-ID` values are *constructed on read* by
 `BinktermPHP\Nntp\NntpMessageId` — they are not stored.
 
@@ -70,25 +71,112 @@ both FTN and a peer is stored once, not twice.
 
 ### The bridging rule
 
-`NntpMessageId::build()` is **deterministic** from the FTN identity: given the same
-`MSGID` kludge and the same newsgroup name it always produces the same
-`<serial.zNnNfNpN.group@host>` string. That is the hook that makes bridging possible:
+`NntpMessageId::build()` is **FTN-origin synthesis only**. It is deterministic — given
+the same `MSGID` kludge, the same newsgroup name, and the same host it always produces
+the same `<serial.zNnNfNpN.group@host>` string — and today it is called only on read,
+from `NntpArticleBuilder` (grep `NntpMessageId::build` / `buildSynthetic`) and the
+netmail builder; the value is never stored. It is **not** a symmetric operation the two
+planes both perform: a peer-origin article already carries a `Message-ID` minted by
+whoever injected it, and we take that string as-is — we do not, and cannot, recompute
+it. The bridge is therefore one-directional accounting, not a shared hash:
 
-- When echomail arrives **over FTN**, compute its constructed `Message-ID` and record
-  it in the new history table (see below), attributed to the FTN path.
-- When an article arrives **over a peer**, its `Message-ID` is already in the wire
-  headers. Look it up in history: if present (from either plane), it is a duplicate —
-  ack and drop. If absent, accept it.
-- A synthetic ID (no `MSGID` kludge) is hashed from raw stored wire content
-  (`NntpMessageId::buildSynthetic()`), so a genuinely identical body crossing both
-  planes still collapses to one history row.
+- When echomail arrives **over FTN**, compute `NntpMessageId::build()` for the article's
+  area and record that constructed ID in `nntp_history` (see Data Model), `origin_plane
+  = 'ftn'`. This is the only place the plane synthesis happens.
+- When an article arrives **over a peer**, read its `Message-ID` straight from the wire
+  headers and look that string up in `nntp_history`. Present (from either plane) → it is
+  a duplicate we already hold: ack and drop. Absent → accept it, and write a history
+  row keyed on that exact wire string.
+- A history row is one global row per wire `Message-ID` — it is **not** keyed on
+  `(message_id, group)`. `CHECK` / `IHAVE` only ever carry a bare `Message-ID` at
+  decision time (no `Newsgroups:`), so a group-scoped key is not expressible on the
+  wire. See *Crossposted peer articles* below for what this means when an article maps
+  to more than one echoarea.
 
-This only holds if **both ingest paths agree on the newsgroup name**, which means the
-area→group mapping (`NntpNewsgroups`) must be stable and the same for a given area
-regardless of which plane touched it. Renaming a network's display name (or flipping
-`newsgroup_prefix_mode` in `config/nntp.json`) changes every constructed `Message-ID`
-for that network and would orphan history — that operation needs a history-rewrite
-migration or a documented "peers will re-offer everything once" warning.
+**What this bridges and what it does not.** The accounting collapses an article that
+leaves over this bridge and returns over the same bridge, or over the FTN plane it was
+re-propagated to (D1). It does **not** dedupe the same semantic FidoNet message carried
+by two *independent* FTN→NNTP gateways: each gateway mints its own `Message-ID` (its own
+host, and — for the no-`MSGID` case — its own `buildSynthetic()` content hash), so a
+reader peered to both sees two articles. That is an accepted, unfixed limitation of
+ID-based dedupe across gateways, not a defect this proposal closes.
+
+The FTN side of the accounting only holds if **both ingest paths agree on the newsgroup
+name**, which means the area→group mapping (`NntpNewsgroups`) must be stable and the
+same for a given area regardless of which plane touched it. Renaming a network's display
+name (or flipping `newsgroup_prefix_mode` in `config/nntp.json`) changes every
+constructed `Message-ID` for that network and would orphan the `'ftn'` history rows —
+that operation needs a history-rewrite migration or a documented "peers will re-offer
+everything once" warning.
+
+### Crossposted peer articles
+
+A peer article with multiple groups in `Newsgroups:` resolves (via `NntpNewsgroups`) to
+N `echoareas` rows. `NntpPost` already handles the local-post form of this by calling
+`MessageHandler::postEchomail()` once per resolved area (`NntpPost::submit()`'s
+per-target loop), and each call generates its **own** fresh FTN `MSGID`
+(`MessageHandler::generateMessageId()` is a `microtime()`-seeded CRC32) — so a locally
+crossposted article is stored as N `echomail` rows with N *different* `message_id`
+values and, on read, appears to NNTP readers as N distinct articles with N distinct
+constructed `Message-ID`s. `postEchomail()` today accepts **no** caller-supplied
+`Message-ID` or `date_written` — it always mints its own and sets `date_written =
+NOW()` in the echomail INSERT. Making it take an external FTN `MSGID` (as the sole
+kludge line), a wire `Message-ID`, an external `date_written`, and an outbound-
+suppression flag is **new capability on that function**, not a config tweak — see
+*Storing a peered article*.
+
+Peer ingest must not inherit the "N different IDs" behaviour, because the peer offered
+the article under **one** wire `Message-ID` and that is the only string a subsequent
+`CHECK` / `IHAVE` reflection will present. Resolution:
+
+- **`echomail.message_id` (FTN namespace).** All N rows carry the *same* value. Use the
+  article's own `MSGID` kludge if it carries one (a peer that is itself an FTN gateway
+  usually does); otherwise mint **one** synthetic FTN-style `MSGID` for the whole
+  article with `NntpMessageId::buildSyntheticFtnMsgid()` — a new static method,
+  deterministic from stable article content (a content hash), distinct from
+  `buildSynthetic()` (which produces the NNTP-side reconstructed `<…@host>` ID, not an
+  FTN `MSGID` string). Reuse that one value across all N rows. Because it is content-
+  hashed — never clock- or random-seeded, unlike `MessageHandler::generateMessageId()` —
+  the `echomail`-table backstop below still fires if the same article is re-offered
+  after its history row is gone. Never write the wire `<…@host>` string into this column — it
+  is FTN-namespace, and `NntpMessageId::build()` would fail to parse it (its
+  unparseable-`MSGID` branch) and emit a double-wrapped ID on read. The existing
+  `(message_id, echoarea_id)` dedupe key (`BinkdProcessor`'s duplicate-MSGID check)
+  stays unique
+  across the N rows because `echoarea_id` differs, and it correctly suppresses a later
+  FTN copy of the same message into any of those areas.
+- **Dedupe order — one global gate, then a per-area backstop.**
+  1. `nntp_history` is checked **once**, on the wire `Message-ID` alone, at
+     `IHAVE` / `CHECK` time — before `Newsgroups:` is parsed and before any area is
+     resolved. A hit here is the accept/reject decision for the *whole* article
+     (`435` / `438`, body never requested); it is not a per-area check and cannot give
+     a per-area answer.
+  2. Only once the article clears that gate and is accepted does per-area work begin.
+     For **each** resolved echoarea, `NntpFeedInbound` runs the
+     `(message_id, echoarea_id)` lookup against `echomail` as a backstop — catching the
+     case where the history row was pruned but that area's `echomail` row still exists —
+     before calling `postEchomail()` for that area. A hit skips storing that one area's
+     copy; the rest still store.
+
+  See Data Model → `nntp_history` for the retention reasoning behind needing the
+  per-area backstop at all.
+- **Wire `Message-ID` round-trip.** Store the received wire string verbatim on each of
+  the N rows in a new nullable `echomail.nntp_message_id` column; `NntpArticleBuilder`
+  prefers it when set and only falls back to `build()` / `buildSynthetic()` for rows
+  without it (i.e. FTN-origin rows). This is what "recorded so `NntpMessageId`
+  round-trips" in *Storing a peered article* requires — without it, a peer article with
+  no `MSGID` kludge could never be re-emitted under the ID the peer knows.
+- **`nntp_history` — one row, `echomail_id` → the primary (first-stored) row.** History
+  is keyed on the wire `Message-ID` alone and its purpose is the want/don't-want
+  decision plus outliving the article indefinitely; `echomail_id` is a traceability
+  convenience, not a completeness guarantee. One representative row is sufficient — no
+  code path needs "every echomail row for this wire ID" (the crosspost fan-out is done
+  at store time). Keep the column nullable with `ON DELETE SET NULL` (as already
+  schemed) so pruning that one row individually does not break history; do not widen it
+  to a history↔rows join table and do not drop the FK.
+
+This subsection governs reflection back through **this** bridge only; the independent-
+gateway gap noted above still applies.
 
 ---
 
@@ -98,16 +186,36 @@ These are genuine forks in the road; the rest of the design depends on the answe
 
 ### D1. Does a peered-in article re-propagate over FTN?
 
-- **No (recommended for phase 1).** Peered articles are stored in `echomail` and shown
-  to NNTP and web/term readers, but are **not** queued outbound to FTN uplinks. The
-  peer is treated as an alternate *inbound* source for areas BinktermPHP already
-  carries over FTN. Loop risk is contained: the worst case is a local duplicate, which
-  history suppresses.
-- **Yes.** Every peer effectively becomes an uplink. A peered article must be given
-  correct `SEEN-BY` / `PATH` FTN kludges, run through the tosser's outbound path, and
-  never sent back toward a peer that already has it. This is the full Usenet-to-FTN
-  gateway problem and multiplies the trust and abuse surface. Defer until phase 1 is
-  proven.
+**Decided: yes, but configurable per echoarea, and off by default.**
+
+- Each `echoareas` row gains an `nntp_repropagate_to_ftn` boolean (default `false`).
+  When a peered-in article is stored for an area with the flag **set**, it is given
+  correct `SEEN-BY` / `PATH` FTN kludges and handed to the tosser's outbound path so it
+  flows to the area's FTN uplinks, subject to normal `SEEN-BY` suppression and never
+  sent back toward a peer or uplink that already holds it. When the flag is **clear**
+  (the default), the peer is an inbound-only mirror for that area — the article is
+  stored and shown to NNTP / web / term readers but never queued to FTN. History
+  suppresses the worst case (a local duplicate) either way.
+- A global `peering_repropagate_to_ftn` master switch in `config/nntp.json`
+  (default `false`) gates the whole behaviour. While it is `false`, no peered article
+  is ever queued to FTN regardless of per-area flags — the fully contained mode.
+  Turning a single area into a gateway is therefore a deliberate two-step action
+  (flip the master switch, then flip that area), each step carrying a prominent
+  admin-UI warning.
+- Enabling re-propagation for an area opts into the full Usenet-to-FTN gateway problem
+  for that area: attributing the article to an origin FTN address, generating
+  `SEEN-BY` / `PATH`, and multiplying the trust and abuse surface. See
+  Data Model → *Re-propagation to FTN* for the mechanics. This lands in phase 5;
+  phases 1–4 ship with the master switch forced off.
+- **Containment does not exist in today's code — this proposal introduces it.**
+  `MessageHandler::postEchomail()`, the shared store path peer ingest uses, currently
+  spools outbound and fans out to hub downlinks unconditionally
+  (`src/MessageHandler.php:2072-2073`); there is no way to store an article through it
+  without also queuing it to FTN. The "off by default, fully contained mode" above is
+  therefore a **requirement this proposal adds** (an outbound-suppression flag on the
+  store path, defaulting to suppress for peer-origin calls — see *Storing a peered
+  article*), not existing behaviour being reused. Until that flag is built, every
+  peered-in article would re-propagate to FTN regardless of either switch.
 
 ### D2. Inbound only, outbound only, or both, per peer?
 
@@ -146,8 +254,9 @@ depends on — as the single source of truth.
 
 ### Inbound feed (peer pushes to us)
 
-New commands in `NntpSession::dispatch()` (or a dedicated `NntpFeedSession` — see
-Architecture):
+These commands live in a dedicated `NntpFeedSession` (see Architecture), never in
+`NntpSession` — that separation is what keeps a reader connection on the shared port
+from reaching the feed path (see *Authentication and authorization*):
 
 - `MODE STREAM` → `203` if streaming is enabled for this peer, else `500` so the peer
   falls back to `IHAVE`.
@@ -177,15 +286,60 @@ BinktermPHP acts as an NNTP **client** here, reusing the connection/TLS logic th
 Peer auth is **not** `AUTHINFO` (that is for reader accounts). It is:
 
 - **Source IP allowlist** — the peer's address(es), checked in the accept loop.
-- **TLS client certificate** (recommended) — verified against a per-peer configured
-  cert or CA. Requires `stream_socket_server` context with `verify_peer` /
-  `capture_peer_cert` and a check after the handshake.
+- **TLS client certificate** (recommended) — two supported modes, not mutually
+  exclusive; a peer with `inbound_enabled` and cert auth required must have at least
+  one configured:
+  - **Fingerprint pin** (`client_cert_sha256`) — the SHA-256 of the peer's cert (DER),
+    for a self-signed or otherwise pinned leaf. The listener sets
+    `capture_peer_cert => true` (with `verify_peer => false` so the handshake completes
+    on a self-signed cert), then after the handshake computes
+    `openssl_x509_fingerprint($peerCert, 'sha256')` and constant-time-compares it to
+    the stored pin. This is the low-friction default: the peer sends you their cert
+    fingerprint once, no PKI.
+  - **CA validation** (`client_ca_file` + optional `client_cert_subject`) — a filesystem
+    path to a CA bundle the peer's cert must chain to, for operators running a private
+    CA and rotating leaf certs under it. The listener sets `verify_peer => true`,
+    `cafile => <resolved client_ca_file>`; when `client_cert_subject` is also set, the
+    post-handshake check additionally requires that CN/SAN so any cert the CA signed is
+    not blindly accepted.
+  - When both are set, either a matching pin **or** a valid chain (+ subject, if
+    required) admits the peer, so a pinned cert can be rotated to CA-issued without a
+    connectivity gap.
+  Certs are captured/validated per-connection after the TLS handshake, before the
+  greeting is accepted as a feed session.
+
+**Where cert files live.** `client_cert_sha256` is a string in the DB — no file. CA
+bundles follow the same convention as the NNTP server's own TLS material
+(`data/nntp/server.crt` / `server.key`, from `.env` `NNTP_TLS_CERT_PATH` /
+`NNTP_TLS_KEY_PATH`): peer CA files go under **`data/nntp/peers/`**. `client_ca_file`
+holds either a bare filename resolved against that directory, or an absolute path when
+the operator wants to point at a system bundle (`/etc/ssl/certs/…`) or a shared CA.
+Peering never stores or needs a peer's private key — inbound auth only ever inspects the
+public cert the peer presents. If a peer requires *us* to present a client cert on the
+outbound feed, the feeder reuses `NNTP_TLS_CERT_PATH` / `NNTP_TLS_KEY_PATH` unless a
+dedicated `NNTP_PEER_CLIENT_CERT` / `NNTP_PEER_CLIENT_KEY` pair is set.
 - **Per-peer feed pattern** — a wildmat (`NntpSession::wildmat()` already exists) of
   newsgroups this peer may send us and/or that we send it. An `IHAVE` for a group
   outside the inbound pattern gets `435` without a history lookup.
 
-No anonymous peering. A connection from an unknown IP with no matching peer record is
-refused with `502` at greeting time.
+No anonymous peering. Because the feed listener shares `NNTP_TLS_PORT` with the
+reader-facing server (see Configuration), the accept loop cannot bounce an unknown IP
+at greeting time without breaking normal anonymous reader access on that port. Instead:
+
+- At accept time the source IP is matched against `nntp_peers`. If it matches a peer
+  with `inbound_enabled`, the socket is handed to `NntpFeedSession`; otherwise it is a
+  normal `NntpSession` reader connection, subject to the usual reader auth / anonymous
+  rules unchanged.
+- The feed commands (`IHAVE` / `CHECK` / `TAKETHIS` / `MODE STREAM`) exist **only** in
+  `NntpFeedSession`. In `NntpSession` they stay `500` (unrecognised), exactly as on the
+  `nntpserver` branch today — a reader connection can never reach the feed path even if
+  it guesses the verbs.
+
+So the effective rule is "feed commands are refused (`500`) for any connection that did
+not authenticate as a peer at accept time", not "unknown IPs are refused at greeting".
+Operators who want a hard greeting-time bounce for non-peers can run the feed listener
+on its own dedicated port instead of sharing `NNTP_TLS_PORT`; the dispatch then keys
+off the port rather than sniffing the source IP.
 
 ### `Path:` handling
 
@@ -195,9 +349,14 @@ refused with `502` at greeting time.
 - On **outbound**, do not offer an article to a peer whose configured path-identity
   already appears in its `Path:`.
 - Store the received `Path:` alongside the article (a column on `echomail`, or in the
-  history row) so outbound decisions can consult it. Today `Path:` is only surfaced as
-  the read-time `X-FTN-PATH:` header derived from FTN `PATH` kludges — that is a
-  different thing and cannot be reused directly.
+  history row — `nntp_history.path_header` in the Data Model) so outbound decisions can
+  consult it. `NntpArticleParser::parse()` already retains every inbound header,
+  `Path:` included, in its generic `headers` / `raw_headers` maps built by
+  `NntpArticleParser::parse()` — no parser change is needed to *read*
+  the wire value; only the typed parse / prepend / loop-check helper (`NntpPath`, see
+  Architecture) is new. This inbound `Path:` is a distinct thing from the read-time
+  `X-FTN-PATH:` header the article builder synthesises from FTN `PATH` kludges — that
+  one is derived output and cannot be reused as the wire `Path:`.
 
 ### Control messages
 
@@ -210,7 +369,32 @@ has no equivalent and honouring a remote cancel would be an abuse vector. Log th
 
 ## Data Model
 
-Three new tables. IDs follow `/new-migration`.
+Three new tables plus one `echoareas` column and one `echomail` column. IDs follow
+`/new-migration`.
+
+### `echoareas` — new column
+
+```sql
+ALTER TABLE echoareas
+    ADD COLUMN nntp_repropagate_to_ftn BOOLEAN NOT NULL DEFAULT false;
+```
+
+Per-area D1 toggle. Has no effect unless the global `peering_repropagate_to_ftn`
+master switch is also on. Surfaced in the echoarea admin edit screen with a warning.
+
+### `echomail` — new column
+
+```sql
+ALTER TABLE echomail
+    ADD COLUMN nntp_message_id TEXT NULL;
+```
+
+The wire `Message-ID` a peer-origin article was received under, stored verbatim so
+`NntpArticleBuilder` can re-emit it unchanged instead of reconstructing one via
+`NntpMessageId::build()`. `NULL` for FTN-origin and locally posted rows (those keep the
+constructed-on-read behaviour). Not unique — every row of an N-way crosspost carries
+the same value (see *Crossposted peer articles*). `echomail.message_id` still holds the
+FTN `MSGID` and remains the `(message_id, echoarea_id)` dedupe key.
 
 ### `nntp_history` — global Message-ID history
 
@@ -233,11 +417,33 @@ CREATE INDEX ON nntp_history (arrived_at);
 - `MessageHandler::postEchomail()` (or `NntpPost`) writes `'nntp-post'` / `'local'`
   rows so a locally composed message is not re-accepted from a peer that echoes it
   back.
-- Retention: a maintenance job (add to the existing scripts, see `scripts/CLAUDE.md`)
-  prunes rows older than a configurable window (default 30 days). History outliving
-  the article is fine and desirable — it keeps a re-offered old article from being
-  re-inserted after the `echomail` row was pruned. `echomail_id` goes null in that
-  case via `ON DELETE SET NULL`.
+- **Retention: none by default — the table grows without bound.** This is deliberate.
+  `echomail` itself has no default retention (`scripts/echomail_maintenance.php` is
+  entirely sysop-invoked, opt-in per area via `--max-age` / `--max-count`), so there is
+  no fixed article lifetime for a history window to be "safely longer" than. Keeping
+  history forever means the wire-`Message-ID` fast path always catches a re-offer no
+  matter how long a peer was offline. A history row is small (a handful of `TEXT` /
+  `INT` columns); ~1M rows is on the order of a few hundred MB.
+- An **optional** prune may be added to `scripts/echomail_maintenance.php` (or a
+  companion), off unless a sysop configures it. If a sysop does enable it, the doc must
+  warn that pruning a history row whose `echomail` row is still present drops the fast
+  path for that ID and leaves only the `echomail`-table backstop below; pruning it when
+  the `echomail` row is also gone means a re-offer of that old article will be accepted
+  and re-inserted. `echomail_id` goes null via `ON DELETE SET NULL` when only the
+  article is pruned.
+- **`echomail`-table backstop.** `nntp_history` is a fast path and the FTN↔peer bridge
+  ledger, not the sole dedupe authority. `postEchomail()` performs no duplicate check
+  of its own, so `NntpFeedInbound` runs the same `(message_id, echoarea_id)` lookup
+  against `echomail` that `BinkdProcessor`'s duplicate-MSGID check does — once per
+  resolved area, during storage, after the article has already been accepted at the
+  one-time history gate. When history was pruned, the article passes that gate and its
+  body is transferred; the backstop then finds the surviving `echomail` row and skips
+  re-inserting that area's copy (the article is still acked to the peer — the point is
+  to avoid a duplicate row, not to reject). For this to hold on articles with no
+  `MSGID` kludge, the synthetic FTN-style `MSGID` `NntpFeedInbound` mints via
+  `NntpMessageId::buildSyntheticFtnMsgid()` (see *Crossposted peer articles*) must be
+  **deterministic** from stable article content — a content hash, not a random or
+  clock-seeded value — so the same re-offered article recomputes the same `message_id`.
 
 **Backfill:** a one-time migration seeds `nntp_history` from existing `echomail`,
 computing the constructed `Message-ID` per row from its area's current group name.
@@ -261,15 +467,46 @@ CREATE TABLE nntp_peers (
     outbound_enabled    BOOLEAN NOT NULL DEFAULT false,
     streaming_enabled   BOOLEAN NOT NULL DEFAULT false,
     allowed_ips         TEXT NOT NULL DEFAULT '',  -- CIDR list for inbound accept
-    path_identity       TEXT NOT NULL,             -- token we look for / add in Path:
+    path_identity       TEXT NOT NULL UNIQUE,      -- token we look for / add in Path: (must be distinct per peer)
     inbound_pattern     TEXT NOT NULL DEFAULT '',  -- wildmat of groups we accept
     outbound_pattern    TEXT NOT NULL DEFAULT '',  -- wildmat of groups we send
-    client_cert_pem     TEXT NULL,                 -- pinned inbound client cert / CA
+    client_cert_sha256  TEXT NULL,                 -- SHA-256 (DER) pin for a self-signed / pinned leaf cert
+    client_ca_file      TEXT NULL,                 -- path to CA bundle for chain validation (on-disk, not PEM in DB)
+    client_cert_subject TEXT NULL,                 -- optional required CN/SAN when using CA validation
     max_article_bytes   INT NOT NULL DEFAULT 1048576,
+    max_cross_post_areas INT NOT NULL DEFAULT 5,    -- per-peer Newsgroups: fan-out ceiling
     created_at          TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
     updated_at          TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
 );
 ```
+
+`path_identity` is `UNIQUE` and non-empty. Outbound loop suppression ("don't offer an
+article to a peer whose token already appears in its `Path:`") and inbound
+"prepend our host, then this peer's token" both key off it, so two peers sharing a
+token would make each look like the other in `Path:` and silently suppress sends to
+one of them. The admin daemon's `set_nntp_peers` must reject a blank or
+already-used `path_identity` rather than relying on the constraint to surface as a
+raw DB error. A token should be a stable FQDN-style label (e.g. the peer's news
+hostname), not the operator `name`, which can be renamed.
+
+`client_ca_file` is a path, not content — a bare filename resolves against
+`data/nntp/peers/`, an absolute path is taken as-is. `set_nntp_peers` must resolve it,
+verify it exists and is readable by the daemon user at save time, and the Admin UI
+should surface the resolved path and a "not found" state rather than failing only at
+connect. Storing the CA as a path (not inline PEM) keeps DB rows free of multi-line
+blobs and lets one CA bundle back several peers. `client_cert_sha256` is normalized to
+lowercase hex, no colons, on save.
+
+`max_cross_post_areas` is a fully independent per-peer ceiling on how many echoareas
+one `Newsgroups:` header may fan out to — **not** inherited from or falling back to the
+reader-facing `max_cross_post_areas` in `config/nntp.json` (`NntpConfig::getMaxCrossPostAreas()`,
+default `5`, enforced at `src/Nntp/NntpPost.php:97`). A peer connection is a wider
+blast radius than a web form — a bad header fans out to every resolved area and, under
+D1 re-propagation, to every downstream FTN target — and the reader cap was sized for
+human posters. Each row starts at the same default (`5`) and is edited per peer from
+**Admin → NNTP → Peers**; this column is the sole source of truth for that peer's cap.
+What happens when an article exceeds it is set globally by
+`peering_crosspost_over_limit` (see Configuration).
 
 ### `nntp_outbound_queue` — per-peer send queue
 
@@ -300,14 +537,21 @@ src/Nntp/
   NntpFeedSession.php    — inbound IHAVE / CHECK / TAKETHIS / MODE STREAM state machine
   NntpFeedInbound.php    — "want this?" (history + pattern) + accept-and-store one article
   NntpFeedOutbound.php   — client-side feeder: connect, offer queue, send bodies
-  NntpHistory.php        — nntp_history read/write, retention
+  NntpHistory.php        — nntp_history read/write, optional prune
   NntpPeerConfig.php     — nntp_peers CRUD via admin daemon, IP/cert authz helpers
   NntpPath.php           — Path: parse / prepend / loop-check
 ```
 
-`NntpArticleParser` / `NntpArticleBuilder` / `NntpMessageId` / `NntpNewsgroups` /
-`NntpArticleNumbers` are reused as-is. `NntpArticleParser` gains `Path:` extraction if
-it does not already retain it.
+`NntpArticleParser` / `NntpNewsgroups` / `NntpArticleNumbers` are reused as-is.
+`NntpArticleParser` already retains `Path:` (and every other header) generically in
+`NntpArticleParser::parse()`; the new `NntpPath` class provides the typed prepend /
+loop-check on top of that raw value. `NntpArticleBuilder` gains a branch that emits a
+stored wire `Message-ID` (`echomail.nntp_message_id`, new column — see *Crossposted peer
+articles*) verbatim when present, falling back to `NntpMessageId::build()` /
+`buildSynthetic()` only for rows without one. `NntpMessageId` gains one new static
+method, `buildSyntheticFtnMsgid()` — a content-hashed FTN `MSGID` string for a
+peer-origin article that carries no `MSGID` kludge (distinct from `buildSynthetic()`,
+which returns an NNTP `<…@host>` ID).
 
 ### Storing a peered article
 
@@ -318,20 +562,108 @@ same path `NntpPost` uses — with:
 
 - `fromName` / `fromAddress` reconstructed from the article `From:` (reverse of
   `NntpArticleBuilder`'s synthesis);
-- the article's real `Message-ID` recorded so `NntpMessageId` round-trips;
+- the article's real `Message-ID` recorded so `NntpMessageId` round-trips (see below);
 - `date_written` from the article `Date:`; `date_received` server-set as always;
 - `reply_to_id` resolved from the last `References:` entry (as `NntpPost` already
   does).
 
-Then it writes the `nntp_history` row and, if D1 = "no re-propagation", explicitly does
-**not** enqueue outbound to FTN. Cross-post (`Newsgroups:` with multiple groups) is
-capped by the same `max_cross_post_areas` logic already in `NntpPost`.
+**`postEchomail()` as it stands cannot serve peer ingest — this needs new capability
+on the function, not a minor extension of an existing path.** Three things block it:
+
+1. It mints its own FTN `MSGID` inside `generateEchomailKludges()`, which has **no
+   check** for a caller-supplied one. Passing a `\x01MSGID:` line via the existing
+   `$prependKludges` argument does get first-match-extracted into `echomail.message_id`,
+   but `generateEchomailKludges()` still appends its own second `\x01MSGID:` — the
+   stored `kludge_lines` and the outbound packet then carry **two** MSGID lines, which
+   is malformed (FTS-0001: exactly one) and read back inconsistently (our column takes
+   the first, a receiving tosser the last). So `$prependKludges` is **not** an adequate
+   mechanism here.
+2. It hard-codes `date_written = NOW()` in the INSERT.
+3. It **unconditionally** spools outbound and fans out to hub downlinks
+   (`src/MessageHandler.php:2072-2073`, `spoolOutboundEchomail()` +
+   `fanoutToHubNodes()`) with no suppression option — see the D1 note.
+
+Peer ingest requires `postEchomail()` (or a sibling store method) to accept, in
+addition to the reconstructed `fromName` / `fromAddress` / `reply_to_id` it already
+takes, four new optional inputs. Names and order below are **illustrative for sizing
+the work, not a signature this DRAFT commits to** — exact parameters are an
+implementation-time decision:
+
+- **externally-supplied FTN `MSGID`** — used verbatim as *both* `echomail.message_id`
+  and the **sole** `\x01MSGID:` kludge line. `generateEchomailKludges()` must skip
+  auto-generating one whenever this is supplied, so exactly one MSGID line is stored
+  and sent.
+- **wire `Message-ID`** — written to `echomail.nntp_message_id` (the new column specced
+  in Data Model and *Crossposted peer articles*). Never touches `echomail.message_id`.
+- **externally-supplied `date_written`** — overrides the `NOW()` default.
+  `BinkdProcessor`'s `receivedDateOverride` path is the existing precedent for this kind
+  of override on the FTN toss side.
+- **explicit outbound-suppression flag** — defaulting to **suppress** for peer-origin
+  calls. Per D1's own model containment is opt-in, not opt-out: a peered article is
+  stored without being queued to FTN unless the area is explicitly flagged for
+  re-propagation (which drives the separate path below).
+
+This is new work on a function with existing production callers (`NntpPost`, the
+`BinkdProcessor` toss path). **Pre-implementation step (flag, do not do now):** confirm
+that adding these as trailing optional parameters does not collide with any current
+caller passing positional args past the present parameter list, or relying on
+`func_get_args()` / reflection over the signature.
+
+**Resolution order** (after the article has passed the one-time `nntp_history` gate at
+`IHAVE` / `CHECK` time and its body has been transferred and parsed):
+
+1. Resolve `Newsgroups:` to N `echoareas` rows via `NntpNewsgroups`.
+2. Look up the offering peer's `nntp_peers.max_cross_post_areas`. If N exceeds it, apply
+   `peering_crosspost_over_limit` (see Configuration): `'reject'` → store nothing,
+   answer `437`, log; `'truncate'` → keep the first `max_cross_post_areas` areas in
+   `Newsgroups:` order, drop the rest from storage, log the dropped group names.
+3. Determine the shared FTN `MSGID` for the article — the peer's own `MSGID` kludge if
+   present, else mint one with `NntpMessageId::buildSyntheticFtnMsgid()` (deterministic
+   from stable article content). Mint **once** for the whole article, and only after
+   step 2: a rejected article never triggers a mint, and a truncated-away area never
+   gets an `nntp_history` or `echomail` row.
+4. Per surviving area, in order: run the `(message_id, echoarea_id)` `echomail` backstop
+   (see *Crossposted peer articles*), then call `postEchomail()` with the shared FTN
+   `MSGID` / wire `Message-ID` / `date_written` / outbound-suppression parameters. The
+   *same* FTN `MSGID` and wire `Message-ID` go to every call so all surviving rows share
+   both (reusing `NntpPost::submit()`'s per-target loop shape).
+
+Once at least one area is stored, `NntpFeedInbound` writes the single `nntp_history`
+row for the wire `Message-ID` (one per article, not per area — it records the acceptance
+the `IHAVE` / `CHECK` gate let through). The per-area outbound-suppression flag is
+cleared for a given `postEchomail()` call — driving the re-propagation path below — only
+when the global `peering_repropagate_to_ftn` master switch is on **and** that
+`echoareas` row has `nntp_repropagate_to_ftn` set; otherwise it stays set and the
+article is inbound-only for that area.
+
+### Re-propagation to FTN (phase 5, D1)
+
+When an area is flagged for re-propagation, `NntpFeedInbound` (after storing the
+message and its history row) hands it to the tosser's outbound path the same way an
+FTN-tossed message destined for downlinks would be:
+
+- **Origin attribution.** If the article carries usable FTN identity (`X-FTN-*`
+  headers / a parseable `MSGID` from another gateway), reuse it. Otherwise synthesize
+  an origin address from the peer's `path_identity` mapped to a configured pseudo-FTN
+  node so `SEEN-BY` / dupe logic downstream has a stable handle.
+- **`SEEN-BY` / `PATH`.** Seed `SEEN-BY` with our system address plus the nodes already
+  implied by the article's NNTP `Path:`, then let the normal tosser append. Do not
+  queue toward any uplink whose address is already in `SEEN-BY`.
+- **Loop suppression back toward peers.** The outbound NNTP feeder already skips a peer
+  whose `path_identity` appears in the article `Path:`; re-propagation adds nothing new
+  there beyond making sure the inbound `Path:` (with our host prepended) is stored on
+  the `echomail` row / history row for that check.
+- **`nntp_history` origin_plane** stays `'nntp-peer'` — re-propagation does not change
+  where the article came from.
 
 ### Daemon model
 
 - **Inbound** peer sessions can be handled by the existing `scripts/nntp_server.php`
-  accept loop: after the greeting, if the source IP matches a peer with
-  `inbound_enabled`, hand the socket to `NntpFeedSession` instead of `NntpSession`.
+  accept loop: at accept time, if the source IP matches a peer with `inbound_enabled`,
+  hand the socket to `NntpFeedSession` instead of `NntpSession`; every other connection
+  gets a normal `NntpSession` and can never issue a feed command. (A dedicated peering
+  port, dispatching by port instead of source IP, is the alternative for operators who
+  want non-peers bounced at greeting — see *Authentication and authorization*.)
   They are long-lived and higher-volume, so the `pcntl_fork()` path is effectively
   required; the Windows single-connection fallback
   (`docs/proposals/NNTPServer.md` Architecture) is not usable for a live feed and the
@@ -359,9 +691,19 @@ order — no change needed.
 ### Transport — `.env`
 
 No new variables strictly required; peering reuses `NNTP_TLS_PORT` (implicit TLS) as
-the peer entry point. Optional:
+the peer entry point, with the accept loop dispatching peer IPs to `NntpFeedSession`
+and everyone else to the reader `NntpSession`. Optional:
 
 - `NNTP_FEEDER_INTERVAL` (default `60`) — outbound feeder poll seconds.
+- `NNTP_PEER_PORT` (unset by default) — if set, the feed listener binds this port
+  instead of sharing `NNTP_TLS_PORT`. Dispatch then keys off the port, non-peer
+  connections are refused at greeting (`502`), and the source-IP sniffing on the shared
+  port is not needed.
+- `NNTP_PEER_CLIENT_CERT` / `NNTP_PEER_CLIENT_KEY` (unset by default) — client cert +
+  key the outbound feeder presents when a peer requires one. Falls back to
+  `NNTP_TLS_CERT_PATH` / `NNTP_TLS_KEY_PATH` when unset. Per-peer CA bundles for
+  *inbound* verification are not env vars — they live under `data/nntp/peers/`,
+  referenced from `nntp_peers.client_ca_file` (see Data Model).
 
 ### Behavior — `config/nntp.json` (admin daemon)
 
@@ -371,12 +713,30 @@ New keys added to `NntpConfig::defaults()` / `sanitize()`:
   When false, `IHAVE` / `CHECK` / `TAKETHIS` stay `500` and the feeder does not run.
 - `peering_streaming` (bool, default `false`) — allow `MODE STREAM`; per-peer
   `streaming_enabled` gates it further.
-- `peering_repropagate_to_ftn` (bool, default `false`) — D1. Leaving this `false` is
-  the contained mode; enabling it opts into the full gateway behaviour and should
-  carry a prominent admin-UI warning.
-- `history_retention_days` (int, default `30`).
+- `peering_repropagate_to_ftn` (bool, default `false`) — D1 master switch. While
+  `false`, no peered article is ever queued to FTN regardless of per-area settings
+  (fully contained mode). While `true`, each echoarea's own
+  `nntp_repropagate_to_ftn` flag decides whether that area gateways peered articles
+  onward to FTN uplinks. Both the master switch and the per-area toggle carry a
+  prominent admin-UI warning.
+- `history_retention_days` (int, default `0` = keep forever). `nntp_history` is not
+  pruned unless a sysop sets this to a positive value; see Data Model → `nntp_history`
+  for why infinite retention is the sane default and what a shorter window gives up.
 - `peer_max_article_bytes` (int, default `1048576`) — global ceiling; per-peer value
   may be lower, not higher.
+- `peering_crosspost_over_limit` (enum `'reject'` | `'truncate'`, default `'reject'`) —
+  what happens when an article's `Newsgroups:` count exceeds the cap that applies to it
+  (the reader `max_cross_post_areas` for local posts, that peer's
+  `nntp_peers.max_cross_post_areas` for peer-sourced articles):
+  - `'reject'` — not stored in any area. The `Newsgroups:` count is not known until the
+    body arrives, so an `IHAVE` / `CHECK`-accepted article gets `437` after the body is
+    parsed. Logged with peer name, message-id, group count, and limit.
+  - `'truncate'` — stored into the first `max_cross_post_areas` areas in `Newsgroups:`
+    order; the rest are silently dropped from storage but logged (peer, article,
+    dropped group names) so an operator can spot a peer routinely over its limit. The
+    peer still sees `235` — the protocol has no partial-accept status.
+  Default `'reject'` is the safer, less surprising choice and matches the one-shot
+  accept/reject model `IHAVE` / `CHECK` already impose.
 
 Peer records themselves live in `nntp_peers` (DB), managed through a new
 **Admin → NNTP → Peers** screen, written via the admin daemon.
@@ -385,8 +745,12 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
 
 ## Abuse and Safety
 
-- **Unknown source** — connection from an IP with no `inbound_enabled` peer record is
-  refused at greeting (`502`), before any command processing.
+- **Unknown source** — on the shared `NNTP_TLS_PORT`, a connection from an IP with no
+  `inbound_enabled` peer record is served as an ordinary reader session; the feed
+  commands (`IHAVE` / `CHECK` / `TAKETHIS` / `MODE STREAM`) are simply not present in
+  `NntpSession` and return `500`, so such a connection can never reach the feed path.
+  On a dedicated peering port the same connection is refused at greeting (`502`) before
+  any command processing.
 - **Per-peer article size cap** — enforced in `readDotTerminated()`-equivalent for the
   feed path; over-size gets `437` (do not retry).
 - **Per-peer inbound rate limit** — articles/minute and articles/hour, rejected with
@@ -396,8 +760,12 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
   business in.
 - **Control messages dropped**, always logged (`cancel` / `supersedes` /
   `checkgroups` / `newgroup` / `rmgroup`).
-- **Loop belt-and-braces** — history check *and* `Path:` self-check *and* per-area
-  `MSGID` check all run; any hit drops the article.
+- **Loop belt-and-braces** — three checks, different scopes: an `nntp_history` hit (at
+  `IHAVE` / `CHECK`, before any area is resolved) rejects the whole article, body never
+  requested; a `Path:` self-check hit (our host already in `Path:`) drops the whole
+  article as looped; a per-area `(message_id, echoarea_id)` `echomail` backstop hit
+  skips storing that one area's copy only — the article's other resolved areas still
+  store.
 - **No `IHAVE` before TLS** on the plaintext port, same rule as `AUTHINFO` / `POST`.
 
 ---
@@ -405,8 +773,10 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
 ## Testing
 
 - **Unit** — `NntpHistory` hit/miss, `NntpPath` prepend/loop-detect, `NntpFeedInbound`
-  want-decision matrix (history hit, pattern miss, size cap, control message),
-  `NntpMessageId` round-trip already covered.
+  want-decision matrix (history hit, pattern miss, size cap, control message, crosspost
+  over `max_cross_post_areas` under both `peering_crosspost_over_limit` modes),
+  `NntpMessageId::buildSyntheticFtnMsgid()` determinism, `NntpMessageId` round-trip
+  already covered.
 - **Integration** — two BinktermPHP instances (or one instance + `innd` / a scripted
   peer) exchanging a known area; assert no duplicate `echomail` rows, correct
   `Path:` growth, correct `435` on re-offer.
@@ -418,12 +788,19 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
 
 ## Documentation Impact
 
-- `docs/NNTP.md` — new "Peering" section (peer setup, feed patterns, the
+- `docs/NNTP.md` — new "Peering" section (peer setup, feed patterns, per-peer
+  `max_cross_post_areas` and the `peering_crosspost_over_limit` policy, the
   re-propagation switch and its risks).
 - `docs/proposals/NNTPServer.md` — Design Decision 3 is revisited; add a pointer here.
 - `docs/proposals/NNTPClientTransport.md` — note the shared `NntpFeedOutbound` /
   connection code.
-- `docs/CLI.md` — `scripts/nntp_feeder.php`.
+- `docs/CLI.md` — `scripts/nntp_feeder.php`; and the optional `nntp_history` prune if
+  one is added to `scripts/echomail_maintenance.php`.
+- `docs/CONFIGURATION.md` — `NNTP_PEER_PORT`, `NNTP_PEER_CLIENT_CERT` /
+  `NNTP_PEER_CLIENT_KEY`, and the `data/nntp/peers/` CA directory convention.
+- `scripts/README_echomail_maintenance.md` — document the `nntp_history` prune flag if
+  added, including the warning that pruning below effective `echomail` age weakens
+  peer re-offer suppression.
 - `docs/DEVELOPER_GUIDE.md` Doc Maintenance Checklist — add the NNTP peering ↔
   `docs/NNTP.md` pairing.
 - `docs/PostgreSQLDependencies.md` — only if a peering query uses a PG-specific
@@ -436,19 +813,24 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
 ## Suggested Phasing
 
 1. **History plane, no protocol change.** Add `nntp_history`, wire the FTN ingest and
-   local-post paths to record constructed `Message-ID`s, backfill, add the retention
-   job. Ships invisibly; de-risks the bridge.
+   local-post paths to record constructed `Message-ID`s, backfill. No retention job —
+   history is kept indefinitely by default (see Data Model); an optional prune can come
+   later. Ships invisibly; de-risks the bridge.
 2. **Inbound `IHAVE` from one trusted, cert-authed peer**, `peering_repropagate_to_ftn`
-   forced off. Peer is a faster inbound mirror for areas already carried over FTN.
-   `nntp_peers` table + admin screen.
+   master switch forced off. Peer is a faster inbound mirror for areas already carried
+   over FTN. `nntp_peers` table + admin screen. Includes the store-path work in
+   *Storing a peered article* (external FTN `MSGID` / wire `Message-ID` /
+   `date_written`, single MSGID line, and the **outbound-suppression flag** — without
+   which "master switch forced off" has no effect, see D1).
 3. **Outbound feed** — `nntp_outbound_queue`, `scripts/nntp_feeder.php`, `IHAVE` loop,
    sharing connection code with `NNTPClientTransport`.
 4. **Streaming** (`MODE STREAM` / `CHECK` / `TAKETHIS`), multi-peer, per-peer patterns
    and rate limits hardened.
-5. **Opt-in re-propagation to FTN** (`peering_repropagate_to_ftn = true`): peered
-   articles get correct `SEEN-BY` / `PATH`, flow through the tosser outbound path, and
-   are suppressed toward peers/uplinks that already hold them. Only after 1–4 are
-   proven in production.
+5. **Opt-in re-propagation to FTN, per echoarea** (`peering_repropagate_to_ftn` master
+   switch + `echoareas.nntp_repropagate_to_ftn` per area): peered articles for flagged
+   areas get correct `SEEN-BY` / `PATH`, flow through the tosser outbound path, and are
+   suppressed toward peers/uplinks that already hold them. Only after 1–4 are proven in
+   production.
 
 ---
 
@@ -469,7 +851,11 @@ Peering is a well-bounded protocol addition (`IHAVE`, optionally streaming) sitt
 top of a much larger design problem: reconciling FTN's per-area `MSGID` /`SEEN-BY` loop
 suppression with NNTP's global `Message-ID` history / `Path:` model. The deterministic
 `NntpMessageId` construction already in the `nntpserver` branch is what makes the
-bridge feasible — record it for FTN-sourced messages too, and both planes can recognise
-a shared article. The contained first step (inbound-only, no re-propagation to FTN) is
-low-risk and useful on its own; full bidirectional gatewaying between the two networks
-is a later, deliberately separate phase.
+bridge feasible — record it in `nntp_history` for FTN-sourced messages, take the wire
+`Message-ID` as-is for peer-sourced ones, and the same article returning over this
+bridge is recognised (an identical message carried by a *separate* gateway is not — an
+accepted gap). The contained first step (inbound-only, no re-propagation to FTN) is
+low-risk and useful on its own once the store path can actually withhold a stored
+article from the FTN outbound queue — a capability `postEchomail()` does not have today
+(see D1) and this proposal has to add. Re-propagation to FTN — enabled globally and
+then opted into per echoarea — is a later, deliberately separate phase.
