@@ -136,9 +136,13 @@ class NntpPost
         // Rewrite Internet "> " quoting to FSC-0032 " XX> " using the quoted
         // author's initials (the parent this reply threads onto), when enabled.
         if ($this->config->shouldConvertInboundQuotes() && $replyToId !== null) {
-            $quoter = $this->parentFromName($replyToId);
-            if ($quoter !== '') {
-                $body = NntpQuoteStyle::toFtn($body, $quoter);
+            $parent = $this->parentQuoteInfo($replyToId);
+            if ($parent['from_name'] !== '') {
+                $body = NntpQuoteStyle::toFtnAgainstParent(
+                    $body,
+                    $parent['from_name'],
+                    $parent['message_text']
+                );
             }
         }
 
@@ -267,16 +271,22 @@ class NntpPost
     }
 
     /**
-     * from_name of an echomail row (the quoted author for inbound quote conversion),
-     * or '' when the row is gone.
+     * from_name and raw message body of an echomail row — the quoted author and
+     * the canonical parent text for inbound quote conversion. from_name is '' when
+     * the row is gone.
+     *
+     * @return array{from_name:string,message_text:string}
      */
-    private function parentFromName(int $echomailId): string
+    private function parentQuoteInfo(int $echomailId): array
     {
-        $stmt = $this->db->prepare('SELECT from_name FROM echomail WHERE id = ?');
+        $stmt = $this->db->prepare('SELECT from_name, message_text FROM echomail WHERE id = ?');
         $stmt->execute([$echomailId]);
-        $name = $stmt->fetchColumn();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $name === false ? '' : trim((string)$name);
+        return [
+            'from_name' => $row ? trim((string)$row['from_name']) : '',
+            'message_text' => $row ? (string)$row['message_text'] : '',
+        ];
     }
 
     /**

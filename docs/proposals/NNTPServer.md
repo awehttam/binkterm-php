@@ -263,11 +263,22 @@ at the gateway boundary fixes both directions:
 
 - **Outbound (echomail → NNTP article).** Rewrite a leading FSC-0032 prefix to stacked
   `>` of the same depth: ` MA> x` → `> x`, ` MA>> x` → `>> x`, ` MA> JS> x` → `>> x`.
-- **Inbound (NNTP `POST` → echomail).** Rewrite a leading `>` run to an FSC-0032 prefix
-  using the initials of the message this reply quotes — the parent resolved from
-  `References:` (`NntpArticleParser::lastReference()` → parent `echomail.from_name`).
-  `> x` → ` MA> x`, `>> x` → ` MA>> x`. FTN records only one quoted author per line, so
-  every level is attributed to that same parent author.
+- **Inbound (NNTP `POST` → echomail).** The parent is resolved from `References:`
+  (`NntpArticleParser::lastReference()` → parent `echomail` / `netmail` row). Two paths:
+  - **Reconstruction (preferred).** When the article contains exactly one quoted block
+    and that block is recognisably a quote of the stored parent body
+    (`NntpQuoteStyle::toFtnAgainstParent()`), the newsreader's flat `>` quoting is
+    discarded and an FSC-0032 quote is regenerated from the canonical parent text —
+    bumping the parent's own ` XX> ` lines one level deeper and attributing only the
+    parent's unquoted lines to `from_name`. Per-author attribution is preserved for the
+    whole ancestry the stored parent carries, and repeated gateway crossings no longer
+    compound the flattening. The block match is whitespace-normalised and has a
+    word-level fallback so a client that re-wrapped the quoted text still matches.
+  - **Flat re-attribution (fallback).** `NntpQuoteStyle::toFtn()` rewrites a leading `>`
+    run to ` MA> ` / ` MA>> ` using the parent author's initials only. Used when the
+    parent body is unavailable, the article has no quoted text, it has *more than one*
+    quoted block (interleaved inline replies — left untouched), or the block does not
+    match the stored parent (a trimmed or edited quote, or a quote of another message).
 
 ### Rules
 
@@ -283,16 +294,17 @@ at the gateway boundary fixes both directions:
 - **Message-ID inputs are unaffected.** The synthetic `Message-ID` / `References` hash is
   taken from the raw stored `message_text` before this conversion (see "Message-ID
   Construction"), so toggling quote conversion never shifts an article's identity.
-- **The transform is lossy and not round-trip-exact.** Depth is preserved but the identity
-  of quoted authors below the immediate parent is not recoverable, so text that crosses
-  the gateway repeatedly loses attribution detail. This is inherent to any FTN↔Usenet
-  bridge and is documented, not worked around.
+- **The transform is lossy on the fallback path.** When flat re-attribution is used, depth
+  is preserved but the identity of quoted authors below the immediate parent is not
+  recoverable. The reconstruction path avoids this by regenerating from the stored parent
+  rather than from the newsreader's rendering; it degrades to the fallback only when the
+  parent cannot be matched.
 
 ### Where it lives
 
-A single shared helper, `src/Nntp/NntpQuoteStyle` (`toRfc()` / `toFtn()` / `initials()`),
-called from `NntpArticleBuilder::build()` on the way out and from `NntpPost::submit()` on
-the way in. The companion `NNTPClientTransport` design reuses the same helper so the two
+A single shared helper, `src/Nntp/NntpQuoteStyle` (`toRfc()` / `toFtn()` /
+`toFtnAgainstParent()` / `initials()`), called from `NntpArticleBuilder::build()` on the
+way out and from `NntpPost::submit()` / `NntpNetmailPost::submit()` on the way in. The companion `NNTPClientTransport` design reuses the same helper so the two
 transports never diverge on quote handling.
 
 ### Configuration

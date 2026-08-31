@@ -21,15 +21,16 @@ namespace BinktermPHP\Nntp;
  * is the initials of the quoted author).
  *
  * Outbound (echomail/netmail -> NNTP article) uses {@see toRfc()}; inbound
- * (NNTP POST -> echomail/netmail) uses {@see toFtn()}. Both are line oriented,
- * leave fenced code blocks untouched, and are deliberately conservative: only an
- * unmistakable leading prefix is rewritten, everything else passes through
- * verbatim.
+ * (NNTP POST -> echomail/netmail) uses {@see toFtnAgainstParent()}, which falls
+ * back to {@see toFtn()}. Both directions are line oriented, leave fenced code
+ * blocks untouched, and are deliberately conservative: only an unmistakable
+ * leading prefix is rewritten, everything else passes through verbatim.
  *
- * The transform is lossy. FTN records only one quoted author per line, so a deep
- * quote chain that crosses the gateway repeatedly loses attribution detail below
- * the immediate parent. See docs/proposals/NNTPServer.md - "Quote-style
- * conversion".
+ * Inbound has two paths: {@see toFtnAgainstParent()} regenerates the quote from
+ * the stored parent message (preserving per-author attribution for the whole
+ * ancestry the parent carries) and falls back to {@see toFtn()}, which flatly
+ * attributes every level to the immediate parent, when the parent cannot be
+ * matched. See docs/proposals/NNTPServer.md - "Quote-style conversion".
  *
  * The initials rule mirrors generateInitials() in src/functions.php so an
  * NNTP-originated reply quotes the same way a web or terminal reply does.
@@ -94,6 +95,219 @@ final class NntpQuoteStyle
 
             return ' ' . $initials . str_repeat('>', $depth) . ($rest === '' ? '' : ' ' . $rest);
         });
+    }
+
+    /**
+     * Inbound quote conversion that reconstructs from the canonical parent rather
+     * than blindly re-attributing every level to one author.
+     *
+     * A newsreader reply quotes the parent article by prefixing each of its lines
+     * with `>`. That parent is a message we already store, complete with correct
+     * per-author FSC-0032 attribution for its own ancestry. So when the article's
+     * single quoted block is recognisably a quote of $parentBody, we discard the
+     * newsreader's flat `>` quoting entirely and regenerate an FSC-0032 quote from
+     * $parentBody — bumping the parent's own ` XX> ` lines one level deeper and
+     * attributing only the parent's unquoted lines to $quotedAuthor. This keeps
+     * multi-author attribution intact all the way down and stops round-trip
+     * flattening from compounding.
+     *
+     * Falls back to {@see toFtn()} (flat re-attribution) when: $quotedAuthor
+     * yields no initials, $parentBody is empty, the article has no quoted text,
+     * the article has *more than one* quoted block (interleaved inline replies —
+     * never disturb those), or the quoted block does not look like a quote of
+     * $parentBody (a trimmed/edited quote, or a quote of some other message).
+     */
+    public static function toFtnAgainstParent(string $body, string $quotedAuthor, string $parentBody): string
+    {
+        $initials = self::initials($quotedAuthor);
+        if ($initials === '' || trim($parentBody) === '') {
+            return self::toFtn($body, $quotedAuthor);
+        }
+
+        $body = str_replace(["\r\n", "\r"], "\n", $body);
+        $lines = explode("\n", $body);
+
+        $blocks = self::quotedBlocks($lines);
+        if (count($blocks) !== 1) {
+            return self::toFtn($body, $quotedAuthor);
+        }
+        [$start, $end] = $blocks[0];
+
+        // What the newsreader quoted, one '>' level peeled off each line.
+        $stripped = [];
+        for ($i = $start; $i <= $end; $i++) {
+            if (preg_match(self::RFC_PREFIX, $lines[$i], $m)) {
+                $stripped[] = substr($lines[$i], strlen($m[0]));
+            } else {
+                $stripped[] = '';
+            }
+        }
+
+        // The parent as the newsreader would have received it over NNTP.
+        if (!self::looksLikeQuoteOf($stripped, self::toRfc($parentBody))) {
+            return self::toFtn($body, $quotedAuthor);
+        }
+
+        $rebuilt = explode("\n", self::requoteParent($parentBody, $initials));
+        $out = array_merge(
+            array_slice($lines, 0, $start),
+            $rebuilt,
+            array_slice($lines, $end + 1)
+        );
+
+        return implode("\n", $out);
+    }
+
+    /**
+     * Maximal runs of consecutive quoted-or-blank lines that contain at least one
+     * quoted line, with leading/trailing blank lines excluded from the span.
+     *
+     * @param string[] $lines
+     * @return array<int,array{0:int,1:int}>  [startIndex, endIndex] inclusive
+     */
+    private static function quotedBlocks(array $lines): array
+    {
+        $isQuoted = static fn (string $l): bool => (bool)preg_match(self::RFC_PREFIX, $l);
+        $isBlank = static fn (string $l): bool => trim($l) === '';
+
+        $blocks = [];
+        $n = count($lines);
+        $i = 0;
+        while ($i < $n) {
+            if (!$isQuoted($lines[$i])) {
+                $i++;
+                continue;
+            }
+            $start = $i;
+            $end = $i;
+            $j = $i;
+            while ($j < $n && ($isQuoted($lines[$j]) || $isBlank($lines[$j]))) {
+                if ($isQuoted($lines[$j])) {
+                    $end = $j;
+                }
+                $j++;
+            }
+            $blocks[] = [$start, $end];
+            $i = $j;
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * Heuristic: is $stripped (a newsreader's quoted block with one '>' level
+     * removed) a quote of $reference (the parent rendered Internet-style)?
+     *
+     * Passes on either a line-level match (>=60% of non-blank stripped lines
+     * appear verbatim, whitespace-normalised, in the parent) or a word-level
+     * match (>=75% of stripped words appear in the parent) — the latter tolerates
+     * a client that re-wrapped the quoted text.
+     *
+     * @param string[] $stripped
+     */
+    private static function looksLikeQuoteOf(array $stripped, string $reference): bool
+    {
+        $normLine = static fn (string $s): string => strtolower(trim((string)preg_replace('/\s+/', ' ', $s)));
+
+        $refLines = [];
+        foreach (explode("\n", $reference) as $r) {
+            $r = $normLine($r);
+            if ($r !== '') {
+                $refLines[$r] = true;
+            }
+        }
+        if ($refLines === []) {
+            return false;
+        }
+
+        $lineTotal = 0;
+        $lineHit = 0;
+        foreach ($stripped as $s) {
+            $s = $normLine($s);
+            if ($s === '') {
+                continue;
+            }
+            $lineTotal++;
+            if (isset($refLines[$s])) {
+                $lineHit++;
+            }
+        }
+        if ($lineTotal >= 2 && $lineHit / $lineTotal >= 0.6) {
+            return true;
+        }
+
+        $words = static function (string $t): array {
+            preg_match_all('/[\p{L}\p{N}]+/u', strtolower($t), $mm);
+            return $mm[0];
+        };
+        $refWords = array_fill_keys($words($reference), true);
+        $strippedWords = $words(implode(' ', $stripped));
+        if (count($refWords) < 5 || count($strippedWords) < 5) {
+            return false;
+        }
+        $hit = 0;
+        foreach ($strippedWords as $w) {
+            if (isset($refWords[$w])) {
+                $hit++;
+            }
+        }
+
+        return $hit / count($strippedWords) >= 0.75;
+    }
+
+    /**
+     * FSC-0032 quote of $parentBody one nesting level deep: the parent's own
+     * ` XX> ` lines gain another '>', its unquoted lines gain a ` $initials> `
+     * prefix, blank lines pass through. Mirrors quoteMessageText() in
+     * src/functions.php (kept self-contained so the class needs no bootstrap).
+     */
+    private static function requoteParent(string $parentBody, string $initials): string
+    {
+        $parentBody = str_replace(["\r\n", "\r"], "\n", $parentBody);
+        $out = [];
+
+        foreach (explode("\n", $parentBody) as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                $out[] = '';
+                continue;
+            }
+
+            if (preg_match('/^\s*[A-Za-z]{0,2}>/', $trimmed)) {
+                $bumped = preg_replace('/^(\s*[A-Za-z]{0,2})(>+)/', '$1$2>', ' ' . $trimmed);
+                if (preg_match('/^(\s*[A-Za-z]{0,2}>+\s*)(.*)$/', (string)$bumped, $m)) {
+                    foreach (self::wrapQuoted($m[1], $m[2]) as $w) {
+                        $out[] = $w;
+                    }
+                } else {
+                    $out[] = (string)$bumped;
+                }
+                continue;
+            }
+
+            foreach (self::wrapQuoted(' ' . $initials . '> ', $trimmed) as $w) {
+                $out[] = $w;
+            }
+        }
+
+        return implode("\n", $out);
+    }
+
+    /**
+     * Word-wrap one quoted line to $maxWidth total, repeating $prefix on every
+     * segment. Mirrors wrapQuotedLine() in src/functions.php.
+     *
+     * @return string[]
+     */
+    private static function wrapQuoted(string $prefix, string $content, int $maxWidth = 75): array
+    {
+        $available = $maxWidth - strlen($prefix);
+        if ($available <= 0 || strlen($content) <= $available) {
+            return [$prefix . $content];
+        }
+        $wrapped = wordwrap($content, $available, "\n", true);
+
+        return array_map(static fn (string $l): string => $prefix . $l, explode("\n", $wrapped));
     }
 
     /**

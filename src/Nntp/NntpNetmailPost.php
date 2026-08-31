@@ -91,7 +91,11 @@ final class NntpNetmailPost
         if ($this->config->shouldConvertInboundQuotes() && $parent !== null) {
             $quoter = trim((string)($parent['from_name'] ?? ''));
             if ($quoter !== '') {
-                $body = NntpQuoteStyle::toFtn($body, $quoter);
+                $body = NntpQuoteStyle::toFtnAgainstParent(
+                    $body,
+                    $quoter,
+                    (string)($parent['message_text'] ?? '')
+                );
             }
         }
 
@@ -194,7 +198,7 @@ final class NntpNetmailPost
         $vis = $this->handler->netmailVisibilityFilter($this->userId, 'n');
         $del = $this->handler->netmailNotDeletedFilter($this->userId, 'n');
         $stmt = $this->db->prepare(
-            "SELECT n.id, n.from_name, n.from_address, n.reply_address
+            "SELECT n.id, n.from_name, n.from_address, n.reply_address, n.message_text
              FROM netmail n
              WHERE ({$vis['sql']}) AND ({$del['sql']})
                AND (n.message_id = ? OR n.message_id LIKE ?)
