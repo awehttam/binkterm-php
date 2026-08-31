@@ -9,6 +9,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Admin BBS Settings](#admin-bbs-settings)
 - [MeshCore Enable/Disable](#meshcore-enabledisable)
 - [Docker WebSocket Proxy](#docker-websocket-proxy)
+- [RLogin Door Player Backspace Fix](#rlogin-door-player-backspace-fix)
 - [CLI Script Fixes](#cli-script-fixes)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
@@ -31,6 +32,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Docker WebSocket Proxy
 
 - The bundled Docker image now proxies the realtime WebSocket stream (`/ws`) and the DOS door bridge (`/dosdoor`) through Apache, so the event bus and browser-side DOS door games work in container deployments. Rebuild the image to pick this up.
+
+### RLogin Door Player Backspace Fix
+
+- The browser-based RLogin door player (`public_html/webdoors/rlogindoors/index.php`) now remaps the DEL byte (`0x7f`) that modern browsers send for the Backspace/Delete key to the Backspace byte (`0x08`) that RLogin door servers expect. Previously the Backspace key was ignored in RLogin doors (for example DOS doors run through DOSEMU/DOSBox, or MajorBBS). The equivalent DOS door players already had this remap; this brings the RLogin player in line.
 
 ### CLI Script Fixes
 
@@ -77,6 +82,12 @@ The bundled Docker image now proxies the realtime WebSocket stream and the DOS d
 Previously these WebSocket endpoints were not reachable from inside the container, which broke the realtime event bus and browser-side DOS door games for Docker deployments. Rebuilding the image from the updated `Dockerfile` picks up the change.
 
 If you run your own reverse proxy in front of the container, make sure it also passes `/ws` and `/dosdoor` through as WebSocket upgrades to Apache on port 80.
+
+## RLogin Door Player Backspace Fix
+
+On modern browsers — particularly on macOS and iOS — xterm.js emits ASCII `0x7f` (DEL) when the user presses the Backspace or Delete key. RLogin door servers, and the DOS doors they front (DOSEMU/DOSBox, MajorBBS, and similar), expect ASCII `0x08` (BS) instead, so the Backspace key did nothing inside an RLogin door.
+
+The browser DOS door players (`public_html/webdoors/dosdoors/index.php` and `guest-door-player.php`) already translated `0x7f` to `0x08` in their `term.onData()` handler. That same one-line translation is now applied in the RLogin door player (`public_html/webdoors/rlogindoors/index.php`), so Backspace works consistently across all browser-side door players. Clearing the browser/service-worker cache (or a hard reload) ensures clients pick up the updated script.
 
 ## CLI Script Fixes
 
