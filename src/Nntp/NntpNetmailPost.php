@@ -64,7 +64,7 @@ final class NntpNetmailPost
 
         $headers = $article['headers'];
 
-        $subject = trim((string)($headers['subject'] ?? ''));
+        $subject = trim(NntpArticleParser::decodeText((string)($headers['subject'] ?? '')));
         if ($subject === '') {
             return $this->fail('Missing Subject header');
         }
@@ -290,7 +290,7 @@ final class NntpNetmailPost
             $name = str_replace(['\\"', '\\\\'], ['"', '\\'], substr($name, 1, -1));
         }
 
-        return trim($name, " \t\"");
+        return trim(NntpArticleParser::decodeText(trim($name, " \t\"")));
     }
 
     /**

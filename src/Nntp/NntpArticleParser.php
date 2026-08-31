@@ -67,6 +67,42 @@ final class NntpArticleParser
     }
 
     /**
+     * Decode any RFC 2047 encoded-word(s) in a human-readable header value
+     * (Subject, display names) back to a UTF-8 string.
+     *
+     * Clients routinely send a non-ASCII Subject as a single Base64 encoded-word
+     * that also swallows the leading "Re: ". Stored verbatim, that literal
+     * `=?UTF-8?B?...?=` token travels into the FTN packet and is later re-emitted
+     * unchanged (it is pure ASCII, so the article builder's encoder leaves it
+     * alone), and a strict reader that will not decode an over-long or truncated
+     * encoded-word shows the raw text. Decoding on the way in keeps the stored
+     * subject as plain UTF-8 so the outbound side can encode and fold it cleanly.
+     *
+     * Best-effort: a value with no encoded-word, or one that fails to decode, is
+     * returned unchanged.
+     */
+    public static function decodeText(string $value): string
+    {
+        if ($value === '' || strpos($value, '=?') === false) {
+            return $value;
+        }
+
+        $previous = mb_internal_encoding();
+        mb_internal_encoding('UTF-8');
+        try {
+            $decoded = mb_decode_mimeheader($value);
+        } catch (\Throwable $e) {
+            $decoded = '';
+        } finally {
+            if (is_string($previous)) {
+                mb_internal_encoding($previous);
+            }
+        }
+
+        return ($decoded !== '' && mb_check_encoding($decoded, 'UTF-8')) ? $decoded : $value;
+    }
+
+    /**
      * Join RFC 5322 folded header continuation lines (leading SP/TAB) onto the
      * preceding line.
      *

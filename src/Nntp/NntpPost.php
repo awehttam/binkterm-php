@@ -110,7 +110,7 @@ class NntpPost
             $targets[] = $area;
         }
 
-        $subject = trim((string)($headers['subject'] ?? ''));
+        $subject = trim(NntpArticleParser::decodeText((string)($headers['subject'] ?? '')));
         if ($subject === '') {
             return $this->fail('Missing Subject header');
         }
@@ -125,7 +125,7 @@ class NntpPost
             return $this->fail($rateError);
         }
 
-        $toName = trim((string)($headers['x-comment-to'] ?? $headers['to'] ?? '')) ?: 'All';
+        $toName = trim(NntpArticleParser::decodeText((string)($headers['x-comment-to'] ?? $headers['to'] ?? ''))) ?: 'All';
 
         // References -> immediate parent echomail.id, resolved within the primary area.
         $replyToId = $this->resolveParent(
