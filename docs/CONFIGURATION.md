@@ -37,7 +37,7 @@ bash scripts/restart_daemons.sh
 | File | Purpose | Edited via |
 |------|---------|------------|
 | `.env` | Database, SMTP, daemon ports, feature flags | Text editor (initial setup) |
-| `config/binkp.json` | System identity, uplinks, binkp daemon, security, crashmail | Admin UI → BinkP Config |
+| `config/binkp.json` | System identity, uplinks, binkp daemon, security, crashmail | Admin UI → BinkP Uplinks |
 | Database `networks` table | FTN network metadata and network-level message policy flags | Admin UI → Networks |
 | `config/bbs.json` | BBS features (credits, file areas, registration, etc.) | Admin UI → BBS Settings |
 | `config/nodelists.json` | Nodelist download sources | Admin UI → Nodelists |
