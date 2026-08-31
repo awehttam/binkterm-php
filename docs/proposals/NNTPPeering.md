@@ -111,25 +111,34 @@ These are genuine forks in the road; the rest of the design depends on the answe
 
 ### D2. Inbound only, outbound only, or both, per peer?
 
-Peers should be configured per direction. A common early configuration is
-**inbound-only from one trusted gateway** (receive DoveNet or another network faster
-than the FTN poll) with no outbound obligations.
+**Decided: per-peer configurable, per direction.** Each `nntp_peers` row carries
+independent `inbound_enabled` and `outbound_enabled` booleans (both default `false`),
+so any peer can be inbound-only, outbound-only, or bidirectional. A common early
+configuration is **inbound-only from one trusted gateway** (receive DoveNet or another
+network faster than the FTN poll) with no outbound obligations. The per-direction
+wildmat patterns (`inbound_pattern` / `outbound_pattern`) scope *which* groups flow in
+each enabled direction.
 
 ### D3. `IHAVE` or streaming (`CHECK` / `TAKETHIS`)?
 
-`IHAVE` is simpler and sufficient for low-volume links. Streaming (RFC 4644) pipelines
-offers and bodies and is what high-volume real peers expect. Recommendation: implement
-`IHAVE` first, add `MODE STREAM` in a later phase; the history lookups are the same
-either way.
+**Decided: `IHAVE` first.** It is simpler and sufficient for the low-volume links
+phase 1–3 target. Streaming (RFC 4644) pipelines offers and bodies and is what
+high-volume real peers expect, so `MODE STREAM` / `CHECK` / `TAKETHIS` is added in a
+later phase (phase 4); until then `MODE STREAM` returns `500` and peers fall back to
+`IHAVE`. The history lookups and store path are identical either way, so this deferral
+costs no rework.
 
 ### D4. NNTP-only groups?
 
-If BinktermPHP only ever peers areas that also exist as FTN echoareas, the existing
-`echoareas` row and the lazy article-number allocator
-(`NntpArticleNumbers::ensureArea()`, which keys off `echomail` rows) work unchanged.
-Supporting groups with **no** FTN backbone means either a synthetic `echoareas` row
-with no network binding, or a separate storage/numbering plane. Recommend requiring an
-`echoareas` row for every peered group in phase 1.
+**Decided: every peered group requires an `echoareas` row.** There is no separate
+NNTP-only storage or numbering plane. A group with no FTN backbone is still carried as
+an `echoareas` row (with no network binding, or a synthetic one); an `IHAVE` /
+`CHECK` / `TAKETHIS` for a `Newsgroups:` value that does not resolve to an existing
+`echoareas` row via `NntpNewsgroups` is refused (`435` / `438`) — peers cannot create
+areas. This keeps the existing `echoareas` row and the lazy article-number allocator
+(`NntpArticleNumbers::ensureArea()`, which keys off `echomail` rows) working unchanged
+across both planes, and keeps the area→group mapping — the thing the bridge rule
+depends on — as the single source of truth.
 
 ---
 
