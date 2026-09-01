@@ -315,7 +315,9 @@ if (empty($doorId)) {
             // the local DOSBox/native door player uses.
             term.onData((data) => {
                 // Remap DEL (0x7f) to Backspace (0x08) for DOS/BBS compatibility
-                if (data === '\x7f') data = '\x08';
+                if (typeof data === 'string') {
+                    data = data.replace(/\x7f/g, '\x08');
+                }
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     socket.send(data);
                 }
@@ -413,7 +415,11 @@ if (empty($doorId)) {
                     };
 
                     socket.onmessage = (event) => {
-                        term.write(event.data);
+                        let data = event.data;
+                        if (typeof data === 'string') {
+                            data = data.replace(/\x7f/g, '\b \b');
+                        }
+                        term.write(data);
                     };
 
                     socket.onclose = (event) => {
