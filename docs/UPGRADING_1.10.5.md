@@ -10,7 +10,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [MeshCore Enable/Disable](#meshcore-enabledisable)
 - [NNTP Server](#nntp-server)
 - [Docker WebSocket Proxy](#docker-websocket-proxy)
-- [RLogin Door Player Backspace Fix](#rlogin-door-player-backspace-fix)
+- [Door Player Backspace Handling](#door-player-backspace-handling)
 - [CLI Script Fixes](#cli-script-fixes)
 - [CP437 Login ANSI Art](#cp437-login-ansi-art)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -41,9 +41,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - The bundled Docker image now proxies the realtime WebSocket stream (`/ws`) and the DOS door bridge (`/dosdoor`) through Apache, so the event bus and browser-side DOS door games work in container deployments. Rebuild the image to pick this up.
 
-### RLogin Door Player Backspace Fix
+### Door Player Backspace Handling
 
 - The browser-based RLogin door player (`public_html/webdoors/rlogindoors/index.php`) now remaps the DEL byte (`0x7f`) that modern browsers send for the Backspace/Delete key to the Backspace byte (`0x08`) that RLogin door servers expect. Previously the Backspace key was ignored in RLogin doors (for example DOS doors run through DOSEMU/DOSBox, or MajorBBS). The equivalent DOS door players already had this remap; this brings the RLogin player in line.
+- All three browser door players (`rlogindoors/index.php`, `webdoors/dosdoors/index.php`, `guest-door-player.php`) now also translate an inbound `0x7f` (DEL) coming *from* the door engine into a destructive backspace sequence (`\b \b`) before writing it to the terminal. Some door engines emit a bare DEL to erase the last character; xterm.js would otherwise render it as a visible glyph instead of erasing. Binary WebSocket frames are left untouched.
 
 ### CLI Script Fixes
 
@@ -144,11 +145,19 @@ Previously these WebSocket endpoints were not reachable from inside the containe
 
 If you run your own reverse proxy in front of the container, make sure it also passes `/ws` and `/dosdoor` through as WebSocket upgrades to Apache on port 80.
 
-## RLogin Door Player Backspace Fix
+## Door Player Backspace Handling
+
+### Outbound: Backspace key to the door
 
 On modern browsers — particularly on macOS and iOS — xterm.js emits ASCII `0x7f` (DEL) when the user presses the Backspace or Delete key. RLogin door servers, and the DOS doors they front (DOSEMU/DOSBox, MajorBBS, and similar), expect ASCII `0x08` (BS) instead, so the Backspace key did nothing inside an RLogin door.
 
-The browser DOS door players (`public_html/webdoors/dosdoors/index.php` and `guest-door-player.php`) already translated `0x7f` to `0x08` in their `term.onData()` handler. That same one-line translation is now applied in the RLogin door player (`public_html/webdoors/rlogindoors/index.php`), so Backspace works consistently across all browser-side door players. Clearing the browser/service-worker cache (or a hard reload) ensures clients pick up the updated script.
+The browser DOS door players (`public_html/webdoors/dosdoors/index.php` and `guest-door-player.php`) already translated `0x7f` to `0x08` in their `term.onData()` handler. That same translation is now applied in the RLogin door player (`public_html/webdoors/rlogindoors/index.php`), so Backspace works consistently across all browser-side door players. The RLogin handler now uses a global replace, so a DEL byte inside a pasted or multi-character chunk is remapped too, not only a lone keystroke.
+
+### Inbound: DEL echo from the door
+
+All three players (`rlogindoors/index.php`, `webdoors/dosdoors/index.php`, `guest-door-player.php`) now rewrite an inbound `0x7f` (DEL) in the stream from the door engine to a destructive backspace sequence (`\b \b`) before `term.write()`. Some door engines send a bare DEL to erase the previously typed character; without this, xterm.js drew it as a visible glyph and the erase never happened. Only string WebSocket frames are affected; binary frames pass through unchanged.
+
+Clearing the browser/service-worker cache (or a hard reload) ensures clients pick up the updated scripts.
 
 ## CLI Script Fixes
 
