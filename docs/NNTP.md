@@ -132,6 +132,10 @@ you want.
 
 When *Allow posting from newsreaders* is on:
 
+- Groups the member may post to are advertised as `y` (posting permitted) in
+  `LIST ACTIVE`, so newsreaders enable their compose and reply controls. When the
+  setting is off, every group is advertised as `n`. This flag is advisory — an
+  individual `POST` can still be rejected for a rate limit or other reason.
 - A posted article is injected through the same path as a web/terminal post
   (`MessageHandler::postEchomail()`), so kludge generation, the echoarea's
   posting-name policy, and echomail moderation all apply. The `From:` line the

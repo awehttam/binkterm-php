@@ -451,7 +451,13 @@ class NntpSession
             $row['nntp_group'] = $this->groups->groupNameForArea($row);
         }
 
-        return new EchomailGroupSource($this->db, $row, $this->numbers, $this->builder);
+        // Subscribed echoareas reachable here are already write-eligible for this
+        // user (getUserSubscribedEchoareas() filters out sysop-only areas for
+        // non-admins), so the only remaining gate on the LIST ACTIVE `y`/`n`
+        // status is the server-wide posting switch.
+        $postable = $this->postingReady();
+
+        return new EchomailGroupSource($this->db, $row, $this->numbers, $this->builder, $postable);
     }
 
     /**

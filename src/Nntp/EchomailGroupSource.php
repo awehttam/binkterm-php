@@ -40,18 +40,29 @@ final class EchomailGroupSource implements NntpGroupSource
     private string $group;
     private NntpArticleNumbers $numbers;
     private NntpArticleBuilder $builder;
+    private bool $postable;
 
     /**
-     * @param array<string,mixed> $area  echoareas row with `nntp_group` set
+     * @param array<string,mixed> $area      echoareas row with `nntp_group` set
+     * @param bool                $postable  whether the authenticated user may POST
+     *                                       to this group (global NNTP posting flag
+     *                                       AND area write access) — drives the
+     *                                       LIST ACTIVE `y`/`n` status field
      */
-    public function __construct(PDO $db, array $area, NntpArticleNumbers $numbers, NntpArticleBuilder $builder)
-    {
+    public function __construct(
+        PDO $db,
+        array $area,
+        NntpArticleNumbers $numbers,
+        NntpArticleBuilder $builder,
+        bool $postable = false
+    ) {
         $this->db = $db;
         $this->area = $area;
         $this->areaId = (int)$area['id'];
         $this->group = (string)($area['nntp_group'] ?? '');
         $this->numbers = $numbers;
         $this->builder = $builder;
+        $this->postable = $postable;
     }
 
     public function groupName(): string
@@ -68,9 +79,11 @@ final class EchomailGroupSource implements NntpGroupSource
 
     public function isPostable(): bool
     {
-        // Historical behaviour: echomail groups always advertise `n` in LIST ACTIVE
-        // even though POST works — POST capability is negotiated separately.
-        return false;
+        // Advertise `y` when the authenticated user can actually POST here, so
+        // newsreaders enable their compose/reply UI for the group. Per RFC 3977
+        // this flag is advisory; the POST response remains authoritative and may
+        // still reject an individual article (rate limit, moderation, etc.).
+        return $this->postable;
     }
 
     public function createdAtUnix(): ?int
