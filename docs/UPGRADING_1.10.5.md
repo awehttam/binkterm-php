@@ -12,6 +12,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Docker WebSocket Proxy](#docker-websocket-proxy)
 - [RLogin Door Player Backspace Fix](#rlogin-door-player-backspace-fix)
 - [CLI Script Fixes](#cli-script-fixes)
+- [CP437 Login ANSI Art](#cp437-login-ansi-art)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -47,6 +48,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### CLI Script Fixes
 
 - `scripts/admin_daemon.php`, `scripts/install.php`, `scripts/setup.php`, and `scripts/upgrade.php` now load `src/functions.php` alongside the Composer autoloader, so the global helper functions it defines (such as `getServerLogger()`) are always available to those entrypoints.
+
+### CP437 Login ANSI Art
+
+- The ANSI login screen (`ansi_prompt` display mode) now accepts `.ans` files saved in Code Page 437 by DOS / Synchronet tools. The high-byte box-drawing and block characters are converted to UTF-8 for display, and a trailing SAUCE / EOF record is stripped. Previously these bytes rendered as replacement characters, and the admin appearance editor could not load or save such art.
 
 ---
 
@@ -128,6 +133,8 @@ The **Admin -> NNTP Server** page adds: *Offer the netmail newsgroup* (on by def
 
 NNTP requires per-newsgroup article numbers that are never reused. The `nntp_article_numbers` and `nntp_area_watermark` tables track them for echoareas, and `nntp_netmail_article_numbers` / `nntp_netmail_watermark` track them per member for the netmail group. The daemon assigns numbers the first time a member opens the group. If echomail is pruned or a netmail is deleted, the numbers it held are retired, not reissued.
 
+The `20260829200318_nntp_article_numbers` migration backfills a number for every existing approved echomail message in one large `INSERT ... SELECT`. On a big message base this takes a while — roughly 36 seconds for 100,000+ messages on Claude's. A pause of that length while `php scripts/setup.php` runs the migration is normal; let it finish rather than interrupting it.
+
 See `docs/NNTP.md` for connecting a newsreader and troubleshooting.
 ## Docker WebSocket Proxy
 
@@ -148,6 +155,14 @@ The browser DOS door players (`public_html/webdoors/dosdoors/index.php` and `gue
 `scripts/admin_daemon.php`, `scripts/install.php`, `scripts/setup.php`, and `scripts/upgrade.php` now load `src/functions.php` in addition to the Composer autoloader.
 
 The helper functions in `src/functions.php` (such as `getServerLogger()`) are plain global functions, not PSR-4 autoloaded classes, so they are only available where the file is explicitly required. These CLI entrypoints did not require it. Some code they can reach — the admin daemon's BBS Settings handling, and individual migration files — calls those helpers, so this closes a latent `Call to undefined function BinktermPHP\getServerLogger()` risk on those paths.
+
+## CP437 Login ANSI Art
+
+When the login screen display mode is set to **ANSI prompt**, the uploaded `.ans` file is shown to connecting terminal users. ANSI art produced by DOS and Synchronet tools (TheDraw, PabloDraw, and similar) is normally encoded in Code Page 437, using high-byte characters for the box-drawing and block glyphs (`░▒▓█`, `╔═╗`, `║`, `╚═╝`).
+
+Those raw CP437 bytes are not valid UTF-8. When passed through template output they were rejected by `htmlspecialchars()` and every affected character was replaced with the Unicode replacement character, corrupting the art. Files that ended with a SAUCE metadata record (introduced by an `0x1A` EOF byte) also had that record passed straight through.
+
+`AppearanceConfig::getLoginScreenAnsi()` now truncates the content at the `0x1A` delimiter to drop any EOF / SAUCE block, and converts non-UTF-8 content from CP437 to UTF-8 with `iconv()` (falling back to `mb_convert_encoding()`), matching how shell art is already handled elsewhere. `AdminDaemonServer::getAppearanceConfig()` performs the same conversion before returning the JSON payload, so the **Admin -> Appearance** editor can load, edit, and save CP437 ANSI art without encoding errors.
 
 ## Upgrade Instructions
 
