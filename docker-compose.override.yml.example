@@ -37,6 +37,7 @@ services:
       # ENABLE_AI_BOT: "true"
       # ENABLE_MATTERBRIDGE: "true"
       # ENABLE_MCP_SERVER: "true"   # also requires a valid data/license.json
+      # ENABLE_NNTP: "true"
 
       # --- Scheduled maintenance jobs (all on by default) ---
       # ENABLE_RSS_POSTER: "false"
@@ -55,6 +56,8 @@ services:
       # - "2121:2121"   # ENABLE_FTP (control port)
       # - "2122-2149:2122-2149"   # ENABLE_FTP passive data port range
       # - "3740:3740"   # ENABLE_MCP_SERVER
+      # - "119:8119"    # ENABLE_NNTP (plaintext + STARTTLS; daemon binds 8119 in-container)
+      # - "563:8563"    # ENABLE_NNTP (implicit TLS; daemon binds 8563 in-container)
 
       # Example: remap the web interface to a non-standard host port
       # (also comment out "80:80" in docker-compose.yml -- see note above).

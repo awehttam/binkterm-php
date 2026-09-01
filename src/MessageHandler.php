@@ -169,6 +169,177 @@ class MessageHandler
         return $stmt->rowCount() > 0;
     }
 
+    /**
+     * The FTN addresses that identify "this system" for netmail ownership tests:
+     * every uplink "me" address plus the primary system address, de-duplicated and
+     * with blanks removed. Used by the netmail visibility helpers below.
+     *
+     * @return list<string>
+     */
+    public function netmailMyAddresses(): array
+    {
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $addresses = $binkpConfig->getMyAddresses();
+            $systemAddress = $binkpConfig->getSystemAddress();
+            if ((string)$systemAddress !== '') {
+                $addresses[] = $systemAddress;
+            }
+        } catch (\Exception $e) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(
+            $addresses,
+            static fn ($value) => trim((string)$value) !== ''
+        )));
+    }
+
+    /**
+     * SQL predicate (no leading WHERE/AND) + bound params selecting the `netmail`
+     * rows a user is entitled to see. This is the single source of truth for
+     * netmail mailbox scoping; `netmail.user_id` alone is not sufficient (it is the
+     * SENDER for locally-delivered mail and NULL for unresolved inbound mail), so
+     * ownership is "user_id match OR the to_name + to_address identity test".
+     *
+     * @param array<string,mixed> $user         row from getUserById()
+     * @param list<string>         $myAddresses  from netmailMyAddresses()
+     * @param string              $side         'either' (sender OR recipient; the "all" inbox),
+     *                                          'recipient' (addressed to the user; unread/received
+     *                                          views — the user_id branch is guarded so a
+     *                                          locally-sent row is not counted as received),
+     *                                          'sender' (rows the user sent from this system)
+     * @param string              $alias        table alias for `netmail` in the caller's query
+     * @return array{sql:string, params:list<mixed>}
+     */
+    private function netmailVisibilityClause(array $user, array $myAddresses, string $side = 'either', string $alias = 'n'): array
+    {
+        $uid = (int)($user['id'] ?? 0);
+        $uname = (string)($user['username'] ?? '');
+        $rname = (string)($user['real_name'] ?? '');
+        $hasAddr = $myAddresses !== [];
+        $ph = $hasAddr ? implode(',', array_fill(0, count($myAddresses), '?')) : '';
+
+        if ($side === 'sender') {
+            if ($hasAddr) {
+                return [
+                    'sql' => "((LOWER($alias.from_name) = LOWER(?) OR LOWER($alias.from_name) = LOWER(?)) AND $alias.from_address IN ($ph))",
+                    'params' => array_merge([$uname, $rname], $myAddresses),
+                ];
+            }
+            return [
+                'sql' => "(LOWER($alias.from_name) = LOWER(?) OR LOWER($alias.from_name) = LOWER(?))",
+                'params' => [$uname, $rname],
+            ];
+        }
+
+        if ($side === 'recipient') {
+            if ($hasAddr) {
+                return [
+                    'sql' => "(($alias.user_id = ? AND NOT ((LOWER($alias.from_name) = LOWER(?) OR LOWER($alias.from_name) = LOWER(?)) AND $alias.from_address IN ($ph)))"
+                        . " OR ((LOWER($alias.to_name) = LOWER(?) OR LOWER($alias.to_name) = LOWER(?)) AND $alias.to_address IN ($ph)))",
+                    'params' => array_merge([$uid, $uname, $rname], $myAddresses, [$uname, $rname], $myAddresses),
+                ];
+            }
+            return [
+                'sql' => "(($alias.user_id = ? AND NOT (LOWER($alias.from_name) = LOWER(?) OR LOWER($alias.from_name) = LOWER(?)))"
+                    . " OR (LOWER($alias.to_name) = LOWER(?) OR LOWER($alias.to_name) = LOWER(?)))",
+                'params' => [$uid, $uname, $rname, $uname, $rname],
+            ];
+        }
+
+        // 'either'
+        if ($hasAddr) {
+            return [
+                'sql' => "($alias.user_id = ? OR ((LOWER($alias.to_name) = LOWER(?) OR LOWER($alias.to_name) = LOWER(?)) AND $alias.to_address IN ($ph)))",
+                'params' => array_merge([$uid, $uname, $rname], $myAddresses),
+            ];
+        }
+        return [
+            'sql' => "$alias.user_id = ?",
+            'params' => [$uid],
+        ];
+    }
+
+    /**
+     * SQL predicate (no leading WHERE/AND) + params excluding rows this user has
+     * soft-deleted on whichever side (sender / recipient) they are on.
+     *
+     * @param array<string,mixed> $user  row from getUserById()
+     * @return array{sql:string, params:list<mixed>}
+     */
+    private function netmailNotDeletedClause(array $user, string $alias = 'n'): array
+    {
+        return [
+            'sql' => "NOT (($alias.user_id = ? AND $alias.deleted_by_sender = TRUE)"
+                . " OR ((LOWER($alias.to_name) = LOWER(?) OR LOWER($alias.to_name) = LOWER(?)) AND $alias.deleted_by_recipient = TRUE))",
+            'params' => [(int)($user['id'] ?? 0), (string)($user['username'] ?? ''), (string)($user['real_name'] ?? '')],
+        ];
+    }
+
+    /**
+     * Public wrapper: netmail visibility predicate for a user id, resolving the
+     * user and system addresses internally. For consumers outside this class
+     * (e.g. the NNTP netmail group source).
+     *
+     * @return array{sql:string, params:list<mixed>}
+     */
+    public function netmailVisibilityFilter(int $userId, string $alias = 'n', string $side = 'either'): array
+    {
+        $user = $this->getUserById($userId);
+        if (!$user) {
+            return ['sql' => '1=0', 'params' => []];
+        }
+
+        return $this->netmailVisibilityClause($user, $this->netmailMyAddresses(), $side, $alias);
+    }
+
+    /**
+     * Public wrapper: netmail soft-delete exclusion predicate for a user id.
+     *
+     * @return array{sql:string, params:list<mixed>}
+     */
+    public function netmailNotDeletedFilter(int $userId, string $alias = 'n'): array
+    {
+        $user = $this->getUserById($userId);
+        if (!$user) {
+            return ['sql' => '1=1', 'params' => []];
+        }
+
+        return $this->netmailNotDeletedClause($user, $alias);
+    }
+
+    /**
+     * True when a netmail row was sent by $userId from this system — the same
+     * from_name + from_address identity test the "sent" inbox filter uses.
+     * Used by the NNTP netmail source to tag articles X-BinktermPHP-Folder: sent.
+     *
+     * @param array<string,mixed> $row  a netmail row (needs from_name, from_address)
+     */
+    public function netmailRowIsOutgoing(int $userId, array $row): bool
+    {
+        $user = $this->getUserById($userId);
+        if (!$user) {
+            return false;
+        }
+
+        $fromName = strtolower(trim((string)($row['from_name'] ?? '')));
+        $nameMatch = $fromName !== '' && (
+            $fromName === strtolower(trim((string)($user['username'] ?? '')))
+            || $fromName === strtolower(trim((string)($user['real_name'] ?? '')))
+        );
+        if (!$nameMatch) {
+            return false;
+        }
+
+        $addresses = $this->netmailMyAddresses();
+        if ($addresses === []) {
+            return true;
+        }
+
+        return in_array(trim((string)($row['from_address'] ?? '')), $addresses, true);
+    }
+
     public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
     {
         $user = $this->getUserById($userId);
@@ -187,102 +358,33 @@ class MessageHandler
             return $this->getThreadedNetmail($userId, $page, $limit, $filter, $sort);
         }
 
-        // Get system's configured FidoNet addresses
-        try {
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $systemAddress = $binkpConfig->getSystemAddress();
-            $myAddresses = $binkpConfig->getMyAddresses();
-            $myAddresses[] = $systemAddress; // Include main system address
-        } catch (\Exception $e) {
-            $systemAddress = null;
-            $myAddresses = [];
-        }
-
+        $myAddresses = $this->netmailMyAddresses();
         $offset = ($page - 1) * $limit;
 
-        // Build the WHERE clause based on filter
-        // Show messages where user is sender OR recipient (must match name AND to_address must be one of our addresses)
-        if (!empty($myAddresses)) {
-            $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
-            $whereClause = "WHERE (n.user_id = ? OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders)))";
-            $params = [$userId, $user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses);
-        } else {
-            // Fallback if no addresses configured - only show sent messages
-            $whereClause = "WHERE n.user_id = ?";
-            $params = [$userId];
-        }
+        // Mailbox scoping — see netmailVisibilityClause(). 'unread' always scopes to the
+        // recipient side; 'received' does too but only when we have addresses to match on
+        // (otherwise it historically fell through to the plain owner predicate).
+        $side = match (true) {
+            $filter === 'unread'                          => 'recipient',
+            $filter === 'received' && $myAddresses !== [] => 'recipient',
+            $filter === 'sent'                            => 'sender',
+            default                                       => 'either',
+        };
+        $vis = $this->netmailVisibilityClause($user, $myAddresses, $side);
+        $whereParts = [$vis['sql']];
+        $params = $vis['params'];
 
         if ($filter === 'unread') {
-            // A message is "mine to read" if it was routed to me by recipient user_id
-            // (findTargetUser() can match by fidonet_address even when to_name is a nickname
-            // that doesn't equal my username/real_name) OR by the legacy name+address match.
-            //
-            // user_id does NOT always mean "recipient": sendNetmail()/sendLocalSysopMessage()
-            // set user_id to the SENDER for locally-delivered mail (same-system user-to-user,
-            // or a message to the sysop), and that row's is_sent stays FALSE forever since
-            // there's nothing to spool. So a plain "n.user_id = ?" match would wrongly count a
-            // user's own locally-sent netmail as unread in their own account. Exclude rows
-            // where the querying user is identifiable as the SENDER (from_name matches them AND
-            // from_address is one of our own addresses, i.e. the row originated on this system)
-            // to rule that out, while still matching genuine inbound mail from remote systems.
-            if (!empty($myAddresses)) {
-                $whereClause = "WHERE (
-                        (n.user_id = ? AND NOT ((LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)))
-                        OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
-                    ) AND mrs.read_at IS NULL";
-                $params = [$userId, $user['username'], $user['real_name']];
-                $params = array_merge($params, $myAddresses);
-                $params[] = $user['username'];
-                $params[] = $user['real_name'];
-                $params = array_merge($params, $myAddresses);
-            } else {
-                $whereClause = "WHERE (
-                        (n.user_id = ? AND NOT (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)))
-                        OR (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
-                    ) AND mrs.read_at IS NULL";
-                $params = [$userId, $user['username'], $user['real_name'], $user['username'], $user['real_name']];
-            }
-        } elseif ($filter === 'sent') {
-            // Show only messages sent by this user from this system (check from_name AND from_address)
-            if (!empty($myAddresses)) {
-                $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
-                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)";
-                $params = [$user['username'], $user['real_name']];
-                $params = array_merge($params, $myAddresses);
-            } else {
-                // Fallback if no addresses configured - just check name
-                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
-                $params = [$user['username'], $user['real_name']];
-            }
-        } elseif ($filter === 'received' && !empty($myAddresses)) {
-            // Show only messages received by this user (matched by recipient user_id, which
-            // findTargetUser() may have resolved via fidonet_address even when to_name is a
-            // nickname, OR by the legacy name+address match).
-            // Note: for inbound messages user_id IS the recipient, so n.user_id != ? would wrongly exclude them.
-            // See the 'unread' branch above for why the sender-exclusion check is needed on user_id.
-            $whereClause = "WHERE (
-                    (n.user_id = ? AND NOT ((LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)))
-                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
-                )";
-            $params = [$userId, $user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses);
-            $params[] = $user['username'];
-            $params[] = $user['real_name'];
-            $params = array_merge($params, $myAddresses);
+            $whereParts[] = 'mrs.read_at IS NULL';
         } elseif ($filter === 'saved') {
-            // Show only messages saved by this user
-            $whereClause .= " AND sav.id IS NOT NULL";
+            $whereParts[] = 'sav.id IS NOT NULL';
         }
 
-        // Filter out soft-deleted messages
-        // If user is sender, exclude messages deleted by sender
-        // If user is recipient, exclude messages deleted by recipient
-        $whereClause .= " AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
-                                   ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))";
-        $params[] = $userId;
-        $params[] = $user['username'];
-        $params[] = $user['real_name'];
+        $notDeleted = $this->netmailNotDeletedClause($user);
+        $whereParts[] = $notDeleted['sql'];
+        $params = array_merge($params, $notDeleted['params']);
+
+        $whereClause = 'WHERE ' . implode(' AND ', $whereParts);
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -1224,53 +1326,17 @@ class MessageHandler
                 return null;
             }
 
-            // Get system's configured FidoNet addresses
-            try {
-                $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-                $myAddresses = $binkpConfig->getMyAddresses();
-                $systemAddress = $binkpConfig->getSystemAddress();
-                if ($systemAddress !== '') {
-                    $myAddresses[] = $systemAddress;
-                }
-                $myAddresses = array_values(array_unique(array_filter($myAddresses, static function ($value) {
-                    return trim((string)$value) !== '';
-                })));
-            } catch (\Exception $e) {
-                $myAddresses = [];
-            }
-
-            if (!empty($myAddresses)) {
-                $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
-                $stmt = $this->db->prepare("
-                    SELECT n.*, CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
-                    FROM netmail n
-                    LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
-                    WHERE n.id = ?
-                      AND (
-                        n.user_id = ?
-                        OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
-                      )
-                      AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
-                               ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))
-                ");
-                $params = [$userId, $messageId, $userId, $user['username'], $user['real_name']];
-                $params = array_merge($params, $myAddresses);
-                $params[] = $userId;
-                $params[] = $user['username'];
-                $params[] = $user['real_name'];
-                $stmt->execute($params);
-            } else {
-                // Fallback if no addresses are configured - mirror the inbox fallback.
-                $stmt = $this->db->prepare("
-                    SELECT n.*, CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
-                    FROM netmail n
-                    LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
-                    WHERE n.id = ?
-                      AND n.user_id = ?
-                      AND n.deleted_by_sender = FALSE
-                ");
-                $stmt->execute([$userId, $messageId, $userId]);
-            }
+            $vis = $this->netmailVisibilityClause($user, $this->netmailMyAddresses(), 'either');
+            $del = $this->netmailNotDeletedClause($user);
+            $stmt = $this->db->prepare("
+                SELECT n.*, CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM netmail n
+                LEFT JOIN saved_messages sav ON (sav.message_id = n.id AND sav.message_type = 'netmail' AND sav.user_id = ?)
+                WHERE n.id = ?
+                  AND ({$vis['sql']})
+                  AND {$del['sql']}
+            ");
+            $stmt->execute(array_merge([$userId, $messageId], $vis['params'], $del['params']));
         } else {
             // Echomail is public, so no user restriction needed
             $ignoreFilter     = $this->buildEchomailIgnoreFilter($userId, 'em');
@@ -1357,7 +1423,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false, $charset = null, $pgpMode = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false, $charset = null, $pgpMode = null, $tearlineComponent = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1509,8 +1575,8 @@ class MessageHandler
         $storage = $this->prepareLocalMessageStorage($finalMessageText);
 
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq, freq_status)
-            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq, :freq_status)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, raw_message_bytes, message_charset, art_format, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq, freq_status, tearline_component)
+            VALUES (:user_id, :from_address, :to_address, :from_name, :to_name, :subject, :message_text, :raw_message_bytes, :message_charset, :art_format, NOW(), FALSE, :reply_to_id, :message_id, :kludge_lines, NULL, :is_freq, :freq_status, :tearline_component)
             RETURNING id
         ");
 
@@ -1529,6 +1595,7 @@ class MessageHandler
         $stmt->bindValue(':kludge_lines', $kludgeLines);
         $stmt->bindValue(':is_freq', $isFreq ? 'true' : 'false');
         $stmt->bindValue(':freq_status', $isFreq ? 'pending' : null, $isFreq ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
+        $stmt->bindValue(':tearline_component', ($tearlineComponent !== null && $tearlineComponent !== '') ? $tearlineComponent : null, ($tearlineComponent !== null && $tearlineComponent !== '') ? \PDO::PARAM_STR : \PDO::PARAM_NULL);
 
         $stmt->execute();
         $insertedRow = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -6505,91 +6572,29 @@ class MessageHandler
             $limit = $settings['messages_per_page'] ?? 25;
         }
 
-        // Get system's configured FidoNet addresses
-        try {
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $systemAddress = $binkpConfig->getSystemAddress();
-            $myAddresses = $binkpConfig->getMyAddresses();
-            $myAddresses[] = $systemAddress; // Include main system address
-        } catch (\Exception $e) {
-            $systemAddress = null;
-            $myAddresses = [];
-        }
-
-        // Build the WHERE clause based on filter
-        // Show messages where user is sender OR recipient (must match name AND to_address must be one of our addresses)
-        if (!empty($myAddresses)) {
-            $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
-            $whereClause = "WHERE (n.user_id = ? OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders)))";
-            $params = [$userId, $user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses);
-        } else {
-            // Fallback if no addresses configured - only show sent messages
-            $whereClause = "WHERE n.user_id = ?";
-            $params = [$userId];
-        }
+        // Mailbox scoping — shared with getNetmail(); see netmailVisibilityClause().
+        $myAddresses = $this->netmailMyAddresses();
+        $side = match (true) {
+            $filter === 'unread'                          => 'recipient',
+            $filter === 'received' && $myAddresses !== [] => 'recipient',
+            $filter === 'sent'                            => 'sender',
+            default                                       => 'either',
+        };
+        $vis = $this->netmailVisibilityClause($user, $myAddresses, $side);
+        $whereParts = [$vis['sql']];
+        $params = $vis['params'];
 
         if ($filter === 'unread') {
-            // See getNetmail() for why user_id needs a sender-exclusion check alongside the
-            // name+address match: user_id is the SENDER, not the recipient, for locally
-            // delivered mail, and that row's is_sent stays FALSE forever.
-            if (!empty($myAddresses)) {
-                $whereClause = "WHERE (
-                        (n.user_id = ? AND NOT ((LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)))
-                        OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
-                    ) AND mrs.read_at IS NULL";
-                $params = [$userId, $user['username'], $user['real_name']];
-                $params = array_merge($params, $myAddresses);
-                $params[] = $user['username'];
-                $params[] = $user['real_name'];
-                $params = array_merge($params, $myAddresses);
-            } else {
-                $whereClause = "WHERE (
-                        (n.user_id = ? AND NOT (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)))
-                        OR (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))
-                    ) AND mrs.read_at IS NULL";
-                $params = [$userId, $user['username'], $user['real_name'], $user['username'], $user['real_name']];
-            }
-        } elseif ($filter === 'sent') {
-            // Show only messages sent by this user from this system (check from_name AND from_address)
-            if (!empty($myAddresses)) {
-                $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
-                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)";
-                $params = [$user['username'], $user['real_name']];
-                $params = array_merge($params, $myAddresses);
-            } else {
-                // Fallback if no addresses configured - just check name
-                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
-                $params = [$user['username'], $user['real_name']];
-            }
-        } elseif ($filter === 'received' && !empty($myAddresses)) {
-            // Show only messages received by this user (matched by recipient user_id, since
-            // findTargetUser() may have resolved it via fidonet_address even when to_name is a
-            // nickname, OR by the legacy name+address match).
-            // Note: for inbound messages user_id IS the recipient, so n.user_id != ? would wrongly exclude them.
-            // See the 'unread' branch above for why the sender-exclusion check is needed on user_id.
-            $whereClause = "WHERE (
-                    (n.user_id = ? AND NOT ((LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)))
-                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
-                )";
-            $params = [$userId, $user['username'], $user['real_name']];
-            $params = array_merge($params, $myAddresses);
-            $params[] = $user['username'];
-            $params[] = $user['real_name'];
-            $params = array_merge($params, $myAddresses);
+            $whereParts[] = 'mrs.read_at IS NULL';
         } elseif ($filter === 'saved') {
-            // Show only messages saved by this user
-            $whereClause .= " AND sav.id IS NOT NULL";
+            $whereParts[] = 'sav.id IS NOT NULL';
         }
 
-        // Filter out soft-deleted messages
-        // If user is sender, exclude messages deleted by sender
-        // If user is recipient, exclude messages deleted by recipient
-        $whereClause .= " AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
-                                   ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))";
-        $params[] = $userId;
-        $params[] = $user['username'];
-        $params[] = $user['real_name'];
+        $notDeleted = $this->netmailNotDeletedClause($user);
+        $whereParts[] = $notDeleted['sql'];
+        $params = array_merge($params, $notDeleted['params']);
+
+        $whereClause = 'WHERE ' . implode(' AND ', $whereParts);
 
         // Get all messages first
         $stmt = $this->db->prepare("

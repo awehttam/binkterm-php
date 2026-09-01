@@ -45,6 +45,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 - [PacketBBS Gateway](PacketBBS.md) — Packet/mesh access method for low-bandwidth nodes using compact text commands
 - [FTP Server](FTPServer.md) — Standalone passive FTP daemon for QWK exchange and file-area transfers
 - [QWK Offline Mail](QWK.md) — Download and upload QWK/QWKE packets for offline message reading in external readers
+- [NNTP Server](NNTP.md) — Read FTN echoareas as newsgroups from any standard newsreader (RFC 3977)
 - [Gemini Capsule](GeminiCapsule.md) — Gemini access method for lightweight capsule browsing
 
 ---
@@ -141,6 +142,7 @@ Specifications published by the LovlyNet Standards Council.
 
 - [Architecture](ARCHITECTURE.md) — Ecosystem map showing how access methods, realtime delivery, FTN networking, doors, MCP, and AI fit together
 - [Data Model](DATA_MODEL.md) — Key database tables, their relationships, and conceptual model for developers
+- [Netmail Subsystem](Netmail.md) — Netmail storage model, mailbox ownership/visibility rules, and the send/receive/delete code paths
 - [Developer Guide](DEVELOPER_GUIDE.md) — Coding conventions, database migrations, and project structure
 - [PostgreSQL Dependency Inventory](PostgreSQLDependencies.md) — Living list of PostgreSQL-specific dependencies, code locations, and future compatibility notes
 - [Terminal Server Developer Guide](TerminalServerDevGuide.md) — Shell abstraction, style profile, widget reference, handler patterns, and session internals for contributors

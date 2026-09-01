@@ -139,6 +139,7 @@ declare -A OPTIONAL_DAEMONS=(
     [ENABLE_AI_BOT]=ai_bot_daemon
     [ENABLE_MATTERBRIDGE]=matterbridge_daemon
     [ENABLE_MCP_SERVER]=mcp_server
+    [ENABLE_NNTP]=nntp_daemon
 )
 
 for var in "${!OPTIONAL_DAEMONS[@]}"; do

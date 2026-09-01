@@ -822,4 +822,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'Der ausgewaehlte Benutzer existiert nicht.',
     'errors.admin.users.autocomplete_failed' => 'Benutzersuche fehlgeschlagen.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Ungültige Konfiguration der Registrierungsprüfung',
+    'errors.admin.nntp_settings.load_failed' => 'NNTP-Einstellungen konnten nicht geladen werden',
+    'errors.admin.nntp_settings.save_failed' => 'NNTP-Einstellungen konnten nicht gespeichert werden',
 ];

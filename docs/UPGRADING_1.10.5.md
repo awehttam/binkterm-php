@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Message Composition](#message-composition)
 - [Admin BBS Settings](#admin-bbs-settings)
 - [MeshCore Enable/Disable](#meshcore-enabledisable)
+- [NNTP Server](#nntp-server)
 - [Docker WebSocket Proxy](#docker-websocket-proxy)
 - [RLogin Door Player Backspace Fix](#rlogin-door-player-backspace-fix)
 - [CLI Script Fixes](#cli-script-fixes)
@@ -29,6 +30,12 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - A new **Enable MeshCore** toggle in **Admin -> BBS Settings -> System & Features** turns the whole MeshCore / PacketBBS radio subsystem on or off. It defaults to **on**, so existing MeshCore setups keep working. Turning it off makes the bridge API unreachable and hides every MeshCore surface (user settings tab, public nodes page, admin page, dashboard card, navigation links).
 
+### NNTP Server
+
+- BinktermPHP can now serve its echoareas as Usenet-style newsgroups over NNTP (RFC 3977), so members can read — and optionally post — echomail with a standard newsreader such as Thunderbird. It runs as a new optional daemon, `scripts/nntp_server.php`, and is **disabled by default**. Enable it, and configure rate limits and the plaintext-authentication policy, in the new **Admin -> NNTP Server** page. Posting from a newsreader is a second toggle on that page, also off by default.
+- Each member also gets a private **netmail** newsgroup whose articles are that member's own netmail; posting into it sends netmail. It is enabled by default when the NNTP server is on, with its own settings on the **Admin -> NNTP Server** page (group name, whether sending is allowed, whether sent mail is included, and a separate send rate limit).
+- New database tables (`nntp_article_numbers`, `nntp_area_watermark`) are created and populated from your existing echomail during the upgrade, plus `nntp_netmail_article_numbers` and `nntp_netmail_watermark` (per member, filled on first read) and a `tearline_component` column on `netmail`.
+- Transport settings — bind address, ports, and TLS certificate paths — are read from `.env`. New keys: `NNTP_BIND_HOST`, `NNTP_PORT` (default `8119`), `NNTP_TLS_PORT` (default `8563`), `NNTP_TLS_CERT_PATH`, `NNTP_TLS_KEY_PATH`. The ports default to an unprivileged range; redirect the standard `119` / `563` to them with a firewall rule.
 ### Docker WebSocket Proxy
 
 - The bundled Docker image now proxies the realtime WebSocket stream (`/ws`) and the DOS door bridge (`/dosdoor`) through Apache, so the event bus and browser-side DOS door games work in container deployments. Rebuild the image to pick this up.
@@ -75,6 +82,53 @@ When it is disabled:
 
 Node records, radio sessions, and stored contacts are not deleted while MeshCore is disabled; re-enabling the toggle restores everything.
 
+## NNTP Server
+
+An NNTP server lets members connect with any standard newsreader (Thunderbird, slrn, tin, Forte Agent) and read FTN echoareas as if they were newsgroups. Each echoarea a member is subscribed to appears as a newsgroup named `<Network>.<AreaTag>`, for example `FidoNet.GENERAL` or `LovlyNet.LVLY_BINKTERMPHP`. Members sign in with their normal BinktermPHP username and password.
+
+### Enabling it
+
+Turn the server on in **Admin -> NNTP Server** (*Enable the NNTP server*). The same page has the newsgroup-name prefix style, a per-IP connection limit, per-member posting rate limits, and a *plaintext authentication* switch. These are stored in a new `config/nntp.json`, written through the admin daemon. A disabled server answers connections with a `400` error and closes; you must restart the daemon after switching it on.
+
+Set the transport in `.env` and restart the daemon for the change to take effect. New variables:
+
+| Key | Default | Purpose |
+|---|---|---|
+| `NNTP_BIND_HOST` | `0.0.0.0` | Address to bind |
+| `NNTP_PORT` | `8119` | Plaintext + `STARTTLS` port |
+| `NNTP_TLS_PORT` | `8563` | Implicit-TLS port; leave empty to disable |
+| `NNTP_TLS_CERT_PATH` | `data/nntp/server.crt` | PEM certificate, or a combined cert+key PEM |
+| `NNTP_TLS_KEY_PATH` | `data/nntp/server.key` | PEM private key |
+
+The ports default to the unprivileged `8119` and `8563` so the daemon runs as an ordinary user. Newsreaders expect NNTP on `119` and `563`; on a public server, redirect those to `8119` / `8563` with an `iptables` or `nftables` rule (see `docs/NNTP.md`), or set `NNTP_PORT` / `NNTP_TLS_PORT` to `119` / `563` and run the daemon with permission to bind them.
+
+If `NNTP_TLS_CERT_PATH` is left at its default and no file exists there, the daemon generates a self-signed certificate on first start; point it at a real certificate (for example the one your web server uses) for clients that reject self-signed certs. A path that is set but points at a missing file stops the daemon with an error.
+
+Start the daemon. It is an optional daemon, so `scripts/restart_daemons.sh` with no arguments only restarts it if it was already running:
+
+```bash
+scripts/restart_daemons.sh --start nntp_daemon
+```
+
+On Windows it is not part of `start_daemons_windows.*` and must be started by hand with `php scripts/nntp_server.php`. In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and uncomment its port lines (`119:8119`, `563:8563`).
+
+### Posting
+
+Reading works as soon as the server is enabled. To also let members compose and reply from their newsreader, turn on *Allow posting from newsreaders* in **Admin -> NNTP Server**. Posted articles go through the same path as a web or terminal post, so the echoarea's posting-name policy and echomail moderation apply, and the message is attributed to the signed-in member regardless of the `From:` line the newsreader sends. A post whose `Newsgroups:` header names more echoareas than the configured cross-post limit is rejected rather than trimmed.
+
+### Netmail newsgroup
+
+Every signed-in member sees one more group — `netmail` by default — that works like a personal mail folder. Its articles are that member's own netmail: received mail, plus mail they sent unless you turn that off. Two members connected to the same server see completely different articles under the same group name, and a member can never read another member's netmail through it. New inbound netmail appears as new articles automatically.
+
+With *Allow posting from newsreaders* on, a second switch, *Allow sending netmail from newsreaders*, controls whether posting into the group sends netmail. When it sends, the message goes through the same path as web and terminal netmail — origin-address selection, the destination network's posting-name policy, charset, credit costs and spooling all apply — with an attributed tearline (`--- BinktermPHP NNTP vX.Y.Z`). Replying to a netmail article needs no addressing; composing a fresh one needs an `X-FTN-To:` header or an address in the `To:` field (see `docs/NNTP.md`).
+
+The **Admin -> NNTP Server** page adds: *Offer the netmail newsgroup* (on by default), the group name, *Allow sending netmail from newsreaders*, *Include sent netmail as articles*, and *Netmail per minute / hour* send limits (separate from the echomail posting limits).
+
+### Article numbering
+
+NNTP requires per-newsgroup article numbers that are never reused. The `nntp_article_numbers` and `nntp_area_watermark` tables track them for echoareas, and `nntp_netmail_article_numbers` / `nntp_netmail_watermark` track them per member for the netmail group. The daemon assigns numbers the first time a member opens the group. If echomail is pruned or a netmail is deleted, the numbers it held are retired, not reissued.
+
+See `docs/NNTP.md` for connecting a newsreader and troubleshooting.
 ## Docker WebSocket Proxy
 
 The bundled Docker image now proxies the realtime WebSocket stream and the DOS door bridge through Apache. The image enables `mod_proxy`, `mod_proxy_http`, and `mod_proxy_wstunnel`, and ships a `docker/000-default.conf` virtual host that forwards `/ws` to the BinkStream server on `127.0.0.1:6010` and `/dosdoor` to the door bridge on `127.0.0.1:6001`.
