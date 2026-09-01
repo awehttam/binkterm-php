@@ -223,6 +223,12 @@ final class NetmailGroupSource implements NntpGroupSource
     }
 
     /**
+     * Fetch full rows by `netmail.id`, re-applying this user's visibility scope
+     * as a fail-closed guard. Callers only ever pass ids that were already
+     * resolved through {@see NntpNetmailArticleNumbers} (itself scoped), so this
+     * predicate is belt-and-suspenders: an id this user may not see drops out of
+     * the result rather than being returned. Callers tolerate missing keys.
+     *
      * @param int[] $ids
      * @return array<int,array<string,mixed>>
      */
@@ -233,8 +239,12 @@ final class NetmailGroupSource implements NntpGroupSource
             return [];
         }
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $this->db->prepare('SELECT ' . self::COLUMNS . " FROM netmail n WHERE n.id IN ($placeholders)");
-        $stmt->execute($ids);
+        $scope = $this->numbers->visibilityScope($this->userId);
+        $stmt = $this->db->prepare(
+            'SELECT ' . self::COLUMNS . " FROM netmail n
+             WHERE n.id IN ($placeholders) AND ({$scope['sql']})"
+        );
+        $stmt->execute([...$ids, ...$scope['params']]);
 
         $map = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
