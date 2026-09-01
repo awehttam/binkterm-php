@@ -357,6 +357,18 @@ class AppearanceConfig
             return null;
         }
 
+        // Strip SAUCE record: \x1A is the traditional EOF/SAUCE delimiter
+        $saucePos = strpos($content, "\x1A");
+        if ($saucePos !== false) {
+            $content = substr($content, 0, $saucePos);
+        }
+
+        // Convert CP437 (DOS encoding) to UTF-8 so block drawing characters render correctly
+        if (!mb_check_encoding($content, 'UTF-8')) {
+            $content = @iconv('CP437', 'UTF-8//TRANSLIT//IGNORE', $content)
+                ?: mb_convert_encoding($content, 'UTF-8', 'CP437');
+        }
+
         return $content;
     }
 

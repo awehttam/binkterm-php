@@ -3159,12 +3159,26 @@ class AdminDaemonServer
         $loginScreenPath = $this->getLoginScreenPath();
         $registerSplashPath = $this->getRegisterSplashPath();
 
+        $loginAnsi = null;
+        if (file_exists($loginScreenPath)) {
+            $rawAnsi = file_get_contents($loginScreenPath) ?: '';
+            $saucePos = strpos($rawAnsi, "\x1A");
+            if ($saucePos !== false) {
+                $rawAnsi = substr($rawAnsi, 0, $saucePos);
+            }
+            if (!mb_check_encoding($rawAnsi, 'UTF-8')) {
+                $rawAnsi = @iconv('CP437', 'UTF-8//TRANSLIT//IGNORE', $rawAnsi)
+                    ?: mb_convert_encoding($rawAnsi, 'UTF-8', 'CP437');
+            }
+            $loginAnsi = $rawAnsi;
+        }
+
         return [
             'config' => $config ?? [],
             'system_news' => file_exists($systemNewsPath) ? (file_get_contents($systemNewsPath) ?: '') : null,
             'house_rules' => file_exists($houseRulesPath) ? (file_get_contents($houseRulesPath) ?: '') : null,
             'login_splash' => file_exists($loginSplashPath) ? (file_get_contents($loginSplashPath) ?: '') : null,
-            'login_ansi' => file_exists($loginScreenPath) ? (file_get_contents($loginScreenPath) ?: '') : null,
+            'login_ansi' => $loginAnsi,
             'register_splash' => file_exists($registerSplashPath) ? (file_get_contents($registerSplashPath) ?: '') : null,
         ];
     }
