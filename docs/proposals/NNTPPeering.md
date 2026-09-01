@@ -1,7 +1,8 @@
-# NNTP Peering for BinktermPHP
+**# NNTP Peering for BinktermPHP
 
 **Status:** DRAFT — Discussion Only
 **Generated:** 2026-08-29
+**Revised:** 2026-08-31 — added the article filtering interface (D5 + "Article Filtering")
 
 ---
 
@@ -248,6 +249,31 @@ areas. This keeps the existing `echoareas` row and the lazy article-number alloc
 across both planes, and keeps the area→group mapping — the thing the bridge rule
 depends on — as the single source of truth.
 
+### D5. Native filter pipeline, or an INN Perl filter bridge?
+
+**Decided: build the native pipeline now, keep its interface bridge-capable, and add a
+Cleanfeed (`cleanfeed-nng`) / `postfilter` bridge only if peering later broadens beyond
+a handful of trusted bilateral links.**
+
+- The bridge's real cost is not the IPC — it is maintaining an emulation of INN's
+  embedded-Perl filter API as a moving target (each `cleanfeed-nng` release may reach
+  for a hook, global, or `INN::*` callback that was not stubbed), plus taking Perl and
+  several CPAN modules as a POSIX-only runtime dependency (`Dockerfile`,
+  `docs/INSTALL.md`, the daemon launchers). The `pcntl`-less Windows fallback could not
+  run it at all.
+- Cleanfeed's heuristics pay off in proportion to peer count and openness. The phases
+  this proposal targets — inbound-only from one or a few trusted, cert-authed gateways
+  — do not exercise them; the native rule set in *Article Filtering* covers the real
+  threats at that trust level.
+- A native pipeline lives in the existing stack (PHP / Postgres / Twig admin / admin
+  daemon), and because it is a generic interface rather than an INN-shaped one it also
+  runs on the local `POST` path and the FTN toss path, which face overlapping abuse
+  vectors.
+- `cleanfeed-nng` is GPL. If the bridge is ever built, reimplement the algorithms (EMP
+  decay, hash construction) — do not lift code into this BSD-licensed project.
+
+The bridge is phase 6, revisited as its own proposal if reached.
+
 ---
 
 ## Protocol Mechanics
@@ -367,20 +393,111 @@ has no equivalent and honouring a remote cancel would be an abuse vector. Log th
 
 ---
 
+## Article Filtering
+
+The transport checks in *Abuse and Safety* (source-IP match, size cap, rate limit,
+allow-list pattern, loop suppression) gate **whether a peer may speak**. They do not
+inspect **what an article says**. Peering is the first ingest path that carries content
+no local user composed and no FTN uplink's `SEEN-BY` vouched for, so it needs a
+content-screening layer the reader-only server never had.
+
+Real Usenet does this with Cleanfeed (`cleanfeed-nng` is the maintained fork) on the
+`innd` feed and `postfilter` on `nnrpd` posting. Both are Perl, written against INN's
+embedded-Perl hook API — `filter_art()` / `filter_post()` invoked with a global `%hdr`
+map, `$body`, and a stash of `INN::*` callbacks. They cannot be called from PHP;
+running them unmodified means hosting a warm Perl subprocess that emulates enough of
+that runtime to `require` them. D5 records why that is deferred to phase 6; this
+section specifies the native pipeline that ships first.
+
+### The interface
+
+A single seam every ingest path routes through before storage:
+
+```
+interface NntpArticleFilter {
+    // NntpFilterVerdict: accept | reject | defer, + reason, + optional header rewrites
+    public function evaluate(NntpFilterContext $ctx): NntpFilterVerdict;
+}
+```
+
+`NntpFilterContext` wraps the parsed article (`NntpArticleParser::parse()` output —
+`headers`, `raw_headers`, `body`) plus: `mode` (`'peer'` | `'post'` | `'ftn-toss'`),
+the offering peer's `name` / `path_identity` (peer mode), source IP, authenticated
+`user_id` (post mode), article byte size, arrival time, and the resolved `echoareas`
+rows. `NntpFilterPipeline` runs an ordered list of `NntpArticleFilter`s, first
+non-`accept` verdict wins, and writes one `nntp_filter_log` row.
+
+Verdict → wire status, per mode:
+
+| mode | dispatch site | `reject` | `defer` |
+|---|---|---|---|
+| `peer` | `NntpFeedInbound` | `437` (`439` under `TAKETHIS`) | `436` / `431` |
+| `post` | `NntpPost::submit()` | `441` | `441` |
+| `ftn-toss` | `BinkdProcessor::storeEchomail` | drop + log | — |
+
+For peer ingest the pipeline runs **once for the whole article**, after the
+`nntp_history` gate and body transfer, after `Newsgroups:` resolution and the
+`peering_crosspost_over_limit` check, and before the per-area `postEchomail()` loop
+(new step 3 in *Storing a peered article* → *Resolution order*). An `accept` verdict
+may carry header rewrites (e.g. an `X-Filter:` diagnostic) applied to every stored row.
+A peer with `nntp_peers.skip_filters` set bypasses the pipeline entirely (transport
+checks still apply).
+
+### Built-in native rules
+
+Config-driven, evaluated in order:
+
+- **Header sanity** — missing / malformed / duplicated `Message-ID`, `From`, `Date`;
+  `Date` outside `[now - filter_date_skew_past_days, now + filter_date_skew_future_hours]`;
+  8-bit bytes in headers that must be ASCII.
+- **Regex block lists** — `Subject` / `From` / body / extracted-URL patterns. One file
+  per category under `data/nntp/filters/` (`subject.rx`, `from.rx`, `body.rx`,
+  `url.rx`), one pattern per line, `#` comments, hot-reloaded on mtime change. Highest
+  value for the least code.
+- **Binary in a text area** — a base64 / uuencode / yEnc run over
+  `filter_binary_max_bytes` in an area whose new `echoareas.nntp_allow_binary` flag is
+  `false`.
+- **Excessive multi-posting (EMP)** — a decaying body-hash counter (`nntp_emp_hashes`):
+  hash the normalised body, and separately the body with quoted lines stripped;
+  increment both on each sighting; `reject` once either count, decayed against
+  `filter_emp_halflife_hours`, exceeds `filter_emp_threshold`. The one Cleanfeed
+  technique clearly worth reimplementing for FTN-style traffic, where the classic abuse
+  is one message fired into many areas.
+- **Crosspost breadth** — already enforced by `peering_crosspost_over_limit` /
+  `nntp_peers.max_cross_post_areas` (peer) and `max_cross_post_areas` (post); the
+  pipeline restates it for a single log surface and adds a `Followup-To` sanity check.
+- **Size / rate** — the *Abuse and Safety* per-peer caps, restated as rules so all
+  screening shares one config surface and one log. The accept-loop IP match stays where
+  it is.
+
+### Failure handling
+
+`filter_failure_mode` (`accept` | `reject` | `defer`) sets the verdict when a rule
+throws or exceeds `filter_timeout_ms`. Default is `defer` for `peer` mode (a
+well-behaved peer re-offers later) and `accept` for `post` mode (do not lock a user out
+on a filter bug). A filter must never block a feed indefinitely.
+
+---
+
 ## Data Model
 
-Three new tables plus one `echoareas` column and one `echomail` column. IDs follow
-`/new-migration`.
+Five new tables, two `echoareas` columns, one `echomail` column, and one new
+`nntp_peers` column. IDs follow `/new-migration`.
 
-### `echoareas` — new column
+### `echoareas` — new columns
 
 ```sql
 ALTER TABLE echoareas
     ADD COLUMN nntp_repropagate_to_ftn BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE echoareas
+    ADD COLUMN nntp_allow_binary       BOOLEAN NOT NULL DEFAULT false;
 ```
 
-Per-area D1 toggle. Has no effect unless the global `peering_repropagate_to_ftn`
-master switch is also on. Surfaced in the echoarea admin edit screen with a warning.
+`nntp_repropagate_to_ftn` is the per-area D1 toggle; it has no effect unless the global
+`peering_repropagate_to_ftn` master switch is also on. `nntp_allow_binary` exempts an
+area from the filter pipeline's binary-in-text rule (*Article Filtering*). Both are
+surfaced in the echoarea admin edit screen; the re-propagation toggle carries a
+warning.
 
 ### `echomail` — new column
 
@@ -475,6 +592,7 @@ CREATE TABLE nntp_peers (
     client_cert_subject TEXT NULL,                 -- optional required CN/SAN when using CA validation
     max_article_bytes   INT NOT NULL DEFAULT 1048576,
     max_cross_post_areas INT NOT NULL DEFAULT 5,    -- per-peer Newsgroups: fan-out ceiling
+    skip_filters        BOOLEAN NOT NULL DEFAULT false,  -- bypass the content filter pipeline (transport checks still apply)
     created_at          TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
     updated_at          TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
 );
@@ -526,6 +644,47 @@ CREATE UNIQUE INDEX ON nntp_outbound_queue (peer_id, message_id);
 CREATE INDEX ON nntp_outbound_queue (peer_id, state, next_try_at);
 ```
 
+### `nntp_emp_hashes` — excessive-multi-posting counters
+
+```sql
+CREATE TABLE nntp_emp_hashes (
+    hash         TEXT PRIMARY KEY,          -- sha256 of normalised body, or of body with quoted lines stripped
+    hits         INT NOT NULL DEFAULT 1,
+    first_seen   TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+    last_seen    TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
+);
+CREATE INDEX ON nntp_emp_hashes (last_seen);
+```
+
+Two rows per article (full-body hash + quote-stripped hash) so a spam run that varies
+only its quoted preamble still collapses. Decay is applied on read
+(`hits * exp(-ln2 * age / filter_emp_halflife_hours)`); rows past a small `last_seen`
+age are pruned by the maintenance script. Only the filter pipeline touches this table.
+
+### `nntp_filter_log` — filter decisions
+
+```sql
+CREATE TABLE nntp_filter_log (
+    id           BIGSERIAL PRIMARY KEY,
+    at           TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+    mode         TEXT NOT NULL,             -- 'peer' | 'post' | 'ftn-toss'
+    peer_id      INT NULL REFERENCES nntp_peers(id) ON DELETE SET NULL,
+    user_id      INT NULL REFERENCES users(id) ON DELETE SET NULL,
+    message_id   TEXT NULL,                 -- wire Message-ID when known
+    verdict      TEXT NOT NULL,             -- 'accept' | 'reject' | 'defer'
+    rule         TEXT NULL,                 -- rule that produced a non-accept verdict
+    reason       TEXT NULL,
+    newsgroups   TEXT NULL
+);
+CREATE INDEX ON nntp_filter_log (at);
+CREATE INDEX ON nntp_filter_log (verdict, at);
+```
+
+Only non-`accept` verdicts are logged unless `filter_log_accepts` is set (tuning).
+Feeds the "why was my post rejected" answer and lets an operator spot a peer routinely
+tripping a rule. Pruned by age in `scripts/echomail_maintenance.php` alongside the
+optional `nntp_history` prune.
+
 ---
 
 ## Architecture
@@ -540,6 +699,15 @@ src/Nntp/
   NntpHistory.php        — nntp_history read/write, optional prune
   NntpPeerConfig.php     — nntp_peers CRUD via admin daemon, IP/cert authz helpers
   NntpPath.php           — Path: parse / prepend / loop-check
+  NntpFilterPipeline.php — ordered NntpArticleFilter chain: verdict + nntp_filter_log
+  NntpFilterContext.php  — parsed article + mode + peer/user/area metadata
+  NntpFilterVerdict.php  — accept | reject | defer + reason + header rewrites
+  Filter/HeaderSanityFilter.php
+  Filter/RegexListFilter.php       — data/nntp/filters/*.rx, mtime hot-reload
+  Filter/BinaryContentFilter.php
+  Filter/CrosspostBreadthFilter.php
+  Filter/EmpFilter.php             — nntp_emp_hashes read/write + decay
+  Filter/SizeRateFilter.php
 ```
 
 `NntpArticleParser` / `NntpNewsgroups` / `NntpArticleNumbers` are reused as-is.
@@ -552,6 +720,12 @@ articles*) verbatim when present, falling back to `NntpMessageId::build()` /
 method, `buildSyntheticFtnMsgid()` — a content-hashed FTN `MSGID` string for a
 peer-origin article that carries no `MSGID` kludge (distinct from `buildSynthetic()`,
 which returns an NNTP `<…@host>` ID).
+
+`NntpArticleFilter` is the interface every `Filter/*` class implements;
+`NntpFilterPipeline` is invoked from `NntpFeedInbound`, `NntpPost::submit()`, and
+(when `filter_toss` is on) `BinkdProcessor::storeEchomail`. A future
+`Filter/PerlBridgeFilter` (Cleanfeed / `postfilter` subprocess, D5 / phase 6) plugs
+into the same chain without changing the pipeline or any dispatch site.
 
 ### Storing a peered article
 
@@ -617,12 +791,16 @@ caller passing positional args past the present parameter list, or relying on
    `peering_crosspost_over_limit` (see Configuration): `'reject'` → store nothing,
    answer `437`, log; `'truncate'` → keep the first `max_cross_post_areas` areas in
    `Newsgroups:` order, drop the rest from storage, log the dropped group names.
-3. Determine the shared FTN `MSGID` for the article — the peer's own `MSGID` kludge if
+3. Run the filter pipeline once for the whole article (`mode = 'peer'`), unless the
+   offering peer has `nntp_peers.skip_filters`. `reject` → store nothing, answer `437`
+   (`439` under `TAKETHIS`); `defer` → answer `436` / `431`; `accept` may carry header
+   rewrites applied to every row stored below. See *Article Filtering*.
+4. Determine the shared FTN `MSGID` for the article — the peer's own `MSGID` kludge if
    present, else mint one with `NntpMessageId::buildSyntheticFtnMsgid()` (deterministic
    from stable article content). Mint **once** for the whole article, and only after
-   step 2: a rejected article never triggers a mint, and a truncated-away area never
+   steps 2–3: a rejected article never triggers a mint, and a truncated-away area never
    gets an `nntp_history` or `echomail` row.
-4. Per surviving area, in order: run the `(message_id, echoarea_id)` `echomail` backstop
+5. Per surviving area, in order: run the `(message_id, echoarea_id)` `echomail` backstop
    (see *Crossposted peer articles*), then call `postEchomail()` with the shared FTN
    `MSGID` / wire `Message-ID` / `date_written` / outbound-suppression parameters. The
    *same* FTN `MSGID` and wire `Message-ID` go to every call so all surviving rows share
@@ -741,6 +919,34 @@ New keys added to `NntpConfig::defaults()` / `sanitize()`:
 Peer records themselves live in `nntp_peers` (DB), managed through a new
 **Admin → NNTP → Peers** screen, written via the admin daemon.
 
+### Filtering — `config/nntp.json` and `data/nntp/filters/`
+
+New `NntpConfig` keys (defaults chosen so filtering is on for peer + post, off for
+toss):
+
+- `filter_enabled` (bool, default `true`) — master switch for the native pipeline.
+  Independent of `peering_enabled`: it also covers local `POST`.
+- `filter_peer` / `filter_post` / `filter_toss` (bool; default `true` / `true` /
+  `false`) — which ingest paths the pipeline screens.
+- `filter_failure_mode` (enum `accept` | `reject` | `defer`) — verdict when a rule
+  throws or times out; per-mode default (`defer` for peer, `accept` for post) unless
+  overridden.
+- `filter_timeout_ms` (int, default `2000`) — per-rule evaluation ceiling.
+- `filter_log_accepts` (bool, default `false`) — also record `accept` verdicts to
+  `nntp_filter_log`.
+- `filter_emp_enabled` (bool, default `true`), `filter_emp_threshold` (int, default
+  `20`), `filter_emp_halflife_hours` (int, default `48`).
+- `filter_date_skew_future_hours` (int, default `48`) / `filter_date_skew_past_days`
+  (int, default `365`) — header-sanity `Date` window.
+- `filter_binary_max_bytes` (int, default `4096`) — encoded-run size that trips the
+  binary-in-text rule.
+
+Regex block lists are files under `data/nntp/filters/` (`subject.rx`, `from.rx`,
+`body.rx`, `url.rx`) — one pattern per line, `#` comments, hot-reloaded on mtime
+change — not JSON keys. They are config the web process cannot write, so
+**Admin → NNTP → Filters** edits them via the admin daemon (new
+`get_nntp_filters` / `set_nntp_filters` commands), same as the peer and CA material.
+
 ---
 
 ## Abuse and Safety
@@ -751,8 +957,14 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
   `NntpSession` and return `500`, so such a connection can never reach the feed path.
   On a dedicated peering port the same connection is refused at greeting (`502`) before
   any command processing.
+- **Content filtering** — a native rule pipeline (*Article Filtering*) screens every
+  peered article after the history gate and before storage: header sanity, regex block
+  lists, binary-in-text, EMP body-hash counters. `reject` → `437`, `defer` → `436`.
+  The same pipeline runs on the local `POST` path and, optionally, FTN toss. A
+  `nntp_peers.skip_filters` peer bypasses the content rules but not the checks below.
 - **Per-peer article size cap** — enforced in `readDotTerminated()`-equivalent for the
-  feed path; over-size gets `437` (do not retry).
+  feed path; over-size gets `437` (do not retry). Also surfaced as a pipeline rule so
+  every rejection shares one log and one config surface.
 - **Per-peer inbound rate limit** — articles/minute and articles/hour, rejected with
   `436` (try again later) so a well-behaved peer backs off rather than dropping.
 - **Feed pattern is allow-list** — an `IHAVE` for a group outside `inbound_pattern` is
@@ -777,6 +989,12 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
   over `max_cross_post_areas` under both `peering_crosspost_over_limit` modes),
   `NntpMessageId::buildSyntheticFtnMsgid()` determinism, `NntpMessageId` round-trip
   already covered.
+- **Filter pipeline** — `NntpFilterPipeline` ordering / first-non-accept-wins;
+  `HeaderSanityFilter` (missing / duplicated `Message-ID`, `Date` skew both
+  directions); `RegexListFilter` match + mtime hot-reload; `EmpFilter` increment,
+  decay, and quote-stripped second hash; `filter_failure_mode` behaviour on a throwing
+  rule; verdict→status mapping per mode; `NntpFilterContext` construction from a parsed
+  article.
 - **Integration** — two BinktermPHP instances (or one instance + `innd` / a scripted
   peer) exchanging a known area; assert no duplicate `echomail` rows, correct
   `Path:` growth, correct `435` on re-offer.
@@ -790,17 +1008,21 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
 
 - `docs/NNTP.md` — new "Peering" section (peer setup, feed patterns, per-peer
   `max_cross_post_areas` and the `peering_crosspost_over_limit` policy, the
-  re-propagation switch and its risks).
+  re-propagation switch and its risks) and a "Filtering" section (the rule list, the
+  `data/nntp/filters/*.rx` block lists, EMP tuning, `filter_failure_mode`, the
+  `skip_filters` per-peer bypass).
 - `docs/proposals/NNTPServer.md` — Design Decision 3 is revisited; add a pointer here.
 - `docs/proposals/NNTPClientTransport.md` — note the shared `NntpFeedOutbound` /
   connection code.
 - `docs/CLI.md` — `scripts/nntp_feeder.php`; and the optional `nntp_history` prune if
   one is added to `scripts/echomail_maintenance.php`.
 - `docs/CONFIGURATION.md` — `NNTP_PEER_PORT`, `NNTP_PEER_CLIENT_CERT` /
-  `NNTP_PEER_CLIENT_KEY`, and the `data/nntp/peers/` CA directory convention.
+  `NNTP_PEER_CLIENT_KEY`, the `data/nntp/peers/` CA directory convention, the
+  `filter_*` keys, and the `data/nntp/filters/` block-list directory convention.
 - `scripts/README_echomail_maintenance.md` — document the `nntp_history` prune flag if
   added, including the warning that pruning below effective `echomail` age weakens
-  peer re-offer suppression.
+  peer re-offer suppression; also the `nntp_emp_hashes` and `nntp_filter_log` prune
+  flags.
 - `docs/DEVELOPER_GUIDE.md` Doc Maintenance Checklist — add the NNTP peering ↔
   `docs/NNTP.md` pairing.
 - `docs/PostgreSQLDependencies.md` — only if a peering query uses a PG-specific
@@ -821,16 +1043,26 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
    over FTN. `nntp_peers` table + admin screen. Includes the store-path work in
    *Storing a peered article* (external FTN `MSGID` / wire `Message-ID` /
    `date_written`, single MSGID line, and the **outbound-suppression flag** — without
-   which "master switch forced off" has no effect, see D1).
+   which "master switch forced off" has no effect, see D1). Also ships the
+   `NntpArticleFilter` interface, `NntpFilterPipeline`, `nntp_filter_log`, and the core
+   native rules (header sanity, regex block lists, binary-in-text), wired into both the
+   peer path and the existing local `POST` path.
 3. **Outbound feed** — `nntp_outbound_queue`, `scripts/nntp_feeder.php`, `IHAVE` loop,
    sharing connection code with `NNTPClientTransport`.
 4. **Streaming** (`MODE STREAM` / `CHECK` / `TAKETHIS`), multi-peer, per-peer patterns
-   and rate limits hardened.
+   and rate limits hardened. Filter pipeline gains the EMP counters
+   (`nntp_emp_hashes`), `Date`-skew tuning, the per-area `nntp_allow_binary` flag, and
+   the size/rate caps folded in for unified logging.
 5. **Opt-in re-propagation to FTN, per echoarea** (`peering_repropagate_to_ftn` master
    switch + `echoareas.nntp_repropagate_to_ftn` per area): peered articles for flagged
    areas get correct `SEEN-BY` / `PATH`, flow through the tosser outbound path, and are
    suppressed toward peers/uplinks that already hold them. Only after 1–4 are proven in
    production.
+6. **Cleanfeed (`cleanfeed-nng`) / `postfilter` Perl bridge — contingent (D5).** Only
+   if peering broadens beyond a handful of trusted bilateral links. A
+   `Filter/PerlBridgeFilter` backend driving a warm Perl subprocess that emulates the
+   INN embedded-Perl hook API. Carries a permanent maintenance cost (API drift) and a
+   new Perl + CPAN runtime dependency; specified as its own proposal if reached.
 
 ---
 
@@ -842,6 +1074,10 @@ Peer records themselves live in `nntp_peers` (DB), managed through a new
 - **Synchronet** and **MBSE** — both already gate FTN message bases to NNTP and, in
   Synchronet's case, peer; useful references for the `Path:`/`SEEN-BY` bridging edge
   cases that phase 5 would hit.
+- **Cleanfeed / `cleanfeed-nng`** and **`postfilter`** — the reference Perl spam
+  filters for INN's `innd` feed and `nnrpd` posting hooks; the source for the EMP
+  body-hash / decay technique the native `EmpFilter` reimplements, and the integration
+  target for the phase 6 bridge.
 
 ---
 
@@ -859,3 +1095,9 @@ low-risk and useful on its own once the store path can actually withhold a store
 article from the FTN outbound queue — a capability `postEchomail()` does not have today
 (see D1) and this proposal has to add. Re-propagation to FTN — enabled globally and
 then opted into per echoarea — is a later, deliberately separate phase.
+
+Content abuse is handled by a native filter pipeline (header sanity, regex block
+lists, binary detection, EMP body-hash counters) shared with the local `POST` path.
+A Cleanfeed (`cleanfeed-nng`) / `postfilter` bridge is deferred to a contingent phase
+6 (D5): emulating INN's embedded-Perl hook API is a permanent maintenance cost that
+only pays off once peering opens beyond trusted bilateral links.**
