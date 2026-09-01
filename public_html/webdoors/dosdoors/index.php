@@ -484,7 +484,11 @@ if (empty($doorId)) {
                     };
 
                     socket.onmessage = (event) => {
-                        term.write(event.data);
+                        let data = event.data;
+                        if (typeof data === 'string') {
+                            data = data.replace(/\x7f/g, '\b \b');
+                        }
+                        term.write(data);
                     };
 
                     socket.onclose = (event) => {
