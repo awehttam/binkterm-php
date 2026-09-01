@@ -13,6 +13,7 @@
 | Freddy Krueger | Italian translation |
 | Neo67 | German translation |
 | pztrn | Russian translation |
+| Derek Bird | Docker WebSocket proxy config, CLI entrypoint fixes |
 
 ## Third-Party Libraries
 

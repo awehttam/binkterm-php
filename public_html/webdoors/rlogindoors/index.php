@@ -314,6 +314,8 @@ if (empty($doorId)) {
             // terminal input, not the DOS Doorway Protocol scan-code framing
             // the local DOSBox/native door player uses.
             term.onData((data) => {
+                // Remap DEL (0x7f) to Backspace (0x08) for DOS/BBS compatibility
+                if (data === '\x7f') data = '\x08';
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     socket.send(data);
                 }

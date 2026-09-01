@@ -109,6 +109,8 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/conf.d.available /opt/binkterm-conf.d-available
 COPY docker/php-error-logging.ini /usr/local/etc/php/conf.d/zz-error-logging.ini
 COPY docker/php-uploads.ini /usr/local/etc/php/conf.d/zz-uploads.ini
+COPY docker/000-default.conf /etc/apache2/sites-available/000-default.conf
+RUN a2enmod proxy proxy_wstunnel proxy_http rewrite
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
