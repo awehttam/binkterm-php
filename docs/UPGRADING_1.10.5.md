@@ -13,6 +13,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Door Player Backspace Handling](#door-player-backspace-handling)
 - [CLI Script Fixes](#cli-script-fixes)
 - [CP437 Login ANSI Art](#cp437-login-ansi-art)
+- [Terminal Registration House Rules](#terminal-registration-house-rules)
+- [Terminal Full-Screen Editor Flicker](#terminal-full-screen-editor-flicker)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -53,6 +55,14 @@ Make sure you have a current backup of your database and files before upgrading.
 ### CP437 Login ANSI Art
 
 - The ANSI login screen (`ansi_prompt` display mode) now accepts `.ans` files saved in Code Page 437 by DOS / Synchronet tools. The high-byte box-drawing and block characters are converted to UTF-8 for display, and a trailing SAUCE / EOF record is stripped. Previously these bytes rendered as replacement characters, and the admin appearance editor could not load or save such art.
+
+### Terminal Registration House Rules
+
+- The terminal server's **Register new account** flow now shows the house rules in a paged box and requires the prospective user to type `YES` to accept them before any account details are collected. Declining aborts registration. Custom house rules from **Admin -> Appearance -> Content -> House Rules** are shown when set; otherwise the built-in default rule set is used. The browser registration page already linked to the same rules.
+
+### Terminal Full-Screen Editor Flicker
+
+- The terminal server's full-screen message editor (used automatically when the terminal has 15 or more rows) no longer erases and repaints the entire screen after every keystroke. Typing within a line now updates only that line, cursor movement emits only a cursor move, and structural edits repaint just the text area — borders and the footer stay put. This removes the constant blue-background blink that was visible while composing, especially on larger terminals or higher-latency connections. Terminals with ANSI colour disabled keep the previous full-redraw behaviour. Fixes issue #432.
 
 ---
 
@@ -172,6 +182,25 @@ When the login screen display mode is set to **ANSI prompt**, the uploaded `.ans
 Those raw CP437 bytes are not valid UTF-8. When passed through template output they were rejected by `htmlspecialchars()` and every affected character was replaced with the Unicode replacement character, corrupting the art. Files that ended with a SAUCE metadata record (introduced by an `0x1A` EOF byte) also had that record passed straight through.
 
 `AppearanceConfig::getLoginScreenAnsi()` now truncates the content at the `0x1A` delimiter to drop any EOF / SAUCE block, and converts non-UTF-8 content from CP437 to UTF-8 with `iconv()` (falling back to `mb_convert_encoding()`), matching how shell art is already handled elsewhere. `AdminDaemonServer::getAppearanceConfig()` performs the same conversion before returning the JSON payload, so the **Admin -> Appearance** editor can load, edit, and save CP437 ANSI art without encoding errors.
+
+## Terminal Registration House Rules
+
+When a user chooses **N — Register new account** at the terminal server pre-login menu, the registration flow now begins by displaying the house rules in a scrollable paged box. After reading them the user is prompted to type `YES` to continue; any other response (or `cancel`) aborts registration before a username, password, or any other detail is entered.
+
+The rules text is resolved the same way the browser's House Rules modal resolves it: the Markdown from **Admin -> Appearance -> Content -> House Rules** is used when it has been set, and the built-in default rule set (civility, no spam, respect privacy, FidoNet etiquette, sysop decisions are final) is shown otherwise. Both sources are localized to the connecting user's language.
+
+## Terminal Full-Screen Editor Flicker
+
+The terminal server's full-screen message editor is the framed, blue-background editor shown when composing a message on a terminal with at least 15 rows. Previously it repainted the whole screen — clearing to the background colour, hiding the cursor, and redrawing the borders, every text row, and the footer — after every keypress. On larger terminals and on connections with any latency this produced a constant visible flicker while typing.
+
+The editor now redraws incrementally:
+
+- Typing a character, backspace, or delete that does not change the number of lines repaints only the row the cursor is on.
+- Moving the cursor (arrow keys, Home/End) emits only a cursor-position update and paints nothing.
+- Splitting or joining lines, deleting a line, or scrolling the view repaints just the text area; the borders and footer are left untouched.
+- A full screen redraw still happens on entry, on terminal resize, on returning from the Ctrl+K help screen, and when the draft-save footer notice appears or clears.
+
+Terminals connected with ANSI colour disabled continue to use the original full-redraw path unchanged.
 
 ## Upgrade Instructions
 
