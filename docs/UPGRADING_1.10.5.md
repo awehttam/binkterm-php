@@ -11,6 +11,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [NNTP Server](#nntp-server)
 - [Docker WebSocket Proxy](#docker-websocket-proxy)
 - [Door Player Backspace Handling](#door-player-backspace-handling)
+- [BBSDEV.DRP Drop File (Experimental)](#bbsdevdrp-drop-file-experimental)
 - [CLI Script Fixes](#cli-script-fixes)
 - [CP437 Login ANSI Art](#cp437-login-ansi-art)
 - [Terminal Registration House Rules](#terminal-registration-house-rules)
@@ -48,6 +49,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - The browser-based RLogin door player (`public_html/webdoors/rlogindoors/index.php`) now remaps the DEL byte (`0x7f`) that modern browsers send for the Backspace/Delete key to the Backspace byte (`0x08`) that RLogin door servers expect. Previously the Backspace key was ignored in RLogin doors (for example DOS doors run through DOSEMU/DOSBox, or MajorBBS). The equivalent DOS door players already had this remap; this brings the RLogin player in line.
 - All three browser door players (`rlogindoors/index.php`, `webdoors/dosdoors/index.php`, `guest-door-player.php`) now also translate an inbound `0x7f` (DEL) coming *from* the door engine into a destructive backspace sequence (`\b \b`) before writing it to the terminal. Some door engines emit a bare DEL to erase the last character; xterm.js would otherwise render it as a visible glyph instead of erasing. Binary WebSocket frames are left untouched.
+
+### BBSDEV.DRP Drop File (Experimental)
+
+- Door manifests can now select `BBSDEV.DRP` as their `dropfile_format`, for both native doors and DOS doors, in the **Admin -> Door Manifest Editor**. BBSDEV.DRP is a modern 19-line drop file (UTF-8, one value per line) defined by [its own specification](https://realdeuce.github.io/bbsdev.drp/). A door set to this format receives only `BBSDEV.DRP` — no `DOOR.SYS` — and the drop file's absolute path is passed in the `BBSDEV_DRP` environment variable (native doors) or a guest environment variable of the same name (DOS doors). This support is **experimental and has not been tested against a real door**; `DOOR.SYS` remains the default and is unaffected.
 
 ### CLI Script Fixes
 
@@ -173,6 +178,18 @@ The browser DOS door players (`public_html/webdoors/dosdoors/index.php` and `gue
 All three players (`rlogindoors/index.php`, `webdoors/dosdoors/index.php`, `guest-door-player.php`) now rewrite an inbound `0x7f` (DEL) in the stream from the door engine to a destructive backspace sequence (`\b \b`) before `term.write()`. Some door engines send a bare DEL to erase the previously typed character; without this, xterm.js drew it as a visible glyph and the erase never happened. Only string WebSocket frames are affected; binary frames pass through unchanged.
 
 Clearing the browser/service-worker cache (or a hard reload) ensures clients pick up the updated scripts.
+
+## BBSDEV.DRP Drop File (Experimental)
+
+BinktermPHP has always written a `DOOR.SYS` drop file (and, for native doors, optionally `DOOR32.SYS`) into the per-node drop directory before launching a door game. `BBSDEV.DRP` is a third option, defined by an independent specification at <https://realdeuce.github.io/bbsdev.drp/>. It is a plain-text file of exactly 19 lines, one field per line, encoded as UTF-8 without a byte-order mark, that replaces the ambiguous numeric fields of the legacy formats with explicit values (screen size, IANA encoding name, BCP 47 language tag, and so on).
+
+To use it, edit a door in **Admin -> Door Manifest Editor** (native or DOS) and set **Drop file format** to **BBSDEV.DRP**, then save. From then on that door receives only a `BBSDEV.DRP` file — `DOOR.SYS` is not written for it, the same way selecting `DOOR32.SYS` works today. The file is written and closed before the door starts and removed after it exits.
+
+The door finds the file through the `BBSDEV_DRP` environment variable, which holds the file's absolute path. For native doors this is set directly in the door process environment (the older `DOOR_DROPFILE` variable is still set too). For DOS doors the DOSBox autoexec sets a guest `BBSDEV_DRP` variable and the `{dropfile}` launch-command macro resolves to `BBSDEV.DRP`.
+
+Field values are taken from the session: the user's name and numeric ID, whether the account is an administrator (reported as access level `sysop`, otherwise `50`), the user's locale as a language tag, the door's configured terminal size (default 80x25), the encoding (`IBM437` when the door's output encoding is CP437, otherwise `UTF-8`), and the BBS name, sysop name, and BinktermPHP version. The full line-by-line mapping is in `docs/NativeDoors.md`.
+
+This feature is **experimental**. It follows the specification as published but has not yet been exercised against a real door that consumes `BBSDEV.DRP`. Leave `dropfile_format` at its default (`DOOR.SYS`) unless you are specifically testing a BBSDEV.DRP-aware door, and report problems on the GitHub issue tracker.
 
 ## CLI Script Fixes
 

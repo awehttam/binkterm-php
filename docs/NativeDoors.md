@@ -189,7 +189,7 @@ The door will now appear in the `/games` game library.
 |-------|------|----------|-------------|
 | `executable` | string | Yes | Filename of the main executable relative to the door directory |
 | `launch_command` | string | No | Full command to run. Supports `{node}`, `{dropfile}`, `{user_number}`, and `{homedir}` placeholders (see below). Defaults to `executable` |
-| `dropfile_format` | string | No | Drop file format. `"DOOR.SYS"` (default) or `"DOOR32.SYS"` |
+| `dropfile_format` | string | No | Drop file format. `"DOOR.SYS"` (default), `"DOOR32.SYS"`, or `"BBSDEV.DRP"` (experimental) |
 | `output_encoding` | string | No | Character encoding of the door's output. `"utf8"` (default) or `"cp437"`. Use `"cp437"` for legacy DOS-style doors that output CP437 box-drawing and ANSI art |
 | `max_nodes` | integer | No | Maximum simultaneous sessions. Defaults to `10` |
 | `ansi_required` | boolean | No | Whether ANSI is required. Defaults to `true` |
@@ -247,7 +247,8 @@ The following environment variables are set in the door process at launch:
 | `DOOR_USER_NUMBER` | BBS user ID (numeric) | `42` |
 | `DOOR_NODE` | Node number | `1` |
 | `DOOR_BBS_NAME` | BBS name from configuration | `My BBS` |
-| `DOOR_DROPFILE` | Full path to the DOOR.SYS file | `/srv/bbs/native-doors/drops/NODE1/DOOR.SYS` |
+| `DOOR_DROPFILE` | Full path to the drop file | `/srv/bbs/native-doors/drops/NODE1/DOOR.SYS` |
+| `BBSDEV_DRP` | Full path to the `BBSDEV.DRP` file (only when `dropfile_format` is `BBSDEV.DRP`) | `/srv/bbs/native-doors/drops/NODE1/BBSDEV.DRP` |
 | `DOOR_ANSI` | Always `1` (ANSI assumed) | `1` |
 | `TERM` | Terminal type | `xterm-256color` |
 
@@ -257,7 +258,7 @@ The process also inherits the environment of the multiplexing bridge, including 
 
 ## Drop File
 
-A drop file is generated and written to `native-doors/drops/NODE{n}/` before the door is launched. Two formats are supported, selected via `dropfile_format` in the manifest:
+A drop file is generated and written to `native-doors/drops/NODE{n}/` before the door is launched. Three formats are supported, selected via `dropfile_format` in the manifest:
 
 ### DOOR.SYS (default)
 
@@ -291,7 +292,41 @@ The DOOR32.SYS fields are:
 | 10 | ANSI | `1` (always) |
 | 11 | Node number | Session node number |
 
-The same user data is also available via environment variables (see above), so simple doors do not need to parse either drop file format at all.
+### BBSDEV.DRP (experimental — untested)
+
+> **Experimental.** This format is implemented per the [BBSDEV.DRP v1.0 spec](https://realdeuce.github.io/bbsdev.drp/) but has not been tested against a real door. Report issues on GitHub.
+
+A modern, line-oriented drop file: exactly 19 lines, UTF-8 without BOM, CRLF line endings. Written to `BBSDEV.DRP`. The absolute path is also passed to the door in the `BBSDEV_DRP` environment variable (the legacy `DOOR_DROPFILE` variable is still set as well).
+
+```json
+"dropfile_format": "BBSDEV.DRP"
+```
+
+| Line | Field | Value |
+|------|-------|-------|
+| 1 | Format version | `1.0` |
+| 2 | Communications type | `stdio` (native doors run over a PTY) |
+| 3 | Communications parameters | empty |
+| 4 | User alias | username (`Guest` for anonymous) |
+| 5 | Unique user key | numeric user ID |
+| 6 | Screen width | door `terminal_size` width, default `80` |
+| 7 | Screen height | door `terminal_size` height, default `25` |
+| 8 | ANSI enabled | `Y` |
+| 9 | RIP enabled | `N` |
+| 10 | CTerm version | empty |
+| 11 | Logoff deadline | empty (no forced logoff) |
+| 12 | Terminal encoding | `IBM437` when `output_encoding` is `cp437`, otherwise `UTF-8` |
+| 13 | Language | user locale as a BCP 47 tag, default `en-US` |
+| 14 | BBS software | `BinktermPHP <version>` |
+| 15 | Board name | BBS name |
+| 16 | Sysop alias | sysop name |
+| 17 | Access level | `sysop` for admin accounts, otherwise `50` |
+| 18 | Node number | session node number |
+| 19 | Show local display | `N` |
+
+A door configured for `BBSDEV.DRP` receives only that file — no `DOOR.SYS` is written.
+
+The same user data is also available via environment variables (see above), so simple doors do not need to parse any drop file format at all.
 
 ---
 

@@ -2020,6 +2020,7 @@ return [
     // Select option labels
     'ui.admin.door_manifest_editor.dropfile.doorsys' => 'DOOR.SYS',
     'ui.admin.door_manifest_editor.dropfile.door32sys' => 'DOOR32.SYS',
+    'ui.admin.door_manifest_editor.dropfile.bbsdevdrp' => 'BBSDEV.DRP',
     'ui.admin.door_manifest_editor.encoding.utf8' => 'UTF-8',
     'ui.admin.door_manifest_editor.encoding.cp437' => 'CP437 (DOS)',
     'ui.admin.door_manifest_editor.jsdos_output.surface' => 'Surface (software)',
