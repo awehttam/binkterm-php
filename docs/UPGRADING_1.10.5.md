@@ -17,6 +17,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Registration House Rules](#terminal-registration-house-rules)
 - [Terminal Full-Screen Editor Flicker](#terminal-full-screen-editor-flicker)
 - [Community Mods List](#community-mods-list)
+- [Docker Stale Apache PID Cleanup](#docker-stale-apache-pid-cleanup)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -73,6 +74,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Community Mods List
 
 - A new `docs/MODS.md` file is a curated list of third-party mods and extensions for BinktermPHP, linked from the Customization section of the README. It seeds with two mods by TheWebExpert: the Door Button Filter Mod (category filter bar on `/games`) and the Echo Area Button Mod (network-filter and quick-action bar on `/echolist`). Contributors add their own mods by pull request. Listed mods are maintained by their individual authors and have not necessarily been reviewed or tested by the BinktermPHP maintainer; review a mod's source before installing it.
+
+### Docker Stale Apache PID Cleanup
+
+- `docker/entrypoint.sh` now removes any stale `/var/run/apache2/apache2.pid` (and other `/var/run/apache2/*.pid`) files during container initialization, before starting the main process. This prevents a crash loop after an abrupt Docker host shutdown or a killed container leaves a stale Apache PID file behind on a persisted volume.
 
 ---
 
@@ -236,6 +241,12 @@ The list launches with two entries, both by TheWebExpert (The Adventure BBS, 227
 Both use the `templates/custom/header.insert.twig` customization hook.
 
 Contributors with a mod to share add a section to `docs/MODS.md` by pull request against the `claudesbbs` branch, following the existing entry format. Mods in the list are written and maintained by their individual authors and **have not necessarily been reviewed or tested by the BinktermPHP maintainer** — review a mod's source code before installing it on your system.
+
+## Docker Stale Apache PID Cleanup
+
+If a Docker host shuts down or restarts abruptly, or a container is stopped with `docker stop` past its timeout (or killed with `SIGKILL`), Apache can leave behind a stale `/var/run/apache2/apache2.pid` on the persisted volume. On the next container start, `apache2-foreground` sees the existing PID file and exits immediately, putting the container into a crash loop until the PID file (or volume) is removed by hand.
+
+`docker/entrypoint.sh` now removes `/var/run/apache2/apache2.pid` and any other `/var/run/apache2/*.pid` files during initialization, before the main command starts. Rebuild the image to pick up the fix.
 
 ## Upgrade Instructions
 
