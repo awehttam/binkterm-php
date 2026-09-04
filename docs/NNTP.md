@@ -65,6 +65,14 @@ It is an optional daemon — `restart_daemons.sh` with no arguments only restart
 if it was already running. On Windows it is not part of `start_daemons_windows.*`
 and must be started by hand: `php scripts/nntp_server.php`.
 
+**Start it on boot** by adding a `@reboot` line to the `binktermphp` user's
+crontab (see [INSTALL.md → Set Up Cron Jobs](INSTALL.md#set-up-cron-jobs-recommended)),
+alongside the other daemon entries. Replace the path with your install path:
+
+```cron
+@reboot /usr/bin/php /home/binktermphp/binkterm-php/scripts/nntp_server.php --daemon
+```
+
 In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and uncomment
 its port lines (`119:8119`, `563:8563` — the daemon listens on its default `8119` /
 `8563` in the container and the mapping presents the standard ports to the
