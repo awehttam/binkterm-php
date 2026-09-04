@@ -12,10 +12,10 @@ integration point the mod uses.
 
 ## Disclaimer
 
-Mods listed here are contributed and maintained by third parties. They **may not have
-been tested or vetted by the BinktermPHP developers**. Review the source code of any
-mod before installing it on your system. You install and run these mods at your own
-risk.
+Mods listed here are contributed and maintained by their individual authors. They
+**have not necessarily been reviewed or tested by the BinktermPHP maintainer**. Review
+the source code of any mod before installing it on your system. You install and run
+these mods at your own risk.
 
 ## Mods
 

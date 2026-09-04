@@ -67,7 +67,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 ### Community Mods List
 
-- A new `docs/MODS.md` file is a curated list of third-party mods and extensions for BinktermPHP, linked from the Customization section of the README. It seeds with two mods by TheWebExpert: the Door Button Filter Mod (category filter bar on `/games`) and the Echo Area Button Mod (network-filter and quick-action bar on `/echolist`). Contributors add their own mods by pull request. Listed mods are maintained by third parties and are not tested or vetted by the BinktermPHP developers; review a mod's source before installing it.
+- A new `docs/MODS.md` file is a curated list of third-party mods and extensions for BinktermPHP, linked from the Customization section of the README. It seeds with two mods by TheWebExpert: the Door Button Filter Mod (category filter bar on `/games`) and the Echo Area Button Mod (network-filter and quick-action bar on `/echolist`). Contributors add their own mods by pull request. Listed mods are maintained by their individual authors and have not necessarily been reviewed or tested by the BinktermPHP maintainer; review a mod's source before installing it.
 
 ---
 
@@ -218,7 +218,7 @@ The list launches with two entries, both by TheWebExpert (The Adventure BBS, 227
 
 Both use the `templates/custom/header.insert.twig` customization hook.
 
-Contributors with a mod to share add a section to `docs/MODS.md` by pull request against the `claudesbbs` branch, following the existing entry format. Mods in the list are written and maintained by third parties and **may not have been tested or vetted by the BinktermPHP developers** — review a mod's source code before installing it on your system.
+Contributors with a mod to share add a section to `docs/MODS.md` by pull request against the `claudesbbs` branch, following the existing entry format. Mods in the list are written and maintained by their individual authors and **have not necessarily been reviewed or tested by the BinktermPHP maintainer** — review a mod's source code before installing it on your system.
 
 ## Upgrade Instructions
 
