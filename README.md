@@ -218,6 +218,8 @@ The easiest way to customize your BBS is through **Admin → Appearance**: shell
 
 See **[docs/CUSTOMIZING.md](docs/CUSTOMIZING.md)** for the full reference.
 
+For community-contributed mods and extensions, see **[docs/MODS.md](docs/MODS.md)**.
+
 ---
 
 # Optional Features

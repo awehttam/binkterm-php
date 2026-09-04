@@ -15,6 +15,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [CP437 Login ANSI Art](#cp437-login-ansi-art)
 - [Terminal Registration House Rules](#terminal-registration-house-rules)
 - [Terminal Full-Screen Editor Flicker](#terminal-full-screen-editor-flicker)
+- [Community Mods List](#community-mods-list)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -63,6 +64,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Terminal Full-Screen Editor Flicker
 
 - The terminal server's full-screen message editor (used automatically when the terminal has 15 or more rows) no longer erases and repaints the entire screen after every keystroke. Typing within a line now updates only that line, cursor movement emits only a cursor move, and structural edits repaint just the text area — borders and the footer stay put. This removes the constant blue-background blink that was visible while composing, especially on larger terminals or higher-latency connections. Terminals with ANSI colour disabled keep the previous full-redraw behaviour. Fixes issue #432.
+
+### Community Mods List
+
+- A new `docs/MODS.md` file is a curated list of third-party mods and extensions for BinktermPHP, linked from the Customization section of the README. It seeds with two mods by TheWebExpert: the Door Button Filter Mod (category filter bar on `/games`) and the Echo Area Button Mod (network-filter and quick-action bar on `/echolist`). Contributors add their own mods by pull request. Listed mods are maintained by third parties and are not tested or vetted by the BinktermPHP developers; review a mod's source before installing it.
 
 ---
 
@@ -201,6 +206,19 @@ The editor now redraws incrementally:
 - A full screen redraw still happens on entry, on terminal resize, on returning from the Ctrl+K help screen, and when the draft-save footer notice appears or clears.
 
 Terminals connected with ANSI colour disabled continue to use the original full-redraw path unchanged.
+
+## Community Mods List
+
+`docs/MODS.md` is a curated list of third-party mods, extensions, and tweaks for BinktermPHP. The Customization section of the README links to it.
+
+The list launches with two entries, both by TheWebExpert (The Adventure BBS, 227:1/22):
+
+- **Door Button Filter Mod** — adds a category filter bar to the Doors page (`/games`) for filtering door games by type (RLOGIN, WEB, NATIVE, DOS, JS-DOS, ALL) with live badge counts and client-side filtering, defaulting to RLOGIN and supporting `/games#rlogin` hash deep-links.
+- **Echo Area Button Mod** — adds a network-filter and quick-action bar to the Echo List page (`/echolist`) that auto-discovers connected FTN networks with live area counts and offers one-click subscribed-only, unread-only, new-post, and manage-subscriptions toggles.
+
+Both use the `templates/custom/header.insert.twig` customization hook.
+
+Contributors with a mod to share add a section to `docs/MODS.md` by pull request against the `claudesbbs` branch, following the existing entry format. Mods in the list are written and maintained by third parties and **may not have been tested or vetted by the BinktermPHP developers** — review a mod's source code before installing it on your system.
 
 ## Upgrade Instructions
 

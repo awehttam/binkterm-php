@@ -124,6 +124,7 @@ Complete reference for sysops and developers. New here? Start with [Getting Star
 - [Docker](DOCKER.md) — Docker and docker-compose deployment
 - [Performance Tuning](PerformanceTuning.md) — php-fpm sizing, PostgreSQL tuning, BinkStream transport selection, opcache, and capacity planning
 - [Customizing](CUSTOMIZING.md) — Themes, shells, and appearance customization
+- [Community Mods](MODS.md) — Curated list of third-party mods and extensions, with contribution instructions
 - [Localization](Localization.md) — Internationalization (i18n) and locale configuration
 - [PWA and Service Worker Caching](PWA.md) — Installable PWA, asset caching, cache invalidation, and developer bump rules
 
