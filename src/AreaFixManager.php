@@ -114,21 +114,76 @@ class AreaFixManager
                 continue;
             }
 
-            // Skip header/footer/decorative lines
+            // Skip lines starting with error or percent command prefixes
+            if (str_starts_with($trimmed, '-ERR') || str_starts_with($trimmed, '+ERR') || str_starts_with($trimmed, '%')) {
+                continue;
+            }
+
+            // Pure separator/decorative lines (---, ===, ***, :---:, etc.)
+            if (preg_match('/^[:|\s]*[-=*#~:\s]{3,}[:|\s]*$/', $trimmed)) {
+                continue;
+            }
+
+            // Table header lines (e.g. ": AREA : DESCRIPTION :")
+            if (preg_match('/[:|\s]+AREA[:|\s]+DESCRIPTION/i', $trimmed)) {
+                continue;
+            }
+
+            // Check if colon or pipe delimited table row (e.g. :* : TAG : DESC : MSGS :)
+            if (preg_match('/^[:|]\s*([\*\+\-\s]?)\s*[:|]\s*([A-Z0-9_\-\.]+)\s*[:|]\s*(.*?)\s*(?:[:|]\s*[0-9]+\s*)?[:|]?$/i', $trimmed, $m)) {
+                $tag = strtoupper(trim($m[2]));
+                if ($tag !== 'AREA' && preg_match('/^[A-Z0-9_\-\.]{2,}$/', $tag)) {
+                    $desc = trim($m[3]);
+                    $areas[] = [
+                        'name'        => $tag,
+                        'description' => $desc !== '' ? $desc : null,
+                    ];
+                    continue;
+                }
+            }
+
+            // Pipe table format: | TAG | DESC | ...
+            if (preg_match('/^\|?\s*([A-Z0-9_\-\.]+)\s*\|\s*(.*?)\s*(?:\|.*)?$/i', $trimmed, $m)) {
+                $tag = strtoupper(trim($m[1]));
+                if ($tag !== 'AREA' && preg_match('/^[A-Z0-9_\-\.]{2,}$/', $tag)) {
+                    $desc = trim($m[2]);
+                    $areas[] = [
+                        'name'        => $tag,
+                        'description' => $desc !== '' ? $desc : null,
+                    ];
+                    continue;
+                }
+            }
+
+            // Skip general header/footer lines before trying freeform parsing
             if ($this->isSkippableLine($trimmed)) {
                 continue;
             }
 
-            // Extract area tag (first whitespace-delimited token)
-            $parts = preg_split('/\s+/', $trimmed, 2);
+            // Standard line parsing with leading status symbol stripping (*, +, -, :, |)
+            $cleaned = trim(preg_replace('/^[\*\+\-\:\|\s]+/', '', $trimmed));
+            if ($cleaned === '' || $cleaned === ':') {
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', $cleaned, 2);
             if (!$parts || count($parts) === 0) {
                 continue;
             }
 
             $tag = strtoupper($parts[0]);
 
+            // List of words that appear in receipts, headers, or English sentences and cannot be area tags
+            $ignoredTags = [
+                'AREA', 'FTN', 'FOLLOWING', 'FOLLOWS', 'ORIGINAL', 'STATUS', 'MESSAGE',
+                'TEXT', 'COMMAND', 'COMMANDS', 'REQUEST', 'NOTE', 'NOTES', 'DATE',
+                'COST', 'FLAGS', 'ORIGIN', 'DEST', 'INTL', 'REPLYADDR', 'MSGID',
+                'CHRS', 'PID', 'TZUTC', 'THIS', 'THAT', 'THERE', 'HERE', 'YOUR',
+                'PLEASE', 'BELOW', 'REPLY', 'RESULT', 'RESULTS', 'HELP'
+            ];
+
             // Validate tag pattern: uppercase letters, digits, underscore, hyphen, dot; minimum 2 chars
-            if (!preg_match('/^[A-Z0-9_\-\.]{2,}$/', $tag)) {
+            if (in_array($tag, $ignoredTags, true) || !preg_match('/^[A-Z0-9_\-\.]{2,}$/', $tag) || preg_match('/^\.+$/', $tag)) {
                 continue;
             }
 
@@ -181,6 +236,46 @@ class AreaFixManager
             return true;
         }
 
+        // Taglines, tearlines, and origin lines
+        if (str_starts_with($line, '...') || str_starts_with($line, '---') || str_starts_with($line, '* Origin:')) {
+            return true;
+        }
+
+        // Lines containing block drawing characters (CP437 / Unicode box art)
+        if (preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬■]/u', $line)) {
+            return true;
+        }
+
+        // Explanatory footer lines (e.g. '*' = Subscribed, '+' = available, (MSGS = Messages...)
+        if (preg_match('/^[\'\"\(]?[\*\+\-RW\s]+[\'\"\)]?\s*=\s*/i', $line) || str_contains($lower, 'messages in the last month')) {
+            return true;
+        }
+
+        // FTN mailer/tosser software banners
+        if (str_contains($lower, 'ftn mailer') || str_contains($lower, 'ftn tosser')) {
+            return true;
+        }
+
+        // Quoted message box borders and headers
+        if (str_starts_with($line, '+--') || str_contains($lower, 'begin message') || str_contains($lower, 'end message') || str_contains($lower, 'control lines') || str_contains($lower, 'message body') || str_contains($lower, 'original message text')) {
+            return true;
+        }
+
+        // FidoNet header fields
+        if (preg_match('/^(to|from|subject|date|cost|flags|origin|dest|intl|replyaddr|msgid|chrs|pid|tzutc)\s*[:\s]/i', $line)) {
+            return true;
+        }
+
+        // Common text lines in help / result receipts / change requests
+        if (preg_match('/^(this|that|there|here|your|please|check|note|notes|use|arguments|items|no\s+path|the\s+hub|following|the following|below|status)\b/i', $line)) {
+            return true;
+        }
+
+        // Husky status table headers and lines (e.g. Area ... Status, or rescanned X mails)
+        if (preg_match('/[:|\s]+AREA[:|\s]+STATUS/i', $line) || preg_match('/\b(rescanned\s+\d+\s+mails?|area\s+not\s+found|already\s+subscribed|unsubscribed)\b/i', $line)) {
+            return true;
+        }
+
         // Known header patterns
         $headerPatterns = [
             'area list',
@@ -190,14 +285,6 @@ class AreaFixManager
             'file areas',
             'areafix',
             'filefix',
-            'binkd',
-            'mbse',
-            'mystic',
-            'intermail',
-            'frontdoor',
-            'husky',
-            'fmail',
-            'binkley',
             'available areas',
             'subscribed areas',
             'not linked',
@@ -212,11 +299,6 @@ class AreaFixManager
             if (str_contains($lower, $pattern)) {
                 return true;
             }
-        }
-
-        // Pure separator/decorative lines (---, ===, ***,  etc.)
-        if (preg_match('/^[-=*#~\s]{3,}$/', $line)) {
-            return true;
         }
 
         return false;
@@ -291,7 +373,7 @@ class AreaFixManager
                     $params[] = $uplinkAddress;
                 }
 
-                if ($description !== null && empty($existing['description'])) {
+                if ($description !== null && (empty($existing['description']) || str_starts_with((string)$existing['description'], 'Auto-created:'))) {
                     $updates[] = 'description = ?';
                     $params[] = $description;
                 }
@@ -376,6 +458,91 @@ class AreaFixManager
             "UPDATE echoareas SET is_active = FALSE WHERE UPPER(tag) = UPPER(?) AND domain = ?"
         );
         $stmt->execute([$areaTag, $domain]);
+    }
+
+    /**
+     * Inspect an incoming netmail message to determine if it is an AreaFix/FileFix reply from an uplink.
+     * If so, automatically parses the response and synchronizes the areas to the database.
+     *
+     * @param array $message Raw netmail array containing from_address, to_address, from_name, subject, message_text
+     * @return array{matched: bool, uplink: string, domain: string, robot: string, count: int, summary: array, areas: array}|null
+     */
+    public function processIncomingReply(array $message): ?array
+    {
+        $fromAddr = trim((string)($message['from_address'] ?? $message['origAddr'] ?? ''));
+        $subject  = trim((string)($message['subject'] ?? ''));
+        $fromName = trim((string)($message['from_name'] ?? $message['fromName'] ?? ''));
+        $body     = (string)($message['message_text'] ?? $message['text'] ?? '');
+
+        if ($fromAddr === '' || $body === '') {
+            return null;
+        }
+
+        // Check if sender matches any configured uplink
+        $binkpConfig = BinkpConfig::getInstance();
+        $targetUplink = null;
+        $normFrom = preg_replace('/\.0$/', '', $fromAddr);
+
+        foreach ($binkpConfig->getUplinks() as $uplink) {
+            $uAddr = preg_replace('/\.0$/', '', trim((string)($uplink['address'] ?? '')));
+            if ($uAddr !== '' && ($uAddr === $normFrom || str_starts_with($normFrom, $uAddr . '.'))) {
+                $targetUplink = $uplink;
+                break;
+            }
+        }
+
+        if (!$targetUplink) {
+            return null;
+        }
+
+        // Do not process command receipts / execution logs, rescan replies, or help responses as area lists
+        if (preg_match('/\b(result|results|help|invalid password|unlinked|node change request|change request|request processed)\b/i', $subject)) {
+            if (!preg_match('/\b(list|query)\b/i', $subject)) {
+                return null;
+            }
+        }
+
+        if (str_contains($body, '<-- COMMAND PROCESSED') || str_contains($body, '[ BEGIN MESSAGE ]') || str_contains($body, 'Here are the list of commands') || str_contains($body, 'original message text') || str_contains($body, 'rescanned')) {
+            return null;
+        }
+
+        // Verify that this is an AreaFix or FileFix reply
+        $isAreafix = (bool)preg_match('/areafix/i', $subject . ' ' . $fromName);
+        $isFilefix = (bool)preg_match('/filefix/i', $subject . ' ' . $fromName);
+
+        if (!$isAreafix && !$isFilefix) {
+            if (preg_match('/(?:available echoareas|area list for|areas linked at|here are the list of available|echoarea|\: AREA \: DESCRIPTION)/i', $body)) {
+                $isAreafix = true;
+            } elseif (preg_match('/(?:available fileareas|file area list|fileareas)/i', $body)) {
+                $isFilefix = true;
+            } else {
+                return null;
+            }
+        }
+
+        $robot = $isFilefix ? 'filefix' : 'areafix';
+        $parsedAreas = $this->parseResponseText($body, '%LIST');
+
+        if (count($parsedAreas) < 2) {
+            return null;
+        }
+
+        $uplinkAddress = (string)$targetUplink['address'];
+        $domain = (string)($targetUplink['domain'] ?? 'fidonet');
+
+        $summary = $this->syncSubscribedAreas($uplinkAddress, $domain, $parsedAreas, false, $robot);
+
+        error_log("[AreaFixManager] Auto-imported " . count($parsedAreas) . " areas for domain '{$domain}' from {$uplinkAddress}: created={$summary['created']}, activated={$summary['activated']}");
+
+        return [
+            'matched' => true,
+            'uplink'  => $uplinkAddress,
+            'domain'  => $domain,
+            'robot'   => $robot,
+            'count'   => count($parsedAreas),
+            'summary' => $summary,
+            'areas'   => $parsedAreas,
+        ];
     }
 
     /**

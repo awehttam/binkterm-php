@@ -10727,6 +10727,90 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
     echo json_encode(['success' => true, 'summary' => $summary]);
 });
 
+/**
+ * POST /api/admin/areafix/sync-latest
+ * Find the latest incoming AreaFix/FileFix reply for an uplink, parse areas, and sync them to DB.
+ * Body: { uplink: string, robot: "areafix"|"filefix" }
+ */
+SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError('errors.admin.areafix.invalid_json', 'Invalid request payload', 400, ['success' => false]);
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? 'areafix')));
+
+    if ($uplinkAddress === '') {
+        apiError('errors.admin.areafix.uplink_required', 'Uplink address is required', 400, ['success' => false]);
+    }
+
+    $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+    $historyData = $areafixManager->getHistory($uplinkAddress, $sysopUserId);
+    $messages = ($historyData['messages'] ?? $historyData);
+    if (!is_array($messages)) {
+        $messages = [];
+    }
+
+    $replyFound = null;
+    $parsedAreas = [];
+
+    // Search incoming messages from newest to oldest for one containing an area list
+    foreach ($messages as $m) {
+        if (($m['direction'] ?? '') !== 'incoming') {
+            continue;
+        }
+        $subj = (string)($m['subject'] ?? '');
+        $bodyText = (string)($m['message_text'] ?? '');
+
+        // Skip result receipts, change request confirmations, or help text
+        if (preg_match('/\b(result|results|help|invalid password|scan results|node change request|change request|request processed)\b/i', $subj) && !preg_match('/\b(list|query)\b/i', $subj)) {
+            continue;
+        }
+        if (str_contains($bodyText, '<-- COMMAND PROCESSED') || str_contains($bodyText, '[ BEGIN MESSAGE ]') || str_contains($bodyText, 'original message text') || str_contains($bodyText, 'rescanned')) {
+            continue;
+        }
+
+        $areas = $areafixManager->parseResponseText($bodyText, '%LIST');
+        if (count($areas) >= 2) {
+            $replyFound = $m;
+            $parsedAreas = $areas;
+            break;
+        }
+    }
+
+    if (!$replyFound || empty($parsedAreas)) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'No area list found in recent replies for this uplink.',
+        ]);
+        return;
+    }
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+
+    $summary = $areafixManager->syncSubscribedAreas(
+        $uplinkAddress,
+        $domain,
+        $parsedAreas,
+        false,
+        $robot
+    );
+
+    echo json_encode([
+        'success'     => true,
+        'summary'     => $summary,
+        'areas_count' => count($parsedAreas),
+        'from'        => $replyFound['from_name'] ?? $replyFound['from_address'] ?? '',
+    ]);
+});
+
 // GET /admin/api/uplinks — list configured uplink addresses for the admin terminal
 SimpleRouter::get('/admin/api/uplinks', function () {
     $user = RouteHelper::requireAdmin();
