@@ -310,6 +310,10 @@
                                 <label class="form-check-label" for="uplinkSendDomainInAddr" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.send_domain_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.send_domain', {}, locale, ['common']) }}</label>
                             </div>
                             <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="uplinkSendAllAkas">
+                                <label class="form-check-label" for="uplinkSendAllAkas" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.send_all_akas_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.send_all_akas', {}, locale, ['common']) }}</label>
+                            </div>
+                            <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="uplinkCompression">
                                 <label class="form-check-label" for="uplinkCompression" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.compression_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.compression', {}, locale, ['common']) }}</label>
                             </div>
@@ -716,6 +720,7 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkSchedule').value = '0 */4 * * *';
         document.getElementById('uplinkNetworks').value = '';
         document.getElementById('uplinkSendDomainInAddr').checked = false;
+        document.getElementById('uplinkSendAllAkas').checked = false;
         document.getElementById('uplinkEnabled').checked = true;
         document.getElementById('uplinkCompression').checked = false;
         document.getElementById('uplinkCrypt').checked = false;
@@ -742,6 +747,7 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkSchedule').value = uplink.poll_schedule || '';
         document.getElementById('uplinkNetworks').value = Array.isArray(uplink.networks) ? uplink.networks.join('\n') : '';
         document.getElementById('uplinkSendDomainInAddr').checked = !!uplink.send_domain_in_addr;
+        document.getElementById('uplinkSendAllAkas').checked = !!uplink.send_all_akas;
         document.getElementById('uplinkEnabled').checked = !!uplink.enabled;
         document.getElementById('uplinkAllowInsecureEchomail').checked = !!uplink.allow_insecure_echomail;
         document.getElementById('uplinkCompression').checked = !!uplink.compression;
@@ -783,6 +789,7 @@ function saveUplink() {
         poll_schedule: document.getElementById('uplinkSchedule').value.trim(),
         networks: document.getElementById('uplinkNetworks').value.split('\n').map(v => v.trim()).filter(Boolean),
         send_domain_in_addr: document.getElementById('uplinkSendDomainInAddr').checked,
+        send_all_akas: document.getElementById('uplinkSendAllAkas').checked,
         enabled: document.getElementById('uplinkEnabled').checked,
         compression: document.getElementById('uplinkCompression').checked,
         crypt: document.getElementById('uplinkCrypt').checked,
