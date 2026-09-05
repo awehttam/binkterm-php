@@ -7199,6 +7199,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 } elseif ($type === 'echomail') {
                     ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_ECHOMAIL_SEND, null, $echoarea ?? null);
                 }
+
+                // Clean up any draft for this message on successful send
+                $draftId = isset($input['draft_id']) ? (int)$input['draft_id'] : 0;
+                if ($draftId > 0) {
+                    $handler->deleteDraft($user['user_id'], $draftId);
+                } else {
+                    $handler->deleteMatchingDraft(
+                        $user['user_id'],
+                        $type,
+                        $echoarea ?? null,
+                        $input['to_address'] ?? null,
+                        $input['subject'] ?? null
+                    );
+                }
+
                 $isPending = ($result === 'pending');
                 echo json_encode([
                     'success' => true,
