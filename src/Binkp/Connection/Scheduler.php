@@ -330,6 +330,10 @@ class Scheduler
     
     private function isScheduleDue($cronExpression, $address)
     {
+        if (empty($cronExpression) || trim((string)$cronExpression) === '') {
+            return false;
+        }
+
         $lastPoll = $this->lastPollTimes[$address] ?? 0;
         $now = time();
         
@@ -835,7 +839,10 @@ class Scheduler
             return null;
         }
         
-        $schedule = $uplink['poll_schedule'] ?? '0 */4 * * *';
+        $schedule = $uplink['poll_schedule'] ?? '';
+        if (trim((string)$schedule) === '') {
+            return null;
+        }
         $lastPoll = $this->lastPollTimes[$address] ?? 0;
         
         return $this->getNextCronTime($schedule, $lastPoll ?: time());
@@ -933,9 +940,9 @@ class Scheduler
         return $status;
     }
 
-    private function formatStatusTimestamp(int $timestamp, string $fallback): string
+    private function formatStatusTimestamp(?int $timestamp, string $fallback): string
     {
-        if ($timestamp <= 0) {
+        if ($timestamp === null || $timestamp <= 0) {
             return $fallback;
         }
 
