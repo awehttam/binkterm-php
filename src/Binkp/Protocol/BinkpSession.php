@@ -956,14 +956,28 @@ class BinkpSession
 
     private function sendAddress()
     {
-        // If we have a current uplink context, only send that uplink's address
-        // Otherwise fall back to sending all addresses
+        // If we have a current uplink context, determine whether to send only that uplink's
+        // address or present all system AKAs.
         if ($this->currentUplink && !empty($this->currentUplink['me'])) {
             $address = $this->currentUplink['me'];
             $sendDomain = !empty($this->currentUplink['send_domain_in_addr']);
             $domain = trim($this->currentUplink['domain'] ?? '');
             if ($sendDomain && $domain !== '' && strpos($address, '@') === false) {
                 $address .= '@' . $domain;
+            }
+
+            if (!empty($this->currentUplink['send_all_akas'])) {
+                // When send_all_akas is enabled, advertise all configured system AKAs
+                // with our current uplink's address first as primary (per FTS-1026).
+                $allAddresses = explode(' ', $this->config->getMyAddressesForAdr());
+                $parts = [$address];
+                foreach ($allAddresses as $aka) {
+                    $aka = trim($aka);
+                    if ($aka !== '' && !in_array($aka, $parts, true)) {
+                        $parts[] = $aka;
+                    }
+                }
+                $address = implode(' ', $parts);
             }
         } else {
             // Answerer path: we don't know which uplink is calling yet, so
@@ -1654,6 +1668,49 @@ class BinkpSession
         }
     }
 
+    /**
+     * Find the matching uplink for a packet/file destination address.
+     * Checks the current uplink first, and if send_all_akas is enabled, also checks
+     * other enabled uplinks co-located at the same remote hostname and port.
+     *
+     * @param string $destAddr FTN destination address
+     * @return array|null Matched uplink config array, or null if not routed
+     */
+    private function findMatchingUplinkForDestination(string $destAddr): ?array
+    {
+        if ($this->currentUplink === null) {
+            return null;
+        }
+
+        if ($this->config->isDestinationForUplink($destAddr, $this->currentUplink)) {
+            return $this->currentUplink;
+        }
+
+        if (!empty($this->currentUplink['send_all_akas'])) {
+            $currentHost = strtolower(trim($this->currentUplink['hostname'] ?? ''));
+            $currentPort = (int)($this->currentUplink['port'] ?? 24554);
+
+            if ($currentHost !== '') {
+                foreach ($this->config->getEnabledUplinks() as $otherUplink) {
+                    if (($otherUplink['address'] ?? '') === ($this->currentUplink['address'] ?? '')) {
+                        continue;
+                    }
+
+                    $otherHost = strtolower(trim($otherUplink['hostname'] ?? ''));
+                    $otherPort = (int)($otherUplink['port'] ?? 24554);
+
+                    if ($otherHost === $currentHost && $otherPort === $currentPort) {
+                        if ($this->config->isDestinationForUplink($destAddr, $otherUplink)) {
+                            return $otherUplink;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
     private function sendFiles()
     {
         $outboundPath = $this->config->getOutboundPath();
@@ -1713,7 +1770,9 @@ class BinkpSession
                 }
 
                 // Check if this packet's destination should be routed through the current uplink
-                if (!$this->config->isDestinationForUplink($destAddr, $this->currentUplink)) {
+                // (or a co-located uplink sharing the host/port when send_all_akas is enabled)
+                $matchedUplink = $this->findMatchingUplinkForDestination($destAddr);
+                if ($matchedUplink === null) {
                     $this->log("Packet " . basename($file) . " destined for {$destAddr} not routed through this uplink (" .
                         ($this->currentUplink['domain'] ?? 'unknown') . "), skipping");
                     $filesSkipped++;
@@ -1721,7 +1780,7 @@ class BinkpSession
                 }
 
                 $this->log("Packet " . basename($file) . " destined for {$destAddr} matches uplink " .
-                    ($this->currentUplink['domain'] ?? $this->currentUplink['address']));
+                    ($matchedUplink['domain'] ?? $matchedUplink['address']));
             }
 
             $filesToSend[] = $file;
@@ -1745,7 +1804,8 @@ class BinkpSession
                 }
 
                 // Check if this TIC's destination should be routed through the current uplink
-                if (!$this->config->isDestinationForUplink($destAddr, $this->currentUplink)) {
+                $matchedUplink = $this->findMatchingUplinkForDestination($destAddr);
+                if ($matchedUplink === null) {
                     $this->log("TIC " . basename($pair['tic']) . " destined for {$destAddr} not routed through this uplink (" .
                         ($this->currentUplink['domain'] ?? 'unknown') . "), skipping");
                     $ticPairsSkipped++;
@@ -1753,7 +1813,7 @@ class BinkpSession
                 }
 
                 $this->log("TIC " . basename($pair['tic']) . " destined for {$destAddr} matches uplink " .
-                    ($this->currentUplink['domain'] ?? $this->currentUplink['address']));
+                    ($matchedUplink['domain'] ?? $matchedUplink['address']));
                 $ticPairsToSend[] = $pair;
             }
         } else {
