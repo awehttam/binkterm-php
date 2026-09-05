@@ -501,8 +501,8 @@ window.pgpManagedKeysEnabled = {{ pgp_managed_keys_enabled ? 'true' : 'false' }}
 
 /* Threading styles */
 .thread-root {
-    border-left: 3px solid #0d6efd;
-    background-color: rgba(13, 110, 253, 0.05);
+    border-left: 3px solid var(--bs-primary, #0d6efd);
+    background-color: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.05);
 }
 
 .thread-level-1 {
@@ -532,13 +532,14 @@ window.pgpManagedKeysEnabled = {{ pgp_managed_keys_enabled ? 'true' : 'false' }}
 
 /* Reply badge styling */
 .thread-root .badge.bg-secondary {
-    background-color: #0d6efd !important;
+    background-color: var(--thread-badge-bg, var(--bs-primary, #0d6efd)) !important;
+    color: var(--thread-badge-color, #fff) !important;
     font-size: 0.7em;
 }
 
 /* Hover effects for threads */
 .thread-root:hover {
-    background-color: rgba(13, 110, 253, 0.1) !important;
+    background-color: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.1) !important;
 }
 
 .thread-reply:hover {
