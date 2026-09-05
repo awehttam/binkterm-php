@@ -1,4 +1,4 @@
-﻿{% extends "base.twig" %}
+{% extends "base.twig" %}
 
 {% block title %}{{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }} - {{ parent() }}{% endblock %}
 
@@ -2107,7 +2107,7 @@ $(document).ready(function() {
     }
 
     // Auto-save draft every 2 minutes
-    setInterval(function () {
+    window.autoSaveInterval = setInterval(function () {
         saveDraft(true); // Silent save
     }, 120000);
 
@@ -2339,6 +2339,15 @@ async function sendMessage() {
         return;
     }
 
+    // Cancel auto-save interval and abort in-flight save draft request
+    if (window.autoSaveInterval) {
+        clearInterval(window.autoSaveInterval);
+        window.autoSaveInterval = null;
+    }
+    if (window.saveDraftXhr && window.saveDraftXhr.readyState !== 4) {
+        window.saveDraftXhr.abort();
+    }
+
     // Show sending status
     $('#sendStatus').show().html(`
         <div class="alert alert-info">
@@ -2357,6 +2366,9 @@ async function sendMessage() {
     function doSend(attachmentToken) {
         if (attachmentToken) {
             formData.attachment_token = attachmentToken;
+        }
+        if (window.currentDraftId) {
+            formData.draft_id = window.currentDraftId;
         }
 
         $.ajax({
@@ -2379,9 +2391,10 @@ async function sendMessage() {
                     </div>
                 `);
 
-                // Delete draft after successful send if we loaded from a draft
+                // Delete draft after successful send if we loaded from or saved a draft
                 if (window.currentDraftId) {
                     deleteDraftAfterSend(window.currentDraftId);
+                    window.currentDraftId = null;
                 }
 
                 setTimeout(function() {
@@ -2457,6 +2470,7 @@ function saveDraft(silent = false) {
     });
 
     const formData = {
+        draft_id: window.currentDraftId || null,
         type: $('#messageType').val(),
         to_address: $('#toAddress').val(),
         to_name: $('#toName').val(),
@@ -2492,12 +2506,15 @@ function saveDraft(silent = false) {
         saveButton.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i> ${uiT('ui.common.saving', 'Saving...')}`);
     }
 
-    $.ajax({
+    window.saveDraftXhr = $.ajax({
         url: '/api/messages/draft',
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(formData),
         success: function(response) {
+            if (response && response.success && response.draft_id) {
+                window.currentDraftId = response.draft_id;
+            }
             const savedMessage = window.getApiMessage
                 ? window.getApiMessage(response, uiT('ui.compose.draft.saved_success', 'Draft saved successfully'))
                 : uiT('ui.compose.draft.saved_success', 'Draft saved successfully');

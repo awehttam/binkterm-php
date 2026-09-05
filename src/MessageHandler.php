@@ -7524,4 +7524,49 @@ class MessageHandler
             ];
         }
     }
+
+    /**
+     * Delete matching drafts for a sent message (e.g. auto-saved drafts)
+     */
+    public function deleteMatchingDraft($userId, $type, $echoarea = null, $toAddress = null, $subject = null)
+    {
+        try {
+            $subject = trim((string)$subject);
+            if ($type === 'echomail' && $echoarea !== null && $subject !== '') {
+                $rawArea = trim((string)$echoarea);
+                $cleanArea = explode('@', $rawArea)[0];
+                $stmt = $this->db->prepare("
+                    DELETE FROM drafts
+                    WHERE user_id = ?
+                      AND type = 'echomail'
+                      AND (
+                          echoarea = ?
+                          OR echoarea = ?
+                          OR echoarea ILIKE ? || '@%'
+                      )
+                      AND subject = ?
+                ");
+                $stmt->execute([$userId, $rawArea, $cleanArea, $cleanArea, $subject]);
+                return ['success' => true, 'deleted' => $stmt->rowCount()];
+            } elseif ($type === 'netmail' && $subject !== '') {
+                $stmt = $this->db->prepare("
+                    DELETE FROM drafts
+                    WHERE user_id = ?
+                      AND type = 'netmail'
+                      AND (to_address = ? OR ? IS NULL)
+                      AND subject = ?
+                ");
+                $stmt->execute([$userId, $toAddress, $toAddress, $subject]);
+                return ['success' => true, 'deleted' => $stmt->rowCount()];
+            }
+            return ['success' => true, 'deleted' => 0];
+        } catch (\Exception $e) {
+            $this->logger->error("Error deleting matching draft: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.drafts.delete_failed',
+                'error' => 'Failed to delete draft'
+            ];
+        }
+    }
 }
