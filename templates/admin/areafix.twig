@@ -533,14 +533,60 @@
         var body = message.message_text || '';
 
         panel.innerHTML =
-            '<div class="text-muted small mb-1">' +
-                '<strong>' + from + '</strong>' +
-                (date ? ' &mdash; ' + date : '') +
+            '<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">' +
+                '<div class="text-muted small">' +
+                    '<strong>' + from + '</strong>' +
+                    (date ? ' &mdash; ' + date : '') +
+                '</div>' +
+                '<button class="btn btn-success btn-sm" id="btnSync_' + robot + '" onclick="syncLatestReply(\'' + robot + '\')">' +
+                    '<i class="fas fa-file-import me-1"></i>' + escapeHtml(window.t('ui.admin.areafix.btn_sync_areas', {}, 'Sync Areas to Local BBS')) +
+                '</button>' +
             '</div>' +
             '<pre class="small bg-light p-2 rounded mb-0" style="white-space:pre-wrap;max-height:400px;overflow-y:auto;">' +
                 escapeHtml(body) +
             '</pre>';
     }
+
+    window.syncLatestReply = function (robot) {
+        var uplink = getSelectedUplink();
+        if (!uplink) {
+            showToast(window.t('ui.admin.areafix.select_uplink_first', {}, 'Please select an uplink'), true);
+            return;
+        }
+
+        var btn = document.getElementById('btnSync_' + robot);
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + escapeHtml(window.t('ui.common.processing', {}, 'Processing...'));
+        }
+
+        fetch('/api/admin/areafix/sync-latest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uplink: uplink, robot: robot }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.success) {
+                var s = data.summary || {};
+                var count = data.areas_count || 0;
+                var msg = 'Successfully synced ' + count + ' areas (' +
+                    (s.created || 0) + ' created, ' + (s.activated || 0) + ' activated)';
+                showToast(msg, false);
+            } else {
+                showToast(data.message || data.error || 'Failed to sync areas', true);
+            }
+        })
+        .catch(function () {
+            showToast('Failed to sync areas', true);
+        })
+        .finally(function () {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-file-import me-1"></i>' + escapeHtml(window.t('ui.admin.areafix.btn_sync_areas', {}, 'Sync Areas to Local BBS'));
+            }
+        });
+    };
 
     // ── Initialisation ────────────────────────────────────────────────────────
 

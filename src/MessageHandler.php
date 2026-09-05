@@ -6798,14 +6798,25 @@ class MessageHandler
 
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $myAddresses = $binkpConfig->getMyAddresses();
+            $rawMyAddresses = $binkpConfig->getMyAddresses();
             $systemAddress = $binkpConfig->getSystemAddress();
             if ($systemAddress !== '') {
-                $myAddresses[] = $systemAddress;
+                $rawMyAddresses[] = $systemAddress;
             }
-            $myAddresses = array_values(array_unique(array_filter($myAddresses, static function ($value) {
-                return trim((string)$value) !== '';
-            })));
+            $myAddresses = [];
+            foreach ($rawMyAddresses as $addr) {
+                $trimmedAddr = trim((string)$addr);
+                if ($trimmedAddr === '') {
+                    continue;
+                }
+                $myAddresses[] = $trimmedAddr;
+                if (str_ends_with($trimmedAddr, '.0')) {
+                    $myAddresses[] = substr($trimmedAddr, 0, -2);
+                } elseif (!str_contains($trimmedAddr, '.')) {
+                    $myAddresses[] = $trimmedAddr . '.0';
+                }
+            }
+            $myAddresses = array_values(array_unique($myAddresses));
         } catch (\Throwable $e) {
             $myAddresses = [];
         }
@@ -6814,7 +6825,16 @@ class MessageHandler
             return [];
         }
 
+        $hubAddresses = [$hubAddress];
+        if (str_ends_with($hubAddress, '.0')) {
+            $hubAddresses[] = substr($hubAddress, 0, -2);
+        } elseif (!str_contains($hubAddress, '.')) {
+            $hubAddresses[] = $hubAddress . '.0';
+        }
+        $hubAddresses = array_values(array_unique($hubAddresses));
+
         $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+        $hubPlaceholders = implode(',', array_fill(0, count($hubAddresses), '?'));
         $sql = "
             SELECT n.id, n.user_id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.message_text, n.date_written, n.date_received, n.is_sent,
@@ -6833,7 +6853,7 @@ class MessageHandler
                 -- Outgoing: messages we sent to the hub addressed to the robot (to_name set by us).
                 (
                     n.from_address IN ($addressPlaceholders)
-                    AND n.to_address = ?
+                    AND n.to_address IN ($hubPlaceholders)
                     AND LOWER(n.to_name) IN ('areafix', 'filefix')
                     AND n.deleted_by_sender = FALSE
                 )
@@ -6841,15 +6861,15 @@ class MessageHandler
                 -- Incoming: any message from the hub to us, regardless of the sender name.
                 -- Robot names vary (SBBSEcho, BRoboCop, etc.) so we match on address only.
                 (
-                    n.from_address = ?
+                    n.from_address IN ($hubPlaceholders)
                     AND n.to_address IN ($addressPlaceholders)
                     AND n.deleted_by_recipient = FALSE
                 )
             )
-            ORDER BY COALESCE(n.date_written, n.date_received) ASC, n.id ASC
+            ORDER BY COALESCE(n.date_written, n.date_received) DESC, n.id DESC
         ";
 
-        $params = array_merge($myAddresses, $myAddresses, $myAddresses, [$hubAddress, $hubAddress], $myAddresses);
+        $params = array_merge($myAddresses, $myAddresses, $myAddresses, $hubAddresses, $hubAddresses, $myAddresses);
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
