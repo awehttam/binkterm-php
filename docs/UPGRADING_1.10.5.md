@@ -18,6 +18,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Full-Screen Editor Flicker](#terminal-full-screen-editor-flicker)
 - [Community Mods List](#community-mods-list)
 - [Docker Stale Apache PID Cleanup](#docker-stale-apache-pid-cleanup)
+- [Navbar Active Section Indicator](#navbar-active-section-indicator)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -78,6 +79,11 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Docker Stale Apache PID Cleanup
 
 - `docker/entrypoint.sh` now removes any stale `/var/run/apache2/apache2.pid` (and other `/var/run/apache2/*.pid`) files during container initialization, before starting the main process. This prevents a crash loop after an abrupt Docker host shutdown or a killed container leaves a stale Apache PID file behind on a persisted volume.
+
+### Navbar Active Section Indicator
+
+- The web navigation bar now marks the section for the page you are on: the matching top-level menu item is shown in bold with a short underline bar beneath it, in the navigation link colour of whatever theme is active. The section is worked out from the page URL, so a page with no menu entry of its own still highlights its parent — a message thread or the compose page marks **Messaging**, and a door launcher marks **Doors**.
+- The **Files** menu's new-files cue is now shown on the file icon only. Previously an incoming file also turned the word "Files" yellow, which looked like the active-section highlight. The file icon and the Files link inside the dropdown still turn yellow; only the top-level text label no longer does.
 
 ---
 
@@ -247,6 +253,20 @@ Contributors with a mod to share add a section to `docs/MODS.md` by pull request
 If a Docker host shuts down or restarts abruptly, or a container is stopped with `docker stop` past its timeout (or killed with `SIGKILL`), Apache can leave behind a stale `/var/run/apache2/apache2.pid` on the persisted volume. On the next container start, `apache2-foreground` sees the existing PID file and exits immediately, putting the container into a crash loop until the PID file (or volume) is removed by hand.
 
 `docker/entrypoint.sh` now removes `/var/run/apache2/apache2.pid` and any other `/var/run/apache2/*.pid` files during initialization, before the main command starts. Rebuild the image to pick up the fix.
+
+## Navbar Active Section Indicator
+
+The top navigation bar of the web interface now shows which section you are viewing. The menu item that matches the current page is rendered in bold with a 3-pixel indicator bar along its lower edge. The bar takes its colour from the navigation link's active colour, so it adapts to every bundled theme — the Bootswatch themes (Slate, Cyborg, Darkly, Solar, and the rest) and the terminal-style themes (amber, dark, greenterm, cyberpunk) — with no per-theme configuration.
+
+The active section is determined from the browser's current path matched against the navbar links, not from a fixed list, so pages that do not have their own menu entry still highlight the menu they belong to:
+
+- Reading a message or composing one marks **Messaging**.
+- The RLogin, DOS, JS-DOS, and web door launchers mark **Doors**.
+- A link inside a dropdown menu also marks its parent top-level menu.
+
+Separately, the **Files** menu's indicator for newly arrived files has been narrowed. It previously turned both the file icon and the top-level "Files" text label yellow. A yellow label was easily mistaken for the active-section highlight, implying you were on the Files page when you were not. The cue is now carried by the file icon alone — matching how the Messaging, Chat, and Mail menus already indicate unread items — along with the Files entry inside the dropdown. Whether new files are signalled is unchanged; only where the colour appears.
+
+A hard reload, or clearing the browser and service-worker cache, ensures clients load the updated navbar script.
 
 ## Upgrade Instructions
 
