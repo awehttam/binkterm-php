@@ -13,16 +13,15 @@
 {% block title %}{{ t('ui.echomail.title', {}, locale, ['common']) }}{% if display_echoarea %} - {{ display_echoarea }}{% endif %} - {{ parent() }}{% endblock %}
 
 {% block content %}
-<!-- Echo area info bar: description + subscribe toggle + post (desktop only, visible only when an echo is selected) -->
+<!-- Echo area info bar: description + subscribe toggle + post -->
 <div id="echoInfoBar" class="d-none mb-3">
-    <div class="d-flex align-items-start justify-content-between gap-3 px-3 py-2 border rounded">
-        <div class="d-flex flex-column" style="min-width:0">
-            <strong id="echoTitle" class="text-warning small"></strong>
-            <small id="echoDescription" class="text-muted"></small>
+    <div class="d-flex flex-column flex-md-row align-items-start justify-content-between gap-2 gap-md-3 px-3 py-2 border rounded">
+        <div class="d-flex flex-column mb-1 mb-md-0" style="min-width:0">
+            <strong id="echoTitle" class="text-warning small text-break"></strong>
+            <small id="echoDescription" class="text-muted text-break"></small>
         </div>
-        <div class="d-flex flex-column gap-1 flex-shrink-0">
+        <div class="d-flex flex-wrap align-items-center gap-2 flex-shrink-0">
             <button class="btn btn-sm" id="echoSubscribeBtn" onclick="toggleSubscription()"></button>
-            <div class="d-flex gap-1">
             <button class="btn btn-sm btn-outline-primary" onclick="composeMessage('echomail')">
                 {{ t('ui.echomail.post_message', {}, locale, ['common']) }}
             </button>
@@ -31,7 +30,6 @@
                     <i class="fas fa-robot me-1"></i>{{ t('ui.ai_assistant.button', {}, locale, ['common']) }}
                 </button>
             {% endif %}
-            </div>
             {% if current_user.is_admin %}
             <a class="btn btn-sm btn-outline-secondary d-none" id="echoEditAreaBtn" href="/echoareas">
                 <i class="fas fa-edit me-1"></i>{{ t('ui.echomail.edit_area', {}, locale, ['common']) }}
@@ -152,14 +150,14 @@
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0" id="messagesHeaderTitle">
+                    <h6 class="mb-0 d-none d-lg-block" id="messagesHeaderTitle">
                         {% if echoarea %}
                             {{ display_echoarea }} Messages
                         {% else %}
                             {{ t('ui.echomail.recent_messages', {}, locale, ['common']) }}
                         {% endif %}
                     </h6>
-                    <div class="d-flex align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2 ms-auto">
                         <div id="bulkActions" class="d-none">
                             <span class="me-2 text-muted">{{ t('ui.common.selected', {}, locale, ['common']) }}: <span id="selectedCount">0</span></span>
                             <button type="button" class="btn btn-outline-primary btn-sm" onclick="markSelectedAsRead()" disabled>
