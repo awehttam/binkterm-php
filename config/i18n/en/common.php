@@ -869,6 +869,8 @@ return [
     'ui.admin.binkp_config.uplinks.modal.posting_name_policy' => 'Posting Name Policy',
     'ui.admin.binkp_config.uplinks.modal.send_domain' => 'Send @Domain In ADR',
     'ui.admin.binkp_config.uplinks.modal.send_domain_help' => 'Include the @Domain portion when sending the ADR address to this uplink',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas' => 'Present all AKAs',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas_help' => 'Advertise all configured system AKAs during the BinkP handshake (M_ADR). Multi-network hubs sharing a session password can authenticate and exchange mail for all your networks in a single session.',
     'ui.admin.binkp_config.uplinks.modal.enabled_help' => 'Enables this uplink for normal routing, polling, and outbound delivery',
     'ui.admin.binkp_config.uplinks.modal.compression' => 'Compression',
     'ui.admin.binkp_config.uplinks.modal.compression_help' => 'Requests compressed transfers when the remote system supports them',

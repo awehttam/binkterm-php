@@ -849,6 +849,8 @@ return [
     'ui.admin.binkp_config.uplinks.modal.posting_name_policy' => 'Policy nome autore',
     'ui.admin.binkp_config.uplinks.modal.send_domain' => 'Invia @Domain in ADR',
     'ui.admin.binkp_config.uplinks.modal.send_domain_help' => 'Include la parte @Domain quando si invia l’indirizzo ADR a questo uplink',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas' => 'Mostra tutti gli AKA',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas_help' => 'Annuncia tutti gli AKA di sistema configurati durante l\'handshake BinkP (M_ADR). Gli hub multi-rete che condividono una password di sessione possono autenticarsi e scambiare posta per tutte le tue reti in un\'unica sessione.',
     'ui.admin.binkp_config.uplinks.modal.enabled_help' => 'Abilita questo uplink per routing, polling e consegna in uscita normali',
     'ui.admin.binkp_config.uplinks.modal.compression' => 'Compressione',
     'ui.admin.binkp_config.uplinks.modal.compression_help' => 'Richiede trasferimenti compressi quando il sistema remoto li supporta',
