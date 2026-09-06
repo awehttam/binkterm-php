@@ -33,6 +33,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - [Post Ad](#post-ad)
 - [Post File to File Area](#post-file-to-file-area)
 - [Re-Hatch File to Outbound](#re-hatch-file-to-outbound)
+- [NNTP Server Daemon](#nntp-server-daemon)
 - [Restart Daemons](#restart-daemons)
 - [RAM Usage Report](#ram-usage-report)
 - [Who](#who)
@@ -924,9 +925,30 @@ TIC distribution: 2 TIC file(s) queued for outbound
   d4e9f7a1.tic
 ```
 
+## NNTP Server Daemon
+
+`scripts/nntp_server.php` serves FTN echoareas as NNTP newsgroups (RFC 3977) to
+standard newsreaders. Read-only in this release. Optional daemon — off by default;
+enable it in **Admin → NNTP Server** and configure the transport in `.env`
+(`NNTP_BIND_HOST`, `NNTP_PORT`, `NNTP_TLS_PORT`, `NNTP_TLS_CERT_PATH`,
+`NNTP_TLS_KEY_PATH`). See `docs/NNTP.md`.
+
+```bash
+# Foreground (dev): high ports avoid needing privileges for 119/563
+php scripts/nntp_server.php --port=1190 --tls-port=5563 --no-console
+
+# Background daemon (Linux; needs pcntl)
+php scripts/nntp_server.php --daemon --pid-file=data/run/nntpd.pid
+
+# Probe a running server
+php scripts/nntp_test_client.php --host=127.0.0.1 --port=1190 --user=NAME --pass=PW
+```
+
+Log: `data/logs/nntpd.log`.
+
 ## Restart Daemons
 
-Stops and restarts BinktermPHP daemons (admin daemon, scheduler, BinkP server, telnet, SSH, MRC, DOS bridge, Gemini). Uses PID files in `data/run/` to manage processes.
+Stops and restarts BinktermPHP daemons (admin daemon, scheduler, BinkP server, telnet, SSH, MRC, DOS bridge, Gemini, NNTP). Uses PID files in `data/run/` to manage processes.
 
 ```bash
 # Restart all services
@@ -971,6 +993,7 @@ Example output:
 | binkp_scheduler                 |      1 |    17640 |     17.2 |
 | mrc_daemon                      |      - |        - |        - |
 | gemini_daemon                   |      - |        - |        - |
+| nntp_daemon                     |      - |        - |        - |
 | telnetd                         |      1 |    18920 |     18.5 |
 | **TOTAL**                       |        |   387660 |    378.6 |
 ```

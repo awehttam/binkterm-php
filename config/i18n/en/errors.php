@@ -785,6 +785,7 @@ return [
     'errors.admin.hub_nodes.fileareas_load_failed' => 'Failed to load file area subscriptions',
     'errors.admin.hub_nodes.fileareas_save_failed' => 'Failed to save file area subscriptions',
     'errors.admin.hub_nodes.next_point_failed' => 'Failed to determine next point number',
+    'errors.meshcore.disabled' => 'MeshCore is disabled on this system.',
     'errors.meshcore.invalid_node_id' => 'Node ID must be 12 or 64 lowercase hex characters.',
     'errors.meshcore.contact_exists' => 'A contact with this node ID already exists.',
     'errors.meshcore.not_found' => 'Contact not found.',
@@ -817,4 +818,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'Selected user does not exist.',
     'errors.admin.users.autocomplete_failed' => 'Failed to search users.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Invalid registration screening configuration',
+    'errors.admin.nntp_settings.load_failed' => 'Failed to load NNTP settings',
+    'errors.admin.nntp_settings.save_failed' => 'Failed to save NNTP settings',
 ];

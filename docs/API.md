@@ -4446,6 +4446,8 @@ JSON object with media type, provider name, and embed HTML.
 
 Bridge-facing endpoints authenticated with a per-node Bearer token (`Authorization: Bearer <api_key>`).
 
+All MeshCore endpoints (bridge-facing, user-facing, and public) return `404 Not found` when the **MeshCore** feature is disabled in **Admin → BBS Settings → System & Features** (`features.meshcore` in `config/bbs.json`).
+
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/meshcore/contact`](#post-apimeshcorecontact) | Bearer | Report a companion contact from a MeshCore bridge. |
@@ -8793,7 +8795,7 @@ User settings object with locale, shell, notification preferences, and license s
 | `settings.netmail_notification_sound` | string | Netmail notification sound (disabled, notify1–5) |
 | `settings.file_notification_sound` | string | File notification sound (disabled, notify1–5) |
 | `settings.compose_advanced_open` | boolean | Whether advanced compose panel is open by default |
-| `settings.compose_hard_wrap` | integer | Hard-wrap column for message composition (0 = disabled) |
+| `settings.compose_hard_wrap` | integer | Hard-wrap column for message composition: `0` (disabled), `39`, `72` (default), or `79`; other values are coerced to `72` |
 | `settings.media_render_mode` | string | Media rendering mode ('click', 'auto') |
 | `settings.license_valid` | boolean | Whether the system has a valid license |
 

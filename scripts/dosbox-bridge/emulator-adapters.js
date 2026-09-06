@@ -28,6 +28,18 @@ function buildDbConfig() {
 }
 
 /**
+ * Resolve the on-disk drop file name for a manifest dropfile_format value.
+ *
+ * @param {string} fmt dropfile_format from the door manifest
+ * @returns {string} the drop file basename
+ */
+function dropfileNameForFormat(fmt) {
+    if (fmt === 'DOOR32.SYS') return 'DOOR32.SYS';
+    if (fmt === 'BBSDEV.DRP') return 'BBSDEV.DRP';
+    return 'DOOR.SYS';
+}
+
+/**
  * Base Emulator Adapter
  * Defines the interface all emulators must implement
  */
@@ -269,21 +281,28 @@ class DOSBoxAdapter extends EmulatorAdapter {
             ? manifest.door.dropfile_path
             : `\\DROPS\\NODE${node_number}`;
 
+        const dropfileName = dropfileNameForFormat(manifest.door && manifest.door.dropfile_format);
+
         let launchCmd = manifest.door.launch_command || `call ${manifest.door.executable}`;
         launchCmd = launchCmd.replace('{node}', node_number);
-        launchCmd = launchCmd.replace('{dropfile}', 'DOOR.SYS');
+        launchCmd = launchCmd.replace('{dropfile}', dropfileName);
         launchCmd = launchCmd.replace('{user_number}', String(sessionData.user_id || ''));
 
         // Check if door requires FOSSIL driver (default true for backwards compatibility)
         const fossilRequired = manifest.door.fossil_required !== false;
         const fossilCmd = fossilRequired ? '\\FOSSIL\\BNU.COM\n' : '';
 
-        // Only copy DOOR.SYS if drop directory is different from door directory
+        // Only copy the drop file if drop directory is different from door directory
         // (when using custom dropfile_path, they may be the same)
-        const copyCmd = (dropDir !== doorDir) ? `copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS\n` : '';
+        const copyCmd = (dropDir !== doorDir) ? `copy ${dropDir}\\${dropfileName} ${doorDir}\\${dropfileName}\n` : '';
+
+        // BBSDEV.DRP: expose the absolute (guest) path via the BBSDEV_DRP env var
+        const bbsdevEnvCmd = (dropfileName === 'BBSDEV.DRP')
+            ? `set BBSDEV_DRP=C:${doorDir}\\${dropfileName}\n`
+            : '';
 
         // Build autoexec commands
-        const autoexecCommands = `${fossilCmd}${copyCmd}cd ${doorDir}\n${launchCmd}\necho.\necho Door exited\nexit`;
+        const autoexecCommands = `${fossilCmd}${copyCmd}${bbsdevEnvCmd}cd ${doorDir}\n${launchCmd}\necho.\necho Door exited\nexit`;
 
         // Replace autoexec placeholder
         config = config.replace('# Door-specific commands will be appended here', autoexecCommands);
@@ -534,10 +553,16 @@ $_sound = "0"
         const doorDir = manifest.door.directory.replace('dosbox-bridge/dos/', '');
         const dropDir = `DROPS/NODE${node_number}`;
 
+        const dropfileName = dropfileNameForFormat(manifest.door && manifest.door.dropfile_format);
+
         let launchCmd = manifest.door.launch_command || manifest.door.executable;
         launchCmd = launchCmd.replace('{node}', node_number);
-        launchCmd = launchCmd.replace('{dropfile}', 'DOOR.SYS');
+        launchCmd = launchCmd.replace('{dropfile}', dropfileName);
         launchCmd = launchCmd.replace('{user_number}', String(sessionData.user_id || ''));
+
+        const bbsdevEnvLine = (dropfileName === 'BBSDEV.DRP')
+            ? `set BBSDEV_DRP=C:\\${doorDir.replace(/\//g, '\\')}\\${dropfileName}\n`
+            : '';
 
         // Create DOS batch file to launch door
         // First use lredir to map our Linux directory, then run door commands
@@ -545,8 +570,8 @@ $_sound = "0"
         const scriptContent = `@echo off
 lredir c: linux\\fs${dosDir}
 c:
-copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS
-cd ${doorDir}
+copy ${dropDir}\\${dropfileName} ${doorDir}\\${dropfileName}
+${bbsdevEnvLine}cd ${doorDir}
 ${launchCmd}
 `;
 
@@ -693,7 +718,7 @@ class NativeAdapter extends EmulatorAdapter {
 
         // Determine drop file filename from manifest format
         const dropfileFormat = (manifest.door && manifest.door.dropfile_format) || 'DOOR.SYS';
-        const dropfileName = dropfileFormat === 'DOOR32.SYS' ? 'DOOR32.SYS' : 'DOOR.SYS';
+        const dropfileName = dropfileNameForFormat(dropfileFormat);
         const dropfileFull = path.join(dropPath, dropfileName);
 
         // Per-user, per-door private directory for doors that keep their own state
@@ -799,6 +824,8 @@ class NativeAdapter extends EmulatorAdapter {
             DOOR_ANSI: '1',
             DOOR_CLIENT_IP: clientIp,
             TERM: 'xterm-256color',
+            // BBSDEV.DRP spec: the drop file's absolute path is passed via BBSDEV_DRP.
+            ...(dropfileFormat === 'BBSDEV.DRP' ? { BBSDEV_DRP: dropfileFull } : {}),
             ...proxyEnvOverride
         };
 

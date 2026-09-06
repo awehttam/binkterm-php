@@ -676,6 +676,16 @@ class AdminDaemonClient
         return $this->sendCommand('restart_mrc_daemon');
     }
 
+    public function getNntpConfig(): array
+    {
+        return $this->sendCommand('get_nntp_config');
+    }
+
+    public function setNntpConfig(array $config): array
+    {
+        return $this->sendCommand('set_nntp_config', ['config' => $config]);
+    }
+
     /**
      * Run a specific echomail robot by ID via the admin daemon.
      * Runs with --debug so output includes per-message decode details.

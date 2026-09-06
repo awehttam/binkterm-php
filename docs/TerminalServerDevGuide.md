@@ -39,7 +39,7 @@ Both daemon entry points manually `require_once` every `telnet/src/` class they 
 Both daemons hand off to the same `BbsSession` flow after transport setup:
 
 1. **Transport handshake** — Telnet negotiates NAWS, echo control, and optional TLS; SSH reads PTY dimensions from `pty-req` and probes Sixel capability. Before negotiation, if the TCP connection originates from a trusted address (`TELNET_TRUSTED_PROXIES`, plus loopback and the daemon's own bind address), `TelnetServer` consumes an optional HAProxy PROXY protocol v1 header (non-destructive peek) and re-points `$peerName` / `$peerIp` at the real client. This is how PubTerm's per-session forwarder conveys the browser visitor's address; connection rate limiting then keys on it.
-2. **Pre-login menu** — Login / Register / Reset password / Login and run terminal setup / QWK (when enabled) / Quit. Registration posts to the shared `/api/register` flow, so whether the account stays pending or is auto-approved is controlled centrally by `BbsConfig::shouldRequireRegistrationApproval()`. Auto-approved registrations now return a normal authenticated session and continue directly into the terminal session without forcing a reconnect. Choosing **T** sets `force_terminal_setup` on the login result, which makes the post-login setup step in `BbsSession::handle()` run `TerminalSettingsHandler::runDetectionWizard()` even when the user already has saved terminal settings.
+2. **Pre-login menu** — Login / Register / Reset password / Login and run terminal setup / QWK (when enabled) / Quit. Registration posts to the shared `/api/register` flow, so whether the account stays pending or is auto-approved is controlled centrally by `BbsConfig::shouldRequireRegistrationApproval()`. `BbsSession::attemptRegistration()` first calls `showHouseRulesAndConfirm()`, which renders `AppearanceConfig::getHouseRulesMarkdown()` (falling back to the built-in `ui.rules.*` default rule set when no override exists) in a paged box and requires the user to type `YES` before any fields are prompted. Auto-approved registrations now return a normal authenticated session and continue directly into the terminal session without forcing a reconnect. Choosing **T** sets `force_terminal_setup` on the login result, which makes the post-login setup step in `BbsSession::handle()` run `TerminalSettingsHandler::runDetectionWizard()` even when the user already has saved terminal settings.
 3. **Authentication** — Username/password via `POST /api/auth/login`, or auto-login via auto-approved `POST /api/register`; session cookie stored in `$state`.
 4. **Session init** — Single `GET /api/config/session-init` call returns timezone, locale, date format, charset, ANSI color flag, idle timeout thresholds, and main menu key bindings.
 5. **Main menu loop** — `BbsSession::handle()` runs the menu, dispatches to feature handlers, and processes resize events on each iteration.
@@ -349,6 +349,19 @@ while (true) {
 Layout-dependent variables must be recalculated on every resize. Capture them by reference (`&$var`) in closures so a single `$rebuildLayout()` call propagates the new dimensions without recreating closures.
 
 `runMessageViewer()` handles resize internally via its `$rebuildFn` callback. Custom full-screen loops must implement the pattern above themselves.
+
+### Full-Screen Editor Render Modes
+
+`BbsSession::fullScreenEditor()` (the framed compose editor used when the terminal has >= 15 rows) does not repaint the whole screen per keystroke. Its `$renderEditor` closure takes a mode argument:
+
+| Mode | Trigger | Output |
+|---|---|---|
+| `full` | entry, resize, return from `Ctrl+K` help, draft-save footer notice on/off, any non-ANSI session | `\033[2J` clear, borders, all body rows, separator, footer |
+| `body` | Enter (line split), `Ctrl+Y` (delete line), any edit that changes the line count, any viewport scroll | repaint the body rows in place; borders/footer untouched |
+| `line` | printable char / Backspace / Delete that leaves the line count and viewport unchanged | repaint only the cursor's row |
+| `cursor` | arrow keys, Home/End, `Ctrl+A`, `Ctrl+E` | emit only a `\033[row;colH` move |
+
+`line` and `cursor` self-upgrade to `body` when `$recalcView()` shifts `$viewTop` (the edit scrolled the view). Only `full` and `body` toggle the cursor off/on (`\033[?25l` / `\033[?25h`); `line` and `cursor` never touch cursor visibility, since that toggle is itself a flicker source. Edit handlers snapshot `count($lines)` before mutating and pass `count($lines) === $preLineCount ? 'line' : 'body'` — `wrapEditorLines()` only ever splits lines, so a changed count reliably means rows below shifted.
 
 ---
 

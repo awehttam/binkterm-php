@@ -468,6 +468,9 @@ Add the following entries. Replace `/home/binktermphp/binkterm-php` with your ac
 # Optional: start FTP daemon on boot (remove the leading # to enable)
 # @reboot /usr/bin/php /home/binktermphp/binkterm-php/scripts/ftp_daemon.php --daemon
 
+# Optional: start NNTP daemon on boot (remove the leading # to enable; see docs/NNTP.md)
+# @reboot /usr/bin/php /home/binktermphp/binkterm-php/scripts/nntp_server.php --daemon
+
 # Optional: update nodelists daily at 3am (requires nodelist URLs to be configured)
 # 0 3 * * * /usr/bin/php /home/binktermphp/binkterm-php/scripts/update_nodelists.php --quiet
 ```
@@ -497,6 +500,8 @@ sudo ufw allow 2022/tcp      # SSH (if enabled)
 | Telnet daemon (TLS) | `8023` | TCP/TLS | Inbound | `.env` `TELNET_TLS_PORT` |
 | SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
 | Gemini capsule daemon | `1965` | Gemini/TLS | Inbound | `.env` `GEMINI_PORT` |
+| NNTP daemon (plain + STARTTLS) | `8119` | NNTP/TCP | Inbound | `.env` `NNTP_PORT` — newsreaders expect `119`; redirect it (see `docs/NNTP.md`) |
+| NNTP daemon (implicit TLS) | `8563` | NNTP/TLS | Inbound | `.env` `NNTP_TLS_PORT` — newsreaders expect `563`; redirect it (see `docs/NNTP.md`) |
 | Realtime WebSocket daemon | `6010` | WebSocket/TCP | localhost | `.env` `BINKSTREAM_WS_PORT` — must be exposed via reverse proxy |
 | FTP daemon | `2121` | FTP control/TCP | Inbound | `.env` `FTPD_PORT` |
 | FTP passive range | `2122`–`2149` | FTP data/TCP | Inbound | `.env` `FTPD_PASSIVE_PORT_START` / `FTPD_PASSIVE_PORT_END` |

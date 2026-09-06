@@ -193,7 +193,7 @@ Users subscribe to echo areas to receive them in their message feed. Subscriptio
 
 ## Multi-Network Support
 
-BinktermPHP supports simultaneous membership in multiple FTN networks. Each uplink selects a configured network domain in the BinkP settings. When a packet arrives from an uplink, its domain is used to scope the echo area lookup, so `GENERAL@fidonet` and `GENERAL@lovlynet` are stored and managed as separate areas even though they share the same tag.
+BinktermPHP supports simultaneous membership in multiple FTN networks. Each uplink selects a configured network domain in **Admin → BBS Settings → BinkP Uplinks**. When a packet arrives from an uplink, its domain is used to scope the echo area lookup, so `GENERAL@fidonet` and `GENERAL@lovlynet` are stored and managed as separate areas even though they share the same tag.
 
 Domain names are managed in **Admin → Networks** and are available in the domain drop-down when creating areas.
 

@@ -299,6 +299,7 @@
                         <div class="mb-0">
                             <label class="form-label" for="hardWrapSelect">{{ t('ui.compose.hard_wrap', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="hardWrapSelect">
+                                <option value="72">{{ t('ui.compose.hard_wrap_72', {}, locale, ['common']) }}</option>
                                 <option value="79">{{ t('ui.compose.hard_wrap_79', {}, locale, ['common']) }}</option>
                                 <option value="39">{{ t('ui.compose.hard_wrap_39', {}, locale, ['common']) }}</option>
                                 <option value="0">{{ t('ui.compose.hard_wrap_off', {}, locale, ['common']) }}</option>
@@ -750,7 +751,7 @@ let mdEditorActive = false;
 let tuiEditor = null;
 let markdownEditorController = null;
 let scToolbarActive = false;
-let hardWrapLimit = 79; // default; 0 = off
+let hardWrapLimit = 72; // default; 0 = off
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
 const defaultCharset  = {{ default_charset|default("CP437")|json_encode|raw }};
 const replyCharset    = {{ reply_charset|default("")|json_encode|raw }};
@@ -2012,7 +2013,7 @@ $(document).ready(function() {
             $('#advancedOptionsPanel').addClass('show');
             $('#advancedOptionsToggle').attr('aria-expanded', 'true');
         }
-        // Restore hard wrap preference (default 79 if not set)
+        // Restore hard wrap preference (default 72 if not set)
         const savedWrap = settings.compose_hard_wrap;
         if (savedWrap !== undefined && savedWrap !== null) {
             hardWrapLimit = parseInt(savedWrap, 10) || 0;

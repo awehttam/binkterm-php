@@ -38,9 +38,25 @@
             color: #ffc107 !important;
         }
         .file-menu-icon.unread,
-        .file-menu-parent-link.unread,
-        .file-menu-link.unread {
+        .dropdown-item.file-menu-link.unread {
             color: #ffc107 !important;
+        }
+        .navbar-nav .nav-link {
+            position: relative;
+        }
+        .navbar-nav .nav-link.active {
+            font-weight: 700;
+        }
+        .navbar-nav .nav-link.active::before {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0.85rem;
+            right: 0.85rem;
+            height: 3px;
+            background: currentColor;
+            border-radius: 3px 3px 0 0;
+            pointer-events: none;
         }
         .file-approvals-menu-link.unread {
             color: #ffc107 !important;
@@ -268,7 +284,7 @@
                         {% if bbs_feature_enabled('file_areas') and current_user %}
                         {% if current_user.is_admin %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle file-menu-parent-link" href="#" role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                 <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
                             </a>
                             <ul class="dropdown-menu">
@@ -281,7 +297,7 @@
                         </li>
                         {% elseif freq_requests_web_enabled %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle file-menu-parent-link" href="#" role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                 <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
                             </a>
                             <ul class="dropdown-menu">
@@ -408,7 +424,10 @@
                                         <li><a class="dropdown-item" href="/admin/networks"><i class="fas fa-globe"></i> {{ t('ui.base.admin.networks', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> {{ t('ui.base.admin.binkp_configuration', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/hub-nodes"><i class="fas fa-diagram-project"></i> {{ t('ui.base.admin.hub_nodes', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/nntp-settings"><i class="fas fa-newspaper"></i> {{ t('ui.base.admin.nntp_settings', {}, 'common') }}</a></li>
+                                        {% if meshcore_enabled %}
                                         <li><a class="dropdown-item" href="/admin/packet-bbs"><i class="fas fa-broadcast-tower"></i> {{ t('ui.base.admin.packet_bbs', {}, 'common') }}</a></li>
+                                        {% endif %}
                                         <li><a class="dropdown-item" href="/admin/i18n-overrides"><i class="fas fa-language"></i> {{ t('ui.base.admin.i18n_overrides', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/licensing"><i class="fas fa-id-card"></i> {{ t('ui.base.admin.licensing', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> {{ t('ui.base.admin.template_editor', {}, 'common') }}</a></li>

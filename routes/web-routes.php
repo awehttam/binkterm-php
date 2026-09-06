@@ -293,7 +293,8 @@ SimpleRouter::get('/', function() {
     // Build dashboard card registry and layout
     $creditsConfig = $bbsConfig['credits'] ?? [];
     $referralEnabled = !empty($creditsConfig['enabled']) && !empty($creditsConfig['referral_enabled']);
-    $packetBbsNodesExist = (new \BinktermPHP\PacketBbs\PacketBbsNodeService())->getNodeCount() > 0;
+    $packetBbsNodesExist = \BinktermPHP\BbsConfig::isFeatureEnabled('meshcore')
+        && (new \BinktermPHP\PacketBbs\PacketBbsNodeService())->getNodeCount() > 0;
     $cardConditions = [
         'referral_enabled'     => $referralEnabled,
         'packetbbs_nodes_exist' => $packetBbsNodesExist,
@@ -2122,6 +2123,11 @@ SimpleRouter::get('/shell-art/{name}', function(string $name) {
 
 // Public Meshcore Nodes page
 SimpleRouter::get('/packetbbs-nodes', function() {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('meshcore')) {
+        http_response_code(404);
+        return;
+    }
+
     $service       = new \BinktermPHP\PacketBbs\PacketBbsNodeService();
     $nodes         = $service->getPublicNodes();
     $mappableNodes = $service->getMappableNodes();

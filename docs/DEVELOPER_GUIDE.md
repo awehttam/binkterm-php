@@ -734,6 +734,8 @@ When adding features, **you must update the corresponding documentation file** f
 | Add new database tables or change core entity relationships | `docs/DATA_MODEL.md` |
 | Add, remove, or modify routes in `routes/api-routes.php` | `docs/API.md` |
 | Add or change a PacketBBS command, chat feature, output profile, or bridge API endpoint | `docs/PacketBBS.md` |
+| Change NNTP server behaviour, commands, newsgroup mapping, or article numbering (`src/Nntp/`, `scripts/nntp_server.php`) | `docs/NNTP.md` |
+| Change netmail storage, mailbox ownership/visibility, sending, receiving, or deletion (`MessageHandler` netmail methods, `BinkdProcessor::storeNetmail()`) | `docs/Netmail.md` |
 | Add a new documentation file to `docs/` (excluding `docs/proposals/`) | `docs/index.md` (in operational priority order) |
 | Create a new `UPGRADING_x.y.z.md` file | `docs/index.md` Upgrading section (newest-first) and `README.md` |
 | Add a root-level Markdown file that a `docs/` page links to with `../` | Two places in `src/Web/DocsController.php`: `$specialBases` in `resolveDocPath()` and the `in_array` list in `rewriteLinks()` |

@@ -734,6 +734,7 @@ return [
     'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
     'errors.admin.networks.delete_in_use' => 'Network is in use',
     'errors.admin.networks.delete_failed' => 'Failed to delete network',
+    'errors.meshcore.disabled' => 'MeshCore est désactivé sur ce système.',
     'errors.meshcore.invalid_node_id' => 'L\'ID de noeud doit comporter 12 ou 64 caractères hexadécimaux minuscules.',
     'errors.meshcore.contact_exists' => 'Un contact avec cet ID de noeud existe déjà.',
     'errors.meshcore.not_found' => 'Contact introuvable.',
@@ -774,6 +775,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'L\'utilisateur selectionne n\'existe pas.',
     'errors.admin.users.autocomplete_failed' => 'Echec de la recherche d\'utilisateurs.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Configuration du filtrage des inscriptions invalide',
+    'errors.admin.nntp_settings.load_failed' => 'Échec du chargement des paramètres NNTP',
+    'errors.admin.nntp_settings.save_failed' => 'Échec de l\'enregistrement des paramètres NNTP',
 ];
-
-

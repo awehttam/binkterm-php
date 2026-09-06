@@ -776,6 +776,7 @@ return [
     'errors.admin.networks.delete_in_use' => 'Сеть используется.',
     'errors.admin.networks.delete_failed' => 'Не удалось удалить сеть.',
 
+    'errors.meshcore.disabled' => 'MeshCore отключён в этой системе.',
     'errors.meshcore.invalid_node_id' => 'ID ноды должен содержать 12 или 64 строчных шестнадцатеричных символа.',
     'errors.meshcore.contact_exists' => 'Контакт с таким ID ноды уже существует.',
     'errors.meshcore.not_found' => 'Контакт не найден.',
@@ -822,4 +823,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'Выбранный пользователь не существует.',
     'errors.admin.users.autocomplete_failed' => 'Не удалось выполнить поиск пользователей.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Неверная конфигурация проверки регистраций',
+    'errors.admin.nntp_settings.load_failed' => 'Не удалось загрузить настройки NNTP',
+    'errors.admin.nntp_settings.save_failed' => 'Не удалось сохранить настройки NNTP',
 ];

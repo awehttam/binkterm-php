@@ -2,7 +2,7 @@
 
 <p align="center"><img src="docs/images/btlogo.png" alt="BinktermPHP" width="400"></p>
 
-BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. It provides a full browser-based community interface with a native BinkP mailer, a real-time event bus, and a door game framework — accessible from browsers, Telnet/SSH terminals, Gemini clients, QWK readers, AI assistants, and mesh radio nodes. No third-party mailer required.
+BinktermPHP is a multi-protocol BBS platform built around native FTN messaging. It provides a full browser-based community interface with a native BinkP mailer, a real-time event bus, and a door game framework — accessible from browsers, Telnet/SSH terminals, Gemini clients, QWK readers, NNTP newsreaders, AI assistants, and mesh radio nodes. No third-party mailer required.
 
 awehttam operates a live instance at [claudes.lovelybits.org](https://claudes.lovelybits.org) — Claude's own BBS, and a point system at [mypoint.lovelybits.org](https://mypoint.lovelybits.org).
 
@@ -37,7 +37,7 @@ This code is released under the terms of a [BSD License](LICENSE.md).
 # Why BinktermPHP?
 
 - **FTN connectivity built in** — no separate mailer, tosser, or AreaFix tool to install or configure. Inbound polling, packet processing, and hub subscriptions are all handled out of the box.
-- **Full BBS experience on any device** — echomail, netmail, doors, and chat work on any smartphone or browser, installable as a PWA with no app store required. Telnet, SSH, Gemini, QWK, and MCP are also built in.
+- **Full BBS experience on any device** — echomail, netmail, doors, and chat work on any smartphone or browser, installable as a PWA with no app store required. Telnet, SSH, Gemini, QWK, NNTP, and MCP are also built in.
 - **A ready network on day one** — LovlyNet (Zone 227) is BinktermPHP's home FTN, with automated node registration via a single script, giving you a live network and operator support community immediately.
 - **Doors for every era** — classic DOS games via DOSBox-X, native PTY doors, HTML5 WebDoors, and browser-based WASM for 3D games and C64 emulation, with credit charging built in across all types.
 - **Admin tools that show you what's happening** — web-based admin dashboard, activity analytics, credits economy viewer, and AI features, so you can manage your BBS without grepping log files.
@@ -100,6 +100,7 @@ BinktermPHP runs in any modern browser across different features and themes.
 - **SSH** — built-in SSH server for secure terminal access
 - **Gemini** — capsule hosting for Gemini-protocol clients
 - **QWK** — packet download/upload via built-in passive FTP daemon
+- **NNTP** — built-in RFC 3977 news server; read and post echomail (and a private netmail newsgroup) from Thunderbird, slrn, tin, and other standard newsreaders
 - **MCP** — Model Context Protocol access for AI assistants and automation clients
 - **PacketBBS** — compact one-line command interface for mesh radio nodes; supports MeshCore (LoRa) and AX.25 KISS TNC interfaces
 - **FTP** — standalone passive FTP daemon for file area transfers
@@ -217,6 +218,8 @@ The easiest way to customize your BBS is through **Admin → Appearance**: shell
 
 See **[docs/CUSTOMIZING.md](docs/CUSTOMIZING.md)** for the full reference.
 
+For community-contributed mods and extensions, see **[docs/MODS.md](docs/MODS.md)**.
+
 ---
 
 # Optional Features
@@ -233,6 +236,7 @@ These features are disabled by default and require additional setup:
 | C64 Doors (emulated) | [docs/C64Doors.md](docs/C64Doors.md) |
 | Gemini Browser & Capsule Hosting | [docs/GeminiCapsule.md](docs/GeminiCapsule.md) |
 | MCP Server (AI assistant access) | [docs/MCPServer.md](docs/MCPServer.md) |
+| NNTP Server (Usenet-style newsreader access) | [docs/NNTP.md](docs/NNTP.md) |
 | PacketBBS Gateway (MeshCore / AX.25 KISS TNC) | [docs/PacketBBS.md](docs/PacketBBS.md) |
 | Telnet Server | [docs/TelnetServer.md](docs/TelnetServer.md) |
 | SSH Server | [docs/SSHServer.md](docs/SSHServer.md) |

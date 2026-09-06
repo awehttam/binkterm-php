@@ -775,6 +775,7 @@ return [
     'errors.admin.networks.delete_failed' => 'Failed to delete network',
 
     // MeshCore
+    'errors.meshcore.disabled' => 'MeshCore è disattivato su questo sistema.',
     'errors.meshcore.invalid_node_id' => 'L\'ID nodo deve essere composto da 12 o 64 caratteri esadecimali minuscoli.',
     'errors.meshcore.contact_exists' => 'Esiste già un contatto con questo ID nodo.',
     'errors.meshcore.not_found' => 'Contatto non trovato.',
@@ -819,4 +820,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'L\'utente selezionato non esiste.',
     'errors.admin.users.autocomplete_failed' => 'Impossibile cercare gli utenti.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Configurazione del controllo delle registrazioni non valida',
+    'errors.admin.nntp_settings.load_failed' => 'Impossibile caricare le impostazioni NNTP',
+    'errors.admin.nntp_settings.save_failed' => 'Impossibile salvare le impostazioni NNTP',
 ];
