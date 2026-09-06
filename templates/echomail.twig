@@ -1229,8 +1229,8 @@ $(document).ready(function() {
 
 /* Threading styles with colored left borders */
 .thread-root {
-    border-left: 3px solid #0d6efd;
-    background-color: rgba(13, 110, 253, 0.05);
+    border-left: 3px solid var(--fidonet-blue, #0d6efd);
+    background-color: color-mix(in srgb, var(--fidonet-blue, #0d6efd) 5%, transparent);
 }
 
 .thread-reply {
@@ -1264,13 +1264,14 @@ $(document).ready(function() {
 
 /* Reply badge styling */
 .thread-root .badge.bg-secondary {
-    background-color: #0d6efd !important;
+    background-color: var(--thread-badge-bg, var(--fidonet-blue, #0d6efd)) !important;
+    color: var(--thread-badge-color, #fff) !important;
     font-size: 0.7em;
 }
 
 /* Hover effects for threads */
 .thread-root:hover {
-    background-color: rgba(13, 110, 253, 0.1) !important;
+    background-color: color-mix(in srgb, var(--fidonet-blue, #0d6efd) 10%, transparent) !important;
 }
 
 .thread-reply:hover {
@@ -1348,7 +1349,7 @@ $(document).ready(function() {
 
 /* Enhanced threading icon visibility */
 .thread-reply .message-from .fa-reply {
-    color: #0d6efd;
+    color: var(--fidonet-blue, #0d6efd);
 }
 
 /* Message modal navigation buttons */
