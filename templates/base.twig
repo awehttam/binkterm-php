@@ -284,7 +284,7 @@
                         {% if bbs_feature_enabled('file_areas') and current_user %}
                         {% if current_user.is_admin %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle file-menu-parent-link" href="#" role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                 <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
                             </a>
                             <ul class="dropdown-menu">
@@ -297,7 +297,7 @@
                         </li>
                         {% elseif freq_requests_web_enabled %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle file-menu-parent-link" href="#" role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                 <i class="fas fa-file file-menu-icon" id="filesMenuIcon"></i> {{ t('ui.base.files', {}, 'common') }}
                             </a>
                             <ul class="dropdown-menu">
