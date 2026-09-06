@@ -672,6 +672,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Impossibile inviare il comando',
     'errors.admin.areafix.history_failed' => 'Impossibile caricare la cronologia messaggi',
     'errors.admin.areafix.sync_failed' => 'Impossibile sincronizzare le aree',
+    'errors.admin.areafix.no_area_list_found' => 'Nessun elenco di aree trovato nelle risposte recenti per questo uplink',
     'errors.admin.poll.failed' => 'Polling uplink BinkP non riuscito',
 
     'errors.admin.lovlynet.invalid_json' => 'Payload richiesta non valido',

@@ -671,6 +671,7 @@ return [
     'errors.admin.areafix.send_failed' => 'command konnte nicht gesendet werden',
     'errors.admin.areafix.history_failed' => 'message history konnten nicht geladen werden',
     'errors.admin.areafix.sync_failed' => 'Failed to sync areas',
+    'errors.admin.areafix.no_area_list_found' => 'Keine Bereichsliste in den letzten Antworten für diesen Uplink gefunden',
     'errors.admin.poll.failed' => 'Failed to Umfrage BinkP uplink',
 
     'errors.admin.lovlynet.invalid_json' => 'Ungültig: request payload',

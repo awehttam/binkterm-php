@@ -570,15 +570,19 @@
             if (data.success) {
                 var s = data.summary || {};
                 var count = data.areas_count || 0;
-                var msg = 'Successfully synced ' + count + ' areas (' +
-                    (s.created || 0) + ' created, ' + (s.activated || 0) + ' activated)';
+                var msg = window.t('ui.admin.areafix.sync_success', {
+                    count: count,
+                    created: s.created || 0,
+                    activated: s.activated || 0
+                }, 'Successfully synced ' + count + ' areas (' + (s.created || 0) + ' created, ' + (s.activated || 0) + ' activated)');
                 showToast(msg, false);
             } else {
-                showToast(data.message || data.error || 'Failed to sync areas', true);
+                var errMsg = window.getApiErrorMessage ? window.getApiErrorMessage(data) : (data.message || data.error || window.t('ui.admin.areafix.sync_failed', {}, 'Failed to sync areas'));
+                showToast(errMsg, true);
             }
         })
         .catch(function () {
-            showToast('Failed to sync areas', true);
+            showToast(window.t('ui.admin.areafix.sync_failed', {}, 'Failed to sync areas'), true);
         })
         .finally(function () {
             if (btn) {

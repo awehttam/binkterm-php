@@ -242,7 +242,11 @@ class AreaFixManager
         }
 
         // Lines containing block drawing characters (CP437 / Unicode box art)
-        if (preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬■]/u', $line)) {
+        $validUtf8Line = mb_check_encoding($line, 'UTF-8') ? $line : @iconv('CP437', 'UTF-8//IGNORE', $line);
+        if ($validUtf8Line !== false && @preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬■]/u', $validUtf8Line)) {
+            return true;
+        }
+        if (preg_match('/[\xB0-\xDF]/', $line)) {
             return true;
         }
 
@@ -461,7 +465,25 @@ class AreaFixManager
     }
 
     /**
-     * Inspect an incoming netmail message to determine if it is an AreaFix/FileFix reply from an uplink.
+     * Check whether a message subject and body represent an AreaFix/FileFix area list
+     * rather than a command receipt, execution log, help text, or rescan confirmation.
+     */
+    public function isAreaListResponse(string $subject, string $body): bool
+    {
+        // Skip receipts, error notifications, rescan results, and help text unless explicitly requested as a list/query
+        if (preg_match('/\b(result|results|help|invalid password|scan results|node change request|change request|request processed)\b/i', $subject) && !preg_match('/\b(list|query)\b/i', $subject)) {
+            return false;
+        }
+
+        if (str_contains($body, '<-- COMMAND PROCESSED') || str_contains($body, '[ BEGIN MESSAGE ]') || str_contains($body, 'Here are the list of commands') || str_contains($body, 'original message text') || str_contains($body, 'rescanned')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check an incoming netmail message to see if it is an AreaFix or FileFix reply from a configured uplink.
      * If so, automatically parses the response and synchronizes the areas to the database.
      *
      * @param array $message Raw netmail array containing from_address, to_address, from_name, subject, message_text
@@ -469,6 +491,10 @@ class AreaFixManager
      */
     public function processIncomingReply(array $message): ?array
     {
+        if (!empty($message['is_insecure'])) {
+            return null;
+        }
+
         $fromAddr = trim((string)($message['from_address'] ?? $message['origAddr'] ?? ''));
         $subject  = trim((string)($message['subject'] ?? ''));
         $fromName = trim((string)($message['from_name'] ?? $message['fromName'] ?? ''));
@@ -485,7 +511,7 @@ class AreaFixManager
 
         foreach ($binkpConfig->getUplinks() as $uplink) {
             $uAddr = preg_replace('/\.0$/', '', trim((string)($uplink['address'] ?? '')));
-            if ($uAddr !== '' && ($uAddr === $normFrom || str_starts_with($normFrom, $uAddr . '.'))) {
+            if ($uAddr !== '' && $uAddr === $normFrom) {
                 $targetUplink = $uplink;
                 break;
             }
@@ -495,14 +521,16 @@ class AreaFixManager
             return null;
         }
 
-        // Do not process command receipts / execution logs, rescan replies, or help responses as area lists
-        if (preg_match('/\b(result|results|help|invalid password|unlinked|node change request|change request|request processed)\b/i', $subject)) {
-            if (!preg_match('/\b(list|query)\b/i', $subject)) {
+        // If the packet originating address is provided, ensure it matches the uplink
+        if (!empty($message['packet_orig_addr'])) {
+            $pktOrig = preg_replace('/\.0$/', '', trim((string)$message['packet_orig_addr']));
+            if ($pktOrig !== '' && $pktOrig !== $normFrom) {
                 return null;
             }
         }
 
-        if (str_contains($body, '<-- COMMAND PROCESSED') || str_contains($body, '[ BEGIN MESSAGE ]') || str_contains($body, 'Here are the list of commands') || str_contains($body, 'original message text') || str_contains($body, 'rescanned')) {
+        // Do not process command receipts / execution logs, rescan replies, or help responses as area lists
+        if (!$this->isAreaListResponse($subject, $body)) {
             return null;
         }
 
@@ -532,7 +560,7 @@ class AreaFixManager
 
         $summary = $this->syncSubscribedAreas($uplinkAddress, $domain, $parsedAreas, false, $robot);
 
-        error_log("[AreaFixManager] Auto-imported " . count($parsedAreas) . " areas for domain '{$domain}' from {$uplinkAddress}: created={$summary['created']}, activated={$summary['activated']}");
+        $this->logger->info("[AreaFixManager] Auto-imported " . count($parsedAreas) . " areas for domain '{$domain}' from {$uplinkAddress}: created={$summary['created']}, activated={$summary['activated']}");
 
         return [
             'matched' => true,

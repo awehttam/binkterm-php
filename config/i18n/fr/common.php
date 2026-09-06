@@ -4611,6 +4611,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.areafix.no_reply_yet' => 'Aucune réponse reçue. Envoyez une commande pour commencer.',
     'ui.admin.areafix.search_placeholder' => 'Rechercher des zones...',
     'ui.admin.areafix.sync_button' => 'Synchroniser avec les zones echo',
+    'ui.admin.areafix.btn_sync_areas' => 'Synchroniser les zones avec la BBS locale',
+    'ui.admin.areafix.sync_success' => '{count} zones synchronisées avec succès ({created} créées, {activated} activées)',
     'ui.admin.areafix.col_tag' => 'Tag',
     'ui.admin.areafix.col_description' => 'Description',
     'ui.admin.areafix.col_status' => 'Statut',

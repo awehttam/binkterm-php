@@ -6866,7 +6866,7 @@ class MessageHandler
                     AND n.deleted_by_recipient = FALSE
                 )
             )
-            ORDER BY COALESCE(n.date_written, n.date_received) DESC, n.id DESC
+            ORDER BY COALESCE(n.date_written, n.date_received) ASC, n.id ASC
         ";
 
         $params = array_merge($myAddresses, $myAddresses, $myAddresses, $hubAddresses, $hubAddresses, $myAddresses);

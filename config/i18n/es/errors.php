@@ -672,6 +672,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Error al enviar el comando',
     'errors.admin.areafix.history_failed' => 'Error al cargar el historial de mensajes',
     'errors.admin.areafix.sync_failed' => 'Error al sincronizar las áreas',
+    'errors.admin.areafix.no_area_list_found' => 'No se encontró lista de áreas en las respuestas recientes para este uplink',
     'errors.admin.poll.failed' => 'No se pudo consultar el uplink BinkP',
 
     'errors.admin.lovlynet.invalid_json' => 'Carga de solicitud no válida',

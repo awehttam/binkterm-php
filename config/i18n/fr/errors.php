@@ -543,6 +543,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Échec de l\'envoi de la commande',
     'errors.admin.areafix.history_failed' => 'Échec du chargement de l\'historique des messages',
     'errors.admin.areafix.sync_failed' => 'Échec de la synchronisation des zones',
+    'errors.admin.areafix.no_area_list_found' => 'Aucune liste de zones trouvée dans les réponses récentes pour cet uplink',
     'errors.admin.poll.failed' => 'Échec de l\'interrogation du lien montant BinkP',
 
     'errors.admin.lovlynet.invalid_json' => 'Charge utile de demande invalide',

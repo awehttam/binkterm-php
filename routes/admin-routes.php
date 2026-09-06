@@ -10768,10 +10768,7 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
         $bodyText = (string)($m['message_text'] ?? '');
 
         // Skip result receipts, change request confirmations, or help text
-        if (preg_match('/\b(result|results|help|invalid password|scan results|node change request|change request|request processed)\b/i', $subj) && !preg_match('/\b(list|query)\b/i', $subj)) {
-            continue;
-        }
-        if (str_contains($bodyText, '<-- COMMAND PROCESSED') || str_contains($bodyText, '[ BEGIN MESSAGE ]') || str_contains($bodyText, 'original message text') || str_contains($bodyText, 'rescanned')) {
+        if (!$areafixManager->isAreaListResponse($subj, $bodyText)) {
             continue;
         }
 
@@ -10784,11 +10781,7 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
     }
 
     if (!$replyFound || empty($parsedAreas)) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'No area list found in recent replies for this uplink.',
-        ]);
-        return;
+        apiError('errors.admin.areafix.no_area_list_found', 'No area list found in recent replies for this uplink', 404, ['success' => false]);
     }
 
     $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();

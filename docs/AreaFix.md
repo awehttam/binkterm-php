@@ -211,7 +211,29 @@ Sync a parsed area list into the local echo/file area table.
 }
 ```
 
+### `POST /api/admin/areafix/sync-latest`
+Inspect the latest incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and sync them to the local database.
+
+**Request body:**
+```json
+{
+    "uplink": "1:1/23",
+    "robot":  "areafix"
+}
+```
+
+**Response:**
+```json
+{
+    "success":     true,
+    "summary":     { "created": 3, "activated": 1, "deactivated": 0 },
+    "areas_count": 4,
+    "from":        "AreaFix"
+}
+```
+
 ---
+
 
 ## Backend Class
 
