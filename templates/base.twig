@@ -38,9 +38,25 @@
             color: #ffc107 !important;
         }
         .file-menu-icon.unread,
-        .file-menu-parent-link.unread,
         .file-menu-link.unread {
             color: #ffc107 !important;
+        }
+        .navbar-nav .nav-link {
+            position: relative;
+        }
+        .navbar-nav .nav-link.active {
+            font-weight: 700;
+        }
+        .navbar-nav .nav-link.active::before {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0.85rem;
+            right: 0.85rem;
+            height: 3px;
+            background: currentColor;
+            border-radius: 3px 3px 0 0;
+            pointer-events: none;
         }
         .file-approvals-menu-link.unread {
             color: #ffc107 !important;
