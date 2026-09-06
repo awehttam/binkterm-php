@@ -5379,7 +5379,7 @@ Complete echomail message object
 
 **Requires authentication**
 
-Sends a message (netmail or echomail) with support for multiple charsets, markdown/plaintext markup, file attachments, and optional PGP payload handling. Enforces 16 KB FidoNet message body limit. For netmail, resolves attachment tokens to file paths. Supports crashmail flag and file request (FREQ) mode. Validates charset against a whitelist of safe values. Defaults to system address if no recipient specified for netmail.
+Sends a message (netmail or echomail) with support for multiple charsets, markdown/plaintext markup, file attachments, and optional PGP payload handling. Enforces 16 KB FidoNet message body limit. For netmail, resolves attachment tokens to file paths. Supports crashmail flag and file request (FREQ) mode. Validates charset against a whitelist of safe values. Defaults to system address if no recipient specified for netmail. On a successful send, any associated draft is deleted: the draft identified by `draft_id` if supplied, otherwise the most recent draft matching the message's area/recipient and subject.
 
 **Request Body** _(JSON)_
 
@@ -5396,6 +5396,9 @@ Message composition payload
 | `crashmail` | boolean | No | Send as crashmail (netmail only) |
 | `is_freq` | boolean | No | Mark as file request (netmail only) |
 | `pgp_mode` | string | No | PGP handling mode: `encrypt` for netmail encryption or `sign` for echomail signing |
+| `draft_id` | integer | No | ID of the draft this message was composed from; deleted on successful send |
+| `subject` | string | No | Message subject; also used to match a draft for cleanup when `draft_id` is absent |
+| `echoarea` | string | No | Target echo area (echomail); also used to match a draft for cleanup when `draft_id` is absent |
 
 **Response** _(JSON)_
 
