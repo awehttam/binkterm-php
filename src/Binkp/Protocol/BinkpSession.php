@@ -969,7 +969,7 @@ class BinkpSession
             if (!empty($this->currentUplink['send_all_akas'])) {
                 // When send_all_akas is enabled, advertise all configured system AKAs
                 // with our current uplink's address first as primary (per FTS-1026).
-                $allAddresses = explode(' ', $this->config->getMyAddressesForAdr());
+                $allAddresses = explode(' ', $this->config->getMyAddressesForAdr(true));
                 $parts = [$address];
                 foreach ($allAddresses as $aka) {
                     $aka = trim($aka);
@@ -1671,7 +1671,10 @@ class BinkpSession
     /**
      * Find the matching uplink for a packet/file destination address.
      * Checks the current uplink first, and if send_all_akas is enabled, also checks
-     * other enabled uplinks co-located at the same remote hostname and port.
+     * other enabled uplinks co-located at the same remote hostname and port that
+     * share the same non-empty session password. The shared-password requirement
+     * ensures the remote actually authenticated us for that co-located AKA before
+     * we route another network's (potentially secure) mail into the session.
      *
      * @param string $destAddr FTN destination address
      * @return array|null Matched uplink config array, or null if not routed
@@ -1686,11 +1689,15 @@ class BinkpSession
             return $this->currentUplink;
         }
 
-        if (!empty($this->currentUplink['send_all_akas'])) {
+        // Only extend routing to co-located AKAs on a secure session. On an
+        // insecure/anonymous session the remote never authenticated us for any
+        // AKA, so we must not push another network's mail into it.
+        if (!empty($this->currentUplink['send_all_akas']) && !$this->isInsecureSession) {
             $currentHost = strtolower(trim($this->currentUplink['hostname'] ?? ''));
             $currentPort = (int)($this->currentUplink['port'] ?? 24554);
+            $currentPassword = (string)($this->currentUplink['password'] ?? '');
 
-            if ($currentHost !== '') {
+            if ($currentHost !== '' && $currentPassword !== '') {
                 foreach ($this->config->getEnabledUplinks() as $otherUplink) {
                     if (($otherUplink['address'] ?? '') === ($this->currentUplink['address'] ?? '')) {
                         continue;
@@ -1698,8 +1705,12 @@ class BinkpSession
 
                     $otherHost = strtolower(trim($otherUplink['hostname'] ?? ''));
                     $otherPort = (int)($otherUplink['port'] ?? 24554);
+                    $otherPassword = (string)($otherUplink['password'] ?? '');
 
-                    if ($otherHost === $currentHost && $otherPort === $currentPort) {
+                    // The remote only considers us authenticated for this co-located
+                    // AKA if it shares the exact session password we handshook with.
+                    if ($otherHost === $currentHost && $otherPort === $currentPort
+                        && $otherPassword === $currentPassword) {
                         if ($this->config->isDestinationForUplink($destAddr, $otherUplink)) {
                             return $otherUplink;
                         }
