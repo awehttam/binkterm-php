@@ -1195,9 +1195,67 @@ function updateSessionActivity() {
     }).catch(() => {});
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function highlightActiveNavigation() {
+    const path = window.location.pathname.toLowerCase();
+    const navbar = document.querySelector('.navbar');
+    if (!navbar) return;
+
+    // Reset current active states on navbar links and dropdown items
+    navbar.querySelectorAll('.nav-link.active, .dropdown-item.active').forEach((el) => {
+        el.classList.remove('active');
+        el.removeAttribute('aria-current');
+    });
+
+    // Map sub-pages that don't have direct navbar links back to their parent section
+    const effectivePath = (
+        path.startsWith('/rlogindoor') ||
+        path.startsWith('/dosdoor') ||
+        path.startsWith('/jsdosdoor') ||
+        path.startsWith('/webdoor')
+    ) ? '/games' : (path.startsWith('/compose') ? '/echomail' : path);
+
+    // Find the link with the best (longest) matching href in the navbar
+    let bestMatch = null;
+    let longestMatchLen = 0;
+
+    navbar.querySelectorAll('a[href]').forEach((link) => {
+        const href = link.getAttribute('href');
+        if (!href || href === '#' || href.startsWith('javascript:')) return;
+
+        const linkPath = href.split('?')[0].split('#')[0].toLowerCase();
+        // Match exact URL, or sub-path (excluding root '/')
+        const isMatch = (effectivePath === linkPath) || 
+                        (linkPath !== '/' && (effectivePath.startsWith(linkPath + '/') || effectivePath.startsWith(linkPath + '?')));
+
+        if (isMatch && linkPath.length > longestMatchLen) {
+            longestMatchLen = linkPath.length;
+            bestMatch = link;
+        }
+    });
+
+    if (bestMatch) {
+        bestMatch.classList.add('active');
+        if (bestMatch.classList.contains('dropdown-item')) {
+            const parentNavLink = bestMatch.closest('.nav-item')?.querySelector('.nav-link');
+            if (parentNavLink) {
+                parentNavLink.classList.add('active');
+                parentNavLink.setAttribute('aria-current', 'page');
+            }
+        } else {
+            bestMatch.setAttribute('aria-current', 'page');
+        }
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        updateSessionActivity();
+        highlightActiveNavigation();
+    });
+} else {
     updateSessionActivity();
-});
+    highlightActiveNavigation();
+}
 
 // Utility functions
 function parseAppDate(dateString) {

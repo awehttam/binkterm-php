@@ -7524,4 +7524,78 @@ class MessageHandler
             ];
         }
     }
+
+    /**
+     * Delete the most recent draft matching a just-sent message.
+     *
+     * This is the fallback used only when the client did not supply an explicit
+     * draft_id (see deleteDraft()). To avoid destroying unrelated drafts that
+     * happen to share a subject line, the match is scoped to a single, most
+     * recently updated row rather than a blanket DELETE.
+     *
+     * @param int         $userId
+     * @param string      $type      'echomail' or 'netmail'
+     * @param string|null $echoarea  echomail area (may include an '@network' suffix)
+     * @param string|null $toAddress netmail recipient FTN address
+     * @param string|null $subject   message subject
+     * @return array{success:bool,deleted?:int,error_code?:string,error?:string}
+     */
+    public function deleteMatchingDraft($userId, $type, $echoarea = null, $toAddress = null, $subject = null)
+    {
+        try {
+            $subject = trim((string)$subject);
+            if ($type === 'echomail' && $echoarea !== null && $subject !== '') {
+                $rawArea = trim((string)$echoarea);
+                $cleanArea = explode('@', $rawArea)[0];
+                $stmt = $this->db->prepare("
+                    DELETE FROM drafts
+                    WHERE id = (
+                        SELECT id FROM drafts
+                        WHERE user_id = ?
+                          AND type = 'echomail'
+                          AND (
+                              echoarea = ?
+                              OR echoarea = ?
+                              OR echoarea ILIKE ? || '@%'
+                          )
+                          AND subject = ?
+                        ORDER BY updated_at DESC
+                        LIMIT 1
+                    )
+                ");
+                $stmt->execute([$userId, $rawArea, $cleanArea, $cleanArea, $subject]);
+                return ['success' => true, 'deleted' => $stmt->rowCount()];
+            } elseif ($type === 'netmail' && $subject !== '') {
+                $toAddress = trim((string)$toAddress);
+                if ($toAddress === '') {
+                    // Without a recipient there is no safe way to identify the
+                    // specific draft; skip rather than risk deleting other
+                    // netmail drafts with the same subject.
+                    return ['success' => true, 'deleted' => 0];
+                }
+                $stmt = $this->db->prepare("
+                    DELETE FROM drafts
+                    WHERE id = (
+                        SELECT id FROM drafts
+                        WHERE user_id = ?
+                          AND type = 'netmail'
+                          AND to_address = ?
+                          AND subject = ?
+                        ORDER BY updated_at DESC
+                        LIMIT 1
+                    )
+                ");
+                $stmt->execute([$userId, $toAddress, $subject]);
+                return ['success' => true, 'deleted' => $stmt->rowCount()];
+            }
+            return ['success' => true, 'deleted' => 0];
+        } catch (\Exception $e) {
+            $this->logger->error("Error deleting matching draft: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.drafts.delete_failed',
+                'error' => 'Failed to delete draft'
+            ];
+        }
+    }
 }
