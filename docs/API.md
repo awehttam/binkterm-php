@@ -575,7 +575,10 @@ Inspects recent message history from the specified uplink to find the latest inc
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | True on successful synchronization |
-| `summary` | object | Summary of changes (`created`, `activated`, `deactivated`) |
+| `summary` | object | Summary of changes applied to the local database |
+| `summary.created` | integer | Number of new areas inserted |
+| `summary.activated` | integer | Number of existing inactive areas re-activated |
+| `summary.deactivated` | integer | Number of areas deactivated (always `0` for this endpoint; it never deactivates missing areas) |
 | `areas_count` | integer | Number of areas parsed and synchronized |
 | `from` | string | Sender name or address of the reply message |
 
