@@ -241,13 +241,23 @@ class AreaFixManager
             return true;
         }
 
-        // Lines containing block drawing characters (CP437 / Unicode box art)
-        $validUtf8Line = mb_check_encoding($line, 'UTF-8') ? $line : @iconv('CP437', 'UTF-8//IGNORE', $line);
-        if ($validUtf8Line !== false && @preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬■]/u', $validUtf8Line)) {
-            return true;
-        }
-        if (preg_match('/[\xB0-\xDF]/', $line)) {
-            return true;
+        // Lines containing block drawing characters (CP437 / Unicode box art).
+        if (mb_check_encoding($line, 'UTF-8')) {
+            // Valid UTF-8: match the actual box-drawing / block code points.
+            if (@preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬■]/u', $line)) {
+                return true;
+            }
+        } else {
+            // Not valid UTF-8: treat as CP437 and look for the raw box-art byte range
+            // (0xB0-0xDF covers the block/box-drawing glyphs). Doing this byte scan on
+            // valid UTF-8 would wrongly match accented-Latin lead bytes (e.g. 'é').
+            if (preg_match('/[\xB0-\xDF]/', $line)) {
+                return true;
+            }
+            $cp437 = @iconv('CP437', 'UTF-8//IGNORE', $line);
+            if ($cp437 !== false && @preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬■]/u', $cp437)) {
+                return true;
+            }
         }
 
         // Explanatory footer lines (e.g. '*' = Subscribed, '+' = available, (MSGS = Messages...)
