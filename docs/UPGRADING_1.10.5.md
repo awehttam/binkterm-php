@@ -6,6 +6,7 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - [Summary of Changes](#summary-of-changes)
 - [Message Composition](#message-composition)
+- [Draft Handling on Send](#draft-handling-on-send)
 - [Admin BBS Settings](#admin-bbs-settings)
 - [MeshCore Enable/Disable](#meshcore-enabledisable)
 - [NNTP Server](#nntp-server)
@@ -17,6 +18,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Terminal Registration House Rules](#terminal-registration-house-rules)
 - [Terminal Full-Screen Editor Flicker](#terminal-full-screen-editor-flicker)
 - [Community Mods List](#community-mods-list)
+- [Docker Stale Apache PID Cleanup](#docker-stale-apache-pid-cleanup)
+- [Navbar Active Section Indicator](#navbar-active-section-indicator)
+- [Themed Message Threading Colors](#themed-message-threading-colors)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -26,6 +30,11 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Message Composition
 
 - The compose editor's automatic line-wrap column now defaults to **72** instead of 79, and 72 is offered as the recommended choice in the compose Advanced Options. Wrapping at 72 leaves room for quote-attribution prefixes (for example ` AB> `) so that quoted reply lines stay within the 79-column width that FidoNet readers expect. The 79-column option is still available for users who prefer it, and anyone who has already chosen a wrap width keeps their setting.
+
+### Draft Handling on Send
+
+- When a message is sent successfully from the web compose page, the draft it was composed from is now deleted automatically — including a draft that was only ever created by the 2-minute auto-save. Previously an auto-saved draft could be left behind after the message had already gone out, cluttering the drafts list.
+- A failed send (validation error, server error, or a netmail attachment upload failure) no longer silently disables auto-save for the rest of the editing session; the auto-save timer is restored so continued edits keep being saved.
 
 ### Admin BBS Settings
 
@@ -74,6 +83,19 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - A new `docs/MODS.md` file is a curated list of third-party mods and extensions for BinktermPHP, linked from the Customization section of the README. It seeds with two mods by TheWebExpert: the Door Button Filter Mod (category filter bar on `/games`) and the Echo Area Button Mod (network-filter and quick-action bar on `/echolist`). Contributors add their own mods by pull request. Listed mods are maintained by their individual authors and have not necessarily been reviewed or tested by the BinktermPHP maintainer; review a mod's source before installing it.
 
+### Docker Stale Apache PID Cleanup
+
+- `docker/entrypoint.sh` now removes any stale `/var/run/apache2/apache2.pid` (and other `/var/run/apache2/*.pid`) files during container initialization, before starting the main process. This prevents a crash loop after an abrupt Docker host shutdown or a killed container leaves a stale Apache PID file behind on a persisted volume.
+
+### Navbar Active Section Indicator
+
+- The web navigation bar now marks the section for the page you are on: the matching top-level menu item is shown in bold with a short underline bar beneath it, in the navigation link colour of whatever theme is active. The section is worked out from the page URL, so a page with no menu entry of its own still highlights its parent — a message thread or the compose page marks **Messaging**, and a door launcher marks **Doors**.
+- The **Files** menu's new-files cue is now shown on the file icon only. Previously an incoming file also turned the word "Files" yellow, which looked like the active-section highlight. The file icon and the Files link inside the dropdown still turn yellow; only the top-level text label no longer does.
+
+### Themed Message Threading Colors
+
+- The threaded-view accent colors on the echomail and netmail pages — the coloured left border on a thread root, the "N replies" badge, the reply arrow icon, and the row hover tint — were hardcoded to Bootstrap blue (`#0d6efd`) and stayed blue on every theme. They now derive from the theme's `--fidonet-blue` variable (falling back to `#0d6efd`), so dark, amber, greenterm, cyberpunk, and custom themes tint the threading UI to match. The badge additionally honours optional `--thread-badge-bg` / `--thread-badge-color` overrides.
+
 ---
 
 ## Message Composition
@@ -81,6 +103,14 @@ Make sure you have a current backup of your database and files before upgrading.
 When composing netmail or echomail, the editor can hard-wrap long lines automatically as you type. The wrap column is a per-user preference in the compose form's **Advanced Options**.
 
 Previously the default was 79 columns. When replying to a message, each quoted line is prefixed with an attribution string such as ` AB> `, which pushed quoted lines past 79 columns and caused readers to wrap them a second time. The default is now 72 columns, which keeps quoted lines within 79 after the prefix is added. A new **72 characters (recommended)** option appears in the wrap selector; the **79** option remains for users who want it. Existing saved preferences are unchanged.
+
+## Draft Handling on Send
+
+The web compose page auto-saves an in-progress netmail or echomail message as a draft every two minutes, and you can also save a draft by hand. Sending the message now cleans that draft up:
+
+- On a successful send, the compose page tells the server which draft the message came from, and the server deletes it. This covers a draft you opened and finished, a draft you saved manually, and a draft that only exists because the auto-save timer fired while you were writing. If the compose page cannot identify a specific draft, the server removes the most recent draft that matches the message's area (echomail) or recipient (netmail) and subject. Previously an auto-saved draft was frequently left behind after its message had already been sent.
+- The compose page now waits for an in-flight auto-save to finish before sending, instead of cancelling it. Cancelling it client-side did not stop the save from completing on the server, which is how the leftover drafts were being created.
+- If a send fails — a validation error, a server error, or (for netmail) an attachment that fails to upload — the two-minute auto-save timer is now restarted when the form is re-enabled. Before, a failed send left auto-save switched off for the rest of the session, so later edits were not being saved until the page was reloaded.
 
 ## Admin BBS Settings
 
@@ -236,6 +266,36 @@ The list launches with two entries, both by TheWebExpert (The Adventure BBS, 227
 Both use the `templates/custom/header.insert.twig` customization hook.
 
 Contributors with a mod to share add a section to `docs/MODS.md` by pull request against the `claudesbbs` branch, following the existing entry format. Mods in the list are written and maintained by their individual authors and **have not necessarily been reviewed or tested by the BinktermPHP maintainer** — review a mod's source code before installing it on your system.
+
+## Docker Stale Apache PID Cleanup
+
+If a Docker host shuts down or restarts abruptly, or a container is stopped with `docker stop` past its timeout (or killed with `SIGKILL`), Apache can leave behind a stale `/var/run/apache2/apache2.pid` on the persisted volume. On the next container start, `apache2-foreground` sees the existing PID file and exits immediately, putting the container into a crash loop until the PID file (or volume) is removed by hand.
+
+`docker/entrypoint.sh` now removes `/var/run/apache2/apache2.pid` and any other `/var/run/apache2/*.pid` files during initialization, before the main command starts. Rebuild the image to pick up the fix.
+
+## Navbar Active Section Indicator
+
+The top navigation bar of the web interface now shows which section you are viewing. The menu item that matches the current page is rendered in bold with a 3-pixel indicator bar along its lower edge. The bar takes its colour from the navigation link's active colour, so it adapts to every bundled theme — the Bootswatch themes (Slate, Cyborg, Darkly, Solar, and the rest) and the terminal-style themes (amber, dark, greenterm, cyberpunk) — with no per-theme configuration.
+
+The active section is determined from the browser's current path matched against the navbar links, not from a fixed list, so pages that do not have their own menu entry still highlight the menu they belong to:
+
+- Reading a message or composing one marks **Messaging**.
+- The RLogin, DOS, JS-DOS, and web door launchers mark **Doors**.
+- A link inside a dropdown menu also marks its parent top-level menu.
+
+Separately, the **Files** menu's indicator for newly arrived files has been narrowed. It previously turned both the file icon and the top-level "Files" text label yellow. A yellow label was easily mistaken for the active-section highlight, implying you were on the Files page when you were not. The cue is now carried by the file icon alone — matching how the Messaging, Chat, and Mail menus already indicate unread items — along with the Files entry inside the dropdown. Whether new files are signalled is unchanged; only where the colour appears.
+
+A hard reload, or clearing the browser and service-worker cache, ensures clients load the updated navbar script.
+
+## Themed Message Threading Colors
+
+The threaded message view on `/echomail` and `/netmail` draws several accent elements: a coloured left border and background wash on the root message of a thread, a small "replies" badge, a reply-arrow icon on each reply, and a slightly stronger background on row hover. These were written with literal Bootstrap-blue values (`#0d6efd` and `rgba(13, 110, 253, …)`), so they rendered blue regardless of the active theme, clashing with the terminal-style themes and ignoring custom theme palettes.
+
+`templates/echomail.twig` and `templates/netmail.twig` now express those colours as `var(--fidonet-blue, #0d6efd)`, and the translucent border/hover washes use `color-mix(in srgb, var(--fidonet-blue, #0d6efd) N%, transparent)`. Any theme that defines `--fidonet-blue` (the bundled amber, dark, greenterm, and cyberpunk themes, and any custom theme) now colours the threading UI to match, and themes that do not define it fall back to the original blue.
+
+The replies badge also reads two optional variables, `--thread-badge-bg` and `--thread-badge-color`, before falling back to `--fidonet-blue` and white, so a theme can style that badge independently if needed.
+
+A hard reload, or clearing the browser and service-worker cache, ensures clients pick up the updated templates.
 
 ## Upgrade Instructions
 

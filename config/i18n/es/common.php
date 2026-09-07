@@ -849,6 +849,8 @@ return [
     'ui.admin.binkp_config.uplinks.modal.posting_name_policy' => 'Politica de nombre de publicacion',
     'ui.admin.binkp_config.uplinks.modal.send_domain' => 'Enviar @Dominio en ADR',
     'ui.admin.binkp_config.uplinks.modal.send_domain_help' => 'Incluye la parte @Dominio al enviar la direccion ADR a este uplink',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas' => 'Presentar todas las AKA',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas_help' => 'Anuncia todas las AKA del sistema configuradas durante el saludo BinkP (M_ADR). Los concentradores multired que comparten una contraseña de sesion pueden autenticar e intercambiar correo de todas tus redes en una sola sesion.',
     'ui.admin.binkp_config.uplinks.modal.enabled_help' => 'Habilita este uplink para enrutamiento normal, sondeo y entrega saliente',
     'ui.admin.binkp_config.uplinks.modal.compression' => 'Compresion',
     'ui.admin.binkp_config.uplinks.modal.compression_help' => 'Solicita transferencias comprimidas cuando el sistema remoto lo soporte',

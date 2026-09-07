@@ -805,6 +805,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.binkp_config.uplinks.modal.posting_name_policy' => 'Politique de nom d\'affichage',
     'ui.admin.binkp_config.uplinks.modal.send_domain' => 'Envoyer @Domaine dans ADR',
     'ui.admin.binkp_config.uplinks.modal.send_domain_help' => 'Inclure la partie @Domaine lors de l\'envoi de l\'adresse ADR à cet uplink',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas' => 'Présenter toutes les AKA',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas_help' => 'Annoncer toutes les AKA système configurées lors de la poignée de main BinkP (M_ADR). Les concentrateurs multi-réseaux partageant un mot de passe de session peuvent s\'authentifier et échanger le courrier de tous vos réseaux en une seule session.',
     'ui.admin.binkp_config.uplinks.modal.enabled_help' => 'Active cet uplink pour le routage normal, les sondages et la livraison sortante',
     'ui.admin.binkp_config.uplinks.modal.compression' => 'Compression',
     'ui.admin.binkp_config.uplinks.modal.compression_help' => 'Demande des transferts compressés lorsque le système distant le prend en charge',

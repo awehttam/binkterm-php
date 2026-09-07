@@ -259,14 +259,18 @@ class BinkpConfig
      * uplink's send_domain_in_addr flag.  Used when answering an inbound
      * connection where we don't yet know which uplink is calling.
      *
+     * @param bool $enabledOnly When true, only include AKAs from enabled uplinks.
      * @return string Space-separated address list, e.g. "1:2/3@fidonet 12:1/14"
      */
-    public function getMyAddressesForAdr(): string
+    public function getMyAddressesForAdr(bool $enabledOnly = false): string
     {
         $parts = [];
         foreach ($this->getUplinks() as $uplink) {
             $me = $uplink['me'] ?? null;
             if (!$me) {
+                continue;
+            }
+            if ($enabledOnly && !($uplink['enabled'] ?? true)) {
                 continue;
             }
             $sendDomain = !empty($uplink['send_domain_in_addr']);

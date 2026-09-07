@@ -889,6 +889,8 @@ return [
     'ui.admin.binkp_config.uplinks.modal.posting_name_policy' => 'Политика имён при публикации',
     'ui.admin.binkp_config.uplinks.modal.send_domain' => 'Отправлять @Domain в ADR',
     'ui.admin.binkp_config.uplinks.modal.send_domain_help' => 'Включать часть @Domain при отправке адреса ADR на этот аплинк',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas' => 'Показывать все AKA',
+    'ui.admin.binkp_config.uplinks.modal.send_all_akas_help' => 'Объявлять все настроенные системные AKA во время BinkP-рукопожатия (M_ADR). Многосетевые узлы с общим паролем сессии могут пройти аутентификацию и обмениваться почтой для всех ваших сетей за один сеанс.',
     'ui.admin.binkp_config.uplinks.modal.enabled_help' => 'Активирует этот аплинк для обычной маршрутизации, опросов и исходящей доставки',
     'ui.admin.binkp_config.uplinks.modal.compression' => 'Сжатие',
     'ui.admin.binkp_config.uplinks.modal.compression_help' => 'Запрашивает передачу данных со сжатием, если удалённая система это поддерживает',
