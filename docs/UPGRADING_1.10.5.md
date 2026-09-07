@@ -5,117 +5,99 @@ Make sure you have a current backup of your database and files before upgrading.
 ## Table of Contents
 
 - [Summary of Changes](#summary-of-changes)
-- [Message Composition](#message-composition)
-- [Draft Handling on Send](#draft-handling-on-send)
-- [Admin BBS Settings](#admin-bbs-settings)
-- [MeshCore Enable/Disable](#meshcore-enabledisable)
-- [NNTP Server](#nntp-server)
-- [Docker WebSocket Proxy](#docker-websocket-proxy)
-- [Door Player Backspace Handling](#door-player-backspace-handling)
-- [BBSDEV.DRP Drop File (Experimental)](#bbsdevdrp-drop-file-experimental)
-- [CLI Script Fixes](#cli-script-fixes)
-- [CP437 Login ANSI Art](#cp437-login-ansi-art)
-- [Terminal Registration House Rules](#terminal-registration-house-rules)
-- [Terminal Full-Screen Editor Flicker](#terminal-full-screen-editor-flicker)
-- [Community Mods List](#community-mods-list)
-- [Docker Stale Apache PID Cleanup](#docker-stale-apache-pid-cleanup)
-- [Navbar Active Section Indicator](#navbar-active-section-indicator)
-- [Themed Message Threading Colors](#themed-message-threading-colors)
-- [AreaFix Reply Sync](#areafix-reply-sync)
+- [Web Interface](#web-interface)
+  - [Message Composition](#message-composition)
+  - [Draft Handling on Send](#draft-handling-on-send)
+  - [Admin BBS Settings](#admin-bbs-settings)
+  - [Navbar Active Section Indicator](#navbar-active-section-indicator)
+  - [Themed Message Threading Colors](#themed-message-threading-colors)
+- [Messaging / FTN](#messaging--ftn)
+  - [NNTP Server](#nntp-server)
+  - [AreaFix Reply Sync](#areafix-reply-sync)
+- [Terminal Server](#terminal-server)
+  - [Registration House Rules](#registration-house-rules)
+  - [Full-Screen Editor Flicker](#full-screen-editor-flicker)
+  - [CP437 Login ANSI Art](#cp437-login-ansi-art)
+- [Door Games](#door-games)
+  - [Door Player Backspace Handling](#door-player-backspace-handling)
+  - [BBSDEV.DRP Drop File (Experimental)](#bbsdevdrp-drop-file-experimental)
+- [MeshCore / PacketBBS](#meshcore--packetbbs)
+  - [Enable/Disable Toggle](#enabledisable-toggle)
+- [Docker](#docker)
+  - [WebSocket Proxy](#websocket-proxy)
+  - [Stale Apache PID Cleanup](#stale-apache-pid-cleanup)
+- [CLI Scripts](#cli-scripts)
+  - [Helper Function Loading](#helper-function-loading)
+- [Documentation](#documentation)
+  - [Community Mods List](#community-mods-list)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
 
 ## Summary of Changes
 
-### Message Composition
+### Web Interface
 
-- The compose editor's automatic line-wrap column now defaults to **72** instead of 79, and 72 is offered as the recommended choice in the compose Advanced Options. Wrapping at 72 leaves room for quote-attribution prefixes (for example ` AB> `) so that quoted reply lines stay within the 79-column width that FidoNet readers expect. The 79-column option is still available for users who prefer it, and anyone who has already chosen a wrap width keeps their setting.
+- **Message composition:** the compose editor's automatic line-wrap column now defaults to **72** instead of 79, and 72 is offered as the recommended choice in the compose Advanced Options. Wrapping at 72 leaves room for quote-attribution prefixes (for example ` AB> `) so that quoted reply lines stay within the 79-column width that FidoNet readers expect. The 79-column option is still available for users who prefer it, and anyone who has already chosen a wrap width keeps their setting.
+- **Draft handling on send:** when a message is sent successfully from the web compose page, the draft it was composed from is now deleted automatically — including a draft that was only ever created by the 2-minute auto-save. Previously an auto-saved draft could be left behind after the message had already gone out, cluttering the drafts list.
+- **Draft handling on send:** a failed send (validation error, server error, or a netmail attachment upload failure) no longer silently disables auto-save for the rest of the editing session; the auto-save timer is restored so continued edits keep being saved.
+- **Admin BBS Settings:** the **Admin -> BBS Settings** page is now organized into four tabs: **System & Features**, **Credit System**, **Tag Lines**, and **Registration Screening**. All settings and their save buttons are unchanged; they are only regrouped so the page is shorter and easier to navigate.
+- **Navbar active section indicator:** the web navigation bar now marks the section for the page you are on: the matching top-level menu item is shown in bold with a short underline bar beneath it, in the navigation link colour of whatever theme is active. The section is worked out from the page URL, so a page with no menu entry of its own still highlights its parent — a message thread or the compose page marks **Messaging**, and a door launcher marks **Doors**.
+- **Navbar active section indicator:** the **Files** menu's new-files cue is now shown on the file icon only. Previously an incoming file also turned the word "Files" yellow, which looked like the active-section highlight. The file icon and the Files link inside the dropdown still turn yellow; only the top-level text label no longer does.
+- **Themed message threading colors:** the threaded-view accent colors on the echomail and netmail pages — the coloured left border on a thread root, the "N replies" badge, the reply arrow icon, and the row hover tint — were hardcoded to Bootstrap blue (`#0d6efd`) and stayed blue on every theme. They now derive from the theme's `--fidonet-blue` variable (falling back to `#0d6efd`), so dark, amber, greenterm, cyberpunk, and custom themes tint the threading UI to match. The badge additionally honours optional `--thread-badge-bg` / `--thread-badge-color` overrides.
 
-### Draft Handling on Send
+### Messaging / FTN
 
-- When a message is sent successfully from the web compose page, the draft it was composed from is now deleted automatically — including a draft that was only ever created by the 2-minute auto-save. Previously an auto-saved draft could be left behind after the message had already gone out, cluttering the drafts list.
-- A failed send (validation error, server error, or a netmail attachment upload failure) no longer silently disables auto-save for the rest of the editing session; the auto-save timer is restored so continued edits keep being saved.
+- **NNTP server:** BinktermPHP can now serve its echoareas as Usenet-style newsgroups over NNTP (RFC 3977), so members can read — and optionally post — echomail with a standard newsreader such as Thunderbird. It runs as a new optional daemon, `scripts/nntp_server.php`, and is **disabled by default**. Enable it, and configure rate limits and the plaintext-authentication policy, in the new **Admin -> NNTP Server** page. Posting from a newsreader is a second toggle on that page, also off by default.
+- **NNTP server:** each member also gets a private **netmail** newsgroup whose articles are that member's own netmail; posting into it sends netmail. It is enabled by default when the NNTP server is on, with its own settings on the **Admin -> NNTP Server** page (group name, whether sending is allowed, whether sent mail is included, and a separate send rate limit).
+- **NNTP server:** new database tables (`nntp_article_numbers`, `nntp_area_watermark`) are created and populated from your existing echomail during the upgrade, plus `nntp_netmail_article_numbers` and `nntp_netmail_watermark` (per member, filled on first read) and a `tearline_component` column on `netmail`.
+- **NNTP server:** transport settings — bind address, ports, and TLS certificate paths — are read from `.env`. New keys: `NNTP_BIND_HOST`, `NNTP_PORT` (default `8119`), `NNTP_TLS_PORT` (default `8563`), `NNTP_TLS_CERT_PATH`, `NNTP_TLS_KEY_PATH`. The ports default to an unprivileged range; redirect the standard `119` / `563` to them with a firewall rule.
+- **AreaFix reply sync:** AreaFix and FileFix replies from an uplink are now recognised in the web UI even when the uplink adds or drops the `.0` point on its netmail address, so the conversation threads under **Admin → AreaFix** no longer break apart when a hub answers from a 3D address one way and a 4D address the next.
+- **AreaFix reply sync:** the area-list parser now ignores command receipts, execution logs, help text, and rescan confirmations instead of treating their contents as echo tags. Previously an uplink's "request processed" acknowledgement or quoted-header block could create bogus, inactive echo areas in the database.
+- **AreaFix reply sync:** inbound AreaFix / FileFix area-list replies received over an **authenticated (secure) BinkP session** are now synced into the local `echoareas` / `file_areas` tables automatically as packets are processed. Replies arriving over an insecure session, or whose packet origin does not match the configured uplink address, are ignored.
+- **AreaFix reply sync:** **Admin → AreaFix** gains a **Sync Areas to Local BBS** button on the latest-reply preview, backed by a new `POST /api/admin/areafix/sync-latest` endpoint, for manually syncing the most recent area list on demand.
+- **AreaFix reply sync:** box-art / decorative-line detection in the parser no longer discards area rows whose description contains accented UTF-8 characters.
 
-### Admin BBS Settings
+### Terminal Server
 
-- The **Admin -> BBS Settings** page is now organized into four tabs: **System & Features**, **Credit System**, **Tag Lines**, and **Registration Screening**. All settings and their save buttons are unchanged; they are only regrouped so the page is shorter and easier to navigate.
+- **Registration house rules:** the terminal server's **Register new account** flow now shows the house rules in a paged box and requires the prospective user to type `YES` to accept them before any account details are collected. Declining aborts registration. Custom house rules from **Admin -> Appearance -> Content -> House Rules** are shown when set; otherwise the built-in default rule set is used. The browser registration page already linked to the same rules.
+- **Full-screen editor flicker:** the terminal server's full-screen message editor (used automatically when the terminal has 15 or more rows) no longer erases and repaints the entire screen after every keystroke. Typing within a line now updates only that line, cursor movement emits only a cursor move, and structural edits repaint just the text area — borders and the footer stay put. This removes the constant blue-background blink that was visible while composing, especially on larger terminals or higher-latency connections. Terminals with ANSI colour disabled keep the previous full-redraw behaviour. Fixes issue #432.
+- **CP437 login ANSI art:** the ANSI login screen (`ansi_prompt` display mode) now accepts `.ans` files saved in Code Page 437 by DOS / Synchronet tools. The high-byte box-drawing and block characters are converted to UTF-8 for display, and a trailing SAUCE / EOF record is stripped. Previously these bytes rendered as replacement characters, and the admin appearance editor could not load or save such art.
 
-### MeshCore Enable/Disable
+### Door Games
 
-- A new **Enable MeshCore** toggle in **Admin -> BBS Settings -> System & Features** turns the whole MeshCore / PacketBBS radio subsystem on or off. It defaults to **on**, so existing MeshCore setups keep working. Turning it off makes the bridge API unreachable and hides every MeshCore surface (user settings tab, public nodes page, admin page, dashboard card, navigation links).
+- **Door player backspace handling:** the browser-based RLogin door player (`public_html/webdoors/rlogindoors/index.php`) now remaps the DEL byte (`0x7f`) that modern browsers send for the Backspace/Delete key to the Backspace byte (`0x08`) that RLogin door servers expect. Previously the Backspace key was ignored in RLogin doors (for example DOS doors run through DOSEMU/DOSBox, or MajorBBS). The equivalent DOS door players already had this remap; this brings the RLogin player in line.
+- **Door player backspace handling:** all three browser door players (`rlogindoors/index.php`, `webdoors/dosdoors/index.php`, `guest-door-player.php`) now also translate an inbound `0x7f` (DEL) coming *from* the door engine into a destructive backspace sequence (`\b \b`) before writing it to the terminal. Some door engines emit a bare DEL to erase the last character; xterm.js would otherwise render it as a visible glyph instead of erasing. Binary WebSocket frames are left untouched.
+- **BBSDEV.DRP drop file (experimental):** door manifests can now select `BBSDEV.DRP` as their `dropfile_format`, for both native doors and DOS doors, in the **Admin -> Door Manifest Editor**. BBSDEV.DRP is a modern 19-line drop file (UTF-8, one value per line) defined by [its own specification](https://realdeuce.github.io/bbsdev.drp/). A door set to this format receives only `BBSDEV.DRP` — no `DOOR.SYS` — and the drop file's absolute path is passed in the `BBSDEV_DRP` environment variable (native doors) or a guest environment variable of the same name (DOS doors). This support is **experimental and has not been tested against a real door**; `DOOR.SYS` remains the default and is unaffected.
 
-### NNTP Server
+### MeshCore / PacketBBS
 
-- BinktermPHP can now serve its echoareas as Usenet-style newsgroups over NNTP (RFC 3977), so members can read — and optionally post — echomail with a standard newsreader such as Thunderbird. It runs as a new optional daemon, `scripts/nntp_server.php`, and is **disabled by default**. Enable it, and configure rate limits and the plaintext-authentication policy, in the new **Admin -> NNTP Server** page. Posting from a newsreader is a second toggle on that page, also off by default.
-- Each member also gets a private **netmail** newsgroup whose articles are that member's own netmail; posting into it sends netmail. It is enabled by default when the NNTP server is on, with its own settings on the **Admin -> NNTP Server** page (group name, whether sending is allowed, whether sent mail is included, and a separate send rate limit).
-- New database tables (`nntp_article_numbers`, `nntp_area_watermark`) are created and populated from your existing echomail during the upgrade, plus `nntp_netmail_article_numbers` and `nntp_netmail_watermark` (per member, filled on first read) and a `tearline_component` column on `netmail`.
-- Transport settings — bind address, ports, and TLS certificate paths — are read from `.env`. New keys: `NNTP_BIND_HOST`, `NNTP_PORT` (default `8119`), `NNTP_TLS_PORT` (default `8563`), `NNTP_TLS_CERT_PATH`, `NNTP_TLS_KEY_PATH`. The ports default to an unprivileged range; redirect the standard `119` / `563` to them with a firewall rule.
-### Docker WebSocket Proxy
+- **Enable/disable toggle:** a new **Enable MeshCore** toggle in **Admin -> BBS Settings -> System & Features** turns the whole MeshCore / PacketBBS radio subsystem on or off. It defaults to **on**, so existing MeshCore setups keep working. Turning it off makes the bridge API unreachable and hides every MeshCore surface (user settings tab, public nodes page, admin page, dashboard card, navigation links).
 
-- The bundled Docker image now proxies the realtime WebSocket stream (`/ws`) and the DOS door bridge (`/dosdoor`) through Apache, so the event bus and browser-side DOS door games work in container deployments. Rebuild the image to pick this up.
+### Docker
 
-### Door Player Backspace Handling
+- **WebSocket proxy:** the bundled Docker image now proxies the realtime WebSocket stream (`/ws`) and the DOS door bridge (`/dosdoor`) through Apache, so the event bus and browser-side DOS door games work in container deployments. Rebuild the image to pick this up.
+- **Stale Apache PID cleanup:** `docker/entrypoint.sh` now removes any stale `/var/run/apache2/apache2.pid` (and other `/var/run/apache2/*.pid`) files during container initialization, before starting the main process. This prevents a crash loop after an abrupt Docker host shutdown or a killed container leaves a stale Apache PID file behind on a persisted volume.
 
-- The browser-based RLogin door player (`public_html/webdoors/rlogindoors/index.php`) now remaps the DEL byte (`0x7f`) that modern browsers send for the Backspace/Delete key to the Backspace byte (`0x08`) that RLogin door servers expect. Previously the Backspace key was ignored in RLogin doors (for example DOS doors run through DOSEMU/DOSBox, or MajorBBS). The equivalent DOS door players already had this remap; this brings the RLogin player in line.
-- All three browser door players (`rlogindoors/index.php`, `webdoors/dosdoors/index.php`, `guest-door-player.php`) now also translate an inbound `0x7f` (DEL) coming *from* the door engine into a destructive backspace sequence (`\b \b`) before writing it to the terminal. Some door engines emit a bare DEL to erase the last character; xterm.js would otherwise render it as a visible glyph instead of erasing. Binary WebSocket frames are left untouched.
+### CLI Scripts
 
-### BBSDEV.DRP Drop File (Experimental)
+- **Helper function loading:** `scripts/admin_daemon.php`, `scripts/install.php`, `scripts/setup.php`, and `scripts/upgrade.php` now load `src/functions.php` alongside the Composer autoloader, so the global helper functions it defines (such as `getServerLogger()`) are always available to those entrypoints.
 
-- Door manifests can now select `BBSDEV.DRP` as their `dropfile_format`, for both native doors and DOS doors, in the **Admin -> Door Manifest Editor**. BBSDEV.DRP is a modern 19-line drop file (UTF-8, one value per line) defined by [its own specification](https://realdeuce.github.io/bbsdev.drp/). A door set to this format receives only `BBSDEV.DRP` — no `DOOR.SYS` — and the drop file's absolute path is passed in the `BBSDEV_DRP` environment variable (native doors) or a guest environment variable of the same name (DOS doors). This support is **experimental and has not been tested against a real door**; `DOOR.SYS` remains the default and is unaffected.
+### Documentation
 
-### CLI Script Fixes
-
-- `scripts/admin_daemon.php`, `scripts/install.php`, `scripts/setup.php`, and `scripts/upgrade.php` now load `src/functions.php` alongside the Composer autoloader, so the global helper functions it defines (such as `getServerLogger()`) are always available to those entrypoints.
-
-### CP437 Login ANSI Art
-
-- The ANSI login screen (`ansi_prompt` display mode) now accepts `.ans` files saved in Code Page 437 by DOS / Synchronet tools. The high-byte box-drawing and block characters are converted to UTF-8 for display, and a trailing SAUCE / EOF record is stripped. Previously these bytes rendered as replacement characters, and the admin appearance editor could not load or save such art.
-
-### Terminal Registration House Rules
-
-- The terminal server's **Register new account** flow now shows the house rules in a paged box and requires the prospective user to type `YES` to accept them before any account details are collected. Declining aborts registration. Custom house rules from **Admin -> Appearance -> Content -> House Rules** are shown when set; otherwise the built-in default rule set is used. The browser registration page already linked to the same rules.
-
-### Terminal Full-Screen Editor Flicker
-
-- The terminal server's full-screen message editor (used automatically when the terminal has 15 or more rows) no longer erases and repaints the entire screen after every keystroke. Typing within a line now updates only that line, cursor movement emits only a cursor move, and structural edits repaint just the text area — borders and the footer stay put. This removes the constant blue-background blink that was visible while composing, especially on larger terminals or higher-latency connections. Terminals with ANSI colour disabled keep the previous full-redraw behaviour. Fixes issue #432.
-
-### Community Mods List
-
-- A new `docs/MODS.md` file is a curated list of third-party mods and extensions for BinktermPHP, linked from the Customization section of the README. It seeds with two mods by TheWebExpert: the Door Button Filter Mod (category filter bar on `/games`) and the Echo Area Button Mod (network-filter and quick-action bar on `/echolist`). Contributors add their own mods by pull request. Listed mods are maintained by their individual authors and have not necessarily been reviewed or tested by the BinktermPHP maintainer; review a mod's source before installing it.
-
-### Docker Stale Apache PID Cleanup
-
-- `docker/entrypoint.sh` now removes any stale `/var/run/apache2/apache2.pid` (and other `/var/run/apache2/*.pid`) files during container initialization, before starting the main process. This prevents a crash loop after an abrupt Docker host shutdown or a killed container leaves a stale Apache PID file behind on a persisted volume.
-
-### Navbar Active Section Indicator
-
-- The web navigation bar now marks the section for the page you are on: the matching top-level menu item is shown in bold with a short underline bar beneath it, in the navigation link colour of whatever theme is active. The section is worked out from the page URL, so a page with no menu entry of its own still highlights its parent — a message thread or the compose page marks **Messaging**, and a door launcher marks **Doors**.
-- The **Files** menu's new-files cue is now shown on the file icon only. Previously an incoming file also turned the word "Files" yellow, which looked like the active-section highlight. The file icon and the Files link inside the dropdown still turn yellow; only the top-level text label no longer does.
-
-### AreaFix Reply Sync
-
-- AreaFix and FileFix replies from an uplink are now recognised in the web UI even when the uplink adds or drops the `.0` point on its netmail address, so the conversation threads under **Admin → AreaFix** no longer break apart when a hub answers from a 3D address one way and a 4D address the next.
-- The area-list parser now ignores command receipts, execution logs, help text, and rescan confirmations instead of treating their contents as echo tags. Previously an uplink's "request processed" acknowledgement or quoted-header block could create bogus, inactive echo areas in the database.
-- Inbound AreaFix / FileFix area-list replies received over an **authenticated (secure) BinkP session** are now synced into the local `echoareas` / `file_areas` tables automatically as packets are processed. Replies arriving over an insecure session, or whose packet origin does not match the configured uplink address, are ignored.
-- **Admin → AreaFix** gains a **Sync Areas to Local BBS** button on the latest-reply preview, backed by a new `POST /api/admin/areafix/sync-latest` endpoint, for manually syncing the most recent area list on demand.
-- Box-art / decorative-line detection in the parser no longer discards area rows whose description contains accented UTF-8 characters.
-
-This ships a service-worker cache bump. A hard reload, or clearing the browser and service-worker cache, ensures clients pick up the updated AreaFix admin page.
-
-### Themed Message Threading Colors
-
-- The threaded-view accent colors on the echomail and netmail pages — the coloured left border on a thread root, the "N replies" badge, the reply arrow icon, and the row hover tint — were hardcoded to Bootstrap blue (`#0d6efd`) and stayed blue on every theme. They now derive from the theme's `--fidonet-blue` variable (falling back to `#0d6efd`), so dark, amber, greenterm, cyberpunk, and custom themes tint the threading UI to match. The badge additionally honours optional `--thread-badge-bg` / `--thread-badge-color` overrides.
+- **Community mods list:** a new `docs/MODS.md` file is a curated list of third-party mods and extensions for BinktermPHP, linked from the Customization section of the README. It seeds with two mods by TheWebExpert: the Door Button Filter Mod (category filter bar on `/games`) and the Echo Area Button Mod (network-filter and quick-action bar on `/echolist`). Contributors add their own mods by pull request. Listed mods are maintained by their individual authors and have not necessarily been reviewed or tested by the BinktermPHP maintainer; review a mod's source before installing it.
 
 ---
 
-## Message Composition
+## Web Interface
+
+### Message Composition
 
 When composing netmail or echomail, the editor can hard-wrap long lines automatically as you type. The wrap column is a per-user preference in the compose form's **Advanced Options**.
 
 Previously the default was 79 columns. When replying to a message, each quoted line is prefixed with an attribution string such as ` AB> `, which pushed quoted lines past 79 columns and caused readers to wrap them a second time. The default is now 72 columns, which keeps quoted lines within 79 after the prefix is added. A new **72 characters (recommended)** option appears in the wrap selector; the **79** option remains for users who want it. Existing saved preferences are unchanged.
 
-## Draft Handling on Send
+### Draft Handling on Send
 
 The web compose page auto-saves an in-progress netmail or echomail message as a draft every two minutes, and you can also save a draft by hand. Sending the message now cleans that draft up:
 
@@ -123,7 +105,7 @@ The web compose page auto-saves an in-progress netmail or echomail message as a 
 - The compose page now waits for an in-flight auto-save to finish before sending, instead of cancelling it. Cancelling it client-side did not stop the save from completing on the server, which is how the leftover drafts were being created.
 - If a send fails — a validation error, a server error, or (for netmail) an attachment that fails to upload — the two-minute auto-save timer is now restarted when the form is re-enabled. Before, a failed send left auto-save switched off for the rest of the session, so later edits were not being saved until the page was reloaded.
 
-## Admin BBS Settings
+### Admin BBS Settings
 
 The **Admin -> BBS Settings** page previously presented every section as a long vertical stack of cards. It is now split into four tabs:
 
@@ -134,26 +116,37 @@ The **Admin -> BBS Settings** page previously presented every section as a long 
 
 Each tab keeps its own **Save** button and saves independently, exactly as before.
 
-## MeshCore Enable/Disable
+### Navbar Active Section Indicator
 
-MeshCore (also referred to as PacketBBS — the mesh-radio / low-bandwidth access path) can now be switched off entirely from **Admin -> BBS Settings -> System & Features** with the **Enable MeshCore** checkbox. This corresponds to a new `features.meshcore` key in `config/bbs.json`.
+The top navigation bar of the web interface now shows which section you are viewing. The menu item that matches the current page is rendered in bold with a 3-pixel indicator bar along its lower edge. The bar takes its colour from the navigation link's active colour, so it adapts to every bundled theme — the Bootswatch themes (Slate, Cyborg, Darkly, Solar, and the rest) and the terminal-style themes (amber, dark, greenterm, cyberpunk) — with no per-theme configuration.
 
-The toggle defaults to **enabled**, so a system that is already using MeshCore sees no change after upgrading.
+The active section is determined from the browser's current path matched against the navbar links, not from a fixed list, so pages that do not have their own menu entry still highlight the menu they belong to:
 
-When it is disabled:
+- Reading a message or composing one marks **Messaging**.
+- The RLogin, DOS, JS-DOS, and web door launchers mark **Doors**.
+- A link inside a dropdown menu also marks its parent top-level menu.
 
-- All bridge endpoints (`/api/packetbbs/*` and `/api/meshcore/*`) return `404`, so no radio bridge can authenticate or relay commands.
-- The **MeshCore** tab in each user's **Settings** page is hidden.
-- The public **Meshcore Nodes** page (`/packetbbs-nodes`), the "Meshcore Nodes" navigation links, and the dashboard "Packet BBS Status" card are hidden.
-- The **Admin -> Packet BBS** management page returns `404` and its navigation link is hidden.
+Separately, the **Files** menu's indicator for newly arrived files has been narrowed. It previously turned both the file icon and the top-level "Files" text label yellow. A yellow label was easily mistaken for the active-section highlight, implying you were on the Files page when you were not. The cue is now carried by the file icon alone — matching how the Messaging, Chat, and Mail menus already indicate unread items — along with the Files entry inside the dropdown. Whether new files are signalled is unchanged; only where the colour appears.
 
-Node records, radio sessions, and stored contacts are not deleted while MeshCore is disabled; re-enabling the toggle restores everything.
+A hard reload, or clearing the browser and service-worker cache, ensures clients load the updated navbar script.
 
-## NNTP Server
+### Themed Message Threading Colors
+
+The threaded message view on `/echomail` and `/netmail` draws several accent elements: a coloured left border and background wash on the root message of a thread, a small "replies" badge, a reply-arrow icon on each reply, and a slightly stronger background on row hover. These were written with literal Bootstrap-blue values (`#0d6efd` and `rgba(13, 110, 253, …)`), so they rendered blue regardless of the active theme, clashing with the terminal-style themes and ignoring custom theme palettes.
+
+`templates/echomail.twig` and `templates/netmail.twig` now express those colours as `var(--fidonet-blue, #0d6efd)`, and the translucent border/hover washes use `color-mix(in srgb, var(--fidonet-blue, #0d6efd) N%, transparent)`. Any theme that defines `--fidonet-blue` (the bundled amber, dark, greenterm, and cyberpunk themes, and any custom theme) now colours the threading UI to match, and themes that do not define it fall back to the original blue.
+
+The replies badge also reads two optional variables, `--thread-badge-bg` and `--thread-badge-color`, before falling back to `--fidonet-blue` and white, so a theme can style that badge independently if needed.
+
+A hard reload, or clearing the browser and service-worker cache, ensures clients pick up the updated templates.
+
+## Messaging / FTN
+
+### NNTP Server
 
 An NNTP server lets members connect with any standard newsreader (Thunderbird, slrn, tin, Forte Agent) and read FTN echoareas as if they were newsgroups. Each echoarea a member is subscribed to appears as a newsgroup named `<Network>.<AreaTag>`, for example `FidoNet.GENERAL` or `LovlyNet.LVLY_BINKTERMPHP`. Members sign in with their normal BinktermPHP username and password.
 
-### Enabling it
+#### Enabling it
 
 Turn the server on in **Admin -> NNTP Server** (*Enable the NNTP server*). The same page has the newsgroup-name prefix style, a per-IP connection limit, per-member posting rate limits, and a *plaintext authentication* switch. These are stored in a new `config/nntp.json`, written through the admin daemon. A disabled server answers connections with a `400` error and closes; you must restart the daemon after switching it on.
 
@@ -179,11 +172,11 @@ scripts/restart_daemons.sh --start nntp_daemon
 
 On Windows it is not part of `start_daemons_windows.*` and must be started by hand with `php scripts/nntp_server.php`. In Docker, set `ENABLE_NNTP: "true"` in `docker-compose.override.yml` and uncomment its port lines (`119:8119`, `563:8563`).
 
-### Posting
+#### Posting
 
 Reading works as soon as the server is enabled. To also let members compose and reply from their newsreader, turn on *Allow posting from newsreaders* in **Admin -> NNTP Server**. Posted articles go through the same path as a web or terminal post, so the echoarea's posting-name policy and echomail moderation apply, and the message is attributed to the signed-in member regardless of the `From:` line the newsreader sends. A post whose `Newsgroups:` header names more echoareas than the configured cross-post limit is rejected rather than trimmed.
 
-### Netmail newsgroup
+#### Netmail newsgroup
 
 Every signed-in member sees one more group — `netmail` by default — that works like a personal mail folder. Its articles are that member's own netmail: received mail, plus mail they sent unless you turn that off. Two members connected to the same server see completely different articles under the same group name, and a member can never read another member's netmail through it. New inbound netmail appears as new articles automatically.
 
@@ -191,68 +184,62 @@ With *Allow posting from newsreaders* on, a second switch, *Allow sending netmai
 
 The **Admin -> NNTP Server** page adds: *Offer the netmail newsgroup* (on by default), the group name, *Allow sending netmail from newsreaders*, *Include sent netmail as articles*, and *Netmail per minute / hour* send limits (separate from the echomail posting limits).
 
-### Article numbering
+#### Article numbering
 
 NNTP requires per-newsgroup article numbers that are never reused. The `nntp_article_numbers` and `nntp_area_watermark` tables track them for echoareas, and `nntp_netmail_article_numbers` / `nntp_netmail_watermark` track them per member for the netmail group. The daemon assigns numbers the first time a member opens the group. If echomail is pruned or a netmail is deleted, the numbers it held are retired, not reissued.
 
 The `20260829200318_nntp_article_numbers` migration backfills a number for every existing approved echomail message in one large `INSERT ... SELECT`. On a big message base this takes a while — roughly 36 seconds for 100,000+ messages on Claude's. A pause of that length while `php scripts/setup.php` runs the migration is normal; let it finish rather than interrupting it.
 
 See `docs/NNTP.md` for connecting a newsreader and troubleshooting.
-## Docker WebSocket Proxy
 
-The bundled Docker image now proxies the realtime WebSocket stream and the DOS door bridge through Apache. The image enables `mod_proxy`, `mod_proxy_http`, and `mod_proxy_wstunnel`, and ships a `docker/000-default.conf` virtual host that forwards `/ws` to the BinkStream server on `127.0.0.1:6010` and `/dosdoor` to the door bridge on `127.0.0.1:6001`.
+### AreaFix Reply Sync
 
-Previously these WebSocket endpoints were not reachable from inside the container, which broke the realtime event bus and browser-side DOS door games for Docker deployments. Rebuilding the image from the updated `Dockerfile` picks up the change.
+BinktermPHP tracks AreaFix and FileFix conversations with each uplink and shows them under **Admin → AreaFix**. Several problems in how those replies were matched and parsed have been fixed.
 
-If you run your own reverse proxy in front of the container, make sure it also passes `/ws` and `/dosdoor` through as WebSocket upgrades to Apache on port 80.
+#### 3D / 4D address matching
 
-## Door Player Backspace Handling
+FidoNet nodes can be written as a 3D address (`999:100/10`) or a 4D address that includes an explicit point of zero (`999:100/10.0`); the two refer to the same node. Some hubs reply to an AreaFix request from one form and to the next from the other. Previously the AreaFix history query matched the uplink address exactly, so a hub that switched forms appeared as two unrelated conversations and the outgoing request could not be paired with its reply. The query now matches both the 3D and 4D form of your own address and of each uplink, so the thread stays intact regardless of which form the hub uses.
 
-### Outbound: Backspace key to the door
+#### Receipt and help-text guarding
 
-On modern browsers — particularly on macOS and iOS — xterm.js emits ASCII `0x7f` (DEL) when the user presses the Backspace or Delete key. RLogin door servers, and the DOS doors they front (DOSEMU/DOSBox, MajorBBS, and similar), expect ASCII `0x08` (BS) instead, so the Backspace key did nothing inside an RLogin door.
+An AreaFix area list and an AreaFix acknowledgement are both plain netmail from the same robot. The parser used to scan any such message for lines that looked like `TAG  Description` and, on a "your request has been processed" receipt or a block of quoted headers, would occasionally register those lines as new echo areas — created inactive, with an `Auto-created:` description, cluttering the echo area list.
 
-The browser DOS door players (`public_html/webdoors/dosdoors/index.php` and `guest-door-player.php`) already translated `0x7f` to `0x08` in their `term.onData()` handler. That same translation is now applied in the RLogin door player (`public_html/webdoors/rlogindoors/index.php`), so Backspace works consistently across all browser-side door players. The RLogin handler now uses a global replace, so a DEL byte inside a pasted or multi-character chunk is remapped too, not only a lone keystroke.
+The parser now rejects a message as an area list when its subject indicates a result, help, or node-change response (unless it also says "list" or "query"), or when its body contains receipt markers such as `<-- COMMAND PROCESSED`, `[ BEGIN MESSAGE ]`, a commands-help listing, quoted original message text, or a rescan confirmation. Decorative box-drawing lines are also skipped; that check no longer discards a genuine area row that happens to contain an accented character such as `é` or `ü`.
 
-### Inbound: DEL echo from the door
+If earlier releases created spurious areas on your system, they will be inactive echo areas with an `Auto-created:` description and no messages — safe to delete from **Admin → Echo Areas**.
 
-All three players (`rlogindoors/index.php`, `webdoors/dosdoors/index.php`, `guest-door-player.php`) now rewrite an inbound `0x7f` (DEL) in the stream from the door engine to a destructive backspace sequence (`\b \b`) before `term.write()`. Some door engines send a bare DEL to erase the previously typed character; without this, xterm.js drew it as a visible glyph and the erase never happened. Only string WebSocket frames are affected; binary frames pass through unchanged.
+#### Automatic ingestion of inbound replies
 
-Clearing the browser/service-worker cache (or a hard reload) ensures clients pick up the updated scripts.
+When an AreaFix or FileFix reply arrives in an inbound packet over an **authenticated BinkP session**, BinktermPHP now parses the area list and synchronises it into the local `echoareas` (or `file_areas`) table as the packet is processed: areas in the list that do not exist locally are created active, and existing areas that were inactive are re-activated. This previously required copying the reply text into the admin tool by hand.
 
-## BBSDEV.DRP Drop File (Experimental)
+For safety this runs only when the session was password-authenticated as the sending uplink and the packet's origin address matches the configured uplink. A reply received over an insecure session is not auto-imported; use the manual sync button below after confirming the reply is genuine.
 
-BinktermPHP has always written a `DOOR.SYS` drop file (and, for native doors, optionally `DOOR32.SYS`) into the per-node drop directory before launching a door game. `BBSDEV.DRP` is a third option, defined by an independent specification at <https://realdeuce.github.io/bbsdev.drp/>. It is a plain-text file of exactly 19 lines, one field per line, encoded as UTF-8 without a byte-order mark, that replaces the ambiguous numeric fields of the legacy formats with explicit values (screen size, IANA encoding name, BCP 47 language tag, and so on).
+Automatic ingestion never deactivates or deletes local areas — it only adds and re-activates.
 
-To use it, edit a door in **Admin -> Door Manifest Editor** (native or DOS) and set **Drop file format** to **BBSDEV.DRP**, then save. From then on that door receives only a `BBSDEV.DRP` file — `DOOR.SYS` is not written for it, the same way selecting `DOOR32.SYS` works today. The file is written and closed before the door starts and removed after it exits.
+#### Manual sync button
 
-The door finds the file through the `BBSDEV_DRP` environment variable, which holds the file's absolute path. For native doors this is set directly in the door process environment (the older `DOOR_DROPFILE` variable is still set too). For DOS doors the DOSBox autoexec sets a guest `BBSDEV_DRP` variable and the `{dropfile}` launch-command macro resolves to `BBSDEV.DRP`.
+**Admin → AreaFix** now has a **Sync Areas to Local BBS** button on the preview of the latest reply from an uplink. It calls the new endpoint:
 
-Field values are taken from the session: the user's name and numeric ID, whether the account is an administrator (reported as access level `sysop`, otherwise `50`), the user's locale as a language tag, the door's configured terminal size (default 80x25), the encoding (`IBM437` when the door's output encoding is CP437, otherwise `UTF-8`), and the BBS name, sysop name, and BinktermPHP version. The full line-by-line mapping is in `docs/NativeDoors.md`.
+```
+POST /api/admin/areafix/sync-latest
+{ "uplink": "999:100/10", "robot": "areafix" }
+```
 
-This feature is **experimental**. It follows the specification as published but has not yet been exercised against a real door that consumes `BBSDEV.DRP`. Leave `dropfile_format` at its default (`DOOR.SYS`) unless you are specifically testing a BBSDEV.DRP-aware door, and report problems on the GitHub issue tracker.
+The endpoint finds the most recent incoming area-list reply from that uplink, parses it, and performs the same create/re-activate synchronisation described above, returning a summary of how many areas were created and re-activated. It is documented in `docs/API.md`.
 
-## CLI Script Fixes
+#### Client cache
 
-`scripts/admin_daemon.php`, `scripts/install.php`, `scripts/setup.php`, and `scripts/upgrade.php` now load `src/functions.php` in addition to the Composer autoloader.
+This change bumps the service-worker cache version. Users should hard-reload the admin interface, or clear the browser and service-worker cache, so the updated AreaFix page and its new button load.
 
-The helper functions in `src/functions.php` (such as `getServerLogger()`) are plain global functions, not PSR-4 autoloaded classes, so they are only available where the file is explicitly required. These CLI entrypoints did not require it. Some code they can reach — the admin daemon's BBS Settings handling, and individual migration files — calls those helpers, so this closes a latent `Call to undefined function BinktermPHP\getServerLogger()` risk on those paths.
+## Terminal Server
 
-## CP437 Login ANSI Art
-
-When the login screen display mode is set to **ANSI prompt**, the uploaded `.ans` file is shown to connecting terminal users. ANSI art produced by DOS and Synchronet tools (TheDraw, PabloDraw, and similar) is normally encoded in Code Page 437, using high-byte characters for the box-drawing and block glyphs (`░▒▓█`, `╔═╗`, `║`, `╚═╝`).
-
-Those raw CP437 bytes are not valid UTF-8. When passed through template output they were rejected by `htmlspecialchars()` and every affected character was replaced with the Unicode replacement character, corrupting the art. Files that ended with a SAUCE metadata record (introduced by an `0x1A` EOF byte) also had that record passed straight through.
-
-`AppearanceConfig::getLoginScreenAnsi()` now truncates the content at the `0x1A` delimiter to drop any EOF / SAUCE block, and converts non-UTF-8 content from CP437 to UTF-8 with `iconv()` (falling back to `mb_convert_encoding()`), matching how shell art is already handled elsewhere. `AdminDaemonServer::getAppearanceConfig()` performs the same conversion before returning the JSON payload, so the **Admin -> Appearance** editor can load, edit, and save CP437 ANSI art without encoding errors.
-
-## Terminal Registration House Rules
+### Registration House Rules
 
 When a user chooses **N — Register new account** at the terminal server pre-login menu, the registration flow now begins by displaying the house rules in a scrollable paged box. After reading them the user is prompted to type `YES` to continue; any other response (or `cancel`) aborts registration before a username, password, or any other detail is entered.
 
 The rules text is resolved the same way the browser's House Rules modal resolves it: the Markdown from **Admin -> Appearance -> Content -> House Rules** is used when it has been set, and the built-in default rule set (civility, no spam, respect privacy, FidoNet etiquette, sysop decisions are final) is shown otherwise. Both sources are localized to the connecting user's language.
 
-## Terminal Full-Screen Editor Flicker
+### Full-Screen Editor Flicker
 
 The terminal server's full-screen message editor is the framed, blue-background editor shown when composing a message on a terminal with at least 15 rows. Previously it repainted the whole screen — clearing to the background colour, hiding the cursor, and redrawing the borders, every text row, and the footer — after every keypress. On larger terminals and on connections with any latency this produced a constant visible flicker while typing.
 
@@ -265,7 +252,86 @@ The editor now redraws incrementally:
 
 Terminals connected with ANSI colour disabled continue to use the original full-redraw path unchanged.
 
-## Community Mods List
+### CP437 Login ANSI Art
+
+When the login screen display mode is set to **ANSI prompt**, the uploaded `.ans` file is shown to connecting terminal users. ANSI art produced by DOS and Synchronet tools (TheDraw, PabloDraw, and similar) is normally encoded in Code Page 437, using high-byte characters for the box-drawing and block glyphs (`░▒▓█`, `╔═╗`, `║`, `╚═╝`).
+
+Those raw CP437 bytes are not valid UTF-8. When passed through template output they were rejected by `htmlspecialchars()` and every affected character was replaced with the Unicode replacement character, corrupting the art. Files that ended with a SAUCE metadata record (introduced by an `0x1A` EOF byte) also had that record passed straight through.
+
+`AppearanceConfig::getLoginScreenAnsi()` now truncates the content at the `0x1A` delimiter to drop any EOF / SAUCE block, and converts non-UTF-8 content from CP437 to UTF-8 with `iconv()` (falling back to `mb_convert_encoding()`), matching how shell art is already handled elsewhere. `AdminDaemonServer::getAppearanceConfig()` performs the same conversion before returning the JSON payload, so the **Admin -> Appearance** editor can load, edit, and save CP437 ANSI art without encoding errors.
+
+## Door Games
+
+### Door Player Backspace Handling
+
+#### Outbound: Backspace key to the door
+
+On modern browsers — particularly on macOS and iOS — xterm.js emits ASCII `0x7f` (DEL) when the user presses the Backspace or Delete key. RLogin door servers, and the DOS doors they front (DOSEMU/DOSBox, MajorBBS, and similar), expect ASCII `0x08` (BS) instead, so the Backspace key did nothing inside an RLogin door.
+
+The browser DOS door players (`public_html/webdoors/dosdoors/index.php` and `guest-door-player.php`) already translated `0x7f` to `0x08` in their `term.onData()` handler. That same translation is now applied in the RLogin door player (`public_html/webdoors/rlogindoors/index.php`), so Backspace works consistently across all browser-side door players. The RLogin handler now uses a global replace, so a DEL byte inside a pasted or multi-character chunk is remapped too, not only a lone keystroke.
+
+#### Inbound: DEL echo from the door
+
+All three players (`rlogindoors/index.php`, `webdoors/dosdoors/index.php`, `guest-door-player.php`) now rewrite an inbound `0x7f` (DEL) in the stream from the door engine to a destructive backspace sequence (`\b \b`) before `term.write()`. Some door engines send a bare DEL to erase the previously typed character; without this, xterm.js drew it as a visible glyph and the erase never happened. Only string WebSocket frames are affected; binary frames pass through unchanged.
+
+Clearing the browser/service-worker cache (or a hard reload) ensures clients pick up the updated scripts.
+
+### BBSDEV.DRP Drop File (Experimental)
+
+BinktermPHP has always written a `DOOR.SYS` drop file (and, for native doors, optionally `DOOR32.SYS`) into the per-node drop directory before launching a door game. `BBSDEV.DRP` is a third option, defined by an independent specification at <https://realdeuce.github.io/bbsdev.drp/>. It is a plain-text file of exactly 19 lines, one field per line, encoded as UTF-8 without a byte-order mark, that replaces the ambiguous numeric fields of the legacy formats with explicit values (screen size, IANA encoding name, BCP 47 language tag, and so on).
+
+To use it, edit a door in **Admin -> Door Manifest Editor** (native or DOS) and set **Drop file format** to **BBSDEV.DRP**, then save. From then on that door receives only a `BBSDEV.DRP` file — `DOOR.SYS` is not written for it, the same way selecting `DOOR32.SYS` works today. The file is written and closed before the door starts and removed after it exits.
+
+The door finds the file through the `BBSDEV_DRP` environment variable, which holds the file's absolute path. For native doors this is set directly in the door process environment (the older `DOOR_DROPFILE` variable is still set too). For DOS doors the DOSBox autoexec sets a guest `BBSDEV_DRP` variable and the `{dropfile}` launch-command macro resolves to `BBSDEV.DRP`.
+
+Field values are taken from the session: the user's name and numeric ID, whether the account is an administrator (reported as access level `sysop`, otherwise `50`), the user's locale as a language tag, the door's configured terminal size (default 80x25), the encoding (`IBM437` when the door's output encoding is CP437, otherwise `UTF-8`), and the BBS name, sysop name, and BinktermPHP version. The full line-by-line mapping is in `docs/NativeDoors.md`.
+
+This feature is **experimental**. It follows the specification as published but has not yet been exercised against a real door that consumes `BBSDEV.DRP`. Leave `dropfile_format` at its default (`DOOR.SYS`) unless you are specifically testing a BBSDEV.DRP-aware door, and report problems on the GitHub issue tracker.
+
+## MeshCore / PacketBBS
+
+### Enable/Disable Toggle
+
+MeshCore (also referred to as PacketBBS — the mesh-radio / low-bandwidth access path) can now be switched off entirely from **Admin -> BBS Settings -> System & Features** with the **Enable MeshCore** checkbox. This corresponds to a new `features.meshcore` key in `config/bbs.json`.
+
+The toggle defaults to **enabled**, so a system that is already using MeshCore sees no change after upgrading.
+
+When it is disabled:
+
+- All bridge endpoints (`/api/packetbbs/*` and `/api/meshcore/*`) return `404`, so no radio bridge can authenticate or relay commands.
+- The **MeshCore** tab in each user's **Settings** page is hidden.
+- The public **Meshcore Nodes** page (`/packetbbs-nodes`), the "Meshcore Nodes" navigation links, and the dashboard "Packet BBS Status" card are hidden.
+- The **Admin -> Packet BBS** management page returns `404` and its navigation link is hidden.
+
+Node records, radio sessions, and stored contacts are not deleted while MeshCore is disabled; re-enabling the toggle restores everything.
+
+## Docker
+
+### WebSocket Proxy
+
+The bundled Docker image now proxies the realtime WebSocket stream and the DOS door bridge through Apache. The image enables `mod_proxy`, `mod_proxy_http`, and `mod_proxy_wstunnel`, and ships a `docker/000-default.conf` virtual host that forwards `/ws` to the BinkStream server on `127.0.0.1:6010` and `/dosdoor` to the door bridge on `127.0.0.1:6001`.
+
+Previously these WebSocket endpoints were not reachable from inside the container, which broke the realtime event bus and browser-side DOS door games for Docker deployments. Rebuilding the image from the updated `Dockerfile` picks up the change.
+
+If you run your own reverse proxy in front of the container, make sure it also passes `/ws` and `/dosdoor` through as WebSocket upgrades to Apache on port 80.
+
+### Stale Apache PID Cleanup
+
+If a Docker host shuts down or restarts abruptly, or a container is stopped with `docker stop` past its timeout (or killed with `SIGKILL`), Apache can leave behind a stale `/var/run/apache2/apache2.pid` on the persisted volume. On the next container start, `apache2-foreground` sees the existing PID file and exits immediately, putting the container into a crash loop until the PID file (or volume) is removed by hand.
+
+`docker/entrypoint.sh` now removes `/var/run/apache2/apache2.pid` and any other `/var/run/apache2/*.pid` files during initialization, before the main command starts. Rebuild the image to pick up the fix.
+
+## CLI Scripts
+
+### Helper Function Loading
+
+`scripts/admin_daemon.php`, `scripts/install.php`, `scripts/setup.php`, and `scripts/upgrade.php` now load `src/functions.php` in addition to the Composer autoloader.
+
+The helper functions in `src/functions.php` (such as `getServerLogger()`) are plain global functions, not PSR-4 autoloaded classes, so they are only available where the file is explicitly required. These CLI entrypoints did not require it. Some code they can reach — the admin daemon's BBS Settings handling, and individual migration files — calls those helpers, so this closes a latent `Call to undefined function BinktermPHP\getServerLogger()` risk on those paths.
+
+## Documentation
+
+### Community Mods List
 
 `docs/MODS.md` is a curated list of third-party mods, extensions, and tweaks for BinktermPHP. The Customization section of the README links to it.
 
@@ -277,75 +343,6 @@ The list launches with two entries, both by TheWebExpert (The Adventure BBS, 227
 Both use the `templates/custom/header.insert.twig` customization hook.
 
 Contributors with a mod to share add a section to `docs/MODS.md` by pull request against the `claudesbbs` branch, following the existing entry format. Mods in the list are written and maintained by their individual authors and **have not necessarily been reviewed or tested by the BinktermPHP maintainer** — review a mod's source code before installing it on your system.
-
-## Docker Stale Apache PID Cleanup
-
-If a Docker host shuts down or restarts abruptly, or a container is stopped with `docker stop` past its timeout (or killed with `SIGKILL`), Apache can leave behind a stale `/var/run/apache2/apache2.pid` on the persisted volume. On the next container start, `apache2-foreground` sees the existing PID file and exits immediately, putting the container into a crash loop until the PID file (or volume) is removed by hand.
-
-`docker/entrypoint.sh` now removes `/var/run/apache2/apache2.pid` and any other `/var/run/apache2/*.pid` files during initialization, before the main command starts. Rebuild the image to pick up the fix.
-
-## Navbar Active Section Indicator
-
-The top navigation bar of the web interface now shows which section you are viewing. The menu item that matches the current page is rendered in bold with a 3-pixel indicator bar along its lower edge. The bar takes its colour from the navigation link's active colour, so it adapts to every bundled theme — the Bootswatch themes (Slate, Cyborg, Darkly, Solar, and the rest) and the terminal-style themes (amber, dark, greenterm, cyberpunk) — with no per-theme configuration.
-
-The active section is determined from the browser's current path matched against the navbar links, not from a fixed list, so pages that do not have their own menu entry still highlight the menu they belong to:
-
-- Reading a message or composing one marks **Messaging**.
-- The RLogin, DOS, JS-DOS, and web door launchers mark **Doors**.
-- A link inside a dropdown menu also marks its parent top-level menu.
-
-Separately, the **Files** menu's indicator for newly arrived files has been narrowed. It previously turned both the file icon and the top-level "Files" text label yellow. A yellow label was easily mistaken for the active-section highlight, implying you were on the Files page when you were not. The cue is now carried by the file icon alone — matching how the Messaging, Chat, and Mail menus already indicate unread items — along with the Files entry inside the dropdown. Whether new files are signalled is unchanged; only where the colour appears.
-
-A hard reload, or clearing the browser and service-worker cache, ensures clients load the updated navbar script.
-
-## Themed Message Threading Colors
-
-The threaded message view on `/echomail` and `/netmail` draws several accent elements: a coloured left border and background wash on the root message of a thread, a small "replies" badge, a reply-arrow icon on each reply, and a slightly stronger background on row hover. These were written with literal Bootstrap-blue values (`#0d6efd` and `rgba(13, 110, 253, …)`), so they rendered blue regardless of the active theme, clashing with the terminal-style themes and ignoring custom theme palettes.
-
-`templates/echomail.twig` and `templates/netmail.twig` now express those colours as `var(--fidonet-blue, #0d6efd)`, and the translucent border/hover washes use `color-mix(in srgb, var(--fidonet-blue, #0d6efd) N%, transparent)`. Any theme that defines `--fidonet-blue` (the bundled amber, dark, greenterm, and cyberpunk themes, and any custom theme) now colours the threading UI to match, and themes that do not define it fall back to the original blue.
-
-The replies badge also reads two optional variables, `--thread-badge-bg` and `--thread-badge-color`, before falling back to `--fidonet-blue` and white, so a theme can style that badge independently if needed.
-
-A hard reload, or clearing the browser and service-worker cache, ensures clients pick up the updated templates.
-
-## AreaFix Reply Sync
-
-BinktermPHP tracks AreaFix and FileFix conversations with each uplink and shows them under **Admin → AreaFix**. Several problems in how those replies were matched and parsed have been fixed.
-
-### 3D / 4D address matching
-
-FidoNet nodes can be written as a 3D address (`999:100/10`) or a 4D address that includes an explicit point of zero (`999:100/10.0`); the two refer to the same node. Some hubs reply to an AreaFix request from one form and to the next from the other. Previously the AreaFix history query matched the uplink address exactly, so a hub that switched forms appeared as two unrelated conversations and the outgoing request could not be paired with its reply. The query now matches both the 3D and 4D form of your own address and of each uplink, so the thread stays intact regardless of which form the hub uses.
-
-### Receipt and help-text guarding
-
-An AreaFix area list and an AreaFix acknowledgement are both plain netmail from the same robot. The parser used to scan any such message for lines that looked like `TAG  Description` and, on a "your request has been processed" receipt or a block of quoted headers, would occasionally register those lines as new echo areas — created inactive, with an `Auto-created:` description, cluttering the echo area list.
-
-The parser now rejects a message as an area list when its subject indicates a result, help, or node-change response (unless it also says "list" or "query"), or when its body contains receipt markers such as `<-- COMMAND PROCESSED`, `[ BEGIN MESSAGE ]`, a commands-help listing, quoted original message text, or a rescan confirmation. Decorative box-drawing lines are also skipped; that check no longer discards a genuine area row that happens to contain an accented character such as `é` or `ü`.
-
-If earlier releases created spurious areas on your system, they will be inactive echo areas with an `Auto-created:` description and no messages — safe to delete from **Admin → Echo Areas**.
-
-### Automatic ingestion of inbound replies
-
-When an AreaFix or FileFix reply arrives in an inbound packet over an **authenticated BinkP session**, BinktermPHP now parses the area list and synchronises it into the local `echoareas` (or `file_areas`) table as the packet is processed: areas in the list that do not exist locally are created active, and existing areas that were inactive are re-activated. This previously required copying the reply text into the admin tool by hand.
-
-For safety this runs only when the session was password-authenticated as the sending uplink and the packet's origin address matches the configured uplink. A reply received over an insecure session is not auto-imported; use the manual sync button below after confirming the reply is genuine.
-
-Automatic ingestion never deactivates or deletes local areas — it only adds and re-activates.
-
-### Manual sync button
-
-**Admin → AreaFix** now has a **Sync Areas to Local BBS** button on the preview of the latest reply from an uplink. It calls the new endpoint:
-
-```
-POST /api/admin/areafix/sync-latest
-{ "uplink": "999:100/10", "robot": "areafix" }
-```
-
-The endpoint finds the most recent incoming area-list reply from that uplink, parses it, and performs the same create/re-activate synchronisation described above, returning a summary of how many areas were created and re-activated. It is documented in `docs/API.md`.
-
-### Client cache
-
-This change bumps the service-worker cache version. Users should hard-reload the admin interface, or clear the browser and service-worker cache, so the updated AreaFix page and its new button load.
 
 ## Upgrade Instructions
 
