@@ -21,6 +21,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Docker Stale Apache PID Cleanup](#docker-stale-apache-pid-cleanup)
 - [Navbar Active Section Indicator](#navbar-active-section-indicator)
 - [Themed Message Threading Colors](#themed-message-threading-colors)
+- [AreaFix Reply Sync](#areafix-reply-sync)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -91,6 +92,16 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - The web navigation bar now marks the section for the page you are on: the matching top-level menu item is shown in bold with a short underline bar beneath it, in the navigation link colour of whatever theme is active. The section is worked out from the page URL, so a page with no menu entry of its own still highlights its parent — a message thread or the compose page marks **Messaging**, and a door launcher marks **Doors**.
 - The **Files** menu's new-files cue is now shown on the file icon only. Previously an incoming file also turned the word "Files" yellow, which looked like the active-section highlight. The file icon and the Files link inside the dropdown still turn yellow; only the top-level text label no longer does.
+
+### AreaFix Reply Sync
+
+- AreaFix and FileFix replies from an uplink are now recognised in the web UI even when the uplink adds or drops the `.0` point on its netmail address, so the conversation threads under **Admin → AreaFix** no longer break apart when a hub answers from a 3D address one way and a 4D address the next.
+- The area-list parser now ignores command receipts, execution logs, help text, and rescan confirmations instead of treating their contents as echo tags. Previously an uplink's "request processed" acknowledgement or quoted-header block could create bogus, inactive echo areas in the database.
+- Inbound AreaFix / FileFix area-list replies received over an **authenticated (secure) BinkP session** are now synced into the local `echoareas` / `file_areas` tables automatically as packets are processed. Replies arriving over an insecure session, or whose packet origin does not match the configured uplink address, are ignored.
+- **Admin → AreaFix** gains a **Sync Areas to Local BBS** button on the latest-reply preview, backed by a new `POST /api/admin/areafix/sync-latest` endpoint, for manually syncing the most recent area list on demand.
+- Box-art / decorative-line detection in the parser no longer discards area rows whose description contains accented UTF-8 characters.
+
+This ships a service-worker cache bump. A hard reload, or clearing the browser and service-worker cache, ensures clients pick up the updated AreaFix admin page.
 
 ### Themed Message Threading Colors
 
@@ -296,6 +307,45 @@ The threaded message view on `/echomail` and `/netmail` draws several accent ele
 The replies badge also reads two optional variables, `--thread-badge-bg` and `--thread-badge-color`, before falling back to `--fidonet-blue` and white, so a theme can style that badge independently if needed.
 
 A hard reload, or clearing the browser and service-worker cache, ensures clients pick up the updated templates.
+
+## AreaFix Reply Sync
+
+BinktermPHP tracks AreaFix and FileFix conversations with each uplink and shows them under **Admin → AreaFix**. Several problems in how those replies were matched and parsed have been fixed.
+
+### 3D / 4D address matching
+
+FidoNet nodes can be written as a 3D address (`999:100/10`) or a 4D address that includes an explicit point of zero (`999:100/10.0`); the two refer to the same node. Some hubs reply to an AreaFix request from one form and to the next from the other. Previously the AreaFix history query matched the uplink address exactly, so a hub that switched forms appeared as two unrelated conversations and the outgoing request could not be paired with its reply. The query now matches both the 3D and 4D form of your own address and of each uplink, so the thread stays intact regardless of which form the hub uses.
+
+### Receipt and help-text guarding
+
+An AreaFix area list and an AreaFix acknowledgement are both plain netmail from the same robot. The parser used to scan any such message for lines that looked like `TAG  Description` and, on a "your request has been processed" receipt or a block of quoted headers, would occasionally register those lines as new echo areas — created inactive, with an `Auto-created:` description, cluttering the echo area list.
+
+The parser now rejects a message as an area list when its subject indicates a result, help, or node-change response (unless it also says "list" or "query"), or when its body contains receipt markers such as `<-- COMMAND PROCESSED`, `[ BEGIN MESSAGE ]`, a commands-help listing, quoted original message text, or a rescan confirmation. Decorative box-drawing lines are also skipped; that check no longer discards a genuine area row that happens to contain an accented character such as `é` or `ü`.
+
+If earlier releases created spurious areas on your system, they will be inactive echo areas with an `Auto-created:` description and no messages — safe to delete from **Admin → Echo Areas**.
+
+### Automatic ingestion of inbound replies
+
+When an AreaFix or FileFix reply arrives in an inbound packet over an **authenticated BinkP session**, BinktermPHP now parses the area list and synchronises it into the local `echoareas` (or `file_areas`) table as the packet is processed: areas in the list that do not exist locally are created active, and existing areas that were inactive are re-activated. This previously required copying the reply text into the admin tool by hand.
+
+For safety this runs only when the session was password-authenticated as the sending uplink and the packet's origin address matches the configured uplink. A reply received over an insecure session is not auto-imported; use the manual sync button below after confirming the reply is genuine.
+
+Automatic ingestion never deactivates or deletes local areas — it only adds and re-activates.
+
+### Manual sync button
+
+**Admin → AreaFix** now has a **Sync Areas to Local BBS** button on the preview of the latest reply from an uplink. It calls the new endpoint:
+
+```
+POST /api/admin/areafix/sync-latest
+{ "uplink": "999:100/10", "robot": "areafix" }
+```
+
+The endpoint finds the most recent incoming area-list reply from that uplink, parses it, and performs the same create/re-activate synchronisation described above, returning a summary of how many areas were created and re-activated. It is documented in `docs/API.md`.
+
+### Client cache
+
+This change bumps the service-worker cache version. Users should hard-reload the admin interface, or clear the browser and service-worker cache, so the updated AreaFix page and its new button load.
 
 ## Upgrade Instructions
 
