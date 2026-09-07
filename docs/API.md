@@ -60,6 +60,7 @@ Content-Type: application/json
   - [Account](#account) (1)
   - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
+  - [AreaFix](#areafix) (1)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
   - [Bulletins](#bulletins) (3)
@@ -547,6 +548,43 @@ Click recording confirmation with redirect URL
 |--------|-------------|
 | 404 | Advertisement not found |
 | 500 | Failed to record click |
+
+---
+
+### AreaFix
+
+| Method | Path | Auth | Summary |
+|--------|------|------|---------|
+| `POST` | [`/api/admin/areafix/sync-latest`](#post-apiadminareafixsync-latest) | Yes | Inspect the latest incoming AreaFix/FileFix reply for an uplink and sync areas to the database. |
+
+#### `POST /api/admin/areafix/sync-latest`
+
+**Requires authentication** (Admin only)
+
+Inspects recent message history from the specified uplink to find the latest incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes them into the local database (`echoareas` or `file_areas`).
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful synchronization |
+| `summary` | object | Summary of changes (`created`, `activated`, `deactivated`) |
+| `areas_count` | integer | Number of areas parsed and synchronized |
+| `from` | string | Sender name or address of the reply message |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload or missing uplink address |
+| 404 | No area list found in recent replies for this uplink |
 
 ---
 

@@ -1179,6 +1179,26 @@ class BinkdProcessor
             (string)$cleanMessageText,
             $fwdAttachments
         );
+
+        // Auto-import AreaFix / FileFix replies from uplinks
+        if (!$isInsecureSession) {
+            try {
+                $imported = (new \BinktermPHP\AreaFixManager())->processIncomingReply([
+                    'from_address'     => $fromAddr,
+                    'to_address'       => $message['destAddr'],
+                    'from_name'        => $message['fromName'],
+                    'subject'          => $message['subject'],
+                    'message_text'     => $cleanMessageText,
+                    'is_insecure'      => false,
+                    'packet_orig_addr' => $packetInfo['origAddr'] ?? null,
+                ]);
+                if ($imported && !empty($imported['count'])) {
+                    $this->log("[BINKD] AreaFix auto-imported {$imported['count']} areas for domain '{$imported['domain']}' from {$fromAddr}");
+                }
+            } catch (\Throwable $e) {
+                $this->log("[BINKD] AreaFix auto-import warning: " . $e->getMessage());
+            }
+        }
     }
 
     /**

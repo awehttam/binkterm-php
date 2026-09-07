@@ -4892,6 +4892,8 @@ return [
     'ui.admin.areafix.no_reply_yet' => 'Ответ ещё не получен. Отправьте команду, чтобы начать.',
     'ui.admin.areafix.search_placeholder' => 'Поиск областей…',
     'ui.admin.areafix.sync_button' => 'Синхронизировать с эхами',
+    'ui.admin.areafix.btn_sync_areas' => 'Синхронизировать эхи с локальной BBS',
+    'ui.admin.areafix.sync_success' => 'Успешно синхронизировано {count} эх ({created} создано, {activated} активировано)',
     'ui.admin.areafix.col_tag' => 'Тег',
     'ui.admin.areafix.col_description' => 'Описание',
     'ui.admin.areafix.col_status' => 'Статус',

@@ -673,6 +673,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Не удалось отправить команду',
     'errors.admin.areafix.history_failed' => 'Не удалось загрузить историю сообщений',
     'errors.admin.areafix.sync_failed' => 'Не удалось синхронизировать области',
+    'errors.admin.areafix.no_area_list_found' => 'В недавних ответах для этого аплинка не найдено списка эхоконференций',
     'errors.admin.poll.failed' => 'Не удалось выполнить опрос аплинка BinkP',
 
     'errors.admin.lovlynet.invalid_json' => 'Недопустимые данные запроса',

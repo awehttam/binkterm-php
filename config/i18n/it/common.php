@@ -4849,6 +4849,8 @@ return [
     'ui.admin.areafix.no_reply_yet' => 'Ancora nessuna risposta ricevuta. Invia un comando per iniziare.',
     'ui.admin.areafix.search_placeholder' => 'Cerca aree...',
     'ui.admin.areafix.sync_button' => 'Sincronizza con aree echo',
+    'ui.admin.areafix.btn_sync_areas' => 'Sincronizza aree con BBS locale',
+    'ui.admin.areafix.sync_success' => 'Sincronizzate con successo {count} aree ({created} create, {activated} attivate)',
     'ui.admin.areafix.col_tag' => 'Tag',
     'ui.admin.areafix.col_description' => 'Descrizione',
     'ui.admin.areafix.col_status' => 'Stato',

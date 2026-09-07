@@ -4886,6 +4886,8 @@ return [
     'ui.admin.areafix.no_reply_yet' => 'No reply received yet. Send a command to get started.',
     'ui.admin.areafix.search_placeholder' => 'Search areas...',
     'ui.admin.areafix.sync_button' => 'Sync to Echo Areas',
+    'ui.admin.areafix.btn_sync_areas' => 'Sync Areas to Local BBS',
+    'ui.admin.areafix.sync_success' => 'Successfully synced {count} areas ({created} created, {activated} activated)',
     'ui.admin.areafix.col_tag' => 'Tag',
     'ui.admin.areafix.col_description' => 'Description',
     'ui.admin.areafix.col_status' => 'Status',
