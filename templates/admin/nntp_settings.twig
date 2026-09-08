@@ -1,0 +1,254 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.nntp_settings.page_title') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ t('ui.admin.nntp_settings.heading') }}</h1>
+        <div></div>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i>
+        {{ t('ui.admin.nntp_settings.note_text') }}
+    </div>
+
+    <div id="nntpSettingsCards" class="row g-4">
+        <div class="col-lg-8">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">{{ t('ui.admin.nntp_settings.server_settings') }}</h6>
+                </div>
+                <div class="card-body">
+                    <div id="nntpAlert"></div>
+                    <form id="nntpSettingsForm">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="nntpEnabled">
+                            <label class="form-check-label" for="nntpEnabled">{{ t('ui.admin.nntp_settings.enabled') }}</label>
+                            <small class="form-text d-block text-muted">{{ t('ui.admin.nntp_settings.enabled_help') }}</small>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="nntpAllowPosting">
+                            <label class="form-check-label" for="nntpAllowPosting">{{ t('ui.admin.nntp_settings.allow_posting') }}</label>
+                            <small class="form-text d-block text-muted">{{ t('ui.admin.nntp_settings.allow_posting_help') }}</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="nntpPrefixMode">{{ t('ui.admin.nntp_settings.prefix_mode') }}</label>
+                            <select class="form-select" id="nntpPrefixMode">
+                                <option value="network_name">{{ t('ui.admin.nntp_settings.prefix_mode_network') }}</option>
+                                <option value="domain">{{ t('ui.admin.nntp_settings.prefix_mode_domain') }}</option>
+                            </select>
+                            <small class="form-text text-muted">{{ t('ui.admin.nntp_settings.prefix_mode_help') }}</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="nntpMaxConnPerIp">{{ t('ui.admin.nntp_settings.max_connections_per_ip') }}</label>
+                            <input type="number" class="form-control" id="nntpMaxConnPerIp" min="1" max="100" value="3">
+                            <small class="form-text text-muted">{{ t('ui.admin.nntp_settings.max_connections_per_ip_help') }}</small>
+                        </div>
+
+                        <hr>
+                        <h6 class="mb-3">{{ t('ui.admin.nntp_settings.posting_limits') }}</h6>
+                        <p class="text-muted small">{{ t('ui.admin.nntp_settings.posting_limits_help') }}</p>
+
+                        <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label" for="nntpPostsPerMinute">{{ t('ui.admin.nntp_settings.posts_per_minute') }}</label>
+                                <input type="number" class="form-control" id="nntpPostsPerMinute" min="0" max="1000" value="10">
+                            </div>
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label" for="nntpPostsPerHour">{{ t('ui.admin.nntp_settings.posts_per_hour') }}</label>
+                                <input type="number" class="form-control" id="nntpPostsPerHour" min="0" max="10000" value="60">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="nntpMaxCrossPost">{{ t('ui.admin.nntp_settings.max_cross_post_areas') }}</label>
+                            <input type="number" class="form-control" id="nntpMaxCrossPost" min="1" max="20" value="5">
+                            <small class="form-text text-muted">{{ t('ui.admin.nntp_settings.max_cross_post_areas_help') }}</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="nntpQuoteStyle">{{ t('ui.admin.nntp_settings.quote_style') }}</label>
+                            <select class="form-select" id="nntpQuoteStyle">
+                                <option value="off">{{ t('ui.admin.nntp_settings.quote_style_off') }}</option>
+                                <option value="outbound">{{ t('ui.admin.nntp_settings.quote_style_outbound') }}</option>
+                                <option value="both">{{ t('ui.admin.nntp_settings.quote_style_both') }}</option>
+                            </select>
+                            <small class="form-text text-muted">{{ t('ui.admin.nntp_settings.quote_style_help') }}</small>
+                        </div>
+
+                        <hr>
+                        <h6 class="mb-1">{{ t('ui.admin.nntp_settings.netmail_heading') }}</h6>
+                        <p class="text-muted small">{{ t('ui.admin.nntp_settings.netmail_help') }}</p>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="nntpExposeNetmail">
+                            <label class="form-check-label" for="nntpExposeNetmail">{{ t('ui.admin.nntp_settings.expose_netmail') }}</label>
+                            <small class="form-text d-block text-muted">{{ t('ui.admin.nntp_settings.expose_netmail_help') }}</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="nntpNetmailGroupName">{{ t('ui.admin.nntp_settings.netmail_group_name') }}</label>
+                            <input type="text" class="form-control" id="nntpNetmailGroupName" value="netmail">
+                            <small class="form-text text-muted">{{ t('ui.admin.nntp_settings.netmail_group_name_help') }}</small>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="nntpAllowNetmailSend">
+                            <label class="form-check-label" for="nntpAllowNetmailSend">{{ t('ui.admin.nntp_settings.allow_netmail_send') }}</label>
+                            <small class="form-text d-block text-muted">{{ t('ui.admin.nntp_settings.allow_netmail_send_help') }}</small>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="nntpNetmailIncludeSent">
+                            <label class="form-check-label" for="nntpNetmailIncludeSent">{{ t('ui.admin.nntp_settings.netmail_include_sent') }}</label>
+                            <small class="form-text d-block text-muted">{{ t('ui.admin.nntp_settings.netmail_include_sent_help') }}</small>
+                        </div>
+
+                        <p class="text-muted small mb-2">{{ t('ui.admin.nntp_settings.netmail_limits_help') }}</p>
+                        <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label" for="nntpNetmailPerMinute">{{ t('ui.admin.nntp_settings.netmail_posts_per_minute') }}</label>
+                                <input type="number" class="form-control" id="nntpNetmailPerMinute" min="0" max="1000" value="5">
+                            </div>
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label" for="nntpNetmailPerHour">{{ t('ui.admin.nntp_settings.netmail_posts_per_hour') }}</label>
+                                <input type="number" class="form-control" id="nntpNetmailPerHour" min="0" max="10000" value="30">
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="nntpAllowPlaintextAuth">
+                            <label class="form-check-label" for="nntpAllowPlaintextAuth">{{ t('ui.admin.nntp_settings.allow_plaintext_auth') }}</label>
+                        </div>
+                        <div class="alert alert-warning py-2 small">
+                            <i class="bi bi-exclamation-triangle"></i> {{ t('ui.admin.nntp_settings.allow_plaintext_auth_warning') }}
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="saveNntpSettings()">
+                            {{ t('ui.admin.nntp_settings.save') }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow h-100">
+                <div class="card-header"><h6 class="mb-0">{{ t('ui.admin.nntp_settings.transport_heading') }}</h6></div>
+                <div class="card-body small text-muted">
+                    <p>{{ t('ui.admin.nntp_settings.transport_help') }}</p>
+                    <ul class="mb-0">
+                        <li><code>NNTP_BIND_HOST</code></li>
+                        <li><code>NNTP_PORT</code></li>
+                        <li><code>NNTP_TLS_PORT</code></li>
+                        <li><code>NNTP_TLS_CERT_PATH</code> / <code>NNTP_TLS_KEY_PATH</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let nntpConfig = {};
+
+function uiT(key, fallback, params = {}) {
+    return window.t ? window.t(key, params, fallback) : fallback;
+}
+
+$(document).ready(loadNntpSettings);
+
+async function loadNntpSettings() {
+    if (window.setSettingsLoading) { setSettingsLoading('#nntpSettingsCards', true); }
+    try {
+        const response = await $.ajax({ url: '/admin/api/nntp-settings', method: 'GET', dataType: 'json' });
+        if (response.success) {
+            nntpConfig = response.config || {};
+            populateNntpForm();
+        } else {
+            showNntpAlert('danger', uiT('ui.admin.nntp_settings.load_failed', 'Failed to load NNTP settings'));
+        }
+    } catch (error) {
+        console.error('Failed to load NNTP settings:', error);
+        showNntpAlert('danger', uiT('ui.admin.nntp_settings.load_failed', 'Failed to load NNTP settings'));
+    } finally {
+        if (window.setSettingsLoading) { setSettingsLoading('#nntpSettingsCards', false); }
+    }
+}
+
+function populateNntpForm() {
+    $('#nntpEnabled').prop('checked', nntpConfig.enabled || false);
+    $('#nntpAllowPosting').prop('checked', nntpConfig.allow_posting || false);
+    $('#nntpPrefixMode').val(nntpConfig.newsgroup_prefix_mode || 'network_name');
+    $('#nntpMaxConnPerIp').val(nntpConfig.max_connections_per_ip || 3);
+    $('#nntpPostsPerMinute').val(nntpConfig.posts_per_minute ?? 10);
+    $('#nntpPostsPerHour').val(nntpConfig.posts_per_hour ?? 60);
+    $('#nntpMaxCrossPost').val(nntpConfig.max_cross_post_areas || 5);
+    $('#nntpQuoteStyle').val(nntpConfig.quote_style_conversion || 'outbound');
+    $('#nntpAllowPlaintextAuth').prop('checked', nntpConfig.allow_plaintext_auth || false);
+    $('#nntpExposeNetmail').prop('checked', nntpConfig.expose_netmail_group ?? true);
+    $('#nntpNetmailGroupName').val(nntpConfig.netmail_group_name || 'netmail');
+    $('#nntpAllowNetmailSend').prop('checked', nntpConfig.allow_netmail_send ?? true);
+    $('#nntpNetmailIncludeSent').prop('checked', nntpConfig.netmail_group_include_sent ?? true);
+    $('#nntpNetmailPerMinute').val(nntpConfig.netmail_posts_per_minute ?? 5);
+    $('#nntpNetmailPerHour').val(nntpConfig.netmail_posts_per_hour ?? 30);
+}
+
+async function saveNntpSettings() {
+    const config = {
+        enabled: $('#nntpEnabled').is(':checked'),
+        allow_posting: $('#nntpAllowPosting').is(':checked'),
+        newsgroup_prefix_mode: $('#nntpPrefixMode').val(),
+        posts_per_minute: parseInt($('#nntpPostsPerMinute').val(), 10),
+        posts_per_hour: parseInt($('#nntpPostsPerHour').val(), 10),
+        max_cross_post_areas: parseInt($('#nntpMaxCrossPost').val(), 10),
+        max_connections_per_ip: parseInt($('#nntpMaxConnPerIp').val(), 10),
+        quote_style_conversion: $('#nntpQuoteStyle').val(),
+        allow_plaintext_auth: $('#nntpAllowPlaintextAuth').is(':checked'),
+        expose_netmail_group: $('#nntpExposeNetmail').is(':checked'),
+        netmail_group_name: $('#nntpNetmailGroupName').val(),
+        allow_netmail_send: $('#nntpAllowNetmailSend').is(':checked'),
+        netmail_group_include_sent: $('#nntpNetmailIncludeSent').is(':checked'),
+        netmail_posts_per_minute: parseInt($('#nntpNetmailPerMinute').val(), 10),
+        netmail_posts_per_hour: parseInt($('#nntpNetmailPerHour').val(), 10)
+    };
+
+    try {
+        const response = await $.ajax({
+            url: '/admin/api/nntp-settings',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ config }),
+            dataType: 'json'
+        });
+
+        if (response.success) {
+            const msg = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.admin.nntp_settings.saved_success', 'NNTP settings saved'))
+                : uiT('ui.admin.nntp_settings.saved_success', 'NNTP settings saved');
+            showNntpAlert('success', msg);
+            showNntpAlert('warning', uiT('ui.admin.nntp_settings.restart_required', 'Restart the NNTP daemon to apply changes.'));
+            nntpConfig = response.config || config;
+        } else {
+            showNntpAlert('danger', uiT('ui.admin.nntp_settings.save_failed', 'Failed to save NNTP settings'));
+        }
+    } catch (error) {
+        console.error('Failed to save NNTP settings:', error);
+        showNntpAlert('danger', uiT('ui.admin.nntp_settings.save_failed', 'Failed to save NNTP settings'));
+    }
+}
+
+function showNntpAlert(type, message) {
+    const html = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">${message}` +
+        `<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+    $('#nntpAlert').html(html);
+}
+</script>
+{% endblock %}

@@ -236,6 +236,7 @@ return [
     'errors.messages.drafts.not_found' => 'Черновик не найден',
     'errors.messages.drafts.get_failed' => 'Не удалось загрузить черновик',
     'errors.messages.drafts.delete_failed' => 'Не удалось удалить черновик',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'Требуется непустой список идентификаторов черновиков',
     'errors.messages.templates.not_licensed' => 'Для использования шаблонов сообщений требуется зарегистрированная лицензия',
     'errors.messages.templates.not_found' => 'Шаблон не найден',
     'errors.messages.templates.name_required' => 'Название шаблона обязательно',
@@ -673,6 +674,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Не удалось отправить команду',
     'errors.admin.areafix.history_failed' => 'Не удалось загрузить историю сообщений',
     'errors.admin.areafix.sync_failed' => 'Не удалось синхронизировать области',
+    'errors.admin.areafix.no_area_list_found' => 'В недавних ответах для этого аплинка не найдено списка эхоконференций',
     'errors.admin.poll.failed' => 'Не удалось выполнить опрос аплинка BinkP',
 
     'errors.admin.lovlynet.invalid_json' => 'Недопустимые данные запроса',
@@ -776,6 +778,7 @@ return [
     'errors.admin.networks.delete_in_use' => 'Сеть используется.',
     'errors.admin.networks.delete_failed' => 'Не удалось удалить сеть.',
 
+    'errors.meshcore.disabled' => 'MeshCore отключён в этой системе.',
     'errors.meshcore.invalid_node_id' => 'ID ноды должен содержать 12 или 64 строчных шестнадцатеричных символа.',
     'errors.meshcore.contact_exists' => 'Контакт с таким ID ноды уже существует.',
     'errors.meshcore.not_found' => 'Контакт не найден.',
@@ -822,4 +825,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'Выбранный пользователь не существует.',
     'errors.admin.users.autocomplete_failed' => 'Не удалось выполнить поиск пользователей.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Неверная конфигурация проверки регистраций',
+    'errors.admin.nntp_settings.load_failed' => 'Не удалось загрузить настройки NNTP',
+    'errors.admin.nntp_settings.save_failed' => 'Не удалось сохранить настройки NNTP',
 ];

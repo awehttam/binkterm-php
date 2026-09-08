@@ -42,7 +42,7 @@ The central table. Stores every public FTN message received or posted.
 
 ### `netmail`
 
-Private point-to-point FTN messages. Structure mirrors `echomail` but without an `echoarea_id`. Has `to_address` (the recipient's FTN address) and `is_read`, `is_deleted` per-message state. Attachments are stored as files referenced by `attachment_filename`.
+Private point-to-point FTN messages. Structure mirrors `echomail` but without an `echoarea_id`, and with a real `to_address` (the recipient's FTN address). Soft-delete is per side (`deleted_by_sender` / `deleted_by_recipient`); read state is per-user in `message_read_status`. Attachments are rows in the `files` table (`message_type = 'netmail'`). **`user_id` is not reliably the mailbox owner** — see [Netmail.md](Netmail.md) for the ownership and visibility rules.
 
 ### `echoareas`
 
@@ -209,6 +209,35 @@ The `og_image_slug` is stored as the basename of `og_image_path` and is the cano
 `auto_feed_sources` stores the source-level Auto Feed configuration: feed URL, optional display name, source type, poster name, polling state, deduplication marker, and posting counters.
 
 `auto_feed_source_echoareas` is the many-to-many join table that maps one source row to one or more target `echoareas` rows. Auto Feed polls one source row, then fans each newly discovered article out to every linked target area.
+
+### `nntp_article_numbers` / `nntp_area_watermark`
+
+Per-echoarea NNTP article numbering for the NNTP server (`docs/NNTP.md`). NNTP
+requires per-group article numbers that are dense and never reused within a group
+(RFC 3977); `echomail.id` is a single sequence shared across all areas and cannot
+provide that.
+
+`nntp_article_numbers`:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `echoarea_id` | `INTEGER` | FK → `echoareas.id` (`ON DELETE CASCADE`) |
+| `article_number` | `BIGINT` | The area-local NNTP article number |
+| `echomail_id` | `INTEGER` | FK → `echomail.id` (`ON DELETE CASCADE`) |
+
+Primary key `(echoarea_id, article_number)`; unique index `(echoarea_id, echomail_id)`.
+
+`nntp_area_watermark`:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `echoarea_id` | `INTEGER` | PK, FK → `echoareas.id` (`ON DELETE CASCADE`) |
+| `last_article_number` | `BIGINT` | Highest article number ever allocated in the area |
+
+Numbers are allocated lazily by the NNTP daemon (`src/Nntp/NntpArticleNumbers.php`)
+the first time an area is read, in `echomail.id` order. `last_article_number` only
+ever increases, so when an `echomail` row is pruned its mapping row is removed
+(cascade) but the number is retired — never reissued.
 
 ## Entity Relationship Overview
 

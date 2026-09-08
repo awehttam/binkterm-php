@@ -179,6 +179,7 @@ class NativeDoorManifestDefinition implements DoorManifestTypeDefinition
                         'options'   => [
                             ['value' => 'DOOR.SYS',   'label_key' => 'ui.admin.door_manifest_editor.dropfile.doorsys'],
                             ['value' => 'DOOR32.SYS', 'label_key' => 'ui.admin.door_manifest_editor.dropfile.door32sys'],
+                            ['value' => 'BBSDEV.DRP', 'label_key' => 'ui.admin.door_manifest_editor.dropfile.bbsdevdrp'],
                         ],
                     ],
                     [

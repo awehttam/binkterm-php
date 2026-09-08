@@ -862,6 +862,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // NNTP server settings page
+    SimpleRouter::get('/nntp-settings', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/nntp_settings.twig');
+    });
+
     // MRC Chat settings page
     SimpleRouter::get('/mrc-settings', function() {
         $user = RouteHelper::requireAdmin();
@@ -3263,6 +3271,64 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.matterbridge_settings.save_failed', apiLocalizedText('errors.admin.matterbridge_settings.save_failed', 'Failed to save Matterbridge settings'));
+            }
+        });
+
+        SimpleRouter::get('/nntp-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getNntpConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.nntp_settings.load_failed', apiLocalizedText('errors.admin.nntp_settings.load_failed', 'Failed to load NNTP settings'));
+            }
+        });
+
+        SimpleRouter::post('/nntp-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? [];
+
+                if (!is_array($config)) {
+                    throw new Exception('Invalid configuration payload');
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $savedConfig = $client->setNntpConfig($config);
+
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'nntp_settings_updated', [
+                        'enabled' => $config['enabled'] ?? null,
+                        'allow_posting' => $config['allow_posting'] ?? null,
+                    ]);
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $savedConfig,
+                    'message_code' => 'ui.admin.nntp_settings.saved_success'
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                apiError('errors.admin.nntp_settings.save_failed', apiLocalizedText('errors.admin.nntp_settings.save_failed', 'Failed to save NNTP settings'));
             }
         });
 
@@ -8114,6 +8180,11 @@ SimpleRouter::get('/admin/packet-bbs', function() {
     $adminController = new AdminController();
     $adminController->requireAdmin($user);
 
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('meshcore')) {
+        http_response_code(404);
+        return;
+    }
+
     $template = new Template();
     $template->renderResponse('admin/packet_bbs.twig', [
         'current_admin_user' => [
@@ -10654,6 +10725,83 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
     }
 
     echo json_encode(['success' => true, 'summary' => $summary]);
+});
+
+/**
+ * POST /api/admin/areafix/sync-latest
+ * Find the latest incoming AreaFix/FileFix reply for an uplink, parse areas, and sync them to DB.
+ * Body: { uplink: string, robot: "areafix"|"filefix" }
+ */
+SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError('errors.admin.areafix.invalid_json', 'Invalid request payload', 400, ['success' => false]);
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? 'areafix')));
+
+    if ($uplinkAddress === '') {
+        apiError('errors.admin.areafix.uplink_required', 'Uplink address is required', 400, ['success' => false]);
+    }
+
+    $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+    $historyData = $areafixManager->getHistory($uplinkAddress, $sysopUserId);
+    $messages = ($historyData['messages'] ?? $historyData);
+    if (!is_array($messages)) {
+        $messages = [];
+    }
+
+    $replyFound = null;
+    $parsedAreas = [];
+
+    // Search incoming messages from newest to oldest for one containing an area list
+    foreach ($messages as $m) {
+        if (($m['direction'] ?? '') !== 'incoming') {
+            continue;
+        }
+        $subj = (string)($m['subject'] ?? '');
+        $bodyText = (string)($m['message_text'] ?? '');
+
+        // Skip result receipts, change request confirmations, or help text
+        if (!$areafixManager->isAreaListResponse($subj, $bodyText)) {
+            continue;
+        }
+
+        $areas = $areafixManager->parseResponseText($bodyText, '%LIST');
+        if (count($areas) >= 2) {
+            $replyFound = $m;
+            $parsedAreas = $areas;
+            break;
+        }
+    }
+
+    if (!$replyFound || empty($parsedAreas)) {
+        apiError('errors.admin.areafix.no_area_list_found', 'No area list found in recent replies for this uplink', 404, ['success' => false]);
+    }
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+
+    $summary = $areafixManager->syncSubscribedAreas(
+        $uplinkAddress,
+        $domain,
+        $parsedAreas,
+        false,
+        $robot
+    );
+
+    echo json_encode([
+        'success'     => true,
+        'summary'     => $summary,
+        'areas_count' => count($parsedAreas),
+        'from'        => $replyFound['from_name'] ?? $replyFound['from_address'] ?? '',
+    ]);
 });
 
 // GET /admin/api/uplinks — list configured uplink addresses for the admin terminal

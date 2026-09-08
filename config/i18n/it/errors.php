@@ -241,6 +241,7 @@ return [
     'errors.messages.drafts.not_found' => 'Bozza non trovata',
     'errors.messages.drafts.get_failed' => 'Impossibile caricare la bozza',
     'errors.messages.drafts.delete_failed' => 'Impossibile eliminare la bozza',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'È richiesto un elenco non vuoto di ID bozza',
     'errors.messages.templates.not_licensed' => 'I modelli messaggio richiedono una licenza registrata',
     'errors.messages.templates.not_found' => 'Modello non trovato',
     'errors.messages.templates.name_required' => 'Nome modello obbligatorio',
@@ -672,6 +673,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Impossibile inviare il comando',
     'errors.admin.areafix.history_failed' => 'Impossibile caricare la cronologia messaggi',
     'errors.admin.areafix.sync_failed' => 'Impossibile sincronizzare le aree',
+    'errors.admin.areafix.no_area_list_found' => 'Nessun elenco di aree trovato nelle risposte recenti per questo uplink',
     'errors.admin.poll.failed' => 'Polling uplink BinkP non riuscito',
 
     'errors.admin.lovlynet.invalid_json' => 'Payload richiesta non valido',
@@ -775,6 +777,7 @@ return [
     'errors.admin.networks.delete_failed' => 'Failed to delete network',
 
     // MeshCore
+    'errors.meshcore.disabled' => 'MeshCore è disattivato su questo sistema.',
     'errors.meshcore.invalid_node_id' => 'L\'ID nodo deve essere composto da 12 o 64 caratteri esadecimali minuscoli.',
     'errors.meshcore.contact_exists' => 'Esiste già un contatto con questo ID nodo.',
     'errors.meshcore.not_found' => 'Contatto non trovato.',
@@ -819,4 +822,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'L\'utente selezionato non esiste.',
     'errors.admin.users.autocomplete_failed' => 'Impossibile cercare gli utenti.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Configurazione del controllo delle registrazioni non valida',
+    'errors.admin.nntp_settings.load_failed' => 'Impossibile caricare le impostazioni NNTP',
+    'errors.admin.nntp_settings.save_failed' => 'Impossibile salvare le impostazioni NNTP',
 ];

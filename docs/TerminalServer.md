@@ -129,6 +129,7 @@ Pipe-code rendering for plain bulletins and other ANSI/pipe text shared with the
 - Insert and edit text at any cursor position
 - Delete characters with Backspace/Delete
 - The editor now uses the same framed blue panel style as the other terminal overlays, with a titled top border, bordered compose area, and a footer hint row. The `Ctrl-K` help screen uses the same dialog treatment instead of dropping to an unframed text page.
+- The editor redraws incrementally rather than repainting the whole screen on each keystroke: typing updates only the current line, cursor movement emits only a cursor move, and structural edits repaint just the text area. A full redraw still occurs on entry, terminal resize, return from the help screen, and draft-save notices. Terminals with ANSI colour disabled use the full-redraw path.
 - Line operations:
   - Enter: Insert new line at cursor
   - Ctrl+Y: Delete entire current line
@@ -365,6 +366,8 @@ Before authenticating, users are shown a pre-login menu:
 - **T** — Login and run terminal setup (forces the terminal detection wizard to re-run after login, even if settings were already saved)
 - **K** — QWK transfer (only shown when QWK is enabled)
 - **Q** — Quit / disconnect
+
+The registration flow displays the house rules in a paged box and the prospective user must type `YES` to accept them before any account details are collected. Declining aborts registration. Custom house rules set in **Admin → Appearance → Content → House Rules** are shown when present; otherwise the built-in default rule set is used.
 
 New users who register while **Require approval for new users** is enabled in **Admin → BBS Settings → Features** (the default) are disconnected after registration and must wait for a sysop to approve the account. If that setting is disabled, the account is created immediately and the terminal session logs the new user in automatically without requiring a reconnect.
 

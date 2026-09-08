@@ -412,7 +412,7 @@ BinktermPHP supports multiple uplinks. LovlyNet is just one network. You can:
 - Maintain separate uplinks for each
 - Use domain routing to separate mail
 
-Each network should have its own domain identifier. Additional uplinks can be configured under **Admin → BBS Settings → Binkp Config**.
+Each network should have its own domain identifier. Additional uplinks can be configured under **Admin → BBS Settings → BinkP Uplinks**.
 
 ### Changing Node Type
 

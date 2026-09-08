@@ -1,0 +1,17 @@
+{
+    "enabled": false,
+    "allow_posting": false,
+    "newsgroup_prefix_mode": "network_name",
+    "posts_per_minute": 10,
+    "posts_per_hour": 60,
+    "max_cross_post_areas": 5,
+    "max_connections_per_ip": 3,
+    "allow_plaintext_auth": false,
+    "quote_style_conversion": "outbound",
+    "expose_netmail_group": true,
+    "netmail_group_name": "netmail",
+    "allow_netmail_send": true,
+    "netmail_group_include_sent": true,
+    "netmail_posts_per_minute": 5,
+    "netmail_posts_per_hour": 30
+}

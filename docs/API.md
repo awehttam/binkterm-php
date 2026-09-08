@@ -60,6 +60,7 @@ Content-Type: application/json
   - [Account](#account) (1)
   - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
+  - [AreaFix](#areafix) (1)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
   - [Bulletins](#bulletins) (3)
@@ -547,6 +548,46 @@ Click recording confirmation with redirect URL
 |--------|-------------|
 | 404 | Advertisement not found |
 | 500 | Failed to record click |
+
+---
+
+### AreaFix
+
+| Method | Path | Auth | Summary |
+|--------|------|------|---------|
+| `POST` | [`/api/admin/areafix/sync-latest`](#post-apiadminareafixsync-latest) | Yes | Inspect the latest incoming AreaFix/FileFix reply for an uplink and sync areas to the database. |
+
+#### `POST /api/admin/areafix/sync-latest`
+
+**Requires authentication** (Admin only)
+
+Inspects recent message history from the specified uplink to find the latest incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes them into the local database (`echoareas` or `file_areas`).
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful synchronization |
+| `summary` | object | Summary of changes applied to the local database |
+| `summary.created` | integer | Number of new areas inserted |
+| `summary.activated` | integer | Number of existing inactive areas re-activated |
+| `summary.deactivated` | integer | Number of areas deactivated (always `0` for this endpoint; it never deactivates missing areas) |
+| `areas_count` | integer | Number of areas parsed and synchronized |
+| `from` | string | Sender name or address of the reply message |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload or missing uplink address |
+| 404 | No area list found in recent replies for this uplink |
 
 ---
 
@@ -4446,6 +4487,8 @@ JSON object with media type, provider name, and embed HTML.
 
 Bridge-facing endpoints authenticated with a per-node Bearer token (`Authorization: Bearer <api_key>`).
 
+All MeshCore endpoints (bridge-facing, user-facing, and public) return `404 Not found` when the **MeshCore** feature is disabled in **Admin → BBS Settings → System & Features** (`features.meshcore` in `config/bbs.json`).
+
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/meshcore/contact`](#post-apimeshcorecontact) | Bearer | Report a companion contact from a MeshCore bridge. |
@@ -4571,6 +4614,7 @@ Marks a device command as executed. The bridge calls this after dispatching the 
 | `GET` | [`/api/messages/drafts`](#get-apimessagesdrafts) | Yes | Retrieve authenticated user's draft messages. |
 | `GET` | [`/api/messages/drafts/{id}`](#get-apimessagesdraftsid) | Yes | Retrieve a specific draft message by ID. |
 | `DELETE` | [`/api/messages/drafts/{id}`](#delete-apimessagesdraftsid) | Yes | Delete a draft message. |
+| `POST` | [`/api/messages/drafts/bulk-delete`](#post-apimessagesdraftsbulk-delete) | Yes | Delete multiple draft messages in bulk. |
 | `GET` | [`/api/messages/templates`](#get-apimessagestemplates) | Yes | List message templates for authenticated user. |
 | `GET` | [`/api/messages/templates/{id}`](#get-apimessagestemplatesid) | Yes | Retrieve a single message template with full body. |
 | `POST` | [`/api/messages/templates`](#post-apimessagestemplates) | Yes | Create or update a message template. |
@@ -5377,7 +5421,7 @@ Complete echomail message object
 
 **Requires authentication**
 
-Sends a message (netmail or echomail) with support for multiple charsets, markdown/plaintext markup, file attachments, and optional PGP payload handling. Enforces 16 KB FidoNet message body limit. For netmail, resolves attachment tokens to file paths. Supports crashmail flag and file request (FREQ) mode. Validates charset against a whitelist of safe values. Defaults to system address if no recipient specified for netmail.
+Sends a message (netmail or echomail) with support for multiple charsets, markdown/plaintext markup, file attachments, and optional PGP payload handling. Enforces 16 KB FidoNet message body limit. For netmail, resolves attachment tokens to file paths. Supports crashmail flag and file request (FREQ) mode. Validates charset against a whitelist of safe values. Defaults to system address if no recipient specified for netmail. On a successful send, any associated draft is deleted: the draft identified by `draft_id` if supplied, otherwise the most recent draft matching the message's area/recipient and subject.
 
 **Request Body** _(JSON)_
 
@@ -5394,6 +5438,9 @@ Message composition payload
 | `crashmail` | boolean | No | Send as crashmail (netmail only) |
 | `is_freq` | boolean | No | Mark as file request (netmail only) |
 | `pgp_mode` | string | No | PGP handling mode: `encrypt` for netmail encryption or `sign` for echomail signing |
+| `draft_id` | integer | No | ID of the draft this message was composed from; deleted on successful send |
+| `subject` | string | No | Message subject; also used to match a draft for cleanup when `draft_id` is absent |
+| `echoarea` | string | No | Target echo area (echomail); also used to match a draft for cleanup when `draft_id` is absent |
 
 **Response** _(JSON)_
 
@@ -5610,6 +5657,38 @@ Deletion result with success status and message code.
 
 | Status | Description |
 |--------|-------------|
+| 500 | User ID cannot be resolved or deletion failed. |
+
+---
+
+#### `POST /api/messages/drafts/bulk-delete`
+
+**Requires authentication**
+
+Permanently deletes multiple draft messages belonging to the authenticated user. Each delete is scoped to the owning user, so IDs that do not belong to the caller (or no longer exist) are silently skipped and not counted.
+
+**Request Body** _(JSON)_
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `message_ids` | array of integers | Yes | Draft IDs to delete. Must be a non-empty array. |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` when the request was processed. |
+| `message_code` | string | Localization key for the UI message (`ui.drafts.bulk_delete.success`). |
+| `message_params` | object | Parameters for the localized message. |
+| `message_params.count` | integer | Number of drafts actually deleted. |
+| `deleted` | integer | Number of drafts actually deleted. |
+| `total` | integer | Number of IDs supplied in the request. |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | `message_ids` is missing, empty, or not an array (`errors.messages.drafts.bulk_delete.invalid_input`). |
 | 500 | User ID cannot be resolved or deletion failed. |
 
 ---
@@ -8793,7 +8872,7 @@ User settings object with locale, shell, notification preferences, and license s
 | `settings.netmail_notification_sound` | string | Netmail notification sound (disabled, notify1–5) |
 | `settings.file_notification_sound` | string | File notification sound (disabled, notify1–5) |
 | `settings.compose_advanced_open` | boolean | Whether advanced compose panel is open by default |
-| `settings.compose_hard_wrap` | integer | Hard-wrap column for message composition (0 = disabled) |
+| `settings.compose_hard_wrap` | integer | Hard-wrap column for message composition: `0` (disabled), `39`, `72` (default), or `79`; other values are coerced to `72` |
 | `settings.media_render_mode` | string | Media rendering mode ('click', 'auto') |
 | `settings.license_valid` | boolean | Whether the system has a valid license |
 

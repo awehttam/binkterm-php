@@ -751,6 +751,21 @@ class AdminDaemonServer
                     $mrcConfig->setFullConfig($payload);
                     $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
                     break;
+                case 'get_nntp_config':
+                    $nntpConfig = \BinktermPHP\Nntp\NntpConfig::getInstance();
+                    $nntpConfig->reloadConfig();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $nntpConfig->getFullConfig()]);
+                    break;
+                case 'set_nntp_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    if (!is_array($payload)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_config']);
+                        break;
+                    }
+                    $nntpConfig = \BinktermPHP\Nntp\NntpConfig::getInstance();
+                    $nntpConfig->setFullConfig($payload);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $nntpConfig->getFullConfig()]);
+                    break;
                 case 'get_aio_config':
                     $aioPath = __DIR__ . '/../../config/aio.json';
                     if (!file_exists($aioPath)) {
@@ -3159,12 +3174,26 @@ class AdminDaemonServer
         $loginScreenPath = $this->getLoginScreenPath();
         $registerSplashPath = $this->getRegisterSplashPath();
 
+        $loginAnsi = null;
+        if (file_exists($loginScreenPath)) {
+            $rawAnsi = file_get_contents($loginScreenPath) ?: '';
+            $saucePos = strpos($rawAnsi, "\x1A");
+            if ($saucePos !== false) {
+                $rawAnsi = substr($rawAnsi, 0, $saucePos);
+            }
+            if (!mb_check_encoding($rawAnsi, 'UTF-8')) {
+                $rawAnsi = @iconv('CP437', 'UTF-8//TRANSLIT//IGNORE', $rawAnsi)
+                    ?: mb_convert_encoding($rawAnsi, 'UTF-8', 'CP437');
+            }
+            $loginAnsi = $rawAnsi;
+        }
+
         return [
             'config' => $config ?? [],
             'system_news' => file_exists($systemNewsPath) ? (file_get_contents($systemNewsPath) ?: '') : null,
             'house_rules' => file_exists($houseRulesPath) ? (file_get_contents($houseRulesPath) ?: '') : null,
             'login_splash' => file_exists($loginSplashPath) ? (file_get_contents($loginSplashPath) ?: '') : null,
-            'login_ansi' => file_exists($loginScreenPath) ? (file_get_contents($loginScreenPath) ?: '') : null,
+            'login_ansi' => $loginAnsi,
             'register_splash' => file_exists($registerSplashPath) ? (file_get_contents($registerSplashPath) ?: '') : null,
         ];
     }

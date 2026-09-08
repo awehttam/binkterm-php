@@ -480,7 +480,7 @@ The manifest is saved as `dosbox-bridge/dos/DOORS/YOURDOOR/dosdoor.jsn`. For ref
 **Key manifest fields:**
 - `executable`: Main executable or batch file (required)
 - `launch_command`: Full command with `{node}` and `{dropfile}` macros
-- `dropfile_format`: Currently only `DOOR.SYS` is supported
+- `dropfile_format`: `DOOR.SYS` (default) or `BBSDEV.DRP` (experimental — see below)
 - `max_nodes`: Maximum concurrent players (1–100)
 - `ansi_required`: Whether door requires ANSI support
 - `fossil_required`: Load FOSSIL driver (default: `true`). Set to `false` for doors with internal comm routines (faster)
@@ -676,8 +676,16 @@ If you need longer sessions, you can register Doorway with the original sharewar
 | Placeholder | Replaced with |
 |-------------|---------------|
 | `{node}` | Node number (e.g. `1`) |
-| `{dropfile}` | Drop file name (e.g. `DOOR.SYS`) |
+| `{dropfile}` | Drop file name — `DOOR.SYS` or `BBSDEV.DRP`, matching `dropfile_format` |
 | `{user_number}` | BBS user ID (numeric) |
+
+### BBSDEV.DRP drop file (experimental — untested)
+
+> **Experimental.** Implemented per the [BBSDEV.DRP v1.0 spec](https://realdeuce.github.io/bbsdev.drp/) but not yet tested against a real DOS door. Report issues on GitHub.
+
+Set `"dropfile_format": "BBSDEV.DRP"` in the manifest to have the bridge write a 19-line `BBSDEV.DRP` file (UTF-8 without BOM, CRLF) instead of `DOOR.SYS`. It is copied into the door directory alongside the door like `DOOR.SYS`, and `{dropfile}` resolves to `BBSDEV.DRP`. The DOSBox autoexec also sets a guest `BBSDEV_DRP` environment variable pointing at the copied file.
+
+For DOS doors the communications type is `fossil` and line 3 (communications parameters) is `0` (COM1, the DOSBox virtual FOSSIL port). Line 12 (terminal encoding) is `IBM437`. Screen width/height come from the door's `terminal_size` (default `80`x`25`); access level is `sysop` for admin accounts, otherwise `50`. See `docs/NativeDoors.md` for the full line-by-line field table.
 
 ### Examples
 

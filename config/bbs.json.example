@@ -10,6 +10,7 @@
         "bbs_directory": true,
         "public_files_index": false,
         "qwk": true,
+        "meshcore": true,
         "pgp": false,
         "pgp_managed_keys": false
     },

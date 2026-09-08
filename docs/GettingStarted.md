@@ -96,7 +96,7 @@ For other FTNs you want to join (FidoNet, FSxNet, ArakNet, etc.), follow [Joinin
 - Deciding between a public node and a poll-only node
 - What credentials to request from the network coordinator
 - Adding the network domain in **Admin → Networks**
-- Adding the uplink in **Admin → BBS Settings → BinkP Config**
+- Adding the uplink in **Admin → BBS Settings → BinkP Uplinks**
 - Verifying the mailer services are running
 
 Come back here once your uplink is saved and the binkp scheduler is running.

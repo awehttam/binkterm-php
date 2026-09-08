@@ -37,7 +37,7 @@ bash scripts/restart_daemons.sh
 | File | Purpose | Edited via |
 |------|---------|------------|
 | `.env` | Database, SMTP, daemon ports, feature flags | Text editor (initial setup) |
-| `config/binkp.json` | System identity, uplinks, binkp daemon, security, crashmail | Admin UI → BinkP Config |
+| `config/binkp.json` | System identity, uplinks, binkp daemon, security, crashmail | Admin UI → BinkP Uplinks |
 | Database `networks` table | FTN network metadata and network-level message policy flags | Admin UI → Networks |
 | `config/bbs.json` | BBS features (credits, file areas, registration, etc.) | Admin UI → BBS Settings |
 | `config/nodelists.json` | Nodelist download sources | Admin UI → Nodelists |
@@ -188,6 +188,25 @@ See [docs/SSHServer.md](SSHServer.md) for full SSH daemon setup including key ge
 ```
 
 See [docs/GeminiCapsule.md](GeminiCapsule.md) for Gemini capsule hosting setup.
+
+### NNTP Server Daemon
+
+```bash
+# NNTP_BIND_HOST=0.0.0.0
+# NNTP_PORT=8119
+# NNTP_TLS_PORT=8563
+# NNTP_TLS_CERT_PATH=/etc/letsencrypt/live/yourdomain.com/fullchain.pem
+# NNTP_TLS_KEY_PATH=/etc/letsencrypt/live/yourdomain.com/privkey.pem
+```
+
+The ports default to the unprivileged `8119` (plaintext + `STARTTLS`) and `8563`
+(implicit TLS) so the daemon needs no special privileges. To serve the standard
+NNTP ports, redirect `119`/`563` to them with a firewall rule — see the redirect
+examples in [docs/NNTP.md](NNTP.md). `NNTP_TLS_PORT` empty disables the
+implicit-TLS listener. If `NNTP_TLS_CERT_PATH` is unset and the default path holds
+no cert, the daemon self-signs one on first start; a path that is set but missing
+is a fatal error. Enable the server and set its behaviour (rate limits,
+plaintext-auth policy) in **Admin → NNTP Server**.
 
 ### MCP Server
 
@@ -620,6 +639,8 @@ Related `.env` variables: `SCREENING_TOR_REFRESH_HOURS` (default `6`),
 | Telnet daemon (TLS) | `8023` | TCP/TLS | Inbound | `.env` `TELNET_TLS_PORT` |
 | SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
 | Gemini capsule daemon | `1965` | Gemini/TLS | Inbound | `.env` `GEMINI_PORT` |
+| NNTP daemon (plain + STARTTLS) | `8119` | TCP | Inbound | `.env` `NNTP_PORT` |
+| NNTP daemon (implicit TLS) | `8563` | TCP/TLS | Inbound | `.env` `NNTP_TLS_PORT` |
 | Realtime WebSocket daemon | `6010` | WebSocket/TCP | Inbound or proxied | `.env` `BINKSTREAM_WS_PORT` |
 | DOS door WebSocket bridge | `6001` | WebSocket | Inbound | `.env` `DOSDOOR_WS_PORT` |
 | DOSBox bridge session range | `5000–5100` | TCP | Internal | Between bridge and emulator |

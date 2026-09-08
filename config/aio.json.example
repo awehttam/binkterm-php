@@ -54,6 +54,12 @@
       "restart_policy": "on-failure"
     },
     {
+      "name": "nntp_daemon",
+      "command": ["php", "scripts/nntp_server.php"],
+      "enabled": false,
+      "restart_policy": "on-failure"
+    },
+    {
       "name": "ftp_daemon",
       "command": ["php", "scripts/ftp_daemon.php"],
       "enabled": false,

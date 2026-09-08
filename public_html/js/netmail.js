@@ -379,6 +379,11 @@ function displayDrafts(drafts) {
                 <table class="table table-hover message-table mb-0">
                     <thead>
                         <tr>
+                            <th style="width: 3%" id="selectAllColumn" class="d-none">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAllMessages" onchange="toggleSelectAll()">
+                                </div>
+                            </th>
                             <th style="width: 30%">${uiT('ui.netmail.to', 'To')}</th>
                             <th style="width: 45%">${uiT('ui.common.subject_label_short', 'Subject')}</th>
                             <th colspan="2" style="width: 25%">${uiT('ui.netmail.last_updated', 'Last Updated')}</th>
@@ -393,6 +398,11 @@ function displayDrafts(drafts) {
 
             html += `
                 <tr class="message-row" style="cursor: pointer;" onclick="continueDraft(${draft.id})">
+                    <td class="message-checkbox d-none" onclick="event.stopPropagation()">
+                        <div class="form-check">
+                            <input class="form-check-input message-select" type="checkbox" value="${draft.id}" onchange="updateSelection()">
+                        </div>
+                    </td>
                     <td>
                         <div><strong>${escapeHtml(displayTo)}</strong></div>
                         ${displayAddress ? `<div class="text-muted small">${escapeHtml(displayAddress)}</div>` : ''}
@@ -421,6 +431,20 @@ function displayDrafts(drafts) {
     }
 
     container.html(html);
+
+    // If select mode was active before the re-render, restore it
+    if (selectMode) {
+        $('#selectAllColumn').removeClass('d-none');
+        $('.message-checkbox').removeClass('d-none');
+        if (selectedMessages.size > 0) {
+            $('.message-select').each(function() {
+                if (selectedMessages.has(parseInt($(this).val()))) {
+                    $(this).prop('checked', true);
+                }
+            });
+            updateSelection();
+        }
+    }
 }
 
 function displayMessages(messages, isThreaded = false) {
@@ -2314,6 +2338,11 @@ function deleteSelectedMessages() {
         return;
     }
 
+    if (currentFilter === 'drafts') {
+        deleteSelectedDrafts();
+        return;
+    }
+
     if (!confirm(uiT('ui.netmail.bulk_delete.confirm', `Are you sure you want to delete ${selectedMessages.size} message(s)?`, { count: selectedMessages.size }))) {
         return;
     }
@@ -2346,6 +2375,39 @@ function deleteSelectedMessages() {
         },
         error: function(xhr) {
             const error = apiError(xhr.responseJSON, uiT('ui.netmail.bulk_delete.failed', 'Failed to delete messages'));
+            showError(error);
+        }
+    });
+}
+
+function deleteSelectedDrafts() {
+    if (selectedMessages.size === 0) {
+        showError(uiT('ui.messages.none_selected', 'No messages selected'));
+        return;
+    }
+
+    const draftIds = Array.from(selectedMessages);
+
+    if (!confirm(uiT('ui.drafts.bulk_delete.confirm', `Are you sure you want to delete ${draftIds.length} draft(s)? This cannot be undone.`, { count: draftIds.length }))) {
+        return;
+    }
+
+    $.ajax({
+        url: '/api/messages/drafts/bulk-delete',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ message_ids: draftIds }),
+        success: function(data) {
+            const deletedCount = data.deleted || draftIds.length;
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.drafts.bulk_delete.success', `Deleted ${deletedCount} draft(s)`, { count: deletedCount }))
+                : uiT('ui.drafts.bulk_delete.success', `Deleted ${deletedCount} draft(s)`, { count: deletedCount });
+            showSuccess(successMessage);
+            clearSelection();
+            loadDrafts();
+        },
+        error: function(xhr) {
+            const error = apiError(xhr.responseJSON, uiT('ui.drafts.bulk_delete.failed', 'Failed to delete drafts'));
             showError(error);
         }
     });

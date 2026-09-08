@@ -1,4 +1,4 @@
-﻿{% extends "base.twig" %}
+{% extends "base.twig" %}
 
 {% block title %}{{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }} - {{ parent() }}{% endblock %}
 
@@ -299,6 +299,7 @@
                         <div class="mb-0">
                             <label class="form-label" for="hardWrapSelect">{{ t('ui.compose.hard_wrap', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="hardWrapSelect">
+                                <option value="72">{{ t('ui.compose.hard_wrap_72', {}, locale, ['common']) }}</option>
                                 <option value="79">{{ t('ui.compose.hard_wrap_79', {}, locale, ['common']) }}</option>
                                 <option value="39">{{ t('ui.compose.hard_wrap_39', {}, locale, ['common']) }}</option>
                                 <option value="0">{{ t('ui.compose.hard_wrap_off', {}, locale, ['common']) }}</option>
@@ -750,7 +751,7 @@ let mdEditorActive = false;
 let tuiEditor = null;
 let markdownEditorController = null;
 let scToolbarActive = false;
-let hardWrapLimit = 79; // default; 0 = off
+let hardWrapLimit = 72; // default; 0 = off
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
 const defaultCharset  = {{ default_charset|default("CP437")|json_encode|raw }};
 const replyCharset    = {{ reply_charset|default("")|json_encode|raw }};
@@ -2012,7 +2013,7 @@ $(document).ready(function() {
             $('#advancedOptionsPanel').addClass('show');
             $('#advancedOptionsToggle').attr('aria-expanded', 'true');
         }
-        // Restore hard wrap preference (default 79 if not set)
+        // Restore hard wrap preference (default 72 if not set)
         const savedWrap = settings.compose_hard_wrap;
         if (savedWrap !== undefined && savedWrap !== null) {
             hardWrapLimit = parseInt(savedWrap, 10) || 0;
@@ -2106,11 +2107,20 @@ $(document).ready(function() {
     }
 
     // Auto-save draft every 2 minutes
-    setInterval(function () {
-        saveDraft(true); // Silent save
-    }, 120000);
+    startAutoSave();
 
 });
+
+// Arm (or re-arm) the 2-minute silent auto-save interval. Safe to call
+// repeatedly; any existing interval is cleared first.
+function startAutoSave() {
+    if (window.autoSaveInterval) {
+        clearInterval(window.autoSaveInterval);
+    }
+    window.autoSaveInterval = setInterval(function () {
+        saveDraft(true); // Silent save
+    }, 120000);
+}
 
 function populateEchoareaSelect(areas, preselect) {
     const select = $('#echoarea');
@@ -2338,6 +2348,14 @@ async function sendMessage() {
         return;
     }
 
+    // Pause the auto-save interval while the send is in progress. It is
+    // re-armed on any send failure so the user never loses autosave for the
+    // rest of the editing session.
+    if (window.autoSaveInterval) {
+        clearInterval(window.autoSaveInterval);
+        window.autoSaveInterval = null;
+    }
+
     // Show sending status
     $('#sendStatus').show().html(`
         <div class="alert alert-info">
@@ -2356,6 +2374,9 @@ async function sendMessage() {
     function doSend(attachmentToken) {
         if (attachmentToken) {
             formData.attachment_token = attachmentToken;
+        }
+        if (window.currentDraftId) {
+            formData.draft_id = window.currentDraftId;
         }
 
         $.ajax({
@@ -2378,9 +2399,10 @@ async function sendMessage() {
                     </div>
                 `);
 
-                // Delete draft after successful send if we loaded from a draft
+                // Delete draft after successful send if we loaded from or saved a draft
                 if (window.currentDraftId) {
                     deleteDraftAfterSend(window.currentDraftId);
+                    window.currentDraftId = null;
                 }
 
                 setTimeout(function() {
@@ -2407,13 +2429,14 @@ async function sendMessage() {
                     </div>
                 `);
 
-                // Re-enable form
+                // Re-enable form and resume auto-save
                 form.find('input, textarea, select, button').prop('disabled', false);
+                startAutoSave();
             }
         });
     } // end doSend
 
-    if (hasAttachment) {
+    function uploadAttachmentThenSend() {
         // Upload the file first, then send the message with the returned token
         const uploadData = new FormData();
         uploadData.append('file', attachFile.files[0]);
@@ -2438,10 +2461,28 @@ async function sendMessage() {
                     </div>
                 `);
                 form.find('input, textarea, select, button').prop('disabled', false);
+                startAutoSave();
             }
         });
+    }
+
+    function triggerSend() {
+        if (hasAttachment) {
+            uploadAttachmentThenSend();
+        } else {
+            doSend(null);
+        }
+    }
+
+    // If a draft auto-save is still in flight, wait for it to finish before
+    // sending so we pick up its draft_id. Aborting it client-side would not
+    // stop the server INSERT and could leave an orphaned draft.
+    if (window.saveDraftXhr && window.saveDraftXhr.readyState !== 4) {
+        window.saveDraftXhr.always(function() {
+            triggerSend();
+        });
     } else {
-        doSend(null);
+        triggerSend();
     }
 }
 
@@ -2456,6 +2497,7 @@ function saveDraft(silent = false) {
     });
 
     const formData = {
+        draft_id: window.currentDraftId || null,
         type: $('#messageType').val(),
         to_address: $('#toAddress').val(),
         to_name: $('#toName').val(),
@@ -2491,12 +2533,15 @@ function saveDraft(silent = false) {
         saveButton.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i> ${uiT('ui.common.saving', 'Saving...')}`);
     }
 
-    $.ajax({
+    window.saveDraftXhr = $.ajax({
         url: '/api/messages/draft',
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(formData),
         success: function(response) {
+            if (response && response.success && response.draft_id) {
+                window.currentDraftId = response.draft_id;
+            }
             const savedMessage = window.getApiMessage
                 ? window.getApiMessage(response, uiT('ui.compose.draft.saved_success', 'Draft saved successfully'))
                 : uiT('ui.compose.draft.saved_success', 'Draft saved successfully');

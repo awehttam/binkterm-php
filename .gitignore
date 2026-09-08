@@ -78,3 +78,6 @@ bugreports/
 
 # Sysop-local Docker Compose overrides (see docker-compose.override.yml.example)
 docker-compose.override.yml
+
+# Native door local secrets
+native-doors/doors/bbslinknative/vars.sh

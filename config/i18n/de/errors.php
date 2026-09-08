@@ -240,6 +240,7 @@ return [
     'errors.messages.drafts.not_found' => 'Entwurf nicht gefunden',
     'errors.messages.drafts.get_failed' => 'Entwurf konnten nicht geladen werden',
     'errors.messages.drafts.delete_failed' => 'Entwurf konnte nicht gelöscht werden',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'Eine nicht leere Liste von Entwurfs-IDs ist erforderlich',
     'errors.messages.templates.not_licensed' => 'Nachricht templates require a registered license',
     'errors.messages.templates.not_found' => 'Vorlage nicht gefunden',
     'errors.messages.templates.name_required' => 'Template name ist erforderlich',
@@ -671,6 +672,7 @@ return [
     'errors.admin.areafix.send_failed' => 'command konnte nicht gesendet werden',
     'errors.admin.areafix.history_failed' => 'message history konnten nicht geladen werden',
     'errors.admin.areafix.sync_failed' => 'Failed to sync areas',
+    'errors.admin.areafix.no_area_list_found' => 'Keine Bereichsliste in den letzten Antworten für diesen Uplink gefunden',
     'errors.admin.poll.failed' => 'Failed to Umfrage BinkP uplink',
 
     'errors.admin.lovlynet.invalid_json' => 'Ungültig: request payload',
@@ -777,6 +779,7 @@ return [
     'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
     'errors.admin.networks.delete_in_use' => 'Network is in use',
     'errors.admin.networks.delete_failed' => 'Failed to delete network',
+    'errors.meshcore.disabled' => 'MeshCore ist auf diesem System deaktiviert.',
     'errors.meshcore.invalid_node_id' => 'Die Knoten-ID muss 12 oder 64 Kleinbuchstaben-Hexadezimalzeichen enthalten.',
     'errors.meshcore.contact_exists' => 'Ein Kontakt mit dieser Knoten-ID ist bereits vorhanden.',
     'errors.meshcore.not_found' => 'Kontakt nicht gefunden.',
@@ -821,4 +824,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'Der ausgewaehlte Benutzer existiert nicht.',
     'errors.admin.users.autocomplete_failed' => 'Benutzersuche fehlgeschlagen.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Ungültige Konfiguration der Registrierungsprüfung',
+    'errors.admin.nntp_settings.load_failed' => 'NNTP-Einstellungen konnten nicht geladen werden',
+    'errors.admin.nntp_settings.save_failed' => 'NNTP-Einstellungen konnten nicht gespeichert werden',
 ];

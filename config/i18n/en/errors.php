@@ -241,6 +241,7 @@ return [
     'errors.messages.drafts.not_found' => 'Draft not found',
     'errors.messages.drafts.get_failed' => 'Failed to load draft',
     'errors.messages.drafts.delete_failed' => 'Failed to delete draft',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'A non-empty draft ID list is required',
     'errors.messages.templates.not_licensed' => 'Message templates require a registered license',
     'errors.messages.templates.not_found' => 'Template not found',
     'errors.messages.templates.name_required' => 'Template name is required',
@@ -676,6 +677,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Failed to send command',
     'errors.admin.areafix.history_failed' => 'Failed to load message history',
     'errors.admin.areafix.sync_failed' => 'Failed to sync areas',
+    'errors.admin.areafix.no_area_list_found' => 'No area list found in recent replies for this uplink',
     'errors.admin.poll.failed' => 'Failed to poll BinkP uplink',
 
     'errors.admin.lovlynet.invalid_json' => 'Invalid request payload',
@@ -785,6 +787,7 @@ return [
     'errors.admin.hub_nodes.fileareas_load_failed' => 'Failed to load file area subscriptions',
     'errors.admin.hub_nodes.fileareas_save_failed' => 'Failed to save file area subscriptions',
     'errors.admin.hub_nodes.next_point_failed' => 'Failed to determine next point number',
+    'errors.meshcore.disabled' => 'MeshCore is disabled on this system.',
     'errors.meshcore.invalid_node_id' => 'Node ID must be 12 or 64 lowercase hex characters.',
     'errors.meshcore.contact_exists' => 'A contact with this node ID already exists.',
     'errors.meshcore.not_found' => 'Contact not found.',
@@ -817,4 +820,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'Selected user does not exist.',
     'errors.admin.users.autocomplete_failed' => 'Failed to search users.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Invalid registration screening configuration',
+    'errors.admin.nntp_settings.load_failed' => 'Failed to load NNTP settings',
+    'errors.admin.nntp_settings.save_failed' => 'Failed to save NNTP settings',
 ];

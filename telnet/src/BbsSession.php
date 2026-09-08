@@ -2446,6 +2446,87 @@ class BbsSession
         );
     }
 
+    /**
+     * Display the configured house rules during registration and require the
+     * prospective user to explicitly accept them before continuing.
+     *
+     * @return bool True when the user accepted (or no house rules are configured),
+     *              false when they declined or aborted.
+     */
+    private function showHouseRulesAndConfirm($conn, array &$state): bool
+    {
+        $markdown = \BinktermPHP\AppearanceConfig::getHouseRulesMarkdown();
+        if ($markdown === null || trim($markdown) === '') {
+            // No custom house rules configured — fall back to the built-in
+            // default rule set (the same keys the web "House Rules" modal
+            // renders via templates/rules.twig when no override exists).
+            $loc = $state['locale'] !== '' ? $state['locale'] : null;
+            $rule = function(string $key, string $fallback) use ($loc): string {
+                $r = $this->translator->translate($key, [], $loc, ['common']);
+                return $r === $key ? $fallback : $r;
+            };
+            $lines = [
+                $rule('ui.rules.intro', 'Be excellent to each other and help keep this system welcoming for everyone.'),
+                '',
+            ];
+            $lines[] = '- ' . $rule('ui.rules.item_1', 'Keep it civil. No harassment, hate speech, or personal attacks.');
+            $lines[] = '- ' . $rule('ui.rules.item_2', 'No spam or flooding.');
+            $lines[] = '- ' . $rule('ui.rules.item_3', 'Respect privacy. Do not share private information without consent.');
+            $lines[] = '- ' . $rule('ui.rules.item_4', 'Follow Fidonet etiquette and local network policies.');
+            $lines[] = '- ' . $rule('ui.rules.item_5', 'Sysop decisions are final.');
+            $markdown = implode("\n", $lines);
+        }
+
+        $ansiEnabled = $this->ansiColorEnabled;
+        $renderLines = function(int $contentWidth) use ($markdown, $ansiEnabled): array {
+            $rendered = TerminalMarkupRenderer::render('markdown', $markdown, $contentWidth);
+            if (!$ansiEnabled) {
+                $rendered = array_map(
+                    static fn(string $line): string => preg_replace('/\033\[[0-9;]*m/', '', $line) ?? $line,
+                    $rendered
+                );
+            }
+            return $rendered;
+        };
+
+        $cols = max(10, (int)($state['cols'] ?? 80));
+        $boxWidth = max(10, min($cols - 2, 96));
+        $lines = $renderLines(max(6, $boxWidth - 4));
+
+        $shell = TerminalShellFactory::create($this, $state);
+        $shell->showPagedBox(
+            $conn,
+            $state,
+            $this->t('ui.terminalserver.server.registration.house_rules_title', 'HOUSE RULES', [], $state['locale']),
+            $lines,
+            $this->t('ui.terminalserver.server.press_continue', 'Press any key to continue...', [], $state['locale']),
+            4,
+            [],
+            ['lines_fn' => $renderLines]
+        );
+
+        $this->writeLine($conn, '');
+        $answer = $this->prompt($conn, $state, $this->t(
+            'ui.terminalserver.server.registration.house_rules_prompt',
+            'Type YES to accept the house rules and continue: ',
+            [], $state['locale']
+        ), true);
+        $answer = strtolower(trim((string)$answer));
+
+        if (!in_array($answer, ['yes', 'y', 'i agree', 'agree'], true)) {
+            $this->writeLine($conn, $this->colorize($this->t(
+                'ui.terminalserver.server.registration.house_rules_declined',
+                'You must accept the house rules to register.',
+                [], $state['locale']
+            ), self::ANSI_RED));
+            $this->writeLine($conn, '');
+            return false;
+        }
+
+        $this->writeLine($conn, '');
+        return true;
+    }
+
     // ===== AUTHENTICATION =====
 
     /**
@@ -2466,6 +2547,10 @@ class BbsSession
         $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.intro',       'Please provide the following information to create your account.', [], $state['locale']));
         $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.registration.cancel_hint', '(Type "cancel" at any prompt to abort registration)', [], $state['locale']), self::ANSI_DIM));
         $this->writeLine($conn, '');
+
+        if (!$this->showHouseRulesAndConfirm($conn, $state)) {
+            return null;
+        }
 
         $fields = [
             ['key' => 'ui.terminalserver.server.registration.username', 'fallback' => \BinktermPHP\Config::allowSpacesInUsernames() ? 'Username (3-20 chars, letters/numbers/underscore/spaces): ' : 'Username (3-20 chars, letters/numbers/underscore): ', 'echo' => true,  'var' => 'username'],
@@ -3060,14 +3145,71 @@ class BbsSession
         $this->setEcho($conn, $state, false);
         $this->safeWrite($conn, "\033[?25h");
 
-        $renderEditor = function () use (
+        // Keep the viewport in sync with the cursor. Returns nothing; mutates $viewTop.
+        $recalcView = function () use (&$lines, &$viewTop, &$maxRows, &$cursorRow): void {
+            $maxTop = max(0, count($lines) - $maxRows);
+            if ($viewTop > $maxTop) {
+                $viewTop = $maxTop;
+            }
+            if ($cursorRow < $viewTop) {
+                $viewTop = $cursorRow;
+            } elseif ($cursorRow >= $viewTop + $maxRows) {
+                $viewTop = $cursorRow - $maxRows + 1;
+            }
+        };
+
+        // Place the terminal cursor at the current edit position. Only append the
+        // cursor-show escape when a preceding paint hid it.
+        $positionCursor = function (bool $showCursor) use ($conn, &$cursorRow, &$cursorCol, &$viewTop, $cursorBaseCol): void {
+            $displayRow = 2 + ($cursorRow - $viewTop);
+            $displayCol = $cursorBaseCol + $cursorCol;
+            $this->safeWrite($conn, "\033[{$displayRow};{$displayCol}H" . ($showCursor ? "\033[?25h" : ''));
+        };
+
+        // Repaint a single body row (index relative to $viewTop). Each row is fully
+        // padded to $editorWidth and written with an absolute cursor move, so stale
+        // characters are overwritten without a screen erase.
+        $paintRow = function (int $viewIdx) use ($conn, &$lines, &$viewTop, &$editorWidth, &$chars, $ansi, $frame, $body, $rst): void {
+            $vert = $this->encodeForTerminal($chars['v']);
+            $line = $lines[$viewTop + $viewIdx] ?? '';
+            $text = $this->encodeForTerminal($this->mbStrPad(mb_substr($line, 0, $editorWidth), $editorWidth));
+            $row  = 2 + $viewIdx;
+            if ($ansi) {
+                $this->safeWrite(
+                    $conn,
+                    "\033[{$row};1H" . $frame . $vert . $body . ' ' . $text . ' ' . $frame . $vert . $rst
+                );
+            } else {
+                $this->safeWrite($conn, "\033[{$row};1H" . $vert . ' ' . $text . ' ' . $vert);
+            }
+        };
+
+        $paintBodyRows = function () use (&$maxRows, $paintRow): void {
+            for ($idx = 0; $idx < $maxRows; $idx++) {
+                $paintRow($idx);
+            }
+        };
+
+        /*
+         * Render modes:
+         *   'full'   — clear screen, redraw borders + body + separator + footer.
+         *              Used on entry, resize, return from help, footer-notice change,
+         *              and for every non-ANSI session.
+         *   'body'   — repaint the body region in place; borders and footer untouched.
+         *              Used for structural edits (line split/join, delete-line) and scroll.
+         *   'line'   — repaint only the cursor's row. Used when typing does not change
+         *              the line count or scroll the view.
+         *   'cursor' — emit only a cursor-position escape. Used for pure cursor movement.
+         *
+         * 'line' and 'cursor' upgrade themselves to 'body' if the edit turned out to
+         * scroll the viewport. Only 'full' and 'body' toggle the cursor off/on.
+         */
+        $renderEditor = function (string $mode = 'full') use (
             $conn,
             &$lines,
             &$cursorRow,
             &$cursorCol,
             &$viewTop,
-            &$rows,
-            &$cols,
             &$editorWidth,
             &$maxRows,
             &$topBorder,
@@ -3080,20 +3222,41 @@ class BbsSession
             $frame,
             $body,
             $rst,
-            $cursorBaseCol
+            $recalcView,
+            $positionCursor,
+            $paintRow,
+            $paintBodyRows
         ): void {
+            if (!$ansi) {
+                $mode = 'full';
+            }
+
+            $prevViewTop = $viewTop;
+            $recalcView();
+            $viewScrolled = ($viewTop !== $prevViewTop);
+
+            if ($mode === 'cursor' && !$viewScrolled) {
+                $positionCursor(false);
+                return;
+            }
+
+            if ($mode === 'line' && !$viewScrolled) {
+                $paintRow($cursorRow - $viewTop);
+                $positionCursor(false);
+                return;
+            }
+
+            if ($mode === 'cursor' || $mode === 'line' || $mode === 'body') {
+                // 'body', or a 'line'/'cursor' request that scrolled the viewport.
+                $this->safeWrite($conn, "\033[?25l");
+                $paintBodyRows();
+                $positionCursor(true);
+                return;
+            }
+
+            // 'full'
             $vert = $this->encodeForTerminal($chars['v']);
             $this->safeWrite($conn, "\033[2J\033[H\033[?25l");
-
-            $maxTop = max(0, count($lines) - $maxRows);
-            if ($viewTop > $maxTop) {
-                $viewTop = $maxTop;
-            }
-            if ($cursorRow < $viewTop) {
-                $viewTop = $cursorRow;
-            } elseif ($cursorRow >= $viewTop + $maxRows) {
-                $viewTop = $cursorRow - $maxRows + 1;
-            }
 
             if ($ansi) {
                 $this->safeWrite($conn, "\033[1;1H" . $frame . $topBorder . $rst);
@@ -3101,19 +3264,7 @@ class BbsSession
                 $this->safeWrite($conn, "\033[1;1H" . $topBorder);
             }
 
-            for ($idx = 0; $idx < $maxRows; $idx++) {
-                $line = $lines[$viewTop + $idx] ?? '';
-                $text = $this->encodeForTerminal($this->mbStrPad(mb_substr($line, 0, $editorWidth), $editorWidth));
-                $row  = 2 + $idx;
-                if ($ansi) {
-                    $this->safeWrite(
-                        $conn,
-                        "\033[{$row};1H" . $frame . $vert . $body . ' ' . $text . ' ' . $frame . $vert . $rst
-                    );
-                } else {
-                    $this->safeWrite($conn, "\033[{$row};1H" . $vert . ' ' . $text . ' ' . $vert);
-                }
-            }
+            $paintBodyRows();
 
             $separatorRow = $maxRows + 2;
             $footerRow    = $maxRows + 3;
@@ -3131,9 +3282,7 @@ class BbsSession
                 $this->safeWrite($conn, "\033[{$bottomRow};1H" . $bottomBorder);
             }
 
-            $displayRow = 2 + ($cursorRow - $viewTop);
-            $displayCol = $cursorBaseCol + $cursorCol;
-            $this->safeWrite($conn, "\033[{$displayRow};{$displayCol}H\033[?25h");
+            $positionCursor(true);
         };
 
         $renderEditor();
@@ -3197,19 +3346,19 @@ class BbsSession
             if ($ord === 25) { // Ctrl+Y — delete line
                 if (count($lines) > 1) { array_splice($lines, $cursorRow, 1); if ($cursorRow >= count($lines)) { $cursorRow = count($lines) - 1; } $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); }
                 else { $lines[0] = ''; $cursorCol = 0; }
-                $renderEditor();
+                $renderEditor('body');
                 continue;
             }
             if ($ord === 11) { $this->showEditorHelp($conn, $state, $editorContext); $renderEditor(); continue; }  // Ctrl+K
-            if ($ord === 1)  { $cursorCol = 0; $renderEditor(); continue; }  // Ctrl+A
-            if ($ord === 5)  { $cursorCol = strlen($lines[$cursorRow]); $renderEditor(); continue; }  // Ctrl+E
+            if ($ord === 1)  { $cursorCol = 0; $renderEditor('cursor'); continue; }  // Ctrl+A
+            if ($ord === 5)  { $cursorCol = strlen($lines[$cursorRow]); $renderEditor('cursor'); continue; }  // Ctrl+E
 
-            if ($char === self::KEY_UP)    { if ($cursorRow > 0)                    { $cursorRow--; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } $renderEditor(); continue; }
-            if ($char === self::KEY_DOWN)  { if ($cursorRow < count($lines) - 1)    { $cursorRow++; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } $renderEditor(); continue; }
-            if ($char === self::KEY_LEFT)  { if ($cursorCol > 0) { $cursorCol--; } elseif ($cursorRow > 0) { $cursorRow--; $cursorCol = strlen($lines[$cursorRow]); } $renderEditor(); continue; }
-            if ($char === self::KEY_RIGHT) { if ($cursorCol < strlen($lines[$cursorRow])) { $cursorCol++; } elseif ($cursorRow < count($lines) - 1) { $cursorRow++; $cursorCol = 0; } $renderEditor(); continue; }
-            if ($char === self::KEY_HOME)  { $cursorCol = 0; $renderEditor(); continue; }
-            if ($char === self::KEY_END)   { $cursorCol = strlen($lines[$cursorRow]); $renderEditor(); continue; }
+            if ($char === self::KEY_UP)    { if ($cursorRow > 0)                    { $cursorRow--; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } $renderEditor('cursor'); continue; }
+            if ($char === self::KEY_DOWN)  { if ($cursorRow < count($lines) - 1)    { $cursorRow++; $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); } $renderEditor('cursor'); continue; }
+            if ($char === self::KEY_LEFT)  { if ($cursorCol > 0) { $cursorCol--; } elseif ($cursorRow > 0) { $cursorRow--; $cursorCol = strlen($lines[$cursorRow]); } $renderEditor('cursor'); continue; }
+            if ($char === self::KEY_RIGHT) { if ($cursorCol < strlen($lines[$cursorRow])) { $cursorCol++; } elseif ($cursorRow < count($lines) - 1) { $cursorRow++; $cursorCol = 0; } $renderEditor('cursor'); continue; }
+            if ($char === self::KEY_HOME)  { $cursorCol = 0; $renderEditor('cursor'); continue; }
+            if ($char === self::KEY_END)   { $cursorCol = strlen($lines[$cursorRow]); $renderEditor('cursor'); continue; }
 
             if ($ord === 13 || $ord === 10) {
                 if ($ord === 13) {
@@ -3221,11 +3370,12 @@ class BbsSession
                 $lines[$cursorRow] = $before;
                 array_splice($lines, $cursorRow + 1, 0, [$after]);
                 $cursorRow++; $cursorCol = 0;
-                $renderEditor();
+                $renderEditor('body');
                 continue;
             }
 
             if ($ord === 8 || $ord === 127) {
+                $preLineCount = count($lines);
                 if ($cursorCol > 0) {
                     $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol - 1) . substr($lines[$cursorRow], $cursorCol);
                     $cursorCol--;
@@ -3237,10 +3387,11 @@ class BbsSession
                     $cursorRow--;
                 }
                 [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
-                $renderEditor();
+                $renderEditor(count($lines) === $preLineCount ? 'line' : 'body');
                 continue;
             }
             if ($char === self::KEY_DELETE) {
+                $preLineCount = count($lines);
                 if ($cursorCol < strlen($lines[$cursorRow])) {
                     $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol) . substr($lines[$cursorRow], $cursorCol + 1);
                 } elseif ($cursorRow < count($lines) - 1) {
@@ -3248,14 +3399,15 @@ class BbsSession
                     array_splice($lines, $cursorRow + 1, 1);
                 }
                 [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
-                $renderEditor();
+                $renderEditor(count($lines) === $preLineCount ? 'line' : 'body');
                 continue;
             }
             if ($ord >= 32 && $ord < 127) {
+                $preLineCount = count($lines);
                 $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol) . $char . substr($lines[$cursorRow], $cursorCol);
                 $cursorCol++;
                 [$lines, $cursorRow, $cursorCol] = $this->wrapEditorLines($lines, $cursorRow, $cursorCol, $editorWidth);
-                $renderEditor();
+                $renderEditor(count($lines) === $preLineCount ? 'line' : 'body');
             }
         }
 

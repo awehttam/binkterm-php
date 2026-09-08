@@ -97,8 +97,11 @@ SimpleRouter::post('/api/door/launch', function() {
         $userData = [
             'id' => $userId,
             'real_name' => $user['username'], // Use username for door games
+            'alias' => $user['username'],
             'location' => 'BinktermPHP BBS', // Default location
             'security_level' => $user['is_admin'] ? 255 : 30,
+            'is_sysop' => !empty($user['is_admin']),
+            'locale' => $user['locale'] ?? '',
             'total_logins' => 1, // Default
             'last_login' => date('Y-m-d H:i:s'),
             'ansi_enabled' => true, // Default to ANSI
@@ -106,6 +109,7 @@ SimpleRouter::post('/api/door/launch', function() {
             'sysop_name' => $sysopName,
             'sysop_first' => $sysopFirst,
             'sysop_last' => $sysopLast,
+            'binkterm_version' => \BinktermPHP\Version::getVersion(),
         ];
 
         // Create session manager in headless (production) mode and start session
@@ -422,8 +426,11 @@ SimpleRouter::post('/api/door/guest/launch', function() {
         $userData = [
             'id'            => $guestUserId,
             'real_name'     => 'Guest',
+            'alias'         => 'Guest',
             'location'      => 'Anonymous',
             'security_level' => 5,
+            'is_sysop'      => false,
+            'locale'        => '',
             'total_logins'  => 0,
             'last_login'    => date('Y-m-d H:i:s'),
             'ansi_enabled'  => true,
@@ -431,6 +438,7 @@ SimpleRouter::post('/api/door/guest/launch', function() {
             'sysop_name'    => $sysopName,
             'sysop_first'   => $sysopParts[0] ?? 'Sysop',
             'sysop_last'    => $sysopParts[1] ?? '',
+            'binkterm_version' => \BinktermPHP\Version::getVersion(),
         ];
 
         $sessionManager = new DoorSessionManager(null, true);

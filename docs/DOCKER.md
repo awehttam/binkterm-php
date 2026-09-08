@@ -166,6 +166,7 @@ Uncomment the matching `ENABLE_*` line (and its port, if it has one) in `docker-
 | `ENABLE_MRC` | mrc_daemon | none needed | Outbound-only Multi Relay Chat client |
 | `ENABLE_AI_BOT` | ai_bot_daemon | none needed | Reactive via Postgres NOTIFY |
 | `ENABLE_MATTERBRIDGE` | matterbridge_daemon | none needed | Polls the Matterbridge API |
+| `ENABLE_NNTP` | nntp_daemon | `119:8119` (plaintext + STARTTLS) + `563:8563` (implicit TLS) | Serves echoareas as newsgroups. The daemon listens on its default `8119`/`8563` in-container; the override maps the standard host ports onto them. Also turn the server on in **Admin → NNTP Server**. See `docs/NNTP.md` |
 | `ENABLE_MCP_SERVER` | mcp_server | `3740:3740` | See `docs/MCPServer.md`. Internal port comes from `MCP_SERVER_PORT` in `.env` (default `3740`). **Requires a valid `data/license.json`** — the daemon checks for one on startup and exits if unlicensed, so enabling it without a license just fails gracefully rather than breaking the container |
 
 The internal port each daemon binds to inside the container is always controlled by `.env` (application config, same as bare metal); the host-facing port it's reachable on is always controlled by `docker-compose.override.yml` (Docker-only). The two are independent -- changing the host port never changes what the daemon binds to internally, and vice versa.

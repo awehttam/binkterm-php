@@ -180,6 +180,7 @@ return [
     'errors.messages.drafts.not_found' => 'Brouillon introuvable',
     'errors.messages.drafts.get_failed' => 'Échec du chargement du brouillon',
     'errors.messages.drafts.delete_failed' => 'Échec de la suppression du brouillon',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'Une liste non vide d\'identifiants de brouillons est requise',
     'errors.messages.netmail.get_failed' => 'Échec du chargement du message',
     'errors.messages.echomail.get_failed' => 'Échec du chargement du message',
     'errors.messages.search.query_too_short' => 'La requête de recherche doit comporter au moins 2 caractères',
@@ -543,6 +544,7 @@ return [
     'errors.admin.areafix.send_failed' => 'Échec de l\'envoi de la commande',
     'errors.admin.areafix.history_failed' => 'Échec du chargement de l\'historique des messages',
     'errors.admin.areafix.sync_failed' => 'Échec de la synchronisation des zones',
+    'errors.admin.areafix.no_area_list_found' => 'Aucune liste de zones trouvée dans les réponses récentes pour cet uplink',
     'errors.admin.poll.failed' => 'Échec de l\'interrogation du lien montant BinkP',
 
     'errors.admin.lovlynet.invalid_json' => 'Charge utile de demande invalide',
@@ -734,6 +736,7 @@ return [
     'errors.admin.networks.change_domain_failed' => 'Failed to change domain',
     'errors.admin.networks.delete_in_use' => 'Network is in use',
     'errors.admin.networks.delete_failed' => 'Failed to delete network',
+    'errors.meshcore.disabled' => 'MeshCore est désactivé sur ce système.',
     'errors.meshcore.invalid_node_id' => 'L\'ID de noeud doit comporter 12 ou 64 caractères hexadécimaux minuscules.',
     'errors.meshcore.contact_exists' => 'Un contact avec cet ID de noeud existe déjà.',
     'errors.meshcore.not_found' => 'Contact introuvable.',
@@ -774,6 +777,6 @@ return [
     'errors.admin.hub_nodes.invalid_owner_user' => 'L\'utilisateur selectionne n\'existe pas.',
     'errors.admin.users.autocomplete_failed' => 'Echec de la recherche d\'utilisateurs.',
     'errors.admin.bbs_settings.invalid_screening_config' => 'Configuration du filtrage des inscriptions invalide',
+    'errors.admin.nntp_settings.load_failed' => 'Échec du chargement des paramètres NNTP',
+    'errors.admin.nntp_settings.save_failed' => 'Échec de l\'enregistrement des paramètres NNTP',
 ];
-
-

@@ -93,7 +93,7 @@ SystemConfig::getSystemSysop()
 
 If `config/binkp.json` does not exist, `BinkpConfig` creates a minimal default file. If the file exists but is not valid JSON, it throws immediately — there is no silent fallback.
 
-Written via: Admin UI → BinkP Config (via AdminDaemonClient `save_binkp_config` command).
+Written via: Admin UI → BinkP Uplinks (via AdminDaemonClient `save_binkp_config` command).
 
 ### `config/bbs.json` → `BbsConfig` (Static)
 

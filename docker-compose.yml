@@ -67,6 +67,7 @@ services:
       ENABLE_AI_BOT: "false"
       ENABLE_MATTERBRIDGE: "false"
       ENABLE_MCP_SERVER: "false"
+      ENABLE_NNTP: "false"
 
       # Scheduled maintenance jobs (all on by default, run via cron).
       # Override in docker-compose.override.yml.

@@ -76,7 +76,7 @@ Avoid changing the domain after mail has started flowing. Echo areas and file ar
 
 ## Configure the BinkP Uplink
 
-Open **Admin -> BBS Settings -> Binkp Config** and add an uplink for the network.
+Open **Admin -> BBS Settings -> BinkP Uplinks** and add an uplink for the network.
 
 Set these fields from the details provided by the hub:
 
@@ -110,7 +110,7 @@ For public nodes:
 
 For poll-only nodes:
 
-1. Configure the uplink poll schedule in the BinkP settings, or run the poller from cron.
+1. Configure the uplink poll schedule in **Admin -> BBS Settings -> BinkP Uplinks**, or run the poller from cron.
 2. Poll often enough for the network's expected mail flow. Polling should generally run at least every 4 to 6 hours, but avoid polling more often than the hub recommends because frequent polls may trigger rate limiting.
 3. Confirm outbound TCP connections to the hub are allowed.
 

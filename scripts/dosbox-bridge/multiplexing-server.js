@@ -542,14 +542,25 @@ class SessionManager {
             // Store so cleanupSessionFiles can remove the right drop file
             session.dropPath = dropPath;
 
-            // Determine dropfile format (native doors can specify DOOR32.SYS)
+            // Determine dropfile format and load the door manifest.
+            // Native doors can specify DOOR32.SYS; both native and DOS doors can
+            // specify BBSDEV.DRP.
+            const isNativeDoor = emulatorName === 'Native';
             let dropfileFormat = 'DOOR.SYS';
-            if (emulatorName === 'Native') {
+            let doorManifest = null;
+            if (isNativeDoor) {
                 const nativeManifestPath = path.join(BASE_PATH, 'native-doors', 'doors', sessionData.door_id, 'nativedoor.json');
                 if (fs.existsSync(nativeManifestPath)) {
-                    const nativeManifest = JSON.parse(fs.readFileSync(nativeManifestPath, 'utf8'));
-                    dropfileFormat = (nativeManifest.door && nativeManifest.door.dropfile_format) || 'DOOR.SYS';
+                    doorManifest = JSON.parse(fs.readFileSync(nativeManifestPath, 'utf8'));
                 }
+            } else {
+                const dosManifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DOORS', sessionData.door_id.toUpperCase(), 'dosdoor.jsn');
+                if (fs.existsSync(dosManifestPath)) {
+                    doorManifest = JSON.parse(fs.readFileSync(dosManifestPath, 'utf8'));
+                }
+            }
+            if (doorManifest && doorManifest.door && doorManifest.door.dropfile_format) {
+                dropfileFormat = doorManifest.door.dropfile_format;
             }
 
             session.slog.log(`[DROPFILE] Writing ${dropfileFormat} to: ${dropPath}`);
@@ -557,6 +568,9 @@ class SessionManager {
             if (dropfileFormat === 'DOOR32.SYS') {
                 this.generateDoor32Sys(dropPath, userData, sessionData.node_number);
                 session.slog.log(`[DROPFILE] Generated DOOR32.SYS in ${dropPath}`);
+            } else if (dropfileFormat === 'BBSDEV.DRP') {
+                this.generateBbsdevDrp(dropPath, userData, sessionData, doorManifest, isNativeDoor);
+                session.slog.log(`[DROPFILE] Generated BBSDEV.DRP in ${dropPath}`);
             } else {
                 this.generateDoorSys(dropPath, userData, sessionData.node_number);
                 session.slog.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
@@ -721,6 +735,112 @@ class SessionManager {
             }
         } catch (err) {
             console.error(`[DROPFILE] Failed to write DOOR32.SYS: ${err.message}`);
+            throw err;
+        }
+    }
+
+    /**
+     * Resolve the door's screen size from the admin runtime config
+     * (config/nativedoors.json or config/dosdoors.json), falling back to 80x25.
+     *
+     * @param {string} doorId
+     * @param {boolean} isNative
+     * @returns {{cols: number, rows: number}}
+     */
+    resolveDoorScreenSize(doorId, isNative) {
+        let cols = 80, rows = 25;
+        try {
+            const cfgPath = path.join(BASE_PATH, 'config', isNative ? 'nativedoors.json' : 'dosdoors.json');
+            if (fs.existsSync(cfgPath)) {
+                const cfgs = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+                const sizeStr = (cfgs[doorId] && cfgs[doorId].terminal_size) || '80x25';
+                if (sizeStr !== 'autofit') {
+                    const parts = String(sizeStr).split('x').map(Number);
+                    if (parts[0] > 0) cols = Math.max(1, Math.min(65535, Math.trunc(parts[0])));
+                    if (parts[1] > 0) rows = Math.max(1, Math.min(65535, Math.trunc(parts[1])));
+                }
+            }
+        } catch (_) { /* fall back to 80x25 */ }
+        return { cols, rows };
+    }
+
+    /**
+     * Strip NUL / C0 / C1 / DEL control characters and trim Unicode whitespace
+     * from a BBSDEV.DRP field value, per the spec's field rules.
+     *
+     * @param {*} value
+     * @returns {string}
+     */
+    sanitizeDrpValue(value) {
+        return String(value == null ? '' : value)
+            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+            .replace(/^\s+|\s+$/gu, '');
+    }
+
+    /**
+     * Generate a BBSDEV.DRP drop file.
+     *
+     * Spec: https://realdeuce.github.io/bbsdev.drp/ (v1.0 — exactly 19 lines,
+     * UTF-8 without BOM, CRLF line endings). EXPERIMENTAL / UNTESTED.
+     *
+     * @param {string} dropPath   drop directory
+     * @param {object} userData   parsed user_data from the session row
+     * @param {object} sessionData session row (door_id, user_id, node_number)
+     * @param {object|null} manifest the door manifest (for output_encoding)
+     * @param {boolean} isNative  true for native (stdio) doors, false for DOS (fossil)
+     */
+    generateBbsdevDrp(dropPath, userData, sessionData, manifest, isNative) {
+        const drpPath = path.join(dropPath, 'BBSDEV.DRP');
+
+        const outputEncoding = (manifest && manifest.door && manifest.door.output_encoding)
+            || (isNative ? 'utf8' : 'cp437');
+        const termEncoding = outputEncoding === 'cp437' ? 'IBM437' : 'UTF-8';
+
+        const { cols, rows } = this.resolveDoorScreenSize(sessionData.door_id, isNative);
+
+        // Map BinktermPHP short locale codes to a BCP 47 tag with a region subtag.
+        const localeMap = { en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT', ru: 'ru-RU' };
+        const rawLocale = String(userData.locale || '').trim();
+        const language = localeMap[rawLocale] || (rawLocale !== '' ? rawLocale : 'en-US');
+
+        const isSysop = userData.is_sysop === true || userData.is_sysop === 'true'
+            || String(userData.security_level || '') === '255';
+
+        const alias = this.sanitizeDrpValue(userData.alias || userData.handle || userData.real_name || 'Guest') || 'Guest';
+        const boardName = this.sanitizeDrpValue(userData.bbs_name || 'BinktermPHP BBS') || 'BinktermPHP BBS';
+        const sysopAlias = this.sanitizeDrpValue(userData.sysop_name || 'Sysop') || 'Sysop';
+        const bbsSoftware = this.sanitizeDrpValue('BinktermPHP ' + (userData.binkterm_version || '')) || 'BinktermPHP';
+        const userKey = String(sessionData.user_id || userData.id || '0');
+
+        const lines = [
+            '1.0',                                   // 1  format version
+            isNative ? 'stdio' : 'fossil',           // 2  communications type
+            isNative ? '' : '0',                     // 3  communications parameters (fossil: 0 = COM1)
+            alias,                                   // 4  user alias
+            userKey,                                 // 5  unique user key
+            String(cols),                            // 6  screen width
+            String(rows),                            // 7  screen height
+            'Y',                                     // 8  ANSI enabled (doors always run in ANSI here)
+            'N',                                     // 9  RIP enabled
+            '',                                      // 10 CTerm version (not detected)
+            '',                                      // 11 logoff deadline (no forced logoff)
+            termEncoding,                            // 12 terminal encoding (IANA preferred MIME name)
+            language,                                // 13 language (BCP 47)
+            bbsSoftware,                             // 14 BBS software name/version
+            boardName,                               // 15 board name
+            sysopAlias,                              // 16 sysop alias
+            isSysop ? 'sysop' : '50',                // 17 access level
+            String(sessionData.node_number || 1),    // 18 node number
+            'N',                                     // 19 show local display
+        ];
+
+        const content = lines.join('\r\n') + '\r\n';
+        try {
+            fs.writeFileSync(drpPath, content, { encoding: 'utf8' });
+            const stats = fs.statSync(drpPath);
+            console.log(`[DROPFILE] Wrote ${Buffer.byteLength(content, 'utf8')} bytes to ${drpPath} (on-disk ${stats.size})`);
+        } catch (err) {
+            console.error(`[DROPFILE] Failed to write BBSDEV.DRP: ${err.message}`);
             throw err;
         }
     }
@@ -1187,10 +1307,12 @@ class SessionManager {
             // Remove DOOR.SYS file from drop directory
             const dropPath = session.dropPath ||
                 path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
-            const doorSysPath = path.join(dropPath, 'DOOR.SYS');
-            if (fs.existsSync(doorSysPath)) {
-                fs.unlinkSync(doorSysPath);
-                session.slog.log(`[CLEANUP] Removed DOOR.SYS from drop directory`);
+            for (const dropName of ['DOOR.SYS', 'DOOR32.SYS', 'BBSDEV.DRP']) {
+                const dp = path.join(dropPath, dropName);
+                if (fs.existsSync(dp)) {
+                    fs.unlinkSync(dp);
+                    session.slog.log(`[CLEANUP] Removed ${dropName} from drop directory`);
+                }
             }
 
             // Check if session directory exists

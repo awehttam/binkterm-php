@@ -250,6 +250,8 @@ The client automatically closes after each `sendCommand()` call. Call `close()` 
 | `setMrcConfig(array $config)` | Write MRC daemon config |
 | `getMatterbridgeConfig()` | Read Matterbridge config |
 | `setMatterbridgeConfig(array $config)` | Write Matterbridge config |
+| `getNntpConfig()` | Read `config/nntp.json` (NNTP server behaviour) |
+| `setNntpConfig(array $config)` | Write `config/nntp.json` (unknown keys dropped, values coerced) |
 | `getWeatherConfig()` | Read `config/weather.json` |
 | `saveWeatherConfig(string $json)` | Write `config/weather.json` |
 

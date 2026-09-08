@@ -8,7 +8,24 @@
         <h1 class="h2">{{ t('ui.admin.bbs_settings.heading', {}, locale, ['common']) }}</h1>
     </div>
 
-    <div class="row g-4 settings-loading" id="bbsSettingsCards">
+    <ul class="nav nav-tabs mb-4" id="bbsSettingsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="bbsTabSystem" data-bs-toggle="tab" data-bs-target="#bbsTabPaneSystem" type="button" role="tab">{{ t('ui.admin.bbs_settings.tabs.system', {}, locale, ['common']) }}</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="bbsTabCredits" data-bs-toggle="tab" data-bs-target="#bbsTabPaneCredits" type="button" role="tab">{{ t('ui.admin.bbs_settings.tabs.credits', {}, locale, ['common']) }}</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="bbsTabTaglines" data-bs-toggle="tab" data-bs-target="#bbsTabPaneTaglines" type="button" role="tab">{{ t('ui.admin.bbs_settings.tabs.taglines', {}, locale, ['common']) }}</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="bbsTabScreening" data-bs-toggle="tab" data-bs-target="#bbsTabPaneScreening" type="button" role="tab">{{ t('ui.admin.bbs_settings.tabs.screening', {}, locale, ['common']) }}</button>
+        </li>
+    </ul>
+
+    <div class="tab-content settings-loading" id="bbsSettingsCards">
+      <div class="tab-pane fade show active" id="bbsTabPaneSystem" role="tabpanel" aria-labelledby="bbsTabSystem">
+        <div class="row g-4">
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
@@ -156,6 +173,11 @@
                             <label class="form-check-label" for="bbsQwk">{{ t('ui.admin.bbs_settings.features.enable_qwk', {}, locale, ['common']) }}</label>
                             <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.qwk_help', {}, locale, ['common']) }}</small></div>
                         </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsMeshcore">
+                            <label class="form-check-label" for="bbsMeshcore">{{ t('ui.admin.bbs_settings.features.enable_meshcore', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.meshcore_help', {}, locale, ['common']) }}</small></div>
+                        </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsPgp">
                             <label class="form-check-label" for="bbsPgp">{{ t('ui.admin.bbs_settings.features.enable_pgp', {}, locale, ['common']) }}</label>
@@ -235,6 +257,10 @@
                 </div>
             </div>
         </div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="bbsTabPaneCredits" role="tabpanel" aria-labelledby="bbsTabCredits">
+        <div class="row g-4">
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header">
@@ -350,6 +376,10 @@
                 </div>
             </div>
         </div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="bbsTabPaneTaglines" role="tabpanel" aria-labelledby="bbsTabTaglines">
+        <div class="row g-4">
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header">
@@ -366,6 +396,10 @@
                 </div>
             </div>
         </div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="bbsTabPaneScreening" role="tabpanel" aria-labelledby="bbsTabScreening">
+        <div class="row g-4">
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header">
@@ -477,6 +511,8 @@
                 </div>
             </div>
         </div>
+        </div>
+      </div>
     </div>
 
 </div>
@@ -521,6 +557,7 @@ function loadBbsSettings() {
             document.getElementById('bbsGuestDoorsPage').checked = !!features.guest_doors_page;
             document.getElementById('bbsBbsDirectory').checked = features.bbs_directory !== false;
             document.getElementById('bbsQwk').checked = !!features.qwk;
+            document.getElementById('bbsMeshcore').checked = features.meshcore !== false;
             document.getElementById('bbsPgp').checked = !!features.pgp;
             document.getElementById('bbsPgpManagedKeys').checked = !!features.pgp_managed_keys;
             document.getElementById('bbsQwkBbsId').value = data.config?.qwk?.bbs_id || '';
@@ -640,6 +677,7 @@ function saveBbsSettings() {
                     bbs_directory: document.getElementById('bbsBbsDirectory').checked,
                     public_files_index: document.getElementById('bbsPublicFilesIndex') ? document.getElementById('bbsPublicFilesIndex').checked : false,
                     qwk: document.getElementById('bbsQwk').checked,
+                    meshcore: document.getElementById('bbsMeshcore').checked,
                     pgp: document.getElementById('bbsPgp').checked,
                     pgp_managed_keys: document.getElementById('bbsPgpManagedKeys').checked
                 },
