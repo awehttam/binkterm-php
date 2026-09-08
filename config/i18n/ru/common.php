@@ -4466,6 +4466,9 @@ return [
     'ui.address_book.node_address_title' => 'Введите действительный адрес Fidonet (например, 1:234/567 или 1:234/567.0)',
     'ui.drafts.delete_confirm' => 'Вы уверены, что хотите удалить этот черновик? Действие нельзя отменить.',
     'ui.drafts.deleted_success' => 'Черновик успешно удалён',
+    'ui.drafts.bulk_delete.confirm' => 'Вы уверены, что хотите удалить черновиков: {count}? Действие нельзя отменить.',
+    'ui.drafts.bulk_delete.success' => 'Удалено черновиков: {count}',
+    'ui.drafts.bulk_delete.failed' => 'Не удалось удалить черновики',
     'ui.messages.none_selected' => 'Сообщения не выбраны',
 
     // Netmail

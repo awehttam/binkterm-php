@@ -7634,6 +7634,44 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // Bulk delete drafts
+    SimpleRouter::post('/messages/drafts/bulk-delete', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $draftIds = $input['message_ids'] ?? [];
+
+        if (empty($draftIds) || !is_array($draftIds)) {
+            http_response_code(400);
+            apiError('errors.messages.drafts.bulk_delete.invalid_input', apiLocalizedText('errors.messages.drafts.bulk_delete.invalid_input', 'A non-empty draft ID list is required', $user));
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(500);
+            apiError('errors.messages.drafts.user_id_missing', apiLocalizedText('errors.messages.drafts.user_id_missing', 'Unable to resolve user session', $user));
+            return;
+        }
+
+        try {
+            $handler = new MessageHandler();
+            $result = $handler->bulkDeleteDrafts($userId, $draftIds);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.drafts.bulk_delete.success',
+                'message_params' => ['count' => $result['deleted']],
+                'deleted' => $result['deleted'],
+                'total' => $result['total'],
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            apiError('errors.messages.drafts.delete_failed', apiLocalizedText('errors.messages.drafts.delete_failed', 'Failed to delete draft', $user));
+        }
+    });
+
     // -----------------------------------------------------------------------
     // Message Templates (premium feature — requires valid license)
     // -----------------------------------------------------------------------

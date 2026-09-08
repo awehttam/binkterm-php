@@ -8,6 +8,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Web Interface](#web-interface)
   - [Message Composition](#message-composition)
   - [Draft Handling on Send](#draft-handling-on-send)
+  - [Bulk Delete on the Drafts Tab](#bulk-delete-on-the-drafts-tab)
   - [Admin BBS Settings](#admin-bbs-settings)
   - [Navbar Active Section Indicator](#navbar-active-section-indicator)
   - [Themed Message Threading Colors](#themed-message-threading-colors)
@@ -41,6 +42,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Message composition:** the compose editor's automatic line-wrap column now defaults to **72** instead of 79, and 72 is offered as the recommended choice in the compose Advanced Options. Wrapping at 72 leaves room for quote-attribution prefixes (for example ` AB> `) so that quoted reply lines stay within the 79-column width that FidoNet readers expect. The 79-column option is still available for users who prefer it, and anyone who has already chosen a wrap width keeps their setting.
 - **Draft handling on send:** when a message is sent successfully from the web compose page, the draft it was composed from is now deleted automatically — including a draft that was only ever created by the 2-minute auto-save. Previously an auto-saved draft could be left behind after the message had already gone out, cluttering the drafts list.
 - **Draft handling on send:** a failed send (validation error, server error, or a netmail attachment upload failure) no longer silently disables auto-save for the rest of the editing session; the auto-save timer is restored so continued edits keep being saved.
+- **Bulk delete on the Drafts tab:** the netmail page's **Select** button now works on the **Drafts** tab. Previously the drafts list rendered no selection checkboxes at all, so multi-select and the **Delete Selected** action were unavailable there — you could only delete drafts one at a time. Selecting drafts and choosing Delete Selected now removes them together via a new `POST /api/messages/drafts/bulk-delete` endpoint (each delete is scoped to the signed-in user).
 - **Admin BBS Settings:** the **Admin -> BBS Settings** page is now organized into four tabs: **System & Features**, **Credit System**, **Tag Lines**, and **Registration Screening**. All settings and their save buttons are unchanged; they are only regrouped so the page is shorter and easier to navigate.
 - **Navbar active section indicator:** the web navigation bar now marks the section for the page you are on: the matching top-level menu item is shown in bold with a short underline bar beneath it, in the navigation link colour of whatever theme is active. The section is worked out from the page URL, so a page with no menu entry of its own still highlights its parent — a message thread or the compose page marks **Messaging**, and a door launcher marks **Doors**.
 - **Navbar active section indicator:** the **Files** menu's new-files cue is now shown on the file icon only. Previously an incoming file also turned the word "Files" yellow, which looked like the active-section highlight. The file icon and the Files link inside the dropdown still turn yellow; only the top-level text label no longer does.
@@ -104,6 +106,14 @@ The web compose page auto-saves an in-progress netmail or echomail message as a 
 - On a successful send, the compose page tells the server which draft the message came from, and the server deletes it. This covers a draft you opened and finished, a draft you saved manually, and a draft that only exists because the auto-save timer fired while you were writing. If the compose page cannot identify a specific draft, the server removes the most recent draft that matches the message's area (echomail) or recipient (netmail) and subject. Previously an auto-saved draft was frequently left behind after its message had already been sent.
 - The compose page now waits for an in-flight auto-save to finish before sending, instead of cancelling it. Cancelling it client-side did not stop the save from completing on the server, which is how the leftover drafts were being created.
 - If a send fails — a validation error, a server error, or (for netmail) an attachment that fails to upload — the two-minute auto-save timer is now restarted when the form is re-enabled. Before, a failed send left auto-save switched off for the rest of the session, so later edits were not being saved until the page was reloaded.
+
+### Bulk Delete on the Drafts Tab
+
+The netmail page (`/netmail`) has a **Select** button that turns on a column of checkboxes so you can act on several messages at once. It worked on the All, Unread, Sent, and Saved tabs, but the **Drafts** tab rendered its own table with no checkboxes, so turning on Select did nothing there and drafts could only be removed one at a time with the per-row trash button.
+
+The Drafts tab now renders the same selection checkboxes and a select-all control. With one or more drafts selected, **Delete Selected** removes them in a single step, after a confirmation prompt. The list then reloads.
+
+This is backed by a new endpoint, `POST /api/messages/drafts/bulk-delete`, which takes `{ "message_ids": [ ... ] }` and deletes only drafts owned by the requesting user; IDs that belong to someone else or no longer exist are skipped. See `docs/API.md` for the full contract.
 
 ### Admin BBS Settings
 

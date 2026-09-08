@@ -7546,6 +7546,42 @@ class MessageHandler
     }
 
     /**
+     * Delete multiple drafts belonging to the given user.
+     *
+     * Each delete is scoped to the owning user, so IDs that do not belong to
+     * the user (or no longer exist) are simply skipped.
+     *
+     * @param int   $userId
+     * @param int[] $draftIds
+     * @return array{success:bool,deleted:int,total:int}
+     */
+    public function bulkDeleteDrafts($userId, array $draftIds)
+    {
+        $deleted = 0;
+
+        foreach ($draftIds as $draftId) {
+            $draftId = (int)$draftId;
+            if ($draftId <= 0) {
+                continue;
+            }
+
+            try {
+                $stmt = $this->db->prepare("DELETE FROM drafts WHERE id = ? AND user_id = ?");
+                $stmt->execute([$draftId, $userId]);
+                $deleted += $stmt->rowCount();
+            } catch (\Exception $e) {
+                $this->logger->error("Error deleting draft {$draftId}: " . $e->getMessage());
+            }
+        }
+
+        return [
+            'success' => true,
+            'deleted' => $deleted,
+            'total' => count($draftIds),
+        ];
+    }
+
+    /**
      * Delete the most recent draft matching a just-sent message.
      *
      * This is the fallback used only when the client did not supply an explicit

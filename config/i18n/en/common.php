@@ -4460,6 +4460,9 @@ return [
     'ui.address_book.node_address_title' => 'Enter a valid Fidonet address (e.g., 1:234/567 or 1:234/567.0)',
     'ui.drafts.delete_confirm' => 'Are you sure you want to delete this draft? This cannot be undone.',
     'ui.drafts.deleted_success' => 'Draft deleted successfully',
+    'ui.drafts.bulk_delete.confirm' => 'Are you sure you want to delete {count} draft(s)? This cannot be undone.',
+    'ui.drafts.bulk_delete.success' => 'Deleted {count} draft(s)',
+    'ui.drafts.bulk_delete.failed' => 'Failed to delete drafts',
     'ui.messages.none_selected' => 'No messages selected',
 
     // Netmail

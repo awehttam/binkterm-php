@@ -241,6 +241,7 @@ return [
     'errors.messages.drafts.not_found' => 'Bozza non trovata',
     'errors.messages.drafts.get_failed' => 'Impossibile caricare la bozza',
     'errors.messages.drafts.delete_failed' => 'Impossibile eliminare la bozza',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'È richiesto un elenco non vuoto di ID bozza',
     'errors.messages.templates.not_licensed' => 'I modelli messaggio richiedono una licenza registrata',
     'errors.messages.templates.not_found' => 'Modello non trovato',
     'errors.messages.templates.name_required' => 'Nome modello obbligatorio',

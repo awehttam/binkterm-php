@@ -4441,6 +4441,9 @@ return [
     'ui.address_book.node_address_title' => 'Inserisci un indirizzo Fidonet valido (es. 1:234/567 o 1:234/567.0)',
     'ui.drafts.delete_confirm' => 'Sei sicuro di voler eliminare questa bozza? Questa azione non può essere annullata.',
     'ui.drafts.deleted_success' => 'Bozza eliminata correttamente',
+    'ui.drafts.bulk_delete.confirm' => 'Sei sicuro di voler eliminare {count} bozza/e? Questa azione non può essere annullata.',
+    'ui.drafts.bulk_delete.success' => 'Eliminate {count} bozza/e',
+    'ui.drafts.bulk_delete.failed' => 'Impossibile eliminare le bozze',
     'ui.messages.none_selected' => 'Nessun messaggio selezionato',
 
     // Netmail

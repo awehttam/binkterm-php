@@ -180,6 +180,7 @@ return [
     'errors.messages.drafts.not_found' => 'Brouillon introuvable',
     'errors.messages.drafts.get_failed' => 'Échec du chargement du brouillon',
     'errors.messages.drafts.delete_failed' => 'Échec de la suppression du brouillon',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'Une liste non vide d\'identifiants de brouillons est requise',
     'errors.messages.netmail.get_failed' => 'Échec du chargement du message',
     'errors.messages.echomail.get_failed' => 'Échec du chargement du message',
     'errors.messages.search.query_too_short' => 'La requête de recherche doit comporter au moins 2 caractères',

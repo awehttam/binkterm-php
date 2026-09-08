@@ -4614,6 +4614,7 @@ Marks a device command as executed. The bridge calls this after dispatching the 
 | `GET` | [`/api/messages/drafts`](#get-apimessagesdrafts) | Yes | Retrieve authenticated user's draft messages. |
 | `GET` | [`/api/messages/drafts/{id}`](#get-apimessagesdraftsid) | Yes | Retrieve a specific draft message by ID. |
 | `DELETE` | [`/api/messages/drafts/{id}`](#delete-apimessagesdraftsid) | Yes | Delete a draft message. |
+| `POST` | [`/api/messages/drafts/bulk-delete`](#post-apimessagesdraftsbulk-delete) | Yes | Delete multiple draft messages in bulk. |
 | `GET` | [`/api/messages/templates`](#get-apimessagestemplates) | Yes | List message templates for authenticated user. |
 | `GET` | [`/api/messages/templates/{id}`](#get-apimessagestemplatesid) | Yes | Retrieve a single message template with full body. |
 | `POST` | [`/api/messages/templates`](#post-apimessagestemplates) | Yes | Create or update a message template. |
@@ -5656,6 +5657,38 @@ Deletion result with success status and message code.
 
 | Status | Description |
 |--------|-------------|
+| 500 | User ID cannot be resolved or deletion failed. |
+
+---
+
+#### `POST /api/messages/drafts/bulk-delete`
+
+**Requires authentication**
+
+Permanently deletes multiple draft messages belonging to the authenticated user. Each delete is scoped to the owning user, so IDs that do not belong to the caller (or no longer exist) are silently skipped and not counted.
+
+**Request Body** _(JSON)_
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `message_ids` | array of integers | Yes | Draft IDs to delete. Must be a non-empty array. |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` when the request was processed. |
+| `message_code` | string | Localization key for the UI message (`ui.drafts.bulk_delete.success`). |
+| `message_params` | object | Parameters for the localized message. |
+| `message_params.count` | integer | Number of drafts actually deleted. |
+| `deleted` | integer | Number of drafts actually deleted. |
+| `total` | integer | Number of IDs supplied in the request. |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | `message_ids` is missing, empty, or not an array (`errors.messages.drafts.bulk_delete.invalid_input`). |
 | 500 | User ID cannot be resolved or deletion failed. |
 
 ---

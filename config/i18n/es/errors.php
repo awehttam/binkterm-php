@@ -241,6 +241,7 @@ return [
     'errors.messages.drafts.not_found' => 'Borrador no encontrado',
     'errors.messages.drafts.get_failed' => 'No se pudo cargar el borrador',
     'errors.messages.drafts.delete_failed' => 'No se pudo eliminar el borrador',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'Se requiere una lista no vacia de ID de borradores',
     'errors.messages.templates.not_licensed' => 'Las plantillas de mensajes requieren una licencia registrada',
     'errors.messages.templates.not_found' => 'Plantilla no encontrada',
     'errors.messages.templates.name_required' => 'El nombre de la plantilla es obligatorio',

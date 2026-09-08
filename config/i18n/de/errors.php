@@ -240,6 +240,7 @@ return [
     'errors.messages.drafts.not_found' => 'Entwurf nicht gefunden',
     'errors.messages.drafts.get_failed' => 'Entwurf konnten nicht geladen werden',
     'errors.messages.drafts.delete_failed' => 'Entwurf konnte nicht gelöscht werden',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'Eine nicht leere Liste von Entwurfs-IDs ist erforderlich',
     'errors.messages.templates.not_licensed' => 'Nachricht templates require a registered license',
     'errors.messages.templates.not_found' => 'Vorlage nicht gefunden',
     'errors.messages.templates.name_required' => 'Template name ist erforderlich',

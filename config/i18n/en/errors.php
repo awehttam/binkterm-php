@@ -241,6 +241,7 @@ return [
     'errors.messages.drafts.not_found' => 'Draft not found',
     'errors.messages.drafts.get_failed' => 'Failed to load draft',
     'errors.messages.drafts.delete_failed' => 'Failed to delete draft',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'A non-empty draft ID list is required',
     'errors.messages.templates.not_licensed' => 'Message templates require a registered license',
     'errors.messages.templates.not_found' => 'Template not found',
     'errors.messages.templates.name_required' => 'Template name is required',

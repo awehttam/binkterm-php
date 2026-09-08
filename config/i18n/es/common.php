@@ -4442,6 +4442,9 @@ return [
     'ui.address_book.node_address_title' => 'Ingrese una direccion Fidonet valida (ej.: 1:234/567 o 1:234/567.0)',
     'ui.drafts.delete_confirm' => 'Esta seguro de que desea eliminar este borrador? Esta accion no se puede deshacer.',
     'ui.drafts.deleted_success' => 'Borrador eliminado correctamente',
+    'ui.drafts.bulk_delete.confirm' => 'Esta seguro de que desea eliminar {count} borrador(es)? Esta accion no se puede deshacer.',
+    'ui.drafts.bulk_delete.success' => 'Se eliminaron {count} borrador(es)',
+    'ui.drafts.bulk_delete.failed' => 'No se pudieron eliminar los borradores',
     'ui.messages.none_selected' => 'No hay mensajes seleccionados',
 
     // Netmail

@@ -4439,6 +4439,9 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.address_book.node_address_title' => 'Gib eine gültige FidoNet-Adresse ein (z. B. 1:234/567 oder 1:234/567.0)',
     'ui.drafts.delete_confirm' => 'Möchtest Du diesen Entwurf wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
     'ui.drafts.deleted_success' => 'Entwurf erfolgreich gelöscht!',
+    'ui.drafts.bulk_delete.confirm' => 'Möchtest Du {count} Entwürfe wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
+    'ui.drafts.bulk_delete.success' => '{count} Entwürfe gelöscht',
+    'ui.drafts.bulk_delete.failed' => 'Entwürfe konnten nicht gelöscht werden',
     'ui.messages.none_selected' => 'Keine Nachrichten ausgewählt',
 
     // Netmail

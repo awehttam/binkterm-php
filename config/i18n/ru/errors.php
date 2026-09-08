@@ -236,6 +236,7 @@ return [
     'errors.messages.drafts.not_found' => 'Черновик не найден',
     'errors.messages.drafts.get_failed' => 'Не удалось загрузить черновик',
     'errors.messages.drafts.delete_failed' => 'Не удалось удалить черновик',
+    'errors.messages.drafts.bulk_delete.invalid_input' => 'Требуется непустой список идентификаторов черновиков',
     'errors.messages.templates.not_licensed' => 'Для использования шаблонов сообщений требуется зарегистрированная лицензия',
     'errors.messages.templates.not_found' => 'Шаблон не найден',
     'errors.messages.templates.name_required' => 'Название шаблона обязательно',
