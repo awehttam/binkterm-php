@@ -1473,8 +1473,8 @@ class TelnetUtils
      */
     public static function formatMessageListEntry(array $msg, int $num, bool $selected, int $cols, array &$state): string
     {
-        $from      = $msg['from_name'] ?? 'Unknown';
-        $subject   = $msg['subject'] ?? '(no subject)';
+        $from      = \BinktermPHP\TerminalTextSanitizer::sanitize($msg['from_name'] ?? 'Unknown');
+        $subject   = \BinktermPHP\TerminalTextSanitizer::sanitize($msg['subject'] ?? '(no subject)');
         $dateShort = self::formatUserDate($msg['date_written'] ?? '', $state, false);
         $line      = self::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
         if (empty($msg['is_read'])) {
@@ -2638,6 +2638,14 @@ class TelnetUtils
             $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
         } else {
             $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        // Field values may be untrusted (subject / author from a remote message);
+        // strip terminal control sequences before they land in the header box.
+        foreach ($fields as $i => $field) {
+            if (isset($field['value']) && is_string($field['value'])) {
+                $fields[$i]['value'] = \BinktermPHP\TerminalTextSanitizer::sanitize($field['value']);
+            }
         }
 
         // Inner content width: box width minus two corner/vertical chars and two space pads

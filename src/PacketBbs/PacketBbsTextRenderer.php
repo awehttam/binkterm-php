@@ -318,8 +318,11 @@ class PacketBbsTextRenderer
      */
     private function wrapBody(string $text): array
     {
-        // Strip ANSI escape sequences
-        $text = preg_replace('/\x1b\[[0-9;]*[mKHJABCDf]/', '', $text);
+        // Strip terminal control sequences (radio links render plain text only).
+        $text = \BinktermPHP\TerminalTextSanitizer::sanitize($text);
+        // Radio display has no use for colour either — drop the SGR codes the
+        // sanitizer preserves.
+        $text = preg_replace('/\x1b\[[0-9;:]*m/', '', $text);
         $text = str_replace(["\r\n", "\r"], "\n", $text);
         $lines  = explode("\n", $text);
         $output = [];

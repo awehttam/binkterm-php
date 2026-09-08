@@ -540,9 +540,9 @@ class EchomailHandler
             $this->server->logAction($state['username'] ?? 'unknown', "Echomail search: read message #{$id} in {$area}");
 
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
-            $body         = $detail['data']['message_text'] ?? '';
+            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($detail['data']['message_text'] ?? '');
             $markupFormat = $detail['data']['markup_format'] ?? null;
-            $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
+            $rawKludges   = \BinktermPHP\TerminalTextSanitizer::sanitize(($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? ''));
             $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
             $kludgeLines  = array_map(fn(string $line): string => $this->server->encodeForTerminal($line), $kludgeLines);
             $imageRefs    = TerminalMarkupRenderer::extractImageRefs((string)($markupFormat ?? ''), $body);
@@ -1677,9 +1677,9 @@ class EchomailHandler
 
             $this->server->logAction($state['username'] ?? 'unknown', "Echomail: read message #{$id} in {$area}");
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
-            $body         = $detail['data']['message_text'] ?? '';
+            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($detail['data']['message_text'] ?? '');
             $markupFormat = $detail['data']['markup_format'] ?? null;
-            $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
+            $rawKludges   = \BinktermPHP\TerminalTextSanitizer::sanitize(($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? ''));
             $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
             $kludgeLines  = array_map(fn(string $line): string => $this->server->encodeForTerminal($line), $kludgeLines);
             $imageRefs    = TerminalMarkupRenderer::extractImageRefs((string)($markupFormat ?? ''), $body);
