@@ -15,6 +15,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Messaging / FTN](#messaging--ftn)
   - [NNTP Server](#nntp-server)
   - [AreaFix Reply Sync](#areafix-reply-sync)
+  - [BinkP Schedule Status Panel](#binkp-schedule-status-panel)
 - [Terminal Server](#terminal-server)
   - [Registration House Rules](#registration-house-rules)
   - [Full-Screen Editor Flicker](#full-screen-editor-flicker)
@@ -31,6 +32,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Helper Function Loading](#helper-function-loading)
 - [Documentation](#documentation)
   - [Community Mods List](#community-mods-list)
+- [Installation](#installation)
+  - [Caddy Reverse Proxy Example](#caddy-reverse-proxy-example)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -59,6 +62,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **AreaFix reply sync:** inbound AreaFix / FileFix area-list replies received over an **authenticated (secure) BinkP session** are now synced into the local `echoareas` / `file_areas` tables automatically as packets are processed. Replies arriving over an insecure session, or whose packet origin does not match the configured uplink address, are ignored.
 - **AreaFix reply sync:** **Admin → AreaFix** gains a **Sync Areas to Local BBS** button on the latest-reply preview, backed by a new `POST /api/admin/areafix/sync-latest` endpoint, for manually syncing the most recent area list on demand.
 - **AreaFix reply sync:** box-art / decorative-line detection in the parser no longer discards area rows whose description contains accented UTF-8 characters.
+- **BinkP schedule status panel:** the BinkP status view in the admin **System Information** area no longer breaks when an uplink's poll schedule has extra or irregular whitespace between its cron fields. Such a schedule previously showed **next poll: Unknown**, and a badly-formed field (for example a stray `/` or an empty step) could make `GET /api/binkp/status` return HTTP 500 so the whole panel failed to load. The schedule string is now split the same way the rest of the scheduler splits it, so leading, trailing, and repeated whitespace are tolerated.
 
 ### Terminal Server
 
@@ -88,6 +92,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Documentation
 
 - **Community mods list:** a new `docs/MODS.md` file is a curated list of third-party mods and extensions for BinktermPHP, linked from the Customization section of the README. It seeds with two mods by TheWebExpert: the Door Button Filter Mod (category filter bar on `/games`) and the Echo Area Button Mod (network-filter and quick-action bar on `/echolist`). Contributors add their own mods by pull request. Listed mods are maintained by their individual authors and have not necessarily been reviewed or tested by the BinktermPHP maintainer; review a mod's source before installing it.
+
+### Installation
+
+- **Caddy reverse proxy example:** the Caddy site block in `docs/INSTALL.md` now wraps the `/ws` (realtime WebSocket) and `/dosdoor` (DOS door bridge) proxies in their own `handle` blocks. In the previous example these were bare `reverse_proxy` directives; mixed in with the `handle` blocks used for the rest of the site they were shadowed by the catch-all handler, so WebSocket requests fell through to PHP and stalled while holding the per-user session lock, making every following page load hang for several seconds. If you copied the old block, update your `Caddyfile` to match.
 
 ---
 
@@ -241,6 +249,16 @@ The endpoint finds the most recent incoming area-list reply from that uplink, pa
 
 This change bumps the service-worker cache version. Users should hard-reload the admin interface, or clear the browser and service-worker cache, so the updated AreaFix page and its new button load.
 
+### BinkP Schedule Status Panel
+
+The admin **System Information** area shows a BinkP status panel, fed by `GET /api/binkp/status`, that lists each configured uplink with its poll schedule, last poll time, and computed next poll time. The next poll time is worked out by reading the uplink's `poll_schedule` — a five-field cron expression such as `0 */4 * * *` — and finding the next minute that matches.
+
+The routine that computes the next poll time split the schedule on single spaces only. A schedule that is functionally correct but formatted with a tab, a double space, or a leading or trailing space between fields therefore produced the wrong number of parts and the next poll time could not be computed. On the panel this appeared as **next poll: Unknown**, even though the same schedule polled correctly, because every other part of the scheduler already tolerates that whitespace.
+
+A separate consequence: a schedule field that is malformed rather than just oddly spaced — for example a bare `/`, or a step of zero like `*/0` — could raise a PHP error while the panel was being built. That error was not caught by the status route, so `GET /api/binkp/status` returned HTTP 500 and the whole panel failed to render.
+
+The schedule string is now tokenised with the same whitespace-normalising split the rest of the scheduler uses, so irregular spacing between fields is accepted and the next poll time is computed for any schedule that the scheduler itself accepts. A schedule that was showing **Unknown**, or a panel that was failing to load with a 500, should display correctly after upgrading without any change to the schedule itself.
+
 ## Terminal Server
 
 ### Registration House Rules
@@ -353,6 +371,42 @@ The list launches with two entries, both by TheWebExpert (The Adventure BBS, 227
 Both use the `templates/custom/header.insert.twig` customization hook.
 
 Contributors with a mod to share add a section to `docs/MODS.md` by pull request against the `claudesbbs` branch, following the existing entry format. Mods in the list are written and maintained by their individual authors and **have not necessarily been reviewed or tested by the BinktermPHP maintainer** — review a mod's source code before installing it on your system.
+
+## Installation
+
+### Caddy Reverse Proxy Example
+
+The bare-metal install guide, `docs/INSTALL.md`, includes an example Caddy site block. That block uses `handle` blocks to route requests, and in the previous version the two supporting proxies were written as plain directives outside any `handle` block:
+
+```caddyfile
+reverse_proxy /ws 127.0.0.1:6010 { ... }
+reverse_proxy /dosdoor 127.0.0.1:6001 { ... }
+```
+
+In Caddy, a bare `reverse_proxy` with a path matcher and a `handle` block are different directive types, and when both appear in one site the `handle` blocks take over routing. The bare `/ws` and `/dosdoor` proxies were shadowed by the catch-all `handle` that forwards everything else to PHP. As a result:
+
+- The realtime WebSocket connection (`/ws`, served by `scripts/realtime_server.php`) was sent into PHP instead of the WebSocket daemon. The request never completed, and it held the per-user PHP session lock while it hung, so every other request for that user — normal page loads — blocked for several seconds behind it.
+- The DOS door bridge (`/dosdoor`, served by the multiplexing server) was likewise routed to PHP and did not work.
+
+The example now wraps both proxies in their own exact-match `handle` blocks so they are matched and short-circuited before the PHP fallback:
+
+```caddyfile
+handle /ws {
+    reverse_proxy 127.0.0.1:6010 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+}
+
+handle /dosdoor {
+    reverse_proxy 127.0.0.1:6001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+}
+```
+
+If you built your `Caddyfile` from the earlier example and see slow page loads or a non-working realtime connection, copy the updated `/ws` and `/dosdoor` blocks from `docs/INSTALL.md` and reload Caddy. Nginx and Apache examples in the guide are unaffected.
 
 ## Upgrade Instructions
 
