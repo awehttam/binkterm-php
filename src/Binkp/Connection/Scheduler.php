@@ -850,7 +850,7 @@ class Scheduler
     
     private function getNextCronTime($cronExpression, $fromTime)
     {
-        $parts = explode(' ', $cronExpression);
+        $parts = preg_split('/\s+/', trim((string)$cronExpression), -1, PREG_SPLIT_NO_EMPTY);
         if (count($parts) !== 5) {
             return null;
         }
