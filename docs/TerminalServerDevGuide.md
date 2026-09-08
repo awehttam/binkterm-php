@@ -290,6 +290,24 @@ $statusLine = TelnetUtils::buildStatusBar($segments, $width);
 
 If a widget genuinely lacks a capability needed by multiple features, extend it in `TelnetUtils` — do not work around it in a handler. When adding or extending a widget, update the table in `telnet/CLAUDE.md`.
 
+### Sanitizing untrusted text for terminal display
+
+Message bodies, kludge lines, subjects and author names can come from any local
+user or any upstream FTN node and are rendered close to verbatim by the read
+paths. Before such text is word-wrapped or written to the terminal it must pass
+through `BinktermPHP\TerminalTextSanitizer::sanitize()`, which keeps SGR colour
+sequences (`ESC [ … m`) and TAB/CR/LF while removing every other escape sequence
+and C0/C1 control byte (cursor/erase moves, OSC title/clipboard writes,
+DCS/answerback queries, etc.).
+
+Current call sites: `EchomailHandler` / `NetmailHandler` message viewers
+(`message_text` + combined kludge lines), `MailUtils::quoteMessage()` (reply and
+forward bodies), `TelnetUtils::formatMessageListEntry()` and
+`TelnetUtils::buildMessageHeaderBox()` (list rows and header fields), and
+`PacketBbs\PacketBbsTextRenderer` (which then also drops the SGR codes, since
+radio links are plain text). Any new surface that renders remote message content
+must call the sanitizer too.
+
 ### Status Bar Discipline
 
 The bottom status bar has limited width. Keep it to the **most-used primary actions only** — typically scroll, prev/next, reply, and quit. Every other key belongs exclusively in the Ctrl-K help overlay.

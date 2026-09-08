@@ -310,6 +310,11 @@ class MailUtils
      */
     public static function quoteMessage(string $body, string $author, ?array $state = null): string
     {
+        // The original body is untrusted (any user or upstream FTN node). Strip
+        // terminal control sequences before it is placed in the composer, both
+        // so the editor renders safely and so the attack is not relayed onward.
+        $body = \BinktermPHP\TerminalTextSanitizer::sanitize($body);
+
         $lines = explode("\n", $body);
         $quoted = [];
         $quoted[] = '';

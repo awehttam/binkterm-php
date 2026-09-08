@@ -20,6 +20,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Registration House Rules](#registration-house-rules)
   - [Full-Screen Editor Flicker](#full-screen-editor-flicker)
   - [CP437 Login ANSI Art](#cp437-login-ansi-art)
+  - [Message Body Escape-Sequence Filtering](#message-body-escape-sequence-filtering)
 - [Door Games](#door-games)
   - [Door Player Backspace Handling](#door-player-backspace-handling)
   - [BBSDEV.DRP Drop File (Experimental)](#bbsdevdrp-drop-file-experimental)
@@ -69,6 +70,7 @@ Make sure you have a current backup of your database and files before upgrading.
 - **Registration house rules:** the terminal server's **Register new account** flow now shows the house rules in a paged box and requires the prospective user to type `YES` to accept them before any account details are collected. Declining aborts registration. Custom house rules from **Admin -> Appearance -> Content -> House Rules** are shown when set; otherwise the built-in default rule set is used. The browser registration page already linked to the same rules.
 - **Full-screen editor flicker:** the terminal server's full-screen message editor (used automatically when the terminal has 15 or more rows) no longer erases and repaints the entire screen after every keystroke. Typing within a line now updates only that line, cursor movement emits only a cursor move, and structural edits repaint just the text area — borders and the footer stay put. This removes the constant blue-background blink that was visible while composing, especially on larger terminals or higher-latency connections. Terminals with ANSI colour disabled keep the previous full-redraw behaviour. Fixes issue #432.
 - **CP437 login ANSI art:** the ANSI login screen (`ansi_prompt` display mode) now accepts `.ans` files saved in Code Page 437 by DOS / Synchronet tools. The high-byte box-drawing and block characters are converted to UTF-8 for display, and a trailing SAUCE / EOF record is stripped. Previously these bytes rendered as replacement characters, and the admin appearance editor could not load or save such art.
+- **Message body escape-sequence filtering (security fix, GHSA-4225-c933-76f3):** echomail and netmail bodies, kludge lines, subjects, and author names are now stripped of terminal control sequences before being shown to a Telnet or SSH reader. Previously a message containing raw ANSI/VT escape codes could move the reader's cursor, repaint or erase their screen, spoof displayed content, and — on terminal emulators that honour them — set the window title, write the clipboard, or inject input via an answerback query. Because echomail is FidoNet-federated, such a message could originate from any user on any connected node. ANSI colour (SGR) codes are preserved; cursor positioning, screen clears, and OSC/DCS sequences are removed, so genuine ANSI-art messages keep their colours but lose absolute cursor placement when read on a terminal.
 
 ### Door Games
 
@@ -287,6 +289,34 @@ When the login screen display mode is set to **ANSI prompt**, the uploaded `.ans
 Those raw CP437 bytes are not valid UTF-8. When passed through template output they were rejected by `htmlspecialchars()` and every affected character was replaced with the Unicode replacement character, corrupting the art. Files that ended with a SAUCE metadata record (introduced by an `0x1A` EOF byte) also had that record passed straight through.
 
 `AppearanceConfig::getLoginScreenAnsi()` now truncates the content at the `0x1A` delimiter to drop any EOF / SAUCE block, and converts non-UTF-8 content from CP437 to UTF-8 with `iconv()` (falling back to `mb_convert_encoding()`), matching how shell art is already handled elsewhere. `AdminDaemonServer::getAppearanceConfig()` performs the same conversion before returning the JSON payload, so the **Admin -> Appearance** editor can load, edit, and save CP437 ANSI art without encoding errors.
+
+### Message Body Escape-Sequence Filtering
+
+This release fixes a stored terminal-escape-injection vulnerability, tracked as **GHSA-4225-c933-76f3** (severity: medium). It affects the Telnet and SSH terminal server; the browser interface was never exposed, because HTML output escapes these bytes.
+
+#### The problem
+
+A FidoNet message body is stored and later displayed to a terminal reader with very little transformation. When the reader opened an echomail or netmail message over Telnet or SSH, the terminal server passed the body through a word-wrapper (or the Markdown/StyleCodes renderer) and then a character-set conversion, and wrote the result straight to the socket. None of those steps removed ANSI/VT control sequences that were already in the body.
+
+An ANSI/VT terminal interprets escape sequences in the byte stream as commands. A message body could therefore contain sequences that:
+
+- move the cursor, scroll the screen, or clear regions of it, to garble or hide other content;
+- redraw parts of the screen to impersonate a system prompt or another user's message (display spoofing);
+- on emulators that honour them, set the terminal window title, write to the system clipboard (OSC 52), or issue a device-status / answerback query whose reply is injected back into the session as if the user had typed it.
+
+Any account that can post a message could target any reader. Because echomail is federated across FidoNet, a crafted body could also arrive from a user on any connected uplink — the attacker did not need an account on your board. The subject line and author name shown in the message header and message list were exposed the same way. This is terminal manipulation on the reader's client, not code execution on the server.
+
+#### The fix
+
+A new filter, `BinktermPHP\TerminalTextSanitizer`, is applied to untrusted text on every terminal read path — the echomail and netmail message viewers (body and kludge lines), quoted and forwarded text placed in the composer, and the message-list rows and header fields. The same filter replaces the narrower escape strip that was already present on the MeshCore / PacketBBS radio renderer.
+
+The filter keeps SGR (colour and text-style) sequences — `ESC [ … m` — and the TAB, CR, and LF whitespace controls. Everything else is removed: cursor movement, erase and scroll commands, mode changes, OSC and DCS strings, character-set designation, other escape sequences, and stray C0/C1 control bytes.
+
+The visible effect for readers is that message colours are unchanged, but a message that relied on cursor positioning to draw ANSI art (as opposed to plain coloured text) will show that art without the positioning when read on a terminal. This path never rendered positioned art correctly in any case.
+
+#### If you run a public terminal server
+
+Upgrade promptly; there is no workaround short of disabling terminal access to messages. Filtering happens at display time, so it also covers messages that are already stored.
 
 ## Door Games
 
