@@ -264,15 +264,24 @@ yourdomain.com {
     redir @trailingSlash {re.slash.1} 301
 
     # Realtime WebSocket daemon (scripts/realtime_server.php)
-    reverse_proxy /ws 127.0.0.1:6010 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
+    # Must be a `handle` block so it short-circuits before the php_fastcgi /
+    # index.php fallback below. A bare `reverse_proxy /ws` directive mixed in
+    # with `handle` blocks is shadowed by the catch-all handler, sending the
+    # WebSocket request into PHP where it stalls holding the per-user session
+    # lock and makes every following page load hang for several seconds.
+    handle /ws {
+        reverse_proxy 127.0.0.1:6010 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
     }
 
     # DOS door multiplexing bridge (scripts/dosbox-bridge/multiplexing-server.js)
-    reverse_proxy /dosdoor 127.0.0.1:6001 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
+    handle /dosdoor {
+        reverse_proxy 127.0.0.1:6001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
     }
 
     @php path *.php
