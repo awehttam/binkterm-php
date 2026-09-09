@@ -489,7 +489,7 @@ window.pgpManagedKeysEnabled = {{ pgp_managed_keys_enabled ? 'true' : 'false' }}
 <script src="/js/message-list-context-menu.js"></script>
 <script src="/vendor/openpgp-6.2.2/openpgp.min.js"></script>
 <script src="/js/pgp-message.js"></script>
-<script src="/js/netmail.js"></script>
+<script src="/js/netmail.js?v={{ is_dev ? date().timestamp : app_version }}"></script>
 <script src="/vendor/marked.min.js"></script>
 <script src="/js/ai-assistant.js?v=1"></script>
 

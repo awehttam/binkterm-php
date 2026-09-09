@@ -727,6 +727,11 @@ function loadStatistics() {
 function formatDate(dateStr) {
     if (!dateStr) return uiT('ui.echolist.time.never', 'Never');
 
+    const displayStyle = window.userSettings?.effective_date_display_style || window.userSettings?.date_display_style;
+    if (displayStyle === 'date') {
+        return typeof window.formatFullDate === 'function' ? window.formatFullDate(dateStr) : (window.formatDate ? window.formatDate(dateStr) : new Date(dateStr).toLocaleDateString());
+    }
+
     // Parse the date - if no timezone info, assume UTC
     let date = new Date(dateStr);
 
@@ -748,7 +753,8 @@ function formatDate(dateStr) {
     if (diff < 86400) return uiT('ui.echolist.time.hours_ago', '{count}h ago', { count: Math.floor(diff / 3600) });
     if (diff < 2592000) return uiT('ui.echolist.time.days_ago', '{count}d ago', { count: Math.floor(diff / 86400) });
 
-    return date.toLocaleDateString();
+    const userDateFormat = window.userSettings?.date_format || 'en-US';
+    return date.toLocaleDateString(userDateFormat);
 }
 </script>
 {% endblock %}

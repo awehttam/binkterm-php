@@ -252,6 +252,22 @@
                             </select>
                             <small class="text-muted">{{ t('ui.admin.bbs_settings.features.outgoing_charset_help', {}, locale, ['common']) }}</small>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsDefaultDateDisplayStyle">{{ t('ui.admin.bbs_settings.features.default_date_display_style', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="bbsDefaultDateDisplayStyle">
+                                <option value="relative">{{ t('ui.settings.date_display_style.relative', {}, locale, ['common']) }}</option>
+                                <option value="date">{{ t('ui.settings.date_display_style.date', {}, locale, ['common']) }}</option>
+                            </select>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.default_date_display_style_help', {}, locale, ['common']) }}</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsDefaultEchomailDateField">{{ t('ui.admin.bbs_settings.features.default_echomail_date_field', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="bbsDefaultEchomailDateField">
+                                <option value="received">{{ t('ui.settings.echomail_date_field.received', {}, locale, ['common']) }}</option>
+                                <option value="written">{{ t('ui.settings.echomail_date_field.written', {}, locale, ['common']) }}</option>
+                            </select>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.default_echomail_date_field_help', {}, locale, ['common']) }}</small>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">{{ t('ui.admin.bbs_settings.features.save', {}, locale, ['common']) }}</button>
                     </form>
                 </div>
@@ -574,6 +590,8 @@ function loadBbsSettings() {
             const dashboardAdRotateInterval = parseInt(data.config?.dashboard_ad_rotate_interval_seconds, 10);
             document.getElementById('bbsDashboardAdRotateInterval').value = Number.isNaN(dashboardAdRotateInterval) ? 20 : dashboardAdRotateInterval;
             document.getElementById('bbsOutgoingCharset').value = data.config?.outgoing_charset || 'CP437';
+            document.getElementById('bbsDefaultDateDisplayStyle').value = data.config?.default_date_display_style || 'relative';
+            document.getElementById('bbsDefaultEchomailDateField').value = data.config?.default_echomail_date_field || 'received';
             const terminalIdle = data.config?.terminal_idle || {};
             const idleWarnMinutes = parseInt(terminalIdle.warn_minutes, 10);
             const idleDisconnectMinutes = parseInt(terminalIdle.disconnect_minutes, 10);
@@ -690,6 +708,8 @@ function saveBbsSettings() {
                 default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value,
                 bulletin_display_mode: document.getElementById('bbsBulletinDisplayMode').value,
                 outgoing_charset: document.getElementById('bbsOutgoingCharset').value,
+                default_date_display_style: document.getElementById('bbsDefaultDateDisplayStyle').value,
+                default_echomail_date_field: document.getElementById('bbsDefaultEchomailDateField').value,
             };
 
             return fetch('/admin/api/bbs-settings', {

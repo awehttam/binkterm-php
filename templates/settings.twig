@@ -158,6 +158,26 @@
                         </div>
 
                         <div class="mb-3">
+                            <label for="dateDisplayStyle" class="form-label">{{ t('ui.settings.date_display_style', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="dateDisplayStyle" name="date_display_style">
+                                <option value="system_choice" selected>{{ t('ui.settings.system_default', {}, locale, ['common']) }}</option>
+                                <option value="relative">{{ t('ui.settings.date_display_style.relative', {}, locale, ['common']) }}</option>
+                                <option value="date">{{ t('ui.settings.date_display_style.date', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.date_display_style_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="echomailDateField" class="form-label">{{ t('ui.settings.echomail_date_field', {}, locale, ['common']) }}</label>
+                            <select class="form-select" id="echomailDateField" name="echomail_date_field">
+                                <option value="system_choice" selected>{{ t('ui.settings.system_default', {}, locale, ['common']) }}</option>
+                                <option value="received">{{ t('ui.settings.echomail_date_field.received', {}, locale, ['common']) }}</option>
+                                <option value="written">{{ t('ui.settings.echomail_date_field.written', {}, locale, ['common']) }}</option>
+                            </select>
+                            <div class="form-text">{{ t('ui.settings.echomail_date_field_help', {}, locale, ['common']) }}</div>
+                        </div>
+
+                        <div class="mb-3">
                             <label for="fontFamily" class="form-label">{{ t('ui.settings.message_font', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="fontFamily" name="font_family">
                                 <option value="Courier New, Monaco, Consolas, monospace" selected>Courier New (Monospace)</option>
@@ -1089,6 +1109,8 @@ function loadSettings() {
             if (data.theme) $('#theme').val(data.theme);
             if (data.shell) $('#shellPreference').val(data.shell);
             if (data.default_echo_list) $('#defaultEchoList').val(data.default_echo_list);
+            if (data.date_display_style) $('#dateDisplayStyle').val(data.date_display_style);
+            if (data.echomail_date_field) $('#echomailDateField').val(data.echomail_date_field);
             if (data.font_family) $('#fontFamily').val(data.font_family);
             if (data.font_size) $('#fontSize').val(data.font_size);
             if (data.signature_text !== undefined) $('#signatureText').val(data.signature_text);
@@ -1620,6 +1642,8 @@ function collectCurrentSettings() {
         date_format: $('#dateFormat').val(),
         theme: $('#theme').val(),
         default_echo_list: $('#defaultEchoList').val(),
+        date_display_style: $('#dateDisplayStyle').val() || 'system_choice',
+        echomail_date_field: $('#echomailDateField').val() || 'system_choice',
         font_family: $('#fontFamily').val(),
         font_size: parseInt($('#fontSize').val()),
         signature_text: $('#signatureText').val(),

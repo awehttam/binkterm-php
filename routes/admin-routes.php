@@ -2148,6 +2148,22 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $config['outgoing_charset'] = $charset;
                 }
 
+                if (array_key_exists('default_date_display_style', $config)) {
+                    $dateStyle = strtolower(trim((string)$config['default_date_display_style']));
+                    if (!in_array($dateStyle, ['relative', 'date'], true)) {
+                        throw new Exception('Invalid default date display style');
+                    }
+                    $config['default_date_display_style'] = $dateStyle;
+                }
+
+                if (array_key_exists('default_echomail_date_field', $config)) {
+                    $dateField = strtolower(trim((string)$config['default_echomail_date_field']));
+                    if (!in_array($dateField, ['received', 'written'], true)) {
+                        throw new Exception('Invalid default echomail date field');
+                    }
+                    $config['default_echomail_date_field'] = $dateField;
+                }
+
                 if (array_key_exists('ai_assistant', $config)) {
                     $config['ai_assistant'] = [
                         'enabled'               => !empty($config['ai_assistant']['enabled']),
