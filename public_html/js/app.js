@@ -798,7 +798,7 @@ function printMessage() {
 }
 
 // Global user settings object
-window.userSettings = {};
+window.userSettings = window.userSettings || {};
 
 /**
  * Replace a .md-image-placeholder element with an inline <img>.
@@ -1019,11 +1019,11 @@ function loadUserSettings() {
             .done(function(response) {
                 if (response.success && response.settings) {
                     // Store all settings globally
-                    window.userSettings = response.settings;
+                    window.userSettings = Object.assign({}, window.userSettings, response.settings);
                     console.log('Loaded user settings:', window.userSettings);
                 } else if (response.timezone || response.messages_per_page) {
                     // Handle old API response format
-                    window.userSettings = response;
+                    window.userSettings = Object.assign({}, window.userSettings, response);
                     console.log('Loaded user settings (legacy format):', window.userSettings);
                 }
 
@@ -1293,6 +1293,12 @@ function formatDate(dateString) {
     if (!date) {
         return '-';
     }
+
+    const displayStyle = window.userSettings?.effective_date_display_style || window.userSettings?.date_display_style;
+    if (displayStyle === 'date') {
+        return formatFullDate(dateString);
+    }
+
     const now = new Date();
     const diffMs = now - date;
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));

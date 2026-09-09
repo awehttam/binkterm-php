@@ -32,21 +32,108 @@ class MessageHandler
         $this->logger = new \BinktermPHP\Binkp\Logger(Config::getLogPath('server.log'), \BinktermPHP\Binkp\Logger::LEVEL_INFO, false);
     }
 
-    private function getEchomailDateField(): string
+    private static array $userSettingsCache = [];
+
+    /**
+     * Resolve the effective echomail date field ('received' or 'written').
+     *
+     * Precedence:
+     * 1. User's personal preference ('received' or 'written')
+     * 2. BBS system default from BbsConfig ('received' or 'written')
+     * 3. ECHOMAIL_ORDER_DATE environment variable ('received' or 'written')
+     * 4. Default ('received')
+     *
+     * @param int|null $userId
+     * @param array|null $userSettings Optional pre-loaded user settings
+     * @return string 'received' or 'written'
+     */
+    public static function resolveEchomailDateField(?int $userId = null, ?array $userSettings = null): string
     {
-        $raw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-        if ($raw === 'written' || $raw === 'date_written') {
-            // date_written ordering is only available to admins; non-admins always use date_received
-            $currentUser = (new Auth())->getCurrentUser();
-            if (!$currentUser || empty($currentUser['is_admin'])) {
-                return 'date_received';
+        if ($userSettings === null) {
+            if ($userId === null) {
+                $currentUser = (new Auth())->getCurrentUser();
+                if ($currentUser) {
+                    $userId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+                }
             }
-            return 'date_written';
+            if ($userId && $userId > 0) {
+                $userSettings = (new self())->getUserSettings($userId);
+            }
         }
-        if ($raw === 'received' || $raw === 'date_received') {
-            return 'date_received';
+
+        if (is_array($userSettings)) {
+            $userPref = strtolower(trim((string)($userSettings['echomail_date_field'] ?? 'system_choice')));
+            if ($userPref === 'written' || $userPref === 'date_written') {
+                return 'written';
+            }
+            if ($userPref === 'received' || $userPref === 'date_received') {
+                return 'received';
+            }
         }
-        return self::ECHOMAIL_DATE_FIELD_DEFAULT;
+
+        $bbsDefault = strtolower(trim((string)BbsConfig::getDefaultEchomailDateField()));
+        if ($bbsDefault === 'written' || $bbsDefault === 'date_written') {
+            return 'written';
+        }
+        if ($bbsDefault === 'received' || $bbsDefault === 'date_received') {
+            return 'received';
+        }
+
+        $envDefault = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
+        if ($envDefault === 'written' || $envDefault === 'date_written') {
+            return 'written';
+        }
+
+        return 'received';
+    }
+
+    /**
+     * Resolve the effective date display style ('relative' or 'date').
+     *
+     * Precedence:
+     * 1. User's personal preference ('relative' or 'date')
+     * 2. BBS system default from BbsConfig ('relative' or 'date')
+     * 3. Default ('relative')
+     *
+     * @param int|null $userId
+     * @param array|null $userSettings Optional pre-loaded user settings
+     * @return string 'relative' or 'date'
+     */
+    public static function resolveDateDisplayStyle(?int $userId = null, ?array $userSettings = null): string
+    {
+        if ($userSettings === null) {
+            if ($userId === null) {
+                $currentUser = (new Auth())->getCurrentUser();
+                if ($currentUser) {
+                    $userId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+                }
+            }
+            if ($userId && $userId > 0) {
+                $userSettings = (new self())->getUserSettings($userId);
+            }
+        }
+
+        if (is_array($userSettings)) {
+            $userPref = strtolower(trim((string)($userSettings['date_display_style'] ?? 'system_choice')));
+            if ($userPref === 'date') {
+                return 'date';
+            }
+            if ($userPref === 'relative') {
+                return 'relative';
+            }
+        }
+
+        $bbsDefault = strtolower(trim((string)BbsConfig::getDefaultDateDisplayStyle()));
+        if ($bbsDefault === 'date') {
+            return 'date';
+        }
+
+        return 'relative';
+    }
+
+    private function getEchomailDateField(?int $userId = null): string
+    {
+        return self::resolveEchomailDateField($userId) === 'written' ? 'date_written' : 'date_received';
     }
 
     /**
@@ -3727,12 +3814,29 @@ class MessageHandler
     }
 
     /**
+     * Clear cached user settings for a given user or all users.
+     */
+    public static function clearUserSettingsCache(?int $userId = null): void
+    {
+        if ($userId !== null) {
+            unset(self::$userSettingsCache[(int)$userId]);
+        } else {
+            self::$userSettingsCache = [];
+        }
+    }
+
+    /**
      * Get user settings including messages_per_page
      */
     public function getUserSettings($userId)
     {
         if (!$userId) {
             return ['messages_per_page' => 25]; // Default fallback
+        }
+
+        $userId = (int)$userId;
+        if (isset(self::$userSettingsCache[$userId])) {
+            return self::$userSettingsCache[$userId];
         }
 
         $stmt = $this->db->prepare("SELECT * FROM user_settings WHERE user_id = ?");
@@ -3757,7 +3861,7 @@ class MessageHandler
             ");
             $insertStmt->execute([$userId]);
 
-            return [
+            $settings = [
                 'messages_per_page' => 25,
                 'threaded_view' => false,
                 'netmail_threaded_view' => false,
@@ -3767,14 +3871,27 @@ class MessageHandler
                 'date_format' => 'en-US',
                 'locale' => 'en',
                 'signature_text' => '',
-                'default_tagline' => ''
+                'default_tagline' => '',
+                'date_display_style' => 'system_choice',
+                'echomail_date_field' => 'system_choice'
             ];
+            self::$userSettingsCache[$userId] = $settings;
+            return $settings;
         }
 
         if (empty($settings['locale'])) {
             $settings['locale'] = 'en';
         }
 
+        if (empty($settings['date_display_style'])) {
+            $settings['date_display_style'] = 'system_choice';
+        }
+
+        if (empty($settings['echomail_date_field'])) {
+            $settings['echomail_date_field'] = 'system_choice';
+        }
+
+        self::$userSettingsCache[$userId] = $settings;
         return $settings;
     }
 
@@ -3786,6 +3903,8 @@ class MessageHandler
         if (!$userId || empty($settings)) {
             return false;
         }
+
+        $userId = (int)$userId;
 
         $allowedSettings = [
             'messages_per_page' => 'INTEGER',
@@ -3803,6 +3922,8 @@ class MessageHandler
             'quote_coloring' => 'BOOLEAN',
             'remember_page_position' => 'BOOLEAN',
             'date_format' => 'STRING',
+            'date_display_style' => 'DATE_DISPLAY_STYLE',
+            'echomail_date_field' => 'ECHOMAIL_DATE_FIELD',
             'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
             'default_tagline' => 'TAGLINE',
@@ -3861,6 +3982,14 @@ class MessageHandler
                     }
                     $params[] = $locale;
                     break;
+                case 'DATE_DISPLAY_STYLE':
+                    $style = trim((string)$value);
+                    $params[] = in_array($style, ['system_choice', 'relative', 'date'], true) ? $style : 'system_choice';
+                    break;
+                case 'ECHOMAIL_DATE_FIELD':
+                    $field = trim((string)$value);
+                    $params[] = in_array($field, ['system_choice', 'received', 'written'], true) ? $field : 'system_choice';
+                    break;
                 case 'DIGEST_FREQUENCY':
                     $freq = trim((string)$value);
                     $params[] = in_array($freq, ['none', 'daily', 'weekly'], true) ? $freq : 'none';
@@ -3896,7 +4025,11 @@ class MessageHandler
         $sql = "UPDATE user_settings SET " . implode(', ', $updates) . " WHERE user_id = ?";
         $stmt = $this->db->prepare($sql);
         
-        return $stmt->execute($params);
+        $success = $stmt->execute($params);
+        if ($success) {
+            unset(self::$userSettingsCache[$userId]);
+        }
+        return $success;
     }
 
     /**

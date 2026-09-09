@@ -382,6 +382,18 @@ class Template
                 // Fall back to defaults on error
             }
         }
+        $userSettingsArray = is_array($userSettings) ? $userSettings : [];
+        $clientSettings = [
+            'timezone' => !empty($userSettingsArray['timezone']) ? $userSettingsArray['timezone'] : 'America/Los_Angeles',
+            'date_format' => !empty($userSettingsArray['date_format']) ? $userSettingsArray['date_format'] : 'en-US',
+            'date_display_style' => $userSettingsArray['date_display_style'] ?? 'system_choice',
+            'echomail_date_field' => $userSettingsArray['echomail_date_field'] ?? 'system_choice',
+            'effective_date_display_style' => MessageHandler::resolveDateDisplayStyle($currentUserId > 0 ? $currentUserId : null, $userSettingsArray),
+            'effective_echomail_date_field' => MessageHandler::resolveEchomailDateField($currentUserId > 0 ? $currentUserId : null, $userSettingsArray),
+        ];
+        $this->twig->addGlobal('client_settings', $clientSettings);
+        $this->twig->addGlobal('user_settings', $clientSettings);
+
         $this->twig->addGlobal('stylesheet', $stylesheet);
         $this->twig->addGlobal('default_echo_list', $defaultEchoList);
 
