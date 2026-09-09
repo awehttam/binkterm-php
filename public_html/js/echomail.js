@@ -170,8 +170,8 @@ function updateMessagesHeaderTitle() {
 }
 
 // Date display configuration: 'written' or 'received'
-// Sourced from server-side ECHOMAIL_ORDER_DATE env configuration.
-const USE_DATE_FIELD = (window.echomailDateField === 'written') ? 'written' : 'received';
+// Sourced from server-side ECHOMAIL_ORDER_DATE env configuration or user settings.
+let USE_DATE_FIELD = ((window.userSettings && window.userSettings.effective_echomail_date_field) || window.echomailDateField) === 'written' ? 'written' : 'received';
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
@@ -4068,6 +4068,9 @@ function loadEchomailSettings() {
 
             if (userSettings.default_sort) {
                 currentSort = userSettings.default_sort;
+            }
+            if (userSettings.effective_echomail_date_field) {
+                USE_DATE_FIELD = userSettings.effective_echomail_date_field === 'written' ? 'written' : 'received';
             }
             updateSortIndicator();
         })

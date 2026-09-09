@@ -382,6 +382,20 @@ class Template
                 // Fall back to defaults on error
             }
         }
+        $systemDefaultDisplayStyle = BbsConfig::getDefaultDateDisplayStyle();
+        $systemDefaultDateField = BbsConfig::getDefaultEchomailDateField();
+        $userSettingsGlobal = is_array($userSettings) ? $userSettings : [];
+        if (empty($userSettingsGlobal['timezone'])) {
+            $userSettingsGlobal['timezone'] = 'America/Los_Angeles';
+        }
+        $userSettingsGlobal['effective_date_display_style'] = ($userSettingsGlobal['date_display_style'] ?? 'system_choice') === 'system_choice'
+            ? $systemDefaultDisplayStyle
+            : ($userSettingsGlobal['date_display_style'] ?? 'relative');
+        $userSettingsGlobal['effective_echomail_date_field'] = ($userSettingsGlobal['echomail_date_field'] ?? 'system_choice') === 'system_choice'
+            ? $systemDefaultDateField
+            : ($userSettingsGlobal['echomail_date_field'] ?? 'received');
+        $this->twig->addGlobal('user_settings', $userSettingsGlobal);
+
         $this->twig->addGlobal('stylesheet', $stylesheet);
         $this->twig->addGlobal('default_echo_list', $defaultEchoList);
 

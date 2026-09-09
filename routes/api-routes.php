@@ -10132,6 +10132,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['media_render_mode'] = $meta->getValue((int)$userId, 'media_render_mode') ?? 'click';
             }
 
+            $systemDefaultDisplayStyle = \BinktermPHP\BbsConfig::getDefaultDateDisplayStyle();
+            $systemDefaultDateField = \BinktermPHP\BbsConfig::getDefaultEchomailDateField();
+            $settings['effective_date_display_style'] = ($settings['date_display_style'] ?? 'system_choice') === 'system_choice'
+                ? $systemDefaultDisplayStyle
+                : ($settings['date_display_style'] ?? 'relative');
+            $settings['effective_echomail_date_field'] = ($settings['echomail_date_field'] ?? 'system_choice') === 'system_choice'
+                ? $systemDefaultDateField
+                : ($settings['echomail_date_field'] ?? 'received');
+
             $settings['license_valid'] = \BinktermPHP\License::isValid();
 
             echo json_encode(['success' => true, 'settings' => $settings]);

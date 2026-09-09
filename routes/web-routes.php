@@ -618,9 +618,23 @@ SimpleRouter::get('/echomail', function() {
         }
     }
 
-    $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $isAdmin = !empty($user['is_admin']);
-    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+    $messageHandler = new MessageHandler();
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $userSettings = $userId > 0 ? $messageHandler->getUserSettings($userId) : [];
+    $userDateFieldPref = strtolower(trim((string)($userSettings['echomail_date_field'] ?? 'system_choice')));
+    if ($userDateFieldPref === 'written' || $userDateFieldPref === 'date_written') {
+        $echoDateOrder = 'written';
+    } elseif ($userDateFieldPref === 'received' || $userDateFieldPref === 'date_received') {
+        $echoDateOrder = 'received';
+    } else {
+        $bbsDefaultDateField = BbsConfig::getDefaultEchomailDateField();
+        if ($bbsDefaultDateField === 'written' || $bbsDefaultDateField === 'date_written') {
+            $echoDateOrder = 'written';
+        } else {
+            $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
+            $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
+        }
+    }
     $bbsConfig = BbsConfig::getConfig();
     $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
     $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);
@@ -670,9 +684,23 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     if (strpos($echoarea, '@') !== false) {
         [$echoarea, $domain] = explode('@', $echoarea, 2);
     }
-    $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $isAdmin = !empty($user['is_admin']);
-    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+    $messageHandler = new MessageHandler();
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $userSettings = $userId > 0 ? $messageHandler->getUserSettings($userId) : [];
+    $userDateFieldPref = strtolower(trim((string)($userSettings['echomail_date_field'] ?? 'system_choice')));
+    if ($userDateFieldPref === 'written' || $userDateFieldPref === 'date_written') {
+        $echoDateOrder = 'written';
+    } elseif ($userDateFieldPref === 'received' || $userDateFieldPref === 'date_received') {
+        $echoDateOrder = 'received';
+    } else {
+        $bbsDefaultDateField = BbsConfig::getDefaultEchomailDateField();
+        if ($bbsDefaultDateField === 'written' || $bbsDefaultDateField === 'date_written') {
+            $echoDateOrder = 'written';
+        } else {
+            $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
+            $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
+        }
+    }
     $bbsConfig = BbsConfig::getConfig();
     $aiAssistantEnabled    = !empty($bbsConfig['ai_assistant']['enabled']);
     $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);

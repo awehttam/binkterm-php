@@ -345,6 +345,20 @@ class BbsConfig
         return self::getBulletinDisplayMode() === 'always';
     }
 
+    public static function getDefaultDateDisplayStyle(): string
+    {
+        self::load();
+        $val = strtolower(trim((string)(self::$config['default_date_display_style'] ?? 'relative')));
+        return in_array($val, ['relative', 'date'], true) ? $val : 'relative';
+    }
+
+    public static function getDefaultEchomailDateField(): string
+    {
+        self::load();
+        $val = strtolower(trim((string)(self::$config['default_echomail_date_field'] ?? 'received')));
+        return in_array($val, ['received', 'written'], true) ? $val : 'received';
+    }
+
     public static function isFeatureEnabled(string $feature): bool
     {
         self::load();

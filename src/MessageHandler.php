@@ -32,20 +32,36 @@ class MessageHandler
         $this->logger = new \BinktermPHP\Binkp\Logger(Config::getLogPath('server.log'), \BinktermPHP\Binkp\Logger::LEVEL_INFO, false);
     }
 
-    private function getEchomailDateField(): string
+    private function getEchomailDateField(?int $userId = null): string
     {
-        $raw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-        if ($raw === 'written' || $raw === 'date_written') {
-            // date_written ordering is only available to admins; non-admins always use date_received
+        if ($userId === null) {
             $currentUser = (new Auth())->getCurrentUser();
-            if (!$currentUser || empty($currentUser['is_admin'])) {
+            if ($currentUser) {
+                $userId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+            }
+        }
+
+        if ($userId && $userId > 0) {
+            $userSettings = $this->getUserSettings($userId);
+            $userPref = strtolower(trim((string)($userSettings['echomail_date_field'] ?? 'system_choice')));
+            if ($userPref === 'written' || $userPref === 'date_written') {
+                return 'date_written';
+            }
+            if ($userPref === 'received' || $userPref === 'date_received') {
                 return 'date_received';
             }
+        }
+
+        $bbsDefault = BbsConfig::getDefaultEchomailDateField();
+        if ($bbsDefault === 'written' || $bbsDefault === 'date_written') {
             return 'date_written';
         }
-        if ($raw === 'received' || $raw === 'date_received') {
-            return 'date_received';
+
+        $raw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
+        if ($raw === 'written' || $raw === 'date_written') {
+            return 'date_written';
         }
+
         return self::ECHOMAIL_DATE_FIELD_DEFAULT;
     }
 
@@ -3767,12 +3783,22 @@ class MessageHandler
                 'date_format' => 'en-US',
                 'locale' => 'en',
                 'signature_text' => '',
-                'default_tagline' => ''
+                'default_tagline' => '',
+                'date_display_style' => 'system_choice',
+                'echomail_date_field' => 'system_choice'
             ];
         }
 
         if (empty($settings['locale'])) {
             $settings['locale'] = 'en';
+        }
+
+        if (empty($settings['date_display_style'])) {
+            $settings['date_display_style'] = 'system_choice';
+        }
+
+        if (empty($settings['echomail_date_field'])) {
+            $settings['echomail_date_field'] = 'system_choice';
         }
 
         return $settings;
@@ -3803,6 +3829,8 @@ class MessageHandler
             'quote_coloring' => 'BOOLEAN',
             'remember_page_position' => 'BOOLEAN',
             'date_format' => 'STRING',
+            'date_display_style' => 'STRING',
+            'echomail_date_field' => 'STRING',
             'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
             'default_tagline' => 'TAGLINE',
