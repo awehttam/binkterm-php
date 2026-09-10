@@ -28,8 +28,17 @@ use BinktermPHP\TerminalTextSanitizer;
 class AnsiArtViewer
 {
     /**
+     * Art messages are rendered onto a virtual canvas (see
+     * {@see AnsiCanvasRenderer}) and the resulting SGR-only lines are shown
+     * inline in the normal reader, which scrolls and resizes them like any
+     * other message. Pressing `A` still opens the full-screen positioned view.
+     * Default.
+     */
+    public const MODE_CANVAS = 'canvas';
+
+    /**
      * Inline reader shows the reflowed, escape-filtered body; the user presses
-     * `A` for the dedicated full-screen art view. Default.
+     * `A` for the dedicated full-screen art view.
      */
     public const MODE_VIEWER = 'viewer';
 
@@ -51,22 +60,23 @@ class AnsiArtViewer
 
     /**
      * Configured art-handling mode from `TERM_ANSI_ART_MODE`. Defaults to
-     * {@see MODE_VIEWER}; any unrecognised value also falls back to it.
+     * {@see MODE_CANVAS}; any unrecognised value also falls back to it.
      */
     public static function mode(): string
     {
-        $mode = strtolower(trim((string)Config::env('TERM_ANSI_ART_MODE', self::MODE_VIEWER)));
+        $mode = strtolower(trim((string)Config::env('TERM_ANSI_ART_MODE', self::MODE_CANVAS)));
 
         return match ($mode) {
+            self::MODE_VIEWER => self::MODE_VIEWER,
             self::MODE_INLINE => self::MODE_INLINE,
             self::MODE_RAW    => self::MODE_RAW,
-            default           => self::MODE_VIEWER,
+            default           => self::MODE_CANVAS,
         };
     }
 
     /**
      * Whether a raw (pre-sanitize) message body looks like positioned ANSI art
-     * that would not survive the inline reader intact.
+     * that would not survive the plain word-wrapping reader intact.
      */
     public static function isArt(string $rawBody): bool
     {
@@ -74,26 +84,37 @@ class AnsiArtViewer
     }
 
     /**
-     * The sanitize policy the normal reader should apply to a message body.
+     * How the normal reader should turn a message body into display lines:
      *
-     * {@see TerminalTextSanitizer::POLICY_POSITIONING} only when the body is
-     * art and the configured mode is {@see MODE_RAW}; otherwise the strict
-     * {@see TerminalTextSanitizer::POLICY_STRIP}.
+     *  - `strict` — sanitize `POLICY_STRIP`, word-wrap (all non-art bodies, and
+     *    art bodies in `viewer` / `inline` mode).
+     *  - `canvas` — sanitize `POLICY_POSITIONING`, render through
+     *    {@see AnsiCanvasRenderer} (art body, `canvas` mode).
+     *  - `raw` — sanitize `POLICY_POSITIONING`, split on newlines only (art
+     *    body, `raw` mode).
      */
-    public static function readerBodyPolicy(bool $isArt): string
+    public static function readerRenderMode(bool $isArt): string
     {
-        return ($isArt && self::mode() === self::MODE_RAW)
-            ? TerminalTextSanitizer::POLICY_POSITIONING
-            : TerminalTextSanitizer::POLICY_STRIP;
+        if (!$isArt) {
+            return 'strict';
+        }
+
+        return match (self::mode()) {
+            self::MODE_CANVAS => 'canvas',
+            self::MODE_RAW    => 'raw',
+            default           => 'strict',
+        };
     }
 
     /**
-     * Whether the normal reader should render this body without word-wrapping
-     * (raw mode, art body) so the art keeps its own line/column layout.
+     * The sanitize policy the normal reader should apply to a message body,
+     * derived from {@see readerRenderMode()}.
      */
-    public static function readerSkipsWrap(bool $isArt): bool
+    public static function readerBodyPolicy(bool $isArt): string
     {
-        return $isArt && self::mode() === self::MODE_RAW;
+        return self::readerRenderMode($isArt) === 'strict'
+            ? TerminalTextSanitizer::POLICY_STRIP
+            : TerminalTextSanitizer::POLICY_POSITIONING;
     }
 
     /**

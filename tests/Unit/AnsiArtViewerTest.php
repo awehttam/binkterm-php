@@ -41,47 +41,61 @@ class AnsiArtViewerTest extends TestCase
         }
     }
 
-    public function testModeDefaultsToViewer(): void
+    public function testModeDefaultsToCanvas(): void
     {
         $this->setMode(null);
-        $this->assertSame(AnsiArtViewer::MODE_VIEWER, AnsiArtViewer::mode());
+        $this->assertSame(AnsiArtViewer::MODE_CANVAS, AnsiArtViewer::mode());
     }
 
-    public function testUnknownModeFallsBackToViewer(): void
+    public function testUnknownModeFallsBackToCanvas(): void
     {
         $this->setMode('nonsense');
-        $this->assertSame(AnsiArtViewer::MODE_VIEWER, AnsiArtViewer::mode());
+        $this->assertSame(AnsiArtViewer::MODE_CANVAS, AnsiArtViewer::mode());
     }
 
-    public function testModeRecognisesInlineAndRaw(): void
+    public function testModeRecognisesAllValues(): void
     {
+        $this->setMode('viewer');
+        $this->assertSame(AnsiArtViewer::MODE_VIEWER, AnsiArtViewer::mode());
         $this->setMode('inline');
         $this->assertSame(AnsiArtViewer::MODE_INLINE, AnsiArtViewer::mode());
         $this->setMode('  RAW  ');
         $this->assertSame(AnsiArtViewer::MODE_RAW, AnsiArtViewer::mode());
+        $this->setMode('canvas');
+        $this->assertSame(AnsiArtViewer::MODE_CANVAS, AnsiArtViewer::mode());
     }
 
-    public function testReaderBodyPolicyOnlyLoosensForRawArt(): void
+    public function testReaderRenderModeIsStrictForNonArtRegardlessOfMode(): void
     {
+        foreach (['canvas', 'viewer', 'inline', 'raw'] as $m) {
+            $this->setMode($m);
+            $this->assertSame('strict', AnsiArtViewer::readerRenderMode(false));
+        }
+    }
+
+    public function testReaderRenderModeForArt(): void
+    {
+        $this->setMode('canvas');
+        $this->assertSame('canvas', AnsiArtViewer::readerRenderMode(true));
+        $this->setMode('raw');
+        $this->assertSame('raw', AnsiArtViewer::readerRenderMode(true));
+        $this->setMode('viewer');
+        $this->assertSame('strict', AnsiArtViewer::readerRenderMode(true));
+        $this->setMode('inline');
+        $this->assertSame('strict', AnsiArtViewer::readerRenderMode(true));
+    }
+
+    public function testReaderBodyPolicyFollowsRenderMode(): void
+    {
+        $this->setMode('canvas');
+        $this->assertSame(TerminalTextSanitizer::POLICY_POSITIONING, AnsiArtViewer::readerBodyPolicy(true));
         $this->setMode('raw');
         $this->assertSame(TerminalTextSanitizer::POLICY_POSITIONING, AnsiArtViewer::readerBodyPolicy(true));
+
+        $this->setMode('viewer');
+        $this->assertSame(TerminalTextSanitizer::POLICY_STRIP, AnsiArtViewer::readerBodyPolicy(true));
+        $this->setMode('canvas');
         $this->assertSame(TerminalTextSanitizer::POLICY_STRIP, AnsiArtViewer::readerBodyPolicy(false));
-
-        $this->setMode('viewer');
-        $this->assertSame(TerminalTextSanitizer::POLICY_STRIP, AnsiArtViewer::readerBodyPolicy(true));
-
-        $this->setMode('inline');
-        $this->assertSame(TerminalTextSanitizer::POLICY_STRIP, AnsiArtViewer::readerBodyPolicy(true));
-    }
-
-    public function testReaderSkipsWrapOnlyForRawArt(): void
-    {
-        $this->setMode('raw');
-        $this->assertTrue(AnsiArtViewer::readerSkipsWrap(true));
-        $this->assertFalse(AnsiArtViewer::readerSkipsWrap(false));
-
-        $this->setMode('viewer');
-        $this->assertFalse(AnsiArtViewer::readerSkipsWrap(true));
     }
 
     public function testIsArtDetectsPositionedBodies(): void

@@ -32,21 +32,29 @@ changes are made.
   their absolute cursor positioning. Escape sequences are now treated as
   zero-width and are never split; wrapping only breaks on character boundaries.
 
-- **ANSI-art message viewer:** echomail and netmail whose body is ANSI art (it
-  positions the cursor to place its pieces) can now be viewed as art. The inline
-  reader still shows the escape-filtered, reflowed body; pressing `A` opens a
-  dedicated full-screen view that renders the art with cursor positioning
-  intact. That view still strips window-title/clipboard writes (OSC),
-  answerback/device-status queries and other input-injection sequences — only
-  in-screen drawing is restored. The `TERM_ANSI_ART_MODE` setting controls this:
-  `viewer` (default) is the press-`A` behaviour above; `inline` opens the
-  full-screen art view automatically whenever an art message is opened, and any
-  key drops through to the normal reader; `raw` passes cursor-positioning and
-  erase sequences straight through to the normal reader for art messages (and
-  does not word-wrap them), so the art renders in place during normal scrolling.
-  `raw` reintroduces in-screen display spoofing inside the message reader — the
-  sysop opts into that tradeoff; the OSC/DCS/answerback vectors stay closed in
-  every mode.
+- **ANSI-art messages render on a virtual canvas:** echomail and netmail whose
+  body is ANSI art (it positions the cursor to place its pieces) are now drawn
+  onto an off-screen character grid and the resulting coloured lines are shown
+  inline in the normal reader. The 1.10.5 security fix strips absolute cursor
+  positioning from message bodies, which left ANSI art reflowing into unreadable
+  text; the canvas resolves every cursor move against the grid first, so the art
+  keeps its layout and the reader still scrolls, repaints and resizes it like
+  any other message. No cursor-control code reaches the terminal — only colour.
+  Pressing `A` in the reader opens a full-screen view that renders the art with
+  real cursor positioning for maximum fidelity; that view (like the inline
+  canvas) still strips window-title/clipboard writes (OSC),
+  answerback/device-status queries and other input-injection sequences.
+
+  The `TERM_ANSI_ART_MODE` setting selects the behaviour:
+
+  | Value | Behaviour |
+  |-------|-----------|
+  | `canvas` (default) | Art rendered on the virtual canvas inline; `A` for the full-screen view. |
+  | `viewer` | Inline reader shows the escape-filtered, reflowed body; `A` for the full-screen view. |
+  | `inline` | The full-screen view opens automatically when an art message is opened; any key returns to the reader. |
+  | `raw` | Cursor-positioning and erase codes pass straight through to the normal reader for art messages (not word-wrapped). Reintroduces in-screen display spoofing within the reader — the sysop opts in. |
+
+  The OSC/DCS/answerback protections apply in every mode.
 
 ---
 

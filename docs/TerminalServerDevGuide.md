@@ -317,34 +317,41 @@ stay intact. A line with no escape sequences and no high bytes takes a fast
 byte-oriented `wordwrap()` path. Do not reintroduce a raw `wordwrap(..., true)`
 on text that may contain colour codes or UTF-8.
 
-### ANSI art viewer
+### ANSI art
 
-For bodies that are genuine ANSI art, `AnsiArtViewer` (`telnet/src/`) renders the
-message full-screen with cursor positioning preserved.
-`TerminalTextSanitizer::sanitize($raw, TerminalTextSanitizer::POLICY_POSITIONING)`
-keeps a whitelist of cursor-movement and erase sequences on top of SGR, while
-still removing OSC, DCS/APC/PM, private-mode sequences, device-status/answerback
-queries and C0/C1 bytes — the input-injection and clipboard/title vectors stay
-closed.
+Two pieces cooperate. `TerminalTextSanitizer::sanitize($raw, POLICY_POSITIONING)`
+keeps a whitelist of cursor-movement and erase sequences on top of SGR while
+still removing OSC, DCS/APC/PM, private-mode sequences,
+device-status/answerback queries and C0/C1 bytes — the input-injection and
+clipboard/title vectors stay closed regardless of mode.
 
-`AnsiArtViewer::isArt($rawBody)` (a wrapper over
-`TerminalTextSanitizer::hasPositionedAnsi()`) decides whether a message qualifies;
-it must be called on the **raw** body, before sanitization. The message viewers
-in `EchomailHandler` and `NetmailHandler` pass the raw body through, add an
-`a => 'viewart'` entry to `$extraKeys` plus a help item, and handle
-`case 'viewart'` by calling `AnsiArtViewer::show()`.
+`AnsiCanvasRenderer::render($positioningSanitizedBody, $width)` (`telnet/src/`,
+ported from the browser `AnsiTerminal` in `public_html/js/ansisys.js`) resolves
+every cursor move against an off-screen cell grid (`$width` columns, height
+capped at 1000 rows) and serialises the used rows back to strings that carry
+**SGR codes only** — no positioning. The message viewers feed these straight in
+as `$wrappedLines`, so the scroll viewer, resize rebuild and repaint all work
+unchanged and nothing but colour reaches the terminal.
 
-`AnsiArtViewer::mode()` reads `TERM_ANSI_ART_MODE`:
+`AnsiArtViewer::show()` is the alternative: a full-screen render of the
+positioning-sanitized body with real cursor moves, reached with the `A` key
+(`a => 'viewart'` in `$extraKeys` plus a help item; `case 'viewart'` in the
+switch). Maximum fidelity, at the cost of clearing the screen.
 
-| Mode | Reader behaviour |
-|------|------------------|
-| `viewer` (default) | Body sanitized `POLICY_STRIP` and reflowed; press `A` for `AnsiArtViewer::show()`. |
-| `inline` | Same as `viewer`, plus `AnsiArtViewer::show()` auto-launches once per message open. |
-| `raw` | For art bodies: `AnsiArtViewer::readerBodyPolicy()` returns `POLICY_POSITIONING` so the handler sanitizes permissively, and `AnsiArtViewer::readerSkipsWrap()` returns true so `$buildView` splits the body on newlines instead of calling `wrapTextLines()`. The cursor codes reach the terminal from inside the normal scroll viewer. |
+`AnsiArtViewer::isArt($rawBody)` (over
+`TerminalTextSanitizer::hasPositionedAnsi()`) must be called on the **raw** body,
+before sanitization, to decide whether a message qualifies. `readerRenderMode()`
+then returns how `$buildView` should turn the body into lines:
 
-The two `reader*` helpers take the `$isArt` flag and both no-op unless the mode
-is `raw` and the body is art, so every non-art message and every other mode keeps
-the strict path.
+| `TERM_ANSI_ART_MODE` | `readerRenderMode($isArt=true)` | Body policy | `$buildView` lines |
+|----------------------|--------------------------------|-------------|--------------------|
+| `canvas` (default) | `canvas` | `POLICY_POSITIONING` | `AnsiCanvasRenderer::render()` |
+| `viewer` | `strict` | `POLICY_STRIP` | `wrapTextLines()` |
+| `inline` | `strict` | `POLICY_STRIP` | `wrapTextLines()` (plus `show()` auto-launches once per open) |
+| `raw` | `raw` | `POLICY_POSITIONING` | split on newlines, no wrap |
+
+For non-art bodies `readerRenderMode()` is always `strict`, so every ordinary
+message keeps the plain sanitize + wrap path.
 
 ### Status Bar Discipline
 
