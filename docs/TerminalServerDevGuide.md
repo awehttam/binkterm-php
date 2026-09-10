@@ -308,6 +308,15 @@ forward bodies), `TelnetUtils::formatMessageListEntry()` and
 radio links are plain text). Any new surface that renders remote message content
 must call the sanitizer too.
 
+Because the sanitizer strips absolute cursor positioning, ANSI-art messages
+arrive at the wrapper as a few long logical lines rather than many screen-placed
+fragments. `TelnetUtils::wrapTextLines()` handles this: it is ANSI- and
+UTF-8-aware, treating escape sequences as zero-width atomic units (never split
+across a wrap) and breaking only on character boundaries so multi-byte glyphs
+stay intact. A line with no escape sequences and no high bytes takes a fast
+byte-oriented `wordwrap()` path. Do not reintroduce a raw `wordwrap(..., true)`
+on text that may contain colour codes or UTF-8.
+
 ### Status Bar Discipline
 
 The bottom status bar has limited width. Keep it to the **most-used primary actions only** — typically scroll, prev/next, reply, and quit. Every other key belongs exclusively in the Ctrl-K help overlay.

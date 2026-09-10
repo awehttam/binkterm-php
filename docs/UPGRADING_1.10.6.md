@@ -20,6 +20,18 @@ and what (if anything) the upgrader must do.
 This release is in development. Feature-area details will be added here as
 changes are made.
 
+### Terminal Server
+
+- **ANSI message wrapping fix:** the Telnet/SSH message reader now wraps message
+  bodies with an ANSI- and UTF-8-aware word-wrapper. Previously, colour codes and
+  multi-byte box-drawing characters were counted as literal bytes toward the line
+  width, so coloured or ANSI-art messages could be hard-cut in the middle of an
+  escape sequence (showing stray text such as `[35m`) or a multi-byte character
+  (showing mojibake), and lines could overflow the terminal width. This was most
+  visible on ANSI-art posts after the 1.10.5 escape-sequence filtering removed
+  their absolute cursor positioning. Escape sequences are now treated as
+  zero-width and are never split; wrapping only breaks on character boundaries.
+
 ---
 
 ## Upgrade Instructions
