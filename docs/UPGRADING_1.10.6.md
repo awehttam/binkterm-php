@@ -17,9 +17,6 @@ cycle. Each bullet should be self-contained: state what changed, why it matters,
 and what (if anything) the upgrader must do.
 -->
 
-This release is in development. Feature-area details will be added here as
-changes are made.
-
 ### Terminal Server
 
 - **ANSI message wrapping fix:** the Telnet/SSH message reader now wraps message
