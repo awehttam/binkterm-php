@@ -27,11 +27,27 @@ use BinktermPHP\TerminalTextSanitizer;
  */
 class AnsiArtViewer
 {
-    /** Art messages open this viewer only on demand (key `A`). */
+    /**
+     * Inline reader shows the reflowed, escape-filtered body; the user presses
+     * `A` for the dedicated full-screen art view. Default.
+     */
     public const MODE_VIEWER = 'viewer';
 
-    /** Art messages open this viewer automatically on open. */
+    /**
+     * The dedicated full-screen art view opens automatically when an art
+     * message is opened; any key drops through to the normal reader.
+     */
     public const MODE_INLINE = 'inline';
+
+    /**
+     * Cursor-positioning and erase sequences are passed through to the normal
+     * reader for art messages (sanitized with
+     * {@see TerminalTextSanitizer::POLICY_POSITIONING}), and such bodies are not
+     * word-wrapped so the art keeps its own column layout. The sysop accepts
+     * the in-screen display-spoofing tradeoff; OSC/DCS/answerback vectors are
+     * still removed.
+     */
+    public const MODE_RAW = 'raw';
 
     /**
      * Configured art-handling mode from `TERM_ANSI_ART_MODE`. Defaults to
@@ -40,7 +56,12 @@ class AnsiArtViewer
     public static function mode(): string
     {
         $mode = strtolower(trim((string)Config::env('TERM_ANSI_ART_MODE', self::MODE_VIEWER)));
-        return $mode === self::MODE_INLINE ? self::MODE_INLINE : self::MODE_VIEWER;
+
+        return match ($mode) {
+            self::MODE_INLINE => self::MODE_INLINE,
+            self::MODE_RAW    => self::MODE_RAW,
+            default           => self::MODE_VIEWER,
+        };
     }
 
     /**
@@ -50,6 +71,29 @@ class AnsiArtViewer
     public static function isArt(string $rawBody): bool
     {
         return TerminalTextSanitizer::hasPositionedAnsi($rawBody);
+    }
+
+    /**
+     * The sanitize policy the normal reader should apply to a message body.
+     *
+     * {@see TerminalTextSanitizer::POLICY_POSITIONING} only when the body is
+     * art and the configured mode is {@see MODE_RAW}; otherwise the strict
+     * {@see TerminalTextSanitizer::POLICY_STRIP}.
+     */
+    public static function readerBodyPolicy(bool $isArt): string
+    {
+        return ($isArt && self::mode() === self::MODE_RAW)
+            ? TerminalTextSanitizer::POLICY_POSITIONING
+            : TerminalTextSanitizer::POLICY_STRIP;
+    }
+
+    /**
+     * Whether the normal reader should render this body without word-wrapping
+     * (raw mode, art body) so the art keeps its own line/column layout.
+     */
+    public static function readerSkipsWrap(bool $isArt): bool
+    {
+        return $isArt && self::mode() === self::MODE_RAW;
     }
 
     /**

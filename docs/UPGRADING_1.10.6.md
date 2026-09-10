@@ -41,7 +41,12 @@ changes are made.
   in-screen drawing is restored. The `TERM_ANSI_ART_MODE` setting controls this:
   `viewer` (default) is the press-`A` behaviour above; `inline` opens the
   full-screen art view automatically whenever an art message is opened, and any
-  key drops through to the normal reader.
+  key drops through to the normal reader; `raw` passes cursor-positioning and
+  erase sequences straight through to the normal reader for art messages (and
+  does not word-wrap them), so the art renders in place during normal scrolling.
+  `raw` reintroduces in-screen display spoofing inside the message reader — the
+  sysop opts into that tradeoff; the OSC/DCS/answerback vectors stay closed in
+  every mode.
 
 ---
 

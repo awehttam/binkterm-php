@@ -635,8 +635,9 @@ class NetmailHandler
             $this->server->logAction($state['username'] ?? 'unknown', "Netmail: read message #{$id}");
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/netmail/' . $id, null, $session);
             $rawBody      = (string)($detail['data']['message_text'] ?? '');
-            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($rawBody);
             $isArt        = AnsiArtViewer::isArt($rawBody);
+            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($rawBody, AnsiArtViewer::readerBodyPolicy($isArt));
+            $artSkipWrap  = AnsiArtViewer::readerSkipsWrap($isArt);
             $markupFormat = $detail['data']['markup_format'] ?? null;
             $attachments  = $detail['data']['attachments'] ?? [];
             $rawKludges   = \BinktermPHP\TerminalTextSanitizer::sanitize(($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? ''));
@@ -657,7 +658,7 @@ class NetmailHandler
 
             // Closure that rebuilds all layout-dependent view components from current $state.
             // Called once on open and again whenever the terminal is resized.
-            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs, $isSentFolder, &$isSaved, $keyColor, $lblColor): array {
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments, $imageRefs, $isSentFolder, &$isSaved, $keyColor, $lblColor, $artSkipWrap): array {
                 $cols    = $s['cols'] ?? 80;
                 $width   = max(10, $cols - 2);
                 $charset = $this->server->getTerminalCharset();
@@ -690,7 +691,9 @@ class NetmailHandler
 
                 $wrappedLines = $markupFormat !== null
                     ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
-                    : TelnetUtils::wrapTextLines($body, $width);
+                    : ($artSkipWrap
+                        ? (preg_split("/\\r?\\n/", $body) ?: [''])
+                        : TelnetUtils::wrapTextLines($body, $width));
                 $wrappedLines = array_map(fn(string $line): string => $this->server->encodeForTerminal($line), $wrappedLines);
 
                 return [

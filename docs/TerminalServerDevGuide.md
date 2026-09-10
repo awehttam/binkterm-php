@@ -329,12 +329,22 @@ closed.
 
 `AnsiArtViewer::isArt($rawBody)` (a wrapper over
 `TerminalTextSanitizer::hasPositionedAnsi()`) decides whether a message qualifies;
-it must be called on the **raw** body, before strict sanitization. The message
-viewers in `EchomailHandler` and `NetmailHandler` pass the raw body through, add
-an `a => 'viewart'` entry to `$extraKeys` plus a help item, and handle
-`case 'viewart'` by calling `AnsiArtViewer::show()`. `AnsiArtViewer::mode()`
-reads `TERM_ANSI_ART_MODE` (`viewer` default, or `inline` to auto-launch the view
-once per message open).
+it must be called on the **raw** body, before sanitization. The message viewers
+in `EchomailHandler` and `NetmailHandler` pass the raw body through, add an
+`a => 'viewart'` entry to `$extraKeys` plus a help item, and handle
+`case 'viewart'` by calling `AnsiArtViewer::show()`.
+
+`AnsiArtViewer::mode()` reads `TERM_ANSI_ART_MODE`:
+
+| Mode | Reader behaviour |
+|------|------------------|
+| `viewer` (default) | Body sanitized `POLICY_STRIP` and reflowed; press `A` for `AnsiArtViewer::show()`. |
+| `inline` | Same as `viewer`, plus `AnsiArtViewer::show()` auto-launches once per message open. |
+| `raw` | For art bodies: `AnsiArtViewer::readerBodyPolicy()` returns `POLICY_POSITIONING` so the handler sanitizes permissively, and `AnsiArtViewer::readerSkipsWrap()` returns true so `$buildView` splits the body on newlines instead of calling `wrapTextLines()`. The cursor codes reach the terminal from inside the normal scroll viewer. |
+
+The two `reader*` helpers take the `$isArt` flag and both no-op unless the mode
+is `raw` and the body is art, so every non-art message and every other mode keeps
+the strict path.
 
 ### Status Bar Discipline
 
