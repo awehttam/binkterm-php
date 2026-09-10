@@ -563,6 +563,8 @@ return [
     'ui.terminalserver.message.help_headers'           => 'Visualizza intestazioni messaggio',
     'ui.terminalserver.message.help_download'          => 'Scarica allegato (ZMODEM)',
     'ui.terminalserver.message.help_images'            => 'Visualizza immagine/i incorporata/e',
+    'ui.terminalserver.message.help_ansi_art'          => 'Visualizza come arte ANSI',
+    'ui.terminalserver.message.ansi_art_dismiss'       => 'Vista arte ANSI - premi un tasto per tornare...',
     'ui.terminalserver.message.help_quit'              => 'Esci / chiudi messaggio',
     'ui.terminalserver.netmail.help_delete'            => 'Elimina messaggio',
     'ui.terminalserver.netmail.help_bookmark'          => 'Aggiungi / rimuovi segnalibro',

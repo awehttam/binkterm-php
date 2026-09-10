@@ -32,6 +32,17 @@ changes are made.
   their absolute cursor positioning. Escape sequences are now treated as
   zero-width and are never split; wrapping only breaks on character boundaries.
 
+- **ANSI-art message viewer:** echomail and netmail whose body is ANSI art (it
+  positions the cursor to place its pieces) can now be viewed as art. The inline
+  reader still shows the escape-filtered, reflowed body; pressing `A` opens a
+  dedicated full-screen view that renders the art with cursor positioning
+  intact. That view still strips window-title/clipboard writes (OSC),
+  answerback/device-status queries and other input-injection sequences — only
+  in-screen drawing is restored. The `TERM_ANSI_ART_MODE` setting controls this:
+  `viewer` (default) is the press-`A` behaviour above; `inline` opens the
+  full-screen art view automatically whenever an art message is opened, and any
+  key drops through to the normal reader.
+
 ---
 
 ## Upgrade Instructions

@@ -86,4 +86,37 @@ class TerminalTextSanitizerTest extends TestCase
             TerminalTextSanitizer::sanitize("\x1b[1m\x1b[31mHI\x1b[0m\x1b[2J\x1b]0;x\x07")
         );
     }
+
+    public function testPositioningPolicyKeepsCursorAndEraseSequences(): void
+    {
+        $in = "\x1b[2J\x1b[5;1Hport\x1b[1;33m\x1b[K";
+        $this->assertSame($in, TerminalTextSanitizer::sanitize($in, TerminalTextSanitizer::POLICY_POSITIONING));
+    }
+
+    public function testPositioningPolicyStillStripsInjectionVectors(): void
+    {
+        // OSC, DSR query, DA query, private-mode, DCS — all gone even in positioning mode.
+        $this->assertSame(
+            "\x1b[10;5Hok",
+            TerminalTextSanitizer::sanitize(
+                "\x1b[10;5H\x1b]0;title\x07\x1b[6n\x1b[c\x1b[?1049hok\x1bP\$q\"p\x1b\\",
+                TerminalTextSanitizer::POLICY_POSITIONING
+            )
+        );
+    }
+
+    public function testStrictPolicyRemovesPositioningThatPositioningPolicyKeeps(): void
+    {
+        $this->assertSame('port', TerminalTextSanitizer::sanitize("\x1b[5;1Hport\x1b[K"));
+    }
+
+    public function testHasPositionedAnsiDetectsCursorAndEraseOnly(): void
+    {
+        $this->assertTrue(TerminalTextSanitizer::hasPositionedAnsi("art\x1b[5;1Hhere"));
+        $this->assertTrue(TerminalTextSanitizer::hasPositionedAnsi("art\x1b[2Jhere"));
+        $this->assertTrue(TerminalTextSanitizer::hasPositionedAnsi("art\x1b[sthere\x1b[u"));
+        $this->assertFalse(TerminalTextSanitizer::hasPositionedAnsi("just \x1b[31mcolour\x1b[0m text"));
+        $this->assertFalse(TerminalTextSanitizer::hasPositionedAnsi('plain text'));
+        $this->assertFalse(TerminalTextSanitizer::hasPositionedAnsi(''));
+    }
 }

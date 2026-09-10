@@ -317,6 +317,25 @@ stay intact. A line with no escape sequences and no high bytes takes a fast
 byte-oriented `wordwrap()` path. Do not reintroduce a raw `wordwrap(..., true)`
 on text that may contain colour codes or UTF-8.
 
+### ANSI art viewer
+
+For bodies that are genuine ANSI art, `AnsiArtViewer` (`telnet/src/`) renders the
+message full-screen with cursor positioning preserved.
+`TerminalTextSanitizer::sanitize($raw, TerminalTextSanitizer::POLICY_POSITIONING)`
+keeps a whitelist of cursor-movement and erase sequences on top of SGR, while
+still removing OSC, DCS/APC/PM, private-mode sequences, device-status/answerback
+queries and C0/C1 bytes — the input-injection and clipboard/title vectors stay
+closed.
+
+`AnsiArtViewer::isArt($rawBody)` (a wrapper over
+`TerminalTextSanitizer::hasPositionedAnsi()`) decides whether a message qualifies;
+it must be called on the **raw** body, before strict sanitization. The message
+viewers in `EchomailHandler` and `NetmailHandler` pass the raw body through, add
+an `a => 'viewart'` entry to `$extraKeys` plus a help item, and handle
+`case 'viewart'` by calling `AnsiArtViewer::show()`. `AnsiArtViewer::mode()`
+reads `TERM_ANSI_ART_MODE` (`viewer` default, or `inline` to auto-launch the view
+once per message open).
+
 ### Status Bar Discipline
 
 The bottom status bar has limited width. Keep it to the **most-used primary actions only** — typically scroll, prev/next, reply, and quit. Every other key belongs exclusively in the Ctrl-K help overlay.

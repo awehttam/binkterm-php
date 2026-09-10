@@ -620,6 +620,7 @@ class NetmailHandler
     private function displayMessage($conn, array &$state, string $session, int $page, int $perPage, int $totalPages, int $index, string $folder = 'inbox', string $sort = 'date_desc'): array
     {
         $shell = TerminalShellFactory::create($this->server, $state);
+        $autoArtShownFor = null;
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage, $folder, $sort);
             $msg = $messages[$index] ?? null;
@@ -633,7 +634,9 @@ class NetmailHandler
 
             $this->server->logAction($state['username'] ?? 'unknown', "Netmail: read message #{$id}");
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/netmail/' . $id, null, $session);
-            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($detail['data']['message_text'] ?? '');
+            $rawBody      = (string)($detail['data']['message_text'] ?? '');
+            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($rawBody);
+            $isArt        = AnsiArtViewer::isArt($rawBody);
             $markupFormat = $detail['data']['markup_format'] ?? null;
             $attachments  = $detail['data']['attachments'] ?? [];
             $rawKludges   = \BinktermPHP\TerminalTextSanitizer::sanitize(($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? ''));
@@ -729,8 +732,16 @@ class NetmailHandler
 
             $viewerExtraKeys = ['x' => 'delete', 'DELETE' => 'delete', 'b' => 'save', 't' => 'textdownload', 'e' => 'emailforward'];
             $viewerExtraKeys['f'] = 'forward';
+            if ($isArt) {
+                $viewerExtraKeys['a'] = 'viewart';
+                $helpItems[]          = ['key' => 'A', 'label' => $this->server->t('ui.terminalserver.message.help_ansi_art', 'View as ANSI art', [], $locale)];
+            }
 
             $shell = TerminalShellFactory::create($this->server, $state);
+            if ($isArt && AnsiArtViewer::mode() === AnsiArtViewer::MODE_INLINE && $autoArtShownFor !== $id) {
+                AnsiArtViewer::show($conn, $this->server, $state, $rawBody);
+                $autoArtShownFor = $id;
+            }
             $result = $shell->showMessageViewer(
                 $conn,
                 $state,
@@ -752,6 +763,9 @@ class NetmailHandler
             switch ($result['action']) {
                 case 'quit':
                     return [$page, $index];
+                case 'viewart':
+                    AnsiArtViewer::show($conn, $this->server, $state, $rawBody);
+                    break;
                 case 'prev':
                     if ($index > 0) { $index--; break; }
                     if ($page > 1)  { $page--; $index = max(0, $perPage - 1); }

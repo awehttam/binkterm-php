@@ -526,6 +526,7 @@ class EchomailHandler
     private function displaySearchMessage($conn, array &$state, string $session, array $allMessages, int $index, string $searchTerm = ''): int
     {
         $shell = TerminalShellFactory::create($this->server, $state);
+        $autoArtShownFor = null;
         while (true) {
             $msg = $allMessages[$index] ?? null;
             if (!$msg) {
@@ -540,7 +541,9 @@ class EchomailHandler
             $this->server->logAction($state['username'] ?? 'unknown', "Echomail search: read message #{$id} in {$area}");
 
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
-            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($detail['data']['message_text'] ?? '');
+            $rawBody      = (string)($detail['data']['message_text'] ?? '');
+            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($rawBody);
+            $isArt        = AnsiArtViewer::isArt($rawBody);
             $markupFormat = $detail['data']['markup_format'] ?? null;
             $rawKludges   = \BinktermPHP\TerminalTextSanitizer::sanitize(($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? ''));
             $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
@@ -618,18 +621,30 @@ class EchomailHandler
             if (!empty($imageRefs)) {
                 $helpItems[] = ['key' => 'I', 'label' => $this->server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
             }
+            $extraKeys = ['b' => 'save', 't' => 'download', 'e' => 'emailforward', 'f' => 'forward'];
+            if ($isArt) {
+                $extraKeys['a'] = 'viewart';
+                $helpItems[]    = ['key' => 'A', 'label' => $this->server->t('ui.terminalserver.message.help_ansi_art', 'View as ANSI art', [], $locale)];
+            }
 
+            if ($isArt && AnsiArtViewer::mode() === AnsiArtViewer::MODE_INLINE && $autoArtShownFor !== $id) {
+                AnsiArtViewer::show($conn, $this->server, $state, $rawBody);
+                $autoArtShownFor = $id;
+            }
             $result = $shell->showMessageViewer(
                 $conn, $state,
                 $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
                 $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView,
-                $imageRefs, $imageFn, ['b' => 'save', 't' => 'download', 'e' => 'emailforward', 'f' => 'forward'], $helpItems,
+                $imageRefs, $imageFn, $extraKeys, $helpItems,
                 ['help_overlay' => TelnetUtils::getDefaultStyleProfile()['help_overlay']]
             );
 
             switch ($result['action']) {
                 case 'quit':
                     return $index;
+                case 'viewart':
+                    AnsiArtViewer::show($conn, $this->server, $state, $rawBody);
+                    break;
                 case 'prev':
                     if ($index > 0) { $index--; }
                     break;
@@ -1664,6 +1679,7 @@ class EchomailHandler
     private function displayMessage($conn, array &$state, string $session, string $area, int $page, int $perPage, int $totalPages, int $index, string $sort): array
     {
         $shell = TerminalShellFactory::create($this->server, $state);
+        $autoArtShownFor = null;
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage, $sort);
             $msg = $messages[$index] ?? null;
@@ -1677,7 +1693,9 @@ class EchomailHandler
 
             $this->server->logAction($state['username'] ?? 'unknown', "Echomail: read message #{$id} in {$area}");
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
-            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($detail['data']['message_text'] ?? '');
+            $rawBody      = (string)($detail['data']['message_text'] ?? '');
+            $body         = \BinktermPHP\TerminalTextSanitizer::sanitize($rawBody);
+            $isArt        = AnsiArtViewer::isArt($rawBody);
             $markupFormat = $detail['data']['markup_format'] ?? null;
             $rawKludges   = \BinktermPHP\TerminalTextSanitizer::sanitize(($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? ''));
             $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
@@ -1763,20 +1781,32 @@ class EchomailHandler
             if (!empty($imageRefs)) {
                 $helpItems[] = ['key' => 'I', 'label' => $this->server->t('ui.terminalserver.message.help_images', 'View inline image(s)', [], $locale)];
             }
+            $extraKeys = ['b' => 'save', 't' => 'download', 'e' => 'emailforward', 'f' => 'forward', 'g' => 'ignore'];
+            if ($isArt) {
+                $extraKeys['a'] = 'viewart';
+                $helpItems[]    = ['key' => 'A', 'label' => $this->server->t('ui.terminalserver.message.help_ansi_art', 'View as ANSI art', [], $locale)];
+            }
 
             try {
                 $shell = TerminalShellFactory::create($this->server, $state);
+                if ($isArt && AnsiArtViewer::mode() === AnsiArtViewer::MODE_INLINE && $autoArtShownFor !== $id) {
+                    AnsiArtViewer::show($conn, $this->server, $state, $rawBody);
+                    $autoArtShownFor = $id;
+                }
                 $result = $shell->showMessageViewer(
                     $conn, $state,
                     $view['headerLines'], $view['wrappedLines'], $view['statusLine'],
                     $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView,
-                    $imageRefs, $imageFn, ['b' => 'save', 't' => 'download', 'e' => 'emailforward', 'f' => 'forward', 'g' => 'ignore'], $helpItems,
+                    $imageRefs, $imageFn, $extraKeys, $helpItems,
                     ['help_overlay' => TelnetUtils::getDefaultStyleProfile()['help_overlay']]
                 );
 
                 switch ($result['action']) {
                     case 'quit':
                         return [$page, $index];
+                    case 'viewart':
+                        AnsiArtViewer::show($conn, $this->server, $state, $rawBody);
+                        break;
                     case 'prev':
                         if ($index > 0) { $index--; break; }
                         if ($page > 1)  { $page--; $index = max(0, $perPage - 1); }

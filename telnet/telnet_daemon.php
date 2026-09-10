@@ -6,6 +6,7 @@ require_once __DIR__ . '/src/TelnetServer.php';
 require_once __DIR__ . '/src/BbsSession.php';
 require_once __DIR__ . '/src/TelnetUtils.php';
 require_once __DIR__ . '/src/TerminalMarkupRenderer.php';
+require_once __DIR__ . '/src/AnsiArtViewer.php';
 require_once __DIR__ . '/src/SixelImageRenderer.php';
 require_once __DIR__ . '/src/TerminalBoxRenderer.php';
 require_once __DIR__ . '/src/TerminalSplitScreen.php';

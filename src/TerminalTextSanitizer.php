@@ -14,38 +14,65 @@ namespace BinktermPHP;
  * honour them — OSC title/clipboard writes or answerback/device-status queries
  * that reflect input back into the session.
  *
- * The policy here is a whitelist: SGR (Select Graphic Rendition) sequences
- * (`ESC [ ... m`) are kept so ANSI colour survives; every other escape
- * sequence and every C0/C1 control byte except TAB, CR and LF is removed.
+ * Two policies are supported:
+ *
+ *  - {@see POLICY_STRIP} (default): a strict whitelist. Only SGR (colour/style)
+ *    sequences and TAB/CR/LF survive; every other escape sequence and C0/C1
+ *    control byte is removed. This is what the inline message reader uses.
+ *  - {@see POLICY_POSITIONING}: additionally preserves a whitelist of cursor
+ *    movement and erase sequences so genuine ANSI art renders. OSC, DCS/APC/PM,
+ *    private-mode sequences, device-status/answerback queries and C0/C1 bytes
+ *    are still removed — the input-injection and clipboard/title vectors stay
+ *    closed; only in-screen display spoofing becomes possible again. Used by the
+ *    dedicated full-screen ANSI art viewer.
  */
 class TerminalTextSanitizer
 {
+    /** Strict policy: keep SGR colour codes only. */
+    public const POLICY_STRIP = 'strip';
+
+    /** Permissive policy: also keep cursor-movement and erase sequences. */
+    public const POLICY_POSITIONING = 'positioning';
+
     /**
-     * Strip terminal control sequences from untrusted text, keeping only SGR
-     * colour/style codes and the TAB/CR/LF whitespace controls.
+     * Well-formed SGR sequence: `ESC [ <params> m`.
+     */
+    private const SGR_PATTERN = '\x1b\[[0-9;:]*m';
+
+    /**
+     * Cursor movement / erase / scroll / save-restore sequences that the
+     * positioning policy preserves: final byte in [A-H] (CUU/CUD/CUF/CUB/CNL/
+     * CPL/CHA/CUP), J/K (ED/EL), S/T (SU/SD), d (VPA), f (HVP), s/u (SCP/RCP).
+     * No private ('?','<','>','=') markers and no intermediate bytes are
+     * allowed, so mode changes and device queries never match.
+     */
+    private const POSITIONING_PATTERN = '\x1b\[[0-9;]*[A-HJKSTdfsu]';
+
+    /**
+     * Strip terminal control sequences from untrusted text.
      *
      * The input is expected to be UTF-8 (the canonical storage form for message
      * text); charset conversion to CP437/ASCII happens downstream and does not
      * reintroduce an ESC introducer.
      *
-     * @param string $text Raw untrusted text.
-     * @return string Text safe to word-wrap and write to a terminal.
+     * @param string $text   Raw untrusted text.
+     * @param string $policy One of {@see POLICY_STRIP} or {@see POLICY_POSITIONING}.
+     * @return string Text safe to write to a terminal.
      */
-    public static function sanitize(string $text): string
+    public static function sanitize(string $text, string $policy = self::POLICY_STRIP): string
     {
         if ($text === '') {
             return $text;
         }
 
-        // Split on well-formed SGR sequences, keeping them as captured
-        // delimiters. Odd-indexed parts are the SGR sequences to preserve;
-        // even-indexed parts are ordinary text that gets fully scrubbed.
-        $parts = preg_split(
-            '/(\x1b\[[0-9;:]*m)/',
-            $text,
-            -1,
-            PREG_SPLIT_DELIM_CAPTURE
-        );
+        $keep = $policy === self::POLICY_POSITIONING
+            ? '/(' . self::SGR_PATTERN . '|' . self::POSITIONING_PATTERN . ')/'
+            : '/(' . self::SGR_PATTERN . ')/';
+
+        // Split on the sequences to keep, retaining them as captured delimiters.
+        // Odd-indexed parts are the preserved sequences; even-indexed parts are
+        // ordinary text that gets fully scrubbed.
+        $parts = preg_split($keep, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
 
         if ($parts === false) {
             return self::scrub($text);
@@ -60,8 +87,26 @@ class TerminalTextSanitizer
     }
 
     /**
+     * Whether $text contains an ANSI sequence that positions the cursor or
+     * erases part of the screen (i.e. a CSI sequence whose final byte is a
+     * letter other than `m`). Used to decide whether a message body is ANSI
+     * art that warrants the dedicated art viewer.
+     *
+     * Operates on the raw (pre-sanitize) text.
+     */
+    public static function hasPositionedAnsi(string $text): bool
+    {
+        if ($text === '') {
+            return false;
+        }
+
+        // CSI whose final byte is a letter other than 'm' (SGR).
+        return (bool)preg_match('/\x1b\[[0-9;<>=?]*[A-Za-ln-z]/', $text);
+    }
+
+    /**
      * Remove every escape sequence and disallowed control byte from a fragment
-     * that is known to contain no SGR sequences worth keeping.
+     * that is known to contain no sequences worth keeping.
      */
     private static function scrub(string $text): string
     {
@@ -76,7 +121,7 @@ class TerminalTextSanitizer
         // DCS / SOS / PM / APC strings: ESC (P|X|^|_) ... ST.
         $text = preg_replace('/\x1b[PX^_][^\x1b]*(?:\x1b\\\\)?/', '', $text);
 
-        // Any CSI sequence (all non-SGR by construction, plus malformed or
+        // Any CSI sequence (all non-preserved by construction, plus malformed or
         // unterminated ones): cursor movement, erase, scroll region, mode
         // changes, device-status queries.
         $text = preg_replace('/\x1b\[[0-9;:?<>=]*[ -\/]*[@-~]?/', '', $text);

@@ -559,6 +559,8 @@ return [
     'ui.terminalserver.message.help_headers'           => 'Ver encabezados del mensaje',
     'ui.terminalserver.message.help_download'          => 'Descargar adjunto (ZMODEM)',
     'ui.terminalserver.message.help_images'            => 'Ver imagen(es) incrustada(s)',
+    'ui.terminalserver.message.help_ansi_art'          => 'Ver como arte ANSI',
+    'ui.terminalserver.message.ansi_art_dismiss'       => 'Vista de arte ANSI - pulse cualquier tecla para volver...',
     'ui.terminalserver.message.help_quit'              => 'Salir / cerrar mensaje',
     'ui.terminalserver.netmail.help_delete'            => 'Eliminar mensaje',
     'ui.terminalserver.netmail.help_bookmark'          => 'Marcar / desmarcar mensaje',
