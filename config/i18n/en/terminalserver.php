@@ -563,6 +563,8 @@ return [
     'ui.terminalserver.message.help_headers'           => 'View message headers',
     'ui.terminalserver.message.help_download'          => 'Download attachment (ZMODEM)',
     'ui.terminalserver.message.help_images'            => 'View inline image(s)',
+    'ui.terminalserver.message.help_ansi_art'          => 'View as ANSI art',
+    'ui.terminalserver.message.ansi_art_dismiss'       => 'ANSI art view - press any key to return...',
     'ui.terminalserver.message.help_quit'              => 'Quit / close message',
     'ui.terminalserver.netmail.help_delete'            => 'Delete message',
     'ui.terminalserver.netmail.help_bookmark'          => 'Bookmark / unsave message',

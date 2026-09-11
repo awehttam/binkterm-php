@@ -443,6 +443,8 @@ return [
     'ui.terminalserver.message.help_headers'  => 'Afficher les en-têtes du message',
     'ui.terminalserver.message.help_download' => 'Télécharger la pièce jointe (ZMODEM)',
     'ui.terminalserver.message.help_images'   => 'Afficher la ou les images intégrées',
+    'ui.terminalserver.message.help_ansi_art' => 'Afficher en art ANSI',
+    'ui.terminalserver.message.ansi_art_dismiss' => 'Vue art ANSI - appuyez sur une touche pour revenir...',
     'ui.terminalserver.message.help_quit'     => 'Quitter / fermer le message',
     'ui.terminalserver.netmail.help_delete'   => 'Supprimer le message',
     'ui.terminalserver.netmail.help_bookmark' => 'Marquer / démarquer le message',

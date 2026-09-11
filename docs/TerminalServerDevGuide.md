@@ -308,6 +308,51 @@ forward bodies), `TelnetUtils::formatMessageListEntry()` and
 radio links are plain text). Any new surface that renders remote message content
 must call the sanitizer too.
 
+Because the sanitizer strips absolute cursor positioning, ANSI-art messages
+arrive at the wrapper as a few long logical lines rather than many screen-placed
+fragments. `TelnetUtils::wrapTextLines()` handles this: it is ANSI- and
+UTF-8-aware, treating escape sequences as zero-width atomic units (never split
+across a wrap) and breaking only on character boundaries so multi-byte glyphs
+stay intact. A line with no escape sequences and no high bytes takes a fast
+byte-oriented `wordwrap()` path. Do not reintroduce a raw `wordwrap(..., true)`
+on text that may contain colour codes or UTF-8.
+
+### ANSI art
+
+Two pieces cooperate. `TerminalTextSanitizer::sanitize($raw, POLICY_POSITIONING)`
+keeps a whitelist of cursor-movement and erase sequences on top of SGR while
+still removing OSC, DCS/APC/PM, private-mode sequences,
+device-status/answerback queries and C0/C1 bytes — the input-injection and
+clipboard/title vectors stay closed regardless of mode.
+
+`AnsiCanvasRenderer::render($positioningSanitizedBody, $width)` (`telnet/src/`,
+ported from the browser `AnsiTerminal` in `public_html/js/ansisys.js`) resolves
+every cursor move against an off-screen cell grid (`$width` columns, height
+capped at 1000 rows) and serialises the used rows back to strings that carry
+**SGR codes only** — no positioning. The message viewers feed these straight in
+as `$wrappedLines`, so the scroll viewer, resize rebuild and repaint all work
+unchanged and nothing but colour reaches the terminal.
+
+`AnsiArtViewer::show()` is the alternative: a full-screen render of the
+positioning-sanitized body with real cursor moves, reached with the `A` key
+(`a => 'viewart'` in `$extraKeys` plus a help item; `case 'viewart'` in the
+switch). Maximum fidelity, at the cost of clearing the screen.
+
+`AnsiArtViewer::isArt($rawBody)` (over
+`TerminalTextSanitizer::hasPositionedAnsi()`) must be called on the **raw** body,
+before sanitization, to decide whether a message qualifies. `readerRenderMode()`
+then returns how `$buildView` should turn the body into lines:
+
+| `TERM_ANSI_ART_MODE` | `readerRenderMode($isArt=true)` | Body policy | `$buildView` lines |
+|----------------------|--------------------------------|-------------|--------------------|
+| `canvas` (default) | `canvas` | `POLICY_POSITIONING` | `AnsiCanvasRenderer::render()` |
+| `viewer` | `strict` | `POLICY_STRIP` | `wrapTextLines()` |
+| `inline` | `strict` | `POLICY_STRIP` | `wrapTextLines()` (plus `show()` auto-launches once per open) |
+| `raw` | `raw` | `POLICY_POSITIONING` | split on newlines, no wrap |
+
+For non-art bodies `readerRenderMode()` is always `strict`, so every ordinary
+message keeps the plain sanitize + wrap path.
+
 ### Status Bar Discipline
 
 The bottom status bar has limited width. Keep it to the **most-used primary actions only** — typically scroll, prev/next, reply, and quit. Every other key belongs exclusively in the Ctrl-K help overlay.

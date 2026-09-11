@@ -564,6 +564,8 @@ return [
     'ui.terminalserver.message.help_headers' => 'Просмотреть заголовки сообщения',
     'ui.terminalserver.message.help_download' => 'Скачать вложение (ZMODEM)',
     'ui.terminalserver.message.help_images' => 'Посмотреть встроенные изображения',
+    'ui.terminalserver.message.help_ansi_art' => 'Показать как ANSI-графику',
+    'ui.terminalserver.message.ansi_art_dismiss' => 'Просмотр ANSI-графики - нажмите любую клавишу для возврата...',
     'ui.terminalserver.message.help_quit' => 'Выход / закрыть сообщение',
     'ui.terminalserver.netmail.help_delete' => 'Удалить сообщение',
     'ui.terminalserver.netmail.help_bookmark' => 'Добавить в закладки / убрать из сохранённых',

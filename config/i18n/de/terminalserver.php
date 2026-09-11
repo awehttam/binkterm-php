@@ -562,6 +562,8 @@ return [
     'ui.terminalserver.message.help_headers'           => 'Nachrichtenkopfzeilen anzeigen',
     'ui.terminalserver.message.help_download'          => 'Anhang herunterladen (ZMODEM)',
     'ui.terminalserver.message.help_images'            => 'Eingebettetes Bild(er) anzeigen',
+    'ui.terminalserver.message.help_ansi_art'          => 'Als ANSI-Grafik anzeigen',
+    'ui.terminalserver.message.ansi_art_dismiss'       => 'ANSI-Grafikansicht - beliebige Taste zum Zurückkehren...',
     'ui.terminalserver.message.help_quit'              => 'Beenden / Nachricht schliessen',
     'ui.terminalserver.netmail.help_delete'            => 'Nachricht löschen',
     'ui.terminalserver.netmail.help_bookmark'          => 'Nachricht mit Lesezeichen versehen / entfernen',

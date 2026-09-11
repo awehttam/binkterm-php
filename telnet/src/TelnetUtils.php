@@ -590,11 +590,25 @@ class TelnetUtils
      * Word-wrap a string into an array of display lines.
      *
      * Each existing newline in $text starts a new element. Long lines are split
-     * at word boundaries up to $width characters. Hard-wraps at $width when no
-     * word boundary is available. Always returns at least one element (empty string).
+     * at word boundaries up to $width visible columns. Hard-wraps at $width when
+     * no word boundary is available. Always returns at least one element (empty
+     * string).
+     *
+     * The wrapper is ANSI- and UTF-8-aware: ANSI escape sequences (SGR colour
+     * codes and any residual control sequences) contribute zero width and are
+     * never split across a wrap boundary, and multi-byte UTF-8 characters are
+     * measured by display width and only broken on character boundaries. A line
+     * with no escape sequences and no high bytes takes a fast byte-oriented path.
+     *
+     * This matters for FTN message bodies: since 1.10.5 the terminal read paths
+     * run bodies through {@see \BinktermPHP\TerminalTextSanitizer}, which strips
+     * absolute cursor positioning from ANSI art and collapses what were several
+     * positioned screen fragments into single long logical lines. A naive
+     * byte-oriented wrap would then hard-cut those lines in the middle of an
+     * escape sequence (emitting a literal "[35m") or a multi-byte glyph.
      *
      * @param string $text  Input text; may contain \r\n or \n line endings.
-     * @param int    $width Maximum visible characters per line (clamped to at least 10).
+     * @param int    $width Maximum visible columns per line (clamped to at least 10).
      * @return string[] Array of wrapped lines, never empty.
      */
     public static function wrapTextLines(string $text, int $width): array
@@ -608,9 +622,13 @@ class TelnetUtils
                 $wrappedLines[] = '';
                 continue;
             }
-            $wrapped = wordwrap($line, $wrapWidth, "\n", true);
-            $parts = explode("\n", $wrapped);
-            foreach ($parts as $part) {
+            if (strpos($line, "\033") === false && !preg_match('/[\x80-\xff]/', $line)) {
+                foreach (explode("\n", wordwrap($line, $wrapWidth, "\n", true)) as $part) {
+                    $wrappedLines[] = $part;
+                }
+                continue;
+            }
+            foreach (self::wrapAnsiLine($line, $wrapWidth) as $part) {
                 $wrappedLines[] = $part;
             }
         }
@@ -620,6 +638,141 @@ class TelnetUtils
         }
 
         return $wrappedLines;
+    }
+
+    /**
+     * Wrap a single logical line that contains ANSI escape sequences and/or
+     * multi-byte UTF-8, without ever splitting an escape sequence or a character.
+     *
+     * Greedy wrap: accumulate characters until the visible width would exceed
+     * $width, then break at the last space seen (soft break) or, if the current
+     * run has no space, hard-cut at the character boundary. Escape sequences are
+     * carried through verbatim and count as zero columns; terminal SGR state
+     * persists across the emitted newlines so colours are not re-injected.
+     *
+     * @param string $line  One line, no embedded CR/LF.
+     * @param int    $width Maximum visible columns (already clamped by the caller).
+     * @return string[] One or more wrapped display lines.
+     */
+    private static function wrapAnsiLine(string $line, int $width): array
+    {
+        $out       = [];
+        $buf       = '';
+        $vis       = 0;
+        $breakByte = -1; // byte length of $buf at the last soft-break candidate
+        $breakVis  = 0;  // visible width of $buf at that candidate
+        $len       = strlen($line);
+        $i         = 0;
+
+        while ($i < $len) {
+            if ($line[$i] === "\033") {
+                $seqLen = self::escapeSequenceLength($line, $i);
+                $buf   .= substr($line, $i, $seqLen);
+                $i     += $seqLen;
+                continue;
+            }
+
+            $o    = ord($line[$i]);
+            $cLen = $o >= 0xF0 ? 4 : ($o >= 0xE0 ? 3 : ($o >= 0xC0 ? 2 : 1));
+            if ($cLen > 1 && $i + $cLen > $len) {
+                $cLen = 1;
+            }
+            $ch = substr($line, $i, $cLen);
+            $i += $cLen;
+
+            if ($ch === "\t") {
+                $cw = 1;
+            } else {
+                $cw = (int)@mb_strwidth($ch, 'UTF-8');
+                if ($cw < 0) {
+                    $cw = 1;
+                }
+            }
+
+            if ($vis + $cw > $width && $vis > 0) {
+                if ($breakByte > 0) {
+                    $out[]     = rtrim(substr($buf, 0, $breakByte));
+                    $buf       = substr($buf, $breakByte);
+                    $vis      -= $breakVis;
+                } else {
+                    $out[] = $buf;
+                    $buf   = '';
+                    $vis   = 0;
+                }
+                $breakByte = -1;
+                $breakVis  = 0;
+            }
+
+            $buf .= $ch;
+            $vis += $cw;
+
+            if ($ch === ' ') {
+                $breakByte = strlen($buf);
+                $breakVis  = $vis;
+            }
+        }
+
+        if ($buf !== '' || $out === []) {
+            $out[] = rtrim($buf, ' ');
+        }
+
+        return $out;
+    }
+
+    /**
+     * Byte length of the escape sequence beginning at offset $i in $s.
+     *
+     * Handles CSI sequences (ESC [ params/intermediates final), OSC/DCS/PM/APC
+     * string sequences (terminated by BEL or ST), and generic two-byte escapes.
+     * A lone trailing ESC returns 1. Used by {@see wrapAnsiLine()} so a sequence
+     * is treated as an atomic zero-width unit.
+     */
+    private static function escapeSequenceLength(string $s, int $i): int
+    {
+        $len = strlen($s);
+        if ($i >= $len || $s[$i] !== "\033") {
+            return 0;
+        }
+        if ($i + 1 >= $len) {
+            return 1;
+        }
+
+        $next = $s[$i + 1];
+
+        if ($next === '[') {
+            $j = $i + 2;
+            while ($j < $len) {
+                $o = ord($s[$j]);
+                if ($o >= 0x40 && $o <= 0x7E) { // final byte
+                    $j++;
+                    break;
+                }
+                if ($o >= 0x20 && $o <= 0x3F) { // params / intermediates
+                    $j++;
+                    continue;
+                }
+                break; // malformed / truncated
+            }
+            return $j - $i;
+        }
+
+        if ($next === ']' || $next === 'P' || $next === 'X' || $next === '^' || $next === '_') {
+            $j = $i + 2;
+            while ($j < $len) {
+                if ($s[$j] === "\x07") {
+                    $j++;
+                    break;
+                }
+                if ($s[$j] === "\033" && $j + 1 < $len && $s[$j + 1] === '\\') {
+                    $j += 2;
+                    break;
+                }
+                $j++;
+            }
+            return $j - $i;
+        }
+
+        return 2;
     }
 
     /**
