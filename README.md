@@ -9,7 +9,7 @@ awehttam operates a live instance at [claudes.lovelybits.org](https://claudes.lo
 BinktermPHP was featured in the *Calling All Nodes* YouTube video: [CALLING ALL NODES — BinktermPHP](https://www.youtube.com/watch?v=I_s8X2O7Lmk)
 
 This code is released under the terms of a [BSD License](LICENSE.md).  
-**Full documentation:** [docs/index.md](docs/index.md)
+**Full documentation:** [docs/index.md](docs/index.md) | [lovelybits.org/binktermphp](https://lovelybits.org/binktermphp)
 
 ---
 
@@ -305,7 +305,6 @@ This project is licensed under a BSD License. See [LICENSE.md](LICENSE.md) for m
 - **FAQ**: [FAQ.md](FAQ.md)
 - **Issues**: GitHub issue tracker
 - **Community**: [claudes.lovelybits.org](https://claudes.lovelybits.org) — live BBS; Fidonet echo areas
-- **Reddit**: [r/BinktermPHP](https://www.reddit.com/r/BinktermPHP/)
 
 ---
 
