@@ -8862,6 +8862,10 @@ User settings object with locale, shell, notification preferences, and license s
 | `settings.font_family` | string | UI font family |
 | `settings.font_size` | integer | UI font size in pixels |
 | `settings.date_format` | string | Date format locale code (e.g., 'en-US') |
+| `settings.date_display_style` | string | Date display style preference ('system_choice', 'relative', 'date') |
+| `settings.echomail_date_field` | string | Echomail date column preference ('system_choice', 'received', 'written') |
+| `settings.effective_date_display_style` | string | Effective resolved date display style ('relative', 'date') |
+| `settings.effective_echomail_date_field` | string | Effective resolved echomail date column ('received', 'written') |
 | `settings.quote_coloring` | boolean | Whether quoted text is colorized |
 | `settings.default_echo_list` | string | Default echo list view (reader, list) |
 | `settings.signature_text` | string\|null | User's message signature |
@@ -8888,7 +8892,7 @@ User settings object with locale, shell, notification preferences, and license s
 
 **Requires authentication**
 
-Updates user settings including locale, shell preference, and notification sounds. Validates notification sound values against allowed set (disabled, notify1-5). Shell changes respect AppearanceConfig lock. Locale changes are persisted. Composition settings (hard wrap, advanced mode) are stored in UserMeta.
+Updates user settings including locale, shell preference, notification sounds, and date display preferences. Validates notification sound values against allowed set (disabled, notify1-5) and date preferences against allowed choices. Shell changes respect AppearanceConfig lock. Locale changes are persisted. Composition settings (hard wrap, advanced mode) are stored in UserMeta.
 
 **Request Body** _(JSON)_
 
@@ -8896,7 +8900,31 @@ Settings update payload
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `settings` | object | Yes | Object containing settings to update: locale, shell, chat_notification_sound, echomail_notification_sound, netmail_notification_sound, file_notification_sound, compose_advanced_open, compose_hard_wrap, media_render_mode |
+| `settings` | object | Yes | Object containing settings to update |
+| `settings.locale` | string | No | UI locale code (e.g., 'en', 'fr') |
+| `settings.shell` | string | No | UI shell preference ('web' or 'bbs-menu') |
+| `settings.timezone` | string | No | User's timezone (e.g., 'America/Los_Angeles') |
+| `settings.theme` | string | No | UI theme (e.g., 'light', 'dark', 'amber') |
+| `settings.messages_per_page` | integer | No | Number of messages shown per page |
+| `settings.threaded_view` | boolean | No | Whether echomail is shown in threaded mode |
+| `settings.netmail_threaded_view` | boolean | No | Whether netmail is shown in threaded mode |
+| `settings.default_sort` | string | No | Default sort order (date_desc, date_asc, subject, author) |
+| `settings.font_family` | string | No | UI font family |
+| `settings.font_size` | integer | No | UI font size in pixels |
+| `settings.date_format` | string | No | Date format locale code (e.g., 'en-US') |
+| `settings.date_display_style` | string | No | Date display style preference ('system_choice', 'relative', 'date') |
+| `settings.echomail_date_field` | string | No | Echomail date column preference ('system_choice', 'received', 'written') |
+| `settings.quote_coloring` | boolean | No | Whether quoted text is colorized |
+| `settings.default_echo_list` | string | No | Default echo list view (reader, list) |
+| `settings.signature_text` | string | No | User's message signature |
+| `settings.default_tagline` | string | No | Default message tagline |
+| `settings.chat_notification_sound` | string | No | Chat notification sound (disabled, notify1–5) |
+| `settings.echomail_notification_sound` | string | No | Echomail notification sound (disabled, notify1–5) |
+| `settings.netmail_notification_sound` | string | No | Netmail notification sound (disabled, notify1–5) |
+| `settings.file_notification_sound` | string | No | File notification sound (disabled, notify1–5) |
+| `settings.compose_advanced_open` | boolean | No | Whether advanced compose panel is open by default |
+| `settings.compose_hard_wrap` | integer | No | Hard-wrap column for message composition: `0` (disabled), `39`, `72` (default), or `79`; other values are coerced to `72` |
+| `settings.media_render_mode` | string | No | Media rendering mode ('click', 'auto') |
 
 **Response** _(JSON)_
 

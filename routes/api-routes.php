@@ -10132,6 +10132,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['media_render_mode'] = $meta->getValue((int)$userId, 'media_render_mode') ?? 'click';
             }
 
+            $settings['effective_date_display_style'] = MessageHandler::resolveDateDisplayStyle($userId, $settings);
+            $settings['effective_echomail_date_field'] = MessageHandler::resolveEchomailDateField($userId, $settings);
+
             $settings['license_valid'] = \BinktermPHP\License::isValid();
 
             echo json_encode(['success' => true, 'settings' => $settings]);
