@@ -672,7 +672,7 @@ class MessageHandler
             $filterParams[] = $p;
         }
 
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -936,7 +936,7 @@ class MessageHandler
             $areaScopeParams = $echoareaIds;
         }
 
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -1132,7 +1132,7 @@ class MessageHandler
         $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
         $sysopClause      = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
         $echoPH           = implode(',', array_fill(0, count($echoareaIds), '?'));
-        $dateField    = $this->getEchomailDateField();
+        $dateField    = $this->getEchomailDateField($userId);
 
         // Only use UNION path when filter === 'all' and there are associated file areas
         $fileareaIds  = [];
@@ -2676,7 +2676,7 @@ class MessageHandler
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
         } else {
-            $dateField = $this->getEchomailDateField();
+            $dateField = $this->getEchomailDateField($userId);
             $isAdmin = false;
             if ($userId) {
                 $user = $this->getUserById($userId);
@@ -2742,7 +2742,7 @@ class MessageHandler
             $userRealName = $user['real_name'] ?? null;
         }
 
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
         [$whereFragment, $searchBindParams] = $this->buildSearchWhereFragment($query, $searchParams, 'em.');
         [$dateConditions, $dateParams] = $this->buildDateRangeConditions($searchParams, "em.{$dateField}");
 
@@ -2815,7 +2815,7 @@ class MessageHandler
             $isAdmin = $user && !empty($user['is_admin']);
         }
 
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
         [$whereFragment, $searchBindParams] = $this->buildSearchWhereFragment($query, $searchParams, 'em.');
         [$dateConditions, $dateParams] = $this->buildDateRangeConditions($searchParams, "em.{$dateField}");
 
@@ -5955,7 +5955,7 @@ class MessageHandler
 
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -6011,20 +6011,21 @@ class MessageHandler
         $allMessages = $pageMessages;
         
         // Build threading relationships
-        $threads = $this->buildMessageThreads($allMessages);
-        
+        $dateField = $this->getEchomailDateField($userId);
+        $threads = $this->buildMessageThreads($allMessages, $dateField);
+
         // Debug: log thread info
         //error_log("DEBUG: Built " . count($threads) . " threads from " . count($allMessages) . " messages");
-        
+
         // Sort threads according to the requested sort order
-        usort($threads, function($a, $b) use ($sort) {
+        usort($threads, function($a, $b) use ($sort, $dateField) {
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
+                'date_asc' => $this->getThreadSortTimestamp($a, $dateField) - $this->getThreadSortTimestamp($b, $dateField),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
+                default    => $this->getThreadSortTimestamp($b, $dateField) - $this->getThreadSortTimestamp($a, $dateField),
             };
         });
 
@@ -6191,7 +6192,7 @@ class MessageHandler
 
         // Get root messages for the current page
         $rootOffset = ($page - 1) * $limit;
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -6270,17 +6271,18 @@ class MessageHandler
         $allMessages = $this->loadThreadChildren($rootMessages, $userId);
 
         // Build threading relationships
-        $threads = $this->buildMessageThreads($allMessages);
+        $dateField = $this->getEchomailDateField($userId);
+        $threads = $this->buildMessageThreads($allMessages, $dateField);
 
         // Sort threads according to the requested sort order
-        usort($threads, function($a, $b) use ($sort) {
+        usort($threads, function($a, $b) use ($sort, $dateField) {
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
+                'date_asc' => $this->getThreadSortTimestamp($a, $dateField) - $this->getThreadSortTimestamp($b, $dateField),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
+                default    => $this->getThreadSortTimestamp($b, $dateField) - $this->getThreadSortTimestamp($a, $dateField),
             };
         });
 
@@ -6431,7 +6433,7 @@ class MessageHandler
         }
 
         $allMessages = $this->loadThreadChildren($rootMessages, $userId);
-        $threads = $this->buildMessageThreads($allMessages);
+        $threads = $this->buildMessageThreads($allMessages, $this->getEchomailDateField($userId));
         $messages = $this->flattenThreadsForDisplay($threads);
 
         $cleanMessages = [];
@@ -6508,7 +6510,7 @@ class MessageHandler
     /**
      * Build message threads using reply_to_id relationships
      */
-    private function buildMessageThreads($messages)
+    private function buildMessageThreads($messages, string $dateField)
     {
         $messagesById = [];
         $messagesByParentId = [];
@@ -6533,7 +6535,7 @@ class MessageHandler
         // Build thread trees
         $threads = [];
         foreach ($rootMessages as $root) {
-            $thread = $this->buildThreadTree($root, $messagesByParentId);
+            $thread = $this->buildThreadTree($root, $messagesByParentId, $dateField);
             $threads[] = $thread;
         }
 
@@ -6542,7 +6544,7 @@ class MessageHandler
             if (!isset($messagesById[$parentId])) {
                 // Parent not found in result set, treat each orphaned reply as a separate thread
                 foreach ($replies as $orphan) {
-                    $thread = $this->buildThreadTree($orphan, $messagesByParentId);
+                    $thread = $this->buildThreadTree($orphan, $messagesByParentId, $dateField);
                     $threads[] = $thread;
                 }
             }
@@ -6550,11 +6552,11 @@ class MessageHandler
 
         return $threads;
     }
-    
+
     /**
      * Recursively build a thread tree
      */
-    private function buildThreadTree($message, $messagesByParentId)
+    private function buildThreadTree($message, $messagesByParentId, string $dateField)
     {
         $messageId = $message['id'];
         $thread = [
@@ -6564,12 +6566,12 @@ class MessageHandler
 
         if (isset($messagesByParentId[$messageId])) {
             foreach ($messagesByParentId[$messageId] as $reply) {
-                $thread['replies'][] = $this->buildThreadTree($reply, $messagesByParentId);
+                $thread['replies'][] = $this->buildThreadTree($reply, $messagesByParentId, $dateField);
             }
 
             // Sort replies by date
-            usort($thread['replies'], function($a, $b) {
-                return $this->getMessageDateTimestamp($a['message']) - $this->getMessageDateTimestamp($b['message']);
+            usort($thread['replies'], function($a, $b) use ($dateField) {
+                return $this->getMessageDateTimestamp($a['message'], $dateField) - $this->getMessageDateTimestamp($b['message'], $dateField);
             });
         }
 
@@ -6609,23 +6611,22 @@ class MessageHandler
     /**
      * Get the latest message in a thread (recursively)
      */
-    private function getLatestMessageInThread($thread)
+    private function getLatestMessageInThread($thread, string $dateField)
     {
         $latest = $thread['message'];
-        
+
         foreach ($thread['replies'] as $reply) {
-            $replyLatest = $this->getLatestMessageInThread($reply);
-            if ($this->getMessageDateTimestamp($replyLatest) > $this->getMessageDateTimestamp($latest)) {
+            $replyLatest = $this->getLatestMessageInThread($reply, $dateField);
+            if ($this->getMessageDateTimestamp($replyLatest, $dateField) > $this->getMessageDateTimestamp($latest, $dateField)) {
                 $latest = $replyLatest;
             }
         }
-        
+
         return $latest;
     }
 
-    private function getMessageDateTimestamp(array $message): int
+    private function getMessageDateTimestamp(array $message, string $dateField): int
     {
-        $dateField = $this->getEchomailDateField();
         $primary = (string)($message[$dateField] ?? '');
         $fallbackField = ($dateField === 'date_written') ? 'date_received' : 'date_written';
         $fallback = (string)($message[$fallbackField] ?? '');
@@ -6637,9 +6638,9 @@ class MessageHandler
         return ($ts === false) ? 0 : $ts;
     }
 
-    private function getThreadSortTimestamp(array $thread): int
+    private function getThreadSortTimestamp(array $thread, string $dateField): int
     {
-        return $this->getMessageDateTimestamp($this->getLatestMessageInThread($thread));
+        return $this->getMessageDateTimestamp($this->getLatestMessageInThread($thread, $dateField), $dateField);
     }
     
     /**
@@ -6754,17 +6755,18 @@ class MessageHandler
         $allMessages = $stmt->fetchAll();
         
         // Build threading relationships
-        $threads = $this->buildMessageThreads($allMessages);
-        
+        $dateField = $this->getEchomailDateField($userId);
+        $threads = $this->buildMessageThreads($allMessages, $dateField);
+
         // Sort threads according to the requested sort order
-        usort($threads, function($a, $b) use ($sort) {
+        usort($threads, function($a, $b) use ($sort, $dateField) {
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
+                'date_asc' => $this->getThreadSortTimestamp($a, $dateField) - $this->getThreadSortTimestamp($b, $dateField),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
+                default    => $this->getThreadSortTimestamp($b, $dateField) - $this->getThreadSortTimestamp($a, $dateField),
             };
         });
         
@@ -6880,7 +6882,7 @@ class MessageHandler
         }
 
         $allMessages = $this->loadNetmailThreadChildren($rootMessages, $userId);
-        $threads = $this->buildMessageThreads($allMessages);
+        $threads = $this->buildMessageThreads($allMessages, $this->getEchomailDateField($userId));
         $messages = $this->flattenThreadsForDisplay($threads);
 
         $cleanMessages = [];
