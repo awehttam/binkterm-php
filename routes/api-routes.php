@@ -7850,6 +7850,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ), fn($n) => $n !== '');
         }
 
+        // Comma-separated list of interest IDs to scope an echomail search to
+        // when no specific echoarea is given
+        $interestIds = [];
+        if (!empty($_GET['interests'])) {
+            $interestIds = array_filter(array_map(
+                fn($n) => (int)trim($n),
+                explode(',', $_GET['interests'])
+            ), fn($n) => $n > 0);
+        }
+
         // Collect field-specific search params
         $searchParams = [];
         if (!empty($_GET['from_name'])) {
@@ -7898,7 +7908,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
-        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams, $networks);
+        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams, $networks, $interestIds);
 
         // For echomail searches, derive per-echo-area counts from already-fetched results
         // and compute filter counts by PK lookup — avoids re-running the expensive search query.

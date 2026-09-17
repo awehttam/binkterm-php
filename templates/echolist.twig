@@ -710,14 +710,20 @@ function searchMessages() {
         return;
     }
 
-    // Carry the selected network filter along so the search is scoped the same
-    // way the area list on this page is scoped, instead of searching everything.
+    // Carry the selected network/interest filters along so the search is scoped
+    // the same way the area list on this page is scoped, instead of searching everything.
     const selectedNets = $('#networkDropdown .network-cb:checked').map(function() { return this.value; }).get();
+    const selectedInterests = $('#interestDropdown .interest-cb:checked').map(function() { return this.value; }).get();
 
     const params = new URLSearchParams();
     params.set('search', query);
     if (selectedNets.length > 0) {
         params.set('network', selectedNets.join(','));
+    }
+    if (selectedInterests.length > 0) {
+        // Plural 'interests' to avoid colliding with the existing singular
+        // 'interest' param, which selects a single interest browse mode by slug/id.
+        params.set('interests', selectedInterests.join(','));
     }
 
     // Redirect to echomail page with search query

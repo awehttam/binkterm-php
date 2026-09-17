@@ -33,6 +33,7 @@ let loadedInterests = [];
 let currentConversationMessageId = null;
 let currentConversationSubject = '';
 let currentSearchNetworks = [];  // network domains (or '__local__') scoping the active search, when no specific area is selected
+let currentSearchInterests = [];  // interest IDs scoping the active search (from the Echo Areas page's interest picker), when no specific area is selected
 let currentContextMenuMessageId = null;
 let currentContextMenuMessageSaved = false;
 const ECHOMAIL_STATS_CACHE_TTL_MS = 10000;
@@ -179,11 +180,13 @@ $(document).ready(function() {
         const urlParams = new URLSearchParams(window.location.search);
         const searchQuery = urlParams.get('search');
         const networkParam = urlParams.get('network');
+        const interestsParam = urlParams.get('interests');
         const messageParam = urlParams.get('message');
         requestedMessageId = messageParam && /^\d+$/.test(messageParam) ? parseInt(messageParam, 10) : null;
 
         if (searchQuery) {
             currentSearchNetworks = networkParam ? networkParam.split(',').filter(n => n !== '') : [];
+            currentSearchInterests = interestsParam ? interestsParam.split(',').filter(n => n !== '') : [];
             refreshEchomailView({ reloadMessages: false });
             // Populate search input and trigger search
             $('#searchInput').val(searchQuery);
@@ -843,6 +846,8 @@ function selectInterest(id, name, slug) {
     currentInterestName = name;
     currentInterestSlug = slug || '';
     currentEchoarea     = null;
+    currentSearchNetworks = [];
+    currentSearchInterests = [];
     currentPage         = 1;
     areaListInterestFilter = id;
 
@@ -885,6 +890,7 @@ function selectEchoarea(tag) {
     }
     currentEchoarea = tag;
     currentSearchNetworks = [];
+    currentSearchInterests = [];
     // Restore subscribe button visibility in case we're coming from interest mode
     $('#echoSubscribeBtn').removeClass('d-none');
     updateEchoInfoBar();
@@ -2335,6 +2341,12 @@ function forwardMessageByNetmail(messageId) {
     window.location.href = `${url}?${params.toString()}`;
 }
 
+// Interest IDs that should scope the current search: the single interest being
+// browsed (Interests tab), or the interests picked on the Echo Areas page.
+function getActiveSearchInterestIds() {
+    return currentInterestId ? [currentInterestId] : currentSearchInterests;
+}
+
 function searchMessages() {
     currentConversationMessageId = null;
     currentConversationSubject = '';
@@ -2357,8 +2369,14 @@ function searchMessages() {
     let url = `/api/messages/search?q=${encodeURIComponent(query)}&type=echomail`;
     if (currentEchoarea) {
         url += `&echoarea=${encodeURIComponent(currentEchoarea)}`;
-    } else if (currentSearchNetworks.length > 0) {
-        url += `&network=${encodeURIComponent(currentSearchNetworks.join(','))}`;
+    } else {
+        const interestIds = getActiveSearchInterestIds();
+        if (interestIds.length > 0) {
+            url += `&interests=${encodeURIComponent(interestIds.join(','))}`;
+        }
+        if (currentSearchNetworks.length > 0) {
+            url += `&network=${encodeURIComponent(currentSearchNetworks.join(','))}`;
+        }
     }
 
     $.get(url)
@@ -2464,8 +2482,14 @@ function runAdvancedSearch() {
     if (dateTo) params.set('date_to', dateTo);
     if (currentEchoarea) {
         params.set('echoarea', currentEchoarea);
-    } else if (currentSearchNetworks.length > 0) {
-        params.set('network', currentSearchNetworks.join(','));
+    } else {
+        const interestIds = getActiveSearchInterestIds();
+        if (interestIds.length > 0) {
+            params.set('interests', interestIds.join(','));
+        }
+        if (currentSearchNetworks.length > 0) {
+            params.set('network', currentSearchNetworks.join(','));
+        }
     }
 
     $.get('/api/messages/search?' + params.toString())
@@ -2556,6 +2580,7 @@ function clearSearch() {
     // Clear search state
     currentSearchTerms = [];
     currentSearchNetworks = [];
+    currentSearchInterests = [];
     searchResultCounts = null;
     searchFilterCounts = null;
     isSearchActive = false;

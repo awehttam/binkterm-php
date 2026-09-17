@@ -2594,6 +2594,27 @@ class MessageHandler
     }
 
     /**
+     * Build a SQL condition restricting to echo areas belonging to one or more interests.
+     *
+     * @param int[] $interestIds
+     * @param string $sql SQL string to append to, by reference
+     * @param array $params Bind params to append to, by reference
+     */
+    private function appendInterestCondition(array $interestIds, string &$sql, array &$params): void
+    {
+        $interestIds = array_values(array_unique(array_map('intval', $interestIds)));
+        if (empty($interestIds)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($interestIds), '?'));
+        $sql .= " AND em.echoarea_id IN (SELECT echoarea_id FROM interest_echoareas WHERE interest_id IN ({$placeholders}))";
+        foreach ($interestIds as $interestId) {
+            $params[] = $interestId;
+        }
+    }
+
+    /**
      * Build a SQL WHERE fragment for text-based message searches.
      * Returns [null, []] when no text search terms are present (date-only searches).
      *
@@ -2679,9 +2700,11 @@ class MessageHandler
      * @param array $searchParams Field-specific search: keys 'from_name', 'subject', 'body', 'date_from', 'date_to'
      * @param string[] $networks Optional list of network domains (or '__local__') to restrict an echomail
      *                           search to when no specific $echoarea is given
+     * @param int[] $interestIds Optional list of interest IDs to restrict an echomail search to when no
+     *                           specific $echoarea is given; combined with $networks (AND) if both are set
      * @return array
      */
-    public function searchMessages($query, $type = null, $echoarea = null, $userId = null, $searchParams = [], $networks = [])
+    public function searchMessages($query, $type = null, $echoarea = null, $userId = null, $searchParams = [], $networks = [], $interestIds = [])
     {
         if ($type === 'netmail') {
             if ($userId === null) {
@@ -2747,8 +2770,13 @@ class MessageHandler
 
             if ($echoarea) {
                 $this->appendEchoareaCondition($echoarea, $sql, $params);
-            } elseif (!empty($networks)) {
-                $this->appendNetworkCondition($networks, $sql, $params);
+            } else {
+                if (!empty($interestIds)) {
+                    $this->appendInterestCondition($interestIds, $sql, $params);
+                }
+                if (!empty($networks)) {
+                    $this->appendNetworkCondition($networks, $sql, $params);
+                }
             }
 
             $sql .= " ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC LIMIT 200";
