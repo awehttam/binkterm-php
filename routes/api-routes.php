@@ -7840,6 +7840,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echoarea = urldecode($echoarea);
         }
 
+        // Comma-separated list of network domains (or '__local__') to scope an
+        // echomail search to when no specific echoarea is given
+        $networks = [];
+        if (!empty($_GET['network'])) {
+            $networks = array_filter(array_map(
+                fn($n) => trim(urldecode($n)),
+                explode(',', $_GET['network'])
+            ), fn($n) => $n !== '');
+        }
+
         // Collect field-specific search params
         $searchParams = [];
         if (!empty($_GET['from_name'])) {
@@ -7888,7 +7898,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
-        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams);
+        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams, $networks);
 
         // For echomail searches, derive per-echo-area counts from already-fetched results
         // and compute filter counts by PK lookup — avoids re-running the expensive search query.

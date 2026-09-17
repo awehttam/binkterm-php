@@ -710,8 +710,18 @@ function searchMessages() {
         return;
     }
 
+    // Carry the selected network filter along so the search is scoped the same
+    // way the area list on this page is scoped, instead of searching everything.
+    const selectedNets = $('#networkDropdown .network-cb:checked').map(function() { return this.value; }).get();
+
+    const params = new URLSearchParams();
+    params.set('search', query);
+    if (selectedNets.length > 0) {
+        params.set('network', selectedNets.join(','));
+    }
+
     // Redirect to echomail page with search query
-    window.location.href = '/echomail?search=' + encodeURIComponent(query);
+    window.location.href = '/echomail?' + params.toString();
 }
 
 function loadStatistics() {

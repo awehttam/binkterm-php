@@ -32,6 +32,7 @@ let areaListInterestFilter = null;
 let loadedInterests = [];
 let currentConversationMessageId = null;
 let currentConversationSubject = '';
+let currentSearchNetworks = [];  // network domains (or '__local__') scoping the active search, when no specific area is selected
 let currentContextMenuMessageId = null;
 let currentContextMenuMessageSaved = false;
 const ECHOMAIL_STATS_CACHE_TTL_MS = 10000;
@@ -177,10 +178,12 @@ $(document).ready(function() {
     loadEchomailSettings().then(function() {
         const urlParams = new URLSearchParams(window.location.search);
         const searchQuery = urlParams.get('search');
+        const networkParam = urlParams.get('network');
         const messageParam = urlParams.get('message');
         requestedMessageId = messageParam && /^\d+$/.test(messageParam) ? parseInt(messageParam, 10) : null;
 
         if (searchQuery) {
+            currentSearchNetworks = networkParam ? networkParam.split(',').filter(n => n !== '') : [];
             refreshEchomailView({ reloadMessages: false });
             // Populate search input and trigger search
             $('#searchInput').val(searchQuery);
@@ -881,6 +884,7 @@ function selectEchoarea(tag) {
         currentInterestSlug = '';
     }
     currentEchoarea = tag;
+    currentSearchNetworks = [];
     // Restore subscribe button visibility in case we're coming from interest mode
     $('#echoSubscribeBtn').removeClass('d-none');
     updateEchoInfoBar();
@@ -2353,6 +2357,8 @@ function searchMessages() {
     let url = `/api/messages/search?q=${encodeURIComponent(query)}&type=echomail`;
     if (currentEchoarea) {
         url += `&echoarea=${encodeURIComponent(currentEchoarea)}`;
+    } else if (currentSearchNetworks.length > 0) {
+        url += `&network=${encodeURIComponent(currentSearchNetworks.join(','))}`;
     }
 
     $.get(url)
@@ -2456,7 +2462,11 @@ function runAdvancedSearch() {
     if (messageId) params.set('message_id', messageId);
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
-    if (currentEchoarea) params.set('echoarea', currentEchoarea);
+    if (currentEchoarea) {
+        params.set('echoarea', currentEchoarea);
+    } else if (currentSearchNetworks.length > 0) {
+        params.set('network', currentSearchNetworks.join(','));
+    }
 
     $.get('/api/messages/search?' + params.toString())
         .done(function(data) {
@@ -2545,6 +2555,7 @@ function clearSearch() {
 
     // Clear search state
     currentSearchTerms = [];
+    currentSearchNetworks = [];
     searchResultCounts = null;
     searchFilterCounts = null;
     isSearchActive = false;

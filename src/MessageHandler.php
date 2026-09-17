@@ -2561,6 +2561,39 @@ class MessageHandler
     }
 
     /**
+     * Build a SQL condition restricting to one or more networks (echoarea domains).
+     * The sentinel value '__local__' matches local areas (ea.is_local = TRUE).
+     *
+     * @param string[] $networks Domain names, or '__local__' for local areas
+     * @param string $sql SQL string to append to, by reference
+     * @param array $params Bind params to append to, by reference
+     */
+    private function appendNetworkCondition(array $networks, string &$sql, array &$params): void
+    {
+        $networks = array_values(array_unique(array_filter($networks, fn($n) => $n !== '')));
+        if (empty($networks)) {
+            return;
+        }
+
+        $clauses = [];
+        $domains = array_filter($networks, fn($n) => $n !== '__local__');
+        if (in_array('__local__', $networks, true)) {
+            $clauses[] = 'ea.is_local = TRUE';
+        }
+        if (!empty($domains)) {
+            $placeholders = implode(',', array_fill(0, count($domains), '?'));
+            $clauses[] = "ea.domain IN ({$placeholders})";
+            foreach ($domains as $domain) {
+                $params[] = $domain;
+            }
+        }
+
+        if (!empty($clauses)) {
+            $sql .= ' AND (' . implode(' OR ', $clauses) . ')';
+        }
+    }
+
+    /**
      * Build a SQL WHERE fragment for text-based message searches.
      * Returns [null, []] when no text search terms are present (date-only searches).
      *
@@ -2644,9 +2677,11 @@ class MessageHandler
      * @param string|null $echoarea Echo area tag to restrict search
      * @param int|null $userId User ID for permission checking
      * @param array $searchParams Field-specific search: keys 'from_name', 'subject', 'body', 'date_from', 'date_to'
+     * @param string[] $networks Optional list of network domains (or '__local__') to restrict an echomail
+     *                           search to when no specific $echoarea is given
      * @return array
      */
-    public function searchMessages($query, $type = null, $echoarea = null, $userId = null, $searchParams = [])
+    public function searchMessages($query, $type = null, $echoarea = null, $userId = null, $searchParams = [], $networks = [])
     {
         if ($type === 'netmail') {
             if ($userId === null) {
@@ -2712,6 +2747,8 @@ class MessageHandler
 
             if ($echoarea) {
                 $this->appendEchoareaCondition($echoarea, $sql, $params);
+            } elseif (!empty($networks)) {
+                $this->appendNetworkCondition($networks, $sql, $params);
             }
 
             $sql .= " ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC LIMIT 200";
