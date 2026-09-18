@@ -137,12 +137,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sessionId = $auth->login($username, $password, $service);
 
         if ($sessionId) {
-            setcookie('binktermphp_session', $sessionId, [
-                'expires'  => time() + 86400 * 30,
-                'path'     => '/',
-                'httponly' => true,
-                'samesite' => 'Lax',
-            ]);
+            setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions());
             if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['show_login_bulletins_for_session'] = $sessionId;
             }
@@ -602,12 +597,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $session = $auth->createAuthenticatedSession($newUserId, $service);
                 $sessionId = $session['session_id'];
 
-                setcookie('binktermphp_session', $sessionId, [
-                    'expires'  => time() + 86400 * 30,
-                    'path'     => '/',
-                    'httponly' => true,
-                    'samesite' => 'Lax',
-                ]);
+                setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions());
 
                 if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                     $_SESSION['show_login_bulletins_for_session'] = $sessionId;
