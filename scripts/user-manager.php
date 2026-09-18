@@ -248,9 +248,9 @@ class UserManager
             
             $stmt = $this->db->prepare("
                 INSERT INTO users (username, password_hash, real_name, email, is_admin, is_active) 
-                VALUES (?, ?, ?, ?, ?, 1)
+                VALUES (?, ?, ?, ?, ?, TRUE)
             ");
-            $stmt->execute([$username, $passwordHash, $realName, $email, $isAdmin ? 1 : 0]);
+            $stmt->execute([$username, $passwordHash, $realName, $email, $isAdmin ? 'true' : 'false']);
             
             $userId = $this->db->lastInsertId();
             
