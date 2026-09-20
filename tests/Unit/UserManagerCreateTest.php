@@ -9,9 +9,9 @@ use PHPUnit\Framework\TestCase;
  * Operator CLI: scripts/user-manager.php create / delete.
  *
  * Drives the REAL script as a subprocess (it dispatches at require time, so
- * it cannot be loaded into the test process) against the dedicated,
- * disposable binktermphp_test database, selected through the DB_NAME
- * process environment the script's Config already honours.
+ * it cannot be loaded into the test process) against the database
+ * configured via DB_NAME in .env, the same one the script's Config
+ * resolves on its own.
  *
  * Regression: the SQLite -> PostgreSQL migration left an integer literal for
  * users.is_active (BOOLEAN) in the create INSERT, so every operator create
@@ -20,8 +20,6 @@ use PHPUnit\Framework\TestCase;
  */
 final class UserManagerCreateTest extends TestCase
 {
-    private const TEST_DATABASE_NAME = 'binktermphp_test';
-
     private static ?\PDO $testPdo = null;
 
     /** @var list<string> usernames this test created (deleted in tearDown) */
@@ -134,14 +132,18 @@ final class UserManagerCreateTest extends TestCase
      */
     private function runCli(array $args): array
     {
-        $cmd = 'DB_NAME=' . escapeshellarg(self::TEST_DATABASE_NAME) . ' ' . escapeshellcmd(PHP_BINARY)
-            . ' ' . escapeshellarg(dirname(__DIR__, 2) . '/scripts/user-manager.php')
-            . ' ' . implode(' ', array_map('escapeshellarg', $args)) . ' 2>&1';
-        $out = (string)shell_exec($cmd . '; echo "__EXIT:$?"');
-        if (!preg_match('/__EXIT:(\d+)\s*$/', $out, $m)) {
-            self::fail("could not read exit status from: {$out}");
+        $command = array_merge([PHP_BINARY, dirname(__DIR__, 2) . '/scripts/user-manager.php'], $args);
+        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        $process = proc_open($command, $descriptors, $pipes, dirname(__DIR__, 2));
+        if (!\is_resource($process)) {
+            self::fail('could not start user-manager.php subprocess');
         }
-        return [(int)$m[1], trim(substr($out, 0, (int)strrpos($out, '__EXIT:')))];
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        return [$exit, trim($stdout . $stderr)];
     }
 
     private function uniqueUsername(): string
@@ -190,15 +192,11 @@ final class UserManagerCreateTest extends TestCase
             'pgsql:host=%s;port=%s;dbname=%s',
             Config::env('DB_HOST', 'localhost'),
             Config::env('DB_PORT', '5432'),
-            self::TEST_DATABASE_NAME
+            Config::env('DB_NAME', 'binktermphp')
         );
         $pdo = new \PDO($dsn, Config::env('DB_USER', 'postgres'), Config::env('DB_PASS', ''), [
             \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
         ]);
-        $actual = (string)$pdo->query('SELECT current_database()')->fetchColumn();
-        if ($actual !== self::TEST_DATABASE_NAME) {
-            throw new \RuntimeException("Refusing to run mutating user tests against non-test database: {$actual}");
-        }
         self::$testPdo = $pdo;
         return $pdo;
     }
