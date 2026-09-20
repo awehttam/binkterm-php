@@ -10,9 +10,12 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Message Search Scoped by Network and Interest](#message-search-scoped-by-network-and-interest)
 - [Administration](#administration)
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
+- [Security](#security)
+  - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
+- [Thanks](#thanks)
 
 ## Summary of Changes
 
@@ -24,6 +27,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Administration
 
 - **Fixed `scripts/user-manager.php create`:** the operator CLI's `create` command failed on PostgreSQL with `column "is_active" is of type boolean but expression is of type integer`, because it inserted the literal `1` instead of a boolean. This is now fixed.
+
+### Security
+
+- **Secure flag on session cookies:** the `binktermphp_session` cookie now sets the `Secure` flag whenever the site is served over HTTPS, so the cookie is no longer sent over a plain HTTP connection even if one is reachable.
 
 ## Messaging
 
@@ -56,6 +63,12 @@ SQLSTATE[42804]: column "is_active" is of type boolean but expression is of type
 
 This was left over from the project's earlier SQLite-based schema, where `is_active` accepted an integer. The command now inserts a proper boolean and reads back the new user's id via `RETURNING id` instead of `lastInsertId()`. If you were creating operator accounts by editing the database directly to work around this, you can now use `scripts/user-manager.php create` normally again.
 
+## Security
+
+### Secure Flag on Session Cookies
+
+The `binktermphp_session` cookie is now marked `Secure` whenever the site's effective URL uses HTTPS, determined from the `SITE_URL` environment variable (or, if that isn't set, from the request's own HTTPS signal). This prevents the browser from sending the session cookie over a plain HTTP connection, closing off a path where the session id could otherwise be exposed on the wire. Installations that serve BinktermPHP over HTTPS behind a reverse proxy should ensure `SITE_URL` in `.env` is set to the `https://` URL so this detection works correctly.
+
 ---
 
 ## Upgrade Instructions
@@ -71,3 +84,9 @@ scripts/restart_daemons.sh
 ### Using the Installer
 
 Download the latest installer from the [BinktermPHP website](https://lovelybits.org/binktermphp) and run it. The installer handles file replacement, runs setup, and restarts all daemons automatically — no manual steps required.
+
+---
+
+## Thanks
+
+Thanks to **TheWebExpert** and **Skrawl** for their contributions to this release.
