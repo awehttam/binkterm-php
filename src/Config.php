@@ -252,4 +252,31 @@ class Config
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         return $protocol . '://' . $host;
     }
+
+    /**
+     * Determine whether the externally visible site URL uses HTTPS.
+     *
+     * This follows getSiteUrl() precedence so an explicit SITE_URL remains
+     * authoritative for reverse-proxy and intentional plain HTTP installs.
+     */
+    public static function isHttps(): bool
+    {
+        return strtolower((string)parse_url(self::getSiteUrl(), PHP_URL_SCHEME)) === 'https';
+    }
+
+    /**
+     * Get the options shared by session-cookie creation sites.
+     *
+     * @return array{expires:int,path:string,httponly:bool,samesite:string,secure:bool}
+     */
+    public static function getSessionCookieOptions(): array
+    {
+        return [
+            'expires'  => time() + self::SESSION_LIFETIME,
+            'path'     => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+            'secure'   => self::isHttps(),
+        ];
+    }
 }
