@@ -8,6 +8,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Messaging](#messaging)
   - [Date Display Preferences](#date-display-preferences)
   - [Message Search Scoped by Network and Interest](#message-search-scoped-by-network-and-interest)
+- [Administration](#administration)
+  - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -18,6 +20,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Date display preferences:** users and sysops can now choose between relative timestamps ("4d ago") and exact date/time for message lists and headers, and choose whether echomail is ordered and displayed by received date or written date.
 - **Message search scoped by network and interest:** searching for messages from the Echo Areas page now respects the network and interest filters selected there, and searching while browsing a single interest on the Echomail page now stays within that interest's echo areas, instead of always searching every echo area.
+
+### Administration
+
+- **Fixed `scripts/user-manager.php create`:** the operator CLI's `create` command failed on PostgreSQL with `column "is_active" is of type boolean but expression is of type integer`, because it inserted the literal `1` instead of a boolean. This is now fixed.
 
 ## Messaging
 
@@ -37,6 +43,18 @@ Previously, only admin users could choose to order echomail by written date; thi
 The Echo Areas page lets you filter the area list down to one or more networks and interests using the **Network** and **Interests** dropdowns. The "Search Messages" box on that same page now carries those selections into the search, so results are limited to matching echo areas instead of every echo area on the system. Leaving both dropdowns on their "All" default still searches everything.
 
 On the Echomail page, searching while browsing a single interest under the Interests tab is likewise scoped to that interest's echo areas. Searching from a specific echo area continues to scope to that single area, as before, taking priority over any network or interest scope.
+
+## Administration
+
+### Fixed: user-manager.php create Command
+
+`scripts/user-manager.php create` previously failed on every PostgreSQL install with:
+
+```
+SQLSTATE[42804]: column "is_active" is of type boolean but expression is of type integer
+```
+
+This was left over from the project's earlier SQLite-based schema, where `is_active` accepted an integer. The command now inserts a proper boolean and reads back the new user's id via `RETURNING id` instead of `lastInsertId()`. If you were creating operator accounts by editing the database directly to work around this, you can now use `scripts/user-manager.php create` normally again.
 
 ---
 
