@@ -501,10 +501,15 @@ class TicFileProcessor
      */
     protected function autoCreateFileArea(string $areaTag, array $ticData, ?string $domain = null): int
     {
-        // Generate description from TIC data if available
-        $description = "Auto-created from TIC file";
-        if (isset($ticData['Desc'])) {
-            $description = "Auto-created: " . $ticData['Desc'];
+        // Do NOT use file-specific descriptions or ANSI block art as the file area description.
+        // Leaving description null allows FileFix sync to populate the authoritative description.
+        $description = null;
+        if (!empty($ticData['Desc'])) {
+            $rawDesc = trim($ticData['Desc']);
+            // Only use if it does NOT contain ANSI box drawing art and does not look like banner art
+            if (!preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║]/u', $rawDesc) && !preg_match('/[\xB0-\xDF]/', $rawDesc)) {
+                $description = $rawDesc;
+            }
         }
 
         $domain = $domain ?: $this->getDomainFromTicData($ticData);
