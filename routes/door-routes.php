@@ -668,7 +668,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
             return;
         }
 
-        $etag = '"' . md5($doorid . $asset . strlen($blob['data'])) . '"';
+        $etag = '"' . md5($blob['data']) . '"';
         header('ETag: ' . $etag);
         header('Content-Type: ' . $blob['mime']);
         header('Content-Length: ' . strlen($blob['data']));
