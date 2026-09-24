@@ -78,11 +78,19 @@ A Mystic BBS/MBSE `%QUERY` reply that lists both linked and unlinked areas in a 
 
 ### Mandatory Preview Before Syncing Areas
 
-Previously, clicking "Sync Areas to Local BBS" on the AreaFix / FileFix Manager page applied the parsed area list to your local echo areas or file areas immediately. It now shows a preview first, listing every area found in the reply along with what will happen to it — created new, reactivated, deactivated, or left unchanged — and requires an explicit confirmation before anything is written to the database. This preview is also available per-message: each incoming reply in the Message History table now has its own sync button, so you can review and apply an older reply without it needing to still be the most recent one.
+Previously, clicking "Sync Areas to Local BBS" on the AreaFix / FileFix Manager page applied the parsed area list to your local echo areas or file areas immediately, with no chance to review it first. It now opens a preview dialog instead, and nothing is written to your database until you explicitly confirm it there. This preview is available in two places: from the "Latest Reply" panel's sync button, and per-message from a sync button next to each incoming reply in the Message History table, so you can also review and apply an older reply without it needing to still be the most recent one.
 
-The preview also shows when an area's description will be updated, displaying the current description struck through above the incoming one whenever the sync would actually replace it. A description is only ever replaced automatically when the current local one is empty or an auto-generated placeholder; a real, sysop-set description is otherwise never overwritten by a hub's reply. When the hub's reply lists a different description for an area that already has its own real, sysop-set one, the preview still notes what the hub sent so a mismatch doesn't go unnoticed.
+The preview lists every area found in the reply as a row with a checkbox, its tag, its description, and a status badge:
 
-Each area in the preview now has its own checkbox, with "Select All" and "Select None" buttons above the list, so you can choose exactly which areas to apply instead of it being all-or-nothing. This also gives you a way to accept a description change the automatic protection would otherwise skip: an area whose description differs from the hub's reply is labeled "Updated" (instead of "Unchanged") and is pre-checked, right alongside anything being created, reactivated, or deactivated — confirming will update that area's description to match the hub's, even if your local one wasn't a placeholder. Only a genuine no-op area — nothing about it differs at all — starts unchecked. Deselect any "Updated" row before confirming if you'd rather keep your own description for that specific area.
+- **New** — the area doesn't exist locally yet and will be created.
+- **Reactivate** — the area exists but is currently inactive and will be turned on.
+- **Deactivate** — the area is currently active and the reply says to unsubscribe from it.
+- **Updated** — the area's activation state isn't changing, but its description will be filled in or updated to match the hub's reply.
+- **Unchanged** — nothing about the area differs from what the reply says; selecting it has no effect.
+
+For an "Updated" row, the description cell shows your current description struck through above the incoming one when it will actually be replaced. A description is only ever replaced when your current one is empty, an auto-generated placeholder, or you've explicitly selected that row for sync (see below) — a real, sysop-set description is never silently overwritten. If the hub's reply lists a different description for an area whose own real description would otherwise be left alone, the preview still shows what the hub sent underneath it, so the mismatch doesn't go unnoticed just because it's not required to be applied.
+
+Every row starts checked except a genuine no-op "Unchanged" row — including every "New", "Reactivate", "Deactivate", and "Updated" row, so the normal case (review, then confirm) still applies everything in one click. Use the checkboxes, or the "Select All" / "Select None" buttons above the list, to apply only a subset instead. Confirming a checked "Updated" row is what actually lets a hub's description win over your own where it otherwise wouldn't — uncheck that specific row first if you'd rather keep your own description for that one area.
 
 ## Administration
 
