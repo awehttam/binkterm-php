@@ -277,7 +277,15 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted small mb-3">{{ t('ui.admin.areafix.preview_intro', {}, 'common') }}</p>
+                <p class="text-muted small mb-2">{{ t('ui.admin.areafix.preview_intro', {}, 'common') }}</p>
+                <div class="mb-2 d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAllAreafixPreviewChecked(true)">
+                        {{ t('ui.admin.areafix.select_all', {}, 'common') }}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAllAreafixPreviewChecked(false)">
+                        {{ t('ui.admin.areafix.select_none', {}, 'common') }}
+                    </button>
+                </div>
                 <div id="areafixPreviewBody">
                     <div class="text-center py-4 text-muted">
                         <i class="fas fa-spinner fa-spin"></i> {{ t('ui.admin.areafix.preview_loading', {}, 'common') }}
@@ -592,7 +600,7 @@
     // previewed before anything is written to the database. The sysop reviews
     // the new/reactivate/deactivate/unchanged diff and must explicitly confirm.
 
-    var previewState = { robot: null, uplink: null, messageId: null };
+    var previewState = { robot: null, uplink: null, messageId: null, areas: [], checked: [] };
     var STATUS_LABELS = {
         'new':        { key: 'ui.admin.areafix.status_new',        fallback: 'New',        badge: 'bg-success' },
         'reactivate': { key: 'ui.admin.areafix.status_reactivate', fallback: 'Reactivate', badge: 'bg-primary' },
@@ -631,9 +639,21 @@
         return html;
     }
 
+    // A row defaults to unchecked only when nothing would happen to its
+    // activation state AND applying it would silently overwrite a real,
+    // sysop-set description the sysop hasn't asked to change — everything
+    // else (new/reactivate/deactivate, or a placeholder being filled in)
+    // defaults to checked, matching the previous always-apply behavior.
+    function defaultAreafixRowChecked(a) {
+        return !(a.status === 'unchanged' && a.description_differs && !a.description_will_change);
+    }
+
     function renderPreviewBody(areas) {
         var container = document.getElementById('areafixPreviewBody');
         if (!container) return;
+
+        previewState.areas = areas;
+        previewState.checked = areas.map(defaultAreafixRowChecked);
 
         if (!areas.length) {
             container.innerHTML = '<p class="text-muted mb-0">' +
@@ -643,13 +663,17 @@
 
         var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0">' +
             '<thead><tr>' +
+            '<th style="width:2rem;"></th>' +
             '<th>' + escapeHtml(window.t('ui.admin.areafix.col_tag', {}, 'Tag')) + '</th>' +
             '<th>' + escapeHtml(window.t('ui.admin.areafix.col_description', {}, 'Description')) + '</th>' +
             '<th>' + escapeHtml(window.t('ui.admin.areafix.col_status', {}, 'Status')) + '</th>' +
             '</tr></thead><tbody>';
 
-        areas.forEach(function (a) {
+        areas.forEach(function (a, i) {
             html += '<tr>' +
+                '<td><input type="checkbox" class="form-check-input areafix-preview-row-check" data-index="' + i + '"' +
+                    (previewState.checked[i] ? ' checked' : '') +
+                    ' onchange="toggleAreafixPreviewRow(' + i + ', this.checked)"></td>' +
                 '<td class="font-monospace">' + escapeHtml(a.name || '') + '</td>' +
                 '<td class="small">' + descriptionCell(a) + '</td>' +
                 '<td>' + statusBadge(a.status) + '</td>' +
@@ -658,7 +682,28 @@
 
         html += '</tbody></table></div>';
         container.innerHTML = html;
+        updateAreafixPreviewConfirmState();
     }
+
+    function updateAreafixPreviewConfirmState() {
+        var confirmBtn = document.getElementById('areafixPreviewConfirmBtn');
+        if (!confirmBtn) return;
+        var anyChecked = previewState.checked.some(function (c) { return c; });
+        confirmBtn.disabled = !anyChecked;
+    }
+
+    window.toggleAreafixPreviewRow = function (index, checked) {
+        previewState.checked[index] = checked;
+        updateAreafixPreviewConfirmState();
+    };
+
+    window.setAllAreafixPreviewChecked = function (checked) {
+        previewState.checked = previewState.areas.map(function () { return checked; });
+        document.querySelectorAll('.areafix-preview-row-check').forEach(function (el) {
+            el.checked = checked;
+        });
+        updateAreafixPreviewConfirmState();
+    };
 
     window.previewLatestReply = function (robot, messageId) {
         var uplink = getSelectedUplink();
@@ -698,7 +743,6 @@
         .then(function (data) {
             if (data.success) {
                 renderPreviewBody(data.areas || []);
-                if (confirmBtn) confirmBtn.disabled = !(data.areas && data.areas.length);
             } else {
                 var errMsg = window.getApiErrorMessage ? window.getApiErrorMessage(data) : (data.message || data.error || window.t('ui.admin.areafix.preview_load_failed', {}, 'Failed to load sync preview'));
                 if (container) {
@@ -719,16 +763,34 @@
         var uplink = previewState.uplink;
         if (!robot || !uplink) return;
 
+        var selectedAreas = previewState.areas.filter(function (a, i) { return previewState.checked[i]; })
+            .map(function (a) {
+                return { name: a.name, description: a.description, action: a.action, is_subscribed: a.is_subscribed };
+            });
+
+        if (!selectedAreas.length) {
+            showToast(window.t('ui.admin.areafix.no_areas_selected', {}, 'Select at least one area to sync'), true);
+            return;
+        }
+
         var confirmBtn = document.getElementById('areafixPreviewConfirmBtn');
         if (confirmBtn) {
             confirmBtn.disabled = true;
             confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + escapeHtml(window.t('ui.common.processing', {}, 'Processing...'));
         }
 
-        var requestBody = { uplink: uplink, robot: robot };
-        if (previewState.messageId) requestBody.message_id = previewState.messageId;
+        // force_descriptions: the sysop has explicitly reviewed and selected
+        // these specific areas in the preview, so a description difference
+        // shown there (even one that would otherwise be protected) is applied.
+        var requestBody = {
+            uplink: uplink,
+            robot: robot,
+            areas: selectedAreas,
+            deactivate_missing: false,
+            force_descriptions: true
+        };
 
-        fetch('/api/admin/areafix/sync-latest', {
+        fetch('/api/admin/areafix/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
@@ -741,7 +803,7 @@
 
             if (data.success) {
                 var s = data.summary || {};
-                var count = data.areas_count || 0;
+                var count = selectedAreas.length;
                 var msg = window.t('ui.admin.areafix.sync_success', {
                     count: count,
                     created: s.created || 0,

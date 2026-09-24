@@ -4901,6 +4901,9 @@ return [
     'ui.admin.areafix.status_deactivate' => 'Disattiva',
     'ui.admin.areafix.status_unchanged' => 'Invariata',
     'ui.admin.areafix.hub_description_differs' => 'L\'hub indica: "{desc}"',
+    'ui.admin.areafix.select_all' => 'Seleziona tutto',
+    'ui.admin.areafix.select_none' => 'Deseleziona tutto',
+    'ui.admin.areafix.no_areas_selected' => 'Seleziona almeno un\'area da sincronizzare',
     'ui.admin.areafix.btn_confirm_apply' => 'Conferma e applica',
 
     // LovlyNet admin page

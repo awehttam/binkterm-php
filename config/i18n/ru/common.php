@@ -4944,6 +4944,9 @@ return [
     'ui.admin.areafix.status_deactivate' => 'Деактивировать',
     'ui.admin.areafix.status_unchanged' => 'Без изменений',
     'ui.admin.areafix.hub_description_differs' => 'Хаб указывает: "{desc}"',
+    'ui.admin.areafix.select_all' => 'Выбрать всё',
+    'ui.admin.areafix.select_none' => 'Снять выбор',
+    'ui.admin.areafix.no_areas_selected' => 'Выберите хотя бы одну область для синхронизации',
     'ui.admin.areafix.btn_confirm_apply' => 'Подтвердить и применить',
 
     // LovlyNet admin page

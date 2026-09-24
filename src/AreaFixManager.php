@@ -117,11 +117,21 @@ class AreaFixManager
      * For FileFix (robot = "filefix") the sync targets the file_areas table.
      * For AreaFix the sync targets the echoareas table.
      *
+     * By default, an existing area's description is only overwritten when the
+     * current one is empty or an auto-generated placeholder
+     * (isPlaceholderDescription()) — a real, sysop-set description is left
+     * alone. Passing $forceDescriptions = true (used when a sysop has
+     * explicitly selected specific areas to sync via the admin preview screen)
+     * overwrites the description whenever the incoming one is non-empty and
+     * different from the current one, regardless of placeholder status.
+     *
      * @param string $uplinkAddress     FTN address of the uplink hub
      * @param string $domain            Network domain (e.g. "fidonet")
      * @param array<int, array{name: string, description: string|null}> $parsedAreas
      * @param bool   $deactivateMissing If true, deactivate areas not in the list
      * @param string $robot             "areafix" or "filefix"
+     * @param bool   $activateAll       If true, newly created areas are active regardless of parsed action
+     * @param bool   $forceDescriptions If true, overwrite an existing area's description whenever the incoming one differs, bypassing the placeholder-only protection
      * @return array{created: int, activated: int, deactivated: int}
      */
     public function syncSubscribedAreas(
@@ -130,7 +140,8 @@ class AreaFixManager
         array $parsedAreas,
         bool $deactivateMissing = false,
         string $robot = 'areafix',
-        bool $activateAll = false
+        bool $activateAll = false,
+        bool $forceDescriptions = false
     ): array {
         $created = 0;
         $activated = 0;
@@ -186,7 +197,11 @@ class AreaFixManager
                     $params[] = $uplinkAddress;
                 }
 
-                if ($description !== null && !self::isPlaceholderDescription($description) && self::isPlaceholderDescription($existing['description'] ?? null)) {
+                $descriptionShouldUpdate = $forceDescriptions
+                    ? ($description !== null && trim($description) !== '' && $description !== ($existing['description'] ?? null))
+                    : ($description !== null && !self::isPlaceholderDescription($description) && self::isPlaceholderDescription($existing['description'] ?? null));
+
+                if ($descriptionShouldUpdate) {
                     $updates[] = 'description = ?';
                     $params[] = $description;
                 }
@@ -200,7 +215,14 @@ class AreaFixManager
                 // Determine whether new area should be active (only if confirmed subscribed or explicitly requested)
                 $isActive = ($action === AreaFixParser::ACTION_SUBSCRIBE || $activateAll);
 
-                // Insert new area
+                // Insert new area. On a race (a row appeared between our SELECT
+                // and this INSERT), fall back to the same overwrite rule as the
+                // UPDATE branch above: force always wins, otherwise only an
+                // empty existing description is filled in.
+                $descriptionConflictClause = $forceDescriptions
+                    ? 'EXCLUDED.description'
+                    : 'COALESCE(NULLIF(%1$s.description, \'\'), EXCLUDED.description)';
+
                 if ($table === 'echoareas') {
                     $stmt = $this->db->prepare(
                         "INSERT INTO echoareas (tag, domain, uplink_address, description, is_active, color)
@@ -208,7 +230,7 @@ class AreaFixManager
                          ON CONFLICT (tag, domain) DO UPDATE
                          SET is_active = EXCLUDED.is_active,
                              uplink_address = COALESCE(NULLIF(echoareas.uplink_address, ''), EXCLUDED.uplink_address),
-                             description   = COALESCE(NULLIF(echoareas.description, ''), EXCLUDED.description)"
+                             description   = " . sprintf($descriptionConflictClause, 'echoareas')
                     );
                     $stmt->execute([$tag, $domain, $uplinkAddress, $description, $isActive ? 'true' : 'false']);
                 } else {
@@ -218,7 +240,7 @@ class AreaFixManager
                          VALUES (?, ?, ?, ?)
                          ON CONFLICT (tag, domain) DO UPDATE
                          SET is_active = EXCLUDED.is_active,
-                             description = COALESCE(NULLIF(file_areas.description, ''), EXCLUDED.description)"
+                             description = " . sprintf($descriptionConflictClause, 'file_areas')
                     );
                     $stmt->execute([$tag, $domain, $description, $isActive ? 'true' : 'false']);
                 }

@@ -170,6 +170,48 @@ try {
         'Deactivating an area never flags a description change, even with a placeholder description present',
         'Got: ' . var_export($item, true)
     );
+
+    // --------------------------------------------------------------------------
+    // Test 6: syncSubscribedAreas() without force_descriptions leaves a real
+    // description untouched (unchanged from pre-existing behavior)
+    // --------------------------------------------------------------------------
+    echo "\n6. Testing syncSubscribedAreas() default behavior (no force):\n";
+
+    insertTestArea($db, 'PDT_SYNC_NOFORCE', 'Original sysop description', true);
+
+    $af->syncSubscribedAreas(TEST_UPLINK, TEST_DOMAIN, [
+        ['name' => 'PDT_SYNC_NOFORCE', 'description' => 'Description from hub', 'action' => AreaFixParser::ACTION_SUBSCRIBE, 'is_subscribed' => true],
+    ], false, 'areafix');
+
+    $stmt = $db->prepare('SELECT description FROM echoareas WHERE tag = ? AND domain = ?');
+    $stmt->execute(['PDT_SYNC_NOFORCE', TEST_DOMAIN]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    assertCondition(
+        $row && $row['description'] === 'Original sysop description',
+        'Without force_descriptions, a real local description survives a sync with a differing hub description',
+        'Got: ' . var_export($row['description'] ?? null, true)
+    );
+
+    // --------------------------------------------------------------------------
+    // Test 7: syncSubscribedAreas() with force_descriptions=true overwrites a
+    // real description when the sysop has explicitly selected the area
+    // --------------------------------------------------------------------------
+    echo "\n7. Testing syncSubscribedAreas() with force_descriptions=true:\n";
+
+    insertTestArea($db, 'PDT_SYNC_FORCE', 'Original sysop description', true);
+
+    $af->syncSubscribedAreas(TEST_UPLINK, TEST_DOMAIN, [
+        ['name' => 'PDT_SYNC_FORCE', 'description' => 'Description from hub', 'action' => AreaFixParser::ACTION_SUBSCRIBE, 'is_subscribed' => true],
+    ], false, 'areafix', false, true);
+
+    $stmt = $db->prepare('SELECT description FROM echoareas WHERE tag = ? AND domain = ?');
+    $stmt->execute(['PDT_SYNC_FORCE', TEST_DOMAIN]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    assertCondition(
+        $row && $row['description'] === 'Description from hub',
+        'With force_descriptions=true, an explicitly-selected area\'s description is overwritten even though it was a real, non-placeholder value',
+        'Got: ' . var_export($row['description'] ?? null, true)
+    );
 } finally {
     cleanupTestAreas($db);
 }

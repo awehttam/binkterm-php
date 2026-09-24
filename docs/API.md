@@ -60,7 +60,7 @@ Content-Type: application/json
   - [Account](#account) (1)
   - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
-  - [AreaFix](#areafix) (2)
+  - [AreaFix](#areafix) (3)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
   - [Bulletins](#bulletins) (3)
@@ -556,6 +556,7 @@ Click recording confirmation with redirect URL
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | `POST` | [`/api/admin/areafix/preview-latest`](#post-apiadminareafixpreview-latest) | Yes | Parse the latest incoming AreaFix/FileFix reply for an uplink and return a diff against current local area state, without writing anything to the database. |
+| `POST` | [`/api/admin/areafix/sync`](#post-apiadminareafixsync) | Yes | Sync a sysop-curated list of areas (typically a subset selected in the preview) to the database. |
 | `POST` | [`/api/admin/areafix/sync-latest`](#post-apiadminareafixsync-latest) | Yes | Inspect the latest incoming AreaFix/FileFix reply for an uplink and sync areas to the database. |
 
 #### `POST /api/admin/areafix/preview-latest`
@@ -603,11 +604,52 @@ When `message_id` is omitted, the newest actionable incoming reply is used (the 
 
 ---
 
+#### `POST /api/admin/areafix/sync`
+
+**Requires authentication** (Admin only)
+
+Syncs an explicit, caller-provided list of areas into the local database. This is what the admin UI's preview modal calls to apply the sysop's checkbox selection — the `areas` array is normally the subset of `/api/admin/areafix/preview-latest`'s response the sysop left checked, but the endpoint accepts any well-formed area list.
+
+When `force_descriptions` is true, an existing area's description is overwritten whenever the submitted one differs from the current one, regardless of whether the current one is a placeholder. This is appropriate here because the sysop has already reviewed each selected area's description (including any mismatch flagged by `description_differs` in the preview) and explicitly chosen to include it. Without `force_descriptions`, the usual protection applies: an existing, non-placeholder description is never overwritten (see `AreaFixManager::isPlaceholderDescription()`).
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+| `areas` | array of objects | Yes | Areas to sync |
+| `areas[].name` | string | Yes | Area tag |
+| `areas[].description` | string\|null | No | Area description |
+| `areas[].action` | string | No | `"subscribe"`, `"unsubscribe"`, or `"available"`; derived from `is_subscribed` if omitted |
+| `areas[].is_subscribed` | boolean | No | Used to derive `action` when `action` is omitted (defaults to `true`) |
+| `deactivate_missing` | boolean | No | If true, deactivate any locally-active areas for this uplink/domain not present in `areas` (default `false`) |
+| `force_descriptions` | boolean | No | If true, overwrite an existing area's description whenever it differs from the submitted one, bypassing the placeholder-only protection (default `false`) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful synchronization |
+| `summary` | object | Summary of changes applied to the local database |
+| `summary.created` | integer | Number of new areas inserted |
+| `summary.activated` | integer | Number of existing inactive areas re-activated |
+| `summary.deactivated` | integer | Number of areas deactivated |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload, missing uplink address, or invalid robot |
+| 500 | Failed to sync areas |
+
+---
+
 #### `POST /api/admin/areafix/sync-latest`
 
 **Requires authentication** (Admin only)
 
-Inspects recent message history from the specified uplink to find an incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes them into the local database (`echoareas` or `file_areas`). The admin UI always calls `/api/admin/areafix/preview-latest` first, with the same `message_id` (if any), and only calls this endpoint after the sysop confirms the resulting preview.
+Inspects recent message history from the specified uplink to find an incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes all of them into the local database (`echoareas` or `file_areas`) — an all-or-nothing apply of the whole reply, without the `force_descriptions` protection override or the ability to select a subset of areas. The admin UI's preview modal now calls `/api/admin/areafix/sync` with the sysop's curated selection instead (see above); this endpoint remains available for callers that want to apply an entire reply directly without a preview step.
 
 **Request Body** _(JSON)_
 

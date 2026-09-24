@@ -10669,7 +10669,15 @@ SimpleRouter::get('/api/admin/areafix/history', function () {
 /**
  * POST /api/admin/areafix/sync
  * Parse area list and sync to local echo/file area table.
- * Body: { uplink: string, robot: "areafix"|"filefix", areas: [{name,description},...], deactivate_missing: bool }
+ *
+ * Used by the admin preview screen to apply a sysop-curated subset of
+ * previewed areas (see /api/admin/areafix/preview-latest). When
+ * force_descriptions is true, an existing area's description is overwritten
+ * whenever the submitted one differs, bypassing the usual placeholder-only
+ * protection — appropriate here because the sysop has explicitly selected
+ * these specific areas after reviewing the preview's description diff.
+ *
+ * Body: { uplink: string, robot: "areafix"|"filefix", areas: [{name,description},...], deactivate_missing: bool, force_descriptions: bool }
  */
 SimpleRouter::post('/api/admin/areafix/sync', function () {
     $user = RouteHelper::requireAdmin();
@@ -10689,6 +10697,7 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
     $robot = strtolower(trim((string)($body['robot'] ?? '')));
     $parsedAreas = $body['areas'] ?? [];
     $deactivateMissing = (bool)($body['deactivate_missing'] ?? false);
+    $forceDescriptions = (bool)($body['force_descriptions'] ?? false);
 
     if ($uplinkAddress === '') {
         apiError(
@@ -10729,7 +10738,9 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
             $domain,
             $parsedAreas,
             $deactivateMissing,
-            $robot
+            $robot,
+            false,
+            $forceDescriptions
         );
     } catch (\Throwable $e) {
         apiError(

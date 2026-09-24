@@ -191,17 +191,20 @@ Return AreaFix/FileFix message history for an uplink.
 ```
 
 ### `POST /api/admin/areafix/sync`
-Sync a parsed area list into the local echo/file area table.
+Sync an explicit, caller-provided area list into the local echo/file area table. This is what the Admin → AreaFix / FileFix Manager page's preview modal calls to apply the sysop's checkbox selection — `areas` is normally the subset of `/api/admin/areafix/preview-latest`'s response the sysop left checked.
 
 **Request body:**
 ```json
 {
-    "uplink":             "1:1/23",
-    "robot":              "areafix",
-    "areas":              [{"name": "FIDONEWS", "description": "FidoNet news"}],
-    "deactivate_missing": false
+    "uplink":              "1:1/23",
+    "robot":               "areafix",
+    "areas":               [{"name": "FIDONEWS", "description": "FidoNet news"}],
+    "deactivate_missing":  false,
+    "force_descriptions":  true
 }
 ```
+
+`force_descriptions` (optional, default `false`): when true, an existing area's description is overwritten whenever the submitted one differs, bypassing the usual placeholder-only protection (see `AreaFixManager::isPlaceholderDescription()`). The admin UI always sends `true` here, since the sysop has already reviewed each selected area's description in the preview — including any mismatch flagged by `description_differs` — before confirming.
 
 **Response:**
 ```json
@@ -242,10 +245,10 @@ By default the newest actionable incoming reply is used (the "Latest Reply" pane
 }
 ```
 
-`status` is one of `new`, `reactivate`, `deactivate`, or `unchanged`, describing what a subsequent call to `/api/admin/areafix/sync-latest` would do for that area's activation state. Separately, `description_will_change` reports whether the sync would also update the local description — an area's activation status can be `unchanged` while its description is still filled in, because the local description is only overwritten when it's currently a placeholder (see `AreaFixManager::isPlaceholderDescription()`); a real, sysop-set description is never overwritten by a hub's reply. When the local description is a real value and won't be overwritten, but the hub's reply lists a different one anyway (`SYS_TST` above), `description_differs` is true so the admin UI can still point out the mismatch without implying anything will change.
+`status` is one of `new`, `reactivate`, `deactivate`, or `unchanged`, describing what applying that area via `/api/admin/areafix/sync` would do to its activation state. Separately, `description_will_change` reports whether the sync would also update the local description if applied without `force_descriptions` — an area's activation status can be `unchanged` while its description is still filled in, because the local description is normally only overwritten when it's currently a placeholder (see `AreaFixManager::isPlaceholderDescription()`); a real, sysop-set description is otherwise never overwritten by a hub's reply. When the local description is a real value and would not be overwritten, but the hub's reply lists a different one anyway (`SYS_TST` above), `description_differs` is true so the admin UI can still point out the mismatch. The admin UI renders one checkbox per area (pre-checked except for the `description_differs`-without-`description_will_change` case, which defaults unchecked) so the sysop can choose exactly which areas to include, then submits the checked subset to `/api/admin/areafix/sync` with `force_descriptions: true` — which is what actually applies a flagged description mismatch, since the sysop has explicitly opted in by checking that row.
 
 ### `POST /api/admin/areafix/sync-latest`
-Inspect an incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and sync them to the local database. The admin UI only calls this endpoint after the sysop has reviewed and confirmed the preview returned by `/api/admin/areafix/preview-latest`, passing the same `message_id` (if any) so the applied message matches what was previewed.
+Inspect an incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and sync **all** of them to the local database in one all-or-nothing step, without the `force_descriptions` override or the ability to select a subset. The admin UI's preview modal now applies the sysop's curated selection via `/api/admin/areafix/sync` instead (see above); this endpoint remains available for callers that want to apply an entire reply directly without a preview step.
 
 **Request body:**
 ```json

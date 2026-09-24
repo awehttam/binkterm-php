@@ -4902,6 +4902,9 @@ return [
     'ui.admin.areafix.status_deactivate' => 'Desactivar',
     'ui.admin.areafix.status_unchanged' => 'Sin cambios',
     'ui.admin.areafix.hub_description_differs' => 'El uplink indica: "{desc}"',
+    'ui.admin.areafix.select_all' => 'Seleccionar todo',
+    'ui.admin.areafix.select_none' => 'No seleccionar nada',
+    'ui.admin.areafix.no_areas_selected' => 'Seleccione al menos un área para sincronizar',
     'ui.admin.areafix.btn_confirm_apply' => 'Confirmar y aplicar',
 
     // LovlyNet admin page

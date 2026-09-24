@@ -4899,6 +4899,9 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.areafix.status_deactivate' => 'Deaktivieren',
     'ui.admin.areafix.status_unchanged' => 'Unverändert',
     'ui.admin.areafix.hub_description_differs' => 'Hub listet: "{desc}"',
+    'ui.admin.areafix.select_all' => 'Alle auswählen',
+    'ui.admin.areafix.select_none' => 'Keine auswählen',
+    'ui.admin.areafix.no_areas_selected' => 'Wählen Sie mindestens einen Bereich zum Synchronisieren aus',
     'ui.admin.areafix.btn_confirm_apply' => 'Bestätigen & Anwenden',
 
     // LovlyNet admin page
