@@ -606,6 +606,23 @@
         return '<span class="badge ' + s.badge + '">' + escapeHtml(label) + '</span>';
     }
 
+    function descriptionCell(a) {
+        var current = a.current_description;
+        var incoming = a.description;
+
+        if (a.description_will_change) {
+            var oldHtml = (current !== null && current !== undefined && current !== '')
+                ? '<div class="text-muted text-decoration-line-through">' + escapeHtml(current) + '</div>'
+                : '';
+            return oldHtml + '<div>' + escapeHtml(incoming || '') + '</div>';
+        }
+
+        // No description change will be applied — show what will remain locally
+        // (a real, sysop-set description is never overwritten by the hub's reply).
+        var shown = (current !== null && current !== undefined && current !== '') ? current : incoming;
+        return escapeHtml(shown || '');
+    }
+
     function renderPreviewBody(areas) {
         var container = document.getElementById('areafixPreviewBody');
         if (!container) return;
@@ -626,7 +643,7 @@
         areas.forEach(function (a) {
             html += '<tr>' +
                 '<td class="font-monospace">' + escapeHtml(a.name || '') + '</td>' +
-                '<td class="small">' + escapeHtml(a.description || '') + '</td>' +
+                '<td class="small">' + descriptionCell(a) + '</td>' +
                 '<td>' + statusBadge(a.status) + '</td>' +
                 '</tr>';
         });

@@ -232,8 +232,8 @@ By default the newest actionable incoming reply is used (the "Latest Reply" pane
 {
     "success":     true,
     "areas": [
-        { "name": "FIDONEWS", "description": "FidoNet news", "action": "subscribe", "is_subscribed": true, "status": "new", "currently_active": false },
-        { "name": "SYS_GEN",  "description": "SysOp Chat",   "action": "subscribe", "is_subscribed": true, "status": "unchanged", "currently_active": true }
+        { "name": "FIDONEWS", "description": "FidoNet news", "action": "subscribe", "is_subscribed": true, "status": "new",       "currently_active": false, "current_description": null,               "description_will_change": true },
+        { "name": "SYS_GEN",  "description": "SysOp Chat",   "action": "subscribe", "is_subscribed": true, "status": "unchanged", "currently_active": true,  "current_description": "Auto-created area", "description_will_change": true }
     ],
     "areas_count": 2,
     "from":        "AreaFix",
@@ -241,7 +241,7 @@ By default the newest actionable incoming reply is used (the "Latest Reply" pane
 }
 ```
 
-`status` is one of `new`, `reactivate`, `deactivate`, or `unchanged`, describing what a subsequent call to `/api/admin/areafix/sync-latest` would do for that area.
+`status` is one of `new`, `reactivate`, `deactivate`, or `unchanged`, describing what a subsequent call to `/api/admin/areafix/sync-latest` would do for that area's activation state. Separately, `description_will_change` reports whether the sync would also update the local description — an area's activation status can be `unchanged` while its description is still filled in, because the local description is only overwritten when it's currently a placeholder (see `AreaFixManager::isPlaceholderDescription()`); a real, sysop-set description is never overwritten by a hub's reply.
 
 ### `POST /api/admin/areafix/sync-latest`
 Inspect an incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and sync them to the local database. The admin UI only calls this endpoint after the sysop has reviewed and confirmed the preview returned by `/api/admin/areafix/preview-latest`, passing the same `message_id` (if any) so the applied message matches what was previewed.

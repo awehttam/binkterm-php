@@ -362,12 +362,20 @@ class AreaFixManager
      *   from the parsed list).
      * - "unchanged": area already matches the state the sync would produce.
      *
+     * Independently of that status, `description_will_change` reports whether
+     * applying the sync would also update the local description, mirroring
+     * syncSubscribedAreas()'s own rule: a new area always gets the parsed
+     * description, while an existing area's description is only overwritten
+     * when the current one is a placeholder (isPlaceholderDescription()) and
+     * the incoming one is not — an area can therefore be "unchanged" in
+     * activation state while still having its description filled in.
+     *
      * @param string $uplinkAddress     FTN address of the uplink hub
      * @param string $domain            Network domain (e.g. "fidonet")
      * @param array<int, array{name: string, description: string|null, action?: string, is_subscribed?: bool}> $parsedAreas
      * @param bool   $deactivateMissing If true, also list locally-active areas missing from the parsed list as deactivation candidates
      * @param string $robot             "areafix" or "filefix"
-     * @return array<int, array{name: string, description: string|null, action: string, is_subscribed: bool, status: string, currently_active: bool}>
+     * @return array<int, array{name: string, description: string|null, action: string, is_subscribed: bool, status: string, currently_active: bool, current_description: string|null, description_will_change: bool}>
      */
     public function previewSync(
         string $uplinkAddress,
@@ -392,29 +400,35 @@ class AreaFixManager
             $action = $area['action'] ?? ($isSubscribed ? AreaFixParser::ACTION_SUBSCRIBE : AreaFixParser::ACTION_AVAILABLE);
 
             $stmt = $this->db->prepare(
-                "SELECT is_active FROM {$table} WHERE UPPER(tag) = UPPER(?) AND domain = ?"
+                "SELECT is_active, description FROM {$table} WHERE UPPER(tag) = UPPER(?) AND domain = ?"
             );
             $stmt->execute([$tag, $domain]);
             $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
             $currentlyActive = $existing ? (bool)$existing['is_active'] : false;
+            $currentDescription = $existing['description'] ?? null;
 
             if ($action === AreaFixParser::ACTION_UNSUBSCRIBE) {
                 $status = $currentlyActive ? 'deactivate' : 'unchanged';
+                $descriptionWillChange = false;
             } elseif (!$existing) {
                 $status = 'new';
-            } elseif (!$currentlyActive && $action === AreaFixParser::ACTION_SUBSCRIBE) {
-                $status = 'reactivate';
+                $descriptionWillChange = ($description !== null && trim($description) !== '');
             } else {
-                $status = 'unchanged';
+                $status = (!$currentlyActive && $action === AreaFixParser::ACTION_SUBSCRIBE) ? 'reactivate' : 'unchanged';
+                $descriptionWillChange = $description !== null
+                    && !self::isPlaceholderDescription($description)
+                    && self::isPlaceholderDescription($currentDescription);
             }
 
             $items[] = [
-                'name'             => $tag,
-                'description'      => $description,
-                'action'           => $action,
-                'is_subscribed'    => $isSubscribed,
-                'status'           => $status,
-                'currently_active' => $currentlyActive,
+                'name'                    => $tag,
+                'description'             => $description,
+                'action'                  => $action,
+                'is_subscribed'           => $isSubscribed,
+                'status'                  => $status,
+                'currently_active'        => $currentlyActive,
+                'current_description'     => $currentDescription,
+                'description_will_change' => $descriptionWillChange,
             ];
         }
 
@@ -436,12 +450,14 @@ class AreaFixManager
                 $seenTags[$tag] = true;
 
                 $items[] = [
-                    'name'             => $tag,
-                    'description'      => $row['description'] ?? null,
-                    'action'           => AreaFixParser::ACTION_UNSUBSCRIBE,
-                    'is_subscribed'    => false,
-                    'status'           => 'deactivate',
-                    'currently_active' => true,
+                    'name'                    => $tag,
+                    'description'             => $row['description'] ?? null,
+                    'action'                  => AreaFixParser::ACTION_UNSUBSCRIBE,
+                    'is_subscribed'           => false,
+                    'status'                  => 'deactivate',
+                    'currently_active'        => true,
+                    'current_description'     => $row['description'] ?? null,
+                    'description_will_change' => false,
                 ];
             }
         }
