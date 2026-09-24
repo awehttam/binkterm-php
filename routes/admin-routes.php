@@ -10744,9 +10744,81 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
 });
 
 /**
+ * POST /api/admin/areafix/preview-latest
+ * Find an actionable incoming AreaFix/FileFix reply for an uplink, parse it, and
+ * return a diff (new/reactivate/deactivate/unchanged) against current local area
+ * state WITHOUT writing anything to the database. The admin UI must call this before
+ * /api/admin/areafix/sync-latest so a sysop can review changes before they're applied.
+ *
+ * When message_id is omitted, the newest actionable incoming reply is used (the
+ * "Sync Areas to Local BBS" button on the Latest Reply panel). When message_id is
+ * given, that specific incoming message is previewed instead (a per-row "Sync"
+ * button in the message history table).
+ *
+ * Body: { uplink: string, robot: "areafix"|"filefix", message_id?: int }
+ */
+SimpleRouter::post('/api/admin/areafix/preview-latest', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError('errors.admin.areafix.invalid_json', 'Invalid request payload', 400, ['success' => false]);
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? 'areafix')));
+    $messageId = isset($body['message_id']) ? (int)$body['message_id'] : 0;
+
+    if ($uplinkAddress === '') {
+        apiError('errors.admin.areafix.uplink_required', 'Uplink address is required', 400, ['success' => false]);
+    }
+
+    $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+
+    try {
+        $found = $messageId > 0
+            ? $areafixManager->findActionableReplyById($uplinkAddress, $sysopUserId, $messageId)
+            : $areafixManager->findLatestActionableReply($uplinkAddress, $sysopUserId);
+    } catch (\Throwable $e) {
+        apiError('errors.admin.areafix.preview_failed', 'Failed to generate sync preview', 500, ['success' => false]);
+    }
+
+    if (!$found) {
+        apiError('errors.admin.areafix.no_area_list_found', 'No area list found in recent replies for this uplink', 404, ['success' => false]);
+    }
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+
+    try {
+        $diff = $areafixManager->previewSync($uplinkAddress, $domain, $found['areas'], false, $robot);
+    } catch (\Throwable $e) {
+        apiError('errors.admin.areafix.preview_failed', 'Failed to generate sync preview', 500, ['success' => false]);
+    }
+
+    $replyFound = $found['message'];
+    echo json_encode([
+        'success'     => true,
+        'areas'       => $diff,
+        'areas_count' => count($diff),
+        'from'        => $replyFound['from_name'] ?? $replyFound['from_address'] ?? '',
+        'date'        => $replyFound['date_received'] ?? $replyFound['date_written'] ?? null,
+    ]);
+});
+
+/**
  * POST /api/admin/areafix/sync-latest
- * Find the latest incoming AreaFix/FileFix reply for an uplink, parse areas, and sync them to DB.
- * Body: { uplink: string, robot: "areafix"|"filefix" }
+ * Find an incoming AreaFix/FileFix reply for an uplink, parse areas, and sync them to DB.
+ *
+ * The admin UI calls /api/admin/areafix/preview-latest first (with the same optional
+ * message_id) and only calls this endpoint after the sysop has reviewed and confirmed
+ * the resulting preview. When message_id is omitted, the newest actionable incoming
+ * reply is used; otherwise that specific message is applied.
+ *
+ * Body: { uplink: string, robot: "areafix"|"filefix", message_id?: int }
  */
 SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
     $user = RouteHelper::requireAdmin();
@@ -10759,6 +10831,7 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
 
     $uplinkAddress = trim((string)($body['uplink'] ?? ''));
     $robot = strtolower(trim((string)($body['robot'] ?? 'areafix')));
+    $messageId = isset($body['message_id']) ? (int)$body['message_id'] : 0;
 
     if ($uplinkAddress === '') {
         apiError('errors.admin.areafix.uplink_required', 'Uplink address is required', 400, ['success' => false]);
@@ -10766,39 +10839,16 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
 
     $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
     $areafixManager = new \BinktermPHP\AreaFixManager();
-    $historyData = $areafixManager->getHistory($uplinkAddress, $sysopUserId);
-    $messages = ($historyData['messages'] ?? $historyData);
-    if (!is_array($messages)) {
-        $messages = [];
-    }
+    $found = $messageId > 0
+        ? $areafixManager->findActionableReplyById($uplinkAddress, $sysopUserId, $messageId)
+        : $areafixManager->findLatestActionableReply($uplinkAddress, $sysopUserId);
 
-    $replyFound = null;
-    $parsedAreas = [];
-
-    // Search incoming messages from newest to oldest for one containing an area list
-    foreach ($messages as $m) {
-        if (($m['direction'] ?? '') !== 'incoming') {
-            continue;
-        }
-        $subj = (string)($m['subject'] ?? '');
-        $bodyText = (string)($m['message_text'] ?? '');
-
-        // Skip result receipts, change request confirmations, or help text
-        if (!$areafixManager->isAreaListResponse($subj, $bodyText)) {
-            continue;
-        }
-
-        $areas = $areafixManager->parseResponseText($bodyText, '%LIST');
-        if (count($areas) >= 2) {
-            $replyFound = $m;
-            $parsedAreas = $areas;
-            break;
-        }
-    }
-
-    if (!$replyFound || empty($parsedAreas)) {
+    if (!$found) {
         apiError('errors.admin.areafix.no_area_list_found', 'No area list found in recent replies for this uplink', 404, ['success' => false]);
     }
+
+    $replyFound = $found['message'];
+    $parsedAreas = $found['areas'];
 
     $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
     $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);

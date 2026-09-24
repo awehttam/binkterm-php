@@ -60,7 +60,7 @@ Content-Type: application/json
   - [Account](#account) (1)
   - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
-  - [AreaFix](#areafix) (1)
+  - [AreaFix](#areafix) (2)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
   - [Bulletins](#bulletins) (3)
@@ -555,13 +555,16 @@ Click recording confirmation with redirect URL
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
+| `POST` | [`/api/admin/areafix/preview-latest`](#post-apiadminareafixpreview-latest) | Yes | Parse the latest incoming AreaFix/FileFix reply for an uplink and return a diff against current local area state, without writing anything to the database. |
 | `POST` | [`/api/admin/areafix/sync-latest`](#post-apiadminareafixsync-latest) | Yes | Inspect the latest incoming AreaFix/FileFix reply for an uplink and sync areas to the database. |
 
-#### `POST /api/admin/areafix/sync-latest`
+#### `POST /api/admin/areafix/preview-latest`
 
 **Requires authentication** (Admin only)
 
-Inspects recent message history from the specified uplink to find the latest incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes them into the local database (`echoareas` or `file_areas`).
+Inspects recent message history from the specified uplink to find an incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and returns a per-area diff against the current `echoareas`/`file_areas` state — without applying any changes. The admin UI calls this endpoint to render a mandatory preview/confirmation step before calling `/api/admin/areafix/sync-latest`.
+
+When `message_id` is omitted, the newest actionable incoming reply is used (the "Latest Reply" panel's sync button). When `message_id` is given, that specific incoming netmail message is previewed instead (the per-row sync button in the message history table); the endpoint returns 404 if that message isn't an incoming, actionable reply from this uplink.
 
 **Request Body** _(JSON)_
 
@@ -569,6 +572,47 @@ Inspects recent message history from the specified uplink to find the latest inc
 |-------|------|----------|-------------|
 | `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
 | `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+| `message_id` | integer | No | `netmail.id` of a specific incoming reply to preview; defaults to the newest actionable reply |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if a preview was generated |
+| `areas` | array of objects | Parsed areas, each classified against current local state |
+| `areas[].name` | string | Area tag |
+| `areas[].description` | string\|null | Area description, if known |
+| `areas[].action` | string | Parsed action: `"subscribe"`, `"unsubscribe"`, or `"available"` |
+| `areas[].is_subscribed` | boolean | Whether the reply indicates this area is subscribed |
+| `areas[].status` | string | Diff classification: `"new"`, `"reactivate"`, `"deactivate"`, or `"unchanged"` |
+| `areas[].currently_active` | boolean | Whether the area is currently active locally, before any sync is applied |
+| `areas_count` | integer | Number of areas in the diff |
+| `from` | string | Sender name or address of the reply message |
+| `date` | string\|null | Timestamp the reply was received or written |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload or missing uplink address |
+| 404 | No area list found in recent replies for this uplink |
+| 500 | Failed to generate sync preview |
+
+---
+
+#### `POST /api/admin/areafix/sync-latest`
+
+**Requires authentication** (Admin only)
+
+Inspects recent message history from the specified uplink to find an incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes them into the local database (`echoareas` or `file_areas`). The admin UI always calls `/api/admin/areafix/preview-latest` first, with the same `message_id` (if any), and only calls this endpoint after the sysop confirms the resulting preview.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+| `message_id` | integer | No | `netmail.id` of a specific incoming reply to apply; defaults to the newest actionable reply |
 
 **Response** _(JSON)_
 

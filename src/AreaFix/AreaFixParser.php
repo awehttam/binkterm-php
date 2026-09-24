@@ -14,6 +14,9 @@
 
 namespace BinktermPHP\AreaFix;
 
+use BinktermPHP\Config;
+use BinktermPHP\Binkp\Logger;
+
 /**
  * Structural parser for AreaFix and FileFix response messages from FTN hub mailers.
  *
@@ -21,16 +24,33 @@ namespace BinktermPHP\AreaFix;
  * - Mystic BBS & MBSE Command/Result blocks (direct actions, stacked requests, indented lists)
  * - Delimited tables (Husky, Clearing Houz, FastEcho, FrontDoor, InterMail)
  * - Columnar and dotted-leader tables (HPT, Husky)
+ * - Quoted-address lists (BBBS/Li6: "+TAG (addr) \"description\"", with wrapped
+ *   multi-line descriptions and combined echo+file area sections)
  *
  * By relying on structural grammar rather than keyword blocklisting, real areas
  * with common names (such as LINUX, BASE, WINDOWS) are preserved, while help
  * manuals and freeform prose are never misidentified as area lists.
+ *
+ * As a last resort, when none of the above grammars match, a conservative
+ * freeform "TAG   Description" line matcher is tried (see parseFreeformList()).
+ * It is gated by the same strict isValidTag() check as every other grammar
+ * rather than a keyword blocklist, never marks a row as subscribed, and logs
+ * whenever it is the tier that produced a result, so an unrecognized hub
+ * format can be turned into a proper structural grammar over time instead of
+ * silently failing forever.
  */
 class AreaFixParser
 {
     public const ACTION_SUBSCRIBE = 'subscribe';
     public const ACTION_UNSUBSCRIBE = 'unsubscribe';
     public const ACTION_AVAILABLE = 'available';
+
+    private Logger $logger;
+
+    public function __construct()
+    {
+        $this->logger = new Logger(Config::getLogPath('server.log'), Logger::LEVEL_INFO, false);
+    }
 
     /**
      * Parse AreaFix or FileFix response body into structured area items.
@@ -64,6 +84,29 @@ class AreaFixParser
         $columnarAreas = $this->parseColumnarTable($body);
         if ($columnarAreas !== null && !empty($columnarAreas)) {
             return $this->deduplicateAreas($columnarAreas);
+        }
+
+        // 4. Try quoted-address list format (BBBS/Li6)
+        $quotedAddressAreas = $this->parseQuotedAddressList($body);
+        if ($quotedAddressAreas !== null && !empty($quotedAddressAreas)) {
+            return $this->deduplicateAreas($quotedAddressAreas);
+        }
+
+        // 5. Try flag-prefixed dotted-leader quoted list format (HPT %LIST)
+        $flaggedDottedAreas = $this->parseFlaggedDottedQuotedList($body);
+        if ($flaggedDottedAreas !== null && !empty($flaggedDottedAreas)) {
+            return $this->deduplicateAreas($flaggedDottedAreas);
+        }
+
+        // 6. Last resort: conservative freeform "TAG   Description" line matching
+        // for hub formats with no recognizable header, banner, or delimiter.
+        $freeformAreas = $this->parseFreeformList($body);
+        if (!empty($freeformAreas)) {
+            $this->logger->info('AreaFixParser: no structural grammar matched, used freeform fallback', [
+                'areas_found'  => count($freeformAreas),
+                'body_excerpt' => substr($body, 0, 200),
+            ]);
+            return $this->deduplicateAreas($freeformAreas);
         }
 
         return [];
@@ -371,6 +414,10 @@ class AreaFixParser
      *   --------------------------------------------------  -------------------------
      *   SYS_GEN                                             SysOp General Chat
      *
+     * Also matches headers where the tag column isn't literally named "Area" but
+     * contains it as a whole word (e.g. AreaMgr-style "Con  Message area  Description"),
+     * as long as a dashed separator line immediately follows.
+     *
      * @return array<int, array{name: string, description: ?string, action: string, is_subscribed: bool}>|null
      */
     private function parseColumnarTable(string $body): ?array
@@ -386,8 +433,9 @@ class AreaFixParser
             $line = trim($lines[$i]);
 
             if (!$headerFound) {
-                // Look for "Area" column followed by "Status" or "Description"
-                if (preg_match('/^Area\s{3,}(Status|Description|Msgs|Files)\b/i', $line, $hMatch)) {
+                // Look for an "area" column (as a whole word, anywhere in the header)
+                // followed later by "Status", "Description", "Msgs", or "Files"
+                if (preg_match('/\barea\b.*?\b(Status|Description|Msgs|Files)\b/i', $line, $hMatch)) {
                     // Check if next line is a dash separator
                     if (isset($lines[$i + 1]) && preg_match('/^[-=]{3,}\s+[-=]{3,}/', trim($lines[$i + 1]))) {
                         $headerFound = true;
@@ -460,6 +508,223 @@ class AreaFixParser
         }
 
         return $headerFound ? $areas : null;
+    }
+
+    /**
+     * Parse BBBS/Li6-style quoted-address lists.
+     *
+     * Matches patterns:
+     *   List of all echo areas available for node 1:153/150.0.
+     *   + = Area already connected
+     *
+     *   +10TH_AMD                       (1:153/757) "10th Amendment Discussion"
+     *    ABLED                          (1:153/757) "disABLED Users Information
+     *                                   Exchange"
+     *
+     * A leading "+" marks a subscribed/connected area; a leading space marks one
+     * that is merely available. Descriptions may wrap onto continuation lines
+     * with no tag of their own, terminated by the closing quote. The same
+     * grammar also covers a file-area list in the same reply (address may carry
+     * a ", NkB" size suffix), including reuse of a tag between the echo-area and
+     * file-area sections with different descriptions (deduplicateAreas() keeps
+     * whichever description and action wins by its normal precedence rules).
+     *
+     * @return array<int, array{name: string, description: ?string, action: string, is_subscribed: bool}>|null
+     */
+    private function parseQuotedAddressList(string $body): ?array
+    {
+        $lines = explode("\n", $body);
+        $totalLines = count($lines);
+        $areas = [];
+        $found = false;
+
+        for ($i = 0; $i < $totalLines; $i++) {
+            $line = $lines[$i];
+
+            if (!preg_match('/^[+ ]([A-Za-z0-9_\-.]+)\s+\([^)]*\)\s+"(.*)$/', $line, $m)) {
+                continue;
+            }
+
+            $tag = strtoupper(trim($m[1]));
+            if (!self::isValidTag($tag)) {
+                continue;
+            }
+
+            $found = true;
+            $isSubscribed = ($line[0] === '+');
+
+            // Collect wrapped continuation lines until the closing quote appears,
+            // stopping early if the next line is itself a new entry, a blank
+            // line, or a banner/tearline (defends against ever merging entries).
+            $descParts = [$m[2]];
+            $j = $i;
+            while (!str_ends_with(rtrim(end($descParts)), '"') && ($j + 1) < $totalLines) {
+                $nextLine = $lines[$j + 1];
+                $nextTrimmed = trim($nextLine);
+                if ($nextTrimmed === ''
+                    || preg_match('/^[+ ][A-Za-z0-9_\-.]+\s+\([^)]*\)\s+"/', $nextLine)
+                    || preg_match('/^-{2,}\s/', $nextTrimmed)
+                    || stripos($nextTrimmed, 'List of all') !== false) {
+                    break;
+                }
+                $j++;
+                $descParts[] = $nextTrimmed;
+            }
+            $i = $j;
+
+            $desc = trim(rtrim(trim(implode(' ', $descParts)), '"'));
+
+            $areas[] = [
+                'name'          => $tag,
+                'description'   => $desc !== '' ? $desc : null,
+                'action'        => $isSubscribed ? self::ACTION_SUBSCRIBE : self::ACTION_AVAILABLE,
+                'is_subscribed' => $isSubscribed,
+            ];
+        }
+
+        return $found ? $areas : null;
+    }
+
+    /**
+     * Parse HPT-style flag-prefixed dotted-leader lists with quoted descriptions.
+     *
+     * Matches patterns:
+     *   Available areas for 227:1/400
+     *
+     *   *S   LVLY_ADULT ............... "Mature/18+ topics of discussion, etc."
+     *   *S   LVLY_COLDWARCOMMS ............................................... "Coldwar
+     *                               Communications with an emphasis on AT&T Longlines"
+     *
+     *   '*' = area is active
+     *   'R' = area is readonly for you
+     *
+     * The leading 0-2 character flag field (any combination of '*', 'R', 'W',
+     * 'M', 'S') indicates linked/subscribed state; '*' present means the area
+     * is currently linked. Descriptions may wrap onto an unindented-tag
+     * continuation line, terminated by the closing quote. The area block ends
+     * at the first blank line, before the "'X' = ..." flag legend.
+     *
+     * @return array<int, array{name: string, description: ?string, action: string, is_subscribed: bool}>|null
+     */
+    private function parseFlaggedDottedQuotedList(string $body): ?array
+    {
+        $lines = explode("\n", $body);
+        $totalLines = count($lines);
+        $areas = [];
+        $found = false;
+
+        for ($i = 0; $i < $totalLines; $i++) {
+            $line = $lines[$i];
+
+            if (trim($line) === '') {
+                if ($found) {
+                    // Blank line after at least one matched row ends the list
+                    // (the flag legend and summary text follow).
+                    break;
+                }
+                continue;
+            }
+
+            if (!preg_match('/^([*RWMS]*)\s+([A-Za-z0-9_\-.]+)\s+\.{3,}\s*"(.*)$/', $line, $m)) {
+                continue;
+            }
+
+            $tag = strtoupper(trim($m[2]));
+            if (!self::isValidTag($tag)) {
+                continue;
+            }
+
+            $found = true;
+            $isSubscribed = str_contains($m[1], '*');
+
+            // Collect wrapped continuation lines until the closing quote appears,
+            // stopping early if the next line is itself a new entry, blank, or
+            // the start of the flag legend (defends against merging entries).
+            $descParts = [$m[3]];
+            $j = $i;
+            while (!str_ends_with(rtrim(end($descParts)), '"') && ($j + 1) < $totalLines) {
+                $nextLine = $lines[$j + 1];
+                $nextTrimmed = trim($nextLine);
+                if ($nextTrimmed === ''
+                    || preg_match('/^[*RWMS]*\s+[A-Za-z0-9_\-.]+\s+\.{3,}\s*"/', $nextLine)
+                    || str_starts_with($nextTrimmed, "'")) {
+                    break;
+                }
+                $j++;
+                $descParts[] = $nextTrimmed;
+            }
+            $i = $j;
+
+            $desc = trim(rtrim(trim(implode(' ', $descParts)), '"'));
+
+            $areas[] = [
+                'name'          => $tag,
+                'description'   => $desc !== '' ? $desc : null,
+                'action'        => $isSubscribed ? self::ACTION_SUBSCRIBE : self::ACTION_AVAILABLE,
+                'is_subscribed' => $isSubscribed,
+            ];
+        }
+
+        return $found ? $areas : null;
+    }
+
+    /**
+     * Last-resort conservative freeform line matcher for hub formats with no
+     * recognizable header, banner, or delimiter at all (e.g. a bare SBBSecho
+     * "TAG   Description" list terminated only by a "--- <mailer>" tearline).
+     *
+     * Gated by the same strict isValidTag() check as every other grammar rather
+     * than a keyword blocklist. Rows found here are never marked as subscribed
+     * (always ACTION_AVAILABLE) since there is no structural signal to confirm
+     * a subscription — only a sysop confirming the mandatory sync preview can
+     * turn one into an active subscription.
+     *
+     * @return array<int, array{name: string, description: ?string, action: string, is_subscribed: bool}>
+     */
+    private function parseFreeformList(string $body): array
+    {
+        $lines = explode("\n", $body);
+        $areas = [];
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            // Tearlines, origin lines, kludges, and decorative separators are never area rows
+            if (preg_match('/^-{2,}\s/', $trimmed)
+                || str_starts_with($trimmed, '* Origin:')
+                || str_starts_with($trimmed, '...')
+                || preg_match('/^(?:to|from|subject|date|cost|flags|origin|dest|intl|replyaddr|msgid|chrs|pid|tzutc)\s*[:\s]/i', $trimmed)
+                || preg_match('/^[:|\s]*[-=*#~:\s]{3,}[:|\s]*$/', $trimmed)) {
+                continue;
+            }
+
+            // Bare "TAG   Description" line: tag, then 2+ spaces or a tab, then description
+            if (!preg_match('/^([A-Za-z0-9_\-.]+)(?:[ ]{2,}|\t+)(.+)$/', $trimmed, $m)) {
+                continue;
+            }
+
+            $tag = strtoupper(trim($m[1]));
+            if (!self::isValidTag($tag)) {
+                continue;
+            }
+
+            $desc = trim($m[2]);
+            if ($desc !== '' && (preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║]/u', $desc) || preg_match('/[\xB0-\xDF]/', $desc))) {
+                $desc = null;
+            }
+
+            $areas[] = [
+                'name'          => $tag,
+                'description'   => ($desc !== null && $desc !== '') ? $desc : null,
+                'action'        => self::ACTION_AVAILABLE,
+                'is_subscribed' => false,
+            ];
+        }
+
+        return $areas;
     }
 
     /**

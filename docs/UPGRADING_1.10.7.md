@@ -8,6 +8,9 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Messaging](#messaging)
   - [Date Display Preferences](#date-display-preferences)
   - [Message Search Scoped by Network and Interest](#message-search-scoped-by-network-and-interest)
+- [AreaFix / FileFix](#areafix-filefix)
+  - [Structural Reply Parsing Across More Hub Mailers](#structural-reply-parsing-across-more-hub-mailers)
+  - [Mandatory Preview Before Syncing Areas](#mandatory-preview-before-syncing-areas)
 - [Administration](#administration)
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
 - [Security](#security)
@@ -23,6 +26,11 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Date display preferences:** users and sysops can now choose between relative timestamps ("4d ago") and exact date/time for message lists and headers, and choose whether echomail is ordered and displayed by received date or written date.
 - **Message search scoped by network and interest:** searching for messages from the Echo Areas page now respects the network and interest filters selected there, and searching while browsing a single interest on the Echomail page now stays within that interest's echo areas, instead of always searching every echo area.
+
+### AreaFix / FileFix
+
+- **Structural reply parsing across more hub mailers:** AreaFix and FileFix replies are now parsed by recognizing the concrete layout each hub mailer actually sends — Mystic BBS/MBSE command blocks, delimited and columnar tables, BBBS/Li6-style quoted address lists, and HPT-style flag-prefixed quoted lists — instead of scanning for keywords. Real echo areas with common names such as `LINUX`, `WINDOWS`, or `BASE` are no longer mistaken for header text or help output.
+- **Mandatory preview before syncing areas:** clicking "Sync Areas to Local BBS" (from the latest reply, or from any individual incoming message in the Message History table) now shows a preview of exactly which areas will be created, reactivated, deactivated, or left unchanged. Nothing is written to the database until this preview is explicitly confirmed.
 
 ### Administration
 
@@ -50,6 +58,25 @@ Previously, only admin users could choose to order echomail by written date; thi
 The Echo Areas page lets you filter the area list down to one or more networks and interests using the **Network** and **Interests** dropdowns. The "Search Messages" box on that same page now carries those selections into the search, so results are limited to matching echo areas instead of every echo area on the system. Leaving both dropdowns on their "All" default still searches everything.
 
 On the Echomail page, searching while browsing a single interest under the Interests tab is likewise scoped to that interest's echo areas. Searching from a specific echo area continues to scope to that single area, as before, taking priority over any network or interest scope.
+
+## AreaFix / FileFix
+
+### Structural Reply Parsing Across More Hub Mailers
+
+AreaFix and FileFix replies from a hub are parsed by matching the actual layout the hub's mailer software produces, rather than by scanning line-by-line for known words and phrases. The parser recognizes:
+
+- Mystic BBS and MBSE `Command:`/`Result:` blocks, including stacked multi-command replies and `%LIST`/`%QUERY`/`%LINKED`/`%UNLINKED` result listings.
+- Colon- and pipe-delimited tables (Husky, Clearing Houz, FastEcho, FrontDoor, InterMail).
+- Columnar and dotted-leader tables (HPT, Husky), including table headers that name the tag column something other than the literal word "Area" (for example "Message area").
+- BBBS/Li6-style quoted address lists (`+TAG (address) "description"`), including descriptions that wrap onto a continuation line and a single reply that lists both echo areas and file areas.
+- HPT-style flag-prefixed dotted-leader lists with quoted descriptions (`*S   TAG ....... "description"`).
+- As a last resort, a conservative bare `TAG   Description` line matcher for hub replies that don't match any of the above, which never marks a matched area as subscribed on its own.
+
+Because this approach recognizes real structure instead of matching words, an echo area named the same as an ordinary English word or a common piece of software (`LINUX`, `WINDOWS`, `BASE`, and similar) is preserved correctly instead of being mistaken for a header, a help topic, or unrelated prose.
+
+### Mandatory Preview Before Syncing Areas
+
+Previously, clicking "Sync Areas to Local BBS" on the AreaFix / FileFix Manager page applied the parsed area list to your local echo areas or file areas immediately. It now shows a preview first, listing every area found in the reply along with what will happen to it — created new, reactivated, deactivated, or left unchanged — and requires an explicit confirmation before anything is written to the database. This preview is also available per-message: each incoming reply in the Message History table now has its own sync button, so you can review and apply an older reply without it needing to still be the most recent one.
 
 ## Administration
 

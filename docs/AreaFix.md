@@ -211,16 +211,51 @@ Sync a parsed area list into the local echo/file area table.
 }
 ```
 
-### `POST /api/admin/areafix/sync-latest`
-Inspect the latest incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and sync them to the local database.
+### `POST /api/admin/areafix/preview-latest`
+Inspect an incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and return a diff against current local area state — without writing anything to the database. The Admin → AreaFix / FileFix Manager page always calls this endpoint first and shows the result as a mandatory preview before a sysop can confirm a sync.
+
+By default the newest actionable incoming reply is used (the "Latest Reply" panel's sync button). Passing `message_id` targets one specific incoming message instead — this backs the per-row sync button next to each incoming message in the Message History table, so a sysop can sync from an older reply without needing it to still be the newest one.
 
 **Request body:**
 ```json
 {
-    "uplink": "1:1/23",
-    "robot":  "areafix"
+    "uplink":     "1:1/23",
+    "robot":      "areafix",
+    "message_id": 4821
 }
 ```
+
+`message_id` is optional; omit it to preview the newest actionable incoming reply.
+
+**Response:**
+```json
+{
+    "success":     true,
+    "areas": [
+        { "name": "FIDONEWS", "description": "FidoNet news", "action": "subscribe", "is_subscribed": true, "status": "new", "currently_active": false },
+        { "name": "SYS_GEN",  "description": "SysOp Chat",   "action": "subscribe", "is_subscribed": true, "status": "unchanged", "currently_active": true }
+    ],
+    "areas_count": 2,
+    "from":        "AreaFix",
+    "date":        "2026-09-23 14:02:11"
+}
+```
+
+`status` is one of `new`, `reactivate`, `deactivate`, or `unchanged`, describing what a subsequent call to `/api/admin/areafix/sync-latest` would do for that area.
+
+### `POST /api/admin/areafix/sync-latest`
+Inspect an incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and sync them to the local database. The admin UI only calls this endpoint after the sysop has reviewed and confirmed the preview returned by `/api/admin/areafix/preview-latest`, passing the same `message_id` (if any) so the applied message matches what was previewed.
+
+**Request body:**
+```json
+{
+    "uplink":     "1:1/23",
+    "robot":      "areafix",
+    "message_id": 4821
+}
+```
+
+`message_id` is optional; omit it to apply the newest actionable incoming reply.
 
 **Response:**
 ```json

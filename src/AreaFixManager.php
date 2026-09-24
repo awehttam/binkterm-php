@@ -266,6 +266,190 @@ class AreaFixManager
     }
 
     /**
+     * Find the newest incoming AreaFix/FileFix reply for an uplink that contains
+     * actionable, parseable area data (skipping result receipts, error notices, and help text).
+     *
+     * Shared by the preview and apply code paths so that "this reply is actionable"
+     * means exactly the same thing in both places.
+     *
+     * @param string $uplinkAddress FTN address of the hub uplink
+     * @param int    $sysopUserId   User ID of the sysop account
+     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>}|null
+     */
+    public function findLatestActionableReply(string $uplinkAddress, int $sysopUserId): ?array
+    {
+        foreach ($this->getIncomingMessages($uplinkAddress, $sysopUserId) as $m) {
+            $parsed = $this->toActionableReply($m);
+            if ($parsed !== null) {
+                return $parsed;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find a specific incoming AreaFix/FileFix reply for an uplink by its netmail id
+     * and confirm it contains actionable, parseable area data.
+     *
+     * @param string $uplinkAddress FTN address of the hub uplink
+     * @param int    $sysopUserId   User ID of the sysop account
+     * @param int    $messageId     netmail.id of the incoming reply to inspect
+     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>}|null
+     */
+    public function findActionableReplyById(string $uplinkAddress, int $sysopUserId, int $messageId): ?array
+    {
+        foreach ($this->getIncomingMessages($uplinkAddress, $sysopUserId) as $m) {
+            if ((int)($m['id'] ?? 0) !== $messageId) {
+                continue;
+            }
+            return $this->toActionableReply($m);
+        }
+
+        return null;
+    }
+
+    /**
+     * Return the incoming (hub-to-us) messages from an uplink's AreaFix/FileFix history.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getIncomingMessages(string $uplinkAddress, int $sysopUserId): array
+    {
+        $historyData = $this->getHistory($uplinkAddress, $sysopUserId);
+        $messages = ($historyData['messages'] ?? $historyData);
+        if (!is_array($messages)) {
+            return [];
+        }
+
+        return array_values(array_filter($messages, static fn($m) => ($m['direction'] ?? '') === 'incoming'));
+    }
+
+    /**
+     * Check whether a single incoming message is an actionable AreaFix/FileFix reply
+     * and, if so, return it paired with its parsed areas.
+     *
+     * @param array<string, mixed> $message
+     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>}|null
+     */
+    private function toActionableReply(array $message): ?array
+    {
+        $subj = (string)($message['subject'] ?? '');
+        $bodyText = (string)($message['message_text'] ?? '');
+
+        if (!$this->isAreaListResponse($subj, $bodyText)) {
+            return null;
+        }
+
+        $areas = $this->parseResponseText($bodyText, '%LIST');
+        if (empty($areas)) {
+            return null;
+        }
+
+        return ['message' => $message, 'areas' => $areas];
+    }
+
+    /**
+     * Compute what syncSubscribedAreas() would do for the given parsed areas,
+     * without writing anything to the database.
+     *
+     * Each parsed area is classified against current local state as one of:
+     * - "new": area does not exist locally yet and will be created (active or not,
+     *   depending on action).
+     * - "reactivate": area exists but is currently inactive and will be turned on.
+     * - "deactivate": area is currently active and the parsed action is unsubscribe
+     *   (or, when $deactivateMissing is true, the area is active locally but missing
+     *   from the parsed list).
+     * - "unchanged": area already matches the state the sync would produce.
+     *
+     * @param string $uplinkAddress     FTN address of the uplink hub
+     * @param string $domain            Network domain (e.g. "fidonet")
+     * @param array<int, array{name: string, description: string|null, action?: string, is_subscribed?: bool}> $parsedAreas
+     * @param bool   $deactivateMissing If true, also list locally-active areas missing from the parsed list as deactivation candidates
+     * @param string $robot             "areafix" or "filefix"
+     * @return array<int, array{name: string, description: string|null, action: string, is_subscribed: bool, status: string, currently_active: bool}>
+     */
+    public function previewSync(
+        string $uplinkAddress,
+        string $domain,
+        array $parsedAreas,
+        bool $deactivateMissing = false,
+        string $robot = 'areafix'
+    ): array {
+        $table = ($robot === 'filefix') ? 'file_areas' : 'echoareas';
+        $items = [];
+        $seenTags = [];
+
+        foreach ($parsedAreas as $area) {
+            $tag = strtoupper(trim((string)($area['name'] ?? '')));
+            if ($tag === '' || isset($seenTags[$tag])) {
+                continue;
+            }
+            $seenTags[$tag] = true;
+
+            $description = $area['description'] ?? null;
+            $isSubscribed = (bool)($area['is_subscribed'] ?? true);
+            $action = $area['action'] ?? ($isSubscribed ? AreaFixParser::ACTION_SUBSCRIBE : AreaFixParser::ACTION_AVAILABLE);
+
+            $stmt = $this->db->prepare(
+                "SELECT is_active FROM {$table} WHERE UPPER(tag) = UPPER(?) AND domain = ?"
+            );
+            $stmt->execute([$tag, $domain]);
+            $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $currentlyActive = $existing ? (bool)$existing['is_active'] : false;
+
+            if ($action === AreaFixParser::ACTION_UNSUBSCRIBE) {
+                $status = $currentlyActive ? 'deactivate' : 'unchanged';
+            } elseif (!$existing) {
+                $status = 'new';
+            } elseif (!$currentlyActive && $action === AreaFixParser::ACTION_SUBSCRIBE) {
+                $status = 'reactivate';
+            } else {
+                $status = 'unchanged';
+            }
+
+            $items[] = [
+                'name'             => $tag,
+                'description'      => $description,
+                'action'           => $action,
+                'is_subscribed'    => $isSubscribed,
+                'status'           => $status,
+                'currently_active' => $currentlyActive,
+            ];
+        }
+
+        if ($deactivateMissing) {
+            $sql = "SELECT tag, description FROM {$table} WHERE domain = ? AND is_active = TRUE";
+            $params = [$domain];
+            if ($table === 'echoareas') {
+                $sql .= " AND uplink_address = ?";
+                $params[] = $uplinkAddress;
+            }
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                $tag = strtoupper(trim((string)$row['tag']));
+                if ($tag === '' || isset($seenTags[$tag])) {
+                    continue;
+                }
+                $seenTags[$tag] = true;
+
+                $items[] = [
+                    'name'             => $tag,
+                    'description'      => $row['description'] ?? null,
+                    'action'           => AreaFixParser::ACTION_UNSUBSCRIBE,
+                    'is_subscribed'    => false,
+                    'status'           => 'deactivate',
+                    'currently_active' => true,
+                ];
+            }
+        }
+
+        return $items;
+    }
+
+    /**
      * Mark a local echo area as inactive (called after successful unsubscribe).
      *
      * @param string $areaTag Area tag to deactivate
