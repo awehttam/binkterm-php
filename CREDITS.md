@@ -13,7 +13,8 @@
 | Freddy Krueger | Italian translation |
 | Neo67 | German translation |
 | pztrn | Russian translation |
-| Derek Bird | Docker WebSocket proxy config, CLI entrypoint fixes |
+| Derek Bird (TheWebExpert) | Docker WebSocket proxy config, CLI entrypoint fixes, numerous fixes and features across messaging, terminal, theming, and Docker |
+| Skrawl | PostgreSQL and session security hardening fixes |
 
 ## Third-Party Libraries
 

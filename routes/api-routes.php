@@ -137,12 +137,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sessionId = $auth->login($username, $password, $service);
 
         if ($sessionId) {
-            setcookie('binktermphp_session', $sessionId, [
-                'expires'  => time() + 86400 * 30,
-                'path'     => '/',
-                'httponly' => true,
-                'samesite' => 'Lax',
-            ]);
+            setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions());
             if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['show_login_bulletins_for_session'] = $sessionId;
             }
@@ -602,12 +597,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $session = $auth->createAuthenticatedSession($newUserId, $service);
                 $sessionId = $session['session_id'];
 
-                setcookie('binktermphp_session', $sessionId, [
-                    'expires'  => time() + 86400 * 30,
-                    'path'     => '/',
-                    'httponly' => true,
-                    'samesite' => 'Lax',
-                ]);
+                setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions());
 
                 if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                     $_SESSION['show_login_bulletins_for_session'] = $sessionId;
@@ -7840,6 +7830,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $echoarea = urldecode($echoarea);
         }
 
+        // Comma-separated list of network domains (or '__local__') to scope an
+        // echomail search to when no specific echoarea is given
+        $networks = [];
+        if (!empty($_GET['network'])) {
+            $networks = array_filter(array_map(
+                fn($n) => trim(urldecode($n)),
+                explode(',', $_GET['network'])
+            ), fn($n) => $n !== '');
+        }
+
+        // Comma-separated list of interest IDs to scope an echomail search to
+        // when no specific echoarea is given
+        $interestIds = [];
+        if (!empty($_GET['interests'])) {
+            $interestIds = array_filter(array_map(
+                fn($n) => (int)trim($n),
+                explode(',', $_GET['interests'])
+            ), fn($n) => $n > 0);
+        }
+
         // Collect field-specific search params
         $searchParams = [];
         if (!empty($_GET['from_name'])) {
@@ -7888,7 +7898,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
-        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams);
+        $messages = $handler->searchMessages($query, $type, $echoarea, $userId, $searchParams, $networks, $interestIds);
 
         // For echomail searches, derive per-echo-area counts from already-fetched results
         // and compute filter counts by PK lookup — avoids re-running the expensive search query.
@@ -10131,6 +10141,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $settings['compose_hard_wrap'] = $rawWrap !== null ? (int)$rawWrap : 72;
                 $settings['media_render_mode'] = $meta->getValue((int)$userId, 'media_render_mode') ?? 'click';
             }
+
+            $settings['effective_date_display_style'] = MessageHandler::resolveDateDisplayStyle($userId, $settings);
+            $settings['effective_echomail_date_field'] = MessageHandler::resolveEchomailDateField($userId, $settings);
 
             $settings['license_valid'] = \BinktermPHP\License::isValid();
 

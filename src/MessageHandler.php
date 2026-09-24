@@ -32,21 +32,108 @@ class MessageHandler
         $this->logger = new \BinktermPHP\Binkp\Logger(Config::getLogPath('server.log'), \BinktermPHP\Binkp\Logger::LEVEL_INFO, false);
     }
 
-    private function getEchomailDateField(): string
+    private static array $userSettingsCache = [];
+
+    /**
+     * Resolve the effective echomail date field ('received' or 'written').
+     *
+     * Precedence:
+     * 1. User's personal preference ('received' or 'written')
+     * 2. BBS system default from BbsConfig ('received' or 'written')
+     * 3. ECHOMAIL_ORDER_DATE environment variable ('received' or 'written')
+     * 4. Default ('received')
+     *
+     * @param int|null $userId
+     * @param array|null $userSettings Optional pre-loaded user settings
+     * @return string 'received' or 'written'
+     */
+    public static function resolveEchomailDateField(?int $userId = null, ?array $userSettings = null): string
     {
-        $raw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-        if ($raw === 'written' || $raw === 'date_written') {
-            // date_written ordering is only available to admins; non-admins always use date_received
-            $currentUser = (new Auth())->getCurrentUser();
-            if (!$currentUser || empty($currentUser['is_admin'])) {
-                return 'date_received';
+        if ($userSettings === null) {
+            if ($userId === null) {
+                $currentUser = (new Auth())->getCurrentUser();
+                if ($currentUser) {
+                    $userId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+                }
             }
-            return 'date_written';
+            if ($userId && $userId > 0) {
+                $userSettings = (new self())->getUserSettings($userId);
+            }
         }
-        if ($raw === 'received' || $raw === 'date_received') {
-            return 'date_received';
+
+        if (is_array($userSettings)) {
+            $userPref = strtolower(trim((string)($userSettings['echomail_date_field'] ?? 'system_choice')));
+            if ($userPref === 'written' || $userPref === 'date_written') {
+                return 'written';
+            }
+            if ($userPref === 'received' || $userPref === 'date_received') {
+                return 'received';
+            }
         }
-        return self::ECHOMAIL_DATE_FIELD_DEFAULT;
+
+        $bbsDefault = strtolower(trim((string)BbsConfig::getDefaultEchomailDateField()));
+        if ($bbsDefault === 'written' || $bbsDefault === 'date_written') {
+            return 'written';
+        }
+        if ($bbsDefault === 'received' || $bbsDefault === 'date_received') {
+            return 'received';
+        }
+
+        $envDefault = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
+        if ($envDefault === 'written' || $envDefault === 'date_written') {
+            return 'written';
+        }
+
+        return 'received';
+    }
+
+    /**
+     * Resolve the effective date display style ('relative' or 'date').
+     *
+     * Precedence:
+     * 1. User's personal preference ('relative' or 'date')
+     * 2. BBS system default from BbsConfig ('relative' or 'date')
+     * 3. Default ('relative')
+     *
+     * @param int|null $userId
+     * @param array|null $userSettings Optional pre-loaded user settings
+     * @return string 'relative' or 'date'
+     */
+    public static function resolveDateDisplayStyle(?int $userId = null, ?array $userSettings = null): string
+    {
+        if ($userSettings === null) {
+            if ($userId === null) {
+                $currentUser = (new Auth())->getCurrentUser();
+                if ($currentUser) {
+                    $userId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+                }
+            }
+            if ($userId && $userId > 0) {
+                $userSettings = (new self())->getUserSettings($userId);
+            }
+        }
+
+        if (is_array($userSettings)) {
+            $userPref = strtolower(trim((string)($userSettings['date_display_style'] ?? 'system_choice')));
+            if ($userPref === 'date') {
+                return 'date';
+            }
+            if ($userPref === 'relative') {
+                return 'relative';
+            }
+        }
+
+        $bbsDefault = strtolower(trim((string)BbsConfig::getDefaultDateDisplayStyle()));
+        if ($bbsDefault === 'date') {
+            return 'date';
+        }
+
+        return 'relative';
+    }
+
+    private function getEchomailDateField(?int $userId = null): string
+    {
+        return self::resolveEchomailDateField($userId) === 'written' ? 'date_written' : 'date_received';
     }
 
     /**
@@ -585,7 +672,7 @@ class MessageHandler
             $filterParams[] = $p;
         }
 
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -849,7 +936,7 @@ class MessageHandler
             $areaScopeParams = $echoareaIds;
         }
 
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -1045,7 +1132,7 @@ class MessageHandler
         $moderationFilter = $this->buildModerationVisibilityFilter($userId, 'em');
         $sysopClause      = $isAdmin ? '' : ' AND ea.is_sysop_only = FALSE';
         $echoPH           = implode(',', array_fill(0, count($echoareaIds), '?'));
-        $dateField    = $this->getEchomailDateField();
+        $dateField    = $this->getEchomailDateField($userId);
 
         // Only use UNION path when filter === 'all' and there are associated file areas
         $fileareaIds  = [];
@@ -2474,6 +2561,60 @@ class MessageHandler
     }
 
     /**
+     * Build a SQL condition restricting to one or more networks (echoarea domains).
+     * The sentinel value '__local__' matches local areas (ea.is_local = TRUE).
+     *
+     * @param string[] $networks Domain names, or '__local__' for local areas
+     * @param string $sql SQL string to append to, by reference
+     * @param array $params Bind params to append to, by reference
+     */
+    private function appendNetworkCondition(array $networks, string &$sql, array &$params): void
+    {
+        $networks = array_values(array_unique(array_filter($networks, fn($n) => $n !== '')));
+        if (empty($networks)) {
+            return;
+        }
+
+        $clauses = [];
+        $domains = array_filter($networks, fn($n) => $n !== '__local__');
+        if (in_array('__local__', $networks, true)) {
+            $clauses[] = 'ea.is_local = TRUE';
+        }
+        if (!empty($domains)) {
+            $placeholders = implode(',', array_fill(0, count($domains), '?'));
+            $clauses[] = "ea.domain IN ({$placeholders})";
+            foreach ($domains as $domain) {
+                $params[] = $domain;
+            }
+        }
+
+        if (!empty($clauses)) {
+            $sql .= ' AND (' . implode(' OR ', $clauses) . ')';
+        }
+    }
+
+    /**
+     * Build a SQL condition restricting to echo areas belonging to one or more interests.
+     *
+     * @param int[] $interestIds
+     * @param string $sql SQL string to append to, by reference
+     * @param array $params Bind params to append to, by reference
+     */
+    private function appendInterestCondition(array $interestIds, string &$sql, array &$params): void
+    {
+        $interestIds = array_values(array_unique(array_map('intval', $interestIds)));
+        if (empty($interestIds)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($interestIds), '?'));
+        $sql .= " AND em.echoarea_id IN (SELECT echoarea_id FROM interest_echoareas WHERE interest_id IN ({$placeholders}))";
+        foreach ($interestIds as $interestId) {
+            $params[] = $interestId;
+        }
+    }
+
+    /**
      * Build a SQL WHERE fragment for text-based message searches.
      * Returns [null, []] when no text search terms are present (date-only searches).
      *
@@ -2557,9 +2698,13 @@ class MessageHandler
      * @param string|null $echoarea Echo area tag to restrict search
      * @param int|null $userId User ID for permission checking
      * @param array $searchParams Field-specific search: keys 'from_name', 'subject', 'body', 'date_from', 'date_to'
+     * @param string[] $networks Optional list of network domains (or '__local__') to restrict an echomail
+     *                           search to when no specific $echoarea is given
+     * @param int[] $interestIds Optional list of interest IDs to restrict an echomail search to when no
+     *                           specific $echoarea is given; combined with $networks (AND) if both are set
      * @return array
      */
-    public function searchMessages($query, $type = null, $echoarea = null, $userId = null, $searchParams = [])
+    public function searchMessages($query, $type = null, $echoarea = null, $userId = null, $searchParams = [], $networks = [], $interestIds = [])
     {
         if ($type === 'netmail') {
             if ($userId === null) {
@@ -2589,7 +2734,7 @@ class MessageHandler
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
         } else {
-            $dateField = $this->getEchomailDateField();
+            $dateField = $this->getEchomailDateField($userId);
             $isAdmin = false;
             if ($userId) {
                 $user = $this->getUserById($userId);
@@ -2625,6 +2770,13 @@ class MessageHandler
 
             if ($echoarea) {
                 $this->appendEchoareaCondition($echoarea, $sql, $params);
+            } else {
+                if (!empty($interestIds)) {
+                    $this->appendInterestCondition($interestIds, $sql, $params);
+                }
+                if (!empty($networks)) {
+                    $this->appendNetworkCondition($networks, $sql, $params);
+                }
             }
 
             $sql .= " ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC LIMIT 200";
@@ -2655,7 +2807,7 @@ class MessageHandler
             $userRealName = $user['real_name'] ?? null;
         }
 
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
         [$whereFragment, $searchBindParams] = $this->buildSearchWhereFragment($query, $searchParams, 'em.');
         [$dateConditions, $dateParams] = $this->buildDateRangeConditions($searchParams, "em.{$dateField}");
 
@@ -2728,7 +2880,7 @@ class MessageHandler
             $isAdmin = $user && !empty($user['is_admin']);
         }
 
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
         [$whereFragment, $searchBindParams] = $this->buildSearchWhereFragment($query, $searchParams, 'em.');
         [$dateConditions, $dateParams] = $this->buildDateRangeConditions($searchParams, "em.{$dateField}");
 
@@ -3727,12 +3879,29 @@ class MessageHandler
     }
 
     /**
+     * Clear cached user settings for a given user or all users.
+     */
+    public static function clearUserSettingsCache(?int $userId = null): void
+    {
+        if ($userId !== null) {
+            unset(self::$userSettingsCache[(int)$userId]);
+        } else {
+            self::$userSettingsCache = [];
+        }
+    }
+
+    /**
      * Get user settings including messages_per_page
      */
     public function getUserSettings($userId)
     {
         if (!$userId) {
             return ['messages_per_page' => 25]; // Default fallback
+        }
+
+        $userId = (int)$userId;
+        if (isset(self::$userSettingsCache[$userId])) {
+            return self::$userSettingsCache[$userId];
         }
 
         $stmt = $this->db->prepare("SELECT * FROM user_settings WHERE user_id = ?");
@@ -3757,7 +3926,7 @@ class MessageHandler
             ");
             $insertStmt->execute([$userId]);
 
-            return [
+            $settings = [
                 'messages_per_page' => 25,
                 'threaded_view' => false,
                 'netmail_threaded_view' => false,
@@ -3767,14 +3936,27 @@ class MessageHandler
                 'date_format' => 'en-US',
                 'locale' => 'en',
                 'signature_text' => '',
-                'default_tagline' => ''
+                'default_tagline' => '',
+                'date_display_style' => 'system_choice',
+                'echomail_date_field' => 'system_choice'
             ];
+            self::$userSettingsCache[$userId] = $settings;
+            return $settings;
         }
 
         if (empty($settings['locale'])) {
             $settings['locale'] = 'en';
         }
 
+        if (empty($settings['date_display_style'])) {
+            $settings['date_display_style'] = 'system_choice';
+        }
+
+        if (empty($settings['echomail_date_field'])) {
+            $settings['echomail_date_field'] = 'system_choice';
+        }
+
+        self::$userSettingsCache[$userId] = $settings;
         return $settings;
     }
 
@@ -3786,6 +3968,8 @@ class MessageHandler
         if (!$userId || empty($settings)) {
             return false;
         }
+
+        $userId = (int)$userId;
 
         $allowedSettings = [
             'messages_per_page' => 'INTEGER',
@@ -3803,6 +3987,8 @@ class MessageHandler
             'quote_coloring' => 'BOOLEAN',
             'remember_page_position' => 'BOOLEAN',
             'date_format' => 'STRING',
+            'date_display_style' => 'DATE_DISPLAY_STYLE',
+            'echomail_date_field' => 'ECHOMAIL_DATE_FIELD',
             'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
             'default_tagline' => 'TAGLINE',
@@ -3861,6 +4047,14 @@ class MessageHandler
                     }
                     $params[] = $locale;
                     break;
+                case 'DATE_DISPLAY_STYLE':
+                    $style = trim((string)$value);
+                    $params[] = in_array($style, ['system_choice', 'relative', 'date'], true) ? $style : 'system_choice';
+                    break;
+                case 'ECHOMAIL_DATE_FIELD':
+                    $field = trim((string)$value);
+                    $params[] = in_array($field, ['system_choice', 'received', 'written'], true) ? $field : 'system_choice';
+                    break;
                 case 'DIGEST_FREQUENCY':
                     $freq = trim((string)$value);
                     $params[] = in_array($freq, ['none', 'daily', 'weekly'], true) ? $freq : 'none';
@@ -3896,7 +4090,11 @@ class MessageHandler
         $sql = "UPDATE user_settings SET " . implode(', ', $updates) . " WHERE user_id = ?";
         $stmt = $this->db->prepare($sql);
         
-        return $stmt->execute($params);
+        $success = $stmt->execute($params);
+        if ($success) {
+            unset(self::$userSettingsCache[$userId]);
+        }
+        return $success;
     }
 
     /**
@@ -5822,7 +6020,7 @@ class MessageHandler
 
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -5878,20 +6076,21 @@ class MessageHandler
         $allMessages = $pageMessages;
         
         // Build threading relationships
-        $threads = $this->buildMessageThreads($allMessages);
-        
+        $dateField = $this->getEchomailDateField($userId);
+        $threads = $this->buildMessageThreads($allMessages, $dateField);
+
         // Debug: log thread info
         //error_log("DEBUG: Built " . count($threads) . " threads from " . count($allMessages) . " messages");
-        
+
         // Sort threads according to the requested sort order
-        usort($threads, function($a, $b) use ($sort) {
+        usort($threads, function($a, $b) use ($sort, $dateField) {
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
+                'date_asc' => $this->getThreadSortTimestamp($a, $dateField) - $this->getThreadSortTimestamp($b, $dateField),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
+                default    => $this->getThreadSortTimestamp($b, $dateField) - $this->getThreadSortTimestamp($a, $dateField),
             };
         });
 
@@ -6058,7 +6257,7 @@ class MessageHandler
 
         // Get root messages for the current page
         $rootOffset = ($page - 1) * $limit;
-        $dateField = $this->getEchomailDateField();
+        $dateField = $this->getEchomailDateField($userId);
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -6137,17 +6336,18 @@ class MessageHandler
         $allMessages = $this->loadThreadChildren($rootMessages, $userId);
 
         // Build threading relationships
-        $threads = $this->buildMessageThreads($allMessages);
+        $dateField = $this->getEchomailDateField($userId);
+        $threads = $this->buildMessageThreads($allMessages, $dateField);
 
         // Sort threads according to the requested sort order
-        usort($threads, function($a, $b) use ($sort) {
+        usort($threads, function($a, $b) use ($sort, $dateField) {
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
+                'date_asc' => $this->getThreadSortTimestamp($a, $dateField) - $this->getThreadSortTimestamp($b, $dateField),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
+                default    => $this->getThreadSortTimestamp($b, $dateField) - $this->getThreadSortTimestamp($a, $dateField),
             };
         });
 
@@ -6298,7 +6498,7 @@ class MessageHandler
         }
 
         $allMessages = $this->loadThreadChildren($rootMessages, $userId);
-        $threads = $this->buildMessageThreads($allMessages);
+        $threads = $this->buildMessageThreads($allMessages, $this->getEchomailDateField($userId));
         $messages = $this->flattenThreadsForDisplay($threads);
 
         $cleanMessages = [];
@@ -6375,7 +6575,7 @@ class MessageHandler
     /**
      * Build message threads using reply_to_id relationships
      */
-    private function buildMessageThreads($messages)
+    private function buildMessageThreads($messages, string $dateField)
     {
         $messagesById = [];
         $messagesByParentId = [];
@@ -6400,7 +6600,7 @@ class MessageHandler
         // Build thread trees
         $threads = [];
         foreach ($rootMessages as $root) {
-            $thread = $this->buildThreadTree($root, $messagesByParentId);
+            $thread = $this->buildThreadTree($root, $messagesByParentId, $dateField);
             $threads[] = $thread;
         }
 
@@ -6409,7 +6609,7 @@ class MessageHandler
             if (!isset($messagesById[$parentId])) {
                 // Parent not found in result set, treat each orphaned reply as a separate thread
                 foreach ($replies as $orphan) {
-                    $thread = $this->buildThreadTree($orphan, $messagesByParentId);
+                    $thread = $this->buildThreadTree($orphan, $messagesByParentId, $dateField);
                     $threads[] = $thread;
                 }
             }
@@ -6417,11 +6617,11 @@ class MessageHandler
 
         return $threads;
     }
-    
+
     /**
      * Recursively build a thread tree
      */
-    private function buildThreadTree($message, $messagesByParentId)
+    private function buildThreadTree($message, $messagesByParentId, string $dateField)
     {
         $messageId = $message['id'];
         $thread = [
@@ -6431,12 +6631,12 @@ class MessageHandler
 
         if (isset($messagesByParentId[$messageId])) {
             foreach ($messagesByParentId[$messageId] as $reply) {
-                $thread['replies'][] = $this->buildThreadTree($reply, $messagesByParentId);
+                $thread['replies'][] = $this->buildThreadTree($reply, $messagesByParentId, $dateField);
             }
 
             // Sort replies by date
-            usort($thread['replies'], function($a, $b) {
-                return $this->getMessageDateTimestamp($a['message']) - $this->getMessageDateTimestamp($b['message']);
+            usort($thread['replies'], function($a, $b) use ($dateField) {
+                return $this->getMessageDateTimestamp($a['message'], $dateField) - $this->getMessageDateTimestamp($b['message'], $dateField);
             });
         }
 
@@ -6476,23 +6676,22 @@ class MessageHandler
     /**
      * Get the latest message in a thread (recursively)
      */
-    private function getLatestMessageInThread($thread)
+    private function getLatestMessageInThread($thread, string $dateField)
     {
         $latest = $thread['message'];
-        
+
         foreach ($thread['replies'] as $reply) {
-            $replyLatest = $this->getLatestMessageInThread($reply);
-            if ($this->getMessageDateTimestamp($replyLatest) > $this->getMessageDateTimestamp($latest)) {
+            $replyLatest = $this->getLatestMessageInThread($reply, $dateField);
+            if ($this->getMessageDateTimestamp($replyLatest, $dateField) > $this->getMessageDateTimestamp($latest, $dateField)) {
                 $latest = $replyLatest;
             }
         }
-        
+
         return $latest;
     }
 
-    private function getMessageDateTimestamp(array $message): int
+    private function getMessageDateTimestamp(array $message, string $dateField): int
     {
-        $dateField = $this->getEchomailDateField();
         $primary = (string)($message[$dateField] ?? '');
         $fallbackField = ($dateField === 'date_written') ? 'date_received' : 'date_written';
         $fallback = (string)($message[$fallbackField] ?? '');
@@ -6504,9 +6703,9 @@ class MessageHandler
         return ($ts === false) ? 0 : $ts;
     }
 
-    private function getThreadSortTimestamp(array $thread): int
+    private function getThreadSortTimestamp(array $thread, string $dateField): int
     {
-        return $this->getMessageDateTimestamp($this->getLatestMessageInThread($thread));
+        return $this->getMessageDateTimestamp($this->getLatestMessageInThread($thread, $dateField), $dateField);
     }
     
     /**
@@ -6621,17 +6820,18 @@ class MessageHandler
         $allMessages = $stmt->fetchAll();
         
         // Build threading relationships
-        $threads = $this->buildMessageThreads($allMessages);
-        
+        $dateField = $this->getEchomailDateField($userId);
+        $threads = $this->buildMessageThreads($allMessages, $dateField);
+
         // Sort threads according to the requested sort order
-        usort($threads, function($a, $b) use ($sort) {
+        usort($threads, function($a, $b) use ($sort, $dateField) {
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
+                'date_asc' => $this->getThreadSortTimestamp($a, $dateField) - $this->getThreadSortTimestamp($b, $dateField),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
+                default    => $this->getThreadSortTimestamp($b, $dateField) - $this->getThreadSortTimestamp($a, $dateField),
             };
         });
         
@@ -6747,7 +6947,7 @@ class MessageHandler
         }
 
         $allMessages = $this->loadNetmailThreadChildren($rootMessages, $userId);
-        $threads = $this->buildMessageThreads($allMessages);
+        $threads = $this->buildMessageThreads($allMessages, $this->getEchomailDateField($userId));
         $messages = $this->flattenThreadsForDisplay($threads);
 
         $cleanMessages = [];

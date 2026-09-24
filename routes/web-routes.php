@@ -618,9 +618,8 @@ SimpleRouter::get('/echomail', function() {
         }
     }
 
-    $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $isAdmin = !empty($user['is_admin']);
-    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $echoDateOrder = MessageHandler::resolveEchomailDateField($userId);
     $bbsConfig = BbsConfig::getConfig();
     $aiAssistantEnabled = !empty($bbsConfig['ai_assistant']['enabled']);
     $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);
@@ -670,9 +669,8 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     if (strpos($echoarea, '@') !== false) {
         [$echoarea, $domain] = explode('@', $echoarea, 2);
     }
-    $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
-    $isAdmin = !empty($user['is_admin']);
-    $echoDateOrder = ($isAdmin && in_array($echoDateOrderRaw, ['written', 'date_written'], true)) ? 'written' : 'received';
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $echoDateOrder = MessageHandler::resolveEchomailDateField($userId);
     $bbsConfig = BbsConfig::getConfig();
     $aiAssistantEnabled    = !empty($bbsConfig['ai_assistant']['enabled']);
     $aiShareSummaryEnabled = !empty($bbsConfig['ai_assistant']['share_summary_enabled']);

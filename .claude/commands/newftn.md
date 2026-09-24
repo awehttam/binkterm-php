@@ -44,10 +44,10 @@ Ask: **"Proceed? (y/n)"** — do not continue until the developer confirms.
 Run the migration generator:
 
 ```bash
-php scripts/migration.php create "upsert_<domain>_ftn_network" php
+php scripts/migration.php create "insert_<domain>_ftn_network" php
 ```
 
-This produces a file such as `database/migrations/vYYYYMMDDHHMMSS_upsert_<domain>_ftn_network.php`.
+This produces a file such as `database/migrations/vYYYYMMDDHHMMSS_insert_<domain>_ftn_network.php`.
 
 ## Step 4: Write the migration body
 
@@ -55,12 +55,16 @@ Replace the generated stub with:
 
 ```php
 <?php
-// Migration: <timestamp> - upsert <domain> ftn network
+// Migration: <timestamp> - insert <domain> ftn network
 // Created: <date> UTC
 
 return function (\PDO $db): bool {
     $nm = new \BinktermPHP\NetworkManager($db);
     $existing = $nm->getByDomain('<domain>');
+    if ($existing) {
+        echo "Network already exists, skipping: <name> (<domain>)\n";
+        return true;
+    }
     $data = [
         'domain'              => '<domain>',
         'name'                => '<name>',
@@ -70,16 +74,13 @@ return function (\PDO $db): bool {
         'posting_name_policy' => '<username|real_name>',
         'default_charset'     => '<charset>',
     ];
-    if ($existing) {
-        $nm->update((int)$existing['id'], $data);
-        echo "Updated existing network: <name> (<domain>)\n";
-    } else {
-        $nm->create($data);
-        echo "Created new network: <name> (<domain>)\n";
-    }
+    $nm->create($data);
+    echo "Created new network: <name> (<domain>)\n";
     return true;
 };
 ```
+
+Existing domains are never modified by this migration — it only inserts networks that don't already exist.
 
 Substitute all `<placeholders>` with the confirmed values.
 For `website`: use a PHP string `'https://...'` when provided, or `null` when omitted.

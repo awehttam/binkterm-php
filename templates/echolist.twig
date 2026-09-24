@@ -710,8 +710,24 @@ function searchMessages() {
         return;
     }
 
+    // Carry the selected network/interest filters along so the search is scoped
+    // the same way the area list on this page is scoped, instead of searching everything.
+    const selectedNets = $('#networkDropdown .network-cb:checked').map(function() { return this.value; }).get();
+    const selectedInterests = $('#interestDropdown .interest-cb:checked').map(function() { return this.value; }).get();
+
+    const params = new URLSearchParams();
+    params.set('search', query);
+    if (selectedNets.length > 0) {
+        params.set('network', selectedNets.join(','));
+    }
+    if (selectedInterests.length > 0) {
+        // Plural 'interests' to avoid colliding with the existing singular
+        // 'interest' param, which selects a single interest browse mode by slug/id.
+        params.set('interests', selectedInterests.join(','));
+    }
+
     // Redirect to echomail page with search query
-    window.location.href = '/echomail?search=' + encodeURIComponent(query);
+    window.location.href = '/echomail?' + params.toString();
 }
 
 function loadStatistics() {
@@ -727,12 +743,35 @@ function loadStatistics() {
 function formatDate(dateStr) {
     if (!dateStr) return uiT('ui.echolist.time.never', 'Never');
 
+    const displayStyle = window.userSettings?.effective_date_display_style || window.userSettings?.date_display_style;
+    if (displayStyle === 'date' && typeof window.formatFullDate === 'function') {
+        return window.formatFullDate(dateStr);
+    }
+
     // Parse the date - if no timezone info, assume UTC
     let date = new Date(dateStr);
 
     // If the date string doesn't contain 'Z' or timezone offset, treat it as UTC
     if (!dateStr.includes('Z') && !dateStr.match(/[+-]\d{2}:\d{2}$/)) {
         date = new Date(dateStr + 'Z');
+    }
+
+    if (Number.isNaN(date.getTime())) {
+        return '-';
+    }
+
+    const userDateFormat = window.userSettings?.date_format || 'en-US';
+    if (displayStyle === 'date') {
+        const userTimezone = window.userSettings?.timezone || 'America/Los_Angeles';
+        return date.toLocaleString(userDateFormat, {
+            timeZone: userTimezone,
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
     }
 
     const now = new Date();
@@ -748,7 +787,7 @@ function formatDate(dateStr) {
     if (diff < 86400) return uiT('ui.echolist.time.hours_ago', '{count}h ago', { count: Math.floor(diff / 3600) });
     if (diff < 2592000) return uiT('ui.echolist.time.days_ago', '{count}d ago', { count: Math.floor(diff / 86400) });
 
-    return date.toLocaleDateString();
+    return date.toLocaleDateString(userDateFormat);
 }
 </script>
 {% endblock %}
