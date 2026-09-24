@@ -4943,6 +4943,7 @@ return [
     'ui.admin.areafix.status_reactivate' => 'Реактивировать',
     'ui.admin.areafix.status_deactivate' => 'Деактивировать',
     'ui.admin.areafix.status_unchanged' => 'Без изменений',
+    'ui.admin.areafix.hub_description_differs' => 'Хаб указывает: "{desc}"',
     'ui.admin.areafix.btn_confirm_apply' => 'Подтвердить и применить',
 
     // LovlyNet admin page

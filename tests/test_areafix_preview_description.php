@@ -92,6 +92,22 @@ try {
         'An existing non-placeholder description is never flagged for change, even if the hub sends a different one',
         'Got: ' . var_export($item, true)
     );
+    assertCondition(
+        $item && $item['description_differs'] === true,
+        'The mismatch is still surfaced via description_differs, even though it will not be applied',
+        'Got: ' . var_export($item, true)
+    );
+
+    // Same area, but the hub's reply happens to match the local description
+    // exactly — description_differs must not fire on a non-difference.
+    $previewSame = $af->previewSync(TEST_UPLINK, TEST_DOMAIN, [
+        ['name' => 'PDT_REAL_DESC', 'description' => 'Sysop-curated description', 'action' => AreaFixParser::ACTION_SUBSCRIBE, 'is_subscribed' => true],
+    ], false, 'areafix');
+    $itemSame = current(array_filter($previewSame, fn($a) => $a['name'] === 'PDT_REAL_DESC'));
+    assertCondition(
+        $itemSame && $itemSame['description_will_change'] === false && $itemSame['description_differs'] === false,
+        'description_differs is false when the hub\'s description matches the local one exactly'
+    );
 
     // --------------------------------------------------------------------------
     // Test 3: Existing area with a placeholder description — the hub's real
@@ -110,6 +126,11 @@ try {
         $item && $item['status'] === 'unchanged' && $item['description_will_change'] === true
             && $item['current_description'] === 'Auto-created from TIC file',
         'A placeholder description is flagged for change even though activation status is unchanged',
+        'Got: ' . var_export($item, true)
+    );
+    assertCondition(
+        $item && $item['description_differs'] === false,
+        'description_differs stays false when description_will_change is already true (no redundant/conflicting signal)',
         'Got: ' . var_export($item, true)
     );
 

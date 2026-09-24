@@ -620,7 +620,15 @@
         // No description change will be applied — show what will remain locally
         // (a real, sysop-set description is never overwritten by the hub's reply).
         var shown = (current !== null && current !== undefined && current !== '') ? current : incoming;
-        return escapeHtml(shown || '');
+        var html = escapeHtml(shown || '');
+
+        if (a.description_differs && incoming) {
+            html += '<div class="text-muted small fst-italic">' +
+                escapeHtml(window.t('ui.admin.areafix.hub_description_differs', { desc: incoming }, 'Hub lists: "' + incoming + '"')) +
+                '</div>';
+        }
+
+        return html;
     }
 
     function renderPreviewBody(areas) {

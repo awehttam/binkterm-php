@@ -588,6 +588,7 @@ When `message_id` is omitted, the newest actionable incoming reply is used (the 
 | `areas[].currently_active` | boolean | Whether the area is currently active locally, before any sync is applied |
 | `areas[].current_description` | string\|null | The area's current local description, before any sync is applied (`null` if the area doesn't exist locally yet) |
 | `areas[].description_will_change` | boolean | Whether applying the sync would update the local description. True for a new area with a non-empty description, or an existing area whose current description is a placeholder (see `AreaFixManager::isPlaceholderDescription()`) and the incoming one is not. Always false when `status` is `"deactivate"`, since unsubscribing never touches the description. |
+| `areas[].description_differs` | boolean | True when the hub's description differs from the current local one but `description_will_change` is false (the local description is a real, non-placeholder value and will not be overwritten). Lets the UI surface the mismatch for the sysop to review, without implying the sync will change anything. Always false when `description_will_change` is true, and always false for a new area. |
 | `areas_count` | integer | Number of areas in the diff |
 | `from` | string | Sender name or address of the reply message |
 | `date` | string\|null | Timestamp the reply was received or written |

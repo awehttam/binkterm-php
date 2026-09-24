@@ -4898,6 +4898,7 @@ Dies ist eine **eigene Splash-Nachricht**.',
     'ui.admin.areafix.status_reactivate' => 'Reaktivieren',
     'ui.admin.areafix.status_deactivate' => 'Deaktivieren',
     'ui.admin.areafix.status_unchanged' => 'Unverändert',
+    'ui.admin.areafix.hub_description_differs' => 'Hub listet: "{desc}"',
     'ui.admin.areafix.btn_confirm_apply' => 'Bestätigen & Anwenden',
 
     // LovlyNet admin page

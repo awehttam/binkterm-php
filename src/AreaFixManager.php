@@ -370,12 +370,18 @@ class AreaFixManager
      * the incoming one is not — an area can therefore be "unchanged" in
      * activation state while still having its description filled in.
      *
+     * When the description won't be overwritten (the local one is a real,
+     * non-placeholder value) but the hub's reply lists a different one,
+     * `description_differs` is true so the sysop can still see the mismatch
+     * and decide whether to update it manually — the sync itself will never
+     * touch it.
+     *
      * @param string $uplinkAddress     FTN address of the uplink hub
      * @param string $domain            Network domain (e.g. "fidonet")
      * @param array<int, array{name: string, description: string|null, action?: string, is_subscribed?: bool}> $parsedAreas
      * @param bool   $deactivateMissing If true, also list locally-active areas missing from the parsed list as deactivation candidates
      * @param string $robot             "areafix" or "filefix"
-     * @return array<int, array{name: string, description: string|null, action: string, is_subscribed: bool, status: string, currently_active: bool, current_description: string|null, description_will_change: bool}>
+     * @return array<int, array{name: string, description: string|null, action: string, is_subscribed: bool, status: string, currently_active: bool, current_description: string|null, description_will_change: bool, description_differs: bool}>
      */
     public function previewSync(
         string $uplinkAddress,
@@ -407,6 +413,8 @@ class AreaFixManager
             $currentlyActive = $existing ? (bool)$existing['is_active'] : false;
             $currentDescription = $existing['description'] ?? null;
 
+            $descriptionDiffers = false;
+
             if ($action === AreaFixParser::ACTION_UNSUBSCRIBE) {
                 $status = $currentlyActive ? 'deactivate' : 'unchanged';
                 $descriptionWillChange = false;
@@ -418,6 +426,18 @@ class AreaFixManager
                 $descriptionWillChange = $description !== null
                     && !self::isPlaceholderDescription($description)
                     && self::isPlaceholderDescription($currentDescription);
+
+                // Even when the local description won't be overwritten (it's a
+                // real, non-placeholder value), the sysop should still be told
+                // the hub's reply lists a different one, so they can decide
+                // whether to update it manually.
+                if (!$descriptionWillChange) {
+                    $normalizedIncoming = $description !== null ? trim($description) : '';
+                    $normalizedCurrent = $currentDescription !== null ? trim($currentDescription) : '';
+                    $descriptionDiffers = $normalizedIncoming !== ''
+                        && $normalizedCurrent !== ''
+                        && $normalizedIncoming !== $normalizedCurrent;
+                }
             }
 
             $items[] = [
@@ -429,6 +449,7 @@ class AreaFixManager
                 'currently_active'        => $currentlyActive,
                 'current_description'     => $currentDescription,
                 'description_will_change' => $descriptionWillChange,
+                'description_differs'     => $descriptionDiffers,
             ];
         }
 
@@ -458,6 +479,7 @@ class AreaFixManager
                     'currently_active'        => true,
                     'current_description'     => $row['description'] ?? null,
                     'description_will_change' => false,
+                    'description_differs'     => false,
                 ];
             }
         }
