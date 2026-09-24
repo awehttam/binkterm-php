@@ -4900,6 +4900,7 @@ return [
     'ui.admin.areafix.status_reactivate' => 'Riattiva',
     'ui.admin.areafix.status_deactivate' => 'Disattiva',
     'ui.admin.areafix.status_unchanged' => 'Invariata',
+    'ui.admin.areafix.status_updated' => 'Aggiornata',
     'ui.admin.areafix.hub_description_differs' => 'L\'hub indica: "{desc}"',
     'ui.admin.areafix.select_all' => 'Seleziona tutto',
     'ui.admin.areafix.select_none' => 'Deseleziona tutto',

@@ -4664,6 +4664,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.admin.areafix.status_reactivate' => 'Réactiver',
     'ui.admin.areafix.status_deactivate' => 'Désactiver',
     'ui.admin.areafix.status_unchanged' => 'Inchangée',
+    'ui.admin.areafix.status_updated' => 'Mise à jour',
     'ui.admin.areafix.hub_description_differs' => 'Le hub indique : "{desc}"',
     'ui.admin.areafix.select_all' => 'Tout sélectionner',
     'ui.admin.areafix.select_none' => 'Tout désélectionner',

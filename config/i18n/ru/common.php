@@ -4943,6 +4943,7 @@ return [
     'ui.admin.areafix.status_reactivate' => 'Реактивировать',
     'ui.admin.areafix.status_deactivate' => 'Деактивировать',
     'ui.admin.areafix.status_unchanged' => 'Без изменений',
+    'ui.admin.areafix.status_updated' => 'Обновлено',
     'ui.admin.areafix.hub_description_differs' => 'Хаб указывает: "{desc}"',
     'ui.admin.areafix.select_all' => 'Выбрать всё',
     'ui.admin.areafix.select_none' => 'Снять выбор',

@@ -605,11 +605,23 @@
         'new':        { key: 'ui.admin.areafix.status_new',        fallback: 'New',        badge: 'bg-success' },
         'reactivate': { key: 'ui.admin.areafix.status_reactivate', fallback: 'Reactivate', badge: 'bg-primary' },
         'deactivate': { key: 'ui.admin.areafix.status_deactivate', fallback: 'Deactivate', badge: 'bg-danger' },
-        'unchanged':  { key: 'ui.admin.areafix.status_unchanged',  fallback: 'Unchanged',  badge: 'bg-secondary' }
+        'unchanged':  { key: 'ui.admin.areafix.status_unchanged',  fallback: 'Unchanged',  badge: 'bg-secondary' },
+        'updated':    { key: 'ui.admin.areafix.status_updated',    fallback: 'Updated',    badge: 'bg-info text-dark' }
     };
 
-    function statusBadge(status) {
-        var s = STATUS_LABELS[status] || STATUS_LABELS.unchanged;
+    // An area whose activation state is otherwise unchanged but whose
+    // description differs from the hub's (whether that difference would be
+    // applied automatically, or only if the sysop selects it) is shown as
+    // "Updated" rather than "Unchanged", since something about it did differ.
+    function displayStatus(a) {
+        if (a.status === 'unchanged' && (a.description_will_change || a.description_differs)) {
+            return 'updated';
+        }
+        return a.status;
+    }
+
+    function statusBadge(a) {
+        var s = STATUS_LABELS[displayStatus(a)] || STATUS_LABELS.unchanged;
         var label = window.t(s.key, {}, s.fallback);
         return '<span class="badge ' + s.badge + '">' + escapeHtml(label) + '</span>';
     }
@@ -639,13 +651,15 @@
         return html;
     }
 
-    // A row defaults to unchecked only when nothing would happen to its
-    // activation state AND applying it would silently overwrite a real,
-    // sysop-set description the sysop hasn't asked to change — everything
-    // else (new/reactivate/deactivate, or a placeholder being filled in)
-    // defaults to checked, matching the previous always-apply behavior.
+    // A row defaults to unchecked whenever nothing would actually happen to
+    // it: activation state is unchanged AND no description update would be
+    // applied (whether there's no difference at all, or the difference is
+    // one the automatic placeholder-only protection would otherwise skip).
+    // Everything that would do something — new/reactivate/deactivate, or a
+    // description that will actually be filled in or updated — defaults to
+    // checked, matching the previous always-apply behavior.
     function defaultAreafixRowChecked(a) {
-        return !(a.status === 'unchanged' && a.description_differs && !a.description_will_change);
+        return !(a.status === 'unchanged' && !a.description_will_change);
     }
 
     function renderPreviewBody(areas) {
@@ -676,7 +690,7 @@
                     ' onchange="toggleAreafixPreviewRow(' + i + ', this.checked)"></td>' +
                 '<td class="font-monospace">' + escapeHtml(a.name || '') + '</td>' +
                 '<td class="small">' + descriptionCell(a) + '</td>' +
-                '<td>' + statusBadge(a.status) + '</td>' +
+                '<td>' + statusBadge(a) + '</td>' +
                 '</tr>';
         });
 

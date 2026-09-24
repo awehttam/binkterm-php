@@ -4937,6 +4937,7 @@ return [
     'ui.admin.areafix.status_reactivate' => 'Reactivate',
     'ui.admin.areafix.status_deactivate' => 'Deactivate',
     'ui.admin.areafix.status_unchanged' => 'Unchanged',
+    'ui.admin.areafix.status_updated' => 'Updated',
     'ui.admin.areafix.hub_description_differs' => 'Hub lists: "{desc}"',
     'ui.admin.areafix.select_all' => 'Select All',
     'ui.admin.areafix.select_none' => 'Select None',
