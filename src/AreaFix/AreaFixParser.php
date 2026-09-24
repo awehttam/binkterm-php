@@ -139,6 +139,10 @@ class AreaFixParser
      *     TAG1                                Description 1
      *     TAG2                                Description 2
      *
+     * %QUERY in particular can list both linked and unlinked areas in one
+     * block; a row annotated "(linked)"/"(unlinked)"/"(not linked)" is
+     * classified by that annotation rather than by the command name.
+     *
      * @return array<int, array{name: string, description: ?string, action: string, is_subscribed: bool}>|null
      */
     private function parseMysticBlocks(string $body): ?array
@@ -240,12 +244,28 @@ class AreaFixParser
                             $tag = strtoupper(trim($rowMatch[1]));
                             $desc = trim($rowMatch[2]);
                             if (self::isValidTag($tag)) {
-                                $action = $isLinkedCmd ? self::ACTION_SUBSCRIBE : self::ACTION_AVAILABLE;
+                                // A command like %QUERY can list both linked and
+                                // unlinked areas in one block. If this specific row
+                                // carries its own "(linked)"/"(unlinked)" annotation,
+                                // trust that over the command-level default; otherwise
+                                // fall back to the command default (correct for a
+                                // %LINKED-only listing, where every row is linked by
+                                // definition).
+                                $rowIsLinked = $isLinkedCmd;
+                                if (preg_match('/\(\s*(?:not\s+linked|unlinked)\s*\)\s*$/i', $desc)) {
+                                    $rowIsLinked = false;
+                                    $desc = trim(preg_replace('/\(\s*(?:not\s+linked|unlinked)\s*\)\s*$/i', '', $desc));
+                                } elseif (preg_match('/\(\s*linked\s*\)\s*$/i', $desc)) {
+                                    $rowIsLinked = true;
+                                    $desc = trim(preg_replace('/\(\s*linked\s*\)\s*$/i', '', $desc));
+                                }
+
+                                $action = $rowIsLinked ? self::ACTION_SUBSCRIBE : self::ACTION_AVAILABLE;
                                 $areas[] = [
                                     'name'          => $tag,
                                     'description'   => $desc !== '' ? $desc : null,
                                     'action'        => $action,
-                                    'is_subscribed' => $isLinkedCmd,
+                                    'is_subscribed' => $rowIsLinked,
                                 ];
                             }
                         } elseif ($dataTrim !== '' && !preg_match('/^[ ]{2,}|\t+/', $dataLine)) {

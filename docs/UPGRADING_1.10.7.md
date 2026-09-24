@@ -74,6 +74,8 @@ AreaFix and FileFix replies from a hub are parsed by matching the actual layout 
 
 Because this approach recognizes real structure instead of matching words, an echo area named the same as an ordinary English word or a common piece of software (`LINUX`, `WINDOWS`, `BASE`, and similar) is preserved correctly instead of being mistaken for a header, a help topic, or unrelated prose.
 
+A Mystic BBS/MBSE `%QUERY` reply that lists both linked and unlinked areas in a single block, with individual rows explicitly annotated `(linked)`, `(unlinked)`, or `(not linked)`, now honors each row's own annotation instead of marking every row in the block the same way.
+
 ### Mandatory Preview Before Syncing Areas
 
 Previously, clicking "Sync Areas to Local BBS" on the AreaFix / FileFix Manager page applied the parsed area list to your local echo areas or file areas immediately. It now shows a preview first, listing every area found in the reply along with what will happen to it — created new, reactivated, deactivated, or left unchanged — and requires an explicit confirmation before anything is written to the database. This preview is also available per-message: each incoming reply in the Message History table now has its own sync button, so you can review and apply an older reply without it needing to still be the most recent one.

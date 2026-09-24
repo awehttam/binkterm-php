@@ -283,9 +283,60 @@ assertCondition(
 );
 
 // --------------------------------------------------------------------------
-// Test 8: Live Database Replay against Netmail Records
+// Test 8: %QUERY block mixing linked and unlinked areas (row-level status)
 // --------------------------------------------------------------------------
-echo "\n8. Testing against live database records in Netmail table:\n";
+echo "\n8. Testing %QUERY block with mixed linked/unlinked row annotations:\n";
+
+$mixedQuery = <<<BODY
+Your AREAFIX request has been processed
+
+Command: %QUERY
+ Result: List of all linked and unlinked areas:
+  SYS_GEN                                  SysOp General Chat (linked)
+  SYS_ADMN                                 SysOpNet Administration
+  SYS_ARCHIVE                              Archived Discussions (unlinked)
+  SYS_TST                                  Test Message Area (not linked)
+BODY;
+
+$mixedAreas = $parser->parse($mixedQuery);
+assertCondition(
+    count($mixedAreas) === 4,
+    'Extracts all 4 areas from a mixed %QUERY block',
+    'Found count: ' . count($mixedAreas)
+);
+
+$sysGen = current(array_filter($mixedAreas, fn($a) => $a['name'] === 'SYS_GEN'));
+assertCondition(
+    $sysGen && $sysGen['action'] === AreaFixParser::ACTION_SUBSCRIBE && $sysGen['is_subscribed'] === true
+        && $sysGen['description'] === 'SysOp General Chat',
+    'A row explicitly annotated "(linked)" is ACTION_SUBSCRIBE, with the annotation stripped from the description',
+    'Got: ' . var_export($sysGen, true)
+);
+
+$sysAdmn = current(array_filter($mixedAreas, fn($a) => $a['name'] === 'SYS_ADMN'));
+assertCondition(
+    $sysAdmn && $sysAdmn['action'] === AreaFixParser::ACTION_SUBSCRIBE && $sysAdmn['is_subscribed'] === true,
+    'A row with no annotation falls back to the %QUERY command-level default (ACTION_SUBSCRIBE)'
+);
+
+$sysArchive = current(array_filter($mixedAreas, fn($a) => $a['name'] === 'SYS_ARCHIVE'));
+assertCondition(
+    $sysArchive && $sysArchive['action'] === AreaFixParser::ACTION_AVAILABLE && $sysArchive['is_subscribed'] === false
+        && $sysArchive['description'] === 'Archived Discussions',
+    'A row explicitly annotated "(unlinked)" is ACTION_AVAILABLE despite the %QUERY command-level default, and the annotation is stripped from the description',
+    'Got: ' . var_export($sysArchive, true)
+);
+
+$sysTst = current(array_filter($mixedAreas, fn($a) => $a['name'] === 'SYS_TST'));
+assertCondition(
+    $sysTst && $sysTst['action'] === AreaFixParser::ACTION_AVAILABLE && $sysTst['is_subscribed'] === false,
+    'A row explicitly annotated "(not linked)" is also treated as unlinked'
+);
+
+// --------------------------------------------------------------------------
+// Test 9: Live Database Replay against Netmail Records
+// --------------------------------------------------------------------------
+echo "\n9. Testing against live database records in Netmail table:\n";
 
 try {
     $db = \BinktermPHP\Database::getInstance()->getPdo();

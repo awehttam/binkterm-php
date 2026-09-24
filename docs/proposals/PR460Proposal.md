@@ -186,6 +186,10 @@ new feature.
 
 ## Proposed Improvement 3: Row-Level Status for %QUERY/%LINKED Blocks
 
+> **Status: Implemented.** See `src/AreaFix/AreaFixParser.php`
+> (`parseMysticBlocks()`) and Test 8 in
+> `tests/test_structural_areafix_parser.php`.
+
 Extend `parseMysticBlocks()` so that indented rows under a `%QUERY`/`%LINKED`/
 `%LINK`/`%UNLINKED`/`%LIST`/`%AVAIL` result block are classified the same way
 the delimited-table and columnar-table parsers already do: by inspecting each
@@ -196,6 +200,20 @@ carries no per-row status (true today for the `%LINKED`-only case, where every
 row *is* linked by definition), the current command-based classification is
 correct and should stay — the change is only needed for blocks whose rows
 can mix linked and unlinked entries (`%QUERY`).
+
+### Implementation Notes
+
+No captured real-world sample of a hub mixing linked and unlinked areas in a
+single `%QUERY` block was available, so the row-level signal implemented is a
+conservative, explicit annotation: a row ending in `(linked)`, `(unlinked)`,
+or `(not linked)` is classified by that annotation (with the annotation
+stripped from the stored description), overriding the command-level default.
+A row with no such annotation still falls back to the command-level default
+exactly as before, so this is purely additive — no existing passing test
+(Mystic `%LIST`/`%LINKED` samples with no per-row markers) changed behavior.
+If a real hub reply using a different per-row marker convention for mixed
+`%QUERY` listings turns up, `parseMysticBlocks()`'s row-classification block is
+the place to extend.
 
 ## Proposed Improvement 4: Preview Screen Before Applying Changes
 
