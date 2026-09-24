@@ -651,15 +651,14 @@
         return html;
     }
 
-    // A row defaults to unchecked whenever nothing would actually happen to
-    // it: activation state is unchanged AND no description update would be
-    // applied (whether there's no difference at all, or the difference is
-    // one the automatic placeholder-only protection would otherwise skip).
-    // Everything that would do something — new/reactivate/deactivate, or a
-    // description that will actually be filled in or updated — defaults to
-    // checked, matching the previous always-apply behavior.
+    // A row defaults to unchecked only for a genuine no-op: activation state
+    // unchanged AND no description difference of any kind. Anything flagged
+    // "Updated" (a description difference, whether it would apply
+    // automatically or only via force_descriptions once selected) defaults
+    // checked right along with new/reactivate/deactivate — reviewing the
+    // preview shouldn't also require re-checking every row it flags.
     function defaultAreafixRowChecked(a) {
-        return !(a.status === 'unchanged' && !a.description_will_change);
+        return displayStatus(a) !== 'unchanged';
     }
 
     function renderPreviewBody(areas) {
