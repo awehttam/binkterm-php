@@ -17,6 +17,9 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
 - [AreaFix / FileFix](#areafix--filefix)
   - [Automatic Area Sync on Reply Now Opt-In](#automatic-area-sync-on-reply-now-opt-in)
+- [Web Doors](#web-doors)
+  - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
+  - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -45,6 +48,11 @@ Make sure you have a current backup of your database and files before upgrading.
 ### AreaFix / FileFix
 
 - **Automatic area sync on reply is now opt-in:** receiving an AreaFix/FileFix reply from a hub that looks like an area list no longer automatically creates or activates local echo areas / file areas by default. Set `AREAFIX_AUTOIMPORT_ENABLED=true` in `.env` to restore the previous automatic behavior.
+
+### Web Doors
+
+- **Longer browser caching for door assets:** icons and screenshots served from `/door-assets/` now use `Cache-Control: public, max-age=604800, stale-while-revalidate=86400` (up from a 24-hour max-age), plus ETag/Last-Modified conditional requests, so repeat visits reload door pages faster and generate less server load.
+- **RLogin door asset sizes stored in the database:** icon and screenshot byte sizes for RLogin doors are now stored alongside the image data instead of being recomputed on every request, reducing memory overhead when serving those assets.
 
 ### Security
 
@@ -142,6 +150,29 @@ If you relied on the previous automatic behavior — for example, to pick up new
 ```
 AREAFIX_AUTOIMPORT_ENABLED=true
 ```
+
+## Web Doors
+
+### Longer Browser Caching for Door Assets
+
+Door icons and screenshots served through `/door-assets/{doorid}/{asset}` — whether stored as files or as database blobs — now set:
+
+```
+Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+```
+
+- **`max-age=604800`** (7 days, up from 1 day) tells the browser it can reuse a cached copy of the asset for up to a week without re-checking with the server.
+- **`stale-while-revalidate=86400`** (1 day) lets the browser keep serving its cached copy for up to a day past that while it revalidates in the background, instead of blocking the page on a fresh request.
+
+Requests also now include an `ETag` (and, for filesystem-backed assets, a `Last-Modified` header), so once the 7-day cache does expire, the browser can send a conditional request and get a lightweight `304 Not Modified` response instead of re-downloading the asset if it hasn't changed.
+
+Door game listing pages also load door icons with `loading="lazy"`, so icons off-screen are not fetched until the user scrolls to them.
+
+If you update a door's icon or screenshot file, its changed modification time (or content hash, for database-stored assets) invalidates the old cached copy automatically.
+
+### RLogin Door Asset Sizes Stored in the Database
+
+RLogin doors store their icon and screenshot images as binary data directly in the `rlogin_doors` table, since these doors have no directory on disk. Their byte sizes are now stored in new `icon_size` and `screenshot_size` columns on that table, populated whenever an icon or screenshot is uploaded through **Admin -> RLogin Doors**. Existing icons and screenshots are backfilled automatically by the upgrade migration, so their sizes are recorded immediately without needing to re-upload anything.
 
 ## Security
 
