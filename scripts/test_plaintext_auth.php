@@ -58,10 +58,14 @@ function sendFrame($stream, $isCommand, $opcode, $data, $debug = false) {
     if ($debug) {
         $opcodeNames = [0 => 'M_NUL', 1 => 'M_ADR', 2 => 'M_PWD', 3 => 'M_FILE', 4 => 'M_OK', 5 => 'M_EOB', 6 => 'M_GOT', 7 => 'M_ERR'];
         $name = $opcodeNames[$opcode] ?? "CMD_{$opcode}";
-        $hex = bin2hex(substr($frame, 0, min(20, strlen($frame))));
-        $dataPreview = strlen($data) > 30 ? substr($data, 0, 30) . '...' : $data;
-        $lengthWithFlag = $isCommand ? (0x8000 | ($dataLen + 1)) : $dataLen;
-        echo "    → {$name}: length_with_flag=0x" . sprintf('%04X', $lengthWithFlag) . " opcode={$opcode} datalen={$dataLen} hex=[{$hex}...] data=\"{$dataPreview}\"\n";
+        if ($opcode === 2) {
+            echo "    → {$name}: opcode={$opcode} (contents redacted)\n";
+        } else {
+            $hex = bin2hex(substr($frame, 0, min(20, strlen($frame))));
+            $dataPreview = strlen($data) > 30 ? substr($data, 0, 30) . '...' : $data;
+            $lengthWithFlag = $isCommand ? (0x8000 | ($dataLen + 1)) : $dataLen;
+            echo "    → {$name}: length_with_flag=0x" . sprintf('%04X', $lengthWithFlag) . " opcode={$opcode} datalen={$dataLen} hex=[{$hex}...] data=\"{$dataPreview}\"\n";
+        }
     }
 
     $written = fwrite($stream, $frame);
@@ -220,7 +224,7 @@ try {
 
                 // Send plaintext M_PWD after receiving M_ADR
                 if (!$sentPwd) {
-                    log_msg("  Sending plaintext M_PWD (password_len=" . strlen($password) . ")...");
+                    log_msg("  Sending plaintext M_PWD (authentication response)...");
                     sendFrame($stream, true, 2, $password, true); // M_PWD with plaintext password
                     $sentPwd = true;
                 }

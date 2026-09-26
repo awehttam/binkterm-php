@@ -146,7 +146,8 @@ class BinkpSession
     public function setUplinkPassword($password)
     {
         $this->uplinkPassword = $password;
-        $this->log("setUplinkPassword: length=" . strlen($password), 'DEBUG');
+        // Do not log the password or its length.
+        $this->log("Uplink password configured", 'DEBUG');
     }
 
     /**
@@ -1005,7 +1006,7 @@ class BinkpSession
             if ($this->sessionLogger) {
                 $this->sessionLogger->setAuthMethod($this->authMethod);
             }
-            $this->log("Sending CRAM-MD5 digest", 'DEBUG');
+            $this->log("Sending CRAM-MD5 authentication response", 'DEBUG');
             $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $cramPassword);
         } else {
             // Plain text password. Send '-' for empty password to explicitly
@@ -1015,7 +1016,8 @@ class BinkpSession
                 $this->sessionLogger->setAuthMethod($this->authMethod);
             }
             $sendPwd = ($password === '') ? '-' : $password;
-            $this->log("Sent password (length=" . strlen($password) . ")", 'DEBUG');
+            // Do not log the password or its length.
+            $this->log("Sending plaintext authentication response", 'DEBUG');
             $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $sendPwd);
         }
 
@@ -2545,14 +2547,8 @@ class BinkpSession
 
         $match = hash_equals($expectedPassword, $password);
 
-        // Log details for debugging authentication issues
-        $receivedLen = strlen($password);
-        $expectedLen = strlen($expectedPassword);
-        $receivedPreview = $receivedLen > 0 ? substr($password, 0, 3) . '...' : '(empty)';
-        $expectedPreview = $expectedLen > 0 ? substr($expectedPassword, 0, 3) . '...' : '(empty)';
-
-        $this->log("Password validation: received={$receivedPreview} (len={$receivedLen}), expected={$expectedPreview} (len={$expectedLen})", 'DEBUG');
-        $this->log("Password validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
+        // Retain the outcome while omitting passwords, previews, and lengths.
+        $this->log("Plain text password validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
 
         if ($match) {
             $this->authMethod = 'plaintext';
@@ -2742,8 +2738,8 @@ class BinkpSession
         // Use HMAC-MD5: key=password, message=challenge
         $digest = hash_hmac('md5', $binaryChallenge, $password);
 
-        $this->log("CRAM-MD5 HMAC digest: challenge_len=" . strlen($challenge) .
-            ", password_len=" . strlen($password) . ", digest=" . $digest, 'DEBUG');
+        // Challenge and digest pairs facilitate offline password guessing.
+        $this->log("Computed CRAM-MD5 authentication response", 'DEBUG');
         return $digest;
     }
 
@@ -2759,7 +2755,7 @@ class BinkpSession
         // Match variable-length hex challenge (at least 16 chars, typically 32+)
         if (preg_match('/CRAM-MD5-([0-9a-fA-F]{16,})/', $nulData, $matches)) {
             $challenge = $matches[1];
-            $this->log("Parsed CRAM-MD5 challenge: " . $challenge . " (len=" . strlen($challenge) . ")", 'DEBUG');
+            $this->log("Parsed CRAM-MD5 challenge from remote", 'DEBUG');
             return $challenge;
         }
         return null;
