@@ -110,10 +110,19 @@ displayed with:
 ### Sync to Echo Areas
 
 The **Sync to Echo Areas** button creates or activates local `echoareas` database
-rows for each area found in the parsed reply. Sync only runs when you explicitly
-click the button — it does not run automatically on reply receipt.
+rows for each area found in the parsed reply. By default, sync only runs when you
+explicitly click the button — it does not run automatically on reply receipt.
 
 For FileFix responses the sync targets the `file_areas` table instead.
+
+#### Optional: automatic sync on reply receipt
+
+Setting `AREAFIX_AUTOIMPORT_ENABLED=true` in `.env` lets an incoming AreaFix/FileFix
+reply that looks like an area list (e.g. from `%LIST` or `%QUERY`) automatically run
+the same sync as the **Sync to Echo Areas** button, with no admin interaction. This
+is disabled by default because it can silently create `echoareas`/`file_areas` rows
+for areas your hub reports without any review. Only enable it if you want new areas
+to appear locally as soon as your hub lists them.
 
 Sync behaviour:
 - Existing areas matching the tag+domain: `is_active` set to `true`, `uplink_address`

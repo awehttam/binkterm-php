@@ -10,6 +10,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Message Search Scoped by Network and Interest](#message-search-scoped-by-network-and-interest)
 - [Administration](#administration)
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
+- [AreaFix / FileFix](#areafix--filefix)
+  - [Automatic Area Sync on Reply Now Opt-In](#automatic-area-sync-on-reply-now-opt-in)
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -27,6 +29,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Administration
 
 - **Fixed `scripts/user-manager.php create`:** the operator CLI's `create` command failed on PostgreSQL with `column "is_active" is of type boolean but expression is of type integer`, because it inserted the literal `1` instead of a boolean. This is now fixed.
+
+### AreaFix / FileFix
+
+- **Automatic area sync on reply is now opt-in:** receiving an AreaFix/FileFix reply from a hub that looks like an area list no longer automatically creates or activates local echo areas / file areas by default. Set `AREAFIX_AUTOIMPORT_ENABLED=true` in `.env` to restore the previous automatic behavior.
 
 ### Security
 
@@ -62,6 +68,20 @@ SQLSTATE[42804]: column "is_active" is of type boolean but expression is of type
 ```
 
 This was left over from the project's earlier SQLite-based schema, where `is_active` accepted an integer. The command now inserts a proper boolean and reads back the new user's id via `RETURNING id` instead of `lastInsertId()`. If you were creating operator accounts by editing the database directly to work around this, you can now use `scripts/user-manager.php create` normally again.
+
+## AreaFix / FileFix
+
+### Automatic Area Sync on Reply Now Opt-In
+
+When your BBS receives a netmail reply from a hub's AreaFix or FileFix robot that looks like an area list (for example, the response to a `%LIST` or `%QUERY` command), BinktermPHP can automatically create matching `echoareas` or `file_areas` rows and activate them, using the descriptions the hub reports.
+
+Starting with this release, that automatic sync is **disabled by default**. Incoming AreaFix/FileFix replies are still stored and viewable as normal netmail; they simply no longer create or activate local areas on their own. Sysops who want to review and apply a hub's area list continue to do so from **Admin -> AreaFix / FileFix**, using the **Sync to Echo Areas** button on a parsed reply.
+
+If you relied on the previous automatic behavior — for example, to pick up new areas from your hub without visiting the admin page — set the following in `.env` to restore it:
+
+```
+AREAFIX_AUTOIMPORT_ENABLED=true
+```
 
 ## Security
 

@@ -496,11 +496,20 @@ class AreaFixManager
      * Check an incoming netmail message to see if it is an AreaFix or FileFix reply from a configured uplink.
      * If so, automatically parses the response and synchronizes the areas to the database.
      *
+     * Gated by the AREAFIX_AUTOIMPORT_ENABLED env var (default disabled): a sysop
+     * must opt in before an inbound arealist-shaped reply is allowed to silently
+     * create/activate echoarea or file_area rows. When disabled, replies are still
+     * stored as ordinary netmail; only this auto-sync side effect is skipped.
+     *
      * @param array $message Raw netmail array containing from_address, to_address, from_name, subject, message_text
      * @return array{matched: bool, uplink: string, domain: string, robot: string, count: int, summary: array, areas: array}|null
      */
     public function processIncomingReply(array $message): ?array
     {
+        if (Config::env('AREAFIX_AUTOIMPORT_ENABLED', 'false') !== 'true') {
+            return null;
+        }
+
         if (!empty($message['is_insecure'])) {
             return null;
         }
