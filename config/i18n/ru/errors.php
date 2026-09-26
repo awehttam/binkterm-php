@@ -676,6 +676,7 @@ return [
     'errors.admin.areafix.invalid_json' => 'Недопустимые данные запроса',
     'errors.admin.areafix.uplink_required' => 'Требуется адрес аплинка',
     'errors.admin.areafix.invalid_robot' => 'Робот должен быть "areafix" или "filefix"',
+    'errors.admin.areafix.invalid_tier' => 'Нераспознанный уровень грамматики',
     'errors.admin.areafix.commands_required' => 'Требуется хотя бы одна команда',
     'errors.admin.areafix.send_failed' => 'Не удалось отправить команду',
     'errors.admin.areafix.history_failed' => 'Не удалось загрузить историю сообщений',

@@ -95,12 +95,94 @@ class AreaFixManager
      *
      * @param string $body        Raw message body text
      * @param string $commandType Hint for parsing context (e.g. "%LIST", "%QUERY", "%UNLINKED")
+     * @param string|null $preferredTier A tier identifier to try first (see getRememberedTier())
      * @return array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}> Parsed area records
      */
-    public function parseResponseText(string $body, string $commandType = '%LIST'): array
+    public function parseResponseText(string $body, string $commandType = '%LIST', ?string $preferredTier = null): array
+    {
+        return $this->parseResponseTextWithTier($body, $commandType, $preferredTier)['areas'];
+    }
+
+    /**
+     * Same as parseResponseText(), but also reports which AreaFixParser tier
+     * produced the result (see PR460Proposal Improvement 6: per-uplink
+     * grammar memory).
+     *
+     * @param string $body        Raw message body text
+     * @param string $commandType Hint for parsing context (currently unused by AreaFixParser)
+     * @param string|null $preferredTier A tier identifier to try first
+     * @return array{areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>, tier: ?string}
+     */
+    public function parseResponseTextWithTier(string $body, string $commandType = '%LIST', ?string $preferredTier = null): array
     {
         $parser = new AreaFixParser();
-        return $parser->parse($body);
+        return $parser->parseWithTier($body, null, $preferredTier);
+    }
+
+    /**
+     * Return the AreaFixParser tier (see AreaFixParser::TIER_* constants, or
+     * "configured:<grammar id>") that last produced a CONFIRMED sync for this
+     * uplink+domain+robot, if any. Used as a parsing hint for the next reply
+     * and to detect when a hub's reply format changes.
+     */
+    public function getRememberedTier(string $uplinkAddress, string $domain, string $robot): ?string
+    {
+        $record = $this->getRememberedTierRecord($uplinkAddress, $domain, $robot);
+        return $record ? $record['tier'] : null;
+    }
+
+    /**
+     * Same as getRememberedTier(), but also returns when it was last recorded,
+     * for display in the admin UI's per-uplink grammar memory editor (see
+     * Admin → Networks → Edit Uplink).
+     *
+     * @return array{tier: string, last_matched_at: string}|null
+     */
+    public function getRememberedTierRecord(string $uplinkAddress, string $domain, string $robot): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT tier, last_matched_at FROM areafix_grammar_memory WHERE uplink_address = ? AND domain = ? AND robot = ?"
+        );
+        $stmt->execute([$uplinkAddress, $domain, $robot]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ? ['tier' => (string)$row['tier'], 'last_matched_at' => (string)$row['last_matched_at']] : null;
+    }
+
+    /**
+     * Record which AreaFixParser tier matched for this uplink+domain+robot,
+     * after a sync using that parse has actually been confirmed/applied (or
+     * a sysop has manually forced a tier via the admin UI). A null or empty
+     * tier (nothing matched) is never recorded, since that would erase a
+     * previously-known-good remembered tier for no reason — use
+     * clearRememberedTier() to actually remove a remembered tier.
+     */
+    public function rememberTier(string $uplinkAddress, string $domain, string $robot, ?string $tier): void
+    {
+        if ($tier === null || $tier === '') {
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            "INSERT INTO areafix_grammar_memory (uplink_address, domain, robot, tier, last_matched_at)
+             VALUES (?, ?, ?, ?, NOW())
+             ON CONFLICT (uplink_address, domain, robot) DO UPDATE
+             SET tier = EXCLUDED.tier, last_matched_at = NOW()"
+        );
+        $stmt->execute([$uplinkAddress, $domain, $robot, $tier]);
+    }
+
+    /**
+     * Forget the remembered tier for this uplink+domain+robot, so the next
+     * reply tries the full ordered tier list again from scratch. Used by the
+     * admin UI when a sysop wants to reset a stale or incorrect memory (e.g.
+     * after manually confirming a hub's format really did change).
+     */
+    public function clearRememberedTier(string $uplinkAddress, string $domain, string $robot): void
+    {
+        $stmt = $this->db->prepare(
+            "DELETE FROM areafix_grammar_memory WHERE uplink_address = ? AND domain = ? AND robot = ?"
+        );
+        $stmt->execute([$uplinkAddress, $domain, $robot]);
     }
 
     /**
@@ -296,12 +378,13 @@ class AreaFixManager
      *
      * @param string $uplinkAddress FTN address of the hub uplink
      * @param int    $sysopUserId   User ID of the sysop account
-     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>}|null
+     * @param string|null $preferredTier A tier identifier to try first (see getRememberedTier())
+     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>, tier: ?string}|null
      */
-    public function findLatestActionableReply(string $uplinkAddress, int $sysopUserId): ?array
+    public function findLatestActionableReply(string $uplinkAddress, int $sysopUserId, ?string $preferredTier = null): ?array
     {
         foreach ($this->getIncomingMessages($uplinkAddress, $sysopUserId) as $m) {
-            $parsed = $this->toActionableReply($m);
+            $parsed = $this->toActionableReply($m, $preferredTier);
             if ($parsed !== null) {
                 return $parsed;
             }
@@ -317,15 +400,16 @@ class AreaFixManager
      * @param string $uplinkAddress FTN address of the hub uplink
      * @param int    $sysopUserId   User ID of the sysop account
      * @param int    $messageId     netmail.id of the incoming reply to inspect
-     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>}|null
+     * @param string|null $preferredTier A tier identifier to try first (see getRememberedTier())
+     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>, tier: ?string}|null
      */
-    public function findActionableReplyById(string $uplinkAddress, int $sysopUserId, int $messageId): ?array
+    public function findActionableReplyById(string $uplinkAddress, int $sysopUserId, int $messageId, ?string $preferredTier = null): ?array
     {
         foreach ($this->getIncomingMessages($uplinkAddress, $sysopUserId) as $m) {
             if ((int)($m['id'] ?? 0) !== $messageId) {
                 continue;
             }
-            return $this->toActionableReply($m);
+            return $this->toActionableReply($m, $preferredTier);
         }
 
         return null;
@@ -352,9 +436,10 @@ class AreaFixManager
      * and, if so, return it paired with its parsed areas.
      *
      * @param array<string, mixed> $message
-     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>}|null
+     * @param string|null $preferredTier A tier identifier to try first (see getRememberedTier())
+     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>, tier: ?string}|null
      */
-    private function toActionableReply(array $message): ?array
+    private function toActionableReply(array $message, ?string $preferredTier = null): ?array
     {
         $subj = (string)($message['subject'] ?? '');
         $bodyText = (string)($message['message_text'] ?? '');
@@ -363,12 +448,12 @@ class AreaFixManager
             return null;
         }
 
-        $areas = $this->parseResponseText($bodyText, '%LIST');
-        if (empty($areas)) {
+        $result = $this->parseResponseTextWithTier($bodyText, '%LIST', $preferredTier);
+        if (empty($result['areas'])) {
             return null;
         }
 
-        return ['message' => $message, 'areas' => $areas];
+        return ['message' => $message, 'areas' => $result['areas'], 'tier' => $result['tier']];
     }
 
     /**
@@ -625,16 +710,19 @@ class AreaFixManager
         }
 
         $robot = $isFilefix ? 'filefix' : 'areafix';
-        $parsedAreas = $this->parseResponseText($body, '%LIST');
+        $uplinkAddress = (string)$targetUplink['address'];
+        $domain = (string)($targetUplink['domain'] ?? 'fidonet');
+
+        $preferredTier = $this->getRememberedTier($uplinkAddress, $domain, $robot);
+        $parseResult = $this->parseResponseTextWithTier($body, '%LIST', $preferredTier);
+        $parsedAreas = $parseResult['areas'];
 
         if (empty($parsedAreas)) {
             return null;
         }
 
-        $uplinkAddress = (string)$targetUplink['address'];
-        $domain = (string)($targetUplink['domain'] ?? 'fidonet');
-
         $summary = $this->syncSubscribedAreas($uplinkAddress, $domain, $parsedAreas, false, $robot);
+        $this->rememberTier($uplinkAddress, $domain, $robot, $parseResult['tier']);
 
         $this->logger->info("[AreaFixManager] Auto-imported " . count($parsedAreas) . " areas for domain '{$domain}' from {$uplinkAddress}: created={$summary['created']}, activated={$summary['activated']}, deactivated={$summary['deactivated']}");
 

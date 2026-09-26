@@ -47,6 +47,20 @@ class AreaFixParser
 
     private const VALID_ACTIONS = [self::ACTION_SUBSCRIBE, self::ACTION_UNSUBSCRIBE, self::ACTION_AVAILABLE];
 
+    /**
+     * Stable tier identifiers, used by per-uplink grammar memory (see
+     * AreaFixManager) to remember which tier last matched a given uplink and
+     * to try it first on the next reply. A data-driven grammar's tier name is
+     * "configured:<grammar id>" rather than a fixed constant.
+     */
+    public const TIER_MYSTIC_BLOCKS = 'mystic_blocks';
+    public const TIER_DELIMITED_TABLE = 'delimited_table';
+    public const TIER_COLUMNAR_TABLE = 'columnar_table';
+    public const TIER_QUOTED_ADDRESS_LIST = 'quoted_address_list';
+    public const TIER_FLAGGED_DOTTED_QUOTED_LIST = 'flagged_dotted_quoted_list';
+    public const TIER_FREEFORM = 'freeform';
+    private const CONFIGURED_TIER_PREFIX = 'configured:';
+
     /** @var array<int, array<string, mixed>>|null */
     private ?array $configuredGrammarsCache = null;
 
@@ -69,67 +83,102 @@ class AreaFixParser
      *     is_subscribed: bool
      * }>
      */
-    public function parse(string $body, ?string $subject = null): array
+    public function parse(string $body, ?string $subject = null, ?string $preferredTier = null): array
+    {
+        return $this->parseWithTier($body, $subject, $preferredTier)['areas'];
+    }
+
+    /**
+     * Same as parse(), but also reports which tier produced the result, so a
+     * caller (AreaFixManager) can remember it per-uplink and notice when a
+     * hub's format changes between replies (see PR460Proposal Improvement 6).
+     *
+     * Tries each tier in its normal order (the five built-in structural
+     * grammars, then data-driven configured grammars in config file order,
+     * then the freeform fallback), except that $preferredTier — when given and
+     * still present in the tier list — is tried first. This is a pure
+     * reordering: it never changes which tier ultimately wins for a given
+     * body, only how quickly it's found when the hint is correct.
+     *
+     * @param string $body Raw message body text
+     * @param string|null $subject Optional message subject for context
+     * @param string|null $preferredTier A tier identifier (one of the TIER_* constants,
+     *     or "configured:<grammar id>") to try before the normal order
+     * @return array{
+     *     areas: array<int, array{name: string, description: ?string, action: string, is_subscribed: bool}>,
+     *     tier: ?string
+     * }
+     */
+    public function parseWithTier(string $body, ?string $subject = null, ?string $preferredTier = null): array
     {
         $body = str_replace(["\r\n", "\r"], "\n", $body);
+        $tiers = $this->buildTierList($body);
 
-        // 1. Try Mystic BBS / MBSE Command & Result block format
-        $mysticAreas = $this->parseMysticBlocks($body);
-        if ($mysticAreas !== null && !empty($mysticAreas)) {
-            return $this->deduplicateAreas($mysticAreas);
-        }
-
-        // 2. Try delimited table format (: or |)
-        $delimitedAreas = $this->parseDelimitedTable($body);
-        if ($delimitedAreas !== null && !empty($delimitedAreas)) {
-            return $this->deduplicateAreas($delimitedAreas);
-        }
-
-        // 3. Try columnar / dotted-leader table format (HPT / Husky)
-        $columnarAreas = $this->parseColumnarTable($body);
-        if ($columnarAreas !== null && !empty($columnarAreas)) {
-            return $this->deduplicateAreas($columnarAreas);
-        }
-
-        // 4. Try quoted-address list format (BBBS/Li6)
-        $quotedAddressAreas = $this->parseQuotedAddressList($body);
-        if ($quotedAddressAreas !== null && !empty($quotedAddressAreas)) {
-            return $this->deduplicateAreas($quotedAddressAreas);
-        }
-
-        // 5. Try flag-prefixed dotted-leader quoted list format (HPT %LIST)
-        $flaggedDottedAreas = $this->parseFlaggedDottedQuotedList($body);
-        if ($flaggedDottedAreas !== null && !empty($flaggedDottedAreas)) {
-            return $this->deduplicateAreas($flaggedDottedAreas);
-        }
-
-        // 6. Try data-driven grammars defined in config/areafix_grammars.json,
-        // in the order they appear in the file. These are sysop-contributed
-        // definitions for hub formats the built-in structural grammars above
-        // don't recognize; see docs/AreaFix.md for the schema.
-        foreach ($this->loadConfiguredGrammars() as $grammar) {
-            $configuredAreas = $this->matchConfiguredGrammar($grammar, $body);
-            if ($configuredAreas !== null && !empty($configuredAreas)) {
-                $this->logger->info('AreaFixParser: matched data-driven grammar', [
-                    'grammar_id'  => (string)($grammar['id'] ?? ''),
-                    'areas_found' => count($configuredAreas),
-                ]);
-                return $this->deduplicateAreas($configuredAreas);
+        if ($preferredTier !== null) {
+            $index = null;
+            foreach ($tiers as $i => $tier) {
+                if ($tier['name'] === $preferredTier) {
+                    $index = $i;
+                    break;
+                }
+            }
+            if ($index !== null) {
+                $preferred = $tiers[$index];
+                unset($tiers[$index]);
+                array_unshift($tiers, $preferred);
             }
         }
 
-        // 7. Last resort: conservative freeform "TAG   Description" line matching
-        // for hub formats with no recognizable header, banner, or delimiter.
-        $freeformAreas = $this->parseFreeformList($body);
-        if (!empty($freeformAreas)) {
-            $this->logger->info('AreaFixParser: no structural grammar matched, used freeform fallback', [
-                'areas_found'  => count($freeformAreas),
-                'body_excerpt' => substr($body, 0, 200),
-            ]);
-            return $this->deduplicateAreas($freeformAreas);
+        foreach ($tiers as $tier) {
+            $areas = ($tier['match'])();
+            if ($areas === null || empty($areas)) {
+                continue;
+            }
+
+            if ($tier['name'] === self::TIER_FREEFORM) {
+                $this->logger->info('AreaFixParser: no structural grammar matched, used freeform fallback', [
+                    'areas_found'  => count($areas),
+                    'body_excerpt' => substr($body, 0, 200),
+                ]);
+            } elseif (str_starts_with($tier['name'], self::CONFIGURED_TIER_PREFIX)) {
+                $this->logger->info('AreaFixParser: matched data-driven grammar', [
+                    'grammar_id'  => substr($tier['name'], strlen(self::CONFIGURED_TIER_PREFIX)),
+                    'areas_found' => count($areas),
+                ]);
+            }
+
+            return ['areas' => $this->deduplicateAreas($areas), 'tier' => $tier['name']];
         }
 
-        return [];
+        return ['areas' => [], 'tier' => null];
+    }
+
+    /**
+     * Build the ordered list of tiers to try against a message body: the five
+     * built-in structural grammars, then any data-driven grammars from
+     * config/areafix_grammars.json (or its .example fallback) in file order,
+     * then the freeform fallback.
+     *
+     * @return array<int, array{name: string, match: callable(): ?array}>
+     */
+    private function buildTierList(string $body): array
+    {
+        $tiers = [
+            ['name' => self::TIER_MYSTIC_BLOCKS, 'match' => fn() => $this->parseMysticBlocks($body)],
+            ['name' => self::TIER_DELIMITED_TABLE, 'match' => fn() => $this->parseDelimitedTable($body)],
+            ['name' => self::TIER_COLUMNAR_TABLE, 'match' => fn() => $this->parseColumnarTable($body)],
+            ['name' => self::TIER_QUOTED_ADDRESS_LIST, 'match' => fn() => $this->parseQuotedAddressList($body)],
+            ['name' => self::TIER_FLAGGED_DOTTED_QUOTED_LIST, 'match' => fn() => $this->parseFlaggedDottedQuotedList($body)],
+        ];
+
+        foreach ($this->loadConfiguredGrammars() as $grammar) {
+            $tierName = self::CONFIGURED_TIER_PREFIX . (string)($grammar['id'] ?? '');
+            $tiers[] = ['name' => $tierName, 'match' => fn() => $this->matchConfiguredGrammar($grammar, $body)];
+        }
+
+        $tiers[] = ['name' => self::TIER_FREEFORM, 'match' => fn() => $this->parseFreeformList($body)];
+
+        return $tiers;
     }
 
     /**
@@ -812,6 +861,39 @@ class AreaFixParser
         }
 
         return $this->configuredGrammarsCache = array_values(array_filter($decoded, 'is_array'));
+    }
+
+    /**
+     * List every tier identifier parse()/parseWithTier() could currently
+     * report, in the same order they're tried: the five built-in structural
+     * grammars, then "configured:<id>" for each data-driven grammar
+     * currently defined (regardless of its own enabled flag), then the
+     * freeform fallback. Used by the admin UI (per-uplink grammar memory
+     * editor) to populate a "force this tier" selector without accepting
+     * arbitrary strings into areafix_grammar_memory.
+     *
+     * @return array<int, string>
+     */
+    public function getKnownTierIds(): array
+    {
+        $tiers = [
+            self::TIER_MYSTIC_BLOCKS,
+            self::TIER_DELIMITED_TABLE,
+            self::TIER_COLUMNAR_TABLE,
+            self::TIER_QUOTED_ADDRESS_LIST,
+            self::TIER_FLAGGED_DOTTED_QUOTED_LIST,
+        ];
+
+        foreach ($this->loadConfiguredGrammars() as $grammar) {
+            $id = (string)($grammar['id'] ?? '');
+            if ($id !== '') {
+                $tiers[] = self::CONFIGURED_TIER_PREFIX . $id;
+            }
+        }
+
+        $tiers[] = self::TIER_FREEFORM;
+
+        return $tiers;
     }
 
     /**

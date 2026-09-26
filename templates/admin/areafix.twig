@@ -286,6 +286,7 @@
                         {{ t('ui.admin.areafix.select_none', {}, 'common') }}
                     </button>
                 </div>
+                <div id="areafixFormatChangeWarning" class="alert alert-warning small mb-2" style="display:none;"></div>
                 <div id="areafixPreviewBody">
                     <div class="text-center py-4 text-muted">
                         <i class="fas fa-spinner fa-spin"></i> {{ t('ui.admin.areafix.preview_loading', {}, 'common') }}
@@ -600,7 +601,47 @@
     // previewed before anything is written to the database. The sysop reviews
     // the new/reactivate/deactivate/unchanged diff and must explicitly confirm.
 
-    var previewState = { robot: null, uplink: null, messageId: null, areas: [], checked: [] };
+    var previewState = { robot: null, uplink: null, messageId: null, areas: [], checked: [], tier: null };
+
+    // Human-readable labels for AreaFixParser::TIER_* identifiers (see
+    // src/AreaFix/AreaFixParser.php and docs/AreaFix.md). A data-driven
+    // grammar's tier is "configured:<grammar id>" rather than one of these.
+    var TIER_LABELS = {
+        'mystic_blocks':               { key: 'ui.admin.areafix.tier_mystic_blocks',               fallback: 'Mystic BBS / MBSE blocks' },
+        'delimited_table':             { key: 'ui.admin.areafix.tier_delimited_table',              fallback: 'Delimited table' },
+        'columnar_table':              { key: 'ui.admin.areafix.tier_columnar_table',               fallback: 'Columnar / dotted-leader table' },
+        'quoted_address_list':         { key: 'ui.admin.areafix.tier_quoted_address_list',          fallback: 'Quoted address list' },
+        'flagged_dotted_quoted_list':  { key: 'ui.admin.areafix.tier_flagged_dotted_quoted_list',   fallback: 'Flag-prefixed dotted-leader list' },
+        'freeform':                    { key: 'ui.admin.areafix.tier_freeform',                     fallback: 'Freeform fallback' }
+    };
+
+    function tierLabel(tier) {
+        if (!tier) {
+            return window.t('ui.admin.areafix.tier_unknown', {}, 'unknown format');
+        }
+        if (tier.indexOf('configured:') === 0) {
+            var id = tier.slice('configured:'.length);
+            return window.t('ui.admin.areafix.tier_configured', { id: id }, 'custom grammar "' + id + '"');
+        }
+        var entry = TIER_LABELS[tier];
+        return entry ? window.t(entry.key, {}, entry.fallback) : tier;
+    }
+
+    function renderFormatChangeWarning(data) {
+        var el = document.getElementById('areafixFormatChangeWarning');
+        if (!el) return;
+        if (!data || !data.format_changed) {
+            el.style.display = 'none';
+            el.innerHTML = '';
+            return;
+        }
+        var msg = window.t('ui.admin.areafix.format_changed_warning', {
+            old_tier: tierLabel(data.remembered_tier),
+            new_tier: tierLabel(data.tier)
+        }, 'This hub\'s reply format looks different than last time (was ' + tierLabel(data.remembered_tier) + ', now ' + tierLabel(data.tier) + '). Double-check the areas below before confirming — this can mean the hub\'s mailer software changed or was reconfigured.');
+        el.innerHTML = '<i class="fas fa-triangle-exclamation me-1"></i>' + escapeHtml(msg);
+        el.style.display = '';
+    }
     var STATUS_LABELS = {
         'new':        { key: 'ui.admin.areafix.status_new',        fallback: 'New',        badge: 'bg-success' },
         'reactivate': { key: 'ui.admin.areafix.status_reactivate', fallback: 'Reactivate', badge: 'bg-primary' },
@@ -728,6 +769,8 @@
         previewState.robot = robot;
         previewState.uplink = uplink;
         previewState.messageId = messageId ? parseInt(messageId, 10) : null;
+        previewState.tier = null;
+        renderFormatChangeWarning(null);
 
         var modalEl = document.getElementById('areafixPreviewModal');
         var confirmBtn = document.getElementById('areafixPreviewConfirmBtn');
@@ -755,8 +798,11 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (data.success) {
+                previewState.tier = data.tier || null;
+                renderFormatChangeWarning(data);
                 renderPreviewBody(data.areas || []);
             } else {
+                renderFormatChangeWarning(null);
                 var errMsg = window.getApiErrorMessage ? window.getApiErrorMessage(data) : (data.message || data.error || window.t('ui.admin.areafix.preview_load_failed', {}, 'Failed to load sync preview'));
                 if (container) {
                     container.innerHTML = '<p class="text-danger mb-0">' + escapeHtml(errMsg) + '</p>';
@@ -802,6 +848,9 @@
             deactivate_missing: false,
             force_descriptions: true
         };
+        if (previewState.tier) {
+            requestBody.tier = previewState.tier;
+        }
 
         fetch('/api/admin/areafix/sync', {
             method: 'POST',

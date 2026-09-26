@@ -11,6 +11,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [AreaFix / FileFix](#areafix-filefix)
   - [Structural Reply Parsing Across More Hub Mailers](#structural-reply-parsing-across-more-hub-mailers)
   - [Mandatory Preview Before Syncing Areas](#mandatory-preview-before-syncing-areas)
+  - [Data-Driven Grammar Definitions](#data-driven-grammar-definitions)
+  - [Per-Uplink Format Memory](#per-uplink-format-memory)
 - [Administration](#administration)
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
 - [Security](#security)
@@ -31,6 +33,8 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Structural reply parsing across more hub mailers:** AreaFix and FileFix replies are now parsed by recognizing the concrete layout each hub mailer actually sends — Mystic BBS/MBSE command blocks, delimited and columnar tables, BBBS/Li6-style quoted address lists, and HPT-style flag-prefixed quoted lists — instead of scanning for keywords. Real echo areas with common names such as `LINUX`, `WINDOWS`, or `BASE` are no longer mistaken for header text or help output.
 - **Mandatory preview before syncing areas:** clicking "Sync Areas to Local BBS" (from the latest reply, or from any individual incoming message in the Message History table) now shows a preview of exactly which areas will be created, reactivated, deactivated, or left unchanged. Nothing is written to the database until this preview is explicitly confirmed.
+- **Data-driven grammar definitions:** a new **Admin -> Area Management -> AreaFix Grammars** page lets a sysop teach AreaFix a new hub reply format without a code change, either by hand or by pasting a sample reply and asking the built-in AI assistant to suggest one. Suggestions are always added disabled for review before saving.
+- **Per-uplink format memory:** BinktermPHP now remembers which reply format last matched each hub's confirmed sync, tries that format first on the hub's next reply, and flags it on the preview screen if the format changes unexpectedly. The remembered format for each uplink can be viewed, forced, or cleared from **Admin -> BBS Settings -> BinkP Uplinks -> Edit Uplink**.
 
 ### Administration
 
@@ -91,6 +95,21 @@ The preview lists every area found in the reply as a row with a checkbox, its ta
 For an "Updated" row, the description cell shows your current description struck through above the incoming one when it will actually be replaced. A description is only ever replaced when your current one is empty, an auto-generated placeholder, or you've explicitly selected that row for sync (see below) — a real, sysop-set description is never silently overwritten. If the hub's reply lists a different description for an area whose own real description would otherwise be left alone, the preview still shows what the hub sent underneath it, so the mismatch doesn't go unnoticed just because it's not required to be applied.
 
 Every row starts checked except a genuine no-op "Unchanged" row — including every "New", "Reactivate", "Deactivate", and "Updated" row, so the normal case (review, then confirm) still applies everything in one click. Use the checkboxes, or the "Select All" / "Select None" buttons above the list, to apply only a subset instead. Confirming a checked "Updated" row is what actually lets a hub's description win over your own where it otherwise wouldn't — uncheck that specific row first if you'd rather keep your own description for that one area.
+
+### Data-Driven Grammar Definitions
+
+The structural parser recognizes several hub mailer formats out of the box, but a new or unusual format can still come back as an empty reply. A new admin page, **Admin -> Area Management -> AreaFix Grammars** (`/admin/areafix-grammars`), lets a sysop describe a new format as data instead of waiting for a code change:
+
+- Each grammar definition is a JSON object specifying a header pattern (to detect the format), a per-row pattern (to extract the area tag, description, and status), and how status text maps to subscribed/unsubscribed/available. The full schema is documented on the page and in `docs/AreaFix.md`.
+- A **Paste from AreaFix Message** button lets you paste the raw text of a hub reply and have the configured AI provider suggest a grammar definition for it. The suggestion is always added disabled, and every regex in it is validated, so nothing starts matching mail until you review and explicitly enable it.
+- A **Populate from Example** button loads a starter definition from `config/areafix_grammars.json.example`, which ships disabled and has no effect until you edit and save it.
+- Grammars you define are tried after the built-in structural formats and before the last-resort freeform line matcher, in the order they appear on the page.
+
+### Per-Uplink Format Memory
+
+A given hub's AreaFix/FileFix robot always replies in the same format, so BinktermPHP now remembers which format matched the last confirmed sync for each uplink and robot (AreaFix and FileFix are tracked separately). On the next reply from that uplink, the remembered format is tried first, and if a reply no longer matches it, the sync preview shows a warning naming the old and new format — a concrete signal that the hub's mailer software may have changed or been reconfigured.
+
+The remembered format for each uplink is visible and directly editable from **Admin -> BBS Settings -> BinkP Uplinks -> Edit Uplink**: a "Remembered Reply Format" panel shows the current format for AreaFix and FileFix, with buttons to force it to a specific format or clear it. Clearing is useful after you've confirmed a hub's format really did change; forcing is useful to pre-seed a known format for a brand-new uplink before its first reply arrives.
 
 ## Administration
 

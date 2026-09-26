@@ -60,7 +60,7 @@ Content-Type: application/json
   - [Account](#account) (1)
   - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
-  - [AreaFix](#areafix) (6)
+  - [AreaFix](#areafix) (8)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
   - [Bulletins](#bulletins) (3)
@@ -561,6 +561,8 @@ Click recording confirmation with redirect URL
 | `GET` | [`/api/admin/areafix/grammars-config`](#get-apiadminareafixgrammars-config) | Yes | Return the raw contents of `config/areafix_grammars.json`. |
 | `POST` | [`/api/admin/areafix/grammars-config`](#post-apiadminareafixgrammars-config) | Yes | Replace `config/areafix_grammars.json` wholesale. |
 | `POST` | [`/api/admin/areafix/grammars-ai-generate`](#post-apiadminareafixgrammars-ai-generate) | Yes | Ask the configured AI provider to suggest a grammar definition from a pasted AreaFix/FileFix reply message. |
+| `GET` | [`/api/admin/areafix/grammar-memory`](#get-apiadminareafixgrammar-memory) | Yes | Return the remembered `AreaFixParser` tier for both robots on an uplink. |
+| `POST` | [`/api/admin/areafix/grammar-memory`](#post-apiadminareafixgrammar-memory) | Yes | Manually force or clear the remembered tier for one uplink+robot. |
 
 #### `GET /api/admin/areafix/grammars-config`
 
@@ -686,6 +688,9 @@ When `message_id` is omitted, the newest actionable incoming reply is used (the 
 | `areas_count` | integer | Number of areas in the diff |
 | `from` | string | Sender name or address of the reply message |
 | `date` | string\|null | Timestamp the reply was received or written |
+| `tier` | string\|null | `AreaFixParser` tier identifier that matched this reply (see `docs/AreaFix.md#per-uplink-grammar-memory`), e.g. `"mystic_blocks"` or `"configured:my_hub_format"` |
+| `remembered_tier` | string\|null | Tier last recorded for this uplink+domain+robot from a previously confirmed sync; `null` if this uplink has never been synced before |
+| `format_changed` | boolean | True only when both `tier` and `remembered_tier` are known and differ from each other |
 
 **Error Responses**
 
@@ -718,6 +723,7 @@ When `force_descriptions` is true, an existing area's description is overwritten
 | `areas[].is_subscribed` | boolean | No | Used to derive `action` when `action` is omitted (defaults to `true`) |
 | `deactivate_missing` | boolean | No | If true, deactivate any locally-active areas for this uplink/domain not present in `areas` (default `false`) |
 | `force_descriptions` | boolean | No | If true, overwrite an existing area's description whenever it differs from the submitted one, bypassing the placeholder-only protection (default `false`) |
+| `tier` | string | No | The `AreaFixParser` tier `/api/admin/areafix/preview-latest` reported for the reply this selection came from (see `docs/AreaFix.md#per-uplink-grammar-memory`). When given, updates the remembered tier for this uplink+domain+robot after a successful sync. |
 
 **Response** _(JSON)_
 
@@ -770,6 +776,66 @@ Inspects recent message history from the specified uplink to find an incoming Ar
 |--------|-------------|
 | 400 | Invalid payload or missing uplink address |
 | 404 | No area list found in recent replies for this uplink |
+
+---
+
+#### `GET /api/admin/areafix/grammar-memory`
+
+**Requires authentication** (Admin only)
+
+Returns the per-uplink `AreaFixParser` grammar memory (see `docs/AreaFix.md#per-uplink-grammar-memory`) for both robots on an uplink, plus the list of tier identifiers a "force this tier" selector may choose from. Backs the **Admin → Networks → Edit Uplink** dialog.
+
+**Query Parameters**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the memory was read |
+| `areafix` | object\|null | Remembered tier for the `areafix` robot on this uplink; `null` if never recorded |
+| `areafix.tier` | string | Tier identifier, e.g. `"mystic_blocks"` or `"configured:my_hub_format"` |
+| `areafix.last_matched_at` | string | Timestamp this tier was last recorded |
+| `filefix` | object\|null | Same shape as `areafix`, for the `filefix` robot |
+| `known_tiers` | array of strings | Every tier identifier `AreaFixParser::getKnownTierIds()` currently knows about, in the order they're tried |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing uplink address |
+
+---
+
+#### `POST /api/admin/areafix/grammar-memory`
+
+**Requires authentication** (Admin only)
+
+Manually forces or clears the remembered grammar tier for one uplink+robot, without requiring a real AreaFix sync. Setting a tier here stores it exactly the way a confirmed sync would (`AreaFixManager::rememberTier()`), so it's tried first on the uplink's next reply.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | Yes | Robot name: `"areafix"` or `"filefix"` |
+| `tier` | string\|null | No | Tier identifier to force (must be one of `known_tiers` from the `GET` response above); omit or pass `null` to clear the remembered tier instead |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful update |
+| `tier` | string\|null | The tier now recorded (`null` if cleared) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload, missing uplink address, invalid robot, or `tier` isn't a recognized identifier |
 
 ---
 

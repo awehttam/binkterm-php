@@ -675,6 +675,7 @@ return [
     'errors.admin.areafix.invalid_json' => 'Payload richiesta non valido',
     'errors.admin.areafix.uplink_required' => 'Indirizzo uplink obbligatorio',
     'errors.admin.areafix.invalid_robot' => 'Il robot deve essere "areafix" o "filefix"',
+    'errors.admin.areafix.invalid_tier' => 'Livello di grammatica non riconosciuto',
     'errors.admin.areafix.commands_required' => 'È richiesto almeno un comando',
     'errors.admin.areafix.send_failed' => 'Impossibile inviare il comando',
     'errors.admin.areafix.history_failed' => 'Impossibile caricare la cronologia messaggi',

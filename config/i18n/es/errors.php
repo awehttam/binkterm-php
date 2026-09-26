@@ -675,6 +675,7 @@ return [
     'errors.admin.areafix.invalid_json' => 'Carga de solicitud no válida',
     'errors.admin.areafix.uplink_required' => 'Se requiere la dirección del uplink',
     'errors.admin.areafix.invalid_robot' => 'El robot debe ser "areafix" o "filefix"',
+    'errors.admin.areafix.invalid_tier' => 'Nivel de gramática no reconocido',
     'errors.admin.areafix.commands_required' => 'Se requiere al menos un comando',
     'errors.admin.areafix.send_failed' => 'Error al enviar el comando',
     'errors.admin.areafix.history_failed' => 'Error al cargar el historial de mensajes',

@@ -679,6 +679,7 @@ return [
     'errors.admin.areafix.invalid_json' => 'Invalid request payload',
     'errors.admin.areafix.uplink_required' => 'Uplink address is required',
     'errors.admin.areafix.invalid_robot' => 'Robot must be "areafix" or "filefix"',
+    'errors.admin.areafix.invalid_tier' => 'Unrecognized grammar tier',
     'errors.admin.areafix.commands_required' => 'At least one command is required',
     'errors.admin.areafix.send_failed' => 'Failed to send command',
     'errors.admin.areafix.history_failed' => 'Failed to load message history',

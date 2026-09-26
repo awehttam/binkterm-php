@@ -10731,6 +10731,91 @@ PROMPT;
 });
 
 /**
+ * GET /api/admin/areafix/grammar-memory?uplink=1:1/23
+ * Return the per-uplink AreaFixParser grammar memory (see
+ * docs/AreaFix.md#per-uplink-grammar-memory) for both robots on this uplink,
+ * plus the list of tier identifiers the "force a tier" selector may choose
+ * from. Surfaced in the Admin → Networks → Edit Uplink dialog.
+ */
+SimpleRouter::get('/api/admin/areafix/grammar-memory', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $uplinkAddress = trim((string)($_GET['uplink'] ?? ''));
+    if ($uplinkAddress === '') {
+        apiError('errors.admin.areafix.uplink_required', apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user), 400, ['success' => false]);
+        return;
+    }
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+    echo json_encode([
+        'success'     => true,
+        'areafix'     => $areafixManager->getRememberedTierRecord($uplinkAddress, $domain, 'areafix'),
+        'filefix'     => $areafixManager->getRememberedTierRecord($uplinkAddress, $domain, 'filefix'),
+        'known_tiers' => (new \BinktermPHP\AreaFix\AreaFixParser())->getKnownTierIds(),
+    ]);
+});
+
+/**
+ * POST /api/admin/areafix/grammar-memory
+ * Body: { uplink: string, robot: "areafix"|"filefix", tier: string|null }
+ *
+ * Manually edit the remembered grammar tier for one uplink+robot: a null or
+ * empty tier clears it (the next reply tries the full ordered tier list
+ * again); a non-empty tier must be one of AreaFixParser::getKnownTierIds()
+ * and forces that tier to be tried first on the next reply, exactly as if it
+ * had just been confirmed via a real sync.
+ */
+SimpleRouter::post('/api/admin/areafix/grammar-memory', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError('errors.admin.areafix.invalid_json', apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user), 400, ['success' => false]);
+        return;
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? '')));
+    $tier = isset($body['tier']) && is_string($body['tier']) ? trim($body['tier']) : null;
+
+    if ($uplinkAddress === '') {
+        apiError('errors.admin.areafix.uplink_required', apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user), 400, ['success' => false]);
+        return;
+    }
+    if (!in_array($robot, ['areafix', 'filefix'], true)) {
+        apiError('errors.admin.areafix.invalid_robot', apiLocalizedText('errors.admin.areafix.invalid_robot', 'Robot must be "areafix" or "filefix"', $user), 400, ['success' => false]);
+        return;
+    }
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+
+    if ($tier === null || $tier === '') {
+        $areafixManager->clearRememberedTier($uplinkAddress, $domain, $robot);
+        echo json_encode(['success' => true, 'tier' => null]);
+        return;
+    }
+
+    $parser = new \BinktermPHP\AreaFix\AreaFixParser();
+    if (!in_array($tier, $parser->getKnownTierIds(), true)) {
+        apiError('errors.admin.areafix.invalid_tier', apiLocalizedText('errors.admin.areafix.invalid_tier', 'Unrecognized grammar tier', $user), 400, ['success' => false]);
+        return;
+    }
+
+    $areafixManager->rememberTier($uplinkAddress, $domain, $robot, $tier);
+    echo json_encode(['success' => true, 'tier' => $tier]);
+});
+
+/**
  * GET /api/admin/areafix/uplinks
  * Return uplinks that have areafix or filefix passwords configured.
  */
@@ -10876,7 +10961,13 @@ SimpleRouter::get('/api/admin/areafix/history', function () {
  * protection — appropriate here because the sysop has explicitly selected
  * these specific areas after reviewing the preview's description diff.
  *
- * Body: { uplink: string, robot: "areafix"|"filefix", areas: [{name,description},...], deactivate_missing: bool, force_descriptions: bool }
+ * Body: { uplink: string, robot: "areafix"|"filefix", areas: [{name,description},...], deactivate_missing: bool, force_descriptions: bool, tier?: string }
+ *
+ * `tier` is optional and, when present, is the AreaFixParser tier that
+ * /api/admin/areafix/preview-latest reported for the reply this selection
+ * came from — passed straight back by the admin UI so per-uplink grammar
+ * memory (see PR460Proposal Improvement 6) can be updated once the sysop has
+ * actually confirmed the sync, not merely previewed it.
  */
 SimpleRouter::post('/api/admin/areafix/sync', function () {
     $user = RouteHelper::requireAdmin();
@@ -10897,6 +10988,7 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
     $parsedAreas = $body['areas'] ?? [];
     $deactivateMissing = (bool)($body['deactivate_missing'] ?? false);
     $forceDescriptions = (bool)($body['force_descriptions'] ?? false);
+    $tier = is_string($body['tier'] ?? null) ? trim($body['tier']) : null;
 
     if ($uplinkAddress === '') {
         apiError(
@@ -10941,6 +11033,7 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
             false,
             $forceDescriptions
         );
+        $areafixManager->rememberTier($uplinkAddress, $domain, $robot, $tier);
     } catch (\Throwable $e) {
         apiError(
             'errors.admin.areafix.sync_failed',
@@ -10987,10 +11080,15 @@ SimpleRouter::post('/api/admin/areafix/preview-latest', function () {
     $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
     $areafixManager = new \BinktermPHP\AreaFixManager();
 
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+    $rememberedTier = $areafixManager->getRememberedTier($uplinkAddress, $domain, $robot);
+
     try {
         $found = $messageId > 0
-            ? $areafixManager->findActionableReplyById($uplinkAddress, $sysopUserId, $messageId)
-            : $areafixManager->findLatestActionableReply($uplinkAddress, $sysopUserId);
+            ? $areafixManager->findActionableReplyById($uplinkAddress, $sysopUserId, $messageId, $rememberedTier)
+            : $areafixManager->findLatestActionableReply($uplinkAddress, $sysopUserId, $rememberedTier);
     } catch (\Throwable $e) {
         apiError('errors.admin.areafix.preview_failed', 'Failed to generate sync preview', 500, ['success' => false]);
     }
@@ -10999,23 +11097,29 @@ SimpleRouter::post('/api/admin/areafix/preview-latest', function () {
         apiError('errors.admin.areafix.no_area_list_found', 'No area list found in recent replies for this uplink', 404, ['success' => false]);
     }
 
-    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
-    $domain = (string)($uplink['domain'] ?? 'fidonet');
-
     try {
         $diff = $areafixManager->previewSync($uplinkAddress, $domain, $found['areas'], false, $robot);
     } catch (\Throwable $e) {
         apiError('errors.admin.areafix.preview_failed', 'Failed to generate sync preview', 500, ['success' => false]);
     }
 
+    // A remembered tier that no longer matches the current reply is a concrete
+    // signal the hub's mailer software changed, was reconfigured, or the reply
+    // isn't actually coming from the expected hub — surfaced distinctly from
+    // the generic "review before applying" prompt every sync already gets.
+    $matchedTier = $found['tier'] ?? null;
+    $formatChanged = $rememberedTier !== null && $matchedTier !== null && $matchedTier !== $rememberedTier;
+
     $replyFound = $found['message'];
     echo json_encode([
-        'success'     => true,
-        'areas'       => $diff,
-        'areas_count' => count($diff),
-        'from'        => $replyFound['from_name'] ?? $replyFound['from_address'] ?? '',
-        'date'        => $replyFound['date_received'] ?? $replyFound['date_written'] ?? null,
+        'success'         => true,
+        'areas'           => $diff,
+        'areas_count'     => count($diff),
+        'from'            => $replyFound['from_name'] ?? $replyFound['from_address'] ?? '',
+        'date'            => $replyFound['date_received'] ?? $replyFound['date_written'] ?? null,
+        'tier'            => $matchedTier,
+        'remembered_tier' => $rememberedTier,
+        'format_changed'  => $formatChanged,
     ]);
 });
 
@@ -11049,9 +11153,15 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
 
     $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
     $areafixManager = new \BinktermPHP\AreaFixManager();
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+    $rememberedTier = $areafixManager->getRememberedTier($uplinkAddress, $domain, $robot);
+
     $found = $messageId > 0
-        ? $areafixManager->findActionableReplyById($uplinkAddress, $sysopUserId, $messageId)
-        : $areafixManager->findLatestActionableReply($uplinkAddress, $sysopUserId);
+        ? $areafixManager->findActionableReplyById($uplinkAddress, $sysopUserId, $messageId, $rememberedTier)
+        : $areafixManager->findLatestActionableReply($uplinkAddress, $sysopUserId, $rememberedTier);
 
     if (!$found) {
         apiError('errors.admin.areafix.no_area_list_found', 'No area list found in recent replies for this uplink', 404, ['success' => false]);
@@ -11060,10 +11170,6 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
     $replyFound = $found['message'];
     $parsedAreas = $found['areas'];
 
-    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
-    $domain = (string)($uplink['domain'] ?? 'fidonet');
-
     $summary = $areafixManager->syncSubscribedAreas(
         $uplinkAddress,
         $domain,
@@ -11071,6 +11177,7 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
         false,
         $robot
     );
+    $areafixManager->rememberTier($uplinkAddress, $domain, $robot, $found['tier'] ?? null);
 
     echo json_encode([
         'success'     => true,

@@ -327,6 +327,46 @@ cheap to turn a logged sample into permanent, tested coverage.
 
 ## Proposed Improvement 6: Per-Uplink Format Memory
 
+> **Status: Implemented.** See `src/AreaFix/AreaFixParser.php` (`TIER_*`
+> constants, `parseWithTier()`, `buildTierList()`), `src/AreaFixManager.php`
+> (`getRememberedTier()`, `rememberTier()`), the
+> `areafix_grammar_memory` table (migration
+> `v20260926031305_add_areafix_grammar_memory_table.sql`), and
+> `tests/test_areafix_grammar_memory.php`. Full reference in
+> `docs/AreaFix.md` under "Per-Uplink Grammar Memory".
+
+### Implementation Notes
+
+What landed matches the proposal closely, with these concrete choices:
+
+- Memory is written on **confirmed** syncs only: `POST /api/admin/areafix/sync-latest`
+  and the auto-sync path (`AreaFixManager::processIncomingReply()`) record the
+  tier immediately (they always apply directly); `POST
+  /api/admin/areafix/preview-latest` never writes memory, only reads it (as a
+  parsing hint and to compute `format_changed`); `POST
+  /api/admin/areafix/sync` (the sysop-curated preview confirmation) records
+  the tier only when the admin UI passes one back via an optional `tier`
+  field, populated from what `preview-latest` reported for that reply.
+- `rememberTier()` treats a `null`/empty tier as a no-op rather than clearing
+  the row — a reply that matched nothing (or only the freeform fallback on
+  garbage input) must never erase a previously-known-good remembered tier.
+- Memory is keyed by `uplink_address` + `domain` + `robot`, not just the
+  uplink address, since an AreaFix and FileFix robot on the same hub could in
+  principle use different reply formats.
+- `parseWithTier()`'s `$preferredTier` parameter is a pure reordering hint: it
+  moves the remembered tier to the front of the ordered tier list but never
+  changes which tier ultimately wins for a given body, so a stale or wrong
+  remembered tier degrades to "try the normal order first" rather than ever
+  producing an incorrect parse.
+- Beyond the proposal's original scope, the remembered tier is also directly
+  editable: **Admin → Networks → Edit Uplink** shows the current tier for
+  each robot and lets a sysop force it to a specific value or clear it,
+  backed by `GET`/`POST /api/admin/areafix/grammar-memory` and
+  `AreaFixParser::getKnownTierIds()`. This covers the two manual-intervention
+  cases the automatic path can't: resetting a stale memory after confirming a
+  format change out-of-band, and pre-seeding a known format for a brand-new
+  uplink before its first reply ever arrives.
+
 Each individual uplink is internally consistent — a given hub always emits
 the same AreaFix reply format — even though the overall population of
 uplinks a BBS might connect to is heterogeneous. The parser can exploit this:

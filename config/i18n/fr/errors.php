@@ -546,6 +546,7 @@ return [
     'errors.admin.areafix.invalid_json' => 'Charge utile de demande invalide',
     'errors.admin.areafix.uplink_required' => 'L\'adresse uplink est requise',
     'errors.admin.areafix.invalid_robot' => 'Le robot doit être "areafix" ou "filefix"',
+    'errors.admin.areafix.invalid_tier' => 'Niveau de grammaire non reconnu',
     'errors.admin.areafix.commands_required' => 'Au moins une commande est requise',
     'errors.admin.areafix.send_failed' => 'Échec de l\'envoi de la commande',
     'errors.admin.areafix.history_failed' => 'Échec du chargement de l\'historique des messages',
