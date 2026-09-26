@@ -15,6 +15,7 @@
 
 namespace BinktermPHP;
 
+use BinktermPHP\AreaFix\AreaFixParser;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
 
@@ -87,235 +88,101 @@ class AreaFixManager
     }
 
     /**
-     * Parse a %QUERY, %LIST, or %UNLINKED reply body into an array of area records.
+     * Parse an AreaFix or FileFix reply body into an array of area records.
      *
-     * Handles multiple hub software formats (Binkd/Husky, FrontDoor/InterMail,
-     * Mystic BBS/MBSE). Returns an empty array if fewer than 2 valid areas are
-     * found, which indicates the body is likely an error or status message rather
-     * than an area list.
+     * Delegates to the structural AreaFixParser, which handles Mystic BBS / MBSE
+     * command blocks, delimited colon/pipe tables, and columnar/dotted-leader tables.
      *
      * @param string $body        Raw message body text
-     * @param string $commandType Hint for parsing context (e.g. "list", "query", "unlinked")
-     * @return array<int, array{name: string, description: string|null}> Parsed area records
+     * @param string $commandType Hint for parsing context (e.g. "%LIST", "%QUERY", "%UNLINKED")
+     * @param string|null $preferredTier A tier identifier to try first (see getRememberedTier())
+     * @return array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}> Parsed area records
      */
-    public function parseResponseText(string $body, string $commandType): array
+    public function parseResponseText(string $body, string $commandType = '%LIST', ?string $preferredTier = null): array
     {
-        $areas = [];
-
-        // Normalize line endings
-        $body = str_replace(["\r\n", "\r"], "\n", $body);
-        $lines = explode("\n", $body);
-
-        foreach ($lines as $line) {
-            $trimmed = trim($line);
-
-            // Skip blank lines
-            if ($trimmed === '') {
-                continue;
-            }
-
-            // Skip lines starting with error or percent command prefixes
-            if (str_starts_with($trimmed, '-ERR') || str_starts_with($trimmed, '+ERR') || str_starts_with($trimmed, '%')) {
-                continue;
-            }
-
-            // Pure separator/decorative lines (---, ===, ***, :---:, etc.)
-            if (preg_match('/^[:|\s]*[-=*#~:\s]{3,}[:|\s]*$/', $trimmed)) {
-                continue;
-            }
-
-            // Table header lines (e.g. ": AREA : DESCRIPTION :")
-            if (preg_match('/[:|\s]+AREA[:|\s]+DESCRIPTION/i', $trimmed)) {
-                continue;
-            }
-
-            // Check if colon or pipe delimited table row (e.g. :* : TAG : DESC : MSGS :)
-            if (preg_match('/^[:|]\s*([\*\+\-\s]?)\s*[:|]\s*([A-Z0-9_\-\.]+)\s*[:|]\s*(.*?)\s*(?:[:|]\s*[0-9]+\s*)?[:|]?$/i', $trimmed, $m)) {
-                $tag = strtoupper(trim($m[2]));
-                if ($tag !== 'AREA' && preg_match('/^[A-Z0-9_\-\.]{2,}$/', $tag)) {
-                    $desc = trim($m[3]);
-                    $areas[] = [
-                        'name'        => $tag,
-                        'description' => $desc !== '' ? $desc : null,
-                    ];
-                    continue;
-                }
-            }
-
-            // Pipe table format: | TAG | DESC | ...
-            if (preg_match('/^\|?\s*([A-Z0-9_\-\.]+)\s*\|\s*(.*?)\s*(?:\|.*)?$/i', $trimmed, $m)) {
-                $tag = strtoupper(trim($m[1]));
-                if ($tag !== 'AREA' && preg_match('/^[A-Z0-9_\-\.]{2,}$/', $tag)) {
-                    $desc = trim($m[2]);
-                    $areas[] = [
-                        'name'        => $tag,
-                        'description' => $desc !== '' ? $desc : null,
-                    ];
-                    continue;
-                }
-            }
-
-            // Skip general header/footer lines before trying freeform parsing
-            if ($this->isSkippableLine($trimmed)) {
-                continue;
-            }
-
-            // Standard line parsing with leading status symbol stripping (*, +, -, :, |)
-            $cleaned = trim(preg_replace('/^[\*\+\-\:\|\s]+/', '', $trimmed));
-            if ($cleaned === '' || $cleaned === ':') {
-                continue;
-            }
-
-            $parts = preg_split('/\s+/', $cleaned, 2);
-            if (!$parts || count($parts) === 0) {
-                continue;
-            }
-
-            $tag = strtoupper($parts[0]);
-
-            // List of words that appear in receipts, headers, or English sentences and cannot be area tags
-            $ignoredTags = [
-                'AREA', 'FTN', 'FOLLOWING', 'FOLLOWS', 'ORIGINAL', 'STATUS', 'MESSAGE',
-                'TEXT', 'COMMAND', 'COMMANDS', 'REQUEST', 'NOTE', 'NOTES', 'DATE',
-                'COST', 'FLAGS', 'ORIGIN', 'DEST', 'INTL', 'REPLYADDR', 'MSGID',
-                'CHRS', 'PID', 'TZUTC', 'THIS', 'THAT', 'THERE', 'HERE', 'YOUR',
-                'PLEASE', 'BELOW', 'REPLY', 'RESULT', 'RESULTS', 'HELP'
-            ];
-
-            // Validate tag pattern: uppercase letters, digits, underscore, hyphen, dot; minimum 2 chars
-            if (in_array($tag, $ignoredTags, true) || !preg_match('/^[A-Z0-9_\-\.]{2,}$/', $tag) || preg_match('/^\.+$/', $tag)) {
-                continue;
-            }
-
-            // Extract description from remainder of line
-            $description = null;
-            if (isset($parts[1])) {
-                $remainder = $parts[1];
-
-                // Strip leading separators: " - ", tab, or two or more spaces
-                $remainder = preg_replace('/^(\s*-\s+|\t+|\s{2,})/', '', $remainder);
-                $remainder = trim($remainder);
-
-                if ($remainder !== '') {
-                    $description = $remainder;
-                }
-            }
-
-            $areas[] = [
-                'name'        => $tag,
-                'description' => $description,
-            ];
-        }
-
-        // If fewer than 2 valid areas parsed, assume this is not an area list response
-        if (count($areas) < 2) {
-            return [];
-        }
-
-        return $areas;
+        return $this->parseResponseTextWithTier($body, $commandType, $preferredTier)['areas'];
     }
 
     /**
-     * Determine whether a line should be skipped during area list parsing.
+     * Same as parseResponseText(), but also reports which AreaFixParser tier
+     * produced the result (see PR460Proposal Improvement 6: per-uplink
+     * grammar memory).
      *
-     * Skips header/footer lines, error lines, decorative separators, and lines
-     * that are clearly not area tags.
-     *
-     * @param string $line Trimmed line to evaluate
-     * @return bool True if the line should be skipped
+     * @param string $body        Raw message body text
+     * @param string $commandType Hint for parsing context (currently unused by AreaFixParser)
+     * @param string|null $preferredTier A tier identifier to try first
+     * @return array{areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>, tier: ?string}
      */
-    private function isSkippableLine(string $line): bool
+    public function parseResponseTextWithTier(string $body, string $commandType = '%LIST', ?string $preferredTier = null): array
     {
-        $lower = strtolower($line);
+        $parser = new AreaFixParser();
+        return $parser->parseWithTier($body, null, $preferredTier);
+    }
 
-        // Lines starting with error or percent prefixes
-        if (str_starts_with($line, '-ERR') || str_starts_with($line, '+ERR')) {
-            return true;
-        }
-        if (str_starts_with($line, '%')) {
-            return true;
-        }
+    /**
+     * Return the AreaFixParser tier (see AreaFixParser::TIER_* constants, or
+     * "configured:<grammar id>") that last produced a CONFIRMED sync for this
+     * uplink+domain+robot, if any. Used as a parsing hint for the next reply
+     * and to detect when a hub's reply format changes.
+     */
+    public function getRememberedTier(string $uplinkAddress, string $domain, string $robot): ?string
+    {
+        $record = $this->getRememberedTierRecord($uplinkAddress, $domain, $robot);
+        return $record ? $record['tier'] : null;
+    }
 
-        // Taglines, tearlines, and origin lines
-        if (str_starts_with($line, '...') || str_starts_with($line, '---') || str_starts_with($line, '* Origin:')) {
-            return true;
-        }
+    /**
+     * Same as getRememberedTier(), but also returns when it was last recorded,
+     * for display in the admin UI's per-uplink grammar memory editor (see
+     * Admin → Networks → Edit Uplink).
+     *
+     * @return array{tier: string, last_matched_at: string}|null
+     */
+    public function getRememberedTierRecord(string $uplinkAddress, string $domain, string $robot): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT tier, last_matched_at FROM areafix_grammar_memory WHERE uplink_address = ? AND domain = ? AND robot = ?"
+        );
+        $stmt->execute([$uplinkAddress, $domain, $robot]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ? ['tier' => (string)$row['tier'], 'last_matched_at' => (string)$row['last_matched_at']] : null;
+    }
 
-        // Lines containing block drawing characters (CP437 / Unicode box art).
-        if (mb_check_encoding($line, 'UTF-8')) {
-            // Valid UTF-8: match the actual box-drawing / block code points.
-            if (@preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬■]/u', $line)) {
-                return true;
-            }
-        } else {
-            // Not valid UTF-8: treat as CP437 and look for the raw box-art byte range
-            // (0xB0-0xDF covers the block/box-drawing glyphs). Doing this byte scan on
-            // valid UTF-8 would wrongly match accented-Latin lead bytes (e.g. 'é').
-            if (preg_match('/[\xB0-\xDF]/', $line)) {
-                return true;
-            }
-            $cp437 = @iconv('CP437', 'UTF-8//IGNORE', $line);
-            if ($cp437 !== false && @preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬■]/u', $cp437)) {
-                return true;
-            }
-        }
-
-        // Explanatory footer lines (e.g. '*' = Subscribed, '+' = available, (MSGS = Messages...)
-        if (preg_match('/^[\'\"\(]?[\*\+\-RW\s]+[\'\"\)]?\s*=\s*/i', $line) || str_contains($lower, 'messages in the last month')) {
-            return true;
-        }
-
-        // FTN mailer/tosser software banners
-        if (str_contains($lower, 'ftn mailer') || str_contains($lower, 'ftn tosser')) {
-            return true;
-        }
-
-        // Quoted message box borders and headers
-        if (str_starts_with($line, '+--') || str_contains($lower, 'begin message') || str_contains($lower, 'end message') || str_contains($lower, 'control lines') || str_contains($lower, 'message body') || str_contains($lower, 'original message text')) {
-            return true;
+    /**
+     * Record which AreaFixParser tier matched for this uplink+domain+robot,
+     * after a sync using that parse has actually been confirmed/applied (or
+     * a sysop has manually forced a tier via the admin UI). A null or empty
+     * tier (nothing matched) is never recorded, since that would erase a
+     * previously-known-good remembered tier for no reason — use
+     * clearRememberedTier() to actually remove a remembered tier.
+     */
+    public function rememberTier(string $uplinkAddress, string $domain, string $robot, ?string $tier): void
+    {
+        if ($tier === null || $tier === '') {
+            return;
         }
 
-        // FidoNet header fields
-        if (preg_match('/^(to|from|subject|date|cost|flags|origin|dest|intl|replyaddr|msgid|chrs|pid|tzutc)\s*[:\s]/i', $line)) {
-            return true;
-        }
+        $stmt = $this->db->prepare(
+            "INSERT INTO areafix_grammar_memory (uplink_address, domain, robot, tier, last_matched_at)
+             VALUES (?, ?, ?, ?, NOW())
+             ON CONFLICT (uplink_address, domain, robot) DO UPDATE
+             SET tier = EXCLUDED.tier, last_matched_at = NOW()"
+        );
+        $stmt->execute([$uplinkAddress, $domain, $robot, $tier]);
+    }
 
-        // Common text lines in help / result receipts / change requests
-        if (preg_match('/^(this|that|there|here|your|please|check|note|notes|use|arguments|items|no\s+path|the\s+hub|following|the following|below|status)\b/i', $line)) {
-            return true;
-        }
-
-        // Husky status table headers and lines (e.g. Area ... Status, or rescanned X mails)
-        if (preg_match('/[:|\s]+AREA[:|\s]+STATUS/i', $line) || preg_match('/\b(rescanned\s+\d+\s+mails?|area\s+not\s+found|already\s+subscribed|unsubscribed)\b/i', $line)) {
-            return true;
-        }
-
-        // Known header patterns
-        $headerPatterns = [
-            'area list',
-            'linked at',
-            'areas linked',
-            'echo areas',
-            'file areas',
-            'areafix',
-            'filefix',
-            'available areas',
-            'subscribed areas',
-            'not linked',
-            'unlinked areas',
-            'areas available',
-            'your subscriptions',
-            'end of',
-            'begin of',
-        ];
-
-        foreach ($headerPatterns as $pattern) {
-            if (str_contains($lower, $pattern)) {
-                return true;
-            }
-        }
-
-        return false;
+    /**
+     * Forget the remembered tier for this uplink+domain+robot, so the next
+     * reply tries the full ordered tier list again from scratch. Used by the
+     * admin UI when a sysop wants to reset a stale or incorrect memory (e.g.
+     * after manually confirming a hub's format really did change).
+     */
+    public function clearRememberedTier(string $uplinkAddress, string $domain, string $robot): void
+    {
+        $stmt = $this->db->prepare(
+            "DELETE FROM areafix_grammar_memory WHERE uplink_address = ? AND domain = ? AND robot = ?"
+        );
+        $stmt->execute([$uplinkAddress, $domain, $robot]);
     }
 
     /**
@@ -332,11 +199,21 @@ class AreaFixManager
      * For FileFix (robot = "filefix") the sync targets the file_areas table.
      * For AreaFix the sync targets the echoareas table.
      *
+     * By default, an existing area's description is only overwritten when the
+     * current one is empty or an auto-generated placeholder
+     * (isPlaceholderDescription()) — a real, sysop-set description is left
+     * alone. Passing $forceDescriptions = true (used when a sysop has
+     * explicitly selected specific areas to sync via the admin preview screen)
+     * overwrites the description whenever the incoming one is non-empty and
+     * different from the current one, regardless of placeholder status.
+     *
      * @param string $uplinkAddress     FTN address of the uplink hub
      * @param string $domain            Network domain (e.g. "fidonet")
      * @param array<int, array{name: string, description: string|null}> $parsedAreas
      * @param bool   $deactivateMissing If true, deactivate areas not in the list
      * @param string $robot             "areafix" or "filefix"
+     * @param bool   $activateAll       If true, newly created areas are active regardless of parsed action
+     * @param bool   $forceDescriptions If true, overwrite an existing area's description whenever the incoming one differs, bypassing the placeholder-only protection
      * @return array{created: int, activated: int, deactivated: int}
      */
     public function syncSubscribedAreas(
@@ -344,7 +221,9 @@ class AreaFixManager
         string $domain,
         array $parsedAreas,
         bool $deactivateMissing = false,
-        string $robot = 'areafix'
+        string $robot = 'areafix',
+        bool $activateAll = false,
+        bool $forceDescriptions = false
     ): array {
         $created = 0;
         $activated = 0;
@@ -354,13 +233,26 @@ class AreaFixManager
         $syncedTags = [];
 
         foreach ($parsedAreas as $area) {
-            $tag = strtoupper(trim($area['name']));
+            $tag = strtoupper(trim((string)($area['name'] ?? '')));
             if ($tag === '') {
                 continue;
             }
 
             $syncedTags[] = $tag;
             $description = $area['description'] ?? null;
+            $action = $area['action'] ?? ($activateAll ? AreaFixParser::ACTION_SUBSCRIBE : ($area['is_subscribed'] ?? true ? AreaFixParser::ACTION_SUBSCRIBE : AreaFixParser::ACTION_AVAILABLE));
+
+            // If action is unsubscribe, deactivate the area if it exists
+            if ($action === AreaFixParser::ACTION_UNSUBSCRIBE) {
+                $stmt = $this->db->prepare(
+                    "UPDATE {$table} SET is_active = FALSE WHERE UPPER(tag) = UPPER(?) AND domain = ? AND is_active = TRUE"
+                );
+                $stmt->execute([$tag, $domain]);
+                if ($stmt->rowCount() > 0) {
+                    $deactivated++;
+                }
+                continue;
+            }
 
             // Check if area already exists
             $stmt = $this->db->prepare(
@@ -372,11 +264,11 @@ class AreaFixManager
             $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
 
             if ($existing) {
-                // Update existing: ensure active, set uplink/description if missing
+                // Update existing
                 $updates = [];
                 $params = [];
 
-                if (!$existing['is_active']) {
+                if ($action === AreaFixParser::ACTION_SUBSCRIBE && !$existing['is_active']) {
                     $updates[] = 'is_active = TRUE';
                     $activated++;
                 }
@@ -387,7 +279,11 @@ class AreaFixManager
                     $params[] = $uplinkAddress;
                 }
 
-                if ($description !== null && (empty($existing['description']) || str_starts_with((string)$existing['description'], 'Auto-created:'))) {
+                $descriptionShouldUpdate = $forceDescriptions
+                    ? ($description !== null && trim($description) !== '' && $description !== ($existing['description'] ?? null))
+                    : ($description !== null && !self::isPlaceholderDescription($description) && self::isPlaceholderDescription($existing['description'] ?? null));
+
+                if ($descriptionShouldUpdate) {
                     $updates[] = 'description = ?';
                     $params[] = $description;
                 }
@@ -398,29 +294,42 @@ class AreaFixManager
                     $this->db->prepare($sql)->execute($params);
                 }
             } else {
-                // Insert new area
+                // Determine whether new area should be active (only if confirmed subscribed or explicitly requested)
+                $isActive = ($action === AreaFixParser::ACTION_SUBSCRIBE || $activateAll);
+
+                // Insert new area. On a race (a row appeared between our SELECT
+                // and this INSERT), fall back to the same overwrite rule as the
+                // UPDATE branch above: force always wins, otherwise only an
+                // empty existing description is filled in.
+                $descriptionConflictClause = $forceDescriptions
+                    ? 'EXCLUDED.description'
+                    : 'COALESCE(NULLIF(%1$s.description, \'\'), EXCLUDED.description)';
+
                 if ($table === 'echoareas') {
                     $stmt = $this->db->prepare(
                         "INSERT INTO echoareas (tag, domain, uplink_address, description, is_active, color)
-                         VALUES (?, ?, ?, ?, TRUE, '#28a745')
+                         VALUES (?, ?, ?, ?, ?, '#28a745')
                          ON CONFLICT (tag, domain) DO UPDATE
-                         SET is_active = TRUE,
+                         SET is_active = EXCLUDED.is_active,
                              uplink_address = COALESCE(NULLIF(echoareas.uplink_address, ''), EXCLUDED.uplink_address),
-                             description   = COALESCE(NULLIF(echoareas.description, ''), EXCLUDED.description)"
+                             description   = " . sprintf($descriptionConflictClause, 'echoareas')
                     );
-                    $stmt->execute([$tag, $domain, $uplinkAddress, $description]);
+                    $stmt->execute([$tag, $domain, $uplinkAddress, $description, $isActive ? 'true' : 'false']);
                 } else {
                     // file_areas uses domain to link to uplink — no uplink_address column
                     $stmt = $this->db->prepare(
                         "INSERT INTO file_areas (tag, domain, description, is_active)
-                         VALUES (?, ?, ?, TRUE)
+                         VALUES (?, ?, ?, ?)
                          ON CONFLICT (tag, domain) DO UPDATE
-                         SET is_active = TRUE,
-                             description = COALESCE(NULLIF(file_areas.description, ''), EXCLUDED.description)"
+                         SET is_active = EXCLUDED.is_active,
+                             description = " . sprintf($descriptionConflictClause, 'file_areas')
                     );
-                    $stmt->execute([$tag, $domain, $description]);
+                    $stmt->execute([$tag, $domain, $description, $isActive ? 'true' : 'false']);
                 }
                 $created++;
+                if ($isActive) {
+                    $activated++;
+                }
             }
         }
 
@@ -461,6 +370,231 @@ class AreaFixManager
     }
 
     /**
+     * Find the newest incoming AreaFix/FileFix reply for an uplink that contains
+     * actionable, parseable area data (skipping result receipts, error notices, and help text).
+     *
+     * Shared by the preview and apply code paths so that "this reply is actionable"
+     * means exactly the same thing in both places.
+     *
+     * @param string $uplinkAddress FTN address of the hub uplink
+     * @param int    $sysopUserId   User ID of the sysop account
+     * @param string|null $preferredTier A tier identifier to try first (see getRememberedTier())
+     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>, tier: ?string}|null
+     */
+    public function findLatestActionableReply(string $uplinkAddress, int $sysopUserId, ?string $preferredTier = null): ?array
+    {
+        foreach ($this->getIncomingMessages($uplinkAddress, $sysopUserId) as $m) {
+            $parsed = $this->toActionableReply($m, $preferredTier);
+            if ($parsed !== null) {
+                return $parsed;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find a specific incoming AreaFix/FileFix reply for an uplink by its netmail id
+     * and confirm it contains actionable, parseable area data.
+     *
+     * @param string $uplinkAddress FTN address of the hub uplink
+     * @param int    $sysopUserId   User ID of the sysop account
+     * @param int    $messageId     netmail.id of the incoming reply to inspect
+     * @param string|null $preferredTier A tier identifier to try first (see getRememberedTier())
+     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>, tier: ?string}|null
+     */
+    public function findActionableReplyById(string $uplinkAddress, int $sysopUserId, int $messageId, ?string $preferredTier = null): ?array
+    {
+        foreach ($this->getIncomingMessages($uplinkAddress, $sysopUserId) as $m) {
+            if ((int)($m['id'] ?? 0) !== $messageId) {
+                continue;
+            }
+            return $this->toActionableReply($m, $preferredTier);
+        }
+
+        return null;
+    }
+
+    /**
+     * Return the incoming (hub-to-us) messages from an uplink's AreaFix/FileFix history.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getIncomingMessages(string $uplinkAddress, int $sysopUserId): array
+    {
+        $historyData = $this->getHistory($uplinkAddress, $sysopUserId);
+        $messages = ($historyData['messages'] ?? $historyData);
+        if (!is_array($messages)) {
+            return [];
+        }
+
+        return array_values(array_filter($messages, static fn($m) => ($m['direction'] ?? '') === 'incoming'));
+    }
+
+    /**
+     * Check whether a single incoming message is an actionable AreaFix/FileFix reply
+     * and, if so, return it paired with its parsed areas.
+     *
+     * @param array<string, mixed> $message
+     * @param string|null $preferredTier A tier identifier to try first (see getRememberedTier())
+     * @return array{message: array<string, mixed>, areas: array<int, array{name: string, description: string|null, action: string, is_subscribed: bool}>, tier: ?string}|null
+     */
+    private function toActionableReply(array $message, ?string $preferredTier = null): ?array
+    {
+        $subj = (string)($message['subject'] ?? '');
+        $bodyText = (string)($message['message_text'] ?? '');
+
+        if (!$this->isAreaListResponse($subj, $bodyText)) {
+            return null;
+        }
+
+        $result = $this->parseResponseTextWithTier($bodyText, '%LIST', $preferredTier);
+        if (empty($result['areas'])) {
+            return null;
+        }
+
+        return ['message' => $message, 'areas' => $result['areas'], 'tier' => $result['tier']];
+    }
+
+    /**
+     * Compute what syncSubscribedAreas() would do for the given parsed areas,
+     * without writing anything to the database.
+     *
+     * Each parsed area is classified against current local state as one of:
+     * - "new": area does not exist locally yet and will be created (active or not,
+     *   depending on action).
+     * - "reactivate": area exists but is currently inactive and will be turned on.
+     * - "deactivate": area is currently active and the parsed action is unsubscribe
+     *   (or, when $deactivateMissing is true, the area is active locally but missing
+     *   from the parsed list).
+     * - "unchanged": area already matches the state the sync would produce.
+     *
+     * Independently of that status, `description_will_change` reports whether
+     * applying the sync would also update the local description, mirroring
+     * syncSubscribedAreas()'s own rule: a new area always gets the parsed
+     * description, while an existing area's description is only overwritten
+     * when the current one is a placeholder (isPlaceholderDescription()) and
+     * the incoming one is not — an area can therefore be "unchanged" in
+     * activation state while still having its description filled in.
+     *
+     * When the description won't be overwritten (the local one is a real,
+     * non-placeholder value) but the hub's reply lists a different one,
+     * `description_differs` is true so the sysop can still see the mismatch
+     * and decide whether to update it manually — the sync itself will never
+     * touch it.
+     *
+     * @param string $uplinkAddress     FTN address of the uplink hub
+     * @param string $domain            Network domain (e.g. "fidonet")
+     * @param array<int, array{name: string, description: string|null, action?: string, is_subscribed?: bool}> $parsedAreas
+     * @param bool   $deactivateMissing If true, also list locally-active areas missing from the parsed list as deactivation candidates
+     * @param string $robot             "areafix" or "filefix"
+     * @return array<int, array{name: string, description: string|null, action: string, is_subscribed: bool, status: string, currently_active: bool, current_description: string|null, description_will_change: bool, description_differs: bool}>
+     */
+    public function previewSync(
+        string $uplinkAddress,
+        string $domain,
+        array $parsedAreas,
+        bool $deactivateMissing = false,
+        string $robot = 'areafix'
+    ): array {
+        $table = ($robot === 'filefix') ? 'file_areas' : 'echoareas';
+        $items = [];
+        $seenTags = [];
+
+        foreach ($parsedAreas as $area) {
+            $tag = strtoupper(trim((string)($area['name'] ?? '')));
+            if ($tag === '' || isset($seenTags[$tag])) {
+                continue;
+            }
+            $seenTags[$tag] = true;
+
+            $description = $area['description'] ?? null;
+            $isSubscribed = (bool)($area['is_subscribed'] ?? true);
+            $action = $area['action'] ?? ($isSubscribed ? AreaFixParser::ACTION_SUBSCRIBE : AreaFixParser::ACTION_AVAILABLE);
+
+            $stmt = $this->db->prepare(
+                "SELECT is_active, description FROM {$table} WHERE UPPER(tag) = UPPER(?) AND domain = ?"
+            );
+            $stmt->execute([$tag, $domain]);
+            $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $currentlyActive = $existing ? (bool)$existing['is_active'] : false;
+            $currentDescription = $existing['description'] ?? null;
+
+            $descriptionDiffers = false;
+
+            if ($action === AreaFixParser::ACTION_UNSUBSCRIBE) {
+                $status = $currentlyActive ? 'deactivate' : 'unchanged';
+                $descriptionWillChange = false;
+            } elseif (!$existing) {
+                $status = 'new';
+                $descriptionWillChange = ($description !== null && trim($description) !== '');
+            } else {
+                $status = (!$currentlyActive && $action === AreaFixParser::ACTION_SUBSCRIBE) ? 'reactivate' : 'unchanged';
+                $descriptionWillChange = $description !== null
+                    && !self::isPlaceholderDescription($description)
+                    && self::isPlaceholderDescription($currentDescription);
+
+                // Even when the local description won't be overwritten (it's a
+                // real, non-placeholder value), the sysop should still be told
+                // the hub's reply lists a different one, so they can decide
+                // whether to update it manually.
+                if (!$descriptionWillChange) {
+                    $normalizedIncoming = $description !== null ? trim($description) : '';
+                    $normalizedCurrent = $currentDescription !== null ? trim($currentDescription) : '';
+                    $descriptionDiffers = $normalizedIncoming !== ''
+                        && $normalizedCurrent !== ''
+                        && $normalizedIncoming !== $normalizedCurrent;
+                }
+            }
+
+            $items[] = [
+                'name'                    => $tag,
+                'description'             => $description,
+                'action'                  => $action,
+                'is_subscribed'           => $isSubscribed,
+                'status'                  => $status,
+                'currently_active'        => $currentlyActive,
+                'current_description'     => $currentDescription,
+                'description_will_change' => $descriptionWillChange,
+                'description_differs'     => $descriptionDiffers,
+            ];
+        }
+
+        if ($deactivateMissing) {
+            $sql = "SELECT tag, description FROM {$table} WHERE domain = ? AND is_active = TRUE";
+            $params = [$domain];
+            if ($table === 'echoareas') {
+                $sql .= " AND uplink_address = ?";
+                $params[] = $uplinkAddress;
+            }
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                $tag = strtoupper(trim((string)$row['tag']));
+                if ($tag === '' || isset($seenTags[$tag])) {
+                    continue;
+                }
+                $seenTags[$tag] = true;
+
+                $items[] = [
+                    'name'                    => $tag,
+                    'description'             => $row['description'] ?? null,
+                    'action'                  => AreaFixParser::ACTION_UNSUBSCRIBE,
+                    'is_subscribed'           => false,
+                    'status'                  => 'deactivate',
+                    'currently_active'        => true,
+                    'current_description'     => $row['description'] ?? null,
+                    'description_will_change' => false,
+                    'description_differs'     => false,
+                ];
+            }
+        }
+
+        return $items;
+    }
+
+    /**
      * Mark a local echo area as inactive (called after successful unsubscribe).
      *
      * @param string $areaTag Area tag to deactivate
@@ -475,21 +609,38 @@ class AreaFixManager
     }
 
     /**
+     * Check if an area description is considered an auto-generated placeholder
+     * or contains ANSI box-drawing/block corruption.
+     */
+    public static function isPlaceholderDescription(?string $desc): bool
+    {
+        if ($desc === null || trim($desc) === '') {
+            return true;
+        }
+        $trimmed = trim($desc);
+        // Starts with "Auto-created" (e.g. "Auto-created from TIC file", "Auto-created: ...")
+        if (preg_match('/^Auto-created\b/i', $trimmed)) {
+            return true;
+        }
+        // Contains ANSI box drawing / block art characters (e.g. ▄▄▄)
+        if (preg_match('/[▄█▀▌▐░▒▓─│┌┐└┘├┤┬┴┼═║]/u', $trimmed) || preg_match('/[\xB0-\xDF]/', $trimmed)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Check whether a message subject and body represent an AreaFix/FileFix area list
-     * rather than a command receipt, execution log, help text, or rescan confirmation.
+     * or actionable reply rather than an error or help notification.
      */
     public function isAreaListResponse(string $subject, string $body): bool
     {
-        // Skip receipts, error notifications, rescan results, and help text unless explicitly requested as a list/query
-        if (preg_match('/\b(result|results|help|invalid password|scan results|node change request|change request|request processed)\b/i', $subject) && !preg_match('/\b(list|query)\b/i', $subject)) {
+        if (preg_match('/\b(invalid password|password error)\b/i', $subject)) {
             return false;
         }
 
-        if (str_contains($body, '<-- COMMAND PROCESSED') || str_contains($body, '[ BEGIN MESSAGE ]') || str_contains($body, 'Here are the list of commands') || str_contains($body, 'original message text') || str_contains($body, 'rescanned')) {
-            return false;
-        }
-
-        return true;
+        $parser = new AreaFixParser();
+        return $parser->hasActionableContent($body, $subject);
     }
 
     /**
@@ -548,7 +699,7 @@ class AreaFixManager
             }
         }
 
-        // Do not process command receipts / execution logs, rescan replies, or help responses as area lists
+        // Do not process non-actionable receipts or error notifications
         if (!$this->isAreaListResponse($subject, $body)) {
             return null;
         }
@@ -568,18 +719,21 @@ class AreaFixManager
         }
 
         $robot = $isFilefix ? 'filefix' : 'areafix';
-        $parsedAreas = $this->parseResponseText($body, '%LIST');
-
-        if (count($parsedAreas) < 2) {
-            return null;
-        }
-
         $uplinkAddress = (string)$targetUplink['address'];
         $domain = (string)($targetUplink['domain'] ?? 'fidonet');
 
-        $summary = $this->syncSubscribedAreas($uplinkAddress, $domain, $parsedAreas, false, $robot);
+        $preferredTier = $this->getRememberedTier($uplinkAddress, $domain, $robot);
+        $parseResult = $this->parseResponseTextWithTier($body, '%LIST', $preferredTier);
+        $parsedAreas = $parseResult['areas'];
 
-        $this->logger->info("[AreaFixManager] Auto-imported " . count($parsedAreas) . " areas for domain '{$domain}' from {$uplinkAddress}: created={$summary['created']}, activated={$summary['activated']}");
+        if (empty($parsedAreas)) {
+            return null;
+        }
+
+        $summary = $this->syncSubscribedAreas($uplinkAddress, $domain, $parsedAreas, false, $robot);
+        $this->rememberTier($uplinkAddress, $domain, $robot, $parseResult['tier']);
+
+        $this->logger->info("[AreaFixManager] Auto-imported " . count($parsedAreas) . " areas for domain '{$domain}' from {$uplinkAddress}: created={$summary['created']}, activated={$summary['activated']}, deactivated={$summary['deactivated']}");
 
         return [
             'matched' => true,

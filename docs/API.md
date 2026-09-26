@@ -60,7 +60,7 @@ Content-Type: application/json
   - [Account](#account) (1)
   - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
-  - [AreaFix](#areafix) (1)
+  - [AreaFix](#areafix) (8)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
   - [Bulletins](#bulletins) (3)
@@ -555,13 +555,112 @@ Click recording confirmation with redirect URL
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
+| `POST` | [`/api/admin/areafix/preview-latest`](#post-apiadminareafixpreview-latest) | Yes | Parse the latest incoming AreaFix/FileFix reply for an uplink and return a diff against current local area state, without writing anything to the database. |
+| `POST` | [`/api/admin/areafix/sync`](#post-apiadminareafixsync) | Yes | Sync a sysop-curated list of areas (typically a subset selected in the preview) to the database. |
 | `POST` | [`/api/admin/areafix/sync-latest`](#post-apiadminareafixsync-latest) | Yes | Inspect the latest incoming AreaFix/FileFix reply for an uplink and sync areas to the database. |
+| `GET` | [`/api/admin/areafix/grammars-config`](#get-apiadminareafixgrammars-config) | Yes | Return the raw contents of `config/areafix_grammars.json`. |
+| `POST` | [`/api/admin/areafix/grammars-config`](#post-apiadminareafixgrammars-config) | Yes | Replace `config/areafix_grammars.json` wholesale. |
+| `POST` | [`/api/admin/areafix/grammars-ai-generate`](#post-apiadminareafixgrammars-ai-generate) | Yes | Ask the configured AI provider to suggest a grammar definition from a pasted AreaFix/FileFix reply message. |
+| `GET` | [`/api/admin/areafix/grammar-memory`](#get-apiadminareafixgrammar-memory) | Yes | Return the remembered `AreaFixParser` tier for both robots on an uplink. |
+| `POST` | [`/api/admin/areafix/grammar-memory`](#post-apiadminareafixgrammar-memory) | Yes | Manually force or clear the remembered tier for one uplink+robot. |
 
-#### `POST /api/admin/areafix/sync-latest`
+#### `GET /api/admin/areafix/grammars-config`
 
 **Requires authentication** (Admin only)
 
-Inspects recent message history from the specified uplink to find the latest incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes them into the local database (`echoareas` or `file_areas`).
+Returns the raw contents of `config/areafix_grammars.json`, the data-driven AreaFix/FileFix grammar definitions loaded by `AreaFixParser` (see `docs/AreaFix.md#data-driven-grammar-definitions`). Used by the `/admin/areafix-grammars` editor page.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the config was read |
+| `config` | object | Config wrapper |
+| `config.config_json` | string | Raw JSON text of `config/areafix_grammars.json` (`"[]"` if the file doesn't exist) |
+| `config.example_json` | string\|null | Raw JSON text of `config/areafix_grammars.json.example`, for the admin UI's "Populate from Example" button; `null` if no example file is shipped |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 500 | Failed to load AreaFix grammar configuration |
+
+---
+
+#### `POST /api/admin/areafix/grammars-config`
+
+**Requires authentication** (Admin only)
+
+Replaces `config/areafix_grammars.json` wholesale with the given JSON array, written via the admin daemon (the web process cannot write config files directly; see `docs/AdminDaemon.md`).
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `json` | string | Yes | New contents of `config/areafix_grammars.json`, as a JSON-encoded array of grammar definition objects |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful save |
+| `config` | object | Config wrapper |
+| `config.config_json` | string | Raw JSON text of the saved config |
+| `message_code` | string | i18n key for the success message |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing/invalid JSON payload, or failed to save AreaFix grammar configuration |
+
+---
+
+#### `POST /api/admin/areafix/grammars-ai-generate`
+
+**Requires authentication** (Admin only)
+
+Asks the configured AI provider (see `docs/AIProviders.md`) to infer a data-driven `AreaFixParser` grammar definition (see `docs/AreaFix.md#data-driven-grammar-definitions`) from the raw text of a pasted AreaFix/FileFix reply message. Nothing is written to `config/areafix_grammars.json` by this endpoint — it only returns a suggestion for the sysop to review, edit, and save via `/api/admin/areafix/grammars-config`. The suggestion always comes back with `enabled: false` regardless of what the AI returns, and every regex is validated with `AreaFixParser::isValidPattern()` before being returned.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message_text` | string | Yes | Raw text of an AreaFix/FileFix reply message to infer a grammar from (truncated to 6000 characters) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if a grammar suggestion was generated |
+| `grammar` | object | Suggested grammar definition, in the same shape documented in `docs/AreaFix.md#data-driven-grammar-definitions` |
+| `grammar.id` | string | Suggested identifier, sanitized to `[a-z0-9_-]` |
+| `grammar.enabled` | boolean | Always `false` |
+| `grammar.header_pattern` | string | Suggested header-detection regex |
+| `grammar.row_pattern` | string | Suggested per-row regex, guaranteed to contain a `(?<tag>...)` named group |
+| `grammar.stop_pattern` | string | Suggested stop-scan regex; omitted if the AI didn't provide one |
+| `grammar.default_action` | string | `"subscribe"`, `"unsubscribe"`, or `"available"` |
+| `grammar.status_rules` | array of objects | Suggested status-to-action rules; omitted if empty |
+| `grammar.status_rules[].pattern` | string | Regex tested against the row's captured status text |
+| `grammar.status_rules[].action` | string | `"subscribe"`, `"unsubscribe"`, or `"available"` |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 422 | Missing `message_text`, or the AI's response wasn't a usable grammar definition (invalid regex, or `row_pattern` missing a `tag` capture group) |
+| 500 | Failed to generate grammar (AI request error) |
+| 503 | No AI provider is configured |
+
+---
+
+#### `POST /api/admin/areafix/preview-latest`
+
+**Requires authentication** (Admin only)
+
+Inspects recent message history from the specified uplink to find an incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and returns a per-area diff against the current `echoareas`/`file_areas` state — without applying any changes. The admin UI calls this endpoint to render a mandatory preview/confirmation step before calling `/api/admin/areafix/sync-latest`.
+
+When `message_id` is omitted, the newest actionable incoming reply is used (the "Latest Reply" panel's sync button). When `message_id` is given, that specific incoming netmail message is previewed instead (the per-row sync button in the message history table); the endpoint returns 404 if that message isn't an incoming, actionable reply from this uplink.
 
 **Request Body** _(JSON)_
 
@@ -569,6 +668,95 @@ Inspects recent message history from the specified uplink to find the latest inc
 |-------|------|----------|-------------|
 | `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
 | `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+| `message_id` | integer | No | `netmail.id` of a specific incoming reply to preview; defaults to the newest actionable reply |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if a preview was generated |
+| `areas` | array of objects | Parsed areas, each classified against current local state |
+| `areas[].name` | string | Area tag |
+| `areas[].description` | string\|null | Area description, if known |
+| `areas[].action` | string | Parsed action: `"subscribe"`, `"unsubscribe"`, or `"available"` |
+| `areas[].is_subscribed` | boolean | Whether the reply indicates this area is subscribed |
+| `areas[].status` | string | Diff classification: `"new"`, `"reactivate"`, `"deactivate"`, or `"unchanged"` |
+| `areas[].currently_active` | boolean | Whether the area is currently active locally, before any sync is applied |
+| `areas[].current_description` | string\|null | The area's current local description, before any sync is applied (`null` if the area doesn't exist locally yet) |
+| `areas[].description_will_change` | boolean | Whether applying the sync would update the local description. True for a new area with a non-empty description, or an existing area whose current description is a placeholder (see `AreaFixManager::isPlaceholderDescription()`) and the incoming one is not. Always false when `status` is `"deactivate"`, since unsubscribing never touches the description. |
+| `areas[].description_differs` | boolean | True when the hub's description differs from the current local one but `description_will_change` is false (the local description is a real, non-placeholder value and will not be overwritten). Lets the UI surface the mismatch for the sysop to review, without implying the sync will change anything. Always false when `description_will_change` is true, and always false for a new area. |
+| `areas_count` | integer | Number of areas in the diff |
+| `from` | string | Sender name or address of the reply message |
+| `date` | string\|null | Timestamp the reply was received or written |
+| `tier` | string\|null | `AreaFixParser` tier identifier that matched this reply (see `docs/AreaFix.md#per-uplink-grammar-memory`), e.g. `"mystic_blocks"` or `"configured:my_hub_format"` |
+| `remembered_tier` | string\|null | Tier last recorded for this uplink+domain+robot from a previously confirmed sync; `null` if this uplink has never been synced before |
+| `format_changed` | boolean | True only when both `tier` and `remembered_tier` are known and differ from each other |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload or missing uplink address |
+| 404 | No area list found in recent replies for this uplink |
+| 500 | Failed to generate sync preview |
+
+---
+
+#### `POST /api/admin/areafix/sync`
+
+**Requires authentication** (Admin only)
+
+Syncs an explicit, caller-provided list of areas into the local database. This is what the admin UI's preview modal calls to apply the sysop's checkbox selection — the `areas` array is normally the subset of `/api/admin/areafix/preview-latest`'s response the sysop left checked, but the endpoint accepts any well-formed area list.
+
+When `force_descriptions` is true, an existing area's description is overwritten whenever the submitted one differs from the current one, regardless of whether the current one is a placeholder. This is appropriate here because the sysop has already reviewed each selected area's description (including any mismatch flagged by `description_differs` in the preview) and explicitly chosen to include it. Without `force_descriptions`, the usual protection applies: an existing, non-placeholder description is never overwritten (see `AreaFixManager::isPlaceholderDescription()`).
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+| `areas` | array of objects | Yes | Areas to sync |
+| `areas[].name` | string | Yes | Area tag |
+| `areas[].description` | string\|null | No | Area description |
+| `areas[].action` | string | No | `"subscribe"`, `"unsubscribe"`, or `"available"`; derived from `is_subscribed` if omitted |
+| `areas[].is_subscribed` | boolean | No | Used to derive `action` when `action` is omitted (defaults to `true`) |
+| `deactivate_missing` | boolean | No | If true, deactivate any locally-active areas for this uplink/domain not present in `areas` (default `false`) |
+| `force_descriptions` | boolean | No | If true, overwrite an existing area's description whenever it differs from the submitted one, bypassing the placeholder-only protection (default `false`) |
+| `tier` | string | No | The `AreaFixParser` tier `/api/admin/areafix/preview-latest` reported for the reply this selection came from (see `docs/AreaFix.md#per-uplink-grammar-memory`). When given, updates the remembered tier for this uplink+domain+robot after a successful sync. |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful synchronization |
+| `summary` | object | Summary of changes applied to the local database |
+| `summary.created` | integer | Number of new areas inserted |
+| `summary.activated` | integer | Number of existing inactive areas re-activated |
+| `summary.deactivated` | integer | Number of areas deactivated |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload, missing uplink address, or invalid robot |
+| 500 | Failed to sync areas |
+
+---
+
+#### `POST /api/admin/areafix/sync-latest`
+
+**Requires authentication** (Admin only)
+
+Inspects recent message history from the specified uplink to find an incoming AreaFix or FileFix area list reply (`%LIST` or `%QUERY`), parses the available areas, and synchronizes all of them into the local database (`echoareas` or `file_areas`) — an all-or-nothing apply of the whole reply, without the `force_descriptions` protection override or the ability to select a subset of areas. The admin UI's preview modal now calls `/api/admin/areafix/sync` with the sysop's curated selection instead (see above); this endpoint remains available for callers that want to apply an entire reply directly without a preview step.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | No | Robot name: `"areafix"` (default) or `"filefix"` |
+| `message_id` | integer | No | `netmail.id` of a specific incoming reply to apply; defaults to the newest actionable reply |
 
 **Response** _(JSON)_
 
@@ -588,6 +776,66 @@ Inspects recent message history from the specified uplink to find the latest inc
 |--------|-------------|
 | 400 | Invalid payload or missing uplink address |
 | 404 | No area list found in recent replies for this uplink |
+
+---
+
+#### `GET /api/admin/areafix/grammar-memory`
+
+**Requires authentication** (Admin only)
+
+Returns the per-uplink `AreaFixParser` grammar memory (see `docs/AreaFix.md#per-uplink-grammar-memory`) for both robots on an uplink, plus the list of tier identifiers a "force this tier" selector may choose from. Backs the **Admin → Networks → Edit Uplink** dialog.
+
+**Query Parameters**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the memory was read |
+| `areafix` | object\|null | Remembered tier for the `areafix` robot on this uplink; `null` if never recorded |
+| `areafix.tier` | string | Tier identifier, e.g. `"mystic_blocks"` or `"configured:my_hub_format"` |
+| `areafix.last_matched_at` | string | Timestamp this tier was last recorded |
+| `filefix` | object\|null | Same shape as `areafix`, for the `filefix` robot |
+| `known_tiers` | array of strings | Every tier identifier `AreaFixParser::getKnownTierIds()` currently knows about, in the order they're tried |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing uplink address |
+
+---
+
+#### `POST /api/admin/areafix/grammar-memory`
+
+**Requires authentication** (Admin only)
+
+Manually forces or clears the remembered grammar tier for one uplink+robot, without requiring a real AreaFix sync. Setting a tier here stores it exactly the way a confirmed sync would (`AreaFixManager::rememberTier()`), so it's tried first on the uplink's next reply.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uplink` | string | Yes | Uplink node address (e.g. `1:229/426`) |
+| `robot` | string | Yes | Robot name: `"areafix"` or `"filefix"` |
+| `tier` | string\|null | No | Tier identifier to force (must be one of `known_tiers` from the `GET` response above); omit or pass `null` to clear the remembered tier instead |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful update |
+| `tier` | string\|null | The tier now recorded (`null` if cleared) |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload, missing uplink address, invalid robot, or `tier` isn't a recognized identifier |
 
 ---
 

@@ -296,6 +296,13 @@
                                 <label class="form-label" for="uplinkNetworks">{{ t('ui.admin.binkp_config.uplinks.modal.networks_one_per_line', {}, locale, ['common']) }}</label>
                                 <textarea class="form-control" id="uplinkNetworks" rows="4"></textarea>
                             </div>
+                            <div class="col-md-12" id="uplinkGrammarMemorySection" style="display:none;">
+                                <div class="border rounded bg-light p-3">
+                                    <h6 class="mb-2">{{ t('ui.admin.binkp_config.uplinks.modal.grammar_memory_heading', {}, locale, ['common']) }}</h6>
+                                    <p class="form-text mt-0 mb-2">{{ t('ui.admin.binkp_config.uplinks.modal.grammar_memory_help', {}, locale, ['common']) }}</p>
+                                    <div id="uplinkGrammarMemoryRows"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="col-lg-5">
@@ -726,6 +733,7 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkCrypt').checked = false;
         document.getElementById('uplinkDefault').checked = false;
         document.getElementById('uplinkAllowInsecureEchomail').checked = false;
+        hideUplinkGrammarMemory();
     } else {
         const uplink = (binkpConfig.uplinks || [])[index];
         if (!uplink) {
@@ -753,10 +761,146 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkCompression').checked = !!uplink.compression;
         document.getElementById('uplinkCrypt').checked = !!uplink.crypt;
         document.getElementById('uplinkDefault').checked = !!uplink.default;
+        loadUplinkGrammarMemory(uplink.address || '');
     }
 
     resetUplinkPasswordVisibility();
     uplinkModal.show();
+}
+
+// ── AreaFix/FileFix grammar memory (PR460Proposal Improvement 6) ──────────
+// Lets a sysop view, manually force, or clear the per-uplink AreaFixParser
+// tier memory (see docs/AreaFix.md#per-uplink-grammar-memory) directly from
+// the uplink editor, without needing to trigger an actual AreaFix sync.
+
+const GRAMMAR_TIER_LABELS = {
+    'mystic_blocks':              { key: 'ui.admin.binkp_config.uplinks.modal.tier_mystic_blocks',             fallback: 'Mystic BBS / MBSE blocks' },
+    'delimited_table':            { key: 'ui.admin.binkp_config.uplinks.modal.tier_delimited_table',           fallback: 'Delimited table' },
+    'columnar_table':             { key: 'ui.admin.binkp_config.uplinks.modal.tier_columnar_table',            fallback: 'Columnar / dotted-leader table' },
+    'quoted_address_list':        { key: 'ui.admin.binkp_config.uplinks.modal.tier_quoted_address_list',       fallback: 'Quoted address list' },
+    'flagged_dotted_quoted_list': { key: 'ui.admin.binkp_config.uplinks.modal.tier_flagged_dotted_quoted_list', fallback: 'Flag-prefixed dotted-leader list' },
+    'freeform':                   { key: 'ui.admin.binkp_config.uplinks.modal.tier_freeform',                  fallback: 'Freeform fallback' }
+};
+
+function grammarTierLabel(tier) {
+    if (!tier) {
+        return '';
+    }
+    if (tier.indexOf('configured:') === 0) {
+        const id = tier.slice('configured:'.length);
+        return uiT('ui.admin.binkp_config.uplinks.modal.tier_configured', 'custom grammar "' + id + '"', { id: id });
+    }
+    const entry = GRAMMAR_TIER_LABELS[tier];
+    return entry ? uiT(entry.key, entry.fallback) : tier;
+}
+
+function hideUplinkGrammarMemory() {
+    const section = document.getElementById('uplinkGrammarMemorySection');
+    if (section) section.style.display = 'none';
+    const rows = document.getElementById('uplinkGrammarMemoryRows');
+    if (rows) rows.innerHTML = '';
+}
+
+function loadUplinkGrammarMemory(address) {
+    const section = document.getElementById('uplinkGrammarMemorySection');
+    const rowsEl = document.getElementById('uplinkGrammarMemoryRows');
+    if (!address || !section || !rowsEl) {
+        hideUplinkGrammarMemory();
+        return;
+    }
+
+    section.style.display = '';
+    rowsEl.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> ' +
+        escapeHtml(uiT('ui.common.loading', 'Loading...')) + '</div>';
+
+    fetch('/api/admin/areafix/grammar-memory?uplink=' + encodeURIComponent(address))
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                rowsEl.innerHTML = '<div class="text-danger small">' +
+                    escapeHtml(uiT('ui.admin.binkp_config.uplinks.modal.grammar_memory_load_failed', 'Failed to load grammar memory')) + '</div>';
+                return;
+            }
+            renderUplinkGrammarMemoryRows(address, data);
+        })
+        .catch(() => {
+            rowsEl.innerHTML = '<div class="text-danger small">' +
+                escapeHtml(uiT('ui.admin.binkp_config.uplinks.modal.grammar_memory_load_failed', 'Failed to load grammar memory')) + '</div>';
+        });
+}
+
+function renderUplinkGrammarMemoryRows(address, data) {
+    const rowsEl = document.getElementById('uplinkGrammarMemoryRows');
+    if (!rowsEl) return;
+
+    const knownTiers = Array.isArray(data.known_tiers) ? data.known_tiers : [];
+    const robots = [
+        { key: 'areafix', record: data.areafix, label: uiT('ui.admin.binkp_config.uplinks.modal.grammar_memory_areafix', 'AreaFix') },
+        { key: 'filefix', record: data.filefix, label: uiT('ui.admin.binkp_config.uplinks.modal.grammar_memory_filefix', 'FileFix') }
+    ];
+
+    let html = '';
+    robots.forEach(function (r) {
+        const rowId = 'uplinkGrammarMemory_' + r.key;
+        const current = r.record ? r.record.tier : null;
+        const currentLabel = current
+            ? grammarTierLabel(current)
+            : uiT('ui.admin.binkp_config.uplinks.modal.grammar_memory_not_recorded', 'not yet recorded');
+        const lastMatched = r.record && r.record.last_matched_at ? ' <span class="text-muted">(' + escapeHtml(r.record.last_matched_at) + ')</span>' : '';
+
+        const options = knownTiers.map(function (tier) {
+            const selected = tier === current ? ' selected' : '';
+            return '<option value="' + escapeHtml(tier) + '"' + selected + '>' + escapeHtml(grammarTierLabel(tier)) + '</option>';
+        }).join('');
+
+        html += '<div class="d-flex flex-wrap align-items-center gap-2 mb-2">' +
+            '<div style="min-width:5rem;"><strong>' + escapeHtml(r.label) + ':</strong></div>' +
+            '<div class="flex-grow-1">' + escapeHtml(currentLabel) + lastMatched + '</div>' +
+            '<select class="form-select form-select-sm" style="width:auto;" id="' + rowId + 'Select">' + options + '</select>' +
+            '<button type="button" class="btn btn-sm btn-outline-primary" onclick="setUplinkGrammarMemory(\'' + r.key + '\')">' +
+                escapeHtml(uiT('ui.admin.binkp_config.uplinks.modal.grammar_memory_set', 'Force')) +
+            '</button>' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary" ' + (current ? '' : 'disabled') + ' onclick="clearUplinkGrammarMemory(\'' + r.key + '\')">' +
+                escapeHtml(uiT('ui.admin.binkp_config.uplinks.modal.grammar_memory_clear', 'Clear')) +
+            '</button>' +
+            '</div>';
+    });
+
+    rowsEl.innerHTML = html;
+    rowsEl.dataset.uplinkAddress = address;
+}
+
+function postUplinkGrammarMemory(robot, tier) {
+    const address = document.getElementById('uplinkGrammarMemoryRows').dataset.uplinkAddress || document.getElementById('uplinkAddress').value.trim();
+    if (!address) return;
+
+    fetch('/api/admin/areafix/grammar-memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uplink: address, robot: robot, tier: tier })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            const errMsg = window.getApiErrorMessage ? window.getApiErrorMessage(data) : (data.error || uiT('ui.admin.binkp_config.uplinks.modal.grammar_memory_save_failed', 'Failed to update grammar memory'));
+            showUplinkModalAlert(escapeHtml(errMsg), 'danger');
+            return;
+        }
+        loadUplinkGrammarMemory(address);
+    })
+    .catch(() => {
+        showUplinkModalAlert(escapeHtml(uiT('ui.admin.binkp_config.uplinks.modal.grammar_memory_save_failed', 'Failed to update grammar memory')), 'danger');
+    });
+}
+
+function setUplinkGrammarMemory(robot) {
+    const select = document.getElementById('uplinkGrammarMemory_' + robot + 'Select');
+    if (!select) return;
+    postUplinkGrammarMemory(robot, select.value);
+}
+
+function clearUplinkGrammarMemory(robot) {
+    postUplinkGrammarMemory(robot, null);
 }
 
 function ensureUplinkDomainOption(domain) {

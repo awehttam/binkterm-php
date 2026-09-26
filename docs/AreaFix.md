@@ -200,17 +200,23 @@ Return AreaFix/FileFix message history for an uplink.
 ```
 
 ### `POST /api/admin/areafix/sync`
-Sync a parsed area list into the local echo/file area table.
+Sync an explicit, caller-provided area list into the local echo/file area table. This is what the Admin → AreaFix / FileFix Manager page's preview modal calls to apply the sysop's checkbox selection — `areas` is normally the subset of `/api/admin/areafix/preview-latest`'s response the sysop left checked.
 
 **Request body:**
 ```json
 {
-    "uplink":             "1:1/23",
-    "robot":              "areafix",
-    "areas":              [{"name": "FIDONEWS", "description": "FidoNet news"}],
-    "deactivate_missing": false
+    "uplink":              "1:1/23",
+    "robot":               "areafix",
+    "areas":               [{"name": "FIDONEWS", "description": "FidoNet news"}],
+    "deactivate_missing":  false,
+    "force_descriptions":  true,
+    "tier":                "mystic_blocks"
 }
 ```
+
+`force_descriptions` (optional, default `false`): when true, an existing area's description is overwritten whenever the submitted one differs, bypassing the usual placeholder-only protection (see `AreaFixManager::isPlaceholderDescription()`). The admin UI always sends `true` here, since the sysop has already reviewed each selected area's description in the preview — including any mismatch flagged by `description_differs` — before confirming.
+
+`tier` (optional): the `AreaFixParser` tier identifier that `/api/admin/areafix/preview-latest` reported for the reply this selection came from (see [Per-Uplink Grammar Memory](#per-uplink-grammar-memory)). The admin UI passes this straight back so the remembered tier for this uplink+domain+robot is only updated once the sysop has actually confirmed the sync, not merely previewed it.
 
 **Response:**
 ```json
@@ -220,16 +226,59 @@ Sync a parsed area list into the local echo/file area table.
 }
 ```
 
-### `POST /api/admin/areafix/sync-latest`
-Inspect the latest incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and sync them to the local database.
+### `POST /api/admin/areafix/preview-latest`
+Inspect an incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and return a diff against current local area state — without writing anything to the database. The Admin → AreaFix / FileFix Manager page always calls this endpoint first and shows the result as a mandatory preview before a sysop can confirm a sync.
+
+By default the newest actionable incoming reply is used (the "Latest Reply" panel's sync button). Passing `message_id` targets one specific incoming message instead — this backs the per-row sync button next to each incoming message in the Message History table, so a sysop can sync from an older reply without needing it to still be the newest one.
 
 **Request body:**
 ```json
 {
-    "uplink": "1:1/23",
-    "robot":  "areafix"
+    "uplink":     "1:1/23",
+    "robot":      "areafix",
+    "message_id": 4821
 }
 ```
+
+`message_id` is optional; omit it to preview the newest actionable incoming reply.
+
+**Response:**
+```json
+{
+    "success":         true,
+    "areas": [
+        { "name": "FIDONEWS", "description": "FidoNet news", "action": "subscribe", "is_subscribed": true, "status": "new",       "currently_active": false, "current_description": null,                        "description_will_change": true,  "description_differs": false },
+        { "name": "SYS_GEN",  "description": "SysOp Chat",   "action": "subscribe", "is_subscribed": true, "status": "unchanged", "currently_active": true,  "current_description": "Auto-created area",          "description_will_change": true,  "description_differs": false },
+        { "name": "SYS_TST",  "description": "Test Area",    "action": "subscribe", "is_subscribed": true, "status": "unchanged", "currently_active": true,  "current_description": "Our own custom description", "description_will_change": false, "description_differs": true }
+    ],
+    "areas_count":     3,
+    "from":            "AreaFix",
+    "date":            "2026-09-23 14:02:11",
+    "tier":            "mystic_blocks",
+    "remembered_tier": "mystic_blocks",
+    "format_changed":  false
+}
+```
+
+`status` is one of `new`, `reactivate`, `deactivate`, or `unchanged`, describing what applying that area via `/api/admin/areafix/sync` would do to its activation state. Separately, `description_will_change` reports whether the sync would also update the local description if applied without `force_descriptions` — an area's activation status can be `unchanged` while its description is still filled in, because the local description is normally only overwritten when it's currently a placeholder (see `AreaFixManager::isPlaceholderDescription()`); a real, sysop-set description is otherwise never overwritten by a hub's reply. When the local description is a real value and would not be overwritten, but the hub's reply lists a different one anyway (`SYS_TST` above), `description_differs` is true so the admin UI can still point out the mismatch.
+
+`tier` is the `AreaFixParser` tier that matched this specific reply; `remembered_tier` is the tier last recorded for this uplink+domain+robot from a previously *confirmed* sync (`null` the first time an uplink is synced). `format_changed` is true only when both are known and differ — a concrete signal that this hub's mailer software may have changed or been reconfigured (or, more rarely, that the reply isn't actually from the expected hub), distinct from the generic "review before applying" prompt every sync already gets. See [Per-Uplink Grammar Memory](#per-uplink-grammar-memory).
+
+In the admin UI, an area whose `status` is `unchanged` but which has either `description_will_change` or `description_differs` set is displayed with an "Updated" badge instead of "Unchanged", since something about it did differ from the hub's reply. The UI renders one checkbox per area, pre-checked for `new`/`reactivate`/`deactivate` and for any area flagged "Updated", and unchecked by default only for a genuine no-op `unchanged` area (no description difference of any kind). The checked subset is submitted to `/api/admin/areafix/sync` with `force_descriptions: true`, which is what actually applies a flagged description mismatch — the sysop can still deselect a specific "Updated" row before confirming if they don't want that particular description overwritten.
+
+### `POST /api/admin/areafix/sync-latest`
+Inspect an incoming AreaFix/FileFix reply for an uplink from message history, parse available areas, and sync **all** of them to the local database in one all-or-nothing step, without the `force_descriptions` override or the ability to select a subset. The admin UI's preview modal now applies the sysop's curated selection via `/api/admin/areafix/sync` instead (see above); this endpoint remains available for callers that want to apply an entire reply directly without a preview step.
+
+**Request body:**
+```json
+{
+    "uplink":     "1:1/23",
+    "robot":      "areafix",
+    "message_id": 4821
+}
+```
+
+`message_id` is optional; omit it to apply the newest actionable incoming reply. The remembered tier for this uplink+domain+robot (see [Per-Uplink Grammar Memory](#per-uplink-grammar-memory)) is used as a parsing hint and updated automatically after a successful sync — there is no request field for it since this endpoint always applies the reply directly.
 
 **Response:**
 ```json
@@ -243,16 +292,199 @@ Inspect the latest incoming AreaFix/FileFix reply for an uplink from message his
 
 ---
 
+### `GET /api/admin/areafix/grammar-memory?uplink=1:1/23`
+Return the per-uplink grammar memory (see [Per-Uplink Grammar Memory](#per-uplink-grammar-memory)) for both the `areafix` and `filefix` robots on this uplink, plus the full list of tier identifiers the admin UI's "force a tier" selector may offer. Backs the **Admin → Networks → Edit Uplink** dialog.
 
-## Backend Class
+**Response:**
+```json
+{
+    "success":     true,
+    "areafix":     { "tier": "mystic_blocks", "last_matched_at": "2026-09-25 14:02:11" },
+    "filefix":     null,
+    "known_tiers": ["mystic_blocks", "delimited_table", "columnar_table", "quoted_address_list", "flagged_dotted_quoted_list", "configured:my_hub_format", "freeform"]
+}
+```
 
-`src/AreaFixManager.php` — key public methods:
+`areafix`/`filefix` are each `null` if no tier has ever been recorded for that robot on this uplink.
+
+### `POST /api/admin/areafix/grammar-memory`
+Manually edit the remembered grammar tier for one uplink+robot — force it to a specific tier, or clear it entirely.
+
+**Request body:**
+```json
+{ "uplink": "1:1/23", "robot": "areafix", "tier": "mystic_blocks" }
+```
+
+Pass `"tier": null` (or omit it) to clear the remembered tier instead of setting one. A non-null `tier` must be one of the identifiers `AreaFixParser::getKnownTierIds()` returns (the same list as `known_tiers` in the `GET` response above); anything else is rejected with `errors.admin.areafix.invalid_tier`. Setting a tier here stores it exactly the way a confirmed sync would (`AreaFixManager::rememberTier()`), so it's tried first on the next reply.
+
+**Response:**
+```json
+{ "success": true, "tier": "mystic_blocks" }
+```
+
+---
+
+### `GET /admin/areafix-grammars`
+Admin UI page for editing data-driven AreaFix/FileFix grammar definitions (`config/areafix_grammars.json`) as raw JSON. See [Data-Driven Grammar Definitions](#data-driven-grammar-definitions) below for the schema.
+
+### `GET /api/admin/areafix/grammars-config`
+Return the raw contents of `config/areafix_grammars.json` (or `"[]"` if the file doesn't exist yet).
+
+**Response:**
+```json
+{
+    "success": true,
+    "config": { "config_json": "[]" }
+}
+```
+
+### `POST /api/admin/areafix/grammars-config`
+Replace `config/areafix_grammars.json` wholesale with the given JSON array. Written via the admin daemon, like other runtime config files (see `docs/AdminDaemon.md`).
+
+**Request body:**
+```json
+{ "json": "[ { \"id\": \"my_hub_format\", \"enabled\": true, ... } ]" }
+```
+
+**Response:**
+```json
+{
+    "success":      true,
+    "config":       { "config_json": "..." },
+    "message_code": "ui.admin.areafix_grammars.saved_success"
+}
+```
+
+---
+
+### `POST /api/admin/areafix/grammars-ai-generate`
+Ask the configured AI provider to suggest a grammar definition from a pasted AreaFix/FileFix reply message, via the "Paste from AreaFix Message" button on `/admin/areafix-grammars`. See `docs/AIProviders.md#areafix-grammar-generation` and `docs/API.md` for the full request/response shape. The suggestion is always returned with `enabled: false` and every regex validated with `AreaFixParser::isValidPattern()`, but nothing is written to `config/areafix_grammars.json` until the sysop reviews it and clicks Save.
+
+---
+
+
+## Parser Architecture & Structural Parsing
+
+AreaFix and FileFix responses are parsed using `BinktermPHP\AreaFix\AreaFixParser` (`src/AreaFix/AreaFixParser.php`).
+
+Rather than relying on fragile keyword blacklists or naive line regexes, the parser recognizes concrete structural grammars generated by major FTN hub software:
+
+1. **Mystic BBS & MBSE Command / Result Blocks**:
+   - Parses stacked multi-command requests in a single reply (e.g. `+TAG` followed by `-TAG` and `%LINKED`).
+   - Pairs `Command:` lines with their corresponding `Result:` status.
+   - Extracts indented area listings under `%LINKED`, `%QUERY`, `%LIST`, and `%UNLINKED` command results.
+2. **Delimited Tables (Husky, Clearing Houz, FastEcho, FrontDoor)**:
+   - Detects colon (`:`) and pipe (`|`) table headers (`AREA`, `DESCRIPTION`, `STATUS`, `MSGS`, `FILES`).
+   - Slices table columns safely to preserve internal colons or special characters in area descriptions (e.g. `FSX: Ads + ANSI Art`).
+   - Detects subscription markers (`*`, `+`) in status columns.
+3. **Columnar & Dotted-Leader Tables (HPT, Husky)**:
+   - Parses fixed-width and dotted-leader rows (`TAG .... status/description`).
+   - Differentiates subscription states (`subscribed`, `rescanned` vs `unsubscribed`).
+4. **Quoted-Address Lists (BBBS/Li6)** and **Flag-Prefixed Dotted-Leader Quoted Lists (HPT `%LIST`)**:
+   - Parses `+TAG (address) "description"` style listings, including wrapped multi-line descriptions and combined echo-area/file-area sections in one reply.
+   - Parses `*S  TAG ..... "description"` flag-prefixed dotted-leader listings, treating `*` as the linked/subscribed marker.
+5. **Data-driven grammars** (`config/areafix_grammars.json`, see [below](#data-driven-grammar-definitions)) and, as a last resort, a **conservative freeform `TAG   Description` line matcher** for hub formats with no recognizable header, banner, or delimiter at all. Freeform matches are never marked `subscribe` and are logged via `BinktermPHP\Binkp\Logger` so an unrecognized format can be turned into a proper grammar later.
+6. **Syntactic Tag Validation & Guard Rails**:
+   - Validates area tags using `AreaFixParser::isValidTag()` (2–60 alphanumeric/dash/dot characters with at least one letter).
+   - Does not maintain an English word blacklist, ensuring valid echo areas like `LINUX`, `BASE`, or `WINDOWS` are never dropped.
+   - Discards ANSI box-drawing/block art characters (`▄█▀▌▐░▒▓─│┌┐└┘`) from descriptions.
+   - Rejects non-actionable replies (help manuals, password failure notices, rescan receipts without area lists).
+
+### Area Action Types
+
+Each parsed area contains an `action` attribute:
+
+| Action | Description | `is_subscribed` | DB Sync Behavior |
+|---|---|---|---|
+| `subscribe` | Confirmation of an added or existing subscription | `true` | Inserts or updates area with `is_active = true` |
+| `unsubscribe` | Confirmation of a removed subscription | `false` | Marks existing area with `is_active = false` |
+| `available` | Area listed in a `%LIST` or `%UNLINKED` catalog | `false` | Inserts area with `is_active = false`, or updates description |
+
+---
+
+### Data-Driven Grammar Definitions
+
+The three built-in structural grammars, the quoted-address/flag-prefixed grammars, and the freeform fallback tier are enough to cover the major FTN hub mailers, but a new or unusual hub format can still slip through as an empty result. Rather than requiring a PHP change for every new format, `AreaFixParser` also loads grammar definitions from `config/areafix_grammars.json` (managed via the [`/admin/areafix-grammars`](#get-adminareafix-grammars) admin page, the same way `webdoors.json` is edited through `/admin/webdoors`).
+
+Configured grammars are tried **after** every built-in grammar and **before** the freeform fallback tier, in the order they appear in the file. The first grammar whose `header_pattern` matches the body, and which then finds at least one row, wins.
+
+If `config/areafix_grammars.json` doesn't exist yet, `AreaFixParser` falls back to reading `config/areafix_grammars.json.example` instead, so the shipped sample grammar is available as a starting point without requiring a sysop to create the real file first. Every grammar in the shipped example ships with `enabled: false`, so this fallback never changes parsing behavior until a sysop deliberately enables (or replaces) a grammar. The admin page's **Populate from Example** button loads `areafix_grammars.json.example`'s contents into the editor so it can be reviewed and edited before saving as the real `areafix_grammars.json`.
+
+`config/areafix_grammars.json` (or `.example`) is a JSON array of grammar objects:
+
+```json
+[
+    {
+        "id": "my_hub_format",
+        "enabled": true,
+        "header_pattern": "My Hub Mailer v[0-9.]+ Area Report",
+        "row_pattern": "^(?<tag>[A-Za-z0-9_\\-.]+)\\s{2,}(?<status>\\S+)?\\s{2,}(?<description>.*)$",
+        "stop_pattern": "^-{3,}",
+        "default_action": "available",
+        "status_rules": [
+            { "pattern": "^linked$", "action": "subscribe" },
+            { "pattern": "^unlinked$", "action": "unsubscribe" }
+        ]
+    }
+]
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | yes | Identifier used in log entries when this grammar matches, and as the `configured:<id>` tier name in [per-uplink grammar memory](#per-uplink-grammar-memory). Not otherwise interpreted. |
+| `enabled` | yes | Grammar is skipped entirely unless `true`. |
+| `header_pattern` | yes | PCRE pattern (no delimiters, matched case-insensitively with the multiline flag against the whole body) that must appear somewhere in the reply for this grammar to be attempted. Cheap gate against false positives on unrelated replies. |
+| `row_pattern` | yes | PCRE pattern (no delimiters, matched per line) with a required named group `tag`, and optional named groups `description` and `status`. |
+| `stop_pattern` | no | PCRE pattern; a line matching it ends the row scan (in addition to the default stop rule: a blank line after at least one matched row). |
+| `default_action` | no | One of `subscribe`, `unsubscribe`, `available`. Defaults to `available` — a configured grammar never defaults to `subscribe` unless a `status_rules` entry says so. |
+| `status_rules` | no | Ordered list of `{ "pattern": "...", "action": "..." }`. Each `pattern` is tested (case-insensitively) against the row's captured `status` text; the first match wins. Anchor patterns (`^...$`) when one status word is a substring of another (e.g. `unlinked` contains `linked`). |
+
+A grammar with a missing/invalid `header_pattern` or `row_pattern`, an invalid regex anywhere in it, or `enabled: false`, is skipped entirely rather than partially applied — a typo in one definition can never produce a misleading partial match, and never crashes the parser. Invalid regexes are logged as a warning via `BinktermPHP\Binkp\Logger`.
+
+Every parsed area — whether from a built-in grammar, a configured grammar, or the freeform fallback — still passes through the same `AreaFixParser::isValidTag()` check and the mandatory sync preview (see [Sync to Echo Areas](#sync-to-echo-areas)) before anything is written to the database, so a loosely-written grammar can produce noise but not silently corrupt subscription state.
+
+---
+
+### Per-Uplink Grammar Memory
+
+Each hub uplink is internally consistent — a given hub's AreaFix/FileFix robot always emits the same reply format — even though the overall population of uplinks a BBS connects to is heterogeneous. `AreaFixParser` and `AreaFixManager` exploit this to skip straight to the right tier on repeat replies, and to flag it when a hub's format unexpectedly changes.
+
+**Tiers.** Every grammar `AreaFixParser` can try has a stable identifier: the five built-in structural grammars (`AreaFixParser::TIER_MYSTIC_BLOCKS`, `TIER_DELIMITED_TABLE`, `TIER_COLUMNAR_TABLE`, `TIER_QUOTED_ADDRESS_LIST`, `TIER_FLAGGED_DOTTED_QUOTED_LIST`), a data-driven grammar as `configured:<grammar id>`, or `AreaFixParser::TIER_FREEFORM` for the last-resort fallback. `AreaFixParser::parseWithTier($body, $subject, $preferredTier)` returns `{areas, tier}` — the same tiers as `parse()` tries, in the same order, except `$preferredTier` (when given and still present) is tried first. This never changes which tier ultimately wins for a given body, only how quickly it's found when the hint is correct.
+
+**Storage.** The `areafix_grammar_memory` table (one row per `uplink_address` + `domain` + `robot`) records the tier that last produced a *confirmed* sync — via `AreaFixManager::getRememberedTier()` and `AreaFixManager::rememberTier()`. "Confirmed" specifically means an actual sync was applied, not merely previewed:
+
+- `POST /api/admin/areafix/sync-latest` and the auto-sync path (`AreaFixManager::processIncomingReply()`, used by scheduled polling) record the tier immediately after a successful sync, since both apply a reply directly.
+- `POST /api/admin/areafix/preview-latest` looks up the remembered tier to use as a parsing hint and to compute `format_changed`, but never writes to `areafix_grammar_memory` itself — previewing a reply the sysop then cancels must never overwrite a known-good remembered tier.
+- `POST /api/admin/areafix/sync` (applying a sysop-curated selection from the preview) records the tier only when the caller passes one back via the optional `tier` request field, which the admin UI does automatically using the tier `preview-latest` reported for that reply.
+
+**Format-change detection.** `preview-latest`'s response includes `tier` (what matched this reply), `remembered_tier` (what was last confirmed for this uplink+domain+robot), and `format_changed` (true only when both are known and differ). The Admin → AreaFix / FileFix Manager preview modal shows a warning banner when this happens, naming the old and new tier — a concrete signal that the hub's mailer software may have changed or been reconfigured, distinct from the generic "review before applying" prompt every sync already gets.
+
+A first-time sync from any uplink has no remembered tier yet, so `remembered_tier` is `null` and `format_changed` is always `false` — the full ordered tier list is tried exactly as it always was.
+
+**Manual editing.** The remembered tier for each robot on an uplink can be viewed, forced to a specific tier, or cleared directly from **Admin → Networks → Edit Uplink**, without needing to trigger a real AreaFix sync — useful after confirming a hub's format really did change (clear the stale memory) or to pre-seed a known format for a brand-new uplink (force it). This is backed by `GET`/`POST /api/admin/areafix/grammar-memory`; see [API Reference](#get-apiadminareafixgrammar-memory) below. A manually forced tier is stored exactly the same way a confirmed sync's tier is (via `AreaFixManager::rememberTier()`), so it's tried first on the next reply and is subject to the same `format_changed` detection if a later reply doesn't match it.
+
+---
+
+## Backend Classes
+
+### `src/AreaFix/AreaFixParser.php`
+
+| Method | Description |
+|---|---|
+| `parse(string $body, ?string $subject = null): array` | Parse response text into structured area records with actions |
+| `hasActionableContent(string $body, ?string $subject = null): bool` | Check if reply contains actionable subscriptions or area listings |
+| `isValidTag(string $tag): bool` | Syntactically validate an FTN area tag |
+
+### `src/AreaFixManager.php`
 
 | Method | Description |
 |---|---|
 | `sendCommand($uplinkAddress, $commands, $robot, $sysopUserId)` | Send commands via netmail |
-| `parseResponseText($body, $commandType)` | Parse hub reply body into area records |
-| `syncSubscribedAreas($uplinkAddress, $domain, $parsedAreas, $deactivateMissing, $robot)` | Sync parsed areas to DB |
+| `parseResponseText($body, $commandType)` | Parse hub reply body into area records via `AreaFixParser` |
+| `isAreaListResponse($subject, $body)` | Determine if a netmail is an actionable AreaFix reply |
+| `isPlaceholderDescription(?string $desc)` | Check if a description is an auto-created placeholder or contains ANSI art |
+| `syncSubscribedAreas($uplinkAddress, $domain, $parsedAreas, $deactivateMissing, $robot)` | Sync parsed areas to DB respecting action semantics |
 | `deactivateArea($areaTag, $domain)` | Mark a local area as inactive |
 | `getHistory($uplinkAddress, $sysopUserId)` | Fetch message history |
 | `getConfiguredUplinks()` | List uplinks with passwords configured |
+

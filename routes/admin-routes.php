@@ -10532,6 +10532,290 @@ SimpleRouter::get('/admin/areafix', function () {
 });
 
 /**
+ * GET /admin/areafix-grammars
+ * Data-driven AreaFix/FileFix grammar definitions editor (raw JSON).
+ * See docs/AreaFix.md for the grammar schema.
+ */
+SimpleRouter::get('/admin/areafix-grammars', function () {
+    $user = RouteHelper::requireAdmin();
+
+    $template = new Template();
+    $template->renderResponse('admin/areafix_grammars.twig');
+});
+
+/**
+ * GET /api/admin/areafix/grammars-config
+ * Return the raw config/areafix_grammars.json contents (or "[]" if absent).
+ */
+SimpleRouter::get('/api/admin/areafix/grammars-config', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    try {
+        $client = new \BinktermPHP\Admin\AdminDaemonClient();
+        $config = $client->getAreafixGrammarsConfig();
+        echo json_encode(['success' => true, 'config' => $config]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        apiError('errors.admin.areafix_grammars.load_failed', apiLocalizedText('errors.admin.areafix_grammars.load_failed', 'Failed to load AreaFix grammar configuration', $user));
+    }
+});
+
+/**
+ * POST /api/admin/areafix/grammars-config
+ * Body: { json: string } — replaces config/areafix_grammars.json wholesale.
+ */
+SimpleRouter::post('/api/admin/areafix/grammars-config', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    try {
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $json = (string)($payload['json'] ?? '');
+        $client = new \BinktermPHP\Admin\AdminDaemonClient();
+        $updated = $client->saveAreafixGrammarsConfig($json);
+        echo json_encode([
+            'success'      => true,
+            'config'       => $updated,
+            'message_code' => 'ui.admin.areafix_grammars.saved_success',
+        ]);
+    } catch (Exception $e) {
+        http_response_code(400);
+        apiError('errors.admin.areafix_grammars.save_failed', apiLocalizedText('errors.admin.areafix_grammars.save_failed', 'Failed to save AreaFix grammar configuration', $user));
+    }
+});
+
+/**
+ * POST /api/admin/areafix/grammars-ai-generate
+ * Body: { message_text: string } — the raw text of a pasted AreaFix/FileFix
+ * reply message. Asks the configured AI provider to infer a grammar
+ * definition matching docs/AreaFix.md's schema and returns it for the sysop
+ * to review; nothing is written to config/areafix_grammars.json here. The
+ * returned grammar always has enabled=false regardless of what the AI
+ * returns, so a bad suggestion can never silently start matching mail.
+ */
+SimpleRouter::post('/api/admin/areafix/grammars-ai-generate', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    try {
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $messageText = trim((string)($payload['message_text'] ?? ''));
+
+        if ($messageText === '') {
+            http_response_code(422);
+            apiError('errors.admin.areafix_grammars.message_text_required', apiLocalizedText('errors.admin.areafix_grammars.message_text_required', 'Please paste some message text first', $user), 422);
+            return;
+        }
+
+        // Bound token usage/cost regardless of how much the sysop pastes.
+        $messageText = mb_substr($messageText, 0, 6000);
+
+        $aiService = \BinktermPHP\AI\AiService::create();
+        if (empty($aiService->getConfiguredProviders())) {
+            http_response_code(503);
+            apiError('errors.admin.areafix_grammars.ai_no_provider', apiLocalizedText('errors.admin.areafix_grammars.ai_no_provider', 'No AI provider is configured', $user), 503);
+            return;
+        }
+
+        $systemPrompt = <<<'PROMPT'
+You generate AreaFix/FileFix hub-reply parsing grammar definitions for a BBS platform.
+Given the raw text of a reply message from an FTN hub mailer's AreaFix/FileFix robot,
+infer a structural grammar that can parse every area/tag row in it.
+
+Return ONLY a JSON object (not an array) with this shape:
+{
+  "id": "short_snake_case_identifier_for_this_hub_format",
+  "header_pattern": "PCRE regex (no delimiters, matched case-insensitively across the whole message) that uniquely identifies this reply format, e.g. a distinctive banner line",
+  "row_pattern": "PCRE regex (no delimiters, matched against ONE line at a time) with a REQUIRED named group (?<tag>...) capturing the area tag, and OPTIONAL named groups (?<description>...) and (?<status>...)",
+  "stop_pattern": "optional PCRE regex; a line matching it ends the row scan (omit if not needed)",
+  "default_action": "one of: subscribe, unsubscribe, available",
+  "status_rules": [ { "pattern": "PCRE regex tested against the captured status text", "action": "one of: subscribe, unsubscribe, available" } ]
+}
+
+Rules:
+- Use PHP PCRE syntax. Do not include the regex delimiters (no leading/trailing /).
+- Escape literal backslashes as needed for JSON (e.g. \\s for whitespace).
+- row_pattern MUST anchor to a full data row and MUST NOT match header, banner, blank, or tearline lines.
+- Prefer anchored status_rules patterns (e.g. ^linked$) over unanchored ones, since e.g. "unlinked" contains "linked" as a substring.
+- If you cannot confidently determine a status column, omit "status_rules" and set "default_action" to "available".
+- Return only the JSON object. No explanation, no markdown fences.
+PROMPT;
+
+        $request = new \BinktermPHP\AI\AiRequest(
+            feature: 'areafix_grammar_ai_generate',
+            systemPrompt: $systemPrompt,
+            userPrompt: "Here is the raw text of an AreaFix/FileFix reply message. Generate a grammar definition for it:\n\n{$messageText}",
+            temperature: 0.1,
+            maxOutputTokens: 800,
+            timeoutSeconds: 30,
+            userId: (int)($user['user_id'] ?? $user['id'] ?? 0) ?: null,
+        );
+
+        $response = $aiService->generateJson($request);
+        $parsed = $response->getParsedJson();
+
+        if (!is_array($parsed) || !is_string($parsed['header_pattern'] ?? null) || !is_string($parsed['row_pattern'] ?? null)) {
+            http_response_code(422);
+            apiError('errors.admin.areafix_grammars.ai_invalid_response', apiLocalizedText('errors.admin.areafix_grammars.ai_invalid_response', 'AI did not return a usable grammar definition', $user), 422);
+            return;
+        }
+
+        $headerPattern = $parsed['header_pattern'];
+        $rowPattern = $parsed['row_pattern'];
+
+        if (!\BinktermPHP\AreaFix\AreaFixParser::isValidPattern($headerPattern)
+            || !\BinktermPHP\AreaFix\AreaFixParser::isValidPattern($rowPattern)
+            || !str_contains($rowPattern, '(?<tag>')) {
+            http_response_code(422);
+            apiError('errors.admin.areafix_grammars.ai_invalid_response', apiLocalizedText('errors.admin.areafix_grammars.ai_invalid_response', 'AI did not return a usable grammar definition', $user), 422);
+            return;
+        }
+
+        $id = is_string($parsed['id'] ?? null) ? strtolower(trim($parsed['id'])) : '';
+        $id = preg_replace('/[^a-z0-9_\-]+/', '_', $id) ?? '';
+        $id = trim($id, '_-');
+        if ($id === '') {
+            $id = 'ai_generated_' . substr(md5($messageText), 0, 8);
+        }
+        $id = substr($id, 0, 60);
+
+        $allowedActions = ['subscribe', 'unsubscribe', 'available'];
+        $defaultAction = (is_string($parsed['default_action'] ?? null) && in_array($parsed['default_action'], $allowedActions, true))
+            ? $parsed['default_action']
+            : 'available';
+
+        $stopPattern = null;
+        if (is_string($parsed['stop_pattern'] ?? null) && $parsed['stop_pattern'] !== ''
+            && \BinktermPHP\AreaFix\AreaFixParser::isValidPattern($parsed['stop_pattern'])) {
+            $stopPattern = $parsed['stop_pattern'];
+        }
+
+        $statusRules = [];
+        foreach ((array)($parsed['status_rules'] ?? []) as $rule) {
+            if (!is_array($rule) || !is_string($rule['pattern'] ?? null) || !is_string($rule['action'] ?? null)) {
+                continue;
+            }
+            if (!in_array($rule['action'], $allowedActions, true) || !\BinktermPHP\AreaFix\AreaFixParser::isValidPattern($rule['pattern'])) {
+                continue;
+            }
+            $statusRules[] = ['pattern' => $rule['pattern'], 'action' => $rule['action']];
+        }
+
+        $grammar = [
+            'id'             => $id,
+            // Always disabled: an AI suggestion is a starting point for
+            // sysop review, never something that silently starts matching
+            // mail on its own.
+            'enabled'        => false,
+            'header_pattern' => $headerPattern,
+            'row_pattern'    => $rowPattern,
+            'default_action' => $defaultAction,
+        ];
+        if ($stopPattern !== null) {
+            $grammar['stop_pattern'] = $stopPattern;
+        }
+        if (!empty($statusRules)) {
+            $grammar['status_rules'] = $statusRules;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'grammar' => $grammar,
+        ]);
+    } catch (\Throwable $e) {
+        getServerLogger()->error('AreaFix AI grammar generation failed', ['error' => $e->getMessage()]);
+        http_response_code(500);
+        apiError('errors.admin.areafix_grammars.ai_generate_failed', apiLocalizedText('errors.admin.areafix_grammars.ai_generate_failed', 'Failed to generate grammar', $user), 500);
+    }
+});
+
+/**
+ * GET /api/admin/areafix/grammar-memory?uplink=1:1/23
+ * Return the per-uplink AreaFixParser grammar memory (see
+ * docs/AreaFix.md#per-uplink-grammar-memory) for both robots on this uplink,
+ * plus the list of tier identifiers the "force a tier" selector may choose
+ * from. Surfaced in the Admin → Networks → Edit Uplink dialog.
+ */
+SimpleRouter::get('/api/admin/areafix/grammar-memory', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $uplinkAddress = trim((string)($_GET['uplink'] ?? ''));
+    if ($uplinkAddress === '') {
+        apiError('errors.admin.areafix.uplink_required', apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user), 400, ['success' => false]);
+        return;
+    }
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+    echo json_encode([
+        'success'     => true,
+        'areafix'     => $areafixManager->getRememberedTierRecord($uplinkAddress, $domain, 'areafix'),
+        'filefix'     => $areafixManager->getRememberedTierRecord($uplinkAddress, $domain, 'filefix'),
+        'known_tiers' => (new \BinktermPHP\AreaFix\AreaFixParser())->getKnownTierIds(),
+    ]);
+});
+
+/**
+ * POST /api/admin/areafix/grammar-memory
+ * Body: { uplink: string, robot: "areafix"|"filefix", tier: string|null }
+ *
+ * Manually edit the remembered grammar tier for one uplink+robot: a null or
+ * empty tier clears it (the next reply tries the full ordered tier list
+ * again); a non-empty tier must be one of AreaFixParser::getKnownTierIds()
+ * and forces that tier to be tried first on the next reply, exactly as if it
+ * had just been confirmed via a real sync.
+ */
+SimpleRouter::post('/api/admin/areafix/grammar-memory', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError('errors.admin.areafix.invalid_json', apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user), 400, ['success' => false]);
+        return;
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? '')));
+    $tier = isset($body['tier']) && is_string($body['tier']) ? trim($body['tier']) : null;
+
+    if ($uplinkAddress === '') {
+        apiError('errors.admin.areafix.uplink_required', apiLocalizedText('errors.admin.areafix.uplink_required', 'Uplink address is required', $user), 400, ['success' => false]);
+        return;
+    }
+    if (!in_array($robot, ['areafix', 'filefix'], true)) {
+        apiError('errors.admin.areafix.invalid_robot', apiLocalizedText('errors.admin.areafix.invalid_robot', 'Robot must be "areafix" or "filefix"', $user), 400, ['success' => false]);
+        return;
+    }
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+
+    if ($tier === null || $tier === '') {
+        $areafixManager->clearRememberedTier($uplinkAddress, $domain, $robot);
+        echo json_encode(['success' => true, 'tier' => null]);
+        return;
+    }
+
+    $parser = new \BinktermPHP\AreaFix\AreaFixParser();
+    if (!in_array($tier, $parser->getKnownTierIds(), true)) {
+        apiError('errors.admin.areafix.invalid_tier', apiLocalizedText('errors.admin.areafix.invalid_tier', 'Unrecognized grammar tier', $user), 400, ['success' => false]);
+        return;
+    }
+
+    $areafixManager->rememberTier($uplinkAddress, $domain, $robot, $tier);
+    echo json_encode(['success' => true, 'tier' => $tier]);
+});
+
+/**
  * GET /api/admin/areafix/uplinks
  * Return uplinks that have areafix or filefix passwords configured.
  */
@@ -10669,7 +10953,21 @@ SimpleRouter::get('/api/admin/areafix/history', function () {
 /**
  * POST /api/admin/areafix/sync
  * Parse area list and sync to local echo/file area table.
- * Body: { uplink: string, robot: "areafix"|"filefix", areas: [{name,description},...], deactivate_missing: bool }
+ *
+ * Used by the admin preview screen to apply a sysop-curated subset of
+ * previewed areas (see /api/admin/areafix/preview-latest). When
+ * force_descriptions is true, an existing area's description is overwritten
+ * whenever the submitted one differs, bypassing the usual placeholder-only
+ * protection — appropriate here because the sysop has explicitly selected
+ * these specific areas after reviewing the preview's description diff.
+ *
+ * Body: { uplink: string, robot: "areafix"|"filefix", areas: [{name,description},...], deactivate_missing: bool, force_descriptions: bool, tier?: string }
+ *
+ * `tier` is optional and, when present, is the AreaFixParser tier that
+ * /api/admin/areafix/preview-latest reported for the reply this selection
+ * came from — passed straight back by the admin UI so per-uplink grammar
+ * memory (see PR460Proposal Improvement 6) can be updated once the sysop has
+ * actually confirmed the sync, not merely previewed it.
  */
 SimpleRouter::post('/api/admin/areafix/sync', function () {
     $user = RouteHelper::requireAdmin();
@@ -10689,6 +10987,8 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
     $robot = strtolower(trim((string)($body['robot'] ?? '')));
     $parsedAreas = $body['areas'] ?? [];
     $deactivateMissing = (bool)($body['deactivate_missing'] ?? false);
+    $forceDescriptions = (bool)($body['force_descriptions'] ?? false);
+    $tier = is_string($body['tier'] ?? null) ? trim($body['tier']) : null;
 
     if ($uplinkAddress === '') {
         apiError(
@@ -10729,8 +11029,11 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
             $domain,
             $parsedAreas,
             $deactivateMissing,
-            $robot
+            $robot,
+            false,
+            $forceDescriptions
         );
+        $areafixManager->rememberTier($uplinkAddress, $domain, $robot, $tier);
     } catch (\Throwable $e) {
         apiError(
             'errors.admin.areafix.sync_failed',
@@ -10744,9 +11047,92 @@ SimpleRouter::post('/api/admin/areafix/sync', function () {
 });
 
 /**
+ * POST /api/admin/areafix/preview-latest
+ * Find an actionable incoming AreaFix/FileFix reply for an uplink, parse it, and
+ * return a diff (new/reactivate/deactivate/unchanged) against current local area
+ * state WITHOUT writing anything to the database. The admin UI must call this before
+ * /api/admin/areafix/sync-latest so a sysop can review changes before they're applied.
+ *
+ * When message_id is omitted, the newest actionable incoming reply is used (the
+ * "Sync Areas to Local BBS" button on the Latest Reply panel). When message_id is
+ * given, that specific incoming message is previewed instead (a per-row "Sync"
+ * button in the message history table).
+ *
+ * Body: { uplink: string, robot: "areafix"|"filefix", message_id?: int }
+ */
+SimpleRouter::post('/api/admin/areafix/preview-latest', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError('errors.admin.areafix.invalid_json', 'Invalid request payload', 400, ['success' => false]);
+    }
+
+    $uplinkAddress = trim((string)($body['uplink'] ?? ''));
+    $robot = strtolower(trim((string)($body['robot'] ?? 'areafix')));
+    $messageId = isset($body['message_id']) ? (int)$body['message_id'] : 0;
+
+    if ($uplinkAddress === '') {
+        apiError('errors.admin.areafix.uplink_required', 'Uplink address is required', 400, ['success' => false]);
+    }
+
+    $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $areafixManager = new \BinktermPHP\AreaFixManager();
+
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
+    $domain = (string)($uplink['domain'] ?? 'fidonet');
+    $rememberedTier = $areafixManager->getRememberedTier($uplinkAddress, $domain, $robot);
+
+    try {
+        $found = $messageId > 0
+            ? $areafixManager->findActionableReplyById($uplinkAddress, $sysopUserId, $messageId, $rememberedTier)
+            : $areafixManager->findLatestActionableReply($uplinkAddress, $sysopUserId, $rememberedTier);
+    } catch (\Throwable $e) {
+        apiError('errors.admin.areafix.preview_failed', 'Failed to generate sync preview', 500, ['success' => false]);
+    }
+
+    if (!$found) {
+        apiError('errors.admin.areafix.no_area_list_found', 'No area list found in recent replies for this uplink', 404, ['success' => false]);
+    }
+
+    try {
+        $diff = $areafixManager->previewSync($uplinkAddress, $domain, $found['areas'], false, $robot);
+    } catch (\Throwable $e) {
+        apiError('errors.admin.areafix.preview_failed', 'Failed to generate sync preview', 500, ['success' => false]);
+    }
+
+    // A remembered tier that no longer matches the current reply is a concrete
+    // signal the hub's mailer software changed, was reconfigured, or the reply
+    // isn't actually coming from the expected hub — surfaced distinctly from
+    // the generic "review before applying" prompt every sync already gets.
+    $matchedTier = $found['tier'] ?? null;
+    $formatChanged = $rememberedTier !== null && $matchedTier !== null && $matchedTier !== $rememberedTier;
+
+    $replyFound = $found['message'];
+    echo json_encode([
+        'success'         => true,
+        'areas'           => $diff,
+        'areas_count'     => count($diff),
+        'from'            => $replyFound['from_name'] ?? $replyFound['from_address'] ?? '',
+        'date'            => $replyFound['date_received'] ?? $replyFound['date_written'] ?? null,
+        'tier'            => $matchedTier,
+        'remembered_tier' => $rememberedTier,
+        'format_changed'  => $formatChanged,
+    ]);
+});
+
+/**
  * POST /api/admin/areafix/sync-latest
- * Find the latest incoming AreaFix/FileFix reply for an uplink, parse areas, and sync them to DB.
- * Body: { uplink: string, robot: "areafix"|"filefix" }
+ * Find an incoming AreaFix/FileFix reply for an uplink, parse areas, and sync them to DB.
+ *
+ * The admin UI calls /api/admin/areafix/preview-latest first (with the same optional
+ * message_id) and only calls this endpoint after the sysop has reviewed and confirmed
+ * the resulting preview. When message_id is omitted, the newest actionable incoming
+ * reply is used; otherwise that specific message is applied.
+ *
+ * Body: { uplink: string, robot: "areafix"|"filefix", message_id?: int }
  */
 SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
     $user = RouteHelper::requireAdmin();
@@ -10759,6 +11145,7 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
 
     $uplinkAddress = trim((string)($body['uplink'] ?? ''));
     $robot = strtolower(trim((string)($body['robot'] ?? 'areafix')));
+    $messageId = isset($body['message_id']) ? (int)$body['message_id'] : 0;
 
     if ($uplinkAddress === '') {
         apiError('errors.admin.areafix.uplink_required', 'Uplink address is required', 400, ['success' => false]);
@@ -10766,43 +11153,22 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
 
     $sysopUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
     $areafixManager = new \BinktermPHP\AreaFixManager();
-    $historyData = $areafixManager->getHistory($uplinkAddress, $sysopUserId);
-    $messages = ($historyData['messages'] ?? $historyData);
-    if (!is_array($messages)) {
-        $messages = [];
-    }
-
-    $replyFound = null;
-    $parsedAreas = [];
-
-    // Search incoming messages from newest to oldest for one containing an area list
-    foreach ($messages as $m) {
-        if (($m['direction'] ?? '') !== 'incoming') {
-            continue;
-        }
-        $subj = (string)($m['subject'] ?? '');
-        $bodyText = (string)($m['message_text'] ?? '');
-
-        // Skip result receipts, change request confirmations, or help text
-        if (!$areafixManager->isAreaListResponse($subj, $bodyText)) {
-            continue;
-        }
-
-        $areas = $areafixManager->parseResponseText($bodyText, '%LIST');
-        if (count($areas) >= 2) {
-            $replyFound = $m;
-            $parsedAreas = $areas;
-            break;
-        }
-    }
-
-    if (!$replyFound || empty($parsedAreas)) {
-        apiError('errors.admin.areafix.no_area_list_found', 'No area list found in recent replies for this uplink', 404, ['success' => false]);
-    }
 
     $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
     $uplink = $binkpConfig->getUplinkByAddress($uplinkAddress);
     $domain = (string)($uplink['domain'] ?? 'fidonet');
+    $rememberedTier = $areafixManager->getRememberedTier($uplinkAddress, $domain, $robot);
+
+    $found = $messageId > 0
+        ? $areafixManager->findActionableReplyById($uplinkAddress, $sysopUserId, $messageId, $rememberedTier)
+        : $areafixManager->findLatestActionableReply($uplinkAddress, $sysopUserId, $rememberedTier);
+
+    if (!$found) {
+        apiError('errors.admin.areafix.no_area_list_found', 'No area list found in recent replies for this uplink', 404, ['success' => false]);
+    }
+
+    $replyFound = $found['message'];
+    $parsedAreas = $found['areas'];
 
     $summary = $areafixManager->syncSubscribedAreas(
         $uplinkAddress,
@@ -10811,6 +11177,7 @@ SimpleRouter::post('/api/admin/areafix/sync-latest', function () {
         false,
         $robot
     );
+    $areafixManager->rememberTier($uplinkAddress, $domain, $robot, $found['tier'] ?? null);
 
     echo json_encode([
         'success'     => true,

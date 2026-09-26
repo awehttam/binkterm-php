@@ -1,0 +1,359 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.areafix_grammars.page_title', {}, locale, ['common']) }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="fas fa-network-wired"></i>
+            {{ t('ui.admin.areafix_grammars.heading', {}, locale, ['common']) }}
+        </h1>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        {{ t('ui.admin.areafix_grammars.info_text_prefix', {}, locale, ['common']) }} <code>config/areafix_grammars.json</code> {{ t('ui.admin.areafix_grammars.info_text_suffix', {}, locale, ['common']) }}
+        {{ t('ui.admin.areafix_grammars.doc_hint', {}, locale, ['common']) }} <code>docs/AreaFix.md</code>.
+    </div>
+
+    <div id="grammarsStatusAlert"></div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">{{ t('ui.admin.areafix_grammars.grammars_list_heading', {}, locale, ['common']) }}</h6>
+                </div>
+                <div class="card-body" id="grammarsList">
+                    <div class="text-muted">{{ t('ui.admin.areafix_grammars.waiting_for_config', {}, locale, ['common']) }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{{ t('ui.admin.areafix_grammars.config_filename', {}, locale, ['common']) }}</h6>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#aiGenerateModal" id="pasteFromMessageBtn">{{ t('ui.admin.areafix_grammars.paste_from_message', {}, locale, ['common']) }}</button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="populateFromExample()" id="populateExampleBtn" disabled>{{ t('ui.admin.areafix_grammars.populate_from_example', {}, locale, ['common']) }}</button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="formatGrammarsJson()">{{ t('ui.admin.areafix_grammars.format_json', {}, locale, ['common']) }}</button>
+                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="saveGrammarsConfig()" id="saveGrammarsBtn">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="grammarsEditorAlert"></div>
+                    <textarea id="grammarsJsonEditor" class="form-control" rows="24" spellcheck="false"
+                        style="font-family: Consolas, 'Courier New', monospace;"></textarea>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted" id="grammarsJsonStatus">{{ t('ui.admin.areafix_grammars.waiting_for_config', {}, locale, ['common']) }}</small>
+                        <small class="text-muted">{{ t('ui.admin.areafix_grammars.json_validation_before_save', {}, locale, ['common']) }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="aiGenerateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.areafix_grammars.ai_modal_title', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">{{ t('ui.admin.areafix_grammars.ai_modal_instructions', {}, locale, ['common']) }}</p>
+                <div id="aiGenerateAlert"></div>
+                <div class="mb-3">
+                    <label for="aiMessageText" class="form-label">{{ t('ui.admin.areafix_grammars.ai_message_text_label', {}, locale, ['common']) }}</label>
+                    <textarea id="aiMessageText" class="form-control" rows="10" spellcheck="false"
+                        style="font-family: Consolas, 'Courier New', monospace;"></textarea>
+                </div>
+                <div id="aiGenerateResult" style="display:none;">
+                    <label class="form-label">{{ t('ui.admin.areafix_grammars.ai_suggested_grammar_label', {}, locale, ['common']) }}</label>
+                    <pre id="aiGeneratedJson" class="border rounded p-2" style="max-height:240px; overflow:auto; font-size:0.85em;"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-outline-primary" id="aiGenerateBtn" onclick="generateGrammarFromMessage()">{{ t('ui.admin.areafix_grammars.ai_generate_button', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" id="aiInsertBtn" onclick="insertAiGeneratedGrammar()" disabled>{{ t('ui.admin.areafix_grammars.ai_insert_button', {}, locale, ['common']) }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+let areafixGrammarsExampleJson = null;
+let aiGeneratedGrammar = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadGrammarsConfig();
+    });
+    document.getElementById('grammarsJsonEditor').addEventListener('input', () => {
+        updateJsonStatus();
+        renderGrammarsList();
+    });
+
+    const aiModal = document.getElementById('aiGenerateModal');
+    aiModal.addEventListener('show.bs.modal', () => {
+        aiGeneratedGrammar = null;
+        document.getElementById('aiMessageText').value = '';
+        document.getElementById('aiGenerateResult').style.display = 'none';
+        document.getElementById('aiGeneratedJson').textContent = '';
+        document.getElementById('aiInsertBtn').disabled = true;
+        document.getElementById('aiGenerateAlert').innerHTML = '';
+    });
+});
+
+function setAiGenerateBusy(busy) {
+    const btn = document.getElementById('aiGenerateBtn');
+    btn.disabled = busy;
+    btn.textContent = busy
+        ? uiT('ui.admin.areafix_grammars.ai_generating', 'Generating...')
+        : uiT('ui.admin.areafix_grammars.ai_generate_button', 'Generate with AI');
+}
+
+function showAiAlert(message, type) {
+    const container = document.getElementById('aiGenerateAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function generateGrammarFromMessage() {
+    const messageText = document.getElementById('aiMessageText').value.trim();
+    if (!messageText) {
+        showAiAlert(uiT('ui.admin.areafix_grammars.ai_message_text_required', 'Please paste some message text first.'), 'danger');
+        return;
+    }
+
+    setAiGenerateBusy(true);
+    document.getElementById('aiInsertBtn').disabled = true;
+
+    fetch('/api/admin/areafix/grammars-ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_text: messageText })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.areafix_grammars.ai_generate_failed', 'Failed to generate grammar')));
+        }
+        aiGeneratedGrammar = data.grammar;
+        document.getElementById('aiGeneratedJson').textContent = JSON.stringify(data.grammar, null, 2);
+        document.getElementById('aiGenerateResult').style.display = '';
+        document.getElementById('aiInsertBtn').disabled = false;
+        showAiAlert(uiT('ui.admin.areafix_grammars.ai_generated_success', 'Grammar suggestion generated. It is disabled by default — review it, then click Insert to add it to the editor.'), 'success');
+    })
+    .catch(error => {
+        aiGeneratedGrammar = null;
+        document.getElementById('aiGenerateResult').style.display = 'none';
+        document.getElementById('aiInsertBtn').disabled = true;
+        showAiAlert(error.message || uiT('ui.admin.areafix_grammars.ai_generate_failed', 'Failed to generate grammar'), 'danger');
+    })
+    .finally(() => {
+        setAiGenerateBusy(false);
+    });
+}
+
+function insertAiGeneratedGrammar() {
+    if (!aiGeneratedGrammar) {
+        return;
+    }
+
+    const editor = document.getElementById('grammarsJsonEditor');
+    const parsed = parseEditorJson(editor.value);
+    const grammars = (parsed.valid && Array.isArray(parsed.data)) ? parsed.data : [];
+    grammars.push(aiGeneratedGrammar);
+    editor.value = JSON.stringify(grammars, null, 2);
+    updateJsonStatus();
+    renderGrammarsList();
+
+    const modalEl = document.getElementById('aiGenerateModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.hide();
+
+    showEditorAlert(uiT('ui.admin.areafix_grammars.ai_inserted_into_editor', 'AI-suggested grammar added to the editor (disabled). Review it, then click Save to persist.'), 'info');
+}
+
+function loadGrammarsConfig() {
+    fetch('/api/admin/areafix/grammars-config')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(apiError(data, uiT('ui.admin.areafix_grammars.load_failed', 'Failed to load config')));
+            }
+            const cfg = data.config || {};
+            document.getElementById('grammarsJsonEditor').value = cfg.config_json || '[]';
+            areafixGrammarsExampleJson = cfg.example_json || null;
+            document.getElementById('populateExampleBtn').disabled = !areafixGrammarsExampleJson;
+            updateJsonStatus();
+            renderGrammarsList();
+        })
+        .catch(error => {
+            showStatusAlert(error.message || uiT('ui.admin.areafix_grammars.load_failed', 'Failed to load config'), 'danger');
+        });
+}
+
+function populateFromExample() {
+    if (!areafixGrammarsExampleJson) {
+        return;
+    }
+    document.getElementById('grammarsJsonEditor').value = areafixGrammarsExampleJson;
+    updateJsonStatus();
+    renderGrammarsList();
+    showEditorAlert(uiT('ui.admin.areafix_grammars.populated_from_example', 'Editor populated from areafix_grammars.json.example. Review and click Save to apply.'), 'info');
+}
+
+function parseEditorJson(value) {
+    try {
+        return { valid: true, data: JSON.parse(value) };
+    } catch (err) {
+        return { valid: false, error: err };
+    }
+}
+
+function updateJsonStatus() {
+    const editor = document.getElementById('grammarsJsonEditor');
+    const status = document.getElementById('grammarsJsonStatus');
+    const { valid } = parseEditorJson(editor.value);
+    status.textContent = valid
+        ? uiT('ui.admin.areafix_grammars.json_valid', 'JSON is valid')
+        : uiT('ui.admin.areafix_grammars.json_has_errors', 'JSON has errors');
+    status.className = valid ? 'text-success' : 'text-danger';
+}
+
+function renderGrammarsList() {
+    const list = document.getElementById('grammarsList');
+    const editorValue = document.getElementById('grammarsJsonEditor').value;
+    const parsed = parseEditorJson(editorValue);
+
+    if (!parsed.valid || !Array.isArray(parsed.data)) {
+        list.innerHTML = `<div class="text-muted">${uiT('ui.admin.areafix_grammars.invalid_json', 'Invalid JSON.')}</div>`;
+        return;
+    }
+
+    if (parsed.data.length === 0) {
+        list.innerHTML = `<div class="text-muted">${uiT('ui.admin.areafix_grammars.no_grammars_defined', 'No grammars defined.')}</div>`;
+        return;
+    }
+
+    const items = parsed.data.map((entry) => {
+        const id = entry && typeof entry === 'object' ? String(entry.id || '') : '';
+        const enabled = !!(entry && typeof entry === 'object' && entry.enabled);
+        const isValidEntry = entry && typeof entry === 'object' && id !== '' && typeof entry.header_pattern === 'string' && typeof entry.row_pattern === 'string';
+        return `
+            <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                <div>
+                    <div class="fw-semibold">${escapeHtml(id || uiT('ui.admin.areafix_grammars.invalid_entry_label', '(invalid entry)'))}</div>
+                    ${!isValidEntry ? `<small class="text-danger">${uiT('ui.admin.areafix_grammars.invalid_entry_label', '(invalid entry)')}</small>` : ''}
+                </div>
+                <span class="badge ${enabled ? 'bg-success' : 'bg-secondary'}">${enabled ? uiT('ui.admin.areafix_grammars.enabled_label', 'enabled') : uiT('ui.admin.areafix_grammars.disabled_label', 'disabled')}</span>
+            </div>
+        `;
+    });
+
+    list.innerHTML = items.join('');
+}
+
+function formatGrammarsJson() {
+    const editor = document.getElementById('grammarsJsonEditor');
+    const parsed = parseEditorJson(editor.value);
+    if (!parsed.valid) {
+        showEditorAlert(uiT('ui.admin.areafix_grammars.cannot_format_invalid_json', 'Cannot format: invalid JSON'), 'danger');
+        return;
+    }
+    editor.value = JSON.stringify(parsed.data, null, 2);
+    updateJsonStatus();
+}
+
+function saveGrammarsConfig() {
+    const editor = document.getElementById('grammarsJsonEditor');
+    const parsed = parseEditorJson(editor.value);
+    if (!parsed.valid || !Array.isArray(parsed.data)) {
+        showEditorAlert(uiT('ui.admin.areafix_grammars.fix_json_before_save', 'Please fix JSON errors before saving.'), 'danger');
+        return;
+    }
+
+    fetch('/api/admin/areafix/grammars-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json: editor.value })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(apiError(data, uiT('ui.admin.areafix_grammars.save_failed', 'Failed to save config')));
+        }
+        const successMessage = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.areafix_grammars.saved_success', 'AreaFix grammar config saved.'))
+            : uiT('ui.admin.areafix_grammars.saved_success', 'AreaFix grammar config saved.');
+        showEditorAlert(successMessage, 'success');
+        const cfg = data.config || {};
+        if (cfg.config_json) {
+            editor.value = cfg.config_json;
+        }
+        updateJsonStatus();
+        renderGrammarsList();
+    })
+    .catch(error => {
+        showEditorAlert(error.message || uiT('ui.admin.areafix_grammars.save_failed', 'Failed to save config'), 'danger');
+    });
+}
+
+function showStatusAlert(message, type) {
+    const container = document.getElementById('grammarsStatusAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showEditorAlert(message, type) {
+    const container = document.getElementById('grammarsEditorAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
+</script>
+{% endblock %}
