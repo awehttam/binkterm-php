@@ -60,7 +60,7 @@ Content-Type: application/json
   - [Account](#account) (1)
   - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
-  - [AreaFix](#areafix) (3)
+  - [AreaFix](#areafix) (6)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
   - [Bulletins](#bulletins) (3)
@@ -558,6 +558,99 @@ Click recording confirmation with redirect URL
 | `POST` | [`/api/admin/areafix/preview-latest`](#post-apiadminareafixpreview-latest) | Yes | Parse the latest incoming AreaFix/FileFix reply for an uplink and return a diff against current local area state, without writing anything to the database. |
 | `POST` | [`/api/admin/areafix/sync`](#post-apiadminareafixsync) | Yes | Sync a sysop-curated list of areas (typically a subset selected in the preview) to the database. |
 | `POST` | [`/api/admin/areafix/sync-latest`](#post-apiadminareafixsync-latest) | Yes | Inspect the latest incoming AreaFix/FileFix reply for an uplink and sync areas to the database. |
+| `GET` | [`/api/admin/areafix/grammars-config`](#get-apiadminareafixgrammars-config) | Yes | Return the raw contents of `config/areafix_grammars.json`. |
+| `POST` | [`/api/admin/areafix/grammars-config`](#post-apiadminareafixgrammars-config) | Yes | Replace `config/areafix_grammars.json` wholesale. |
+| `POST` | [`/api/admin/areafix/grammars-ai-generate`](#post-apiadminareafixgrammars-ai-generate) | Yes | Ask the configured AI provider to suggest a grammar definition from a pasted AreaFix/FileFix reply message. |
+
+#### `GET /api/admin/areafix/grammars-config`
+
+**Requires authentication** (Admin only)
+
+Returns the raw contents of `config/areafix_grammars.json`, the data-driven AreaFix/FileFix grammar definitions loaded by `AreaFixParser` (see `docs/AreaFix.md#data-driven-grammar-definitions`). Used by the `/admin/areafix-grammars` editor page.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the config was read |
+| `config` | object | Config wrapper |
+| `config.config_json` | string | Raw JSON text of `config/areafix_grammars.json` (`"[]"` if the file doesn't exist) |
+| `config.example_json` | string\|null | Raw JSON text of `config/areafix_grammars.json.example`, for the admin UI's "Populate from Example" button; `null` if no example file is shipped |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 500 | Failed to load AreaFix grammar configuration |
+
+---
+
+#### `POST /api/admin/areafix/grammars-config`
+
+**Requires authentication** (Admin only)
+
+Replaces `config/areafix_grammars.json` wholesale with the given JSON array, written via the admin daemon (the web process cannot write config files directly; see `docs/AdminDaemon.md`).
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `json` | string | Yes | New contents of `config/areafix_grammars.json`, as a JSON-encoded array of grammar definition objects |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True on successful save |
+| `config` | object | Config wrapper |
+| `config.config_json` | string | Raw JSON text of the saved config |
+| `message_code` | string | i18n key for the success message |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Missing/invalid JSON payload, or failed to save AreaFix grammar configuration |
+
+---
+
+#### `POST /api/admin/areafix/grammars-ai-generate`
+
+**Requires authentication** (Admin only)
+
+Asks the configured AI provider (see `docs/AIProviders.md`) to infer a data-driven `AreaFixParser` grammar definition (see `docs/AreaFix.md#data-driven-grammar-definitions`) from the raw text of a pasted AreaFix/FileFix reply message. Nothing is written to `config/areafix_grammars.json` by this endpoint — it only returns a suggestion for the sysop to review, edit, and save via `/api/admin/areafix/grammars-config`. The suggestion always comes back with `enabled: false` regardless of what the AI returns, and every regex is validated with `AreaFixParser::isValidPattern()` before being returned.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message_text` | string | Yes | Raw text of an AreaFix/FileFix reply message to infer a grammar from (truncated to 6000 characters) |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if a grammar suggestion was generated |
+| `grammar` | object | Suggested grammar definition, in the same shape documented in `docs/AreaFix.md#data-driven-grammar-definitions` |
+| `grammar.id` | string | Suggested identifier, sanitized to `[a-z0-9_-]` |
+| `grammar.enabled` | boolean | Always `false` |
+| `grammar.header_pattern` | string | Suggested header-detection regex |
+| `grammar.row_pattern` | string | Suggested per-row regex, guaranteed to contain a `(?<tag>...)` named group |
+| `grammar.stop_pattern` | string | Suggested stop-scan regex; omitted if the AI didn't provide one |
+| `grammar.default_action` | string | `"subscribe"`, `"unsubscribe"`, or `"available"` |
+| `grammar.status_rules` | array of objects | Suggested status-to-action rules; omitted if empty |
+| `grammar.status_rules[].pattern` | string | Regex tested against the row's captured status text |
+| `grammar.status_rules[].action` | string | `"subscribe"`, `"unsubscribe"`, or `"available"` |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 422 | Missing `message_text`, or the AI's response wasn't a usable grammar definition (invalid regex, or `row_pattern` missing a `tag` capture group) |
+| 500 | Failed to generate grammar (AI request error) |
+| 503 | No AI provider is configured |
+
+---
 
 #### `POST /api/admin/areafix/preview-latest`
 

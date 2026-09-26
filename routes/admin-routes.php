@@ -10532,6 +10532,205 @@ SimpleRouter::get('/admin/areafix', function () {
 });
 
 /**
+ * GET /admin/areafix-grammars
+ * Data-driven AreaFix/FileFix grammar definitions editor (raw JSON).
+ * See docs/AreaFix.md for the grammar schema.
+ */
+SimpleRouter::get('/admin/areafix-grammars', function () {
+    $user = RouteHelper::requireAdmin();
+
+    $template = new Template();
+    $template->renderResponse('admin/areafix_grammars.twig');
+});
+
+/**
+ * GET /api/admin/areafix/grammars-config
+ * Return the raw config/areafix_grammars.json contents (or "[]" if absent).
+ */
+SimpleRouter::get('/api/admin/areafix/grammars-config', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    try {
+        $client = new \BinktermPHP\Admin\AdminDaemonClient();
+        $config = $client->getAreafixGrammarsConfig();
+        echo json_encode(['success' => true, 'config' => $config]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        apiError('errors.admin.areafix_grammars.load_failed', apiLocalizedText('errors.admin.areafix_grammars.load_failed', 'Failed to load AreaFix grammar configuration', $user));
+    }
+});
+
+/**
+ * POST /api/admin/areafix/grammars-config
+ * Body: { json: string } — replaces config/areafix_grammars.json wholesale.
+ */
+SimpleRouter::post('/api/admin/areafix/grammars-config', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    try {
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $json = (string)($payload['json'] ?? '');
+        $client = new \BinktermPHP\Admin\AdminDaemonClient();
+        $updated = $client->saveAreafixGrammarsConfig($json);
+        echo json_encode([
+            'success'      => true,
+            'config'       => $updated,
+            'message_code' => 'ui.admin.areafix_grammars.saved_success',
+        ]);
+    } catch (Exception $e) {
+        http_response_code(400);
+        apiError('errors.admin.areafix_grammars.save_failed', apiLocalizedText('errors.admin.areafix_grammars.save_failed', 'Failed to save AreaFix grammar configuration', $user));
+    }
+});
+
+/**
+ * POST /api/admin/areafix/grammars-ai-generate
+ * Body: { message_text: string } — the raw text of a pasted AreaFix/FileFix
+ * reply message. Asks the configured AI provider to infer a grammar
+ * definition matching docs/AreaFix.md's schema and returns it for the sysop
+ * to review; nothing is written to config/areafix_grammars.json here. The
+ * returned grammar always has enabled=false regardless of what the AI
+ * returns, so a bad suggestion can never silently start matching mail.
+ */
+SimpleRouter::post('/api/admin/areafix/grammars-ai-generate', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    try {
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $messageText = trim((string)($payload['message_text'] ?? ''));
+
+        if ($messageText === '') {
+            http_response_code(422);
+            apiError('errors.admin.areafix_grammars.message_text_required', apiLocalizedText('errors.admin.areafix_grammars.message_text_required', 'Please paste some message text first', $user), 422);
+            return;
+        }
+
+        // Bound token usage/cost regardless of how much the sysop pastes.
+        $messageText = mb_substr($messageText, 0, 6000);
+
+        $aiService = \BinktermPHP\AI\AiService::create();
+        if (empty($aiService->getConfiguredProviders())) {
+            http_response_code(503);
+            apiError('errors.admin.areafix_grammars.ai_no_provider', apiLocalizedText('errors.admin.areafix_grammars.ai_no_provider', 'No AI provider is configured', $user), 503);
+            return;
+        }
+
+        $systemPrompt = <<<'PROMPT'
+You generate AreaFix/FileFix hub-reply parsing grammar definitions for a BBS platform.
+Given the raw text of a reply message from an FTN hub mailer's AreaFix/FileFix robot,
+infer a structural grammar that can parse every area/tag row in it.
+
+Return ONLY a JSON object (not an array) with this shape:
+{
+  "id": "short_snake_case_identifier_for_this_hub_format",
+  "header_pattern": "PCRE regex (no delimiters, matched case-insensitively across the whole message) that uniquely identifies this reply format, e.g. a distinctive banner line",
+  "row_pattern": "PCRE regex (no delimiters, matched against ONE line at a time) with a REQUIRED named group (?<tag>...) capturing the area tag, and OPTIONAL named groups (?<description>...) and (?<status>...)",
+  "stop_pattern": "optional PCRE regex; a line matching it ends the row scan (omit if not needed)",
+  "default_action": "one of: subscribe, unsubscribe, available",
+  "status_rules": [ { "pattern": "PCRE regex tested against the captured status text", "action": "one of: subscribe, unsubscribe, available" } ]
+}
+
+Rules:
+- Use PHP PCRE syntax. Do not include the regex delimiters (no leading/trailing /).
+- Escape literal backslashes as needed for JSON (e.g. \\s for whitespace).
+- row_pattern MUST anchor to a full data row and MUST NOT match header, banner, blank, or tearline lines.
+- Prefer anchored status_rules patterns (e.g. ^linked$) over unanchored ones, since e.g. "unlinked" contains "linked" as a substring.
+- If you cannot confidently determine a status column, omit "status_rules" and set "default_action" to "available".
+- Return only the JSON object. No explanation, no markdown fences.
+PROMPT;
+
+        $request = new \BinktermPHP\AI\AiRequest(
+            feature: 'areafix_grammar_ai_generate',
+            systemPrompt: $systemPrompt,
+            userPrompt: "Here is the raw text of an AreaFix/FileFix reply message. Generate a grammar definition for it:\n\n{$messageText}",
+            temperature: 0.1,
+            maxOutputTokens: 800,
+            timeoutSeconds: 30,
+            userId: (int)($user['user_id'] ?? $user['id'] ?? 0) ?: null,
+        );
+
+        $response = $aiService->generateJson($request);
+        $parsed = $response->getParsedJson();
+
+        if (!is_array($parsed) || !is_string($parsed['header_pattern'] ?? null) || !is_string($parsed['row_pattern'] ?? null)) {
+            http_response_code(422);
+            apiError('errors.admin.areafix_grammars.ai_invalid_response', apiLocalizedText('errors.admin.areafix_grammars.ai_invalid_response', 'AI did not return a usable grammar definition', $user), 422);
+            return;
+        }
+
+        $headerPattern = $parsed['header_pattern'];
+        $rowPattern = $parsed['row_pattern'];
+
+        if (!\BinktermPHP\AreaFix\AreaFixParser::isValidPattern($headerPattern)
+            || !\BinktermPHP\AreaFix\AreaFixParser::isValidPattern($rowPattern)
+            || !str_contains($rowPattern, '(?<tag>')) {
+            http_response_code(422);
+            apiError('errors.admin.areafix_grammars.ai_invalid_response', apiLocalizedText('errors.admin.areafix_grammars.ai_invalid_response', 'AI did not return a usable grammar definition', $user), 422);
+            return;
+        }
+
+        $id = is_string($parsed['id'] ?? null) ? strtolower(trim($parsed['id'])) : '';
+        $id = preg_replace('/[^a-z0-9_\-]+/', '_', $id) ?? '';
+        $id = trim($id, '_-');
+        if ($id === '') {
+            $id = 'ai_generated_' . substr(md5($messageText), 0, 8);
+        }
+        $id = substr($id, 0, 60);
+
+        $allowedActions = ['subscribe', 'unsubscribe', 'available'];
+        $defaultAction = (is_string($parsed['default_action'] ?? null) && in_array($parsed['default_action'], $allowedActions, true))
+            ? $parsed['default_action']
+            : 'available';
+
+        $stopPattern = null;
+        if (is_string($parsed['stop_pattern'] ?? null) && $parsed['stop_pattern'] !== ''
+            && \BinktermPHP\AreaFix\AreaFixParser::isValidPattern($parsed['stop_pattern'])) {
+            $stopPattern = $parsed['stop_pattern'];
+        }
+
+        $statusRules = [];
+        foreach ((array)($parsed['status_rules'] ?? []) as $rule) {
+            if (!is_array($rule) || !is_string($rule['pattern'] ?? null) || !is_string($rule['action'] ?? null)) {
+                continue;
+            }
+            if (!in_array($rule['action'], $allowedActions, true) || !\BinktermPHP\AreaFix\AreaFixParser::isValidPattern($rule['pattern'])) {
+                continue;
+            }
+            $statusRules[] = ['pattern' => $rule['pattern'], 'action' => $rule['action']];
+        }
+
+        $grammar = [
+            'id'             => $id,
+            // Always disabled: an AI suggestion is a starting point for
+            // sysop review, never something that silently starts matching
+            // mail on its own.
+            'enabled'        => false,
+            'header_pattern' => $headerPattern,
+            'row_pattern'    => $rowPattern,
+            'default_action' => $defaultAction,
+        ];
+        if ($stopPattern !== null) {
+            $grammar['stop_pattern'] = $stopPattern;
+        }
+        if (!empty($statusRules)) {
+            $grammar['status_rules'] = $statusRules;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'grammar' => $grammar,
+        ]);
+    } catch (\Throwable $e) {
+        getServerLogger()->error('AreaFix AI grammar generation failed', ['error' => $e->getMessage()]);
+        http_response_code(500);
+        apiError('errors.admin.areafix_grammars.ai_generate_failed', apiLocalizedText('errors.admin.areafix_grammars.ai_generate_failed', 'Failed to generate grammar', $user), 500);
+    }
+});
+
+/**
  * GET /api/admin/areafix/uplinks
  * Return uplinks that have areafix or filefix passwords configured.
  */

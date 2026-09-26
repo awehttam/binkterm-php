@@ -45,6 +45,11 @@ class AreaFixParser
     public const ACTION_UNSUBSCRIBE = 'unsubscribe';
     public const ACTION_AVAILABLE = 'available';
 
+    private const VALID_ACTIONS = [self::ACTION_SUBSCRIBE, self::ACTION_UNSUBSCRIBE, self::ACTION_AVAILABLE];
+
+    /** @var array<int, array<string, mixed>>|null */
+    private ?array $configuredGrammarsCache = null;
+
     private Logger $logger;
 
     public function __construct()
@@ -98,7 +103,22 @@ class AreaFixParser
             return $this->deduplicateAreas($flaggedDottedAreas);
         }
 
-        // 6. Last resort: conservative freeform "TAG   Description" line matching
+        // 6. Try data-driven grammars defined in config/areafix_grammars.json,
+        // in the order they appear in the file. These are sysop-contributed
+        // definitions for hub formats the built-in structural grammars above
+        // don't recognize; see docs/AreaFix.md for the schema.
+        foreach ($this->loadConfiguredGrammars() as $grammar) {
+            $configuredAreas = $this->matchConfiguredGrammar($grammar, $body);
+            if ($configuredAreas !== null && !empty($configuredAreas)) {
+                $this->logger->info('AreaFixParser: matched data-driven grammar', [
+                    'grammar_id'  => (string)($grammar['id'] ?? ''),
+                    'areas_found' => count($configuredAreas),
+                ]);
+                return $this->deduplicateAreas($configuredAreas);
+            }
+        }
+
+        // 7. Last resort: conservative freeform "TAG   Description" line matching
         // for hub formats with no recognizable header, banner, or delimiter.
         $freeformAreas = $this->parseFreeformList($body);
         if (!empty($freeformAreas)) {
@@ -745,6 +765,181 @@ class AreaFixParser
         }
 
         return $areas;
+    }
+
+    /**
+     * Load data-driven grammar definitions from config/areafix_grammars.json.
+     *
+     * The file is optional; a missing file, empty array, or invalid JSON all
+     * result in no configured grammars (built-in grammars and the freeform
+     * fallback are unaffected). Cached per-process since this is invoked once
+     * per parse() call and the file only changes via the admin daemon.
+     *
+     * If config/areafix_grammars.json doesn't exist yet, falls back to the
+     * shipped config/areafix_grammars.json.example so its (disabled-by-default)
+     * sample grammar is available as a starting point without requiring a
+     * sysop to create the real file first. The example ships with every
+     * grammar disabled, so this fallback never changes parsing behavior on
+     * its own.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function loadConfiguredGrammars(): array
+    {
+        if ($this->configuredGrammarsCache !== null) {
+            return $this->configuredGrammarsCache;
+        }
+
+        $path = __DIR__ . '/../../config/areafix_grammars.json';
+        if (!file_exists($path)) {
+            $path = __DIR__ . '/../../config/areafix_grammars.json.example';
+        }
+        if (!file_exists($path)) {
+            return $this->configuredGrammarsCache = [];
+        }
+
+        $json = file_get_contents($path);
+        if ($json === false) {
+            return $this->configuredGrammarsCache = [];
+        }
+
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            $this->logger->warning('AreaFixParser: config/areafix_grammars.json is invalid JSON, ignoring', [
+                'json_error' => json_last_error_msg(),
+            ]);
+            return $this->configuredGrammarsCache = [];
+        }
+
+        return $this->configuredGrammarsCache = array_values(array_filter($decoded, 'is_array'));
+    }
+
+    /**
+     * Attempt to match a single data-driven grammar definition against the
+     * message body.
+     *
+     * Grammar schema (see docs/AreaFix.md for the full reference):
+     * {
+     *   "id": "my_hub_format",
+     *   "enabled": true,
+     *   "header_pattern": "regex (no delimiters) that must appear somewhere in the body",
+     *   "row_pattern": "regex (no delimiters) with named groups <tag>, optional <description>, <status>",
+     *   "stop_pattern": "optional regex; a matching line ends the row scan",
+     *   "default_action": "subscribe|unsubscribe|available",
+     *   "status_rules": [ { "pattern": "regex tested against the <status> group", "action": "subscribe|unsubscribe|available" } ]
+     * }
+     *
+     * A grammar missing `header_pattern` or `row_pattern`, disabled, or whose
+     * regexes fail to compile is skipped entirely rather than partially
+     * applied, so a sysop typo in one definition can never produce a
+     * misleading partial match.
+     *
+     * @param array<string, mixed> $grammar
+     * @return array<int, array{name: string, description: ?string, action: string, is_subscribed: bool}>|null
+     */
+    private function matchConfiguredGrammar(array $grammar, string $body): ?array
+    {
+        if (empty($grammar['enabled'])) {
+            return null;
+        }
+
+        $headerPattern = $grammar['header_pattern'] ?? null;
+        $rowPattern = $grammar['row_pattern'] ?? null;
+        if (!is_string($headerPattern) || $headerPattern === '' || !is_string($rowPattern) || $rowPattern === '') {
+            return null;
+        }
+
+        $defaultAction = $grammar['default_action'] ?? self::ACTION_AVAILABLE;
+        if (!in_array($defaultAction, self::VALID_ACTIONS, true)) {
+            $defaultAction = self::ACTION_AVAILABLE;
+        }
+
+        $stopPattern = is_string($grammar['stop_pattern'] ?? null) && $grammar['stop_pattern'] !== '' ? $grammar['stop_pattern'] : null;
+
+        $statusRules = [];
+        foreach ((array)($grammar['status_rules'] ?? []) as $rule) {
+            if (!is_array($rule) || !isset($rule['pattern'], $rule['action']) || !is_string($rule['pattern'])) {
+                continue;
+            }
+            if (!in_array($rule['action'], self::VALID_ACTIONS, true)) {
+                continue;
+            }
+            if (!self::isValidPattern($rule['pattern'])) {
+                continue;
+            }
+            $statusRules[] = $rule;
+        }
+
+        if (!self::isValidPattern($headerPattern) || !self::isValidPattern($rowPattern)
+            || ($stopPattern !== null && !self::isValidPattern($stopPattern))) {
+            $this->logger->warning('AreaFixParser: data-driven grammar has an invalid regex, skipping', [
+                'grammar_id' => (string)($grammar['id'] ?? ''),
+            ]);
+            return null;
+        }
+
+        if (!preg_match('/' . $headerPattern . '/im', $body)) {
+            return null;
+        }
+
+        $lines = explode("\n", $body);
+        $areas = [];
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                if (!empty($areas)) {
+                    break;
+                }
+                continue;
+            }
+
+            if ($stopPattern !== null && preg_match('/' . $stopPattern . '/i', $trimmed)) {
+                break;
+            }
+
+            if (preg_match('/' . $rowPattern . '/', $line, $m) !== 1) {
+                continue;
+            }
+
+            $tag = strtoupper(trim($m['tag'] ?? ''));
+            if ($tag === '' || !self::isValidTag($tag)) {
+                continue;
+            }
+
+            $desc = isset($m['description']) ? trim($m['description']) : '';
+            $statusText = isset($m['status']) ? trim($m['status']) : '';
+
+            $action = $defaultAction;
+            foreach ($statusRules as $rule) {
+                if (preg_match('/' . $rule['pattern'] . '/i', $statusText)) {
+                    $action = $rule['action'];
+                    break;
+                }
+            }
+
+            $areas[] = [
+                'name'          => $tag,
+                'description'   => $desc !== '' ? $desc : null,
+                'action'        => $action,
+                'is_subscribed' => $action === self::ACTION_SUBSCRIBE,
+            ];
+        }
+
+        return $areas;
+    }
+
+    /**
+     * Check whether a user-supplied regex fragment (no delimiters) compiles
+     * without throwing a PHP warning, so an invalid pattern in a sysop-edited
+     * (or AI-generated) grammar definition is skipped rather than crashing
+     * the parser. Public so callers validating a grammar before it's ever
+     * written to config/areafix_grammars.json (e.g. the AI-assisted grammar
+     * generator route) can reuse the exact same check.
+     */
+    public static function isValidPattern(string $pattern): bool
+    {
+        return @preg_match('/' . $pattern . '/i', '') !== false;
     }
 
     /**

@@ -275,6 +275,44 @@ Inspect an incoming AreaFix/FileFix reply for an uplink from message history, pa
 
 ---
 
+### `GET /admin/areafix-grammars`
+Admin UI page for editing data-driven AreaFix/FileFix grammar definitions (`config/areafix_grammars.json`) as raw JSON. See [Data-Driven Grammar Definitions](#data-driven-grammar-definitions) below for the schema.
+
+### `GET /api/admin/areafix/grammars-config`
+Return the raw contents of `config/areafix_grammars.json` (or `"[]"` if the file doesn't exist yet).
+
+**Response:**
+```json
+{
+    "success": true,
+    "config": { "config_json": "[]" }
+}
+```
+
+### `POST /api/admin/areafix/grammars-config`
+Replace `config/areafix_grammars.json` wholesale with the given JSON array. Written via the admin daemon, like other runtime config files (see `docs/AdminDaemon.md`).
+
+**Request body:**
+```json
+{ "json": "[ { \"id\": \"my_hub_format\", \"enabled\": true, ... } ]" }
+```
+
+**Response:**
+```json
+{
+    "success":      true,
+    "config":       { "config_json": "..." },
+    "message_code": "ui.admin.areafix_grammars.saved_success"
+}
+```
+
+---
+
+### `POST /api/admin/areafix/grammars-ai-generate`
+Ask the configured AI provider to suggest a grammar definition from a pasted AreaFix/FileFix reply message, via the "Paste from AreaFix Message" button on `/admin/areafix-grammars`. See `docs/AIProviders.md#areafix-grammar-generation` and `docs/API.md` for the full request/response shape. The suggestion is always returned with `enabled: false` and every regex validated with `AreaFixParser::isValidPattern()`, but nothing is written to `config/areafix_grammars.json` until the sysop reviews it and clicks Save.
+
+---
+
 
 ## Parser Architecture & Structural Parsing
 
@@ -293,7 +331,11 @@ Rather than relying on fragile keyword blacklists or naive line regexes, the par
 3. **Columnar & Dotted-Leader Tables (HPT, Husky)**:
    - Parses fixed-width and dotted-leader rows (`TAG .... status/description`).
    - Differentiates subscription states (`subscribed`, `rescanned` vs `unsubscribed`).
-4. **Syntactic Tag Validation & Guard Rails**:
+4. **Quoted-Address Lists (BBBS/Li6)** and **Flag-Prefixed Dotted-Leader Quoted Lists (HPT `%LIST`)**:
+   - Parses `+TAG (address) "description"` style listings, including wrapped multi-line descriptions and combined echo-area/file-area sections in one reply.
+   - Parses `*S  TAG ..... "description"` flag-prefixed dotted-leader listings, treating `*` as the linked/subscribed marker.
+5. **Data-driven grammars** (`config/areafix_grammars.json`, see [below](#data-driven-grammar-definitions)) and, as a last resort, a **conservative freeform `TAG   Description` line matcher** for hub formats with no recognizable header, banner, or delimiter at all. Freeform matches are never marked `subscribe` and are logged via `BinktermPHP\Binkp\Logger` so an unrecognized format can be turned into a proper grammar later.
+6. **Syntactic Tag Validation & Guard Rails**:
    - Validates area tags using `AreaFixParser::isValidTag()` (2–60 alphanumeric/dash/dot characters with at least one letter).
    - Does not maintain an English word blacklist, ensuring valid echo areas like `LINUX`, `BASE`, or `WINDOWS` are never dropped.
    - Discards ANSI box-drawing/block art characters (`▄█▀▌▐░▒▓─│┌┐└┘`) from descriptions.
@@ -308,6 +350,49 @@ Each parsed area contains an `action` attribute:
 | `subscribe` | Confirmation of an added or existing subscription | `true` | Inserts or updates area with `is_active = true` |
 | `unsubscribe` | Confirmation of a removed subscription | `false` | Marks existing area with `is_active = false` |
 | `available` | Area listed in a `%LIST` or `%UNLINKED` catalog | `false` | Inserts area with `is_active = false`, or updates description |
+
+---
+
+### Data-Driven Grammar Definitions
+
+The three built-in structural grammars, the quoted-address/flag-prefixed grammars, and the freeform fallback tier are enough to cover the major FTN hub mailers, but a new or unusual hub format can still slip through as an empty result. Rather than requiring a PHP change for every new format, `AreaFixParser` also loads grammar definitions from `config/areafix_grammars.json` (managed via the [`/admin/areafix-grammars`](#get-adminareafix-grammars) admin page, the same way `webdoors.json` is edited through `/admin/webdoors`).
+
+Configured grammars are tried **after** every built-in grammar and **before** the freeform fallback tier, in the order they appear in the file. The first grammar whose `header_pattern` matches the body, and which then finds at least one row, wins.
+
+If `config/areafix_grammars.json` doesn't exist yet, `AreaFixParser` falls back to reading `config/areafix_grammars.json.example` instead, so the shipped sample grammar is available as a starting point without requiring a sysop to create the real file first. Every grammar in the shipped example ships with `enabled: false`, so this fallback never changes parsing behavior until a sysop deliberately enables (or replaces) a grammar. The admin page's **Populate from Example** button loads `areafix_grammars.json.example`'s contents into the editor so it can be reviewed and edited before saving as the real `areafix_grammars.json`.
+
+`config/areafix_grammars.json` (or `.example`) is a JSON array of grammar objects:
+
+```json
+[
+    {
+        "id": "my_hub_format",
+        "enabled": true,
+        "header_pattern": "My Hub Mailer v[0-9.]+ Area Report",
+        "row_pattern": "^(?<tag>[A-Za-z0-9_\\-.]+)\\s{2,}(?<status>\\S+)?\\s{2,}(?<description>.*)$",
+        "stop_pattern": "^-{3,}",
+        "default_action": "available",
+        "status_rules": [
+            { "pattern": "^linked$", "action": "subscribe" },
+            { "pattern": "^unlinked$", "action": "unsubscribe" }
+        ]
+    }
+]
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | yes | Identifier used in log entries when this grammar matches. Not otherwise interpreted. |
+| `enabled` | yes | Grammar is skipped entirely unless `true`. |
+| `header_pattern` | yes | PCRE pattern (no delimiters, matched case-insensitively with the multiline flag against the whole body) that must appear somewhere in the reply for this grammar to be attempted. Cheap gate against false positives on unrelated replies. |
+| `row_pattern` | yes | PCRE pattern (no delimiters, matched per line) with a required named group `tag`, and optional named groups `description` and `status`. |
+| `stop_pattern` | no | PCRE pattern; a line matching it ends the row scan (in addition to the default stop rule: a blank line after at least one matched row). |
+| `default_action` | no | One of `subscribe`, `unsubscribe`, `available`. Defaults to `available` — a configured grammar never defaults to `subscribe` unless a `status_rules` entry says so. |
+| `status_rules` | no | Ordered list of `{ "pattern": "...", "action": "..." }`. Each `pattern` is tested (case-insensitively) against the row's captured `status` text; the first match wins. Anchor patterns (`^...$`) when one status word is a substring of another (e.g. `unlinked` contains `linked`). |
+
+A grammar with a missing/invalid `header_pattern` or `row_pattern`, an invalid regex anywhere in it, or `enabled: false`, is skipped entirely rather than partially applied — a typo in one definition can never produce a misleading partial match, and never crashes the parser. Invalid regexes are logged as a warning via `BinktermPHP\Binkp\Logger`.
+
+Every parsed area — whether from a built-in grammar, a configured grammar, or the freeform fallback — still passes through the same `AreaFixParser::isValidTag()` check and the mandatory sync preview (see [Sync to Echo Areas](#sync-to-echo-areas)) before anything is written to the database, so a loosely-written grammar can produce noise but not silently corrupt subscription state.
 
 ---
 

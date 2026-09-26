@@ -1,0 +1,14 @@
+[
+    {
+        "id": "example_hub_format",
+        "enabled": false,
+        "header_pattern": "My Hub Mailer v[0-9.]+ Area Report",
+        "row_pattern": "^(?<tag>[A-Za-z0-9_\\-.]+)\\s{2,}(?<status>\\S+)?\\s{2,}(?<description>.*)$",
+        "stop_pattern": "^-{3,}",
+        "default_action": "available",
+        "status_rules": [
+            { "pattern": "^linked$", "action": "subscribe" },
+            { "pattern": "^unlinked$", "action": "unsubscribe" }
+        ]
+    }
+]

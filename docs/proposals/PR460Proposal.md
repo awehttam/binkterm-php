@@ -287,6 +287,12 @@ looking at it first.
 
 ## Proposed Improvement 5: Data-Driven Grammar Definitions
 
+> **Status: Implemented.** See `src/AreaFix/AreaFixParser.php`
+> (`loadConfiguredGrammars()`/`matchConfiguredGrammar()`), `config/areafix_grammars.json`
+> (created on first save; absent by default), the `/admin/areafix-grammars` editor page,
+> and `tests/test_configured_areafix_grammars.php`. Full schema reference in
+> `docs/AreaFix.md` under "Data-Driven Grammar Definitions".
+
 Today, adding support for a new hub mailer's AreaFix reply format means
 writing a new private method in `AreaFixParser` (as `parseMysticBlocks`,
 `parseDelimitedTable`, and `parseColumnarTable` already are), which requires

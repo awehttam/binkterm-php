@@ -155,6 +155,16 @@ class AdminDaemonClient
         return $this->sendCommand('save_lovlynet_config', ['json' => $json]);
     }
 
+    public function getAreafixGrammarsConfig(): array
+    {
+        return $this->sendCommand('get_areafix_grammars_config');
+    }
+
+    public function saveAreafixGrammarsConfig(string $json): array
+    {
+        return $this->sendCommand('save_areafix_grammars_config', ['json' => $json]);
+    }
+
     public function getWebdoorsConfig(): array
     {
         return $this->sendCommand('get_webdoors_config');

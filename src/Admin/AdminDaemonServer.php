@@ -530,6 +530,23 @@ class AdminDaemonServer
                         $this->writeResponse($client, ['ok' => false, 'error' => 'failed_to_send_signal']);
                     }
                     break;
+                case 'get_areafix_grammars_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getAreafixGrammarsConfig()]);
+                    break;
+                case 'save_areafix_grammars_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->writeAreafixGrammarsConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getAreafixGrammarsConfig()]);
+                    break;
                 case 'get_webdoors_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
                     break;
@@ -1853,6 +1870,46 @@ class AdminDaemonServer
     private function getTaglinesPath(): string
     {
         return __DIR__ . '/../../config/taglines.txt';
+    }
+
+    private function getAreafixGrammarsConfig(): array
+    {
+        $configPath = $this->getAreafixGrammarsConfigPath();
+        $examplePath = $this->getAreafixGrammarsExamplePath();
+
+        $configJson = file_exists($configPath) ? file_get_contents($configPath) : '[]';
+        $exampleJson = file_exists($examplePath) ? file_get_contents($examplePath) : null;
+
+        return [
+            'config_json'  => $configJson,
+            'example_json' => $exampleJson,
+        ];
+    }
+
+    private function getAreafixGrammarsExamplePath(): string
+    {
+        return __DIR__ . '/../../config/areafix_grammars.json.example';
+    }
+
+    private function writeAreafixGrammarsConfig(array $config): void
+    {
+        $configPath = $this->getAreafixGrammarsConfigPath();
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        $json = json_encode(array_values($config), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode AreaFix grammars config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
+    }
+
+    private function getAreafixGrammarsConfigPath(): string
+    {
+        return __DIR__ . '/../../config/areafix_grammars.json';
     }
 
     private function getWebdoorsConfig(): array
