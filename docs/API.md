@@ -60,7 +60,7 @@ Content-Type: application/json
   - [Account](#account) (1)
   - [Address Book](#address-book) (8)
   - [Ads](#ads) (2)
-  - [AreaFix](#areafix) (8)
+  - [AreaFix](#areafix) (9)
   - [Auth](#auth) (7)
   - [Binkp](#binkp) (23)
   - [Bulletins](#bulletins) (3)
@@ -561,6 +561,7 @@ Click recording confirmation with redirect URL
 | `GET` | [`/api/admin/areafix/grammars-config`](#get-apiadminareafixgrammars-config) | Yes | Return the raw contents of `config/areafix_grammars.json`. |
 | `POST` | [`/api/admin/areafix/grammars-config`](#post-apiadminareafixgrammars-config) | Yes | Replace `config/areafix_grammars.json` wholesale. |
 | `POST` | [`/api/admin/areafix/grammars-ai-generate`](#post-apiadminareafixgrammars-ai-generate) | Yes | Ask the configured AI provider to suggest a grammar definition from a pasted AreaFix/FileFix reply message. |
+| `POST` | [`/api/admin/areafix/grammars-test`](#post-apiadminareafixgrammars-test) | Yes | Test the grammars currently in the admin editor against a pasted sample reply, without saving anything. |
 | `GET` | [`/api/admin/areafix/grammar-memory`](#get-apiadminareafixgrammar-memory) | Yes | Return the remembered `AreaFixParser` tier for both robots on an uplink. |
 | `POST` | [`/api/admin/areafix/grammar-memory`](#post-apiadminareafixgrammar-memory) | Yes | Manually force or clear the remembered tier for one uplink+robot. |
 
@@ -651,6 +652,40 @@ Asks the configured AI provider (see `docs/AIProviders.md`) to infer a data-driv
 | 422 | Missing `message_text`, or the AI's response wasn't a usable grammar definition (invalid regex, or `row_pattern` missing a `tag` capture group) |
 | 500 | Failed to generate grammar (AI request error) |
 | 503 | No AI provider is configured |
+
+---
+
+#### `POST /api/admin/areafix/grammars-test`
+
+**Requires authentication** (Admin only)
+
+Runs the real `AreaFixParser::parseWithTier()` pipeline against a pasted sample reply, using the exact grammar definitions passed in `grammars` rather than what's saved to `config/areafix_grammars.json`. This is how the `/admin/areafix-grammars` editor's **Test Against Sample** button lets a sysop check a hand-edited (or AI-suggested) grammar before saving — nothing is written to disk. Built-in grammars are still tried first, exactly as they would be for a real reply.
+
+**Request Body** _(JSON)_
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message_text` | string | Yes | Sample reply text to test (truncated to 20000 characters) |
+| `grammars` | array of objects | Yes | The full grammar array to test with, in the same shape documented in `docs/AreaFix.md#data-driven-grammar-definitions` — normally the admin editor's current (possibly unsaved) JSON content |
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | True if the test ran |
+| `tier` | string\|null | Tier identifier that matched (see `docs/AreaFix.md#per-uplink-grammar-memory`), or `null` if nothing matched — including the freeform fallback |
+| `areas` | array of objects | Areas extracted, in the same shape `preview-latest` returns |
+| `areas[].name` | string | Area tag |
+| `areas[].description` | string\|null | Area description, if known |
+| `areas[].action` | string | `"subscribe"`, `"unsubscribe"`, or `"available"` |
+| `areas[].is_subscribed` | boolean | Whether the matched tier reports this area as subscribed |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid payload, or `grammars` isn't an array |
+| 422 | Missing `message_text` |
 
 ---
 

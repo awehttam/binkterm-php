@@ -325,6 +325,18 @@ This is a natural complement to Improvement 1: the fallback tier's logging
 identifies *that* a format isn't recognized, and data-driven grammars make it
 cheap to turn a logged sample into permanent, tested coverage.
 
+### Follow-Up: Test Against Sample
+
+Also beyond the proposal's original scope: the `/admin/areafix-grammars` editor has a
+**Test Against Sample** button, backed by `POST /api/admin/areafix/grammars-test` and
+`AreaFixParser::setConfiguredGrammarsOverride()`. It runs the real `parseWithTier()`
+pipeline against a pasted sample reply using the exact grammar definitions currently
+in the editor's textarea — including unsaved edits, and a grammar that hasn't been
+enabled yet — without ever writing to `config/areafix_grammars.json`. This closes the
+gap where a hand-edited grammar previously had no way to be checked before saving
+short of enabling it and waiting for a real hub reply to arrive (the AI-generated
+path already validated its own suggestions before this existed).
+
 ## Proposed Improvement 6: Per-Uplink Format Memory
 
 > **Status: Implemented.** See `src/AreaFix/AreaFixParser.php` (`TIER_*`

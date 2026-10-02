@@ -10731,6 +10731,55 @@ PROMPT;
 });
 
 /**
+ * POST /api/admin/areafix/grammars-test
+ * Body: { message_text: string, grammars: array }
+ *
+ * Runs the real AreaFixParser::parseWithTier() pipeline against a pasted
+ * sample reply, using the exact grammar definitions currently in the admin
+ * editor's textarea (which may not have been saved to
+ * config/areafix_grammars.json yet, or may never be). Built-in grammars are
+ * still tried first, then the given grammars in order, then the freeform
+ * fallback — exactly the same order a real reply would go through — so a
+ * sysop can check a hand-edited grammar against a sample before saving it,
+ * without writing anything to disk.
+ */
+SimpleRouter::post('/api/admin/areafix/grammars-test', function () {
+    $user = RouteHelper::requireAdmin();
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        apiError('errors.admin.areafix.invalid_json', apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user), 400, ['success' => false]);
+        return;
+    }
+
+    $messageText = trim((string)($body['message_text'] ?? ''));
+    $grammars = $body['grammars'] ?? null;
+
+    if ($messageText === '') {
+        apiError('errors.admin.areafix_grammars.message_text_required', apiLocalizedText('errors.admin.areafix_grammars.message_text_required', 'Please paste some message text first', $user), 422, ['success' => false]);
+        return;
+    }
+    if (!is_array($grammars)) {
+        apiError('errors.admin.areafix.invalid_json', apiLocalizedText('errors.admin.areafix.invalid_json', 'Invalid request payload', $user), 400, ['success' => false]);
+        return;
+    }
+
+    // Bound input size regardless of what's pasted; sample replies are small.
+    $messageText = mb_substr($messageText, 0, 20000);
+
+    $parser = new \BinktermPHP\AreaFix\AreaFixParser();
+    $parser->setConfiguredGrammarsOverride($grammars);
+    $result = $parser->parseWithTier($messageText);
+
+    echo json_encode([
+        'success' => true,
+        'tier'    => $result['tier'],
+        'areas'   => $result['areas'],
+    ]);
+});
+
+/**
  * GET /api/admin/areafix/grammar-memory?uplink=1:1/23
  * Return the per-uplink AreaFixParser grammar memory (see
  * docs/AreaFix.md#per-uplink-grammar-memory) for both robots on this uplink,

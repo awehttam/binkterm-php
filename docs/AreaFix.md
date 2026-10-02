@@ -360,6 +360,30 @@ Replace `config/areafix_grammars.json` wholesale with the given JSON array. Writ
 ### `POST /api/admin/areafix/grammars-ai-generate`
 Ask the configured AI provider to suggest a grammar definition from a pasted AreaFix/FileFix reply message, via the "Paste from AreaFix Message" button on `/admin/areafix-grammars`. See `docs/AIProviders.md#areafix-grammar-generation` and `docs/API.md` for the full request/response shape. The suggestion is always returned with `enabled: false` and every regex validated with `AreaFixParser::isValidPattern()`, but nothing is written to `config/areafix_grammars.json` until the sysop reviews it and clicks Save.
 
+### `POST /api/admin/areafix/grammars-test`
+Run the real `AreaFixParser::parseWithTier()` pipeline against a pasted sample reply, using the exact grammar definitions currently in the `/admin/areafix-grammars` editor's textarea rather than what's saved to `config/areafix_grammars.json` — so a hand-edited (or AI-suggested) grammar can be checked against a sample before saving, including a grammar that hasn't been enabled yet. Nothing is written to disk; this is a pure dry run.
+
+**Request body:**
+```json
+{
+    "message_text": "XYZ AreaManager v1.0 Area Report\nTAG: FOOBAR STATUS: linked DESC: Foo Bar Discussion",
+    "grammars": [ { "id": "my_hub_format", "enabled": true, "header_pattern": "...", "row_pattern": "..." } ]
+}
+```
+
+`grammars` is the full array currently in the editor (parsed client-side from the textarea), sent as-is — it doesn't need to be valid enough to save yet; each entry is validated the same defensive way `matchConfiguredGrammar()` always validates a grammar (skipped, not fatal, if malformed). Built-in grammars are still tried first, exactly as they would be for a real reply, so the response also tells you if a built-in grammar would intercept the reply before your grammar ever gets a chance.
+
+**Response:**
+```json
+{
+    "success": true,
+    "tier":    "configured:my_hub_format",
+    "areas":   [ { "name": "FOOBAR", "description": "Foo Bar Discussion", "action": "subscribe", "is_subscribed": true } ]
+}
+```
+
+`tier` is `null` when nothing matched (including the freeform fallback) — see [Per-Uplink Grammar Memory](#per-uplink-grammar-memory) for what tier identifiers mean.
+
 ---
 
 
@@ -409,6 +433,8 @@ The three built-in structural grammars, the quoted-address/flag-prefixed grammar
 Configured grammars are tried **after** every built-in grammar and **before** the freeform fallback tier, in the order they appear in the file. The first grammar whose `header_pattern` matches the body, and which then finds at least one row, wins.
 
 If `config/areafix_grammars.json` doesn't exist yet, `AreaFixParser` falls back to reading `config/areafix_grammars.json.example` instead, so the shipped sample grammar is available as a starting point without requiring a sysop to create the real file first. Every grammar in the shipped example ships with `enabled: false`, so this fallback never changes parsing behavior until a sysop deliberately enables (or replaces) a grammar. The admin page's **Populate from Example** button loads `areafix_grammars.json.example`'s contents into the editor so it can be reviewed and edited before saving as the real `areafix_grammars.json`.
+
+Before saving, the **Test Against Sample** button lets a sysop paste a real hub reply and see exactly what the grammars currently in the editor (saved or not) would produce — which tier matched (a built-in grammar, one of your grammars, or none), and the tag/description/action for every row extracted. This runs the same `AreaFixParser::parseWithTier()` pipeline a real reply goes through (see `POST /api/admin/areafix/grammars-test`), so it also reveals when a built-in grammar would intercept the reply before a new grammar ever gets a chance to run.
 
 `config/areafix_grammars.json` (or `.example`) is a JSON array of grammar objects:
 

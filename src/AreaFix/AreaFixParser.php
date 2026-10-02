@@ -817,6 +817,25 @@ class AreaFixParser
     }
 
     /**
+     * Inject an explicit set of data-driven grammar definitions to use
+     * instead of loading config/areafix_grammars.json, bypassing the file
+     * entirely for the lifetime of this instance.
+     *
+     * Used by the admin "test against a sample" feature to run the exact
+     * grammar definitions currently in the editor (which may not have been
+     * saved yet) through the real parsing pipeline — built-in grammars still
+     * run first, then these, then the freeform fallback, exactly as
+     * parseWithTier() always tries them — without ever writing to
+     * config/areafix_grammars.json.
+     *
+     * @param array<int, array<string, mixed>> $grammars
+     */
+    public function setConfiguredGrammarsOverride(array $grammars): void
+    {
+        $this->configuredGrammarsCache = array_values(array_filter($grammars, 'is_array'));
+    }
+
+    /**
      * Load data-driven grammar definitions from config/areafix_grammars.json.
      *
      * The file is optional; a missing file, empty array, or invalid JSON all

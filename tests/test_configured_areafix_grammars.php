@@ -208,6 +208,43 @@ BODY;
         }
     }
 
+    // --------------------------------------------------------------------------
+    // Test 7: setConfiguredGrammarsOverride() lets a caller test a draft
+    // grammar (e.g. from the admin "Test Against Sample" button) without ever
+    // touching config/areafix_grammars.json.
+    // --------------------------------------------------------------------------
+    echo "\n7. Testing setConfiguredGrammarsOverride() for the admin \"test against a sample\" feature:\n";
+
+    if (file_exists($configPath)) {
+        unlink($configPath);
+    }
+
+    $parser7 = new AreaFixParser();
+    $parser7->setConfiguredGrammarsOverride([
+        [
+            'id'             => 'xyz_area_manager',
+            'enabled'        => true,
+            'header_pattern' => 'XYZ AreaManager',
+            'row_pattern'    => '^TAG:\s*(?<tag>[A-Za-z0-9_\-.]+)\s+STATUS:\s*(?<status>\S+)\s+DESC:\s*(?<description>.*)$',
+            'status_rules'   => [
+                ['pattern' => '^unlinked$', 'action' => 'unsubscribe'],
+                ['pattern' => '^linked$', 'action' => 'subscribe'],
+            ],
+        ],
+    ]);
+
+    $result7 = $parser7->parseWithTier($body);
+    assertCondition(
+        $result7['tier'] === 'configured:xyz_area_manager' && count($result7['areas']) === 2,
+        'Override grammar is used without config/areafix_grammars.json existing on disk',
+        json_encode($result7)
+    );
+    assertCondition(
+        !file_exists($configPath),
+        'setConfiguredGrammarsOverride() never writes to config/areafix_grammars.json',
+        (string)file_exists($configPath)
+    );
+
 } finally {
     if ($hadExistingConfig) {
         copy($backupPath, $configPath);
