@@ -4818,6 +4818,7 @@ return [
     'ui.bbs_directory.col_name' => 'Название BBS',
     'ui.bbs_directory.col_sysop' => 'Сисоп',
     'ui.bbs_directory.col_location' => 'Местоположение',
+    'ui.dashboard.packetbbs_radio_settings' => 'Мои радиостанции MeshCore',
     'ui.bbs_directory.col_os' => 'ОС',
     'ui.bbs_directory.col_telnet' => 'Telnet',
     'ui.bbs_directory.col_website' => 'Веб-сайт',

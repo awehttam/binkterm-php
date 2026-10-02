@@ -4774,6 +4774,7 @@ return [
     'ui.bbs_directory.og_description' => 'Sfoglia sistemi bulletin board (BBS) telnet da tutto il mondo. Scopri sistemi BBS attivi, sysop, località e dettagli di connessione.',
     'ui.bbs_directory.col_name' => 'Nome BBS',
     'ui.bbs_directory.col_sysop' => 'Sysop',
+    'ui.dashboard.packetbbs_radio_settings' => 'Le mie radio MeshCore',
     'ui.bbs_directory.col_location' => 'Località',
     'ui.bbs_directory.col_os' => 'OS',
     'ui.bbs_directory.col_telnet' => 'Telnet',

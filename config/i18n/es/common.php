@@ -4775,6 +4775,7 @@ return [
     'ui.bbs_directory.og_description' => 'Explora sistemas de tablón de anuncios (BBS) telnet de todo el mundo. Descubre BBS activos, sus sysops, ubicaciones y datos de conexión.',
     'ui.bbs_directory.col_name' => 'Nombre BBS',
     'ui.bbs_directory.col_sysop' => 'Sysop',
+    'ui.dashboard.packetbbs_radio_settings' => 'Mis radios MeshCore',
     'ui.bbs_directory.col_location' => 'Ubicacion',
     'ui.bbs_directory.col_os' => 'SO',
     'ui.bbs_directory.col_telnet' => 'Telnet',

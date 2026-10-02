@@ -4812,6 +4812,7 @@ return [
     'ui.bbs_directory.col_name' => 'BBS Name',
     'ui.bbs_directory.col_sysop' => 'Sysop',
     'ui.bbs_directory.col_location' => 'Location',
+    'ui.dashboard.packetbbs_radio_settings' => 'My MeshCore radios',
     'ui.bbs_directory.col_os' => 'OS',
     'ui.bbs_directory.col_telnet' => 'Telnet',
     'ui.bbs_directory.col_website' => 'Website',

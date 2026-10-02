@@ -329,6 +329,7 @@ return [
     'ui.meshcore_nodes.loading' => 'Chargement…',
     'ui.meshcore_nodes.load_error' => 'Impossible de charger les détails du noeud.',
     'ui.meshcore_nodes.view_all' => 'Voir tous les noeuds',
+    'ui.dashboard.packetbbs_radio_settings' => 'Mes radios MeshCore',
     'ui.meshcore_nodes.coordinates' => 'Coordonnées',
     'ui.meshcore_nodes.public_key' => 'Clé publique',
     'ui.meshcore_nodes.last_seen' => 'Dernière activité',

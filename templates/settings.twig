@@ -998,7 +998,7 @@ $(document).ready(function() {
     resetManagedPgpForm();
 
     // Restore last active tab
-    const savedTab = UserStorage.getItem('settingsActiveTab');
+    const savedTab = (window.location.hash === '#meshcore') ? '#tab-meshcore' : UserStorage.getItem('settingsActiveTab');
     if (savedTab) {
         const btn = document.querySelector(`[data-bs-target="${savedTab}"]`);
         if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();

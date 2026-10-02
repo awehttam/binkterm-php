@@ -20,6 +20,8 @@ Make sure you have a current backup of your database and files before upgrading.
 - [Web Doors](#web-doors)
   - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
+- [MeshCore](#meshcore)
+  - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -53,6 +55,10 @@ Make sure you have a current backup of your database and files before upgrading.
 
 - **Longer browser caching for door assets:** icons and screenshots served from `/door-assets/` now use `Cache-Control: public, max-age=604800, stale-while-revalidate=86400` (up from a 24-hour max-age), plus ETag/Last-Modified conditional requests, so repeat visits reload door pages faster and generate less server load.
 - **RLogin door asset sizes stored in the database:** icon and screenshot byte sizes for RLogin doors are now stored alongside the image data instead of being recomputed on every request, reducing memory overhead when serving those assets.
+
+### MeshCore
+
+- **Radio settings link on the dashboard:** the PacketBBS Nodes card on the main dashboard now includes a "My MeshCore radios" link that opens the MeshCore tab of your user settings, where you manage your radios.
 
 ### Security
 
@@ -117,6 +123,7 @@ The structural parser recognizes several hub mailer formats out of the box, but 
 - Each grammar definition is a JSON object specifying a header pattern (to detect the format), a per-row pattern (to extract the area tag, description, and status), and how status text maps to subscribed/unsubscribed/available. The full schema is documented on the page and in `docs/AreaFix.md`.
 - A **Paste from AreaFix Message** button lets you paste the raw text of a hub reply and have the configured AI provider suggest a grammar definition for it. The suggestion is always added disabled, and every regex in it is validated, so nothing starts matching mail until you review and explicitly enable it.
 - A **Populate from Example** button loads a starter definition from `config/areafix_grammars.json.example`, which ships disabled and has no effect until you edit and save it.
+- A **Test Against Sample** button lets you paste a sample reply and see exactly what your grammars (saved or not, enabled or not) would extract from it before you save — which format matched and every tag, description, and action it found. Nothing is written to disk by this button.
 - Grammars you define are tried after the built-in structural formats and before the last-resort freeform line matcher, in the order they appear on the page.
 
 ### Per-Uplink Format Memory
@@ -173,6 +180,12 @@ If you update a door's icon or screenshot file, its changed modification time (o
 ### RLogin Door Asset Sizes Stored in the Database
 
 RLogin doors store their icon and screenshot images as binary data directly in the `rlogin_doors` table, since these doors have no directory on disk. Their byte sizes are now stored in new `icon_size` and `screenshot_size` columns on that table, populated whenever an icon or screenshot is uploaded through **Admin -> RLogin Doors**. Existing icons and screenshots are backfilled automatically by the upgrade migration, so their sizes are recorded immediately without needing to re-upload anything.
+
+## MeshCore
+
+### Radio Settings Link on the Dashboard
+
+The PacketBBS Nodes card on the main dashboard, shown when MeshCore is enabled, now has a "My MeshCore radios" link beside "View all nodes". It opens **Settings** directly on the **MeshCore** tab, where you can add, edit, and remove your own radios. The settings page also accepts `/settings#meshcore` as a direct link to that tab.
 
 ## Security
 
