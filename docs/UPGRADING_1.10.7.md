@@ -23,6 +23,8 @@ Make sure you have a current backup of your database and files before upgrading.
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
 - [MeshCore](#meshcore)
   - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
+- [Networks](#networks)
+  - [SysopNet Added to the Networks List](#sysopnet-added-to-the-networks-list)
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -61,6 +63,10 @@ Make sure you have a current backup of your database and files before upgrading.
 ### MeshCore
 
 - **Radio settings link on the dashboard:** the PacketBBS Nodes card on the main dashboard now includes a "My MeshCore radios" link that opens the MeshCore tab of your user settings, where you manage your radios.
+
+### Networks
+
+- **SysopNet added to the networks list:** SysopNet (zone 23, hub 23:1/1), an FTN for sysops run by sysops, is now registered automatically on upgrade, so it appears in **Admin -> Networks** without being created by hand.
 
 ### Security
 
@@ -198,6 +204,12 @@ RLogin doors store their icon and screenshot images as binary data directly in t
 ### Radio Settings Link on the Dashboard
 
 The PacketBBS Nodes card on the main dashboard, shown when MeshCore is enabled, now has a "My MeshCore radios" link beside "View all nodes". It opens **Settings** directly on the **MeshCore** tab, where you can add, edit, and remove your own radios. The settings page also accepts `/settings#meshcore` as a direct link to that tab.
+
+## Networks
+
+### SysopNet Added to the Networks List
+
+The upgrade migration registers SysopNet (domain `sysopnet`, https://sysopnet.com) in the networks table, using the real-name posting policy and CP437 as the default code page. You can review or change these in **Admin -> Networks**. To join SysopNet you still need to request a node at sysopnet.com/node-request/ and add the uplink details your hub gives you. If a network with the domain `sysopnet` already exists, the migration leaves it unchanged.
 
 ## Security
 
