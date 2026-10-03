@@ -17,6 +17,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Fixed: user-manager.php create Command](#fixed-user-managerphp-create-command)
 - [AreaFix / FileFix](#areafix--filefix)
   - [Automatic Area Sync on Reply Now Opt-In](#automatic-area-sync-on-reply-now-opt-in)
+  - [Fixed: AreaFix Sync Set an Override Address on Echo Areas](#fixed-areafix-sync-set-an-override-address-on-echo-areas)
 - [Web Doors](#web-doors)
   - [Longer Browser Caching for Door Assets](#longer-browser-caching-for-door-assets)
   - [RLogin Door Asset Sizes Stored in the Database](#rlogin-door-asset-sizes-stored-in-the-database)
@@ -50,6 +51,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### AreaFix / FileFix
 
 - **Automatic area sync on reply is now opt-in:** receiving an AreaFix/FileFix reply from a hub that looks like an area list no longer automatically creates or activates local echo areas / file areas by default. Set `AREAFIX_AUTOIMPORT_ENABLED=true` in `.env` to restore the previous automatic behavior.
+- **Fixed: AreaFix sync set an override address on echo areas:** syncing areas from a hub's AreaFix reply filled in the echo area's **Uplink Address** ("Override Uplink FidoNet address") field on every area it created or touched. The sync no longer sets it, and deactivating areas missing from the hub's list is now scoped by network domain and tag instead of by that address.
 
 ### Web Doors
 
@@ -157,6 +159,16 @@ If you relied on the previous automatic behavior — for example, to pick up new
 ```
 AREAFIX_AUTOIMPORT_ENABLED=true
 ```
+
+### Fixed: AreaFix Sync Set an Override Address on Echo Areas
+
+Each echo area has an optional **Uplink Address** field in **Admin -> Echo Areas**, described as "Override Uplink FidoNet address". When it is empty, echomail for that area is sent to the uplink configured for the area's network. When it is set, echomail for that area is sent to that address instead, which is only wanted when a sysop deliberately routes one area differently.
+
+Syncing areas from an AreaFix reply (the **Sync to Echo Areas** button, or automatic sync when `AREAFIX_AUTOIMPORT_ENABLED=true`) was filling this field in with the hub's address on every area it created, and on existing areas where it was empty. Newly created echo areas therefore appeared to have an override that nobody had set. The sync no longer writes this field.
+
+When the *deactivate missing* option is used, it now deactivates active areas in the same network domain whose tag is not in the hub's list. Previously it only considered areas whose Uplink Address matched the hub, which would have skipped areas that have no override.
+
+Echo areas that were already given an Uplink Address by an earlier sync keep it, because it cannot be distinguished from an address a sysop entered on purpose. If you see an override you did not intend, open the area in **Admin -> Echo Areas** and clear the **Uplink Address** field.
 
 ## Web Doors
 

@@ -189,11 +189,13 @@ class AreaFixManager
      * Synchronize parsed area names into the local echoareas or file_areas table.
      *
      * For each area in $parsedAreas:
-     * - If a matching row exists (same tag+domain): ensure is_active=true, update
-     *   uplink_address and description if not already set.
+     * - If a matching row exists (same tag+domain): ensure is_active=true and
+     *   update the description if not already set.
      * - If no row exists: INSERT a new row with is_active=true.
      *
-     * If $deactivateMissing is true, any rows for this uplink+domain that are NOT
+     * The echoareas.uplink_address override is never set or modified here.
+     *
+     * If $deactivateMissing is true, any rows for this domain that are NOT
      * in the parsed list will be set to is_active=false.
      *
      * For FileFix (robot = "filefix") the sync targets the file_areas table.
@@ -257,7 +259,6 @@ class AreaFixManager
             // Check if area already exists
             $stmt = $this->db->prepare(
                 "SELECT id, is_active, description" .
-                ($table === 'echoareas' ? ", uplink_address" : "") .
                 " FROM {$table} WHERE UPPER(tag) = UPPER(?) AND domain = ?"
             );
             $stmt->execute([$tag, $domain]);
@@ -271,12 +272,6 @@ class AreaFixManager
                 if ($action === AreaFixParser::ACTION_SUBSCRIBE && !$existing['is_active']) {
                     $updates[] = 'is_active = TRUE';
                     $activated++;
-                }
-
-                // uplink_address only exists on echoareas, not file_areas
-                if ($table === 'echoareas' && empty($existing['uplink_address'])) {
-                    $updates[] = 'uplink_address = ?';
-                    $params[] = $uplinkAddress;
                 }
 
                 $descriptionShouldUpdate = $forceDescriptions
@@ -305,18 +300,18 @@ class AreaFixManager
                     ? 'EXCLUDED.description'
                     : 'COALESCE(NULLIF(%1$s.description, \'\'), EXCLUDED.description)';
 
+                // uplink_address is an optional sysop-set override and is never
+                // populated here; routing falls back to the domain's uplink.
                 if ($table === 'echoareas') {
                     $stmt = $this->db->prepare(
-                        "INSERT INTO echoareas (tag, domain, uplink_address, description, is_active, color)
-                         VALUES (?, ?, ?, ?, ?, '#28a745')
+                        "INSERT INTO echoareas (tag, domain, description, is_active, color)
+                         VALUES (?, ?, ?, ?, '#28a745')
                          ON CONFLICT (tag, domain) DO UPDATE
                          SET is_active = EXCLUDED.is_active,
-                             uplink_address = COALESCE(NULLIF(echoareas.uplink_address, ''), EXCLUDED.uplink_address),
                              description   = " . sprintf($descriptionConflictClause, 'echoareas')
                     );
-                    $stmt->execute([$tag, $domain, $uplinkAddress, $description, $isActive ? 'true' : 'false']);
+                    $stmt->execute([$tag, $domain, $description, $isActive ? 'true' : 'false']);
                 } else {
-                    // file_areas uses domain to link to uplink — no uplink_address column
                     $stmt = $this->db->prepare(
                         "INSERT INTO file_areas (tag, domain, description, is_active)
                          VALUES (?, ?, ?, ?)
@@ -336,29 +331,17 @@ class AreaFixManager
         // Optionally deactivate areas that were not in the parsed list
         if ($deactivateMissing && !empty($syncedTags)) {
             $placeholders = implode(',', array_fill(0, count($syncedTags), '?'));
-            // echoareas: filter by uplink_address; file_areas: filter by domain only
-            if ($table === 'echoareas') {
-                $params = array_merge([$uplinkAddress, $domain], array_map('strtoupper', $syncedTags));
-                $whereClause = "uplink_address = ? AND domain = ? AND is_active = TRUE AND UPPER(tag) NOT IN ({$placeholders})";
-            } else {
-                $params = array_merge([$domain], array_map('strtoupper', $syncedTags));
-                $whereClause = "domain = ? AND is_active = TRUE AND UPPER(tag) NOT IN ({$placeholders})";
-            }
-            $stmt = $this->db->prepare("UPDATE {$table} SET is_active = FALSE WHERE {$whereClause}");
+            $params = array_merge([$domain], array_map('strtoupper', $syncedTags));
+            $stmt = $this->db->prepare(
+                "UPDATE {$table} SET is_active = FALSE WHERE domain = ? AND is_active = TRUE AND UPPER(tag) NOT IN ({$placeholders})"
+            );
             $stmt->execute($params);
             $deactivated = (int)$stmt->rowCount();
         } elseif ($deactivateMissing && empty($syncedTags)) {
-            if ($table === 'echoareas') {
-                $stmt = $this->db->prepare(
-                    "UPDATE {$table} SET is_active = FALSE WHERE uplink_address = ? AND domain = ? AND is_active = TRUE"
-                );
-                $stmt->execute([$uplinkAddress, $domain]);
-            } else {
-                $stmt = $this->db->prepare(
-                    "UPDATE {$table} SET is_active = FALSE WHERE domain = ? AND is_active = TRUE"
-                );
-                $stmt->execute([$domain]);
-            }
+            $stmt = $this->db->prepare(
+                "UPDATE {$table} SET is_active = FALSE WHERE domain = ? AND is_active = TRUE"
+            );
+            $stmt->execute([$domain]);
             $deactivated = (int)$stmt->rowCount();
         }
 
@@ -562,13 +545,8 @@ class AreaFixManager
 
         if ($deactivateMissing) {
             $sql = "SELECT tag, description FROM {$table} WHERE domain = ? AND is_active = TRUE";
-            $params = [$domain];
-            if ($table === 'echoareas') {
-                $sql .= " AND uplink_address = ?";
-                $params[] = $uplinkAddress;
-            }
             $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
+            $stmt->execute([$domain]);
 
             while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
                 $tag = strtoupper(trim((string)$row['tag']));

@@ -125,11 +125,13 @@ for areas your hub reports without any review. Only enable it if you want new ar
 to appear locally as soon as your hub lists them.
 
 Sync behaviour:
-- Existing areas matching the tag+domain: `is_active` set to `true`, `uplink_address`
-  and `description` filled in if not already set.
+- Existing areas matching the tag+domain: `is_active` set to `true`, and `description`
+  filled in if not already set.
 - New areas: inserted with `is_active = true`.
+- The sync never sets or changes `echoareas.uplink_address`. That column is an optional
+  sysop-set override; when empty, outbound echomail routes to the domain's configured uplink.
 - The optional *deactivate missing* mode (available via the API, not the UI) sets
-  `is_active = false` for areas belonging to this uplink that were not in the list.
+  `is_active = false` for active areas in this domain whose tag was not in the list.
 
 ### Message History
 
