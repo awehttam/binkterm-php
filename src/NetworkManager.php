@@ -24,7 +24,7 @@ class NetworkManager
             SELECT id, domain, name, description, website, network_type, allow_markup, allow_media,
                    default_charset, missing_chrs_charset, posting_name_policy, is_builtin, created_at, updated_at
             FROM networks
-            ORDER BY is_builtin DESC, LOWER(name), LOWER(domain)
+            ORDER BY LOWER(name), LOWER(domain)
         ");
 
         return array_map([$this, 'normalizeRow'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);

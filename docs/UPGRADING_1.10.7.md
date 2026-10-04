@@ -25,6 +25,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Radio Settings Link on the Dashboard](#radio-settings-link-on-the-dashboard)
 - [Networks](#networks)
   - [SysopNet Added to the Networks List](#sysopnet-added-to-the-networks-list)
+  - [Networks Listed Alphabetically](#networks-listed-alphabetically)
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
 - [Upgrade Instructions](#upgrade-instructions)
@@ -67,6 +68,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Networks
 
 - **SysopNet added to the networks list:** SysopNet (zone 23, hub 23:1/1), an FTN for sysops run by sysops, is now registered automatically on upgrade, so it appears in **Admin -> Networks** without being created by hand.
+- **Networks listed alphabetically:** the network list in **Admin -> Networks** and the network dropdown when editing an uplink are now sorted purely by name.
 
 ### Security
 
@@ -210,6 +212,10 @@ The PacketBBS Nodes card on the main dashboard, shown when MeshCore is enabled, 
 ### SysopNet Added to the Networks List
 
 The upgrade migration registers SysopNet (domain `sysopnet`, https://sysopnet.com) in the networks table, using the real-name posting policy and CP437 as the default code page. You can review or change these in **Admin -> Networks**. To join SysopNet you still need to request a node at sysopnet.com/node-request/ and add the uplink details your hub gives you. If a network with the domain `sysopnet` already exists, the migration leaves it unchanged.
+
+### Networks Listed Alphabetically
+
+The network list in **Admin -> Networks**, and the network dropdown in the uplink editor under **Admin -> BBS Settings -> BinkP Uplinks**, previously showed all built-in networks first and then any other networks (such as locally created ones, or SysopNet) in a separate group below them. They are now sorted by name in a single list, regardless of whether a network is built in.
 
 ## Security
 
