@@ -498,6 +498,7 @@ SimpleRouter::get('/login', function() {
         'login_splash'     => $loginSplashHtml,
         'login_screen'     => $loginScreen,
         'login_ansi_art'   => $loginAnsiArt,
+        'registration_requires_approval' => \BinktermPHP\BbsConfig::shouldRequireRegistrationApproval(),
     ]);
 });
 

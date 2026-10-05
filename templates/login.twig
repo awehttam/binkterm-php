@@ -151,6 +151,14 @@
 
     {% include 'custom/login.banner.twig' ignore missing %}
 
+    {# Registration link text follows the configured onboarding mode:
+       approval-gated installs ask the visitor to "Request Access";
+       auto-approve installs (BbsConfig::shouldRequireRegistrationApproval() === false)
+       offer "Create Account" since the account is usable immediately. #}
+    {% set register_link_key = (registration_requires_approval ?? true)
+        ? 'ui.login.request_access'
+        : 'ui.register.create_account' %}
+
 {% if login_splash and login_screen.display_mode|default('standard') == 'standard' %}
 <div class="row justify-content-center mb-3">
     <div class="col-md-6 col-lg-6">
@@ -255,7 +263,7 @@
                 </form>
                 <div id="loginError" class="alert alert-danger mt-3" style="display: none;"></div>
                 <div class="login-ansi-links">
-                    {{ t('ui.login.no_account', {}, 'common') }} <a href="/register">{{ t('ui.login.request_access', {}, 'common') }}</a>
+                    {{ t('ui.login.no_account', {}, 'common') }} <a href="/register">{{ t(register_link_key, {}, 'common') }}</a>
                     <br>
                     {{ t('ui.login.forgot_password', {}, 'common') }} <a href="/forgot-password">{{ t('ui.login.reset_password', {}, 'common') }}</a>
                 </div>
@@ -311,7 +319,7 @@
         {% if login_screen.display_mode|default('standard') != 'ansi_prompt' %}
         <div class="text-center mt-3">
             <small class="text-muted">
-                {{ t('ui.login.no_account', {}, 'common') }} <a href="/register" class="text-decoration-none">{{ t('ui.login.request_access', {}, 'common') }}</a>
+                {{ t('ui.login.no_account', {}, 'common') }} <a href="/register" class="text-decoration-none">{{ t(register_link_key, {}, 'common') }}</a>
                 <br>
                 {{ t('ui.login.forgot_password', {}, 'common') }} <a href="/forgot-password" class="text-decoration-none">{{ t('ui.login.reset_password', {}, 'common') }}</a>
             </small>
