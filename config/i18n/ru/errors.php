@@ -610,6 +610,7 @@ return [
     'errors.webdoor.invalid_slot' => 'Недопустимый номер слота',
     'errors.webdoor.save_too_large' => 'Данные сохранения превышают максимально допустимый размер',
     'errors.webdoor.save_not_found' => 'Сохранение не найдено',
+    'errors.webdoor.game_unavailable' => 'Эта игра недоступна',
 
     // Door API
     'errors.door.door_name_required' => 'Требуется название двери',
