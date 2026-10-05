@@ -319,6 +319,15 @@ PERF_LOG_SLOW_MS=500
 # DEBUG, INFO, WARNING, ERROR, CRITICAL
 # BINKP_LOG_LEVEL=INFO
 
+# BinkP authentication logging. At DEBUG level, authentication logs show
+# outcomes, lengths and mismatch hints (length differs / letter case /
+# whitespace) but never password characters or CRAM-MD5 challenge/digest
+# values. Set to true only while troubleshooting authentication with a peer:
+# it adds password prefixes and CRAM-MD5 challenge/digest values to the log
+# (a logged challenge+digest allows an offline guess of the shared secret)
+# and logs a warning each session that it is on.
+# BINKP_LOG_SENSITIVE_AUTH=false
+
 # Archive extractors for Fidonet bundles (JSON array)
 # ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]
 
