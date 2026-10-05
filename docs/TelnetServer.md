@@ -100,6 +100,7 @@ Command-line options take precedence over `.env` values.
 | `TELNET_TLS_KEY` | (empty) | Path to TLS key PEM (equivalent to `--tls-key`) |
 | `TELNET_RATE_LIMIT_MAX` | `5` | Maximum connections allowed from one IP per window; `0` disables rate limiting |
 | `TELNET_RATE_LIMIT_WINDOW` | `60` | Rate-limit window duration in seconds |
+| `TELNET_PREAUTH_IDLE_TIMEOUT` | `90` | Seconds of inactivity at the login / register prompts before the connection is dropped. Values below `15` are treated as a misconfiguration and ignored. Authenticated sessions are unaffected |
 | `TELNET_TRUSTED_PROXIES` | `127.0.0.1,::1` | Comma-separated source IPs allowed to supply a PROXY protocol header (see [Proxied Connections](#proxied-connections-proxy-protocol)) |
 | `TELNET_PROXY_HEADER_TIMEOUT` | `2` | Seconds to wait for a PROXY header from a trusted source before treating the connection as direct |
 
@@ -258,6 +259,27 @@ elapsed since that first connection, not since the most recent one.
 The defaults allow 5 connections per minute per IP, which is sufficient for
 any legitimate user. Adjust `TELNET_RATE_LIMIT_MAX` downward if you are seeing
 active floods, or set it to `0` on private/LAN-only installs.
+
+### Pre-authentication Idle Timeout
+
+Scanners routinely open a Telnet connection, read the banner, and then sit
+silent — each such socket holds a forked handler until the idle timer fires.
+To shed those quickly, the login / register / reset-password prompts use a
+short idle deadline (`TELNET_PREAUTH_IDLE_TIMEOUT`, default **90 seconds**)
+instead of the full authenticated-session idle timeout. Any keystroke before
+authentication refreshes the timer, so a caller reading the login screen and
+typing at a normal pace is never cut off. On a successful login the session
+switches to the normal authenticated idle thresholds (the values returned by
+`GET /api/config/session-init`, or the built-in `300` s warning / `420` s
+disconnect defaults). Telnet protocol negotiation alone does not count as
+activity.
+
+SSH sessions authenticate at the protocol layer before the BBS menu, so an
+authenticated SSH caller never enters this pre-auth window; an SSH client that
+is dropped to the BBS login prompt without a session does.
+
+This is idle-socket hygiene, not abuse prevention — a client that deliberately
+trickles keystrokes can still hold a pre-auth connection open.
 
 ### Proxied Connections (PROXY protocol)
 
