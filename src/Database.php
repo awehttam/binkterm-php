@@ -23,20 +23,40 @@ use PDOException;
 
 class Database
 {
+    /**
+     * TEST-ONLY: the sole database name setInstanceForTesting() will ever
+     * accept. Duplicated (not shared) from tests/Unit/Support/TestDatabase.php
+     * on purpose -- this guard must not trust that helper's own check, so it
+     * cannot be bypassed by a caller that skips it.
+     */
+    private const TEST_ONLY_DATABASE_NAME = 'binktermphp_test';
+
     private static $instance = null;
     private $pdo;
     private DatabasePlatformInterface $platform;
 
-    private function __construct(bool $useUtcTimezone = true)
+    private function __construct(bool $useUtcTimezone = true, ?PDO $injectedPdo = null)
     {
+        if ($injectedPdo !== null) {
+            // TEST-ONLY path: the caller (setInstanceForTesting()) has already
+            // fail-closed verified this PDO is connected to the isolated test
+            // database. Never touch Config::getDatabaseConfig() or open a
+            // second connection here.
+            $this->pdo = $injectedPdo;
+            $this->platform = self::getPlatform(['driver' => 'pgsql']);
+            $this->platform->initializeSession($this->pdo, $useUtcTimezone);
+
+            return;
+        }
+
         try {
             $config = Config::getDatabaseConfig();
             $this->platform = self::getPlatform($config);
 
             $this->pdo = new PDO(
                 $this->platform->createDsn($config),
-                $config['username'], 
-                $config['password'], 
+                $config['username'],
+                $config['password'],
                 $config['options'] ?? []
             );
 
@@ -61,6 +81,45 @@ class Database
     {
         self::$instance = null;
         return self::getInstance($useUtcTimezone);
+    }
+
+    /**
+     * TEST-ONLY: redirect the singleton at an already-open PDO connection so
+     * that every Database::getInstance() call in the process -- whether made
+     * directly by a test or internally by production code under test --
+     * resolves to the same connection.
+     *
+     * Independently fail-closed: this does NOT trust that the caller (e.g.
+     * tests/Unit/Support/TestDatabase.php) already verified the target
+     * database. It re-checks current_database() itself and refuses to
+     * install the instance -- self::$instance is left untouched -- unless it
+     * is exactly the isolated test database. This is the only database name
+     * this method will ever accept; it can never be pointed at production.
+     *
+     * Never call this outside a test context.
+     */
+    public static function setInstanceForTesting(PDO $pdo, bool $useUtcTimezone = true): void
+    {
+        $actual = (string)$pdo->query('SELECT current_database()')->fetchColumn();
+        if ($actual !== self::TEST_ONLY_DATABASE_NAME) {
+            throw new \RuntimeException(
+                'Database::setInstanceForTesting() refuses a PDO connected to '
+                . "\"{$actual}\" -- only \"" . self::TEST_ONLY_DATABASE_NAME . '" is accepted.'
+            );
+        }
+
+        self::$instance = new self($useUtcTimezone, $pdo);
+    }
+
+    /**
+     * TEST-ONLY: drop the singleton without opening any connection. The next
+     * getInstance() call after this reverts to normal production behavior --
+     * callers must not call getInstance() again in a test context after
+     * calling this unless they intend to reconnect to production.
+     */
+    public static function resetInstanceForTesting(): void
+    {
+        self::$instance = null;
     }
 
     /**
