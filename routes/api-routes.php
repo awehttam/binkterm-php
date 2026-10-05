@@ -122,6 +122,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $username = $input['username'] ?? '';
         $password = $input['password'] ?? '';
         $service = $input['service'] ?? 'web';
+        // Browser logins send the "Remember me" checkbox; clients that do not
+        // send it (terminal daemons, older scripts) keep the persistent cookie.
+        $remember = is_array($input) && array_key_exists('remember', $input)
+            ? $input['remember'] === true
+            : true;
 
         if (empty($username) || empty($password)) {
             apiError('errors.auth.missing_credentials', apiLocalizedText('errors.auth.missing_credentials', 'Username and password required'), 400);
@@ -137,7 +142,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sessionId = $auth->login($username, $password, $service);
 
         if ($sessionId) {
-            setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions());
+            setcookie('binktermphp_session', $sessionId, Config::getSessionCookieOptions($remember));
             if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['show_login_bulletins_for_session'] = $sessionId;
             }

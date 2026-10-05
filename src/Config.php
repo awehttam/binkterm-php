@@ -267,16 +267,25 @@ class Config
     /**
      * Get the options shared by session-cookie creation sites.
      *
-     * @return array{expires:int,path:string,httponly:bool,samesite:string,secure:bool}
+     * @param bool $persistent When false, the cookie gets no expiry and lasts
+     *                         only for the browser session.
+     * @return array{expires?:int,path:string,httponly:bool,samesite:string,secure:bool}
      */
-    public static function getSessionCookieOptions(): array
+    public static function getSessionCookieOptions(bool $persistent = true): array
     {
-        return [
-            'expires'  => time() + self::SESSION_LIFETIME,
+        $options = [
             'path'     => '/',
             'httponly' => true,
             'samesite' => 'Lax',
             'secure'   => self::isHttps(),
         ];
+
+        // A non-persistent cookie has no expiry, so the browser discards it
+        // when it closes ("Remember me" left unchecked).
+        if ($persistent) {
+            $options = ['expires' => time() + self::SESSION_LIFETIME] + $options;
+        }
+
+        return $options;
     }
 }
