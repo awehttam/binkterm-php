@@ -1456,7 +1456,12 @@ class BinkdProcessor
         }
 
         // Get or create echoarea
-        $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain);
+        $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain, $refusal);
+        if (!$echoarea) {
+            $pktName = $packetInfo['packet_name'] ?? '?';
+            $this->log("[BINKD] Dropping echomail AREA:{$echoareaTag} from " . ($message['fromName'] ?? '?') . " <" . ($message['origAddr'] ?? '?') . "> packet={$pktName}: " . ($refusal ?? 'area unavailable'));
+            return;
+        }
 
         //$this->log("DEBUG: Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -1683,8 +1688,18 @@ class BinkdProcessor
         }
     }
 
-    private function getOrCreateEchoarea($tag,$domain)
+    /**
+     * Find (or auto-create) the network echo area an inbound message belongs to.
+     *
+     * Returns null, with $refusal set, when the message must not be stored:
+     * without a resolved network domain the lookup would match (or create)
+     * a domain-less area, which is how local areas are stored; a match that
+     * is a local area must never receive network mail; and a tag that matches
+     * more than one area (domains differing only by case) is ambiguous.
+     */
+    private function getOrCreateEchoarea($tag, $domain, ?string &$refusal = null)
     {
+        $refusal = null;
         $tag = strtoupper($tag);
         // Normalize domain the same way EchoareaImporter/NetworkManager do, so a
         // mixed-case value in binkp.json's uplink config still matches the
@@ -1693,8 +1708,17 @@ class BinkdProcessor
         if ($domain === '') {
             $domain = null;
         }
+        if ($domain === null) {
+            $refusal = 'network domain could not be resolved';
+            return null;
+        }
 
-        $echoarea = $this->findEchoareaByTagAndDomain($tag, $domain);
+        $matches = $this->findEchoareasByTagAndDomain($tag, $domain);
+        if (count($matches) > 1) {
+            $refusal = count($matches) . " areas match {$tag}@{$domain} (domain differs only by case)";
+            return null;
+        }
+        $echoarea = $matches[0] ?? false;
 
         if (!$echoarea) {
             $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active, domain) VALUES (?, ?, TRUE,?)");
@@ -1704,6 +1728,11 @@ class BinkdProcessor
             $this->log("Auto-Creating new echomail area '$tag'@'" . ($domain ?? '') . "'");
         } else {
             //$this->log("getOrCreateEchoarea: Found echomail area tag $tag@$domain");
+        }
+
+        if ($echoarea && !empty($echoarea['is_local'])) {
+            $refusal = "area {$tag}@{$domain} is a local area";
+            return null;
         }
 
         return $echoarea;
@@ -1720,6 +1749,21 @@ class BinkdProcessor
         }
 
         return $stmt->fetch();
+    }
+
+    /**
+     * Every echo area matching a tag in a (case-insensitive) network domain.
+     * echoareas is unique on (tag, domain) case-sensitively, so more than one
+     * row can match when domains differ only by case.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function findEchoareasByTagAndDomain(string $tag, string $domain): array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND LOWER(domain) = LOWER(?) ORDER BY id");
+        $stmt->execute([$tag, $domain]);
+
+        return $stmt->fetchAll() ?: [];
     }
 
     private function parseFidonetDate($dateStr, $packetInfo = null, $tzutcOffsetMinutes = null)
