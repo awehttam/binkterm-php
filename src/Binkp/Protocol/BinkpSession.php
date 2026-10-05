@@ -686,13 +686,26 @@ class BinkpSession
             }
 
             $this->cleanup();
+
+            // STATE_TERMINATED is only ever reached via a clean, expected exit -
+            // the peer-close-first grace period completing, or the peer closing
+            // the connection after both sides have exchanged M_EOB (see the two
+            // assignments above). Every other way this loop can end - the hard
+            // EOB/inactivity timeout, or the peer closing before the EOB
+            // exchange completed - breaks out of the loop WITHOUT reaching that
+            // state. Prior to the 2026-09-13 BinkP incident hardening (S3),
+            // this method returned true unconditionally here, so an abnormal
+            // 300-second timeout was indistinguishable from a real success to
+            // every caller and to the session log. See
+            // docs/checkpoints/BinkP_FidoAgora_InboundHang_2026-09-13.md.
             if ($this->state === self::STATE_TERMINATED) {
                 $this->log('Session completed successfully', 'INFO');
-            } else {
-                $this->log("Session ended (final state: {$this->state})", 'WARNING');
+                return true;
             }
-            return true;
-            
+
+            $this->log("Session ended abnormally without reaching clean termination (final state: {$this->state})", 'WARNING');
+            return false;
+
         } catch (\Exception $e) {
             $this->log("Session failed: " . $e->getMessage(), 'ERROR');
             $this->cleanup();
