@@ -28,6 +28,7 @@ Make sure you have a current backup of your database and files before upgrading.
   - [Networks Listed Alphabetically](#networks-listed-alphabetically)
 - [Security](#security)
   - [Secure Flag on Session Cookies](#secure-flag-on-session-cookies)
+  - [Default Terminal Registration Secret No Longer Trusted](#default-terminal-registration-secret-no-longer-trusted)
 - [Upgrade Instructions](#upgrade-instructions)
   - [From Git](#from-git)
   - [Using the Installer](#using-the-installer)
@@ -73,6 +74,7 @@ Make sure you have a current backup of your database and files before upgrading.
 ### Security
 
 - **Secure flag on session cookies:** the `binktermphp_session` cookie now sets the `Secure` flag whenever the site is served over HTTPS, so the cookie is no longer sent over a plain HTTP connection even if one is reachable.
+- **Default terminal registration secret no longer trusted:** an unset `TERMINAL_REGISTRATION_SECRET`, or the published default `Chang3Me`, is no longer accepted as proof that a request came from the telnet/SSH daemons. Docker installs generate a site-specific secret automatically; other installs must set one in `.env`.
 
 ## Messaging
 
@@ -222,6 +224,26 @@ The network list in **Admin -> Networks**, and the network dropdown in the uplin
 ### Secure Flag on Session Cookies
 
 The `binktermphp_session` cookie is now marked `Secure` whenever the site's effective URL uses HTTPS, determined from the `SITE_URL` environment variable (or, if that isn't set, from the request's own HTTPS signal). This prevents the browser from sending the session cookie over a plain HTTP connection, closing off a path where the session id could otherwise be exposed on the wire. Installations that serve BinktermPHP over HTTPS behind a reverse proxy should ensure `SITE_URL` in `.env` is set to the `https://` URL so this detection works correctly.
+
+### Default Terminal Registration Secret No Longer Trusted
+
+The telnet and SSH daemons send `TERMINAL_REGISTRATION_SECRET` to the web API to report the connecting user's real IP address and to mark registrations as terminal-originated (which skips the browser-only anti-spam checks). Until now an unset value fell back to the published default `Chang3Me`, so any HTTP client could send that value to set its own recorded session IP and to skip the registration anti-spam checks.
+
+The web side now treats an unset, empty, or `Chang3Me` value as "no secret configured" and ignores those headers.
+
+**Docker:** the container generates a random `TERMINAL_REGISTRATION_SECRET` on first start when your `.env` leaves it unset or set to `Chang3Me`, and reuses it on later restarts. Web and terminal daemons read the same generated value.
+
+**Other installs:** if your `.env` does not set a site-specific value, set one now and restart the web server and the telnet/SSH daemons:
+
+```ini
+TERMINAL_REGISTRATION_SECRET=<a long random string, e.g. the output of: openssl rand -hex 32>
+```
+
+Until it is set:
+
+- telnet/SSH sessions are recorded with the server's own address instead of the caller's IP;
+- telnet/SSH registrations are treated like browser registrations and are rejected by the browser timing check ("Session expired");
+- `scripts/setup.php` prints a warning with a generated value you can paste into `.env`, and the server log records a warning when a terminal registration arrives.
 
 ---
 
