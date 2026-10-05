@@ -71,7 +71,7 @@ class PacketBbsGateway
             $nodeId,
             $authNodeId,
             $interface,
-            substr($command, 0, 80)
+            $this->commandNameForLog($command)
         ));
 
         // Reject commands only when the bridge device itself is not registered.
@@ -303,6 +303,25 @@ class PacketBbsGateway
             default:
                 return 'Unknown. Send HELP.';
         }
+    }
+
+    /**
+     * Log only recognized command names, never arguments or free-form input.
+     * This also covers malformed login lines and text entered in compose/chat mode.
+     */
+    private function commandNameForLog(string $command): string
+    {
+        $verb = strtoupper(preg_split('/\s+/', trim($command), 2)[0]);
+        $known = [
+            'H', 'HELP', '?', 'ABOUT', 'HF', 'FULLHELP', 'HELPFUL', 'HELPFULL',
+            'L', 'LOGIN', 'BU', 'BULLETINS', 'Q', 'QUIT', 'W', 'WHO', 'U', 'STATUS',
+            'N', 'MAIL', 'NM', 'NETMAIL', 'NR', 'NRP', 'NS', 'S', 'SEND',
+            'A', 'E', 'AREAS', 'T', 'ER', 'AREA', 'EM', 'EMR', 'EP', 'POST',
+            'R', 'READ', 'Y', 'RP', 'REPLY', 'M', 'MORE', 'B', 'P', 'PREV',
+            'CL', 'C', 'CHAT', 'SA', 'SEARCHAREAS', 'SM', 'SEARCHMAIL',
+            'WX', 'WEATHER', 'WEB', 'WEBSITE', 'CANCEL', '/CANCEL', '/C', '/SEND', '/S', '.',
+        ];
+        return in_array($verb, $known, true) ? $verb : 'INPUT';
     }
 
     /**
@@ -599,7 +618,7 @@ class PacketBbsGateway
         // Rate limit check before any database lookup — blocks by both node and username.
         $rateLimit = new PacketBbsLoginRateLimit();
         if (!$rateLimit->check($nodeId, $username)) {
-            $this->logger->warning(sprintf('login rate limited node=%s user=%s', $nodeId, $username));
+            $this->logger->warning(sprintf('login rate limited node=%s', $nodeId));
             return 'Too many tries. Wait a bit.';
         }
 
@@ -612,7 +631,7 @@ class PacketBbsGateway
 
         if (!$user) {
             $rateLimit->recordFailure($nodeId, $username);
-            $this->logger->warning(sprintf('login failed (user not found) node=%s user=%s', $nodeId, $username));
+            $this->logger->warning(sprintf('login failed (user not found) node=%s', $nodeId));
             return 'Login failed.';
         }
 
@@ -623,9 +642,8 @@ class PacketBbsGateway
         if ($totpEnabled !== '1' || !$totpSecret) {
             $rateLimit->recordFailure($nodeId, $username);
             $this->logger->warning(sprintf(
-                'login failed (totp not enrolled) node=%s user=%s',
-                $nodeId,
-                $username
+                'login failed (totp not enrolled) node=%s',
+                $nodeId
             ));
             return 'Login failed.';
         }
@@ -633,7 +651,7 @@ class PacketBbsGateway
         // Verify the submitted code — never log the code itself.
         if (!PacketBbsTotp::verifyCode($totpSecret, $code, $this->db, (int)$user['id'])) {
             $rateLimit->recordFailure($nodeId, $username);
-            $this->logger->warning(sprintf('login failed (invalid code) node=%s user=%s', $nodeId, $username));
+            $this->logger->warning(sprintf('login failed (invalid code) node=%s', $nodeId));
             return 'Login failed.';
         }
 
@@ -666,7 +684,7 @@ class PacketBbsGateway
             'session_state'      => [],
         ]);
 
-        $this->logger->info(sprintf('login ok node=%s user=%s', $nodeId, $user['username']));
+        $this->logger->info(sprintf('login ok node=%s user_id=%d', $nodeId, (int)$user['id']));
 
         $response = sprintf('Hi %s. HELP for commands.', $user['username']);
         $unread = (new \BinktermPHP\BulletinManager())->getUnreadBulletins((int)$user['id']);
