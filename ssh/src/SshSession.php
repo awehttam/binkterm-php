@@ -84,6 +84,15 @@ class SshSession
     private string $hostKeyFile;
     private string $hostCertFile;
 
+    /**
+     * Real end-user peer IP for this connection, captured by SshServer at
+     * accept time (null when it could not be parsed). Sent to the BBS API on
+     * the initial password check via the authenticated X-Binkterm-Client-IP
+     * header so Auth::resolveClientIp() — and the shared login throttle — key
+     * on the caller rather than on the daemon's localhost API source.
+     */
+    private ?string $peerIp;
+
     // Session state (set after NEWKEYS)
     private bool $encrypted = false;
     private string $sessionId = '';
@@ -149,6 +158,7 @@ class SshSession
      * @param bool        $insecure     Skip SSL cert verification on API calls
      * @param string      $hostKeyFile  Path to PEM RSA private key (auto-generated if absent)
      * @param string      $hostCertFile Path to PEM certificate (auto-generated if absent)
+     * @param string|null $peerIp       Real end-user peer IP (accept-time), or null if unparseable
      */
     public function __construct(
         $socket,
@@ -156,7 +166,8 @@ class SshSession
         bool $debug,
         bool $insecure,
         string $hostKeyFile,
-        string $hostCertFile
+        string $hostCertFile,
+        ?string $peerIp = null
     ) {
         $this->socket        = $socket;
         $this->apiBase       = rtrim($apiBase, '/');
@@ -165,6 +176,7 @@ class SshSession
         $this->insecure     = $insecure;
         $this->hostKeyFile  = $hostKeyFile;
         $this->hostCertFile = $hostCertFile;
+        $this->peerIp       = $peerIp;
 
         $this->hostKey     = $this->loadOrGenerateHostKey();
         $this->hostKeyBlob = $this->buildRsaPublicKeyBlob();
@@ -646,7 +658,10 @@ class SshSession
             CURLOPT_CUSTOMREQUEST  => 'POST',
             CURLOPT_TIMEOUT        => 10,
             CURLOPT_POSTFIELDS     => json_encode(['username' => $username, 'password' => $password, 'service' => 'ssh']),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_HTTPHEADER     => array_merge(
+                ['Content-Type: application/json', 'Accept: application/json'],
+                $this->terminalClientIpHeaders()
+            ),
         ]);
         if ($this->insecure) {
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -673,6 +688,33 @@ class SshSession
             'session'    => $cookie,
             'username'   => $username,
             'csrf_token' => $data['csrf_token'] ?? null,
+        ];
+    }
+
+    /**
+     * The authenticated real-client-IP header lines for the credential check,
+     * or an empty array when there is no parseable peer IP. Mirrors the exact
+     * convention BbsSession::apiRequest() and TelnetUtils use — X-Binkterm-Client-IP
+     * plus X-Binkterm-Client-Token carrying TERMINAL_REGISTRATION_SECRET (the
+     * loose `!== ''` check, so the header is emitted even with the shipped
+     * default and the receiving Auth::resolveClientIp() is the single place
+     * that rejects the default) — so SSH initial password auth resolves
+     * identically to Telnet and the SSH fallback BbsSession login.
+     *
+     * @return list<string>
+     */
+    private function terminalClientIpHeaders(): array
+    {
+        $terminalSecret = trim((string) \BinktermPHP\Config::env('TERMINAL_REGISTRATION_SECRET', 'Chang3Me'));
+        if ($terminalSecret === ''
+            || $this->peerIp === null
+            || filter_var($this->peerIp, FILTER_VALIDATE_IP) === false) {
+            return [];
+        }
+
+        return [
+            'X-Binkterm-Client-IP: ' . $this->peerIp,
+            'X-Binkterm-Client-Token: ' . $terminalSecret,
         ];
     }
 
