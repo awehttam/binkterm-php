@@ -64,8 +64,23 @@ The daemon listens on `0.0.0.0:2022` by default.
 |----------|---------|-------------|
 | `SSH_BIND_HOST` | `0.0.0.0` | Bind address |
 | `SSH_PORT` | `2022` | Listening port |
+| `SSH_RATE_LIMIT_MAX` | `5` | Max new connections per source IP per window, checked before the daemon forks or starts the SSH handshake. `0` disables the limit. Mirrors the Telnet daemon's `TELNET_RATE_LIMIT_MAX`. |
+| `SSH_RATE_LIMIT_WINDOW` | `60` | Rate-limit window in seconds (fixed window; the counter resets when it expires). Mirrors `TELNET_RATE_LIMIT_WINDOW`. |
+| `SSH_MAX_CHILDREN` | `32` | Global ceiling on simultaneously live SSH session processes. Checked after the per-IP limiter but before the daemon forks or starts the SSH handshake, so a distributed / many-source-IP flood cannot spawn an unbounded number of fork+KEX workers. A non-positive value is **not** treated as "disabled" (that would defeat the guard) — it falls back to the default and logs a warning. To effectively remove the cap, set a very large number explicitly. |
 
 Command-line arguments take precedence over `.env` values.
+
+When a source IP exceeds the limit the connection is closed immediately with a
+short notice and `SSH rate limit exceeded for <ip> - connection rejected` is
+logged once per window (further rejections that window are counted and flushed
+as a summary line when the window ends).
+
+When the daemon is already running `SSH_MAX_CHILDREN` sessions, a new
+connection is closed with `Server is at capacity` and
+`SSH at capacity (<n> concurrent sessions) - connection rejected` is logged
+once; further rejections are counted and flushed as a summary line when a slot
+next frees up. Exited sessions are reaped (releasing their slot) on every
+accept-loop pass and on `SIGCHLD`.
 
 ## Running as a Service
 
