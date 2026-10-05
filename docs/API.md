@@ -880,6 +880,7 @@ Manually forces or clears the remembered grammar tier for one uplink+robot, with
 |--------|------|------|---------|
 | `POST` | [`/api/auth/login`](#post-apiauthlogin) | No | Authenticate user with username and password, returning session cookie and CSRF token. |
 | `POST` | [`/api/auth/logout`](#post-apiauthlogout) | No | Invalidate user session and clear authentication cookie. |
+| `GET` | [`/api/auth/csrf-token`](#get-apiauthcsrf-token) | Yes | Return the session's current CSRF token (re-sync after a stale-token rejection). |
 | `POST` | [`/api/auth/verify-gateway-token`](#post-apiauthverify-gateway-token) | No | Verify gateway token for external service integration (requires API key). |
 | `POST` | [`/api/auth/gateway-token`](#post-apiauthgateway-token) | Yes | Generate a time-limited gateway token for authenticated user. |
 | `POST` | [`/api/auth/forgot-password`](#post-apiauthforgot-password) | No | Initiate password reset by username or email address. |
@@ -933,6 +934,27 @@ Logout confirmation
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | boolean | Always true |
+
+---
+
+#### `GET /api/auth/csrf-token`
+
+Requires authentication
+
+Returns the current per-user CSRF token for the authenticated session. The token is rotated whenever the same user logs in again (another browser, or a Telnet/SSH session), which leaves the copy cached by an already-open page or terminal session stale. The web client (`public_html/js/app.js`) and the terminal server (`TelnetUtils::apiRequest()`) call this once after a `403` with `error_code` `errors.auth.invalid_csrf_token`, then retry. Read-only: the token is not rotated.
+
+**Response** _(JSON)_
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always true |
+| `csrf_token` | string\|null | The session's current CSRF token |
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| 401 | Not authenticated |
 
 ---
 
