@@ -28,12 +28,33 @@ class SetupManager
             // Fix directory permissions
             $this->fixDirectoryPermissions();
 
+            $this->checkTerminalRegistrationSecret();
+
             return $result;
 
         } catch (Exception $e) {
             echo "✗ Setup failed: " . $e->getMessage() . "\n";
             return false;
         }
+    }
+
+    /**
+     * Warn when TERMINAL_REGISTRATION_SECRET is unset or still the published
+     * default. Without a site-specific value the web side does not trust the
+     * telnet/SSH daemons' forwarded client IP or terminal registrations.
+     * Docker generates one automatically; other installs must set it in .env.
+     */
+    private function checkTerminalRegistrationSecret(): void
+    {
+        if (\BinktermPHP\Config::terminalRegistrationSecret() !== '') {
+            return;
+        }
+
+        echo "\n⚠ TERMINAL_REGISTRATION_SECRET is unset or still the published default (Chang3Me).\n";
+        echo "  Telnet/SSH registrations and client-IP forwarding will not be trusted until it is set.\n";
+        echo "  Add a site-specific value to .env, for example:\n";
+        echo "    TERMINAL_REGISTRATION_SECRET=" . bin2hex(random_bytes(32)) . "\n";
+        echo "  then restart the web server and the telnet/SSH daemons.\n";
     }
 
     private function fixDirectoryPermissions()

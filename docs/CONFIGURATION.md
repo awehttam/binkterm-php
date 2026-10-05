@@ -158,8 +158,10 @@ ADMIN_DAEMON_SCHEDULE_INTERVAL=60    # seconds between scheduler ticks
 
 # Shared secret the telnet/SSH daemons use to authorize terminal-originated
 # registrations AND to tell the web side the connecting user's real IP address
-# (recorded on the session and used by registration screening). CHANGE THIS
-# from the default — anything holding it can set its own recorded session IP.
+# (recorded on the session and used by registration screening). Set a long
+# random value — anything holding it can set its own recorded session IP. An
+# unset value or the old published default (Chang3Me) is not trusted; Docker
+# generates a random value automatically.
 # TERMINAL_REGISTRATION_SECRET=change-me-to-a-long-random-string
 
 # ZMODEM file transfers over the telnet BBS
