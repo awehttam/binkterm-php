@@ -142,8 +142,23 @@ ADMIN_DAEMON_SCHEDULE_INTERVAL=60    # seconds between scheduler ticks
 # TLS is enabled by default on port 8023.  Set false to disable.
 # TELNET_TLS=true
 # TELNET_TLS_PORT=8023
+# Point these at your own PEM certificate and private key. If both are set,
+# the daemon uses them as-is and validates them at start-up (existence,
+# readability, valid PEM, cert/key match) -- if the pair is unusable it logs
+# the exact reason and leaves TLS off rather than self-signing over your
+# configuration. If left unset, a self-signed pair is generated under
+# data/telnet/ on first run.
 # TELNET_TLS_CERT=/etc/ssl/certs/your-cert.pem
 # TELNET_TLS_KEY=/etc/ssl/private/your-key.pem
+# Minimum TLS protocol version to accept: 1.0, 1.1, 1.2 or 1.3. Everything
+# from this floor up through TLS 1.3 is offered, so a modern client uses 1.3
+# while an old BBS SSL stack can still negotiate down. Default 1.0 for
+# maximum client compatibility; raise to 1.2 once you know none of your
+# users need the deprecated versions. An invalid value falls back to 1.0.
+# TELNET_TLS_MIN_VERSION=1.0
+# OpenSSL cipher list for the TLS listener. Default DEFAULT:@SECLEVEL=0 keeps
+# compatibility with old SSL stacks; set a stricter list to harden it.
+# TELNET_TLS_CIPHERS=DEFAULT:@SECLEVEL=0
 
 # Per-IP connection rate limiting (0 in MAX disables it)
 # TELNET_RATE_LIMIT_MAX=5
