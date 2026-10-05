@@ -141,7 +141,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($service === 'web' && session_status() === PHP_SESSION_ACTIVE) {
                 $_SESSION['show_login_bulletins_for_session'] = $sessionId;
             }
-            // Track login event and retrieve CSRF token for the response
+            // Record the one login event for this successful login and retrieve
+            // the CSRF token for the response. This route is the single login
+            // boundary for Web, Telnet, TLS-Telnet and SSH, so the event carries
+            // $service and the real caller IP; the terminal daemons must not
+            // emit a second one after they get their session back from here.
             $csrfToken = null;
             try {
                 $db = Database::getInstance()->getPdo();
@@ -150,7 +154,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $row = $stmt->fetch();
                 if ($row) {
                     $userId = (int)$row['user_id'];
-                    ActivityTracker::track($userId, ActivityTracker::TYPE_LOGIN);
+                    ActivityTracker::trackLogin($userId, $service, Auth::resolveClientIp());
                     $meta      = new UserMeta();
                     $csrfToken = $meta->getValue($userId, 'csrf_token');
                 }
@@ -604,7 +608,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 }
 
                 try {
-                    ActivityTracker::track($newUserId, ActivityTracker::TYPE_LOGIN);
+                    ActivityTracker::trackLogin($newUserId, $service, Auth::resolveClientIp());
                 } catch (\Throwable $e) {
                     // Tracking errors must not break registration
                 }

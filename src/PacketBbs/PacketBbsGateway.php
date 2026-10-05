@@ -639,20 +639,28 @@ class PacketBbsGateway
 
         $rateLimit->recordSuccess($nodeId, $username);
 
+        $auth = new Auth();
+
         // Revoke any previous online session for this node (re-login case).
         $oldBbsSessionId = (string)($session['bbs_session_id'] ?? '');
         if ($oldBbsSessionId !== '') {
-            (new Auth())->logout($oldBbsSessionId);
+            $auth->logout($oldBbsSessionId);
         }
 
         // Create a user_sessions entry so this user appears in online-user
         // lists and can be selected as a DM target from the web interface.
-        $bbsSessionId = (new Auth())->createSessionForConnection(
+        $bbsSessionId = $auth->createSessionForConnection(
             (int)$user['id'],
             'packetbbs',
             '',
             $nodeId
         );
+
+        // This LOGIN is a successful login like any other boundary: stamp
+        // users.last_login and record exactly one login event for it. Later
+        // commands on the session never re-emit; a revoke + LOGIN is a new login.
+        $auth->updateLastLogin((int)$user['id']);
+        ActivityTracker::trackLogin((int)$user['id'], 'packetbbs');
 
         $this->sessionRepo->update($nodeId, [
             'user_id'            => $user['id'],

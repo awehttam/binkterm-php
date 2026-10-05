@@ -144,6 +144,8 @@ Options:
 
 Login failures are rate-limited per sender node: 5 failed attempts in 10 minutes blocks further attempts briefly. Successful login clears prior failures.
 
+A successful LOGIN is accounted like any other login: it stamps `users.last_login` and records exactly one login event tagged `packetbbs` (the same event Today's Callers, the total login count and the admin login-by-source breakdown read). Later commands on the session never record another; a revoke followed by LOGIN is a new login and records one more.
+
 ### 2. Register a Bridge Node
 
 Go to:
