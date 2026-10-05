@@ -3687,7 +3687,13 @@ class MessageHandler
         }
     }
 
-    /** Returns an active uplink address for a given echoarea tag and domain.  First choice is uplink in echoarea table, then to binkp.json configuration.
+    /** Returns an active uplink address for a given echoarea tag and domain.  First choice is uplink in echoarea table, then the uplink configured for the area's domain in binkp.json.
+     *
+     * There is deliberately no fallback to the global default uplink: an area
+     * whose network has no configured uplink must not be exported into another
+     * network's packet. Callers treat false as "do not export" and leave the
+     * message local.
+     *
      * @param $echoareaTag - the tag, eg: LOCALTEST
      * @param $domain - the domain, eg: fidonet
      * @return false|mixed|string
@@ -3707,32 +3713,18 @@ class MessageHandler
             return $result['uplink_address'];
         }
 
-        if($domain) {
-            // Fall back to default uplink from JSON config
-            try {
-                $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-                $defaultAddress = $config->getUplinkAddressForDomain($domain);
-                if ($defaultAddress) {
-                    return $defaultAddress;
-                }
-            } catch (\Exception $e) {
-                // Log error but continue with hardcoded fallback
-                $this->logger->error("Failed to get default uplink for domain " . $e->getMessage());
-            }
-        }
-        // Fall back to default uplink from JSON config
         try {
             $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $defaultAddress = $config->getDefaultUplinkAddress();
-            if ($defaultAddress) {
-                return $defaultAddress;
+            $domainAddress = $config->getUplinkAddressForDomain($domain);
+            if ($domainAddress) {
+                return $domainAddress;
             }
         } catch (\Exception $e) {
-            // Log error but continue with hardcoded fallback
-            $this->logger->error("Failed to get default uplink from config: " . $e->getMessage());
+            $this->logger->error("Failed to get uplink for domain {$domain}: " . $e->getMessage());
+            return false;
         }
-        
-        // Ultimate fallback if config fails (was '1:123/1';
+
+        $this->logger->warning("No uplink configured for network '{$domain}' (echoarea {$echoareaTag}); not routing to another network's uplink");
         return false;
     }
 

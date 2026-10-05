@@ -69,6 +69,8 @@ Fill in the form fields:
 - **Sysop Access Only** — Check to restrict the area to admin users.
 - **Public Gemini Access** — Check to allow read-only access from Gemini protocol clients.
 
+Outbound echomail for a networked area goes to the area's **Uplink Address** if one is set, otherwise to the uplink configured for the area's network (domain) in **Admin → BBS Settings → BinkP Uplinks**. If that network has no uplink, the message stays local: it is not spooled, and `data/logs/server.log` records `No uplink configured for network '<domain>'`. BinktermPHP never sends it through another network's uplink as a fallback. Add the uplink for that network, then re-post.
+
 ### Editing and Deleting
 
 Click the edit icon next to any area to modify its settings. When deleting an area that still contains messages, the confirmation dialog asks what to do with them:
