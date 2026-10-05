@@ -161,6 +161,15 @@ RSS_POSTER_SCHEDULE="${RSS_POSTER_SCHEDULE:-0 * * * *}"
 ECHOMAIL_ROBOTS_SCHEDULE="${ECHOMAIL_ROBOTS_SCHEDULE:-*/5 * * * *}"
 LOGROTATE_SCHEDULE="${LOGROTATE_SCHEDULE:-0 0 * * 0}"
 LOGROTATE_KEEP="${LOGROTATE_KEEP:-52}"
+LOGROTATE_MAX_SIZE="${LOGROTATE_MAX_SIZE:-}"
+LOGROTATE_MAX_SIZE_ARG=""
+if [ -n "$LOGROTATE_MAX_SIZE" ]; then
+    if [[ "$LOGROTATE_MAX_SIZE" =~ ^[0-9]+[KkMmGg]?$ ]]; then
+        LOGROTATE_MAX_SIZE_ARG=" --max-size=$LOGROTATE_MAX_SIZE"
+    else
+        echo "WARNING: ignoring invalid LOGROTATE_MAX_SIZE '$LOGROTATE_MAX_SIZE' (expected e.g. 10M)" >&2
+    fi
+fi
 
 {
     echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -174,7 +183,7 @@ LOGROTATE_KEEP="${LOGROTATE_KEEP:-52}"
     fi
 
     if [ "${ENABLE_LOGROTATE:-true}" = "true" ]; then
-        echo "$LOGROTATE_SCHEDULE binkterm cd /var/www/html && php scripts/logrotate.php --keep=$LOGROTATE_KEEP >> /var/www/html/data/logs/logrotate.log 2>&1"
+        echo "$LOGROTATE_SCHEDULE binkterm cd /var/www/html && php scripts/logrotate.php --keep=$LOGROTATE_KEEP$LOGROTATE_MAX_SIZE_ARG >> /var/www/html/data/logs/logrotate.log 2>&1"
     fi
 
     echo ""
